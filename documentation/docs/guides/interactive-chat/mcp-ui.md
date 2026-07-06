@@ -1,29 +1,23 @@
 ---
 sidebar_position: 1
-title: Using MCP Apps and MCP-UI
-sidebar_label: Using MCP Apps and MCP-UI
-description: Learn how goose renders interactive UI components from MCP Apps and MCP-UI extensions
+title: Using MCP Apps
+sidebar_label: Using MCP Apps
+description: Learn how goose renders interactive UI components from MCP Apps extensions
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
-import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import { PanelLeft } from 'lucide-react';
 
-# Using MCP Apps and MCP-UI
+# Using MCP Apps
 
-Extensions built with MCP Apps or MCP-UI allow goose Desktop to provide interactive and engaging user experiences. Instead of reading text responses and typing prompts, you can interact with a graphical and clickable UI.
+Extensions built with MCP Apps allow goose Desktop to provide interactive and engaging user experiences. Instead of reading text responses and typing prompts, you can interact with a graphical and clickable UI.
 
 :::info MCP Apps is the official specification
-[MCP Apps](/docs/tutorials/building-mcp-apps) is now the official MCP specification for interactive UIs. MCP-UI extensions still work in goose, but MCP Apps is the recommended path for new extensions.
+[MCP Apps](/docs/tutorials/building-mcp-apps) is the official MCP specification for interactive UIs. Use MCP Apps for new interactive extensions.
 :::
 
 :::warning Experimental Features
 The features described in this topic are experimental and in active development. Behavior and support may change in future releases.
 :::
-
-## MCP Apps
 
 MCP Apps bring interactive interfaces to goose through the official [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps). Depending on the extension, apps can be launched in standalone, sandboxed windows or embedded in your chat window.
 
@@ -70,49 +64,6 @@ If needed, you can just ask goose whether the UI can be loaded in the chat windo
     Your browser does not support the video tag.
   </video>
 </div>
-
-## MCP-UI
-
-MCP-UI is an earlier specification for interactive UIs that renders content embedded in your chat. While MCP Apps is now the recommended approach, MCP-UI extensions continue to work in goose.
-
-### Try It Out
-
-See how interactive responses work in goose. For this exercise, we'll add an extension that connects to [MCP-UI Demos](https://mcp-aharvard.netlify.app/) provided by Andrew Harvard.
-
-  <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
-      <GooseDesktopInstaller
-        extensionId="richdemo"
-        extensionName="Rich Demo"
-        description="Demo interactive extension"
-        type="http"
-        url="https://mcp-aharvard.netlify.app/mcp"
-      />
-    </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        <CLIExtensionInstructions
-          name="rich_demo"
-          description="Demo interactive extension"
-          type="http"
-          url="https://mcp-aharvard.netlify.app/mcp"
-          timeout={300}
-        />
-    </TabItem>
-  </Tabs>
-
-In goose Desktop, ask:
-
-- `Help me select seats for my flight`
-
-Instead of just text, you'll see an interactive response with:
-- A visual seat map with available and occupied seats
-- Real-time, clickable selection capabilities
-- A booking confirmation with flight details
-
-Try out other demos:
-
-- `Plan my next trip based on my mood`
-- `What's the weather in Philadelphia?`
 
 ## For Extension Developers
 

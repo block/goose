@@ -34,8 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { importSessionNostr, shareSessionNostr } from '../../api';
-import { getTunnelStatus } from '../../api/sdk.gen';
 import {
   acpDeleteSession,
   acpExportSession,
@@ -43,13 +41,13 @@ import {
   acpImportSession,
   acpListSessions,
   acpRenameSession,
+  acpShareSessionNostr,
   type SessionListItem,
 } from '../../acp/sessions';
 import { acpChatSessionActions } from '../../acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -384,15 +382,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       };
     }, [loadSessions, debouncedSearchTerm]);
 
-    // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
+    // Hide Nostr sharing when explicitly disabled via env var (restricted/enterprise bundles)
     useEffect(() => {
-      getTunnelStatus()
-        .then(({ data }) => {
-          if (data?.state === 'disabled') {
-            setNostrEnabled(false);
-          }
-        })
-        .catch(() => {});
+      const config = window.electron.getConfig();
+      if (config.GOOSE_DISABLE_NOSTR_SHARING === true) {
+        setNostrEnabled(false);
+      }
     }, []);
 
     // Timing logic to prevent flicker between skeleton and content on initial load
@@ -488,7 +483,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
-        clearSessionCache(sessionToDeleteId);
         cancelAcpPermissionRequestsForSession(sessionToDeleteId);
         cancelAcpElicitationRequestsForSession(sessionToDeleteId);
         acpChatSessionActions.deleteSnapshot(sessionToDeleteId);
@@ -525,12 +519,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         e.stopPropagation();
         setSharingSessionId(session.id);
         try {
-          const response = await shareSessionNostr({
-            path: { session_id: session.id },
-            body: {},
-            throwOnError: true,
-          });
-          setShareLink(response.data.deeplink);
+          const response = await acpShareSessionNostr(session.id, []);
+          setShareLink(response.deeplink);
           setShowShareLinkModal(true);
           toast.success(intl.formatMessage(i18n.shareNostrSuccess));
         } catch (error) {
@@ -552,7 +542,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await acpImportSession(result.contents);
+          await acpImportSession(result.contents, 'json');
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -573,10 +563,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setIsImportingNostr(true);
       try {
-        await importSessionNostr({
-          body: { deeplink },
-          throwOnError: true,
-        });
+        await acpImportSession(deeplink, 'nostr');
         setNostrImportLink('');
         setShowImportLinkModal(false);
         toast.success(intl.formatMessage(i18n.importSuccess));
@@ -605,7 +592,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await acpImportSession(json);
+          await acpImportSession(json, 'json');
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));

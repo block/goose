@@ -51,6 +51,22 @@ fn generate_serve_secret_key() -> String {
     )
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ServePlatform {
+    #[default]
+    Cli,
+    Desktop,
+}
+
+impl From<ServePlatform> for GoosePlatform {
+    fn from(platform: ServePlatform) -> Self {
+        match platform {
+            ServePlatform::Cli => GoosePlatform::GooseCli,
+            ServePlatform::Desktop => GoosePlatform::GooseDesktop,
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "goose", author, version, display_name = "", about, long_about = None)]
 pub struct Cli {
@@ -75,7 +91,7 @@ pub struct Identifier {
         alias = "id",
         value_name = "SESSION_ID",
         help = "Session ID (e.g., '20250921_143022')",
-        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a session ID to resume. Requires --resume."
     )]
     pub session_id: Option<String>,
 
@@ -392,7 +408,9 @@ async fn get_or_create_session_id(
 
     let resolved_id = if resume {
         let Some(id) = identifier else {
-            let sessions = session_manager.list_sessions().await?;
+            let sessions = session_manager
+                .list_sessions_by_types(&[SessionType::User])
+                .await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
@@ -831,6 +849,18 @@ enum Command {
         #[arg(long, default_value = "3284")]
         port: u16,
 
+        #[arg(long, help = "Serve ACP over TLS")]
+        tls: bool,
+
+        #[arg(long = "tls-cert-path", value_name = "PATH")]
+        tls_cert_path: Option<String>,
+
+        #[arg(long = "tls-key-path", value_name = "PATH")]
+        tls_key_path: Option<String>,
+
+        #[arg(long, value_enum, default_value_t = ServePlatform::Cli)]
+        platform: ServePlatform,
+
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -840,6 +870,20 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         builtins: Vec<String>,
+
+        #[arg(
+            long = "dangerously-unauthenticated",
+            help = "Start the ACP endpoint without requiring GOOSE_SERVER__SECRET_KEY"
+        )]
+        dangerously_unauthenticated: bool,
+
+        #[arg(
+            long = "allowed-origin",
+            value_name = "ORIGIN",
+            action = clap::ArgAction::Append,
+            help = "Allow an exact Origin value for ACP CORS; may be specified multiple times and replaces the default loopback origins"
+        )]
+        allowed_origins: Vec<String>,
     },
 
     /// Start or resume interactive chat sessions
@@ -871,6 +915,15 @@ enum Command {
             long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise, forks the most recently used session."
         )]
         fork: bool,
+
+        /// Open the session's conversation in $EDITOR before starting
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Edit the session conversation in $EDITOR before starting",
+            long_help = "Open the session's conversation in your editor ($VISUAL / $EDITOR / vi) for modification before resuming. When combined with --fork, creates a new session from the edited result."
+        )]
+        edit: bool,
 
         /// Show message history when resuming
         #[arg(
@@ -1324,13 +1377,39 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) -> Result<()> {
+struct ServeCommandArgs {
+    host: String,
+
+    port: u16,
+    tls: bool,
+    tls_cert_path: Option<String>,
+    tls_key_path: Option<String>,
+    platform: ServePlatform,
+    builtins: Vec<String>,
+    dangerously_unauthenticated: bool,
+    allowed_origins: Vec<String>,
+}
+
+async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
+    use axum::http::HeaderValue;
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
     use tracing::{info, warn};
+
+    let ServeCommandArgs {
+        host,
+        port,
+        tls,
+        tls_cert_path,
+        tls_key_path,
+        platform,
+        builtins,
+        dangerously_unauthenticated,
+        allowed_origins,
+    } = args;
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1354,7 +1433,7 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         builtins,
         data_dir: Paths::data_dir(),
         config_dir: Paths::config_dir(),
-        goose_platform: GoosePlatform::GooseCli,
+        goose_platform: platform.into(),
         additional_source_roots,
         scheduler: None,
     }));
@@ -1363,23 +1442,85 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         .map(|secret| secret.trim().to_string())
         .filter(|secret| !secret.is_empty());
     let require_token = env_secret.is_some();
-    if !require_token {
-        warn!(
-            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set; the ACP endpoint will accept unauthenticated connections"
+    if !require_token && !dangerously_unauthenticated {
+        anyhow::bail!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} must be set to start `goose serve`; pass --dangerously-unauthenticated to run without ACP authentication"
         );
     }
+    if dangerously_unauthenticated && !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set and --dangerously-unauthenticated was passed; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let additional_allowed_origins = allowed_origins
+        .into_iter()
+        .map(|origin| {
+            let origin = origin.trim();
+            if origin.is_empty() || origin == "*" {
+                anyhow::bail!("--allowed-origin must be a non-wildcard Origin value");
+            }
+            HeaderValue::from_str(origin).map_err(|error| {
+                anyhow::anyhow!("invalid --allowed-origin value `{origin}`: {error}")
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key, require_token);
+    let router = create_router(
+        server,
+        secret_key,
+        require_token,
+        additional_allowed_origins,
+    );
+
+    let config = Config::global();
+    let tls_cert_path =
+        tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
+    let tls_key_path =
+        tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
+    let tls = tls
+        || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false)
+        || tls_cert_path.is_some()
+        || tls_key_path.is_some();
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
-    info!("Starting ACP server on {}", addr);
+    if tls {
+        #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+        {
+            let tls_setup = goose::acp::transport::tls::setup_tls(
+                tls_cert_path.as_deref(),
+                tls_key_path.as_deref(),
+            )
+            .await?;
+            info!("Starting ACP server on https://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+            #[cfg(feature = "rustls-tls")]
+            axum_server::bind_rustls(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+
+            #[cfg(feature = "native-tls")]
+            axum_server::bind_openssl(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+        }
+
+        #[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
+        {
+            let _ = (tls_cert_path, tls_key_path);
+            anyhow::bail!(
+                "TLS was requested but no TLS backend is enabled. \
+                 Enable the `rustls-tls` or `native-tls` feature."
+            );
+        }
+    } else {
+        info!("Starting ACP server on http://{}", addr);
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await?;
+    }
 
     Ok(())
 }
@@ -1464,6 +1605,7 @@ async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
+    edit: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1503,12 +1645,31 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if fork {
-        if let Some(id) = session_id {
+    if edit || fork {
+        if let Some(ref id) = session_id {
             let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(&id, false).await?;
-            let copied = session_manager.copy_session(&id, original.name).await?;
-            session_id = Some(copied.id);
+            let original = session_manager.get_session(id, true).await?;
+
+            let target_id = if fork {
+                let copied = session_manager
+                    .copy_session(id, original.name.clone())
+                    .await?;
+                let copied_id = copied.id.clone();
+                session_id = Some(copied.id);
+                copied_id
+            } else {
+                id.clone()
+            };
+
+            if edit {
+                let conversation = original
+                    .conversation
+                    .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                session_manager
+                    .replace_conversation(&target_id, &edited)
+                    .await?;
+            }
         }
     }
 
@@ -1879,6 +2040,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::get_registry;
 
+    goose::providers::local_inference::configure_huggingface_auth();
+
     match command {
         LocalModelsCommand::Search { query, limit } => {
             println!("Searching HuggingFace for '{}'...", query);
@@ -2070,8 +2233,27 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Serve {
             host,
             port,
+            tls,
+            tls_cert_path,
+            tls_key_path,
+            platform,
             builtins,
-        }) => handle_serve_command(host, port, builtins).await,
+            dangerously_unauthenticated,
+            allowed_origins,
+        }) => {
+            handle_serve_command(ServeCommandArgs {
+                host,
+                port,
+                tls,
+                tls_cert_path,
+                tls_key_path,
+                platform,
+                builtins,
+                dangerously_unauthenticated,
+                allowed_origins,
+            })
+            .await
+        }
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -2080,6 +2262,7 @@ pub async fn cli() -> anyhow::Result<()> {
             identifier,
             resume,
             fork,
+            edit,
             history,
             session_opts,
             extension_opts,
@@ -2088,6 +2271,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 identifier,
                 resume,
                 fork,
+                edit,
                 history,
                 session_opts,
                 extension_opts,
@@ -2263,6 +2447,35 @@ mod tests {
                 command: SkillsCommand::List,
             }) => {}
             _ => panic!("expected skills list command"),
+        }
+    }
+
+    #[test]
+    fn serve_command_accepts_dangerously_unauthenticated_flag() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "serve",
+            "--dangerously-unauthenticated",
+            "--allowed-origin",
+            "app://localhost",
+            "--allowed-origin",
+            "https://app.example",
+        ])
+        .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Serve {
+                dangerously_unauthenticated,
+                allowed_origins,
+                ..
+            }) => {
+                assert!(dangerously_unauthenticated);
+                assert_eq!(
+                    allowed_origins,
+                    vec!["app://localhost", "https://app.example"]
+                );
+            }
+            _ => panic!("expected serve command"),
         }
     }
 

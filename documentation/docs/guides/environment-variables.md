@@ -67,7 +67,6 @@ These variables control Claude's reasoning behavior. Supported on Anthropic and 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `CLAUDE_THINKING_TYPE` | Controls Claude reasoning mode | `adaptive`, `enabled`, `disabled` | `adaptive` for Claude 4.6+ models, otherwise `disabled` |
-| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process when `CLAUDE_THINKING_TYPE=enabled` | Positive integer (minimum 1024) | 16000 |
 
 **Examples**
 
@@ -82,7 +81,6 @@ export CLAUDE_THINKING_TYPE=enabled
 
 # Explicit extended thinking with a larger budget for complex tasks
 export CLAUDE_THINKING_TYPE=enabled
-export CLAUDE_THINKING_BUDGET=32000
 
 # Disable Claude thinking entirely
 export CLAUDE_THINKING_TYPE=disabled
@@ -516,7 +514,7 @@ These variables configure the `goosed` server process. They are most often used 
 | `GOOSE_HOST` | Interface the server binds to. Use `0.0.0.0` to accept connections from other machines; `localhost` or `127.0.0.1` restricts to the local machine. | Hostname or IP | `127.0.0.1` |
 | `GOOSE_PORT` | TCP port the server listens on | Port number | `3000` |
 | `GOOSE_TLS` | Enable TLS with a self-signed certificate. Required when connecting goose Desktop to a remote `goosed`. | `true`, `false` | `true` |
-| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests. When set, it is also enforced on the `goose serve` ACP endpoint. | Secret string | Random (auto-generated) |
+| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests. `goosed` auto-generates one when unset; `goose serve` requires this variable unless started with `--dangerously-unauthenticated`. | Secret string | Random for `goosed`; required for `goose serve` |
 
 **Examples**
 

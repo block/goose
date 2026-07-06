@@ -56,7 +56,6 @@
 - `cargo fmt --check` - Code formatting (rustfmt)
 - `cargo test --jobs 2` - All tests
 - `cargo clippy --all-targets -- -D warnings` - Linting (clippy)
-- `just check-openapi-schema` - OpenAPI schema validation
 
 **Desktop app checks:**
 - `pnpm install --frozen-lockfile` - Fresh dependency install (in `ui/desktop/`)

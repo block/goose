@@ -1,8 +1,10 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { GooseApp, ToolInfo } from '../api';
+import type { ToolListItem } from '@aaif/goose-sdk';
+import type { GooseApp } from '../types/apps';
 import { getAcpClient } from './acpConnection';
 
 type JsonRecord = Record<string, unknown>;
+export type McpAppTool = ToolListItem;
 export type McpAppResourceResponse = {
   uri: string;
   mimeType: string | null;
@@ -60,20 +62,6 @@ function flattenReadResourceResult(result: unknown, fallbackUri: string): McpApp
   };
 }
 
-function acpToolToToolInfo(value: unknown): ToolInfo | null {
-  if (!isRecord(value)) return null;
-  const name = stringField(value, 'name');
-  if (!name) return null;
-
-  const inputSchema = value.inputSchema ?? value.input_schema;
-  return {
-    name,
-    description: stringField(value, 'description') ?? '',
-    parameters: [],
-    input_schema: isRecord(inputSchema) ? inputSchema : undefined,
-  };
-}
-
 function acpApp(value: unknown): GooseApp | null {
   if (!isRecord(value)) return null;
   return value as GooseApp;
@@ -99,10 +87,10 @@ export async function importMcpApp(html: string): Promise<void> {
 export async function listMcpAppTools(
   sessionId: string,
   extensionName?: string
-): Promise<ToolInfo[] | null> {
+): Promise<McpAppTool[]> {
   const client = await getAcpClient();
   const response = await client.goose.toolsList_unstable({ sessionId });
-  const tools = response.tools.map(acpToolToToolInfo).filter((tool): tool is ToolInfo => !!tool);
+  const tools = response.tools;
   if (!extensionName) return tools;
 
   const prefix = `${extensionName}__`;

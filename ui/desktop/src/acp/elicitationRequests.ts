@@ -5,8 +5,7 @@ import type {
   ElicitationSchema,
 } from '@agentclientprotocol/sdk';
 import { v7 as uuidv7 } from 'uuid';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpChatSessionActions } from './chatSessionStore';
+import { acpChatSessionActions, acpElicitationUserInputRequestId } from './chatSessionStore';
 
 type SessionScopedFormElicitationRequest = CreateElicitationRequest & {
   mode: 'form';
@@ -32,7 +31,7 @@ export const ACP_ELICITATION_TIMEOUT_SECONDS = 300;
 export async function requestAcpElicitation(
   request: CreateElicitationRequest
 ): Promise<CreateElicitationResponse> {
-  if (!USE_ACP_CHAT || !isSessionScopedFormElicitation(request)) {
+  if (!isSessionScopedFormElicitation(request)) {
     return cancelledElicitationResponse();
   }
 
@@ -56,6 +55,10 @@ export async function requestAcpElicitation(
         elicitationRequest.id,
         'cancelled'
       );
+      acpChatSessionActions.resolveUserInputRequest(
+        elicitationRequest.sessionId,
+        acpElicitationUserInputRequestId(elicitationRequest.id)
+      );
       pending.resolve(cancelledElicitationResponse());
     }, ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
 
@@ -78,6 +81,10 @@ export function resolveAcpElicitationRequest(
   pendingRequests.delete(key);
   clearTimeout(pending.timeoutId);
   acpChatSessionActions.setElicitationStatus(sessionId, elicitationId, 'submitted');
+  acpChatSessionActions.resolveUserInputRequest(
+    sessionId,
+    acpElicitationUserInputRequestId(elicitationId)
+  );
   pending.resolve(acceptedElicitationResponse(userData));
   return true;
 }

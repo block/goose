@@ -16,6 +16,7 @@ import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
 import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
 import { cn } from '../../utils';
+import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
 
 type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
@@ -134,7 +135,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
-  const { recentSessions, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
+  const { recentSessions, recentSessionsByProject, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
     useNavigationSessions();
 
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
@@ -195,7 +196,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     >
       <div className="h-[48px] no-drag" />
 
-      {/* Nav items */}
       <div className="px-2 flex flex-col gap-0.5">
         {visibleItems.map((item) => (
           <NavRow
@@ -207,7 +207,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         ))}
       </div>
 
-      {/* Chats section — takes remaining vertical space */}
       <div className="flex-1 min-h-0 flex flex-col mt-3">
         <button
           onClick={() => setIsChatsExpanded((v) => !v)}
@@ -226,6 +225,30 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
               <div className="px-3 py-2 text-xs text-text-secondary">
                 {intl.formatMessage(i18n.noChats)}
               </div>
+            ) : recentSessionsByProject.length > 1 ? (
+              recentSessionsByProject.map((group: ProjectGroup) => (
+                <React.Fragment key={group.path}>
+                  <div
+                    className="px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary truncate"
+                    title={group.path}
+                  >
+                    {group.label}
+                  </div>
+                  {group.sessions.map((session) => (
+                    <SessionRow
+                      key={session.id}
+                      session={session}
+                      active={session.id === activeSessionId}
+                      status={sessionStatuses.get(session.id)}
+                      onClick={() => {
+                        clearUnread(session.id);
+                        handleSessionClick(session.id);
+                      }}
+                      onRenamed={fetchSessions}
+                    />
+                  ))}
+                </React.Fragment>
+              ))
             ) : (
               recentSessions.map((session) => (
                 <SessionRow
@@ -245,7 +268,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         )}
       </div>
 
-      {/* Settings pinned to bottom */}
       <div className="px-2 pt-2 pb-2 border-t border-border-secondary">
         <NavRow
           item={SETTINGS_NAV_ITEM}

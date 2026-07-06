@@ -3,12 +3,11 @@ import { Button } from '../../../../ui/button';
 import { Search, ExternalLink, Check } from 'lucide-react';
 import { Input } from '../../../../ui/input';
 import { Select } from '../../../../ui/Select';
+import type { ProviderTemplateCatalogEntryDto, ProviderTemplateDto } from '@aaif/goose-sdk';
 import {
-  getProviderCatalog,
-  getProviderCatalogTemplate,
-  type ProviderCatalogEntry,
-  type ProviderTemplate,
-} from '../../../../../api';
+  acpGetProviderTemplate,
+  acpListProviderCatalogEntries,
+} from '../../../../../acp/providers';
 import { defineMessages, useIntl } from '../../../../../i18n';
 
 const i18n = defineMessages({
@@ -67,7 +66,7 @@ const i18n = defineMessages({
 });
 
 interface ProviderCatalogPickerProps {
-  onSelect: (template: ProviderTemplate) => void;
+  onSelect: (template: ProviderTemplateDto) => void;
   onCancel: () => void;
   embedded?: boolean;
 }
@@ -79,8 +78,8 @@ export default function ProviderCatalogPicker({
 }: ProviderCatalogPickerProps) {
   const intl = useIntl();
   const [selectedFormat, setSelectedFormat] = useState<string>('openai');
-  const [providers, setProviders] = useState<ProviderCatalogEntry[]>([]);
-  const [filteredProviders, setFilteredProviders] = useState<ProviderCatalogEntry[]>([]);
+  const [providers, setProviders] = useState<ProviderTemplateCatalogEntryDto[]>([]);
+  const [filteredProviders, setFilteredProviders] = useState<ProviderTemplateCatalogEntryDto[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +102,7 @@ export default function ProviderCatalogPicker({
       const query = searchQuery.toLowerCase();
       setFilteredProviders(
         providers.filter(
-          (p) => p.name.toLowerCase().includes(query) || p.id.toLowerCase().includes(query)
+          (p) => p.name.toLowerCase().includes(query) || p.providerId.toLowerCase().includes(query)
         )
       );
     }
@@ -113,10 +112,7 @@ export default function ProviderCatalogPicker({
     setLoading(true);
     setError(null);
     try {
-      const { data } = await getProviderCatalog({
-        query: { format },
-        throwOnError: true,
-      });
+      const data = await acpListProviderCatalogEntries(format);
       setProviders(data || []);
       setFilteredProviders(data || []);
     } catch (err) {
@@ -130,10 +126,7 @@ export default function ProviderCatalogPicker({
     setLoading(true);
     setError(null);
     try {
-      const { data: template } = await getProviderCatalogTemplate({
-        path: { id: providerId },
-        throwOnError: true,
-      });
+      const template = await acpGetProviderTemplate(providerId);
       if (template) {
         onSelect(template);
       }
@@ -148,7 +141,9 @@ export default function ProviderCatalogPicker({
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-textStandard mb-2">{intl.formatMessage(i18n.chooseProvider)}</h3>
+        <h3 className="text-lg font-semibold text-textStandard mb-2">
+          {intl.formatMessage(i18n.chooseProvider)}
+        </h3>
         <p className="text-sm text-textSubtle">
           {intl.formatMessage(i18n.selectFormatDescription)}
         </p>
@@ -156,7 +151,9 @@ export default function ProviderCatalogPicker({
 
       {/* Format Selection */}
       <div>
-        <label className="text-sm font-medium text-textStandard mb-2 block">{intl.formatMessage(i18n.apiFormat)}</label>
+        <label className="text-sm font-medium text-textStandard mb-2 block">
+          {intl.formatMessage(i18n.apiFormat)}
+        </label>
         <Select
           options={formatOptions}
           value={formatOptions.find((opt) => opt.value === selectedFormat)}
@@ -183,8 +180,16 @@ export default function ProviderCatalogPicker({
       </div>
 
       {/* Loading/Error */}
-      {loading && <div className="text-center py-8 text-textSubtle">{intl.formatMessage(i18n.loadingProviders)}</div>}
-      {error && <div className="text-center py-8 text-red-500">{intl.formatMessage(i18n.errorPrefix, { error })}</div>}
+      {loading && (
+        <div className="text-center py-8 text-textSubtle">
+          {intl.formatMessage(i18n.loadingProviders)}
+        </div>
+      )}
+      {error && (
+        <div className="text-center py-8 text-red-500">
+          {intl.formatMessage(i18n.errorPrefix, { error })}
+        </div>
+      )}
 
       {/* Provider List */}
       {!loading && !error && (
@@ -198,17 +203,17 @@ export default function ProviderCatalogPicker({
           ) : (
             filteredProviders.map((provider) => (
               <button
-                key={provider.id}
-                onClick={() => handleProviderSelect(provider.id)}
+                key={provider.providerId}
+                onClick={() => handleProviderSelect(provider.providerId)}
                 className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover hover:border-primary transition-colors group"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="font-medium text-textStandard">{provider.name}</div>
-                      {provider.doc_url && (
+                      {provider.docUrl && (
                         <a
-                          href={provider.doc_url}
+                          href={provider.docUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -218,10 +223,11 @@ export default function ProviderCatalogPicker({
                         </a>
                       )}
                     </div>
-                    <div className="text-sm text-textSubtle mt-1 break-all">{provider.api_url}</div>
+                    <div className="text-sm text-textSubtle mt-1 break-all">{provider.apiUrl}</div>
                     <div className="text-xs text-textSubtle mt-2">
-                      {intl.formatMessage(i18n.modelsAvailable, { count: provider.model_count })}
-                      {provider.env_var && intl.formatMessage(i18n.requiresEnvVar, { envVar: provider.env_var })}
+                      {intl.formatMessage(i18n.modelsAvailable, { count: provider.modelCount })}
+                      {provider.envVar &&
+                        intl.formatMessage(i18n.requiresEnvVar, { envVar: provider.envVar })}
                     </div>
                   </div>
                   <Check className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />

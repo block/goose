@@ -1,8 +1,10 @@
-# This workflow is main release, needs to be manually tagged & pushed.
+# This workflow builds release artifacts for release branches and publishes tagged releases.
 on:
   push:
     paths-ignore:
       - "documentation/**"
+    branches:
+      - "release/*"
     tags:
       - "v1.*"
 
@@ -14,6 +16,11 @@ permissions:
   actions: read     # May be needed for some workflows
   pull-requests: write  # Required for npm publish workflow
   attestations: write  # Required for SLSA build provenance attestations
+
+env:
+  # Set this repository Actions variable to "true" in GitHub Settings > Secrets and variables
+  # > Actions > Variables after a release containing desktop app-update.yml has shipped.
+  ENABLE_MAC_NATIVE_AUTO_UPDATE: ${{ vars.ENABLE_MAC_NATIVE_AUTO_UPDATE || 'false' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,8 +56,8 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -62,8 +69,8 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -82,7 +89,7 @@ jobs:
       contents: read
       actions: read
     with:
-      signing: true
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
   bundle-desktop-windows-cuda:
@@ -92,7 +99,7 @@ jobs:
       contents: read
       actions: read
     with:
-      signing: true
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
       windows_variant: cuda
     secrets: inherit
 
@@ -101,6 +108,7 @@ jobs:
   # ------------------------------------
   release:
     name: Release
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux, bundle-desktop-windows, bundle-desktop-windows-cuda]
     permissions:
@@ -108,7 +116,7 @@ jobs:
       id-token: write      # Required for Sigstore OIDC signing
       attestations: write  # Required for SLSA build provenance attestations
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -116,10 +124,17 @@ jobs:
           merge-multiple: true
 
       - name: Generate macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
         run: node ui/desktop/scripts/generate-mac-update-manifest.js --version "${GITHUB_REF_NAME}" --directory .
 
+      - name: Attest macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
+        with:
+          subject-path: latest-mac.yml
+
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-path: |
             goose-*.tar.bz2
@@ -129,7 +144,6 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
 
       # Create/update the versioned release
@@ -145,7 +159,6 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
           allowUpdates: true
           omitBody: true
@@ -166,8 +179,15 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
+
+      - name: Upload macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" latest-mac.yml --clobber
+          gh release upload stable latest-mac.yml --clobber

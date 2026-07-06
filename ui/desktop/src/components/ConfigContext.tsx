@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { readAllConfig, readConfig, removeConfig, upsertConfig, providers } from '../api';
+import { acpReadAllConfig, acpReadConfig, acpRemoveConfig, acpUpsertConfig } from '../acp/config';
+import { acpListProviderDetails } from '../acp/providers';
 import {
   getConfiguredExtensions,
   addConfigExtension,
@@ -8,15 +9,10 @@ import {
 } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
 import { nameToKey } from './settings/extensions/utils';
-import type {
-  ConfigResponse,
-  UpsertConfigQuery,
-  ConfigKeyQuery,
-  ProviderDetails,
-  ExtensionConfig,
-} from '../api';
+import type { ExtensionConfig } from '../types/extensions';
+import type { ProviderDetails } from '../types/providers';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '../types/extensions';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
@@ -24,8 +20,10 @@ export type FixedExtensionEntry = ExtensionConfig & {
   configKey?: string;
 };
 
+type ConfigMap = Record<string, unknown>;
+
 interface ConfigContextType {
-  config: ConfigResponse['config'];
+  config: ConfigMap;
   providersList: ProviderDetails[];
   extensionsList: FixedExtensionEntry[];
   extensionWarnings: string[];
@@ -46,7 +44,7 @@ interface ConfigProviderProps {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
-  const [config, setConfig] = useState<ConfigResponse['config']>({});
+  const [config, setConfig] = useState<ConfigMap>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
   const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
@@ -56,20 +54,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   providersListRef.current = providersList;
 
   const reloadConfig = useCallback(async () => {
-    const response = await readAllConfig();
-    setConfig(response.data?.config || {});
+    const config = await acpReadAllConfig();
+    setConfig(config);
   }, []);
 
   const upsert = useCallback(
     async (key: string, value: unknown, isSecret: boolean = false) => {
-      const query: UpsertConfigQuery = {
-        key: key,
-        value: value,
-        is_secret: isSecret,
-      };
-      await upsertConfig({
-        body: query,
-      });
+      await acpUpsertConfig(key, value, isSecret);
       await reloadConfig();
     },
     [reloadConfig]
@@ -77,24 +68,21 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const read = useCallback(
     async (key: string, is_secret: boolean = false, options?: { throwOnError?: boolean }) => {
-      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-      const response = await readConfig({
-        body: query,
-      });
-      if (options?.throwOnError && response.error) {
-        throw response.error;
+      try {
+        return await acpReadConfig(key, is_secret);
+      } catch (error) {
+        if (options?.throwOnError) {
+          throw error;
+        }
+        return null;
       }
-      return response.data;
     },
     []
   );
 
   const remove = useCallback(
     async (key: string, is_secret: boolean) => {
-      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-      await removeConfig({
-        body: query,
-      });
+      await acpRemoveConfig(key, is_secret);
       await reloadConfig();
     },
     [reloadConfig]
@@ -150,8 +138,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const getProviders = useCallback(async (forceRefresh = false): Promise<ProviderDetails[]> => {
     if (forceRefresh || providersListRef.current.length === 0) {
       try {
-        const response = await providers();
-        const providersData = response.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
         return providersData;
@@ -167,13 +154,12 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     // Load all configuration data and providers on mount
     (async () => {
       // Load config
-      const configResponse = await readAllConfig();
-      setConfig(configResponse.data?.config || {});
+      const configResponse = await acpReadAllConfig();
+      setConfig(configResponse);
 
       // Load providers
       try {
-        const providersResponse = await providers();
-        const providersData = providersResponse.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
       } catch (error) {

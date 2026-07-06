@@ -2,7 +2,7 @@ import type {
   ContentBlock as AcpContentBlock,
   SessionNotification,
 } from '@agentclientprotocol/sdk';
-import type { Message, MessageContent } from '../../api';
+import type { ContentBlock, Message } from '../../types/message';
 import {
   type AcpChatStateChange,
   type AdapterState,
@@ -10,6 +10,8 @@ import {
   getGooseMessageMeta,
   messagesChange,
 } from './shared';
+
+type StreamedContentBlock = Extract<ContentBlock, { type: 'text' | 'image' }>;
 
 export function applyContentChunk(
   state: AdapterState,
@@ -91,7 +93,9 @@ export function applyThoughtChunk(
   return messagesChange(state);
 }
 
-function messageContentFromAcpContentBlock(content: AcpContentBlock): MessageContent | undefined {
+function messageContentFromAcpContentBlock(
+  content: AcpContentBlock
+): StreamedContentBlock | undefined {
   switch (content.type) {
     case 'text':
       return {
@@ -151,7 +155,10 @@ function lastMergeableMessageWithRole(
   return lastMessage;
 }
 
-function hasImageContent(message: Message, image: Extract<MessageContent, { type: 'image' }>) {
+function hasImageContent(
+  message: Message,
+  image: Extract<StreamedContentBlock, { type: 'image' }>
+) {
   return message.content.some(
     (content) =>
       content.type === 'image' && content.data === image.data && content.mimeType === image.mimeType
@@ -173,7 +180,7 @@ function messagesChangeWithLocalSteerConfirmation(
 function reconcileLocalSteerTextChunk(
   state: AdapterState,
   message: Message,
-  content: MessageContent,
+  content: StreamedContentBlock,
   isSteerChunk: boolean | undefined
 ): boolean {
   if (!isSteerChunk || !message.metadata.steer || message.role !== 'user') {

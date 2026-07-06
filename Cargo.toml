@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.39.0"
+version = "1.41.0"
 rust-version = "1.91.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
@@ -21,8 +21,9 @@ string_slice = "warn"
 
 [workspace.dependencies]
 rmcp = { version = "1.4", default-features = false, features = ["schemars", "auth"] }
-agent-client-protocol-schema = { version = "0.12", default-features = false, features = ["unstable"] }
-agent-client-protocol = { version = "0.11", default-features = false }
+agent-client-protocol-schema = { version = "1.1", default-features = false, features = ["unstable"] }
+agent-client-protocol = { version = "1.0", default-features = false }
+agent-client-protocol-http = { version = "1.0", default-features = false, features = ["server", "unstable_cancel_request"] }
 arboard = { version = "3", default-features = false }
 anyhow = { version = "1.0.102", default-features = false, features = ["std"] }
 async-stream = { version = "0.3.6", default-features = false }
@@ -30,8 +31,8 @@ async-trait = { version = "0.1.89", default-features = false }
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "tokio", "query"] }
 base64 = { version = "0.22.1", default-features = false, features = ["std"] }
 bytes = { version = "1.10.1", default-features = false, features = ["std"] }
-candle-core = { version = "0.10", default-features = false }
-candle-nn = { version = "0.10", default-features = false }
+candle-core = { version = "0.11", default-features = false }
+candle-nn = { version = "0.11", default-features = false }
 chrono = { version = "0.4.44", default-features = false, features = ["serde", "std"] }
 clap = { version = "4.1.14", default-features = false, features = ["derive", "std", "help", "suggestions", "usage", "color", "error-context"] }
 dirs = { version = "6", default-features = false }
@@ -83,7 +84,7 @@ url = { version = "2.5.4", default-features = false, features = ["std"] }
 opentelemetry = { version = "0.32", default-features = false }
 opentelemetry_sdk = { version = "0.32", default-features = false, features = ["metrics"] }
 opentelemetry-http = { version = "0.32", default-features = false, features = ["internal-logs", "reqwest"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-blocking-client", "trace"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-client", "trace"] }
 opentelemetry-appender-tracing = { version = "0.32", default-features = false, features = ["experimental_span_attributes"] }
 opentelemetry-stdout = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = { version = "0.33", default-features = false, features = ["metrics"] }

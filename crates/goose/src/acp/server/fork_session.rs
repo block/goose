@@ -51,34 +51,28 @@ impl GooseAcpAgent {
             )
             .await?;
 
-        let (_agent, extension_results) = self
-            .activate_acp_session(cx, &goose_session, HashMap::new())
-            .await?;
+        let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
+        self.apply_session_recipe(&agent, &goose_session).await?;
+        self.register_acp_session(goose_session.id.clone(), agent, HashMap::new())
+            .await;
 
         let acp_session_id = SessionId::new(new_session_id.clone());
-        let mut meta = session_meta(&new_session);
+        let mut meta = session_meta(&goose_session);
         if let Ok(v) = serde_json::to_value(&extension_results) {
             meta.insert("extensionResults".to_string(), v);
         }
 
-        let (mode_state, model_state, config_options) =
+        let (mode_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &goose_session).await?;
 
         let mut response = ForkSessionResponse::new(acp_session_id.clone())
             .modes(mode_state)
             .meta(meta);
 
-        if let Some(ms) = model_state {
-            response = response.models(ms);
-        }
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        send_session_setup_notifications(
-            cx,
-            &goose_session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        self.notify_session_setup(cx, &goose_session).await?;
         Ok(response)
     }
 }

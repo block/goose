@@ -1,12 +1,14 @@
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
 use super::retry::ProviderRetry;
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::conversation::message::Message;
-use crate::conversation::token_usage::ProviderUsage;
+use crate::conversation::token_usage::{CostSource, ProviderUsage};
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
-    create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
+    create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
@@ -61,6 +63,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
+const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
 
 type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
 
@@ -176,6 +179,19 @@ impl OpenAiProviderBuilder {
     pub fn api_client(mut self, api_client: ApiClient) -> Self {
         self.api_client = api_client;
         self
+    }
+
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
     }
 
     pub fn base_path(mut self, base_path: impl Into<String>) -> Self {
@@ -388,11 +404,7 @@ impl OpenAiProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
-        let response = self
-            .api_client
-            .request(None, &models_path)
-            .response_get()
-            .await?;
+        let response = self.api_client.request(&models_path).response_get().await?;
 
         if response.status() == StatusCode::NOT_FOUND {
             let body = response.text().await.unwrap_or_default();
@@ -427,7 +439,7 @@ impl OpenAiProvider {
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
         let response = self
             .api_client
-            .request(None, &models_path)
+            .request(&models_path)
             .response_get()
             .await
             .ok()?;
@@ -581,7 +593,6 @@ impl Provider for OpenAiProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -598,7 +609,6 @@ impl Provider for OpenAiProvider {
                     let resp = self
                         .api_client
                         .response_post(
-                            Some(session_id),
                             &Self::map_base_path(
                                 &self.base_path,
                                 "responses",
@@ -631,7 +641,11 @@ impl Provider for OpenAiProvider {
 
                 let message = responses_api_to_message(&responses_api_response)?;
                 let usage_data = get_responses_usage(&responses_api_response);
-                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+                let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                if let Some(cost) = get_cost(usage_json) {
+                    usage = usage.with_cost(cost, CostSource::ProviderReported);
+                }
 
                 log.write(
                     &serde_json::to_value(&message).unwrap_or_default(),
@@ -659,7 +673,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(Some(session_id), &self.base_path, &payload)
+                        .response_post(&self.base_path, &payload)
                         .await?;
                     handle_status(resp).await
                 })
@@ -679,8 +693,12 @@ impl Provider for OpenAiProvider {
                     ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
                 })?;
 
-                let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
-                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+                let usage_data = get_usage(usage_json);
+                let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                if let Some(cost) = get_cost(usage_json) {
+                    usage = usage.with_cost(cost, CostSource::ProviderReported);
+                }
 
                 log.write(
                     &serde_json::to_value(&message).unwrap_or_default(),
@@ -693,6 +711,97 @@ impl Provider for OpenAiProvider {
     }
 }
 
+pub fn from_declarative_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<OpenAiProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let normalized_base_url = ensure_url_scheme(&config.base_url);
+    let url = url::Url::parse(&normalized_base_url)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let host = url[..url::Position::BeforePath].to_string();
+    let base_path = if let Some(ref explicit_path) = config.base_path {
+        explicit_path.trim_start_matches('/').to_string()
+    } else {
+        derive_base_path(url.path())
+    };
+
+    let timeout_secs = config.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS);
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+    let mut api_client = ApiClient::with_timeout_and_tls(
+        host,
+        auth,
+        std::time::Duration::from_secs(timeout_secs),
+        tls_config,
+    )?;
+
+    if let Some(query) = url.query() {
+        let query_params = url::form_urlencoded::parse(query.as_bytes())
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        api_client = api_client.with_query(query_params);
+    }
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    Ok(OpenAiProviderBuilder::new(api_client)
+        .base_path(base_path)
+        .custom_headers(config.headers)
+        .supports_streaming(config.supports_streaming.unwrap_or(true))
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering)
+        .preserve_thinking_context(config.preserves_thinking))
+}
+
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
     s.split(',')
         .filter_map(|header| {
@@ -702,6 +811,26 @@ pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
             Some((key, value))
         })
         .collect()
+}
+
+pub fn derive_base_path(url_path: &str) -> String {
+    let stripped = url_path.trim_start_matches('/');
+    let normalized = stripped.trim_end_matches('/');
+    if normalized.is_empty() {
+        "v1/chat/completions".to_string()
+    } else if normalized.ends_with("chat/completions") {
+        stripped.to_string()
+    } else if ends_with_version_segment(normalized) {
+        format!("{}/chat/completions", normalized)
+    } else {
+        format!("{}/v1/chat/completions", normalized)
+    }
+}
+
+fn ends_with_version_segment(path: &str) -> bool {
+    let last = path.rsplit('/').next().unwrap_or(path);
+    last.strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -956,6 +1085,60 @@ mod tests {
         );
     }
 
+    fn custom_config(base_url: &str) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "test-openai".to_string(),
+            engine: crate::declarative::ProviderEngine::OpenAI,
+            display_name: "Test OpenAI".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: base_url.to_string(),
+            models: vec![crate::base::ModelInfo::new("test-model", 4096)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models: Some(false),
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[test]
+    fn from_custom_config_preserves_ipv6_authority() {
+        let provider = from_declarative_config(
+            custom_config("http://[::1]:1234/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(provider.api_client.host(), "http://[::1]:1234");
+    }
+
+    #[test]
+    fn from_custom_config_preserves_userinfo_authority() {
+        let provider = from_declarative_config(
+            custom_config("https://user:pass@gateway.example/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.api_client.host(),
+            "https://user:pass@gateway.example"
+        );
+    }
+
     #[test]
     fn parse_n_ctx_falls_back_to_sole_entry_when_id_differs() {
         let body = json!({
@@ -975,5 +1158,38 @@ mod tests {
             ]
         });
         assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
+    }
+
+    #[test]
+    fn derive_base_path_not_removing_api_path() {
+        let r = derive_base_path("https://opencode.ai/zen/go");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_v1() {
+        let r = derive_base_path("https://opencode.ai/zen/go/v1");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_no_base_path() {
+        let r = derive_base_path("https://opencode.ai/");
+        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_preserves_non_v1_version_prefix() {
+        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
+        // from_custom_config passes url.path() ("/api/paas/v4") here. The
+        // existing /api/paas/v4 version must not gain an extra /v1 segment.
+        let r = derive_base_path("/api/paas/v4");
+        assert_eq!(r, "api/paas/v4/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_does_not_treat_v_word_as_version() {
+        let r = derive_base_path("/api/voice");
+        assert_eq!(r, "api/voice/v1/chat/completions");
     }
 }

@@ -5,8 +5,8 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
         audience
             .iter()
             .map(|role| match role {
-                Role::Assistant => agent_client_protocol::schema::Role::Assistant,
-                Role::User => agent_client_protocol::schema::Role::User,
+                Role::Assistant => agent_client_protocol::schema::v1::Role::Assistant,
+                Role::User => agent_client_protocol::schema::v1::Role::User,
             })
             .collect::<Vec<_>>(),
     )
@@ -191,6 +191,7 @@ impl GooseAcpAgent {
 
         let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+        self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 
@@ -205,15 +206,12 @@ impl GooseAcpAgent {
             .update_working_dir(&session.working_dir)
             .await;
 
-        let (mode_state, model_state, config_options) =
+        let (mode_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &session).await?;
 
-        send_session_setup_notifications(cx, &session, self.supports_goose_custom_notifications())?;
+        self.notify_session_setup(cx, &session).await?;
 
         let mut response = LoadSessionResponse::new().modes(mode_state);
-        if let Some(ms) = model_state {
-            response = response.models(ms);
-        }
         if let Some(co) = config_options {
             response = response.config_options(co);
         }

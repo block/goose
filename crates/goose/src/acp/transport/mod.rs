@@ -1,103 +1,158 @@
 pub mod auth;
-pub mod connection;
-pub mod http;
-pub mod websocket;
+#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+pub mod tls;
 
 use std::sync::Arc;
 
+use agent_client_protocol_http::{AcpHttpServer, CorsOptions, ServerOptions};
 use axum::{
-    body::Body,
-    extract::{
-        ws::{rejection::WebSocketUpgradeRejection, WebSocketUpgrade},
-        State,
-    },
-    http::{header, HeaderName, Method, Request},
+    extract::{Request, State},
+    http::{header, HeaderName, HeaderValue, Method, StatusCode},
+    middleware::Next,
     response::Response,
-    routing::{delete, get, post},
+    routing::get,
     Router,
 };
-use serde_json::Value;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
+use crate::acp::server::GooseAgentConnection;
 use crate::acp::server_factory::AcpServer;
 
-pub(crate) const HEADER_CONNECTION_ID: &str = "Acp-Connection-Id";
-pub(crate) const HEADER_SESSION_ID: &str = "Acp-Session-Id";
-pub(crate) const EVENT_STREAM_MIME_TYPE: &str = "text/event-stream";
-pub(crate) const JSON_MIME_TYPE: &str = "application/json";
+// The upstream ACP HTTP server only supports exact origin allowlists for
+// WebSocket upgrades; Goose applies its richer loopback predicate before this.
+const UPSTREAM_WS_ALLOWED_ORIGIN: &str = "http://goose.local";
+const OPAQUE_ORIGIN: &str = "null";
+const FILE_ORIGIN: &str = "file://";
 
-pub(crate) fn accepts_mime_type(request: &Request<Body>, mime_type: &str) -> bool {
-    request
-        .headers()
-        .get(axum::http::header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| accept.contains(mime_type))
+#[derive(Clone)]
+struct AcpOriginPolicy {
+    exact_origins: Arc<[HeaderValue]>,
+    allow_loopback: bool,
 }
 
-pub(crate) fn content_type_is_json(request: &Request<Body>) -> bool {
-    request
-        .headers()
-        .get(axum::http::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with(JSON_MIME_TYPE))
-}
+impl AcpOriginPolicy {
+    fn loopback() -> Self {
+        Self {
+            exact_origins: Vec::new().into(),
+            allow_loopback: true,
+        }
+    }
 
-pub(crate) fn header_value(request: &Request<Body>, name: &str) -> Option<String> {
-    request
-        .headers()
-        .get(name)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
+    fn exact(origins: Vec<HeaderValue>) -> Self {
+        Self {
+            exact_origins: origins.into(),
+            allow_loopback: false,
+        }
+    }
 
-pub(crate) fn is_jsonrpc_request_with_id(value: &Value) -> bool {
-    value.get("method").is_some() && value.get("id").is_some()
-}
+    fn loopback_and(origins: Vec<HeaderValue>) -> Self {
+        Self {
+            exact_origins: origins.into(),
+            allow_loopback: true,
+        }
+    }
 
-pub(crate) fn is_jsonrpc_notification(value: &Value) -> bool {
-    value.get("method").is_some() && value.get("id").is_none()
-}
+    fn local_default() -> Self {
+        Self::loopback_and(Self::file_origins(Vec::new()))
+    }
 
-pub(crate) fn is_jsonrpc_response(value: &Value) -> bool {
-    value.get("id").is_some()
-        && value.get("method").is_none()
-        && (value.get("result").is_some() || value.get("error").is_some())
-}
+    fn file_origins(mut origins: Vec<HeaderValue>) -> Vec<HeaderValue> {
+        origins.extend([
+            HeaderValue::from_static(OPAQUE_ORIGIN),
+            HeaderValue::from_static(FILE_ORIGIN),
+        ]);
+        origins
+    }
 
-pub(crate) fn is_initialize_request(value: &Value) -> bool {
-    value.get("method").is_some_and(|m| m == "initialize") && value.get("id").is_some()
-}
+    fn origin_allowed(&self, origin: &HeaderValue) -> bool {
+        if self
+            .exact_origins
+            .iter()
+            .any(|allowed_origin| allowed_origin == origin)
+        {
+            return true;
+        }
 
-/// Methods that are scoped to a session and require an Acp-Session-Id header.
-pub(crate) fn method_requires_session_header(method: &str) -> bool {
-    matches!(
-        method,
-        "session/prompt"
-            | "session/cancel"
-            | "session/load"
-            | "session/set_mode"
-            | "session/set_model"
-    )
-}
+        if !self.allow_loopback {
+            return false;
+        }
 
-async fn handle_get(
-    ws_upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
-    State(state): State<Arc<connection::ConnectionRegistry>>,
-    request: Request<Body>,
-) -> Response {
-    match ws_upgrade {
-        Ok(ws) => websocket::handle_ws_upgrade(state, ws).await,
-        Err(_) => http::handle_get(state, request).await,
+        let Ok(origin) = origin.to_str() else {
+            return false;
+        };
+
+        let Ok(url) = url::Url::parse(origin) else {
+            return false;
+        };
+
+        if !matches!(url.scheme(), "http" | "https") {
+            return false;
+        }
+
+        match url.host() {
+            Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
+            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
+            None => false,
+        }
     }
 }
 
-async fn health() -> &'static str {
-    "ok"
+fn acp_http_options() -> ServerOptions {
+    ServerOptions {
+        path: "/acp".to_string(),
+        cors: CorsOptions::allow_origins([UPSTREAM_WS_ALLOWED_ORIGIN])
+            .expect("static origin is valid"),
+        health_endpoint: false,
+    }
 }
 
-fn acp_cors_layer() -> CorsLayer {
+fn header_contains_token(value: Option<&HeaderValue>, token: &str) -> bool {
+    value
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .any(|part| part.trim().eq_ignore_ascii_case(token))
+        })
+}
+
+fn is_websocket_upgrade(request: &Request) -> bool {
+    request.method() == Method::GET
+        && header_contains_token(request.headers().get(header::CONNECTION), "upgrade")
+        && request
+            .headers()
+            .get(header::UPGRADE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.eq_ignore_ascii_case("websocket"))
+}
+
+async fn enforce_websocket_origin(
+    State(policy): State<AcpOriginPolicy>,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if is_websocket_upgrade(&request) {
+        if let Some(origin) = request.headers().get(header::ORIGIN) {
+            if !policy.origin_allowed(origin) {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+
+        request.headers_mut().insert(
+            header::ORIGIN,
+            HeaderValue::from_static(UPSTREAM_WS_ALLOWED_ORIGIN),
+        );
+    }
+
+    Ok(next.run(request).await)
+}
+
+fn acp_cors_layer(policy: AcpOriginPolicy) -> CorsLayer {
     CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowOrigin::predicate(move |origin, _request_parts| {
+            policy.origin_allowed(origin)
+        }))
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
         .allow_headers([
             header::CONTENT_TYPE,
@@ -116,30 +171,82 @@ fn acp_cors_layer() -> CorsLayer {
         ])
 }
 
-fn create_acp_routes(server: Arc<AcpServer>) -> Router {
-    let registry = Arc::new(connection::ConnectionRegistry::new(server));
-
-    Router::new()
-        .route("/acp", post(http::handle_post).with_state(registry.clone()))
-        .route("/acp", get(handle_get).with_state(registry.clone()))
-        .route("/acp", delete(http::handle_delete).with_state(registry))
+/// CORS for the auxiliary routes (`/health`, `/status`, MCP app proxy) served by
+/// `goose serve`. This allows the `x-secret-key` auth header the proxy routes
+/// rely on.
+fn aux_cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::ACCEPT,
+            HeaderName::from_static("x-secret-key"),
+        ])
 }
 
-pub fn create_acp_router(server: Arc<AcpServer>) -> Router {
-    create_acp_routes(server).layer(acp_cors_layer())
+fn create_acp_router_inner(server: Arc<AcpServer>, policy: AcpOriginPolicy) -> Router {
+    AcpHttpServer::new(move || GooseAgentConnection::new(server.clone()))
+        .with_options(acp_http_options())
+        .into_router()
+        .layer(axum::middleware::from_fn_with_state(
+            policy,
+            enforce_websocket_origin,
+        ))
 }
 
-pub fn create_router(server: Arc<AcpServer>, secret_key: String, require_token: bool) -> Router {
-    let mut acp_routes = create_acp_routes(server);
-    if require_token {
+fn create_acp_router_with_policy(
+    server: Arc<AcpServer>,
+    policy: AcpOriginPolicy,
+    secret_key: Option<String>,
+) -> Router {
+    let mut acp_routes = create_acp_router_inner(server, policy.clone());
+    if let Some(secret_key) = secret_key {
         acp_routes = acp_routes.layer(axum::middleware::from_fn_with_state(
-            secret_key.clone(),
+            secret_key,
             auth::check_acp_token,
         ));
     }
-    acp_routes
+    acp_routes.layer(acp_cors_layer(policy))
+}
+
+/// The bare ACP HTTP/WebSocket router (POST/GET/DELETE on `/acp`), without auth
+/// or goose-specific auxiliary routes.
+pub fn create_acp_router(server: Arc<AcpServer>) -> Router {
+    create_acp_router_with_policy(server, AcpOriginPolicy::loopback(), None)
+}
+
+pub fn create_authenticated_acp_router(server: Arc<AcpServer>, secret_key: String) -> Router {
+    create_acp_router_with_policy(server, AcpOriginPolicy::local_default(), Some(secret_key))
+}
+
+async fn health() -> &'static str {
+    "ok"
+}
+
+/// The full standalone ACP server router used by `goose serve`: ACP transport,
+/// optional token auth, health/status endpoints, and the MCP app proxy.
+pub fn create_router(
+    server: Arc<AcpServer>,
+    secret_key: String,
+    require_token: bool,
+    additional_allowed_origins: Vec<HeaderValue>,
+) -> Router {
+    let policy = if !additional_allowed_origins.is_empty() {
+        AcpOriginPolicy::exact(additional_allowed_origins)
+    } else if require_token {
+        AcpOriginPolicy::local_default()
+    } else {
+        AcpOriginPolicy::loopback()
+    };
+    let acp_routes =
+        create_acp_router_with_policy(server, policy, require_token.then_some(secret_key.clone()));
+
+    let aux_routes = Router::new()
         .route("/health", get(health))
         .route("/status", get(health))
         .merge(super::mcp_app_proxy::routes(secret_key))
-        .layer(acp_cors_layer())
+        .layer(aux_cors_layer());
+
+    acp_routes.merge(aux_routes)
 }

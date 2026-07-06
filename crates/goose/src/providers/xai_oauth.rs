@@ -706,13 +706,12 @@ impl Provider for XaiOAuthProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.inner
-            .stream(model_config, session_id, system, messages, tools)
+            .stream(model_config, system, messages, tools)
             .await
     }
 
@@ -792,7 +791,8 @@ impl ProviderDef for XaiOAuthProvider {
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
                 tls_config,
-            )?;
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),

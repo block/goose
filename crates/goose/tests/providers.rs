@@ -15,7 +15,6 @@ use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
-use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
@@ -24,6 +23,7 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use goose::session::{SessionManager, SessionType};
+use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose_providers::errors::ProviderError;
 use goose_test_support::{
     EnforceSessionId, ExpectedSessionId, IgnoreSessionId, McpFixture, FAKE_CODE,
@@ -287,7 +287,7 @@ impl ProviderFixture {
             provider,
             model_config,
             agent,
-            session_id,
+            session_id: session_id.to_string(),
             _mcp: mcp,
             _guard: guard,
             _temp_dir: temp_dir,
@@ -318,16 +318,16 @@ impl ProviderFixture {
 
         let message = Message::user().with_text(prompt);
         let model_config = model_config.unwrap_or_else(|| self.model_config.clone());
-        let (response1, _) = self
-            .provider
-            .complete(
+        let (response1, _) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            self.provider.complete(
                 &model_config,
-                &self.session_id,
                 &system,
                 std::slice::from_ref(&message),
                 &tools,
-            )
-            .await?;
+            ),
+        )
+        .await?;
 
         // Agentic CLI providers (claude-code, codex) call tools internally and
         // return the final text result directly — no tool_request in the response.
@@ -364,16 +364,16 @@ impl ProviderFixture {
             .unwrap();
         let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
 
-        let (response2, _) = self
-            .provider
-            .complete(
+        let (response2, _) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            self.provider.complete(
                 &model_config,
-                &self.session_id,
                 &system,
                 &[message, response1, tool_response],
                 &tools,
-            )
-            .await?;
+            ),
+        )
+        .await?;
         Ok(response2)
     }
 
@@ -381,16 +381,16 @@ impl ProviderFixture {
         let message = Message::user().with_text("Just say hello!");
         let model_config = self.model_config.clone();
 
-        let (response, _) = self
-            .provider
-            .complete(
+        let (response, _) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            self.provider.complete(
                 &model_config,
-                &self.session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
-            )
-            .await?;
+            ),
+        )
+        .await?;
 
         assert!(!response.content.is_empty());
         assert!(response
@@ -422,16 +422,16 @@ impl ProviderFixture {
         let messages = vec![Message::user().with_text(&large_message_content)];
         let model_config = self.model_config.clone();
 
-        let result = self
-            .provider
-            .complete(
+        let result = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            self.provider.complete(
                 &model_config,
-                &self.session_id,
                 "You are a helpful assistant.",
                 &messages,
                 &[],
-            )
-            .await;
+            ),
+        )
+        .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
         dbg!(&result);
@@ -476,16 +476,12 @@ impl ProviderFixture {
             goose_providers::model::ModelConfig::new(alt).with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
-        let (response, _) = self
-            .provider
-            .complete(
-                &alt_config,
-                &self.session_id,
-                "You are a helpful assistant.",
-                &[message],
-                &[],
-            )
-            .await?;
+        let (response, _) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            self.provider
+                .complete(&alt_config, "You are a helpful assistant.", &[message], &[]),
+        )
+        .await?;
 
         assert!(response
             .content

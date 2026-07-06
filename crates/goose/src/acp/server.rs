@@ -34,12 +34,13 @@ use crate::providers::inventory::{
     RefreshSkipReason,
 };
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::session_manager::SessionUsageTotals;
 use crate::session::{
-    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager,
+    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
 };
 use crate::source_roots::SourceRoot;
 use crate::utils::sanitize_unicode_tags;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
     CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
@@ -51,10 +52,9 @@ use agent_client_protocol::schema::{
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
     SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfoUpdate,
     SessionListCapabilities, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
-    SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent, TextResourceContents,
-    ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
+    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -94,9 +94,11 @@ mod extensions;
 mod fork_session;
 mod list_sessions;
 mod load_session;
+mod local_inference;
 mod manage_sessions;
 mod new_session;
 mod onboarding;
+mod prompts;
 mod providers;
 mod recipe;
 mod resources;
@@ -255,6 +257,21 @@ fn meta_string(
         );
     };
     Ok(Some(value.to_string()))
+}
+
+fn agent_capabilities_meta() -> Option<Meta> {
+    let mut goose = serde_json::Map::new();
+    if cfg!(feature = "local-inference") {
+        goose.insert("localInference".to_string(), serde_json::json!({}));
+    }
+
+    if goose.is_empty() {
+        return None;
+    }
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    Some(meta)
 }
 
 fn spawn_session_name_update_notifier(
@@ -820,13 +837,16 @@ pub(super) struct UsageUpdates {
     pub(super) standard: UsageUpdate,
 }
 
-pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
+pub(super) fn build_usage_updates(
+    session: &Session,
+    totals: &SessionUsageTotals,
+) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
     let accumulated_input_tokens =
-        to_nonnegative_u64(session.accumulated_usage.input_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
-        to_nonnegative_u64(session.accumulated_usage.output_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.output_tokens).unwrap_or(0);
     Some(UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
@@ -835,12 +855,12 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 context_limit: ctx_limit,
                 accumulated_input_tokens,
                 accumulated_output_tokens,
-                accumulated_cost: session.accumulated_cost,
+                accumulated_cost: totals.accumulated_cost,
             }),
         },
         standard: {
             let mut standard = UsageUpdate::new(used, ctx_limit);
-            if let Some(amount) = session.accumulated_cost {
+            if let Some(amount) = totals.accumulated_cost {
                 standard = standard.cost(Cost::new(amount, "USD"));
             }
             standard
@@ -872,6 +892,24 @@ impl GooseAcpAgent {
             .get()
             .copied()
             .unwrap_or(false)
+    }
+
+    pub(super) async fn notify_session_setup(
+        &self,
+        cx: &ConnectionTo<Client>,
+        session: &Session,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session.id)
+            .await
+            .unwrap_or_default();
+        send_session_setup_notifications(
+            cx,
+            session,
+            &totals,
+            self.supports_goose_custom_notifications(),
+        )
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -1162,7 +1200,10 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to update session")?;
 
-            let _ = self.agent_manager.remove_session(&session_id).await;
+            self.agent_manager
+                .remove_session_if_loaded(&session_id)
+                .await
+                .internal_err_ctx("Failed to remove in-memory agent")?;
 
             session = self
                 .session_manager
@@ -1243,10 +1284,10 @@ impl GooseAcpAgent {
                                 roles
                                     .iter()
                                     .filter_map(|r| match r {
-                                        agent_client_protocol::schema::Role::Assistant => {
+                                        agent_client_protocol::schema::v1::Role::Assistant => {
                                             Some(Role::Assistant)
                                         }
-                                        agent_client_protocol::schema::Role::User => {
+                                        agent_client_protocol::schema::v1::Role::User => {
                                             Some(Role::User)
                                         }
                                         _ => None,
@@ -1491,15 +1532,16 @@ impl GooseAcpAgent {
                         // common cases without paying for the regular model.
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
-                            match provider
-                                .complete(
+                            match crate::session_context::with_session_id(
+                                Some(sid.0.to_string()),
+                                provider.complete(
                                     &fast_model_config,
-                                    &sid.0,
                                     system,
                                     std::slice::from_ref(&message),
                                     &[],
-                                )
-                                .await
+                                ),
+                            )
+                            .await
                             {
                                 Ok((response, _)) => {
                                     let summary: String = response
@@ -1781,15 +1823,16 @@ impl GooseAcpAgent {
             // momentarily flaky, without escalating to the regular model.
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
-                match provider
-                    .complete(
+                match crate::session_context::with_session_id(
+                    Some(sid.0.to_string()),
+                    provider.complete(
                         &fast_model_config,
-                        &sid.0,
                         system,
                         std::slice::from_ref(&message),
                         &[],
-                    )
-                    .await
+                    ),
+                )
+                .await
                 {
                     Ok((response, _)) => {
                         let s = response
@@ -2206,7 +2249,8 @@ impl GooseAcpAgent {
                     .audio(false)
                     .embedded_context(true),
             )
-            .mcp_capabilities(McpCapabilities::new().http(true));
+            .mcp_capabilities(McpCapabilities::new().http(true))
+            .meta(agent_capabilities_meta());
         Ok(InitializeResponse::new(args.protocol_version)
             .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
             .agent_capabilities(capabilities)
@@ -2318,7 +2362,17 @@ impl GooseAcpAgent {
 
         if self.closed_session_ids.lock().await.contains(session_id) {
             self.sessions.lock().await.remove(session_id);
-            let _ = self.agent_manager.remove_session(session_id).await;
+            if let Err(error) = self
+                .agent_manager
+                .remove_session_if_loaded(session_id)
+                .await
+            {
+                tracing::warn!(
+                    session_id,
+                    %error,
+                    "Failed to remove in-memory agent for closed session"
+                );
+            }
         }
     }
 
@@ -2638,7 +2692,12 @@ impl GooseAcpAgent {
             .get_session(&session_id, false)
             .await
             .internal_err_ctx("Failed to load session")?;
-        if let Some(updates) = build_usage_updates(&session) {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session_id)
+            .await
+            .unwrap_or_default();
+        if let Some(updates) = build_usage_updates(&session, &totals) {
             if self.supports_goose_custom_notifications() {
                 cx.send_notification(updates.custom)?;
             }
@@ -2742,7 +2801,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         model_id: &str,
-    ) -> Result<SetSessionModelResponse, agent_client_protocol::Error> {
+    ) -> Result<(), agent_client_protocol::Error> {
         let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
             .provider()
@@ -2767,7 +2826,7 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to recreate provider")?;
         // model_config is already updated on the session by the agent's update_provider call.
-        Ok(SetSessionModelResponse::new())
+        Ok(())
     }
 
     async fn build_config_update(
@@ -2950,7 +3009,10 @@ impl GooseAcpAgent {
         sessions.remove(session_id);
         drop(sessions);
 
-        let _ = self.agent_manager.remove_session(session_id).await;
+        self.agent_manager
+            .remove_session_if_loaded(session_id)
+            .await
+            .internal_err_ctx("Failed to remove in-memory agent")?;
 
         info!(session_id = %session_id, "ACP session closed");
         Ok(CloseSessionResponse::new())
@@ -2984,6 +3046,38 @@ where
     })
 }
 
+/// A lazily-initialized agent connection used by the HTTP/WebSocket transport.
+///
+/// The `agent-client-protocol-http` server takes a synchronous factory that
+/// yields a [`ConnectTo<Client>`] per connection, but creating a goose agent is
+/// async. Agent creation is therefore deferred into [`ConnectTo::connect_to`],
+/// which runs as the connection's serving future.
+pub struct GooseAgentConnection {
+    server: Arc<crate::acp::server_factory::AcpServer>,
+}
+
+impl GooseAgentConnection {
+    pub fn new(server: Arc<crate::acp::server_factory::AcpServer>) -> Self {
+        Self { server }
+    }
+}
+
+impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
+    async fn connect_to(
+        self,
+        client: impl agent_client_protocol::ConnectTo<SacpAgent>,
+    ) -> std::result::Result<(), agent_client_protocol::Error> {
+        let agent = self.server.create_agent().await.internal_err()?;
+        let handler = GooseAcpHandler { agent };
+        SacpAgent
+            .builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .connect_to(client)
+            .await
+    }
+}
+
 pub async fn run(builtins: Vec<String>) -> Result<()> {
     info!("listening on stdio");
 
@@ -3009,7 +3103,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::{ToolRequest, ToolResponse};
     use crate::session::session_manager::SessionType;
-    use agent_client_protocol::schema::{
+    use agent_client_protocol::schema::v1::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
@@ -3809,7 +3903,12 @@ print(\"hello, world\")
             goose_providers::model::ModelConfig::new("test-model")
                 .with_context_limit(Some(258_000)),
         );
-        let updates = build_usage_updates(&session).expect("usage updates should be present");
+        let totals = SessionUsageTotals {
+            accumulated_usage: session.accumulated_usage,
+            accumulated_cost: session.accumulated_cost,
+        };
+        let updates =
+            build_usage_updates(&session, &totals).expect("usage updates should be present");
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -3827,7 +3926,7 @@ print(\"hello, world\")
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        assert!(build_usage_updates(&session).is_none());
+        assert!(build_usage_updates(&session, &SessionUsageTotals::default()).is_none());
     }
 
     #[test]
@@ -3855,7 +3954,7 @@ print(\"hello, world\")
         let request =
             InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
                 .client_capabilities(
-                    agent_client_protocol::schema::ClientCapabilities::new().meta(meta),
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
                 );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);

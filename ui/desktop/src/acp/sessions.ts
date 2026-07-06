@@ -5,10 +5,11 @@ import type {
   NewSessionRequest,
   SessionInfo,
 } from '@agentclientprotocol/sdk';
-import type { GooseExtension } from '@aaif/goose-sdk';
+import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult, Session } from '../api';
+import type { ExtensionLoadResult } from '../types/extensions';
+import type { Session } from '../types/session';
 import type { Recipe } from '../recipe';
 
 interface GooseSessionInfoMeta {
@@ -301,7 +302,15 @@ export async function acpExportSession(sessionId: string): Promise<string> {
   return response.data;
 }
 
-export async function acpImportSession(data: string): Promise<void> {
+export async function acpImportSession(
+  input: string,
+  source: SessionImportSource
+): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionImport_unstable({ data });
+  await client.goose.sessionImport_unstable({ input, source });
+}
+
+export async function acpShareSessionNostr(sessionId: string, relays: string[]) {
+  const client = await getAcpClient();
+  return await client.goose.sessionShareNostr_unstable({ sessionId, relays });
 }

@@ -15,7 +15,7 @@ import {
 } from './utils';
 
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
-import { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../types/extensions';
 
 const i18n = defineMessages({
   addCustomExtension: {

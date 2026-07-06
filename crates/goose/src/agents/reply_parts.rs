@@ -12,7 +12,7 @@ use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::config::Config;
-use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::Conversation;
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
@@ -21,7 +21,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use tracing::warn;
@@ -288,15 +288,16 @@ impl Agent {
         let model_config =
             model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         debug!("WAITING_LLM_STREAM_START");
-        let stream_result = provider
-            .stream(
+        let stream_result = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
+            provider.stream(
                 &model_config,
-                session_id,
                 system_prompt.as_str(),
                 messages_for_provider.messages(),
                 &tools,
-            )
-            .await;
+            ),
+        )
+        .await;
         debug!("WAITING_LLM_STREAM_END");
 
         // If there was an error creating the stream, return a stream that yields that error
@@ -522,17 +523,17 @@ impl Agent {
         schedule_id: Option<String>,
         usage: &ProviderUsage,
         is_compaction_usage: bool,
-    ) -> Result<()> {
+    ) -> Result<ProviderUsage> {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
 
-        let accumulated_usage = session.accumulated_usage + usage.usage;
+        let (chunk_cost, cost_source) =
+            self.resolve_chunk_cost(usage, session.provider_name.as_deref());
 
-        let accumulated_cost = session
-            .provider_name
-            .as_deref()
-            .and_then(|pn| self.accumulate_cost(session.accumulated_cost, usage, pn))
-            .or(session.accumulated_cost);
+        let mut enriched = usage.clone();
+        enriched.cost = chunk_cost;
+        enriched.cost_source = cost_source;
+        let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
 
         let current_usage = if is_compaction_usage {
             // After compaction: summary output becomes new input context
@@ -543,29 +544,33 @@ impl Agent {
         };
 
         manager
-            .update(session_id)
-            .schedule_id(schedule_id)
-            .usage(current_usage)
-            .accumulated_usage(accumulated_usage)
-            .accumulated_cost(accumulated_cost)
-            .apply()
+            .record_usage_metrics(
+                session_id,
+                schedule_id,
+                current_usage,
+                &usage.model,
+                &ledger,
+            )
             .await?;
 
-        Ok(())
+        Ok(enriched)
     }
 
-    fn accumulate_cost(
+    fn resolve_chunk_cost(
         &self,
-        existing: Option<f64>,
         usage: &ProviderUsage,
-        provider_name: &str,
-    ) -> Option<f64> {
-        let canonical =
-            crate::providers::canonical::maybe_get_canonical_model(provider_name, &usage.model)?;
-
-        let chunk_cost = canonical.cost.estimate_cost(&usage.usage)?;
-
-        Some(existing.unwrap_or(0.0) + chunk_cost)
+        provider_name: Option<&str>,
+    ) -> (Option<f64>, Option<CostSource>) {
+        if let Some(cost) = usage.cost {
+            return (Some(cost), Some(CostSource::ProviderReported));
+        }
+        match provider_name
+            .and_then(|pn| crate::providers::canonical::maybe_get_canonical_model(pn, &usage.model))
+            .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
+        {
+            Some(cost) => (Some(cost), Some(CostSource::Estimated)),
+            None => (None, None),
+        }
     }
 }
 
@@ -635,7 +640,6 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],

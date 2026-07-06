@@ -39,7 +39,7 @@ describe('Recipe Validation', () => {
       expect(schemaJson).not.toContain('sse');
       expect(schemaJson).not.toContain('frontend');
       expect(schemaJson).not.toContain('inline_python');
-      expect(schemaJson).not.toContain('available_tools');
+      expect(schemaJson).toContain('available_tools');
     });
   });
 });
