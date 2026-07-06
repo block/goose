@@ -23,7 +23,6 @@ use super::{
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
-    google::GoogleProvider,
     huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
@@ -31,7 +30,7 @@ use super::{
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
-    snowflake::SnowflakeProvider,
+    snowflake_def::SnowflakeProviderDef,
     tetrate::TetrateProvider,
     xai::XaiProvider,
     xai_oauth::XaiOAuthProvider,
@@ -41,6 +40,7 @@ use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
 use crate::providers::databricks_def::{self, DatabricksProviderDef};
 use crate::providers::databricks_v2_def::{self, DatabricksV2ProviderDef};
+use crate::providers::google_def::GoogleProviderDef;
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
@@ -104,7 +104,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<GeminiCliProvider>(false);
         registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
-        registry.register_with_inventory::<GoogleProvider>(
+        registry.register_with_inventory::<GoogleProviderDef>(
             true,
             Some(registrations::google_inventory()),
         );
@@ -130,7 +130,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
-        registry.register::<SnowflakeProvider>(false);
+        registry.register::<SnowflakeProviderDef>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
         registry.register_with_inventory::<XaiOAuthProvider>(

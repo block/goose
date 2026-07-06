@@ -43,6 +43,10 @@ impl Conversation {
         &self.0
     }
 
+    pub fn messages_mut(&mut self) -> &mut Vec<Message> {
+        &mut self.0
+    }
+
     pub fn push(&mut self, message: Message) {
         if message.content.is_empty() && message.metadata.inference.is_some() {
             if let Some(existing) = self
