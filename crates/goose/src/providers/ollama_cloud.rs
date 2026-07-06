@@ -25,6 +25,8 @@ pub struct OllamaCloudProvider {
     inner: OpenAiProvider,
     ollama_api_client: ApiClient,
     model_names: OnceCell<Vec<String>>,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
 }
 
 impl OllamaCloudProvider {
@@ -40,12 +42,26 @@ impl OllamaCloudProvider {
         let inner =
             crate::providers::openai_def::from_custom_config(config.clone(), tls_config.clone())?;
 
+        let custom_models = if !config.models.is_empty() {
+            Some(
+                config
+                    .models
+                    .iter()
+                    .map(|m| m.name.clone())
+                    .collect::<Vec<String>>(),
+            )
+        } else {
+            None
+        };
+
         let ollama_api_client = build_ollama_api_client(&config, tls_config)?;
 
         Ok(Self {
             inner,
             ollama_api_client,
             model_names: OnceCell::new(),
+            custom_models,
+            dynamic_models: config.dynamic_models,
         })
     }
 
@@ -79,10 +95,10 @@ impl OllamaCloudProvider {
         json.get("model_info")
             .and_then(|info| info.as_object())
             .and_then(|obj| {
-                obj.values().find_map(|v| {
-                    v.get("context_length")
-                        .and_then(|cl| cl.as_u64())
-                        .map(|n| n as usize)
+                obj.iter().find_map(|(key, value)| {
+                    key.ends_with(".context_length")
+                        .then(|| value.as_u64().map(|n| n as usize))
+                        .flatten()
                 })
             })
     }
@@ -146,6 +162,24 @@ impl Provider for OllamaCloudProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        if let Some(custom_models) = &self.custom_models {
+            if self.dynamic_models == Some(false) {
+                return Ok(custom_models.clone());
+            }
+
+            match self.get_or_fetch_model_names().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Ollama api/tags not available for provider '{}', using static model list",
+                        self.inner.get_name(),
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
         self.get_or_fetch_model_names().await
     }
 
@@ -209,6 +243,7 @@ impl ProviderDef for OllamaCloudProvider {
 mod tests {
     use super::*;
     use crate::config::declarative_providers::ProviderEngine;
+    use crate::providers::base::ModelInfo;
 
     #[test]
     fn declarative_matching_accepts_name_or_catalog_provider_id() {
@@ -224,28 +259,193 @@ mod tests {
         assert!(OllamaCloudProvider::matches_declarative_config(&config));
     }
 
-    fn test_config() -> DeclarativeProviderConfig {
+    #[tokio::test]
+    async fn fetch_supported_models_uses_static_models_when_dynamic_models_false() {
+        let server = mock_api_server(vec![], None).await;
+        let provider = build_provider(
+            server.uri(),
+            Some(false),
+            vec![ModelInfo::new("static-model", 4096)],
+        );
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_to_static_on_404() {
+        let server = mock_api_server(vec![], Some(404)).await;
+        let provider = build_provider(
+            server.uri(),
+            None,
+            vec![ModelInfo::new("static-model", 4096)],
+        );
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_uses_api_when_dynamic_models_true() {
+        let server = mock_api_server(vec!["api-model-1", "api-model-2"], None).await;
+        let provider = build_provider(
+            server.uri(),
+            Some(true),
+            vec![ModelInfo::new("static-model", 4096)],
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, vec!["api-model-1", "api-model-2"]);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_uses_api_when_no_static_models() {
+        let server = mock_api_server(vec!["api-model"], None).await;
+        let provider = build_provider(server.uri(), None, vec![]);
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, vec!["api-model"]);
+    }
+
+    #[tokio::test]
+    async fn get_context_limit_extracts_from_flat_model_info() {
+        let server = mock_show_server("gemma3", 131072).await;
+        let provider = build_provider(server.uri(), Some(true), vec![]);
+
+        let model_config = ModelConfig::new("gemma3:4b");
+        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        assert_eq!(limit, 131072);
+    }
+
+    #[tokio::test]
+    async fn get_context_limit_extracts_from_arch_prefixed_key() {
+        let server = mock_show_server("qwen3moe", 262144).await;
+        let provider = build_provider(server.uri(), Some(true), vec![]);
+
+        let model_config = ModelConfig::new("qwen3-coder:480b");
+        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        assert_eq!(limit, 262144);
+    }
+
+    #[tokio::test]
+    async fn get_context_limit_falls_back_on_missing_model_info() {
+        let server = mock_show_server_no_model_info().await;
+        let provider = build_provider(server.uri(), Some(true), vec![]);
+
+        let model_config = ModelConfig::new("unknown-model").with_context_limit(Some(8000));
+        let limit = provider.get_context_limit(&model_config).await.unwrap();
+        assert_eq!(limit, 8000);
+    }
+
+    fn build_provider(
+        base_url: String,
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+    ) -> OllamaCloudProvider {
+        let config = test_config_with(base_url, dynamic_models, models);
+        OllamaCloudProvider::from_custom_config(config, None).unwrap()
+    }
+
+    async fn mock_api_server(
+        model_names: Vec<&str>,
+        status_override: Option<u16>,
+    ) -> wiremock::MockServer {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let response = match status_override {
+            Some(404) => ResponseTemplate::new(404),
+            Some(status) => ResponseTemplate::new(status),
+            None => {
+                let models_json: Vec<serde_json::Value> = model_names
+                    .iter()
+                    .map(|n| serde_json::json!({"name": n, "model": n}))
+                    .collect();
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"models": models_json}))
+            }
+        };
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(response)
+            .mount(&server)
+            .await;
+        server
+    }
+
+    async fn mock_show_server(architecture: &str, context_length: u64) -> wiremock::MockServer {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let key = format!("{}.context_length", architecture);
+        let model_info = serde_json::json!({
+            "general.architecture": architecture,
+            key: context_length,
+        });
+        Mock::given(method("POST"))
+            .and(path("/api/show"))
+            .and(body_partial_json(serde_json::json!({})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"model_info": model_info})),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    async fn mock_show_server_no_model_info() -> wiremock::MockServer {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/show"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn test_config_with(
+        base_url: String,
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+    ) -> DeclarativeProviderConfig {
         DeclarativeProviderConfig {
             name: OLLAMA_CLOUD_PROVIDER_NAME.to_string(),
             engine: ProviderEngine::OpenAI,
             display_name: "Ollama Cloud".to_string(),
             description: None,
-            api_key_env: "OLLAMA_CLOUD_API_KEY".to_string(),
-            base_url: "https://ollama.com/v1/chat/completions".to_string(),
-            models: Vec::new(),
+            api_key_env: String::new(),
+            base_url,
+            models,
             headers: None,
             timeout_seconds: None,
             supports_streaming: Some(true),
-            requires_auth: true,
+            requires_auth: false,
             catalog_provider_id: None,
             base_path: None,
             env_vars: None,
-            dynamic_models: Some(true),
+            dynamic_models,
             skip_canonical_filtering: false,
             model_doc_link: None,
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: true,
         }
+    }
+
+    fn test_config() -> DeclarativeProviderConfig {
+        test_config_with(
+            "https://ollama.com/v1/chat/completions".to_string(),
+            Some(true),
+            vec![],
+        )
     }
 }
