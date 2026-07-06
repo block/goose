@@ -99,7 +99,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
-jsonschema = { version = "0.30", default-features = false }
+jsonschema = { version = "0.46", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
@@ -173,7 +173,7 @@ unicode-normalization = { version = "0.1.22", default-features = false, features
 # For local Whisper transcription (optional, behind "local-inference" feature)
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
-candle-transformers = { version = "0.10", default-features = false, optional = true }
+candle-transformers = { version = "0.11", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
@@ -241,7 +241,7 @@ libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
-mockall = { version = "0.14", default-features = false }
+mockall = { version = "0.15", default-features = false }
 wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
