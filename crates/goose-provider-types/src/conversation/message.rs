@@ -667,8 +667,6 @@ pub struct InferenceMetadata {
     pub resolved_model: Option<String>,
 }
 
-/// Token usage and cost of a single provider call, attached to the turn's
-/// assistant message for display and recorded to the session's usage ledger.
 #[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageUsage {
@@ -686,13 +684,10 @@ pub struct MessageUsage {
     pub cost: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_source: Option<CostSource>,
-    /// Wall-clock generation time, used by the client for a tokens/sec readout.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elapsed_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_to_first_token_ms: Option<u64>,
-    /// Usage from a compaction/summarization call rather than a normal turn.
-    /// Aggregation counts it; the client can badge it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_compaction: bool,
 }
@@ -730,9 +725,6 @@ pub struct MessageMetadata {
     /// without matching user-visible text. Never sent to providers.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub steer: bool,
-    /// Per-message token usage/cost, populated and serialized to clients as
-    /// groundwork for the upcoming per-message UI (session aggregation reads the
-    /// ledger, not this). Boxed to keep the common no-usage message small.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
 }

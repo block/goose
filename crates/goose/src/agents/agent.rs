@@ -273,8 +273,6 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
-/// Display-only: aggregation reads the ledger, so a turn with no assistant
-/// message loses nothing here.
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -2039,8 +2037,6 @@ impl Agent {
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
                 let mut pending_final_output: Option<String> = None;
-                // The provider usually reports usage on a trailing usage-only
-                // chunk, after the turn's messages.
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
 
                 // Track whether this provider turn has already emitted visible

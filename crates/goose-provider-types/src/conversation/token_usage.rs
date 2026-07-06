@@ -9,21 +9,16 @@ pub struct ProviderUsage {
     pub usage: Usage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<ProviderStats>,
-    /// Cost in USD for this request. Provider-reported when available,
-    /// otherwise filled in downstream from a pricing estimate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost_source: Option<CostSource>,
 }
 
-/// How the `cost` on a usage record was determined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CostSource {
-    /// Cost returned directly by the provider (e.g. OpenRouter `usage.cost`).
     ProviderReported,
-    /// Cost computed from the canonical pricing table.
     Estimated,
 }
 

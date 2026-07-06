@@ -326,8 +326,6 @@ impl Provider for OpenRouterProvider {
 
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
-            // Have OpenRouter report the actual generation cost inline instead
-            // of us estimating it.
             obj.insert("usage".to_string(), json!({ "include": true }));
         }
 

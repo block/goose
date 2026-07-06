@@ -580,8 +580,6 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
     }
 }
 
-/// `fallback_cost` carries a cost seen earlier in the stream so it survives the
-/// `message_start` -> `message_delta` merge.
 fn provider_usage_with_cost(
     model: String,
     usage: Usage,
@@ -2044,10 +2042,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_preserves_provider_cost_from_delta() {
-        // message_start has input tokens but no cost; the final message_delta
-        // (Anthropic-compatible gateway) carries the output tokens AND the
-        // provider-reported total cost. The cost must survive the merge as the
-        // single total, not doubled or dropped.
         let events = concat!(
             r#"data: {"type":"message_start","message":{"id":"m1","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":100,"output_tokens":0}}}"#,
             "\n",

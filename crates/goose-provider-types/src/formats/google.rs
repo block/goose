@@ -1,9 +1,9 @@
+use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::errors::ProviderError;
+use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::model::ModelConfig;
+use crate::thinking::ThinkingEffort;
 use anyhow::Result;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{is_valid_function_name, sanitize_function_name};
-use goose_providers::model::ModelConfig;
-use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
 };
@@ -17,7 +17,7 @@ use std::ops::Deref;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
 const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
-const GEMINI25_DEFAULT_THINKING_BUDGET: i32 = 8192;
+const DEFAULT_THINKING_BUDGET: i32 = 8192;
 
 pub fn metadata_with_signature(signature: &str) -> ProviderMetadata {
     let mut map = ProviderMetadata::new();
@@ -537,7 +537,10 @@ struct GoogleRequest<'a> {
     generation_config: Option<GenerationConfig>,
 }
 
-fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+fn get_thinking_config(
+    model_config: &ModelConfig,
+    thinking_budget: Option<i32>,
+) -> Option<ThinkingConfig> {
     if model_config.reasoning == Some(false)
         || model_config.thinking_effort() == Some(ThinkingEffort::Off)
     {
@@ -585,22 +588,19 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     } else {
         let thinking_budget = match model_config
             .request_param::<i32>("thinking_budget")
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param("GEMINI25_THINKING_BUDGET")
-                    .ok()
-            }) {
+            .or(thinking_budget)
+        {
             Some(budget) if budget >= 0 => budget,
             Some(budget) => {
                 tracing::warn!(
                     "Invalid thinking budget '{}' for model '{}'. Must be >= 0. Using '{}'.",
                     budget,
                     model_config.model_name,
-                    GEMINI25_DEFAULT_THINKING_BUDGET,
+                    DEFAULT_THINKING_BUDGET,
                 );
-                GEMINI25_DEFAULT_THINKING_BUDGET
+                DEFAULT_THINKING_BUDGET
             }
-            None => GEMINI25_DEFAULT_THINKING_BUDGET,
+            None => DEFAULT_THINKING_BUDGET,
         };
         Some(ThinkingConfig {
             thinking_level: None,
@@ -616,6 +616,26 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
+    create_request_impl(model_config, system, messages, tools, None)
+}
+
+pub fn create_request_with_thinking_budget(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    thinking_budget: Option<i32>,
+) -> Result<Value> {
+    create_request_impl(model_config, system, messages, tools, thinking_budget)
+}
+
+fn create_request_impl(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    thinking_budget: Option<i32>,
+) -> Result<Value> {
     let tools_wrapper = if tools.is_empty() {
         None
     } else {
@@ -624,7 +644,7 @@ pub fn create_request(
         })
     };
 
-    let thinking_config = get_thinking_config(model_config);
+    let thinking_config = get_thinking_config(model_config, thinking_budget);
 
     let generation_config = Some(GenerationConfig {
         temperature: model_config.temperature.map(|t| t as f64),
@@ -1417,27 +1437,27 @@ data: [DONE]"#;
 
     #[test]
     fn test_get_thinking_config_disabled_reasoning() {
-        use goose_providers::model::ModelConfig;
+        use crate::model::ModelConfig;
 
         let config = ModelConfig::new("gemini-2.5-flash").with_thinking_effort(ThinkingEffort::Off);
-        let thinking_config = get_thinking_config(&config).unwrap();
+        let thinking_config = get_thinking_config(&config, None).unwrap();
         assert_eq!(thinking_config.thinking_budget, Some(0));
         assert!(!thinking_config.include_thoughts);
 
         let config = ModelConfig::new("gemini-2.5-pro").with_thinking_effort(ThinkingEffort::Off);
-        assert!(get_thinking_config(&config).is_none());
+        assert!(get_thinking_config(&config, None).is_none());
     }
 
     #[test]
     fn test_get_thinking_config() {
-        use goose_providers::model::ModelConfig;
+        use crate::model::ModelConfig;
 
         // Test 1: Gemini 3 model with low thinking effort
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
         let mut config = ModelConfig::new("gemini-3-pro");
         config.request_params = Some(params);
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(thinking_config.thinking_level.is_some());
@@ -1449,7 +1469,7 @@ data: [DONE]"#;
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         let mut config = ModelConfig::new("Gemini-3-Flash");
         config.request_params = Some(params);
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(matches!(
@@ -1458,20 +1478,20 @@ data: [DONE]"#;
         ));
 
         let config = ModelConfig::new("gemini-2.5-flash");
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(thinking_config.include_thoughts);
         assert!(thinking_config.thinking_level.is_none());
         assert_eq!(
             thinking_config.thinking_budget,
-            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+            Some(DEFAULT_THINKING_BUDGET)
         );
 
         let mut params = HashMap::new();
         params.insert("thinking_budget".to_string(), json!(4096));
         let config = ModelConfig::new("gemini-2.5-flash").with_merged_request_params(params);
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert_eq!(thinking_config.thinking_budget, Some(4096));
@@ -1479,20 +1499,20 @@ data: [DONE]"#;
         let mut params = HashMap::new();
         params.insert("thinking_budget".to_string(), json!(-1));
         let config = ModelConfig::new("gemini-2.5-flash").with_merged_request_params(params);
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert_eq!(
             thinking_config.thinking_budget,
-            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+            Some(DEFAULT_THINKING_BUDGET)
         );
 
         let config = ModelConfig::new("gemini-2.0-flash");
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_none());
 
         let config = ModelConfig::new("gpt-4o");
-        let result = get_thinking_config(&config);
+        let result = get_thinking_config(&config, None);
         assert!(result.is_none());
     }
 }

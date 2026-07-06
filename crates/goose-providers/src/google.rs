@@ -1,19 +1,18 @@
-use super::api_client::{ApiClient, AuthMethod};
-use super::base::MessageStream;
-use super::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
-use super::retry::ProviderRetry;
+use crate::api_client::{ApiClient, AuthMethod};
+use crate::base::MessageStream;
 use crate::conversation::message::Message;
-use goose_providers::errors::ProviderError;
+use crate::errors::ProviderError;
+use crate::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
+use crate::retry::ProviderRetry;
 
-use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
-use crate::providers::formats::google::{create_request, response_to_streaming_message};
+use crate::base::{ConfigKey, Provider, ProviderMetadata};
+use crate::formats::google::{create_request_with_thinking_budget, response_to_streaming_message};
+use crate::model::ModelConfig;
+use crate::request_log::{start_log, LoggerHandleExt};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::io;
@@ -22,7 +21,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
-pub(crate) const GOOGLE_PROVIDER_NAME: &str = "google";
+pub const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -62,30 +61,33 @@ pub struct GoogleProvider {
     api_client: ApiClient,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    thinking_budget: Option<i32>,
 }
 
 impl GoogleProvider {
-    pub async fn from_env(
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    pub fn new(
+        host: String,
+        api_key: String,
+        tls_config: Option<crate::api_client::TlsConfig>,
+        request_builder: Option<crate::api_client::RequestBuilderDecorator>,
+        thinking_budget: Option<i32>,
     ) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
-        let host: String = config
-            .get_param("GOOGLE_HOST")
-            .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
-
         let auth = AuthMethod::ApiKey {
             header_name: "x-goog-api-key".to_string(),
             key: api_key,
         };
 
-        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
-            .with_request_builder(crate::session_context::session_id_request_builder())
+        let mut api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_header("Content-Type", "application/json")?;
+        if let Some(request_builder) = request_builder {
+            api_client = api_client.with_request_builder(request_builder);
+        }
 
         Ok(Self {
             api_client,
             name: GOOGLE_PROVIDER_NAME.to_string(),
+            thinking_budget,
         })
     }
 
@@ -100,7 +102,7 @@ impl GoogleProvider {
     }
 }
 
-impl goose_providers::base::ProviderDescriptor for GoogleProvider {
+impl crate::base::ProviderDescriptor for GoogleProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GOOGLE_PROVIDER_NAME,
@@ -121,17 +123,6 @@ impl goose_providers::base::ProviderDescriptor for GoogleProvider {
             "Create a new API key or select an existing one",
             "Copy the key and paste it above",
         ])
-    }
-}
-
-impl ProviderDef for GoogleProvider {
-    type Provider = Self;
-
-    fn from_env(
-        _extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -180,7 +171,13 @@ impl Provider for GoogleProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
+        let payload = create_request_with_thinking_budget(
+            model_config,
+            system,
+            messages,
+            tools,
+            self.thinking_budget,
+        )?;
         let mut log = start_log(model_config, &payload)?;
 
         let response = self

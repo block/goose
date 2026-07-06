@@ -709,13 +709,13 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
-                if !is_valid_function_name(&function_name) {
+                if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
-                        message: Cow::from(format!(
-                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                            function_name
-                        )),
+                        message: Cow::from(
+                            "The provided function name was empty; a tool call must name a tool"
+                                .to_string(),
+                        ),
                         data: None,
                     };
                     content.push(MessageContent::tool_request_with_metadata(
@@ -723,54 +723,50 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Err(error),
                         metadata.as_ref(),
                     ));
-                } else {
-                    match parse_tool_arguments(&arguments_str) {
-                        Some(params) if params.is_object() => {
-                            content.push(MessageContent::tool_request_with_metadata(
+                    continue;
+                }
+                match parse_tool_arguments(&arguments_str) {
+                    Some(params) if params.is_object() => {
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Ok(CallToolRequestParams::new(function_name)
+                                .with_arguments(object(params))),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    Some(other) => {
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(format!(
+                                "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                function_name,
                                 id,
-                                Ok(CallToolRequestParams::new(function_name)
-                                    .with_arguments(object(params))),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        // Valid JSON but NOT an object (a bare array/string/number).
-                        // Weaker models emit this; surface a tool error so the model
-                        // retries with a proper object instead of crashing the run
-                        // (rmcp's `object()` debug-asserts on non-objects).
-                        Some(other) => {
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
-                                    function_name,
-                                    id,
-                                    describe_json_value(&other),
-                                    arguments_str
-                                )),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        None => {
-                            let message_text = truncation_error_message(&arguments_str)
-                                .unwrap_or_else(|| {
-                                    format!("Could not interpret tool use parameters for id {id}")
-                                });
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(message_text),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
+                                describe_json_value(&other),
+                                arguments_str
+                            )),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    None => {
+                        let message_text =
+                            truncation_error_message(&arguments_str).unwrap_or_else(|| {
+                                format!("Could not interpret tool use parameters for id {id}")
+                            });
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(message_text),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
                     }
                 }
             }
@@ -2012,10 +2008,9 @@ mod tests {
     }
 
     #[test]
-    fn test_response_to_message_invalid_func_name() -> anyhow::Result<()> {
+    fn test_response_to_message_empty_func_name() -> anyhow::Result<()> {
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("invalid fn");
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("");
 
         let message = response_to_message(&response)?;
 
@@ -2028,8 +2023,50 @@ mod tests {
                 }) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
-                _ => panic!("Expected ToolNotFound error"),
+                _ => panic!("Expected invalid-request error for empty name"),
             }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_passes_names_through_to_dispatch() -> anyhow::Result<()> {
+        for name in [
+            "developer.shell",
+            "functions.example_fn",
+            "example fn",
+            "???!",
+        ] {
+            let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+            response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!(name);
+
+            let message = response_to_message(&response)?;
+
+            if let MessageContent::ToolRequest(request) = &message.content[0] {
+                let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                assert_eq!(tool_call.name, name, "name must pass through verbatim");
+            } else {
+                panic!("Expected ToolRequest content");
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_fenced_arguments() -> anyhow::Result<()> {
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("```json\n{\"param\": \"value\"}\n```");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -3822,6 +3859,68 @@ data: [DONE]"#;
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0].0, "get_weather");
         assert_eq!(tool_calls[0].1, Some(object!({"city": "Paris"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_call_dotted_name_passes_through() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"ext__db.query\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                        tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].0, "ext__db.query");
+        assert_eq!(tool_calls[0].1, Some(object!({"command": "ls"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_call_degenerate_name_passes_through() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"???\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut names = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        names.push(
+                            request
+                                .tool_call
+                                .as_ref()
+                                .expect("passes through")
+                                .name
+                                .to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
+        assert_eq!(names, vec!["???".to_string()]);
         Ok(())
     }
 
