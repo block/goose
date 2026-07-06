@@ -20,7 +20,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "1.4", default-features = false, features = ["schemars", "auth"] }
+rmcp = { version = "2.1", default-features = false, features = ["schemars", "auth"] }
 agent-client-protocol-schema = { version = "1.1", default-features = false, features = ["unstable"] }
 agent-client-protocol = { version = "1.0", default-features = false }
 agent-client-protocol-http = { version = "1.0", default-features = false, features = ["server", "unstable_cancel_request"] }

@@ -4943,7 +4943,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "rubato",
  "rustls",
  "schemars 1.2.1",
@@ -5040,7 +5040,7 @@ dependencies = [
  "rand 0.10.1",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5102,7 +5102,7 @@ dependencies = [
  "mlx-rs",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "serde",
  "serde_json",
  "tempfile",
@@ -5128,7 +5128,7 @@ dependencies = [
  "once_cell",
  "process-wrap",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -5157,7 +5157,7 @@ dependencies = [
  "rand 0.10.1",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5189,7 +5189,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "sec1",
  "serde",
  "serde_json",
@@ -5253,7 +5253,7 @@ dependencies = [
  "http 1.4.2",
  "rand 0.10.1",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.1.0",
  "rustls",
  "serde",
  "serde_json",
@@ -5287,7 +5287,7 @@ dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp",
+ "rmcp 2.1.0",
  "serde_json",
  "tokio",
 ]
@@ -7972,7 +7972,7 @@ dependencies = [
  "deno_error",
  "pctx_config",
  "pctx_registry",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -8038,7 +8038,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.1",
  "opentelemetry_sdk 0.31.0",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "shlex 1.3.0",
@@ -8091,7 +8091,7 @@ checksum = "2f5a53bf73ba98a5352e788391f47c33af096c696c64e130110b85cc51336e20"
 dependencies = [
  "deno_error",
  "pctx_config",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -9177,12 +9177,38 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0810a9f717d9828f475fe1f629f4c305c8464b7f496c3a854b58d29e65f4058e"
+checksum = "1d1f571c72940a19d9532fe52dbea8bc9912bf1d766c2970bb824056b86f3f59"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "http 1.4.2",
+ "pastey",
+ "pin-project-lite",
+ "process-wrap",
+ "reqwest 0.13.4",
+ "rmcp-macros 1.8.0",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sse-stream",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f00a32c3b81b7b254076a65abd5ab2551209146713ba38f73818657e865e9433"
+dependencies = [
+ "async-trait",
  "bytes",
  "chrono",
  "futures",
@@ -9197,7 +9223,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.1",
  "reqwest 0.13.4",
- "rmcp-macros",
+ "rmcp-macros 2.1.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -9214,9 +9240,22 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6aefac48c364756e97f04c0401ba3231e8607882c7c1d92da0437dc16307904d"
+checksum = "1aad0035b69380782d78ea95b508327e6deaa2235909053e596eea8f27b5e1d5"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee70afb7956da9f30d5348a2539b5eb90d9038f834463657ab717076ac3b1ad"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
