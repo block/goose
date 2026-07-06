@@ -60,10 +60,6 @@ pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
         name: "gpt-5.4",
         reasoning_levels: &["low", "medium", "high", "xhigh"],
     },
-    ChatGptCodexModelAttrs {
-        name: "gpt-5.3-codex",
-        reasoning_levels: &["low", "medium", "high", "xhigh"],
-    },
 ];
 
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
@@ -81,14 +77,6 @@ pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
 fn known_model_names() -> Vec<&'static str> {
     CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
 }
-
-const GPT_53_CODEX_TOOL_PREAMBLE: &str = "\
-You are a coding agent. You have access to tools to accomplish tasks. \
-Always use your tools to fulfill requests - do not just describe what you would do. \
-Keep going until the query is completely resolved before yielding back to the user. \
-Autonomously resolve the query using the tools available to you. \
-Do NOT guess or make up an answer. \
-Before making tool calls, send a brief message explaining what you're about to do.";
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -259,16 +247,11 @@ fn create_codex_request(
     let input_items = build_input_items(messages)?;
     let reasoning_effort = reasoning_effort_for_config(model_config);
 
-    let instructions = match model_config.model_name.as_str() {
-        "gpt-5.3-codex" => format!("{GPT_53_CODEX_TOOL_PREAMBLE}\n\n{system}"),
-        _ => system.to_string(),
-    };
-
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
-        "instructions": instructions,
+        "instructions": system,
     });
 
     let payload_obj = payload
@@ -1197,7 +1180,7 @@ mod tests {
     fn test_create_codex_request_reasoning_effort_from_unified_thinking() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
-        let mut config = ModelConfig::new("gpt-5.3-codex");
+        let mut config = ModelConfig::new("gpt-5.5");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
@@ -1397,16 +1380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gpt53_preamble_injected() {
-        let model = ModelConfig::new("gpt-5.3-codex");
-        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
-        let instructions = payload["instructions"].as_str().unwrap();
-        assert!(instructions.contains(GPT_53_CODEX_TOOL_PREAMBLE));
-        assert!(instructions.contains("system prompt"));
-    }
-
-    #[test]
-    fn test_other_models_no_preamble() {
+    fn test_instructions_passed_through() {
         let model = ModelConfig::new("gpt-5.4");
         let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
         let instructions = payload["instructions"].as_str().unwrap();

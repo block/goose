@@ -3361,6 +3361,14 @@
           "$ref": "#/components/schemas/Message"
         }
       },
+      "CostSource": {
+        "type": "string",
+        "description": "How the `cost` on a usage record was determined.",
+        "enum": [
+          "provider_reported",
+          "estimated"
+        ]
+      },
       "CreateCustomProviderResponse": {
         "type": "object",
         "required": [
@@ -5116,9 +5124,78 @@
             "type": "boolean",
             "description": "Whether this message is a steer injected into an active run. UI-only:\nsurfaced as `_meta.goose.steer` so clients can mark the steer boundary\nwithout matching user-visible text. Never sent to providers."
           },
+          "usage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MessageUsage"
+              }
+            ],
+            "nullable": true
+          },
           "userVisible": {
             "type": "boolean",
             "description": "Whether the message should be visible to the user in the UI"
+          }
+        }
+      },
+      "MessageUsage": {
+        "type": "object",
+        "description": "Token usage and cost of a single provider call, attached to the turn's\nassistant message for display and recorded to the session's usage ledger.",
+        "properties": {
+          "cacheReadTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cacheWriteTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "costSource": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CostSource"
+              }
+            ],
+            "nullable": true
+          },
+          "elapsedMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Wall-clock generation time, used by the client for a tokens/sec readout.",
+            "nullable": true,
+            "minimum": 0
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isCompaction": {
+            "type": "boolean",
+            "description": "Usage from a compaction/summarization call rather than a normal turn.\nAggregation counts it; the client can badge it."
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "timeToFirstTokenMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -6487,6 +6564,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "parent_session_id": {
+            "type": "string",
+            "description": "For sub-agent sessions, the session that spawned them.",
+            "nullable": true
           },
           "project_id": {
             "type": "string",

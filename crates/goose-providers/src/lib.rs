@@ -16,3 +16,5 @@ pub mod openai;
 pub mod openai_compatible;
 
 pub use declarative::declarative_providers::*;
+
+pub mod snowflake;

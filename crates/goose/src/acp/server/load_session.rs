@@ -209,7 +209,7 @@ impl GooseAcpAgent {
         let (mode_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &session).await?;
 
-        send_session_setup_notifications(cx, &session, self.supports_goose_custom_notifications())?;
+        self.notify_session_setup(cx, &session).await?;
 
         let mut response = LoadSessionResponse::new().modes(mode_state);
         if let Some(co) = config_options {
