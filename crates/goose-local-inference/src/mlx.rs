@@ -451,10 +451,13 @@ mod imp {
                 generated_ids.push(token_id);
                 if stream_generation {
                     if let Some(piece) = decode_stream.step(token_id).map_err(mlx_error)? {
-                        if !piece.is_empty() && !emitter.push_text(&piece)? {
-                            break;
+                        if !piece.is_empty() {
+                            let should_continue = emitter.push_text(&piece)?;
+                            streamed_text.push_str(&piece);
+                            if !should_continue {
+                                break;
+                            }
                         }
-                        streamed_text.push_str(&piece);
                     }
                 }
             }
@@ -946,6 +949,14 @@ mod imp {
             assert_eq!(
                 final_stream_suffix("hello world", "hello").unwrap(),
                 Some(" world")
+            );
+        }
+
+        #[test]
+        fn final_stream_suffix_does_not_replay_fully_streamed_text() {
+            assert_eq!(
+                final_stream_suffix("run tool", "run tool").unwrap(),
+                Some("")
             );
         }
 

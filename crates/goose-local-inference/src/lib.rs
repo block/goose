@@ -683,9 +683,9 @@ impl Provider for LocalInferenceProvider {
             model_settings.chat_template.clone(),
         );
         let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
-        let other_model_slots = self.runtime.other_model_slots(&cache_key);
         let runtime = self.runtime.clone();
 
+        let cache_key = cache_key.clone();
         let model_arc = model_slot.clone();
         let backend = backend.clone();
         let model_name = model_config.model_name.clone();
@@ -762,6 +762,7 @@ impl Provider for LocalInferenceProvider {
                             return;
                         }
 
+                        let other_model_slots = runtime.other_model_slots(&cache_key);
                         for slot in other_model_slots {
                             let mut other = slot.state.lock().await;
                             if matches!(*other, ModelSlotState::Loaded(_)) {
