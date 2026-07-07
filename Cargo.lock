@@ -9338,9 +9338,9 @@ dependencies = [
 
 [[package]]
 name = "safemlx-lm"
-version = "0.1.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c455f9f19afceb2de1f25703aa1ed01f02733043f156774afa70e5a7f2c9588"
+checksum = "78f450654386009003b745adfdae7af2c7f44ae749d75621a2a0b07607945e9f"
 dependencies = [
  "anyhow",
  "clap",
@@ -9356,9 +9356,9 @@ dependencies = [
 
 [[package]]
 name = "safemlx-lm-utils"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a2d58bc19090d5e71ebaceea1887aa017a6a7008a4d0af88f9ba1d0e9fcc3e6"
+checksum = "583d39124dae0b4a93ac7528d16d543f5e717c21365e6b034a8a74d8e1b4eb3a"
 dependencies = [
  "minijinja",
  "minijinja-contrib",
@@ -11694,7 +11694,6 @@ dependencies = [
  "derive_builder",
  "esaxx-rs",
  "getrandom 0.3.4",
- "indicatif",
  "itertools 0.14.0",
  "log",
  "macro_rules_attribute",
