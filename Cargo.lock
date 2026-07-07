@@ -2510,18 +2510,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "config"
-version = "0.15.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b85f248a4de22d204ceabc6299d89d2c70fbd7f09fea53c06c852369652d8139"
-dependencies = [
- "pathdiff",
- "serde_core",
- "toml 1.1.2+spec-1.1.0",
- "winnow 1.0.3",
-]
-
-[[package]]
 name = "console"
 version = "0.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5286,45 +5274,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "goose-server"
-version = "1.41.0"
-dependencies = [
- "anyhow",
- "axum",
- "axum-server",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "clap",
- "config",
- "futures",
- "goose",
- "goose-mcp",
- "goose-providers",
- "hex",
- "http 1.4.2",
- "rand 0.10.2",
- "reqwest 0.13.4",
- "rmcp",
- "rustls",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "serde_yaml",
- "thiserror 2.0.18",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tower",
- "tower-http 0.7.0",
- "tracing",
- "tracing-subscriber",
- "utoipa 4.2.3",
- "uuid",
- "winreg",
 ]
 
 [[package]]
@@ -12889,7 +12838,6 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "regex",
  "syn 2.0.118",
 ]
 
@@ -13707,16 +13655,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0592e1c9d151f854e6fd382574c3a0855250e1d9b2f99d9281c6e6391af352f1"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "winreg"
-version = "0.56.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
-dependencies = [
- "cfg-if 1.0.4",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
