@@ -879,6 +879,17 @@
       "required": false
     }
   ]
-}
+},
+  {
+    "id": "perseus-vault",
+    "name": "Perseus Vault",
+    "description": "Local-first, encrypted long-term memory engine for AI agents — remember and recall across sessions, fully offline. Single binary, AES-256-GCM at rest, no cloud, no API keys.",
+    "command": "perseus-vault --db ~/.mimir/data/perseus-vault.db",
+    "link": "https://github.com/Perseus-Computing-LLC/perseus-vault",
+    "installation_notes": "Install the single Perseus Vault binary — prebuilt via scripts/install.sh, or build from source via scripts/bootstrap.sh (see the repo README). Runs fully local over MCP stdio — no API keys, no network. Optional encryption at rest: add --encryption-key ~/.mimir/secret.key (generate with 'perseus-vault keygen'). Create the data dir first: mkdir -p ~/.mimir/data.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 
 ]
