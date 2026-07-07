@@ -217,7 +217,7 @@ impl ProviderFixture {
         for &var in config.clear_env {
             env_vars.push((var, None));
         }
-        let guard = env_lock::lock_env(env_vars.into_iter());
+        let guard = env_lock::lock_env(env_vars);
 
         let expected_session_id = (config.expected_session_id)();
         let mcp = McpFixture::new(expected_session_id.clone()).await;
