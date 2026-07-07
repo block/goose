@@ -29,6 +29,7 @@ fn send_replay_content_chunk(
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
+    supports_goose_custom_notifications: bool,
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
@@ -158,6 +159,18 @@ fn replay_conversation_to_client(
                 _ => {}
             }
         }
+
+        if supports_goose_custom_notifications {
+            if let Some(usage) = &message.metadata.usage {
+                cx.send_notification(GooseSessionNotification {
+                    session_id: session.id.clone(),
+                    update: GooseSessionUpdate::MessageUsage(message_usage_update(
+                        message.id.clone(),
+                        usage,
+                    )),
+                })?;
+            }
+        }
     }
 
     Ok(replay_tool_requests)
@@ -189,7 +202,11 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
+        let replay_tool_requests = replay_conversation_to_client(
+            cx,
+            &session,
+            self.supports_goose_custom_notifications(),
+        )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)

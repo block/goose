@@ -531,6 +531,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/local-inference/models/evict",
+      "requestType": "LocalInferenceModelEvictRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/local-inference/models/settings/read",
       "requestType": "LocalInferenceModelSettingsReadRequest_unstable",
       "responseType": "LocalInferenceModelSettingsReadResponse_unstable"
