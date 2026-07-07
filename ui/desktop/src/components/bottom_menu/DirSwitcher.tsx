@@ -43,6 +43,24 @@ const i18n = defineMessages({
   },
 });
 
+const splitDirPath = (dir: string): { name: string; parent: string } => {
+  const normalized = dir.replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]/);
+  const name = parts.pop() || dir;
+  const parent = parts.join('/');
+  return { name, parent };
+};
+
+const DirNameLabel: React.FC<{ dir: string }> = ({ dir }) => {
+  const { name, parent } = splitDirPath(dir);
+  return (
+    <div className="flex flex-col min-w-0 flex-1">
+      <span className="truncate text-sm text-text-primary">{name}</span>
+      {parent && <span className="truncate text-xs text-text-secondary/70">{parent}</span>}
+    </div>
+  );
+};
+
 interface DirSwitcherProps {
   className: string;
   sessionId: string | undefined;
@@ -190,14 +208,14 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
-          <DropdownMenuContent className="w-80" side="top" align="start">
+          <DropdownMenuContent className="w-[28rem]" side="top" align="start">
             <DropdownMenuLabel>{intl.formatMessage(i18n.currentDirectory)}</DropdownMenuLabel>
             <DropdownMenuItem
               onSelect={() => void window.electron.openDirectoryInExplorer(workingDir)}
             >
-              <FolderOpen className="mr-2 h-4 w-4" />
-              <span className="truncate">{workingDir}</span>
-              <Check className="ml-auto h-4 w-4" />
+              <FolderOpen className="mr-2 h-4 w-4 flex-shrink-0" />
+              <DirNameLabel dir={workingDir} />
+              <Check className="ml-auto h-4 w-4 flex-shrink-0" />
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -208,8 +226,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
                   key={`worktree-${dir}`}
                   onSelect={() => void handleSelectDirectory(dir)}
                 >
-                  <GitBranch className="mr-2 h-4 w-4" />
-                  <span className="truncate">{dir}</span>
+                  <GitBranch className="mr-2 h-4 w-4 flex-shrink-0" />
+                  <DirNameLabel dir={dir} />
                 </DropdownMenuItem>
               ))
             ) : (
@@ -228,8 +246,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
                     key={`recent-${dir}`}
                     onSelect={() => void handleSelectDirectory(dir)}
                   >
-                    <FolderDot className="mr-2 h-4 w-4" />
-                    <span className="truncate">{dir}</span>
+                    <FolderDot className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <DirNameLabel dir={dir} />
                   </DropdownMenuItem>
                 ))}
               </>

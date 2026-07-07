@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "待機中"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（入力の{percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "キャッシュ読み取り"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "キャッシュ書き込み"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "圧縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "コスト"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（推定）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "最初のトークン"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "入力"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "出力"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（報告値）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "合計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "合計時間"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "音声入力に使用するマイクを選択"
   },

@@ -12,7 +12,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::agents::{AgentEvent, SessionConfig};
-use goose::conversation::message::{Message, MessageContent, TokenState};
+use goose::conversation::message::{Message, MessageContent, MessageUsage, TokenState};
 use goose::conversation::Conversation;
 use goose::session::SessionManager;
 use rmcp::model::ServerNotification;
@@ -130,6 +130,12 @@ pub enum MessageEvent {
         message: Message,
         token_state: TokenState,
     },
+    /// Per-message token usage/cost, sent after the corresponding `Message`
+    /// event once the provider call's usage is known.
+    MessageUsage {
+        message_id: Option<String>,
+        usage: MessageUsage,
+    },
     Error {
         error: String,
     },
@@ -154,18 +160,23 @@ pub enum MessageEvent {
 }
 
 pub async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
-    session_manager
-        .get_session(session_id, false)
-        .await
-        .map(|session| TokenState::from(&session))
-        .inspect_err(|e| {
-            tracing::warn!(
-                "Failed to fetch session token state for {}: {}",
-                session_id,
-                e
-            );
-        })
-        .unwrap_or_default()
+    let session = match session_manager.get_session(session_id, false).await {
+        Ok(session) => session,
+        Err(e) => {
+            tracing::warn!("Failed to fetch session token state for {session_id}: {e}");
+            return TokenState::default();
+        }
+    };
+
+    match session_manager.get_session_usage_totals(session_id).await {
+        Ok(totals) => {
+            goose::session::session_manager::token_state_from_session_and_totals(&session, &totals)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to aggregate usage for {session_id}: {e}");
+            TokenState::from(&session)
+        }
+    }
 }
 
 async fn stream_event(
@@ -349,6 +360,9 @@ pub async fn reply(
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::Usage(_)))) => {}
+                        Ok(Some(Ok(AgentEvent::MessageUsage { message_id, usage }))) => {
+                            stream_event(MessageEvent::MessageUsage { message_id, usage }, &tx, &cancel_token).await;
+                        }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;

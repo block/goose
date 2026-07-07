@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "đang chờ"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% đầu vào)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "đọc cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "ghi cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Nén"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Chi phí"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(ước tính)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token đầu tiên"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Đầu vào"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Đầu ra"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(được báo cáo)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Tốc độ"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Tổng"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tổng thời gian"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Chọn micrô nào để sử dụng cho việc đọc chính tả"
   },

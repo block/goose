@@ -166,10 +166,25 @@ export type InferenceMetadata = {
   resolvedModel?: string | null;
 };
 
+/** Mirrors the backend `MessageUsage` schema (camelCase). */
+export type MessageUsage = {
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cacheReadTokens?: number | null;
+  cacheWriteTokens?: number | null;
+  cost?: number | null;
+  costSource?: 'provider_reported' | 'estimated' | null;
+  elapsedMs?: number | null;
+  timeToFirstTokenMs?: number | null;
+  isCompaction?: boolean;
+};
+
 export type MessageMetadata = {
   agentVisible: boolean;
   inference?: InferenceMetadata | null;
   steer?: boolean;
+  usage?: MessageUsage | null;
   userVisible: boolean;
 };
 
@@ -200,6 +215,11 @@ export type MessageEvent =
       message: Message;
       token_state: TokenState;
       type: 'Message';
+    }
+  | {
+      message_id?: string | null;
+      usage: MessageUsage;
+      type: 'MessageUsage';
     }
   | {
       error: string;

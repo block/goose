@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dari masukan)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Biaya"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(perkiraan)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Masukan"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Keluaran"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kecepatan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Waktu total"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon mana yang akan digunakan untuk dikte"
   },

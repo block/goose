@@ -1,23 +1,21 @@
+use crate::conversation::token_usage::ProviderUsage;
+use crate::images::ImageFormat;
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_providers::conversation::token_usage::ProviderUsage;
-use goose_providers::images::ImageFormat;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::formats::snowflake::{create_request, get_usage, response_to_message};
-use super::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
-use super::retry::ProviderRetry;
-use super::utils::get_model;
-use crate::config::ConfigError;
+use crate::api_client::{ApiClient, AuthMethod, RequestBuilderDecorator, TlsConfig};
+use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use crate::conversation::message::Message;
-use goose_providers::errors::ProviderError;
+use crate::errors::ProviderError;
+use crate::formats::snowflake::{create_request, get_usage, response_to_message};
+use crate::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
+use crate::retry::ProviderRetry;
+use crate::utils::get_model;
 
-use futures::future::BoxFuture;
-use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use crate::model::ModelConfig;
+use crate::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
@@ -58,42 +56,18 @@ pub struct SnowflakeProvider {
 }
 
 impl SnowflakeProvider {
-    pub async fn from_env(
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    pub fn new(
+        mut host: String,
+        token: String,
+        tls_config: Option<TlsConfig>,
+        request_builder: Option<RequestBuilderDecorator>,
     ) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
-        if host.is_err() {
-            host = config.get_secret("SNOWFLAKE_HOST")
-        }
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find SNOWFLAKE_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        let mut host = host?;
-
         // Convert host to lowercase
         host = host.to_lowercase();
 
         // Ensure host ends with snowflakecomputing.com
         if !host.ends_with("snowflakecomputing.com") {
             host = format!("{}.snowflakecomputing.com", host);
-        }
-
-        let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
-
-        if token.is_err() {
-            token = config.get_secret("SNOWFLAKE_TOKEN")
-        }
-
-        if token.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find SNOWFLAKE_TOKEN in either config file or keyring".to_string(),
-            )
-            .into());
         }
 
         // Ensure host has https:// prefix
@@ -103,10 +77,12 @@ impl SnowflakeProvider {
             host
         };
 
-        let auth = AuthMethod::BearerToken(token?);
-        let api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?
-            .with_request_builder(crate::session_context::session_id_request_builder())
-            .with_header("User-Agent", "goose")?;
+        let auth = AuthMethod::BearerToken(token);
+        let mut api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?;
+        if let Some(request_builder) = request_builder {
+            api_client = api_client.with_request_builder(request_builder);
+        }
+        let api_client = api_client.with_header("User-Agent", "goose")?;
 
         Ok(Self {
             api_client,
@@ -297,7 +273,7 @@ impl SnowflakeProvider {
     }
 }
 
-impl goose_providers::base::ProviderDescriptor for SnowflakeProvider {
+impl crate::base::ProviderDescriptor for SnowflakeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             SNOWFLAKE_PROVIDER_NAME,
@@ -311,17 +287,6 @@ impl goose_providers::base::ProviderDescriptor for SnowflakeProvider {
                 ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None, true),
             ],
         )
-    }
-}
-
-impl ProviderDef for SnowflakeProvider {
-    type Provider = Self;
-
-    fn from_env(
-        _extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -363,7 +328,7 @@ impl Provider for SnowflakeProvider {
         log.write(&response, Some(&usage))?;
 
         let provider_usage = ProviderUsage::new(response_model, usage);
-        Ok(super::base::stream_from_single_message(
+        Ok(crate::base::stream_from_single_message(
             message,
             provider_usage,
         ))

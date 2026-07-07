@@ -2533,7 +2533,9 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'usage_update';
 } & SessionUsageUpdate) | ({
     sessionUpdate: 'status_message';
-} & StatusMessageUpdate);
+} & StatusMessageUpdate) | ({
+    sessionUpdate: 'message_usage';
+} & MessageUsageUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2560,6 +2562,43 @@ export type StatusMessage = {
  */
 export type StatusMessageUpdate = {
     status: StatusMessage;
+};
+
+/**
+ * Wire mirror of the conversation `MessageUsage` (this crate cannot depend on
+ * goose-provider-types); field names and serde casing MUST stay in parity.
+ */
+export type MessageUsageData = {
+    inputTokens?: number | null;
+    outputTokens?: number | null;
+    totalTokens?: number | null;
+    cacheReadTokens?: number | null;
+    cacheWriteTokens?: number | null;
+    cost?: number | null;
+    costSource?: CostSourceData | null;
+    /**
+     * Wall-clock generation time, used by the client for a tokens/sec readout.
+     */
+    elapsedMs?: number | null;
+    timeToFirstTokenMs?: number | null;
+    /**
+     * Usage from a compaction/summarization call rather than a normal turn.
+     */
+    isCompaction?: boolean;
+};
+
+/**
+ * Wire mirror of the conversation `CostSource`.
+ */
+export type CostSourceData = 'provider_reported' | 'estimated';
+
+/**
+ * Per-message token usage/cost/timing, keyed by the message id used for
+ * chunk matching. Sent live after a turn's messages and on replay.
+ */
+export type MessageUsageUpdate = {
+    messageId?: string | null;
+    usage: MessageUsageData;
 };
 
 export type RequestRecipeParams_unstable = {

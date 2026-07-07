@@ -1,4 +1,5 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { MessageUsage } from '../../types/message';
 import { type AcpChatStateChange, type AdapterState, messagesChange } from './shared';
 
 export function applyGooseSessionNotification(
@@ -25,6 +26,8 @@ export function applyGooseSessionNotification(
       ];
     case 'status_message':
       return applyStatusMessage(state, notification.sessionId, update);
+    case 'message_usage':
+      return applyMessageUsage(state, update);
     default:
       return [];
   }
@@ -54,5 +57,48 @@ function applyStatusMessage(
     },
   });
 
+  return messagesChange(state);
+}
+
+function applyMessageUsage(
+  state: AdapterState,
+  update: Extract<GooseSessionNotification_unstable['update'], { sessionUpdate: 'message_usage' }>
+): AcpChatStateChange[] {
+  // Live tool-call turns carry a server-side id the client never saw, so an
+  // id miss falls back to the most recent assistant message with provider
+  // content - skipping client-made rows (approval cards, status notices).
+  const byId = update.messageId
+    ? state.messages.find((message) => message.id === update.messageId)
+    : undefined;
+  const target =
+    byId ??
+    [...state.messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === 'assistant' &&
+          message.content.some(
+            (content) => content.type !== 'actionRequired' && content.type !== 'systemNotification'
+          )
+      );
+
+  if (!target) {
+    return [];
+  }
+
+  const usage: MessageUsage = {
+    inputTokens: update.usage.inputTokens,
+    outputTokens: update.usage.outputTokens,
+    totalTokens: update.usage.totalTokens,
+    cacheReadTokens: update.usage.cacheReadTokens,
+    cacheWriteTokens: update.usage.cacheWriteTokens,
+    cost: update.usage.cost,
+    costSource: update.usage.costSource,
+    elapsedMs: update.usage.elapsedMs,
+    timeToFirstTokenMs: update.usage.timeToFirstTokenMs,
+    isCompaction: update.usage.isCompaction,
+  };
+
+  target.metadata = { ...target.metadata, usage };
   return messagesChange(state);
 }

@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（佔輸入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "快取讀取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "快取寫入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "壓縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "費用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首個權杖"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "輸入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "輸出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（回報）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "總計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "總時間"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "選擇要用於聽寫的麥克風"
   },

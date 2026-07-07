@@ -6564,6 +6564,19 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/MessageUsageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "message_usage"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6571,7 +6584,8 @@
         "propertyName": "sessionUpdate",
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
-          "status_message": "#/$defs/StatusMessageUpdate"
+          "status_message": "#/$defs/StatusMessageUpdate",
+          "message_usage": "#/$defs/MessageUsageUpdate"
         }
       }
     },
@@ -6657,6 +6671,112 @@
         "status"
       ],
       "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
+    },
+    "MessageUsageData": {
+      "type": "object",
+      "properties": {
+        "inputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "outputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "totalTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cacheReadTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cacheWriteTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "costSource": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CostSourceData"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elapsedMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Wall-clock generation time, used by the client for a tokens/sec readout.",
+          "minimum": 0
+        },
+        "timeToFirstTokenMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "isCompaction": {
+          "type": "boolean",
+          "description": "Usage from a compaction/summarization call rather than a normal turn.",
+          "default": false
+        }
+      },
+      "description": "Wire mirror of the conversation `MessageUsage` (this crate cannot depend on\ngoose-provider-types); field names and serde casing MUST stay in parity."
+    },
+    "CostSourceData": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "provider_reported",
+          "description": "Cost returned directly by the provider (e.g. OpenRouter `usage.cost`)."
+        },
+        {
+          "type": "string",
+          "const": "estimated",
+          "description": "Cost computed from the canonical pricing table."
+        }
+      ],
+      "description": "Wire mirror of the conversation `CostSource`."
+    },
+    "MessageUsageUpdate": {
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "usage": {
+          "$ref": "#/$defs/MessageUsageData"
+        }
+      },
+      "required": [
+        "usage"
+      ],
+      "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
     },
     "RequestRecipeParams_unstable": {
       "type": "object",

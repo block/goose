@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "इंतज़ार कर रहा हूँ"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(इनपुट का {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "कैश रीड"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "कैश राइट"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "संक्षिप्तीकरण"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "लागत"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(अनुमानित)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "पहला टोकन"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "इनपुट"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "आउटपुट"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(रिपोर्ट किया गया)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "गति"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "कुल"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "कुल समय"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "श्रुतलेख के लिए कौन सा माइक्रोफ़ोन उपयोग करना है चुनें"
   },

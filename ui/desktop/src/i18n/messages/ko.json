@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "대기 중"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(입력의 {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "캐시 읽기"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "캐시 쓰기"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "압축"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "비용"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(추정)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "첫 토큰"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "입력"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "출력"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(보고됨)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "속도"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "합계"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "총 시간"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "받아쓰기에 사용할 마이크 선택"
   },

@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "ожидание"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% от ввода)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "чтение кэша"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "запись кэша"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Сжатие"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Стоимость"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(оценочно)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Первый токен"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Ввод"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Вывод"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(заявлено)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Скорость"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Всего"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Общее время"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Выберите микрофон для диктовки"
   },

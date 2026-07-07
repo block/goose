@@ -2012,6 +2012,51 @@
   "messageQueue.waiting": {
     "defaultMessage": "en attente"
   },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent} % de l'entrée)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lecture du cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "écriture du cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compactage"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Coût"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimé)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Premier token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Entrée"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Sortie"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(rapporté)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Vitesse"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Temps total"
+  },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Choisissez le microphone à utiliser pour la dictée"
   },

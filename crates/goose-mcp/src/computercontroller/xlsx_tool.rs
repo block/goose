@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use umya_spreadsheet::{Spreadsheet, Worksheet};
+use umya_spreadsheet::{structs::Workbook, Worksheet};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorksheetInfo {
@@ -28,7 +28,7 @@ pub struct RangeData {
 }
 
 pub struct XlsxTool {
-    workbook: Spreadsheet,
+    workbook: Workbook,
 }
 
 impl XlsxTool {
@@ -40,10 +40,10 @@ impl XlsxTool {
 
     pub fn list_worksheets(&self) -> Result<Vec<WorksheetInfo>> {
         let mut worksheets = Vec::new();
-        for (index, worksheet) in self.workbook.get_sheet_collection().iter().enumerate() {
+        for (index, worksheet) in self.workbook.sheet_collection().iter().enumerate() {
             let (column_count, row_count) = self.get_worksheet_dimensions(worksheet)?;
             worksheets.push(WorksheetInfo {
-                name: worksheet.get_name().to_string(),
+                name: worksheet.name().to_string(),
                 index,
                 column_count,
                 row_count,
@@ -54,13 +54,13 @@ impl XlsxTool {
 
     pub fn get_worksheet_by_name(&self, name: &str) -> Result<&Worksheet> {
         self.workbook
-            .get_sheet_by_name(name)
+            .sheet_by_name(name)
             .context("Worksheet not found")
     }
 
     pub fn get_worksheet_by_index(&self, index: usize) -> Result<&Worksheet> {
         self.workbook
-            .get_sheet_collection()
+            .sheet_collection()
             .get(index)
             .context("Worksheet index out of bounds")
     }
@@ -71,12 +71,12 @@ impl XlsxTool {
         let mut max_row = 0;
 
         // Iterate through all rows
-        for row_num in 1..=worksheet.get_highest_row() {
-            for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
-                    let coord = cell.get_coordinate();
-                    max_col = max_col.max(*coord.get_col_num() as usize);
-                    max_row = max_row.max(*coord.get_row_num() as usize);
+        for row_num in 1..=worksheet.highest_row() {
+            for col_num in 1..=worksheet.highest_column() {
+                if let Some(cell) = worksheet.cell((col_num, row_num)) {
+                    let coord = cell.coordinate();
+                    max_col = max_col.max(coord.col_num() as usize);
+                    max_row = max_row.max(coord.row_num() as usize);
                 }
             }
         }
@@ -86,9 +86,9 @@ impl XlsxTool {
 
     pub fn get_column_names(&self, worksheet: &Worksheet) -> Result<Vec<String>> {
         let mut names = Vec::new();
-        for col_num in 1..=worksheet.get_highest_column() {
-            if let Some(cell) = worksheet.get_cell((col_num, 1)) {
-                names.push(cell.get_value().into_owned());
+        for col_num in 1..=worksheet.highest_column() {
+            if let Some(cell) = worksheet.cell((col_num, 1)) {
+                names.push(cell.value().into_owned());
             } else {
                 names.push(String::new());
             }
@@ -104,13 +104,13 @@ impl XlsxTool {
         for row_idx in start_row..=end_row {
             let mut row_values = Vec::new();
             for col_idx in start_col..=end_col {
-                let cell_value = if let Some(cell) = worksheet.get_cell((col_idx, row_idx)) {
+                let cell_value = if let Some(cell) = worksheet.cell((col_idx, row_idx)) {
                     CellValue {
-                        value: cell.get_value().into_owned(),
-                        formula: if cell.get_formula().is_empty() {
+                        value: cell.value().into_owned(),
+                        formula: if cell.formula().is_empty() {
                             None
                         } else {
-                            Some(cell.get_formula().to_string())
+                            Some(cell.formula().to_string())
                         },
                     }
                 } else {
@@ -142,12 +142,10 @@ impl XlsxTool {
     ) -> Result<()> {
         let worksheet = self
             .workbook
-            .get_sheet_by_name_mut(worksheet_name)
+            .sheet_by_name_mut(worksheet_name)
             .context("Worksheet not found")?;
 
-        worksheet
-            .get_cell_mut((col, row))
-            .set_value(value.to_string());
+        worksheet.cell_mut((col, row)).set_value(value.to_string());
         Ok(())
     }
 
@@ -171,18 +169,18 @@ impl XlsxTool {
             search_text.to_string()
         };
 
-        for row_num in 1..=worksheet.get_highest_row() {
-            for col_num in 1..=worksheet.get_highest_column() {
-                if let Some(cell) = worksheet.get_cell((col_num, row_num)) {
+        for row_num in 1..=worksheet.highest_row() {
+            for col_num in 1..=worksheet.highest_column() {
+                if let Some(cell) = worksheet.cell((col_num, row_num)) {
                     let cell_value = if !case_sensitive {
-                        cell.get_value().to_lowercase()
+                        cell.value().to_lowercase()
                     } else {
-                        cell.get_value().to_string()
+                        cell.value().to_string()
                     };
 
                     if cell_value.contains(&search_text) {
-                        let coord = cell.get_coordinate();
-                        matches.push((*coord.get_row_num(), *coord.get_col_num()));
+                        let coord = cell.coordinate();
+                        matches.push((coord.row_num(), coord.col_num()));
                     }
                 }
             }
@@ -192,14 +190,14 @@ impl XlsxTool {
     }
 
     pub fn get_cell_value(&self, worksheet: &Worksheet, row: u32, col: u32) -> Result<CellValue> {
-        let cell = worksheet.get_cell((col, row)).context("Cell not found")?;
+        let cell = worksheet.cell((col, row)).context("Cell not found")?;
 
         Ok(CellValue {
-            value: cell.get_value().into_owned(),
-            formula: if cell.get_formula().is_empty() {
+            value: cell.value().into_owned(),
+            formula: if cell.formula().is_empty() {
                 None
             } else {
-                Some(cell.get_formula().to_string())
+                Some(cell.formula().to_string())
             },
         })
     }
