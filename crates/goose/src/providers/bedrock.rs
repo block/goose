@@ -40,89 +40,102 @@ pub const BEDROCK_DOC_LINK: &str =
 
 pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BedrockEndpoint {
+enum BedrockEndpoint {
     Converse,
     MantleResponses,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BedrockModelEntry {
-    pub name: &'static str,
-    pub wire_model_id: &'static str,
-    pub endpoint: BedrockEndpoint,
-    pub apply_reasoning_effort: bool,
+struct BedrockModelEntry {
+    name: &'static str,
+    wire_model_id: &'static str,
+    endpoint: BedrockEndpoint,
+    apply_reasoning_effort: bool,
+    #[allow(dead_code)]
+    context_limit: Option<u32>,
 }
 
-pub(crate) const BEDROCK_MODEL_TABLE: &[BedrockModelEntry] = &[
+const BEDROCK_MODEL_TABLE: &[BedrockModelEntry] = &[
     BedrockModelEntry {
         name: "global.anthropic.claude-sonnet-5",
         wire_model_id: "global.anthropic.claude-sonnet-5",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         wire_model_id: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "us.anthropic.claude-sonnet-4-20250514-v1:0",
         wire_model_id: "us.anthropic.claude-sonnet-4-20250514-v1:0",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         wire_model_id: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "us.anthropic.claude-opus-4-20250514-v1:0",
         wire_model_id: "us.anthropic.claude-opus-4-20250514-v1:0",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "us.anthropic.claude-opus-4-1-20250805-v1:0",
         wire_model_id: "us.anthropic.claude-opus-4-1-20250805-v1:0",
         endpoint: BedrockEndpoint::Converse,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "openai.gpt-5.5",
         wire_model_id: "openai.gpt-5.5",
         endpoint: BedrockEndpoint::MantleResponses,
         apply_reasoning_effort: true,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "openai.gpt-5.4",
         wire_model_id: "openai.gpt-5.4",
         endpoint: BedrockEndpoint::MantleResponses,
         apply_reasoning_effort: true,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "google.gemma-4-31b",
         wire_model_id: "google.gemma-4-31b",
         endpoint: BedrockEndpoint::MantleResponses,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "google.gemma-4-26b-a4b",
         wire_model_id: "google.gemma-4-26b-a4b",
         endpoint: BedrockEndpoint::MantleResponses,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
     BedrockModelEntry {
         name: "google.gemma-4-e2b",
         wire_model_id: "google.gemma-4-e2b",
         endpoint: BedrockEndpoint::MantleResponses,
         apply_reasoning_effort: false,
+        context_limit: None,
     },
 ];
 
-pub(crate) fn find_model_entry(name: &str) -> Option<&'static BedrockModelEntry> {
+fn find_model_entry(name: &str) -> Option<&'static BedrockModelEntry> {
     // Direct lookup first (handles exact names like "google.gemma-4-31b")
     if let Some(entry) = BEDROCK_MODEL_TABLE.iter().find(|e| e.name == name) {
         return Some(entry);
@@ -868,7 +881,6 @@ impl Provider for BedrockProvider {
                             .or_insert_with(|| serde_json::json!(e));
                     }
                 }
-                normalized_config.model_name = entry.wire_model_id.to_string();
                 let mut payload =
                     create_responses_request(&normalized_config, system, messages, tools)?;
                 payload["model"] = Value::String(entry.wire_model_id.to_string());
