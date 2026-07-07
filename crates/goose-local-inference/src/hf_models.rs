@@ -1117,6 +1117,75 @@ mod tests {
         }
     }
 
+    #[test]
+    fn mlx_download_filenames_include_fp8_snapshot_metadata() {
+        let siblings = [
+            "config.json",
+            "configuration.json",
+            "generation_config.json",
+            "model.safetensors.index.json",
+            "layers-0.safetensors",
+            "outside.safetensors",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "chat_template.jinja",
+            "preprocessor_config.json",
+            "video_preprocessor_config.json",
+            "README.md",
+        ]
+        .into_iter()
+        .map(sibling)
+        .collect::<Vec<_>>();
+
+        let filenames = mlx_download_filenames(&siblings)
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
+
+        for filename in [
+            "configuration.json",
+            "chat_template.jinja",
+            "preprocessor_config.json",
+            "video_preprocessor_config.json",
+        ] {
+            assert!(filenames.contains(filename), "{filename}");
+        }
+        assert!(!filenames.contains("README.md"));
+    }
+
+    #[test]
+    fn mlx_download_size_uses_safetensors_metadata_when_sibling_sizes_are_missing() {
+        let info: ModelInfo = serde_json::from_value(serde_json::json!({
+            "id": "owner/repo",
+            "safetensors": {
+                "parameters": {
+                    "BF16": 10,
+                    "F8_E4M3": 20
+                },
+                "total": 30
+            }
+        }))
+        .unwrap();
+        let siblings = vec![
+            RepoSibling {
+                rfilename: "config.json".to_string(),
+                size: None,
+                lfs: None,
+            },
+            RepoSibling {
+                rfilename: "model.safetensors".to_string(),
+                size: None,
+                lfs: None,
+            },
+        ];
+
+        assert_eq!(mlx_download_size_bytes(&info, &siblings), 40);
+    }
+
+    #[test]
+    fn mlx_variant_id_detects_fp8_repo_name() {
+        assert_eq!(mlx_variant_id("Qwen/Qwen3.6-35B-A3B-FP8", &None), "fp8");
+    }
+
     fn test_model(repo_id: &str) -> HfModelInfo {
         HfModelInfo {
             repo_id: repo_id.to_string(),
@@ -1827,6 +1896,10 @@ fn should_download_for_mlx(filename: &str) -> bool {
         || is_standalone_mlx_tokenizer_file(filename)
         || filename == "tokenizer_config.json"
         || filename == "generation_config.json"
+        || filename == "configuration.json"
+        || filename == "chat_template.jinja"
+        || filename == "preprocessor_config.json"
+        || filename == "video_preprocessor_config.json"
         || filename == "special_tokens_map.json"
         || filename == "model.safetensors.index.json"
         || filename == "vocab.json"
@@ -1836,7 +1909,7 @@ fn should_download_for_mlx(filename: &str) -> bool {
 
 fn mlx_variant_id(repo_id: &str, config: &Option<serde_json::Value>) -> String {
     let repo_lower = repo_id.to_lowercase();
-    for marker in ["bf16", "f16", "fp16", "f32", "fp32", "4bit", "8bit"] {
+    for marker in ["bf16", "f16", "fp16", "f32", "fp32", "fp8", "4bit", "8bit"] {
         if repo_lower.contains(marker) {
             return marker.to_string();
         }
@@ -2010,7 +2083,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
     let repo = client.model(owner.to_string(), name.to_string());
     let info = repo
         .info()
-        .expand(vec!["siblings".to_string()])
+        .expand(vec!["siblings".to_string(), "safetensors".to_string()])
         .send()
         .await?;
     let siblings = info.siblings.as_deref().unwrap_or(&[]);

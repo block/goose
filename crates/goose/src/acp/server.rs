@@ -2515,11 +2515,21 @@ impl GooseAcpAgent {
             return Ok(());
         }
 
-        let model_name = agent
-            .model_config_for_session(session_id)
-            .await
-            .map(|config| config.model_name)
-            .unwrap_or_else(|_| "local model".to_string());
+        let model_config = agent.model_config_for_session(session_id).await.ok();
+        let model_name = model_config
+            .as_ref()
+            .map(|config| config.model_name.clone())
+            .unwrap_or_else(|| "local model".to_string());
+
+        #[cfg(feature = "local-inference")]
+        if let Some(model_config) = model_config.as_ref() {
+            if crate::providers::local_inference::is_model_loaded(&model_config.model_name)
+                .await
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+        }
 
         send_progress_message_update(
             cx,

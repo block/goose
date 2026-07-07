@@ -8451,7 +8451,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -9352,7 +9352,7 @@ checksum = "3944826ff8fa8093089aba3acb4ef44b9446a99a16f3bf4e74af3f77d340ab7d"
 [[package]]
 name = "safemlx"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "bytemuck",
  "dyn-clone",
@@ -9377,7 +9377,7 @@ dependencies = [
 [[package]]
 name = "safemlx-internal-macros"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "darling 0.21.3",
  "itertools 0.14.0",
@@ -9389,7 +9389,7 @@ dependencies = [
 [[package]]
 name = "safemlx-lm"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "anyhow",
  "clap",
@@ -9406,7 +9406,7 @@ dependencies = [
 [[package]]
 name = "safemlx-lm-utils"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "minijinja",
  "minijinja-contrib",
@@ -9419,7 +9419,7 @@ dependencies = [
 [[package]]
 name = "safemlx-macros"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -9430,7 +9430,7 @@ dependencies = [
 [[package]]
 name = "safemlx-sys"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
 dependencies = [
  "bindgen",
  "cc",
