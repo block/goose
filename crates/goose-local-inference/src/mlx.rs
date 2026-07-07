@@ -430,10 +430,10 @@ mod imp {
     ) -> Result<MlxGeneration, ProviderError> {
         let mut cache = model.new_cache();
         let mut generated_ids = Vec::new();
-        let mut generated_text = String::new();
         let mut streamed_text = String::new();
         let mut time_to_first_token_ms = None;
-        let mut stream_generation = emitter.can_stream();
+        let stream_generation = emitter.can_stream();
+        let mut decode_stream = tokenizer.decode_stream(true);
         {
             let generator = model
                 .generate_with_cache(&mut cache, temp, prompt_array, prng_key, stream)
@@ -450,32 +450,25 @@ mod imp {
                 }
                 generated_ids.push(token_id);
                 if stream_generation {
-                    let next_text = tokenizer.decode(&generated_ids, true).map_err(mlx_error)?;
-                    let Some(piece) = next_text.strip_prefix(&generated_text) else {
-                        stream_generation = false;
-                        generated_text = next_text;
-                        continue;
-                    };
-                    let piece = piece.to_string();
-                    generated_text = next_text;
-                    if !piece.is_empty() && !emitter.push_text(&piece)? {
-                        break;
+                    if let Some(piece) = decode_stream.step(token_id).map_err(mlx_error)? {
+                        if !piece.is_empty() && !emitter.push_text(&piece)? {
+                            break;
+                        }
+                        streamed_text.push_str(&piece);
                     }
-                    streamed_text = generated_text.clone();
                 }
             }
         }
-        generated_text = tokenizer.decode(&generated_ids, true).map_err(mlx_error)?;
+        let generated_text = tokenizer.decode(&generated_ids, true).map_err(mlx_error)?;
         let streamed_response = if stream_generation {
-            true
-        } else if !streamed_text.is_empty() {
-            if let Some(suffix) = generated_text.strip_prefix(&streamed_text) {
-                if !suffix.is_empty() {
-                    emitter.push_text(suffix)?;
+            match final_stream_suffix(&generated_text, &streamed_text)? {
+                Some(suffix) => {
+                    if !suffix.is_empty() {
+                        emitter.push_text(suffix)?;
+                    }
+                    true
                 }
-                true
-            } else {
-                false
+                None => false,
             }
         } else {
             false
@@ -490,6 +483,20 @@ mod imp {
             time_to_first_token_ms,
             streamed_response,
         })
+    }
+
+    fn final_stream_suffix<'a>(
+        generated_text: &'a str,
+        streamed_text: &str,
+    ) -> Result<Option<&'a str>, ProviderError> {
+        if streamed_text.is_empty() {
+            return Ok(None);
+        }
+
+        generated_text
+            .strip_prefix(streamed_text)
+            .map(Some)
+            .ok_or_else(|| mlx_error("streamed MLX decode did not match final tokenizer decode"))
     }
 
     fn mlx_max_tokens(
@@ -897,7 +904,9 @@ mod imp {
 
     #[cfg(test)]
     mod tests {
-        use super::{mlx_max_tokens, split_generated_thinking, token_id_or_ids};
+        use super::{
+            final_stream_suffix, mlx_max_tokens, split_generated_thinking, token_id_or_ids,
+        };
         use crate::local_model_registry::ModelSettings;
         use serde_json::json;
 
@@ -930,6 +939,24 @@ mod imp {
                 token_id_or_ids(&json!([248046, 248044])),
                 vec![248046, 248044]
             );
+        }
+
+        #[test]
+        fn final_stream_suffix_flushes_append_only_suffix() {
+            assert_eq!(
+                final_stream_suffix("hello world", "hello").unwrap(),
+                Some(" world")
+            );
+        }
+
+        #[test]
+        fn final_stream_suffix_allows_unstreamed_fallback() {
+            assert_eq!(final_stream_suffix("hello world", "").unwrap(), None);
+        }
+
+        #[test]
+        fn final_stream_suffix_rejects_rewritten_streamed_prefix() {
+            assert!(final_stream_suffix("corrected response", "stale prefix").is_err());
         }
 
         #[test]
