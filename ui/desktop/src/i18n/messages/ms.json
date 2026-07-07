@@ -4538,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Sunting"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imej dilampirkan:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Sunting di Tempat"
   },
@@ -4570,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Cipta sesi baharu dengan mesej yang disunting"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Alih keluar imej daripada mesej"
   }
 }

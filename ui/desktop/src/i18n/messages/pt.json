@@ -4538,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Editar"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imagens anexadas:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Editar no Local"
   },
@@ -4570,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Criar uma nova sessão com a mensagem editada"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Remover imagem da mensagem"
   }
 }

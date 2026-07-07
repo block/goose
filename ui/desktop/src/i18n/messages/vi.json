@@ -4538,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Chỉnh sửa"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Hình ảnh đính kèm:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Chỉnh sửa tại chỗ"
   },
@@ -4570,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Tạo một phiên làm việc mới với tin nhắn đã chỉnh sửa"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
   }
 }
