@@ -1,4 +1,7 @@
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::base::{
+    model_info_for_provider_model, MessageStream, ModelInfo, Provider, ProviderDef,
+    ProviderMetadata,
+};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
 use crate::conversation::message::Message;
@@ -126,13 +129,31 @@ fn build_ollama_api_client(
         _ => AuthMethod::NoAuth,
     };
 
-    Ok(ApiClient::with_timeout_and_tls(
+    let mut api_client = ApiClient::with_timeout_and_tls(
         host,
         auth,
         std::time::Duration::from_secs(timeout_secs),
         tls_config,
-    )?
-    .with_request_builder(crate::session_context::session_id_request_builder()))
+    )?;
+
+    if let Some(query) = url.query() {
+        let query_params = url::form_urlencoded::parse(query.as_bytes())
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        api_client = api_client.with_query(query_params);
+    }
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    Ok(api_client.with_request_builder(crate::session_context::session_id_request_builder()))
 }
 
 #[async_trait::async_trait]
@@ -207,6 +228,15 @@ impl Provider for OllamaCloudProvider {
 
         Ok(limit)
     }
+
+    async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        let mut info = model_info_for_provider_model(self.get_name(), model_name);
+        let model_config = ModelConfig::new(model_name);
+        if let Ok(context_limit) = self.get_context_limit(&model_config).await {
+            info.context_limit = context_limit;
+        }
+        Ok(info)
+    }
 }
 
 impl ProviderDescriptor for OllamaCloudProvider {
@@ -243,7 +273,6 @@ impl ProviderDef for OllamaCloudProvider {
 mod tests {
     use super::*;
     use crate::config::declarative_providers::ProviderEngine;
-    use crate::providers::base::ModelInfo;
 
     #[test]
     fn declarative_matching_accepts_name_or_catalog_provider_id() {
@@ -339,6 +368,16 @@ mod tests {
         let model_config = ModelConfig::new("unknown-model").with_context_limit(Some(8000));
         let limit = provider.get_context_limit(&model_config).await.unwrap();
         assert_eq!(limit, 8000);
+    }
+
+    #[tokio::test]
+    async fn fetch_model_info_uses_context_limit_from_show() {
+        let server = mock_show_server("gemma3", 131072).await;
+        let provider = build_provider(server.uri(), Some(true), vec![]);
+
+        let info = provider.fetch_model_info("gemma3:4b").await.unwrap();
+        assert_eq!(info.name, "gemma3:4b");
+        assert_eq!(info.context_limit, 131072);
     }
 
     fn build_provider(
