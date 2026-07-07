@@ -2581,8 +2581,14 @@ impl GooseAcpAgent {
             return Err(error);
         }
 
-        self.send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
-            .await?;
+        if let Err(error) = self
+            .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+            .await
+        {
+            self.clear_active_run(&session_id, &run_id).await;
+            let _ = Self::send_active_run_update(cx, &args.session_id, None);
+            return Err(error);
+        }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 

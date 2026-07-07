@@ -473,8 +473,10 @@ mod imp {
                 if !suffix.is_empty() {
                     emitter.push_text(suffix)?;
                 }
+                true
+            } else {
+                false
             }
-            true
         } else {
             false
         };
@@ -728,6 +730,27 @@ mod imp {
         }
 
         fn finish(&mut self) -> Result<(), ProviderError> {
+            self.flush_filtered_output()?;
+            let actions = self
+                .emulator_parser
+                .as_mut()
+                .map(StreamingEmulatorParser::flush)
+                .unwrap_or_default();
+            for action in actions {
+                let (message, is_tool) = message_for_emulator_action(&action, self.message_id);
+                if is_tool {
+                    self.flush_filtered_output()?;
+                }
+                self.send(message)?;
+                self.stop_after_tool_call |= is_tool;
+                if is_tool {
+                    break;
+                }
+            }
+            Ok(())
+        }
+
+        fn flush_filtered_output(&mut self) -> Result<(), ProviderError> {
             let filtered = self.output_filter.finish();
             if !filtered.thinking.is_empty() {
                 let mut message = Message::assistant().with_thinking(filtered.thinking, "");
@@ -736,16 +759,6 @@ mod imp {
             }
             if !filtered.content.is_empty() {
                 self.emit_content(&filtered.content)?;
-            }
-            if let Some(parser) = &mut self.emulator_parser {
-                for action in parser.flush() {
-                    let (message, is_tool) = message_for_emulator_action(&action, self.message_id);
-                    self.send(message)?;
-                    self.stop_after_tool_call |= is_tool;
-                    if is_tool {
-                        break;
-                    }
-                }
             }
             Ok(())
         }
@@ -758,12 +771,17 @@ mod imp {
                     self.send(message)
                 }
                 ToolMode::Emulated { .. } => {
-                    let Some(parser) = &mut self.emulator_parser else {
-                        return Ok(());
-                    };
-                    for action in parser.process_chunk(content) {
+                    let actions = self
+                        .emulator_parser
+                        .as_mut()
+                        .map(|parser| parser.process_chunk(content))
+                        .unwrap_or_default();
+                    for action in actions {
                         let (message, is_tool) =
                             message_for_emulator_action(&action, self.message_id);
+                        if is_tool {
+                            self.flush_filtered_output()?;
+                        }
                         self.send(message)?;
                         self.stop_after_tool_call |= is_tool;
                         if is_tool {

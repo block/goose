@@ -1085,20 +1085,13 @@ mod tests {
     }
 
     #[test]
-    fn mlx_compatible_repo_accepts_supported_tokenizer_formats() {
+    fn mlx_compatible_repo_accepts_tokenizer_json() {
         let config = Some(serde_json::json!({ "model_type": "llama" }));
 
-        for tokenizer_files in [
-            vec!["tokenizer.json"],
-            vec!["tokenizer.model"],
-            vec!["tokenizer.tiktoken"],
-            vec!["vocab.json", "merges.txt"],
-        ] {
-            assert!(
-                is_mlx_compatible_repo(&config, &mlx_siblings(&tokenizer_files)),
-                "{tokenizer_files:?}"
-            );
-        }
+        assert!(is_mlx_compatible_repo(
+            &config,
+            &mlx_siblings(&["tokenizer.json"])
+        ));
     }
 
     #[test]
@@ -1107,8 +1100,11 @@ mod tests {
 
         for tokenizer_files in [
             vec!["tokenizer_config.json"],
+            vec!["tokenizer.model"],
+            vec!["tokenizer.tiktoken"],
             vec!["vocab.json"],
             vec!["merges.txt"],
+            vec!["vocab.json", "merges.txt"],
         ] {
             assert!(
                 !is_mlx_compatible_repo(&config, &mlx_siblings(&tokenizer_files)),
@@ -1812,15 +1808,13 @@ fn dtype_size_bytes(dtype: &str) -> u64 {
 }
 
 fn has_mlx_tokenizer(siblings: &[RepoSibling]) -> bool {
-    let has_file = |filename: &str| siblings.iter().any(|s| s.rfilename == filename);
     siblings
         .iter()
         .any(|s| is_standalone_mlx_tokenizer_file(&s.rfilename))
-        || (has_file("vocab.json") && has_file("merges.txt"))
 }
 
 fn is_standalone_mlx_tokenizer_file(filename: &str) -> bool {
-    filename == "tokenizer.json" || filename.ends_with(".model") || filename.ends_with(".tiktoken")
+    filename == "tokenizer.json"
 }
 
 fn mlx_model_type(config: &Option<serde_json::Value>) -> Option<&str> {

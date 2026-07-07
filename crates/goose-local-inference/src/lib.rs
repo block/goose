@@ -88,6 +88,7 @@ impl ModelCacheKey {
 
 pub struct InferenceRuntime {
     models: StdMutex<HashMap<ModelCacheKey, ModelSlotHandle>>,
+    cold_load_lock: Mutex<()>,
     backends: HashMap<&'static str, Arc<dyn LocalInferenceBackend>>,
 }
 
@@ -114,6 +115,7 @@ impl InferenceRuntime {
         backends.insert(MLX_BACKEND_ID, mlx_backend);
         let runtime = Arc::new(Self {
             models: StdMutex::new(HashMap::new()),
+            cold_load_lock: Mutex::new(()),
             backends,
         });
         *guard = Some(runtime.clone());
@@ -682,6 +684,7 @@ impl Provider for LocalInferenceProvider {
         );
         let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
         let other_model_slots = self.runtime.other_model_slots(&cache_key);
+        let runtime = self.runtime.clone();
 
         let model_arc = model_slot.clone();
         let backend = backend.clone();
@@ -721,7 +724,7 @@ impl Provider for LocalInferenceProvider {
 
             // Ensure model is loaded — unload any other models first to free memory.
             loop {
-                let mut state = model_slot.state.lock().await;
+                let state = model_slot.state.lock().await;
                 match &*state {
                     ModelSlotState::Loaded(_) => break,
                     ModelSlotState::Loading => {
@@ -730,6 +733,21 @@ impl Provider for LocalInferenceProvider {
                         notified.await;
                     }
                     ModelSlotState::Empty => {
+                        drop(state);
+
+                        let cold_load_guard = runtime.cold_load_lock.lock().await;
+                        let mut state = model_slot.state.lock().await;
+                        match &*state {
+                            ModelSlotState::Loaded(_) => break,
+                            ModelSlotState::Loading => {
+                                let notified = model_slot.notify.notified();
+                                drop(state);
+                                drop(cold_load_guard);
+                                notified.await;
+                                continue;
+                            }
+                            ModelSlotState::Empty => {}
+                        }
                         *state = ModelSlotState::Loading;
                         drop(state);
 
@@ -807,6 +825,7 @@ impl Provider for LocalInferenceProvider {
                         let mut state = model_slot.state.lock().await;
                         *state = ModelSlotState::Loaded(loaded);
                         model_slot.notify.notify_waiters();
+                        drop(cold_load_guard);
                         break;
                     }
                 }
