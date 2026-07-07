@@ -257,10 +257,17 @@ describe('acpChatSessionController.updateMessage', () => {
     };
 
     await expect(
-      acpChatSessionController.updateMessage(SESSION_ID, existingMessage.id, 'Updated', 'edit', {
-        getCurrentSnapshot: () => currentSnapshot,
-        onFinish: vi.fn(),
-      })
+      acpChatSessionController.updateMessage(
+        SESSION_ID,
+        existingMessage.id,
+        'Updated',
+        'edit',
+        undefined,
+        {
+          getCurrentSnapshot: () => currentSnapshot,
+          onFinish: vi.fn(),
+        }
+      )
     ).rejects.toThrow('Cannot submit while prompt cancellation is pending');
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
@@ -283,10 +290,17 @@ describe('acpChatSessionController.updateMessage', () => {
     };
 
     await expect(
-      acpChatSessionController.updateMessage(SESSION_ID, existingMessage.id, 'Updated', 'edit', {
-        getCurrentSnapshot: () => currentSnapshot,
-        onFinish: vi.fn(),
-      })
+      acpChatSessionController.updateMessage(
+        SESSION_ID,
+        existingMessage.id,
+        'Updated',
+        'edit',
+        undefined,
+        {
+          getCurrentSnapshot: () => currentSnapshot,
+          onFinish: vi.fn(),
+        }
+      )
     ).resolves.toBeUndefined();
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
@@ -328,6 +342,7 @@ describe('acpChatSessionController.updateMessage', () => {
       existingMessage.id,
       'Updated',
       'edit',
+      undefined,
       {
         getCurrentSnapshot: () => activeSnapshot,
         onFinish: vi.fn(),
@@ -352,7 +367,10 @@ describe('acpChatSessionController.updateMessage', () => {
     resolvePromptCancellation!();
     await updatePromise;
 
-    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(SESSION_ID, existingMessage.created);
+    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
+      SESSION_ID,
+      existingMessage.created
+    );
     expect(acpPromptSession).toHaveBeenCalled();
     expect(acpChatSessionActions.clearPromptCancellation).not.toHaveBeenCalledWith(
       SESSION_ID,

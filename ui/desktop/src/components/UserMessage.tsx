@@ -111,15 +111,12 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
   const [removedImageIndices, setRemovedImageIndices] = useState<Set<number>>(new Set());
 
-  // Effect to handle message content changes and ensure persistence
   useEffect(() => {
-    // If we're not editing, update the edit content to match the current message
     if (!isEditing) {
       setEditContent(textContent);
     }
   }, [message.content, textContent, message.id, isEditing]);
 
-  // Initialize edit mode with current message content
   const initializeEditMode = useCallback(() => {
     setEditContent(textContent);
     setError(null);
@@ -135,17 +132,14 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     });
   }, []);
 
-  // Handle edit button click
   const handleEditClick = useCallback(() => {
     const newEditingState = !isEditing;
     setIsEditing(newEditingState);
 
-    // Initialize edit content when entering edit mode
     if (newEditingState) {
       initializeEditMode();
       window.electron.logInfo(`Edit interface shown for message: ${message.id}`);
 
-      // Focus the textarea after a brief delay to ensure it's rendered
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.focus();
@@ -160,11 +154,10 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     window.electron.logInfo(`Edit state toggled: ${newEditingState} for message: ${message.id}`);
   }, [isEditing, initializeEditMode, message.id]);
 
-  // Handle content changes in edit mode
   const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
     setEditContent(newContent);
-    setError(null); // Clear any previous errors
+    setError(null);
     window.electron.logInfo(`Content changed: ${newContent}`);
   }, []);
 
@@ -202,15 +195,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     ]
   );
 
-  // Handle cancel action
   const handleCancel = useCallback(() => {
     window.electron.logInfo('Cancel clicked - reverting to original content');
     setIsEditing(false);
-    setEditContent(textContent); // Reset to original content
+    setEditContent(textContent);
     setError(null);
   }, [textContent]);
 
-  // Handle keyboard events for accessibility
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       window.electron.logInfo(
@@ -229,7 +220,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     [handleCancel, handleSave]
   );
 
-  // Auto-resize textarea based on content
   useEffect(() => {
     if (textareaRef.current && isEditing) {
       textareaRef.current.style.height = 'auto';
@@ -241,7 +231,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col group">
         {isEditing ? (
-          // Truly wide, centered, in-place edit box replacing the bubble
           <div className="w-full max-w-4xl mx-auto text-text-primary rounded-xl border border-border-primary shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
             <textarea
               ref={textareaRef}
@@ -287,7 +276,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 </div>
               </div>
             )}
-            {/* Error message */}
             {error && (
               <div
                 id={`error-${message.id}`}
@@ -331,7 +319,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
             </div>
           </div>
         ) : (
-          // Normal message display
           <div className="message flex justify-end w-full">
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
