@@ -1201,7 +1201,7 @@ dependencies = [
  "bincode",
  "bytesize",
  "clircle",
- "console 0.16.3",
+ "console",
  "content_inspector",
  "encoding_rs",
  "flate2",
@@ -2282,8 +2282,8 @@ version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4529f45438fc25ca048b242d5c48e2d3ce9a521e2a5a9123d9737d8520b030dd"
 dependencies = [
- "console 0.16.3",
- "indicatif 0.18.4",
+ "console",
+ "indicatif",
  "once_cell",
  "strsim",
  "textwrap",
@@ -2456,19 +2456,6 @@ dependencies = [
  "serde_core",
  "toml 1.1.2+spec-1.1.0",
  "winnow 1.0.3",
-]
-
-[[package]]
-name = "console"
-version = "0.15.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "054ccb5b10f9f2cbf51eb355ca1d05c2d279ce1804688d0db74b4733a5aeafd8"
-dependencies = [
- "encode_unicode",
- "libc",
- "once_cell",
- "unicode-width 0.2.2",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5004,7 +4991,7 @@ dependencies = [
  "clap_mangen",
  "cliclack",
  "comfy-table",
- "console 0.16.3",
+ "console",
  "dotenvy",
  "env-lock",
  "etcetera 0.11.0",
@@ -5012,7 +4999,7 @@ dependencies = [
  "goose",
  "goose-mcp",
  "goose-providers",
- "indicatif 0.18.4",
+ "indicatif",
  "open",
  "rand 0.10.1",
  "regex",
@@ -5069,7 +5056,7 @@ dependencies = [
  "goose-download-manager",
  "goose-provider-types",
  "goose-sdk-types",
- "hf-hub 1.0.0-rc.1",
+ "hf-hub",
  "include_dir",
  "llama-cpp-2",
  "llama-cpp-sys-2",
@@ -5425,25 +5412,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fda06d18ac606267c40c04e41b9947729bf8b9efe74bd4e82b61a5f26a510b9f"
 dependencies = [
  "arrayvec",
-]
-
-[[package]]
-name = "hf-hub"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "629d8f3bbeda9d148036d6b0de0a3ab947abd08ce90626327fc3547a49d59d97"
-dependencies = [
- "dirs",
- "http 1.4.2",
- "indicatif 0.17.11",
- "libc",
- "log",
- "rand 0.9.4",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "ureq",
- "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6052,24 +6020,11 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
-version = "0.17.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "183b3088984b400f4cfac3620d5e076c84da5364016b4f49473de574b2586235"
-dependencies = [
- "console 0.15.11",
- "number_prefix",
- "portable-atomic",
- "unicode-width 0.2.2",
- "web-time",
-]
-
-[[package]]
-name = "indicatif"
 version = "0.18.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25470f23803092da7d239834776d653104d551bc4d7eacaf31e6837854b8e9eb"
 dependencies = [
- "console 0.16.3",
+ "console",
  "portable-atomic",
  "unicode-width 0.2.2",
  "unit-prefix",
@@ -7284,12 +7239,6 @@ dependencies = [
  "quote",
  "syn 2.0.117",
 ]
-
-[[package]]
-name = "number_prefix"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "oauth2"
@@ -9234,7 +9183,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
 dependencies = [
  "aws-lc-rs",
- "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -9390,9 +9338,9 @@ dependencies = [
 
 [[package]]
 name = "safemlx-lm"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6bb7038559b2a5b6315b62693abe18c62540f459a596f76ca855576f5739b56"
+checksum = "1c455f9f19afceb2de1f25703aa1ed01f02733043f156774afa70e5a7f2c9588"
 dependencies = [
  "anyhow",
  "clap",
@@ -10295,17 +10243,6 @@ checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "socks"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3dbbd9ae980613c6dd8e28a9407b50509d3803b57624d5dfe8315218cd58b"
-dependencies = [
- "byteorder",
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -11757,8 +11694,7 @@ dependencies = [
  "derive_builder",
  "esaxx-rs",
  "getrandom 0.3.4",
- "hf-hub 0.4.3",
- "indicatif 0.18.4",
+ "indicatif",
  "itertools 0.14.0",
  "log",
  "macro_rules_attribute",
@@ -12789,25 +12725,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "ureq"
-version = "2.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
-dependencies = [
- "base64 0.22.1",
- "flate2",
- "log",
- "once_cell",
- "rustls",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "socks",
- "url",
- "webpki-roots 0.26.11",
-]
 
 [[package]]
 name = "url"

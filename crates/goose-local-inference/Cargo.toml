@@ -47,7 +47,7 @@ uuid = { workspace = true, features = ["v4", "std"] }
 tempfile = { workspace = true }
 
 safemlx = { default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true, version = "0.1.2" }
-safemlx-lm = { optional = true, version = "0.1.0" }
+safemlx-lm = { optional = true, version = "0.1.2" }
 safemlx-lm-utils = { optional = true, version = "0.1.0" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
