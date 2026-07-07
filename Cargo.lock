@@ -2366,7 +2366,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7297,7 +7297,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "getrandom 0.2.17",
  "http 1.4.2",
@@ -9351,9 +9351,9 @@ checksum = "3944826ff8fa8093089aba3acb4ef44b9446a99a16f3bf4e74af3f77d340ab7d"
 
 [[package]]
 name = "safemlx"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bc8bc88c028838b09bfb71f1006c2f8baf6d3cdb0a741f980336891f2ef80cf"
+checksum = "f501c4f9748dfe9ccc905e7e13ae88873d96a00735268c69258e158da07a777f"
 dependencies = [
  "bytemuck",
  "dyn-clone",
@@ -9434,11 +9434,10 @@ dependencies = [
 
 [[package]]
 name = "safemlx-sys"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b96807730d32f56c3a58fbcab24a3e3687699bbdb19930039871c2d34eaf8e0e"
+checksum = "552285b007dab687890f5c49382e52e69a3bb1359bb2c8f2c2743743509af071"
 dependencies = [
- "bindgen",
  "cc",
  "cmake",
 ]
@@ -13314,7 +13313,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
