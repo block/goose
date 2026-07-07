@@ -9352,7 +9352,8 @@ checksum = "3944826ff8fa8093089aba3acb4ef44b9446a99a16f3bf4e74af3f77d340ab7d"
 [[package]]
 name = "safemlx"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bc8bc88c028838b09bfb71f1006c2f8baf6d3cdb0a741f980336891f2ef80cf"
 dependencies = [
  "bytemuck",
  "dyn-clone",
@@ -9377,7 +9378,8 @@ dependencies = [
 [[package]]
 name = "safemlx-internal-macros"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9708b1312176963a4ea6412859e6655e56a83fe6ab936142715aa0e9fd662fe5"
 dependencies = [
  "darling 0.21.3",
  "itertools 0.14.0",
@@ -9389,7 +9391,8 @@ dependencies = [
 [[package]]
 name = "safemlx-lm"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6bb7038559b2a5b6315b62693abe18c62540f459a596f76ca855576f5739b56"
 dependencies = [
  "anyhow",
  "clap",
@@ -9406,7 +9409,8 @@ dependencies = [
 [[package]]
 name = "safemlx-lm-utils"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a2d58bc19090d5e71ebaceea1887aa017a6a7008a4d0af88f9ba1d0e9fcc3e6"
 dependencies = [
  "minijinja",
  "minijinja-contrib",
@@ -9419,7 +9423,8 @@ dependencies = [
 [[package]]
 name = "safemlx-macros"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d549c5fdbe69b904ef84c5cf352add203de1093b3c636e8133d94c24cfc33ce0"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -9430,7 +9435,8 @@ dependencies = [
 [[package]]
 name = "safemlx-sys"
 version = "0.1.0"
-source = "git+https://github.com/jbg/safemlx?rev=f8cdd43877d028896d6e14a8866c2cabeada3efb#f8cdd43877d028896d6e14a8866c2cabeada3efb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b96807730d32f56c3a58fbcab24a3e3687699bbdb19930039871c2d34eaf8e0e"
 dependencies = [
  "bindgen",
  "cc",

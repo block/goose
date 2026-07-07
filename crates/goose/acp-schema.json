@@ -5734,6 +5734,9 @@
         "recommended": {
           "type": "boolean"
         },
+        "isLoaded": {
+          "type": "boolean"
+        },
         "settings": {
           "$ref": "#/$defs/LocalInferenceModelSettingsDto"
         },
@@ -5759,6 +5762,7 @@
         "sizeBytes",
         "status",
         "recommended",
+        "isLoaded",
         "settings",
         "visionCapable"
       ]
@@ -6216,6 +6220,19 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/delete"
+    },
+    "LocalInferenceModelEvictRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/evict"
     },
     "LocalInferenceModelSettingsReadRequest_unstable": {
       "type": "object",
@@ -7788,6 +7805,15 @@
                   ],
                   "description": "Params for _goose/unstable/local-inference/models/delete",
                   "title": "LocalInferenceModelDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelEvictRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/evict",
+                  "title": "LocalInferenceModelEvictRequest_unstable"
                 },
                 {
                   "allOf": [

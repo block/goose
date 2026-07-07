@@ -37,7 +37,7 @@ use local_model_registry::ChatTemplate;
 use mlx::{MlxBackend, MLX_BACKEND_ID};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, Notify};
@@ -96,6 +96,10 @@ pub fn builtin_chat_template_names() -> Vec<String> {
 }
 
 static RUNTIME: StdMutex<Option<Arc<InferenceRuntime>>> = StdMutex::new(None);
+
+fn current_runtime() -> Option<Arc<InferenceRuntime>> {
+    RUNTIME.lock().expect("runtime lock poisoned").clone()
+}
 
 impl InferenceRuntime {
     pub fn get_or_init() -> Result<Arc<Self>> {
@@ -180,6 +184,54 @@ pub async fn is_model_loaded(model_name: &str) -> Result<bool, ProviderError> {
 
     let state = slot.state.lock().await;
     Ok(matches!(*state, ModelSlotState::Loaded(_)))
+}
+
+pub async fn loaded_model_ids() -> Result<HashSet<String>, ProviderError> {
+    let Some(runtime) = current_runtime() else {
+        return Ok(HashSet::new());
+    };
+    let slots = {
+        let map = runtime.models.lock().expect("model cache lock poisoned");
+        map.iter()
+            .map(|(key, slot)| (key.model_id.clone(), slot.clone()))
+            .collect::<Vec<_>>()
+    };
+
+    let mut loaded = HashSet::new();
+    for (model_id, slot) in slots {
+        if let Ok(state) = slot.state.try_lock() {
+            if matches!(*state, ModelSlotState::Loaded(_)) {
+                loaded.insert(model_id);
+            }
+        } else {
+            loaded.insert(model_id);
+        }
+    }
+    Ok(loaded)
+}
+
+pub async fn evict_model(model_name: &str) -> Result<bool, ProviderError> {
+    let Some(runtime) = current_runtime() else {
+        return Ok(false);
+    };
+    let slots = {
+        let map = runtime.models.lock().expect("model cache lock poisoned");
+        map.iter()
+            .filter(|(key, _)| key.model_id == model_name)
+            .map(|(_, slot)| slot.clone())
+            .collect::<Vec<_>>()
+    };
+
+    let mut evicted = false;
+    for slot in slots {
+        let mut state = slot.state.lock().await;
+        if matches!(*state, ModelSlotState::Loaded(_)) {
+            *state = ModelSlotState::Empty;
+            evicted = true;
+            slot.notify.notify_waiters();
+        }
+    }
+    Ok(evicted)
 }
 
 const PROVIDER_NAME: &str = "local";

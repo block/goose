@@ -46,9 +46,9 @@ utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
 tempfile = { workspace = true }
 
-safemlx = { git = "https://github.com/jbg/safemlx", rev = "f8cdd43877d028896d6e14a8866c2cabeada3efb", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
-safemlx-lm = { git = "https://github.com/jbg/safemlx", rev = "f8cdd43877d028896d6e14a8866c2cabeada3efb", optional = true }
-safemlx-lm-utils = { git = "https://github.com/jbg/safemlx", rev = "f8cdd43877d028896d6e14a8866c2cabeada3efb", optional = true }
+safemlx = { default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true, version = "0.1.0" }
+safemlx-lm = { optional = true, version = "0.1.0" }
+safemlx-lm-utils = { optional = true, version = "0.1.0" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }

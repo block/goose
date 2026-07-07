@@ -1227,6 +1227,13 @@ mod tests {
     }
 
     #[test]
+    fn best_download_count_ignores_zero_primary() {
+        assert_eq!(best_download_count(Some(0), Some(42)), Some(42));
+        assert_eq!(best_download_count(Some(7), Some(42)), Some(7));
+        assert_eq!(best_download_count(Some(0), Some(0)), None);
+    }
+
+    #[test]
     fn test_recommend_variant() {
         let variants = vec![
             HfQuantVariant {
@@ -1537,7 +1544,13 @@ async fn search_mlx_models_with_query(query: &str, limit: usize) -> Result<Vec<H
         if results.len() >= limit {
             break;
         }
-        if let Some(model) = get_local_model_info_for_repo_with_client(&client, &info.id).await? {
+        if let Some(model) = get_local_model_info_for_repo_with_client_and_downloads(
+            &client,
+            &info.id,
+            info.downloads,
+        )
+        .await?
+        {
             results.push(model);
         }
     }
@@ -1554,6 +1567,14 @@ async fn get_local_model_info_for_repo_with_client(
     client: &HFClient,
     repo_id: &str,
 ) -> Result<Option<HfModelInfo>> {
+    get_local_model_info_for_repo_with_client_and_downloads(client, repo_id, None).await
+}
+
+async fn get_local_model_info_for_repo_with_client_and_downloads(
+    client: &HFClient,
+    repo_id: &str,
+    downloads_hint: Option<u64>,
+) -> Result<Option<HfModelInfo>> {
     let repo = model_repo(client, repo_id)?;
     let info = repo
         .info()
@@ -1564,7 +1585,7 @@ async fn get_local_model_info_for_repo_with_client(
         ])
         .send()
         .await?;
-    model_info_to_local_model_info(&repo, info).await
+    model_info_to_local_model_info(&repo, info, downloads_hint).await
 }
 
 async fn get_exact_name_local_model_info(model_name: &str) -> Result<Option<HfModelInfo>> {
@@ -1580,6 +1601,7 @@ async fn get_exact_name_local_model_info(model_name: &str) -> Result<Option<HfMo
 async fn model_info_to_local_model_info(
     repo: &HFRepository<RepoTypeModel>,
     info: ModelInfo,
+    downloads_hint: Option<u64>,
 ) -> Result<Option<HfModelInfo>> {
     let repo_id = info.id.clone();
     let mut variants: Vec<HfModelVariant> = get_repo_gguf_variants(&repo_id)
@@ -1608,15 +1630,47 @@ async fn model_info_to_local_model_info(
         .next_back()
         .unwrap_or(&repo_id)
         .to_string();
+    let downloads = match best_download_count(info.downloads, downloads_hint) {
+        Some(downloads) => downloads,
+        None => get_repo_downloads(&repo_id).await?.unwrap_or(0),
+    };
 
     Ok(Some(HfModelInfo {
         repo_id,
         author,
         model_name,
-        downloads: info.downloads.unwrap_or(0),
+        downloads,
         gguf_files: Vec::new(),
         variants,
     }))
+}
+
+fn best_download_count(primary: Option<u64>, hint: Option<u64>) -> Option<u64> {
+    primary
+        .filter(|downloads| *downloads > 0)
+        .or_else(|| hint.filter(|downloads| *downloads > 0))
+}
+
+async fn get_repo_downloads(repo_id: &str) -> Result<Option<u64>> {
+    let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
+    let url = format!("{}/{}", HF_API_BASE, repo_id);
+
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
+        .header("User-Agent", "goose-ai-agent")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        bail!(
+            "HuggingFace API returned status {} for repo {}",
+            response.status(),
+            repo_id
+        );
+    }
+
+    let model: HfApiModel = response.json().await?;
+    Ok(model.downloads)
 }
 
 pub async fn get_repo_local_variants(repo_id: &str) -> Result<Vec<HfModelVariant>> {
