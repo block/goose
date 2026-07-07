@@ -5,7 +5,8 @@ use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
@@ -146,18 +147,37 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
                             for content in result.content.iter().map(|c| c.raw.clone()) {
-                                match content {
+                                // Forward images and binary embedded-resource
+                                // blobs to inline_data by mime type. Other
+                                // content falls back to text.
+                                let inline = match &content {
                                     RawContent::Image(image) => {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": image.mime_type,
-                                                "data": image.data,
-                                            }
-                                        }));
+                                        Some((image.mime_type.clone(), image.data.clone()))
                                     }
-                                    _ => {
-                                        tool_content.push(content.no_annotation());
-                                    }
+                                    RawContent::Resource(embedded) => match &embedded.resource {
+                                        ResourceContents::BlobResourceContents {
+                                            blob,
+                                            mime_type,
+                                            ..
+                                        } => Some((
+                                            mime_type.clone().unwrap_or_else(|| {
+                                                "application/octet-stream".to_string()
+                                            }),
+                                            blob.clone(),
+                                        )),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                if let Some((mime_type, data)) = inline {
+                                    parts.push(json!({
+                                        "inline_data": {
+                                            "mime_type": mime_type,
+                                            "data": data,
+                                        }
+                                    }));
+                                } else {
+                                    tool_content.push(content.no_annotation());
                                 }
                             }
                             let mut text = tool_content
@@ -856,6 +876,32 @@ mod tests {
         })];
 
         assert_eq!(payload, expected_payload);
+    }
+
+    #[test]
+    fn test_tool_result_forwards_blob_resource_as_inline_data() {
+        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
+
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        };
+        let blob = RawContent::Resource(RawEmbeddedResource {
+            resource,
+            meta: None,
+        })
+        .no_annotation();
+
+        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
+        let payload = format_messages(&messages);
+
+        assert_eq!(
+            payload[0]["parts"][0]["inline_data"]["mime_type"],
+            "image/png"
+        );
+        assert_eq!(payload[0]["parts"][0]["inline_data"]["data"], "aGVsbG8=");
     }
 
     #[test]
