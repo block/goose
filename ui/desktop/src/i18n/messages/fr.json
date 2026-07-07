@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Téléchargement en cours"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modèles en vedette"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Connectez-vous pour augmenter les limites de débit lors de la recherche et du téléchargement de modèles, et pour accéder aux dépôts Hugging Face privés ou à accès restreint."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Paramètres du modèle"
