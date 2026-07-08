@@ -214,16 +214,18 @@ impl Provider for OllamaCloudProvider {
             return Ok(cached);
         }
 
-        let limit = self
+        if let Some(limit) = self
             .fetch_context_limit_from_show(&model_config.model_name)
             .await
-            .unwrap_or_else(|| model_config.context_limit());
+        {
+            if let Ok(mut cache) = SHOW_INFO_CACHE.lock() {
+                cache.insert(model_config.model_name.clone(), limit);
+            }
 
-        if let Ok(mut cache) = SHOW_INFO_CACHE.lock() {
-            cache.insert(model_config.model_name.clone(), limit);
+            return Ok(limit);
         }
 
-        Ok(limit)
+        Ok(model_config.context_limit())
     }
 }
 
