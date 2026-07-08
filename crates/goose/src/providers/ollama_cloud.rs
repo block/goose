@@ -1,4 +1,4 @@
-use super::base::{MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
 use crate::conversation::message::Message;
@@ -261,6 +261,7 @@ impl ProviderDef for OllamaCloudProvider {
 mod tests {
     use super::*;
     use crate::config::declarative_providers::ProviderEngine;
+    use crate::providers::base::ModelInfo;
 
     #[test]
     fn declarative_matching_accepts_name_or_catalog_provider_id() {
