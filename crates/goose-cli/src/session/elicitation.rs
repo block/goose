@@ -21,49 +21,103 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
         if props.len() == 1 {
             let (field_name, field_schema) = props.iter().next().unwrap();
 
-            // Try to extract menu options from oneOf or enum
-            let options = if let Some(one_of) = field_schema.get("oneOf").and_then(|o| o.as_array())
+            // Check if field is required
+            let is_required = schema
+                .get("required")
+                .and_then(|r| r.as_array())
+                .map(|arr| arr.iter().any(|v| v.as_str() == Some(field_name)))
+                .unwrap_or(false);
+
+            // Extract default value from schema to set initial menu position
+            let default_value = field_schema.get("default").and_then(|v| v.as_str());
+
+            // Try to extract menu options from oneOf or enum use menu if all oneOf branches have const values
+            let (mut options, all_const) = if let Some(one_of) =
+                field_schema.get("oneOf").and_then(|o| o.as_array())
             {
-                one_of
+                let total_branches = one_of.len();
+                let const_options: Vec<_> = one_of
                     .iter()
                     .filter_map(|opt| {
                         let value = opt.get("const")?.as_str()?;
                         let title = opt.get("title").and_then(|t| t.as_str()).unwrap_or(value);
                         Some((value.to_string(), title.to_string()))
                     })
-                    .collect::<Vec<_>>()
+                    .collect();
+
+                // Only use menu if all oneOf branches are const
+                let all_const = const_options.len() == total_branches;
+                (const_options, all_const)
             } else if let Some(enum_vals) = field_schema.get("enum").and_then(|e| e.as_array()) {
-                enum_vals
+                let enum_options = enum_vals
                     .iter()
                     .filter_map(|v| {
                         let value = v.as_str()?;
                         Some((value.to_string(), value.to_string()))
                     })
-                    .collect::<Vec<_>>()
+                    .collect();
+                (enum_options, true) // enum always has all const values
             } else {
-                vec![]
+                (vec![], true)
             };
 
-            if !options.is_empty() {
+            // Only use interactive menu if we have options and all oneOf branches are const
+            if !options.is_empty() && all_const && std::io::stdin().is_terminal() {
+                // If field is optional and has no default append a Skip option
+                const SKIP_SENTINEL: &str = "\x00__SKIP__";
+                let has_skip = if !is_required && default_value.is_none() {
+                    options.push((SKIP_SENTINEL.to_string(), "Skip".to_string()));
+                    true
+                } else {
+                    false
+                };
+
+                // Find option index that matches the default
+                let initial_index = if let Some(default) = default_value {
+                    options.iter().position(|(value, _)| value == default)
+                } else {
+                    None
+                };
+
                 // Interactive menu with arrow keys
                 let items: Vec<(&str, &str, &str)> = options
                     .iter()
                     .map(|(value, title)| (value.as_str(), title.as_str(), ""))
                     .collect();
 
-                match cliclack::select(field_name.as_str())
-                    .items(&items)
-                    .interact()
-                {
+                // Build selector and set initial cursor position to default if available
+                let mut selector = cliclack::select(field_name.as_str()).items(&items);
+                if let Some(idx) = initial_index {
+                    selector = selector.initial_value(items[idx].0);
+                }
+
+                match selector.interact() {
                     Ok(selected_value) => {
+                        // If user selected the Skip option return empty data
+                        if has_skip && selected_value == SKIP_SENTINEL {
+                            return Ok(ElicitationInput {
+                                action: ElicitationAction::Accept,
+                                user_data: HashMap::new(),
+                            });
+                        }
+
+                        // Normal selection
                         let mut data = HashMap::new();
                         data.insert(
                             field_name.clone(),
                             Value::String(selected_value.to_string()),
                         );
-                        return Ok(Some(data));
+                        return Ok(ElicitationInput {
+                            action: ElicitationAction::Accept,
+                            user_data: data,
+                        });
                     }
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => return Ok(None),
+                    Err(e) if e.kind() == io::ErrorKind::Interrupted => {
+                        return Ok(ElicitationInput {
+                            action: ElicitationAction::Cancel,
+                            user_data: HashMap::new(),
+                        });
+                    }
                     Err(e) => return Err(e),
                 }
             }
