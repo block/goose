@@ -1,7 +1,7 @@
 import { SyntheticEvent } from 'react';
 import { Button } from '../../../../ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
-import { ConfigKey } from '../../../../../api';
+import type { ConfigKey } from '../../../../../types/providers';
 import { defineMessages, useIntl } from '../../../../../i18n';
 
 const i18n = defineMessages({

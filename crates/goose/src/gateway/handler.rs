@@ -308,7 +308,9 @@ impl GatewayHandler {
         // extension processes don't linger.
         let extensions_changed = self.sync_session_config(&session).await?;
         if extensions_changed {
-            let _ = self.agent_manager.remove_session(session_id).await;
+            self.agent_manager
+                .remove_session_if_loaded(session_id)
+                .await?;
         }
 
         let agent = self
@@ -478,6 +480,7 @@ impl GatewayHandler {
                     }
                 }
                 Ok(AgentEvent::Usage(_)) => {}
+                Ok(AgentEvent::MessageUsage { .. }) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

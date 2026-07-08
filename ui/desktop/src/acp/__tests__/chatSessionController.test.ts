@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Message, Session } from '../../api';
+import type { Message } from '../../types/message';
 import { ChatState } from '../../types/chatState';
+import type { Session } from '../../types/session';
 import { acpChatSessionController } from '../chatSessionController';
 import {
   acpChatSessionActions,
@@ -107,6 +108,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
       accumulatedTotalTokens: 0,
     },
     notifications: [],
+    progressMessage: undefined,
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId,

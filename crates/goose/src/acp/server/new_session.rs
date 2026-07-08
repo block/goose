@@ -11,6 +11,7 @@ use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tracing::warn;
 
 struct InitialSessionConfig {
     provider: String,
@@ -83,18 +84,30 @@ impl GooseAcpAgent {
         let response = self
             .build_new_session_response(&reloaded_session, &extension_results)
             .await?;
-        super::send_session_setup_notifications(
-            cx,
-            &reloaded_session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        self.notify_session_setup(cx, &reloaded_session).await?;
         Ok(response)
     }
 
     async fn cleanup_failed_new_session(&self, session_id: &str) {
-        let _ = self.session_manager.delete_session(session_id).await;
+        if let Err(error) = self.session_manager.delete_session(session_id).await {
+            warn!(
+                session_id,
+                %error,
+                "Failed to delete session during new-session cleanup"
+            );
+        }
         self.sessions.lock().await.remove(session_id);
-        let _ = self.agent_manager.remove_session(session_id).await;
+        if let Err(error) = self
+            .agent_manager
+            .remove_session_if_loaded(session_id)
+            .await
+        {
+            warn!(
+                session_id,
+                %error,
+                "Failed to remove in-memory agent during new-session cleanup"
+            );
+        }
     }
 
     async fn configure_new_session(

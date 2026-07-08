@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "重試"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "應用程式"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "goose 預設會為您啟動伺服器，使用此選項以連線至外部 goose 伺服器"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "變更需要重新啟動 Goose 才會生效。新的聊天視窗將連線至外部伺服器。"
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "伺服器 URL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose 伺服器"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL 格式無效"
@@ -1198,36 +1213,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "選擇一個選項以開始使用。"
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "免費且私密"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "下載模型並完全在您的電腦上執行。無需 API 金鑰，無需帳號。"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "使用本機模型"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "註冊即可獲得 7 天 6,000 萬個免費權杖。"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "重試"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "透過自動設定存取多種 AI 模型。註冊即可獲得 $10 點數。"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate 的 Agent Router"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "設定期間發生非預期的錯誤。"
   },
   "goosehintsModal.close": {
     "defaultMessage": "關閉"
@@ -1751,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "下載中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "精選模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型設定"
@@ -1822,9 +1813,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "僅顯示建議項目"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "返回"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "最適合您的電腦"
@@ -1949,30 +1937,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "正在子母畫面中播放"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "取消"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "開啟"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "開啟外部連結"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "這會開啟：{url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "要開啟 {protocol} 連結嗎？"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "已收到 {message} 的訊息。"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} 訊息"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "已收到 {message} 的訊息。目前尚不支援 {messageType} 訊息，詳情請參閱主控台。"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{找到 # 個項目} other{找到 # 個項目}}"
   },
@@ -2053,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（佔輸入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "快取讀取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "快取寫入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "壓縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "費用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首個權杖"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "輸入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "輸出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（回報）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "總計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "總時間"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "選擇要用於聽寫的麥克風"
@@ -2810,14 +2819,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "連線到 OpenAI、Anthropic、Google 等"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "使用本機模型或提供免費額度的提供者"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "下載模型並完全在您的電腦上執行。無需 API 金鑰，無需帳號。"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "選取提供者"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "使用免費／本機提供者"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "使用本機模型"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "提供者組態設定"
@@ -4025,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部後端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "鍵盤"
   },
@@ -4036,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "工作階段"
   },
   "settingsView.title": {
     "defaultMessage": "設定"
@@ -4429,9 +4438,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "記錄"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI 為實驗性功能，可能隨時變更。"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "輸出"

@@ -195,18 +195,16 @@ fn unescape_json_values_in_place(value: &mut Value) {
                 unescape_json_values_in_place(v);
             }
         }
-        Value::String(s) => {
-            if s.contains('\\') {
-                *s = s
-                    .replace("\\\\n", "\n")
-                    .replace("\\\\t", "\t")
-                    .replace("\\\\r", "\r")
-                    .replace("\\\\\"", "\"")
-                    .replace("\\n", "\n")
-                    .replace("\\t", "\t")
-                    .replace("\\r", "\r")
-                    .replace("\\\"", "\"");
-            }
+        Value::String(s) if s.contains('\\') => {
+            *s = s
+                .replace("\\\\n", "\n")
+                .replace("\\\\t", "\t")
+                .replace("\\\\r", "\r")
+                .replace("\\\\\"", "\"")
+                .replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\r", "\r")
+                .replace("\\\"", "\"");
         }
         _ => {}
     }

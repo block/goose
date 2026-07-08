@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { toastService } from '../../../toasts';
 import {
   trackExtensionAdded,

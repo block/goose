@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../sessions';
-import type { ExtensionConfig, Session } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
+import type { Session } from '../types/session';
 import type { FixedExtensionEntry } from '../components/ConfigContext';
 import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
 import { getConfiguredGooseExtensions } from '../acp/extensions';

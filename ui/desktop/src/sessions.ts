@@ -1,4 +1,5 @@
-import { Session, ExtensionConfig } from './api';
+import type { Session } from './types/session';
+import type { ExtensionConfig } from './types/extensions';
 import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
 import type { FixedExtensionEntry } from './components/ConfigContext';

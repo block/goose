@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Coba lagi"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Aplikasi"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Secara bawaan goose menjalankan server untuk Anda, gunakan ini untuk terhubung ke server goose eksternal"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Perubahan memerlukan mulai ulang Goose agar berlaku. Jendela obrolan baru akan terhubung ke server eksternal."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL Server"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Server Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Format URL tidak valid"
@@ -1198,36 +1213,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Terhubung ke server goose yang berjalan di tempat lain (memerlukan mulai ulang aplikasi)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Pilih opsi untuk memulai."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratis & Pribadi"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Unduh model dan jalankan sepenuhnya di mesin Anda. Tanpa kunci API, tanpa akun."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Gunakan Model Lokal"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Daftar untuk menerima 60 juta token gratis selama 7 hari."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Coba lagi"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Akses beberapa model AI dengan penyiapan otomatis. Daftar untuk menerima kredit $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router oleh Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Terjadi kesalahan tak terduga selama penyiapan."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
@@ -1751,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Mengunduh"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Unggulan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Masuk untuk meningkatkan batas laju saat mencari dan mengunduh model, serta untuk mengakses repositori Hugging Face yang privat atau terbatas."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Pengaturan Model"
@@ -1822,9 +1813,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Tampilkan yang direkomendasikan saja"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Kembali"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Terbaik untuk mesin Anda"
@@ -1949,30 +1937,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Memutar dalam Picture-in-Picture"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Batal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Tautan Eksternal"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Buka tautan {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Pesan diterima untuk {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Pesan MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Pesan diterima untuk {message}. Pesan {messageType} belum didukung, lihat konsol untuk detail lebih lanjut."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item ditemukan} other{# item ditemukan}}"
   },
@@ -2053,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dari masukan)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Biaya"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(perkiraan)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Masukan"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Keluaran"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kecepatan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Waktu total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon mana yang akan digunakan untuk dikte"
@@ -2810,14 +2819,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Hubungkan OpenAI, Anthropic, Google, dll"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Gunakan model lokal atau penyedia dengan kredit gratis"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Unduh model dan jalankan sepenuhnya di mesin Anda. Tanpa kunci API, tanpa akun."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Pilih penyedia"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Gunakan Penyedia Gratis/Lokal"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Gunakan Model Lokal"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Pengaturan Konfigurasi Penyedia"
@@ -4025,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Obrolan"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Eksternal"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -4036,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
   },
   "settingsView.title": {
     "defaultMessage": "Pengaturan"
@@ -4429,9 +4438,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Log"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI bersifat eksperimental dan dapat berubah sewaktu-waktu."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Keluaran"

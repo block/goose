@@ -9,7 +9,6 @@ import TabItem from '@theme/TabItem';
 
 # Building Custom Extensions with goose
 
-
 goose allows you to extend its functionality by creating your own custom extensions, which are built as MCP servers. These extensions are compatible with goose because it adheres to the [Model Context Protocol (MCP)][mcp-docs]. MCP is an open protocol that standardizes how applications provide context to LLMs. It enables a consistent way to connect LLMs to various data sources and tools, making it ideal for extending functionality in a structured and interoperable way. 
 
 In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in goose. You can follow a similar process to develop your own custom extensions for goose.
@@ -105,7 +104,7 @@ def read_wikipedia_article(url: str) -> str:
         # SSRF protection: only allow Wikipedia domains
         parsed = urlparse(url)
         hostname = parsed.netloc.lower()
-        
+
         # Allow wikipedia.org or *.wikipedia.org subdomains only
         if hostname != 'wikipedia.org' and not hostname.endswith('.wikipedia.org'):
             raise ValueError(f"Only Wikipedia URLs are allowed. Got: {parsed.netloc}")
@@ -223,18 +222,18 @@ MCP Inspector requires Node.js and npm installed on your computer.
    source .venv/bin/activate
    ```
 
-3. Run your server in development mode: 
+3. Run your server in development mode:
 
    ```bash
    mcp dev src/mcp_wiki/server.py
    ```
-   
+
    MCP Inspector should open automatically in your browser. On first run, you'll be prompted to install `@modelcontextprotocol/inspector`.
 
 4. Test the tool:
    1. Click `Connect` to initialize your MCP server
    2. On the `Tools` tab, click `List Tools` and click the `read_wikipedia_article` tool
-   3. Enter `https://en.wikipedia.org/wiki/Bangladesh` for the URL and click `Run Tool` 
+   3. Enter `https://en.wikipedia.org/wiki/Bangladesh` for the URL and click `Run Tool`
 
 [![MCP Inspector UI](../assets/guides/custom-extension-mcp-inspector.png)](../assets/guides/custom-extension-mcp-inspector.png)
 
@@ -242,16 +241,16 @@ MCP Inspector requires Node.js and npm installed on your computer.
   <TabItem value="cli" label="In the CLI">
 1. Set up the project environment:
 
-   ```bash
-   uv sync
-   ```
+```bash
+uv sync
+```
 
 2. Activate your virtual environment:
 
    ```bash
    source .venv/bin/activate
    ```
-   
+
 3. Install your project locally:
 
    ```bash
@@ -275,6 +274,7 @@ MCP Inspector requires Node.js and npm installed on your computer.
    options:
      -h, --help  show this help message and exit
    ```
+
   </TabItem>
 </Tabs>
 
@@ -295,11 +295,13 @@ To add your MCP server as an extension in goose:
 4. Set the `Type` to `STDIO`
 5. Provide a name and description for your extension
 6. In the `Command` field, provide the absolute path to your executable:
+
    ```plaintext
    uv run /full/path/to/mcp-wiki/.venv/bin/mcp-wiki
    ```
 
    For example:
+
    ```plaintext
    uv run /Users/smohammed/Development/mcp/mcp-wiki/.venv/bin/mcp-wiki
    ```
@@ -341,12 +343,14 @@ goose supports advanced MCP features that can enhance your extensions.
 **[MCP Sampling](/docs/guides/mcp-sampling)** allows your MCP servers to request AI completions from goose's LLM, transforming simple tools into intelligent agents.
 
 **Key Benefits:**
+
 - Your MCP server doesn't need its own OpenAI/Anthropic API key
 - Tools can analyze data, provide explanations, and make intelligent decisions
 - Enhanced user experience with smarter, more contextual responses
 - Secure by design: requests are isolated and attributed automatically
 
 **Getting Started:**
+
 - Use the `sampling/createMessage` method in your MCP server to request AI assistance
 - [goose's implementation](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/agents/mcp_client.rs) currently supports text and image content types
 - goose automatically advertises sampling capability to all MCP servers
@@ -360,6 +364,7 @@ goose supports advanced MCP features that can enhance your extensions.
 **[MCP Apps](/docs/tutorials/building-mcp-apps)** enable rich, interactive user interfaces instead of text-only responses.
 
 **Key Benefits:**
+
 - Return interactive UI components from your MCP server tools
 - Components render securely in isolated sandboxes within goose Desktop
 - Real-time user interactions trigger callbacks to your server
@@ -367,10 +372,6 @@ goose supports advanced MCP features that can enhance your extensions.
 **Use Cases:** Interactive forms, data visualizations, booking interfaces, configuration wizards
 
 **Learn More:** [Building MCP Apps Tutorial](/docs/tutorials/building-mcp-apps)
-
-:::note
-goose also supports [MCP-UI](/docs/guides/interactive-chat/mcp-ui), but MCP Apps is the recommended path for new extensions.
-:::
 
 [mcp-docs]: https://modelcontextprotocol.io/
 [mcp-python]: https://github.com/modelcontextprotocol/python-sdk

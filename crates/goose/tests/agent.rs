@@ -599,6 +599,7 @@ mod tests {
                     }
                     Ok(AgentEvent::McpNotification(_)) => {}
                     Ok(AgentEvent::Usage(_)) => {}
+                    Ok(AgentEvent::MessageUsage { .. }) => {}
                     Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
                         // We should update the conversation here, but we're not reading it
                     }
@@ -737,7 +738,7 @@ mod tests {
                 Arc::new(PermissionManager::new(data_dir)),
                 None,
                 GooseMode::default(),
-                false,
+                true,
                 GoosePlatform::GooseCli,
             ));
             let provider = Arc::new(UnparseableToolProvider::new());

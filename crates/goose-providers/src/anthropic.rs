@@ -1,4 +1,6 @@
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::request_log::{start_log, LoggerHandleExt};
 use anyhow::Result;
@@ -88,6 +90,24 @@ impl AnthropicProviderBuilder {
             skip_canonical_filtering: false,
             format_options: AnthropicFormatOptions::default(),
         }
+    }
+
+    pub fn api_client(mut self, api_client: ApiClient) -> Self {
+        self.api_client = api_client;
+        self
+    }
+
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
     }
 
     pub fn supports_streaming(mut self, supports_streaming: bool) -> Self {
@@ -286,4 +306,97 @@ impl Provider for AnthropicProvider {
             }
         }))
     }
+}
+
+fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptions {
+    AnthropicFormatOptions {
+        preserve_unsigned_thinking: preserves_thinking,
+        preserve_thinking_context: preserves_thinking,
+        thinking_disabled: false,
+    }
+}
+
+pub fn from_declarative_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<AnthropicProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key,
+        },
+        _ => AuthMethod::NoAuth,
+    };
+
+    let format_options = format_options_for_provider(config.preserves_thinking);
+
+    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?;
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        header_map.insert(
+            reqwest::header::HeaderName::from_static("anthropic-version"),
+            reqwest::header::HeaderValue::from_static(ANTHROPIC_API_VERSION),
+        );
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    } else {
+        api_client = api_client.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+    }
+
+    let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+    if !supports_streaming {
+        return Err(anyhow::anyhow!(
+            "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
+            Please remove 'supports_streaming: false' from your provider configuration."
+        ));
+    }
+
+    Ok(AnthropicProviderBuilder::new(api_client)
+        .supports_streaming(supports_streaming)
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering)
+        .format_options(format_options))
 }
