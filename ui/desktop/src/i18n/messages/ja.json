@@ -4049,9 +4049,6 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "プロンプト"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "セッション"
-  },
   "settingsView.title": {
     "defaultMessage": "設定"
   },

@@ -4049,9 +4049,6 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
-  },
   "settingsView.title": {
     "defaultMessage": "设置"
   },

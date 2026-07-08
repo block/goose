@@ -4049,9 +4049,6 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "프롬프트"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "세션"
-  },
   "settingsView.title": {
     "defaultMessage": "설정"
   },

@@ -4049,9 +4049,6 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Invites"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
-  },
   "settingsView.title": {
     "defaultMessage": "Paramètres"
   },

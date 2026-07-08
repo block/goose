@@ -45,10 +45,6 @@ const i18n = defineMessages({
     id: 'settingsView.tabChat',
     defaultMessage: 'Chat',
   },
-  tabSession: {
-    id: 'settingsView.tabSession',
-    defaultMessage: 'Session',
-  },
   tabExternalBackend: {
     id: 'settingsView.tabExternalBackend',
     defaultMessage: 'External Backend',

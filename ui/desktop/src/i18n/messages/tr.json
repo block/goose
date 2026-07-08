@@ -4049,9 +4049,6 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "İstemler"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Oturum"
-  },
   "settingsView.title": {
     "defaultMessage": "Ayarlar"
   },
