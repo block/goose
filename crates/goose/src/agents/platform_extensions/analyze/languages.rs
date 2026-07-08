@@ -322,26 +322,24 @@ static LANGUAGES: &[LangInfo] = &[
     LangInfo {
         name: "c",
         extensions: &["c", "h"],
-        language: || tree_sitter_cpp::LANGUAGE.into(),
+        language: || tree_sitter_c::LANGUAGE.into(),
         fn_kinds: &["function_definition"],
         fn_name_kinds: &["identifier"],
         class_kinds: &["struct_specifier", "union_specifier", "enum_specifier"],
         queries: LangQueries {
             functions: r#"
-                (function_definition declarator: [
-                    (function_declarator declarator: (identifier) @name)
-                    (pointer_declarator
-                        (function_declarator declarator: (identifier) @name))
-                    (pointer_declarator (pointer_declarator
-                        (function_declarator declarator: (identifier) @name)))
-                ])
+                (function_definition) @definition
             "#,
             classes: r#"
-                (struct_specifier name: (type_identifier) @name)
-                (union_specifier name: (type_identifier) @name)
-                (enum_specifier name: (type_identifier) @name)
+                (struct_specifier name: (type_identifier) @name (field_declaration_list))
+                (union_specifier name: (type_identifier) @name (field_declaration_list))
+                (enum_specifier name: (type_identifier) @name (enumerator_list))
                 (type_definition
-                    type: [(struct_specifier) (union_specifier) (enum_specifier)]
+                    type: [
+                        (struct_specifier (field_declaration_list))
+                        (union_specifier (field_declaration_list))
+                        (enum_specifier (enumerator_list))
+                    ]
                     declarator: (type_identifier) @name)
             "#,
             imports: r#"

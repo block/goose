@@ -100,7 +100,7 @@ tree-sitter-ruby = { version = "0.23", default-features = false }
 tree-sitter-rust = { version = "0.24", default-features = false }
 tree-sitter-swift = { version = "0.7", default-features = false }
 tree-sitter-typescript = { version = "0.23", default-features = false }
-tree-sitter-cpp = { version = "0.23.4", default-features = false }
+tree-sitter-c = { version = "0.24.2", default-features = false }
 
 # llama-cpp-2 doesn't pin the version of its sys crate, so we do it here. it also has breaking changes in patch releases, so we use an exact version pin
 llama-cpp-2 = { version = "=0.1.146", default-features = false, features = ["sampler", "mtmd"] }

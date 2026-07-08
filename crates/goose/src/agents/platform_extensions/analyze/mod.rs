@@ -430,8 +430,6 @@ fn helper() { validate(0); }
         let out = text(&result);
 
         assert!(out.contains("FOCUS: validate"));
-        // The call to validate must be attributed to process(), not <module>,
-        // even though the C name is nested inside a pointer/function declarator.
         assert!(out.contains("process"));
         assert!(!out.contains("<module>"));
     }
@@ -471,7 +469,7 @@ fn helper() { validate(0); }
         let file = tmp.path().join("types.c");
         fs::write(
             &file,
-            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\ntypedef struct Tagged { int z; } Tagged;\n",
+            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\ntypedef struct Tagged { int z; } Tagged;\nstruct Opaque;\nstruct Opaque *make(void);\nint new(void) { return 0; }\n",
         )
         .unwrap();
 
@@ -491,9 +489,9 @@ fn helper() { validate(0); }
         assert!(out.contains("Point"));
         assert!(out.contains("State"));
         assert!(out.contains("Named"));
-        // typedef struct Tagged {...} Tagged matches both the tag and the
-        // typedef alias patterns; it must be reported only once.
+        assert!(out.contains("new"));
         assert_eq!(out.matches("Tagged").count(), 1);
+        assert!(!out.contains("Opaque"));
     }
 
     #[tokio::test]

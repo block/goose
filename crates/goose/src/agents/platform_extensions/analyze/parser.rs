@@ -88,17 +88,33 @@ fn extract_functions(
 
     while let Some(m) = matches.next() {
         for cap in m.captures {
-            if query.capture_names()[cap.index as usize] == "name" {
-                let name = node_text(source, &cap.node).to_string();
-                let line = cap.node.start_position().row + 1;
-                let parent = find_enclosing_class(cap.node, source, info);
-                let detail = extract_fn_signature(cap.node, source);
-                symbols.push(Symbol {
-                    name,
-                    line,
-                    parent,
-                    detail,
-                });
+            match query.capture_names()[cap.index as usize] {
+                "name" => {
+                    let name = node_text(source, &cap.node).to_string();
+                    let line = cap.node.start_position().row + 1;
+                    let parent = find_enclosing_class(cap.node, source, info);
+                    let detail = extract_fn_signature(cap.node, source);
+                    symbols.push(Symbol {
+                        name,
+                        line,
+                        parent,
+                        detail,
+                    });
+                }
+                "definition" => {
+                    if let Some(name) = find_fn_name(&cap.node, info.fn_name_kinds, source) {
+                        let line = cap.node.start_position().row + 1;
+                        let parent = find_enclosing_class(cap.node, source, info);
+                        let detail = extract_fn_signature_from_node(cap.node, source);
+                        symbols.push(Symbol {
+                            name,
+                            line,
+                            parent,
+                            detail,
+                        });
+                    }
+                }
+                _ => {}
             }
         }
     }

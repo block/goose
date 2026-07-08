@@ -5022,7 +5022,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "tree-sitter",
- "tree-sitter-cpp",
+ "tree-sitter-c",
  "tree-sitter-go",
  "tree-sitter-java",
  "tree-sitter-javascript",
@@ -12258,10 +12258,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-sitter-cpp"
-version = "0.23.4"
+name = "tree-sitter-c"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df2196ea9d47b4ab4a31b9297eaa5a5d19a0b121dceb9f118f6790ad0ab94743"
+checksum = "a9b2eb57a55fed6b00812912e730b7a275cf4fe98bfd6a5d76263d4438371728"
 dependencies = [
  "cc",
  "tree-sitter-language",
