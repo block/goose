@@ -8,26 +8,19 @@ use crate::providers::inventory::declarative_inventory_identity;
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
-use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use utoipa::ToSchema;
 
 pub use goose_providers::declarative::*;
 
-static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/providers/declarative");
-
 pub fn custom_providers_dir() -> std::path::PathBuf {
     Paths::config_dir().join("custom_providers")
-}
-
-fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
-    matches!(engine, ProviderEngine::OpenAI)
 }
 
 /// Expand `${VAR_NAME}` placeholders in a template string using the given env var configs.
@@ -341,84 +334,17 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
         });
     }
 
-    for file in FIXED_PROVIDERS.files() {
-        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        let content = file
-            .contents_utf8()
-            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
-
-        let config: DeclarativeProviderConfig = match serde_json::from_str(content) {
-            Ok(config) => config,
-            Err(_) => continue,
-        };
-        if config.name == id {
-            return Ok(LoadedProvider {
-                config,
-                is_editable: false,
-            });
-        }
+    if let Some(config) = fixed_provider_configs()?
+        .into_iter()
+        .find(|config| config.name == id)
+    {
+        return Ok(LoadedProvider {
+            config,
+            is_editable: false,
+        });
     }
 
     Err(anyhow::anyhow!("Provider not found: {}", id))
-}
-
-pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
-    if !dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    std::fs::read_dir(dir)?
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            (path.extension()? == "json").then_some(path)
-        })
-        .map(|path| {
-            let content = std::fs::read_to_string(&path)?;
-            deserialize_provider_config(&content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
-        })
-        .collect()
-}
-
-fn deserialize_provider_config(content: &str) -> Result<DeclarativeProviderConfig> {
-    let raw: serde_json::Value = serde_json::from_str(content)?;
-    let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
-    let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
-
-    if !preserves_thinking_was_set {
-        config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
-    }
-
-    Ok(config)
-}
-
-fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
-    let mut res = Vec::new();
-    for file in FIXED_PROVIDERS.files() {
-        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        let content = file
-            .contents_utf8()
-            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
-
-        match deserialize_provider_config(content) {
-            Ok(config) => res.push(config),
-            Err(e) => {
-                tracing::warn!(
-                    "Skipping invalid declarative provider {:?}: {}",
-                    file.path(),
-                    e
-                );
-            }
-        }
-    }
-
-    Ok(res)
 }
 
 pub fn register_declarative_providers(
@@ -426,7 +352,7 @@ pub fn register_declarative_providers(
 ) -> Result<()> {
     let dir = custom_providers_dir();
     let custom_providers = load_custom_providers(&dir)?;
-    let fixed_providers = load_fixed_providers()?;
+    let fixed_providers = fixed_provider_configs()?;
     for config in fixed_providers {
         register_declarative_provider(registry, config, ProviderType::Declarative);
     }
@@ -504,6 +430,22 @@ pub fn register_declarative_provider(
                             huggingface_declarative_inventory_configured(&cfg)
                         },
                     );
+            } else if crate::providers::ollama_cloud::OllamaCloudProvider::matches_declarative_config(&config) {
+                registry.register_with_name::<crate::providers::ollama_cloud::OllamaCloudProvider, _, _>(
+                    &config,
+                    provider_type,
+                    config.dynamic_models.unwrap_or(false),
+                    move |tls_config| {
+                        let mut cfg = captured.clone();
+                        resolve_config(&mut cfg)?;
+                        crate::providers::ollama_cloud::OllamaCloudProvider::from_custom_config(cfg, tls_config)
+                    },
+                    move || {
+                        let mut cfg = identity_config.clone();
+                        resolve_config(&mut cfg)?;
+                        declarative_inventory_identity(&cfg)
+                    },
+                );
             } else {
                 registry.register_with_name::<OpenAiProviderDef, _, _>(
                     &config,
@@ -678,88 +620,8 @@ mod tests {
     }
 
     #[test]
-    fn test_existing_json_files_still_deserialize_without_new_fields() {
-        let json = include_str!("../providers/declarative/groq.json");
-        let config =
-            deserialize_provider_config(json).expect("groq.json should parse without env_vars");
-        assert!(config.env_vars.is_none());
-        assert!(config.dynamic_models.is_none());
-        assert!(config.model_doc_link.is_none());
-        assert!(config.setup_steps.is_empty());
-        assert!(config.preserves_thinking);
-    }
-
-    fn placeholder_var_names(template: &str) -> Vec<String> {
-        template
-            .split("${")
-            .skip(1)
-            .filter_map(|chunk| chunk.split_once('}'))
-            .map(|(name, _)| name.to_string())
-            .collect()
-    }
-
-    #[test]
-    fn test_all_bundled_providers_are_valid() {
-        let mut seen_ids = std::collections::HashSet::new();
-
-        for file in FIXED_PROVIDERS.files() {
-            if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let path = file.path().display().to_string();
-            let content = file
-                .contents_utf8()
-                .unwrap_or_else(|| panic!("{path} is not valid UTF-8"));
-            let config = deserialize_provider_config(content)
-                .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
-
-            validate_provider_id(config.id())
-                .unwrap_or_else(|e| panic!("{path} has an invalid provider id: {e}"));
-            assert!(
-                seen_ids.insert(config.id().to_string()),
-                "{path} has a duplicate provider id: {}",
-                config.id()
-            );
-            assert!(!config.base_url.is_empty(), "{path} has an empty base_url");
-
-            if config.dynamic_models == Some(false) {
-                assert!(
-                    !config.models.is_empty(),
-                    "{path} disables dynamic_models but lists no static models"
-                );
-            }
-
-            let declared: std::collections::HashSet<&str> = config
-                .env_vars
-                .iter()
-                .flatten()
-                .map(|v| v.name.as_str())
-                .collect();
-            let templates = std::iter::once(config.base_url.as_str())
-                .chain(config.base_path.as_deref())
-                .chain(
-                    config
-                        .headers
-                        .iter()
-                        .flat_map(|h| h.values())
-                        .map(String::as_str),
-                );
-            for template in templates {
-                for var in placeholder_var_names(template) {
-                    assert!(
-                        declared.contains(var.as_str()),
-                        "{path} references ${{{var}}} but declares no matching env_var"
-                    );
-                }
-            }
-        }
-
-        assert!(!seen_ids.is_empty(), "no bundled providers were found");
-    }
-
-    #[test]
     fn test_bundled_providers_wire_into_registry_metadata() {
-        let configs = load_fixed_providers().expect("bundled providers should load");
+        let configs = fixed_provider_configs().expect("bundled providers should load");
         assert!(!configs.is_empty(), "no bundled providers were found");
 
         for config in configs {

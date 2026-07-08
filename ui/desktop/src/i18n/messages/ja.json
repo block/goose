@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "利用可能なアプリはありません"
   },
-  "appsView.retry": {
-    "defaultMessage": "再試行"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "再試行"
   },
   "appsView.title": {
     "defaultMessage": "アプリ"
@@ -1745,11 +1745,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "ダウンロード中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "注目モデル"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "モデル設定"
@@ -2020,6 +2026,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "待機中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（入力の{percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "キャッシュ読み取り"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "キャッシュ書き込み"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "圧縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "コスト"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（推定）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "最初のトークン"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "入力"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "出力"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（報告値）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "合計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "合計時間"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "音声入力に使用するマイクを選択"
@@ -3992,6 +4043,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "チャット"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部バックエンド"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"
   },
@@ -4003,9 +4057,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "プロンプト"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "セッション"
   },
   "settingsView.title": {
     "defaultMessage": "設定"

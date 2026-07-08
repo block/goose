@@ -1923,6 +1923,7 @@ pub struct LocalInferenceModelDto {
     pub size_bytes: u64,
     pub status: LocalInferenceModelDownloadStatusDto,
     pub recommended: bool,
+    pub is_loaded: bool,
     pub settings: LocalInferenceModelSettingsDto,
     pub vision_capable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2041,6 +2042,16 @@ pub struct LocalInferenceModelDownloadCancelRequest {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct LocalInferenceModelDeleteRequest {
+    pub model_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/local-inference/models/evict",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalInferenceModelEvictRequest {
     pub model_id: String,
 }
 

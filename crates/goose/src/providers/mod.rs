@@ -29,16 +29,18 @@ pub mod codex_acp;
 pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod custom_provider_config;
-pub mod databricks;
-pub mod databricks_auth;
-pub mod databricks_v2;
+pub mod databricks_def;
+pub mod databricks_v2_def;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
 pub mod gemini_cli;
 pub mod gemini_oauth;
 pub mod githubcopilot;
-pub mod google;
+pub mod google {
+    pub use goose_providers::google::*;
+}
+pub mod google_def;
 pub mod http_status {
     pub use goose_providers::http_status::*;
 }
@@ -56,6 +58,7 @@ pub mod oauth_device_flow;
 pub mod ollama {
     pub use goose_providers::ollama::*;
 }
+pub mod ollama_cloud;
 pub mod ollama_def;
 pub mod openai {
     pub use goose_providers::openai::*;
@@ -74,7 +77,10 @@ mod retry {
 pub mod openai_def;
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
-pub mod snowflake;
+pub mod snowflake {
+    pub use goose_providers::snowflake::*;
+}
+pub mod snowflake_def;
 pub mod testprovider;
 pub mod tetrate;
 pub mod toolshim;

@@ -53,10 +53,8 @@ fn repair_truncated_json(s: &str) -> String {
             '"' => in_string = true,
             '{' => closers.push('}'),
             '[' => closers.push(']'),
-            '}' | ']' => {
-                if closers.last() == Some(&c) {
-                    closers.pop();
-                }
+            '}' | ']' if closers.last() == Some(&c) => {
+                closers.pop();
             }
             _ => {}
         }
@@ -215,6 +213,56 @@ pub fn truncation_error_message(args: &str) -> Option<String> {
     ))
 }
 
+fn strip_json_wrapper(args: &str) -> Option<&str> {
+    let trimmed = args.trim();
+
+    if let Some(rest) = trimmed.strip_prefix("```") {
+        let body = rest.strip_suffix("```")?.trim_start();
+        let body = body
+            .strip_prefix("json")
+            .or_else(|| body.strip_prefix("JSON"))
+            .unwrap_or(body);
+        return Some(body.trim());
+    }
+
+    if trimmed.starts_with('<') && !trimmed.starts_with("</") {
+        let open_end = trimmed.find('>')?;
+        let tag_name = trimmed.get(1..open_end)?.split_whitespace().next()?;
+        if tag_name.is_empty()
+            || !tag_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            return None;
+        }
+        let closing = format!("</{tag_name}>");
+        let body = trimmed
+            .get(open_end + 1..)?
+            .trim_end()
+            .strip_suffix(&closing)?;
+        return Some(body.trim());
+    }
+
+    None
+}
+
+fn unwrap_double_encoded_object(value: serde_json::Value) -> serde_json::Value {
+    let serde_json::Value::String(s) = &value else {
+        return value;
+    };
+
+    let mut current = s.trim().to_string();
+    for _ in 0..3 {
+        match serde_json::from_str::<serde_json::Value>(&current) {
+            Ok(inner @ serde_json::Value::Object(_)) => return inner,
+            Ok(serde_json::Value::String(inner)) => current = inner.trim().to_string(),
+            _ => break,
+        }
+    }
+
+    value
+}
+
 /// Parse tool-call arguments, returning `None` when the input looks truncated
 /// so callers can surface an actionable error rather than invoking a tool with
 /// incomplete arguments. Non-truncated malformation (e.g. unescaped control
@@ -225,12 +273,23 @@ pub fn parse_tool_arguments(args: &str) -> Option<serde_json::Value> {
     }
 
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(args) {
-        return Some(value);
+        return Some(unwrap_double_encoded_object(value));
+    }
+
+    if let Some(inner) = strip_json_wrapper(args) {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(inner) {
+            return Some(unwrap_double_encoded_object(value));
+        }
+        if !looks_truncated(inner) {
+            if let Ok(value) = safely_parse_json(inner) {
+                return Some(unwrap_double_encoded_object(value));
+            }
+        }
     }
 
     if !looks_truncated(args) {
         if let Ok(value) = safely_parse_json(args) {
-            return Some(value);
+            return Some(unwrap_double_encoded_object(value));
         }
     }
 
@@ -414,6 +473,78 @@ mod tests {
             "msg: {msg}"
         );
         assert!(msg.contains("cut off at:"), "msg: {msg}");
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_markdown_fenced() {
+        let fenced = "```json\n{\"command\": \"ls\"}\n```";
+        let parsed = parse_tool_arguments(fenced).expect("fenced JSON should parse");
+        assert_eq!(parsed["command"], "ls");
+
+        let fenced_no_lang = "```\n{\"command\": \"ls\"}\n```";
+        let parsed = parse_tool_arguments(fenced_no_lang).expect("fenced JSON should parse");
+        assert_eq!(parsed["command"], "ls");
+
+        let fenced_inline = "```json{\"command\": \"ls\"}```";
+        let parsed = parse_tool_arguments(fenced_inline).expect("fenced JSON should parse");
+        assert_eq!(parsed["command"], "ls");
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_double_encoded() {
+        let double_encoded = r#""{\"command\": \"ls\"}""#;
+        let parsed = parse_tool_arguments(double_encoded).expect("double-encoded should parse");
+        assert!(parsed.is_object(), "expected object, got {parsed:?}");
+        assert_eq!(parsed["command"], "ls");
+
+        let twice = serde_json::to_string(&serde_json::json!(r#"{"command": "ls"}"#)).unwrap();
+        let twice = serde_json::to_string(&serde_json::json!(twice)).unwrap();
+        let parsed = parse_tool_arguments(&twice).expect("twice-encoded should parse");
+        assert!(parsed.is_object(), "expected object, got {parsed:?}");
+        assert_eq!(parsed["command"], "ls");
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_xml_wrapped() {
+        let wrapped = r#"<tool_call>{"command": "ls"}</tool_call>"#;
+        let parsed = parse_tool_arguments(wrapped).expect("xml-wrapped JSON should parse");
+        assert_eq!(parsed["command"], "ls");
+
+        let with_attrs = r#"<tool_call id="1">{"command": "ls"}</tool_call>"#;
+        let parsed = parse_tool_arguments(with_attrs).expect("xml-wrapped JSON should parse");
+        assert_eq!(parsed["command"], "ls");
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_unrecoverable_wrappers_still_fail() {
+        assert!(parse_tool_arguments(r#"<a><b>{"x": 1}</b></a>"#).is_none());
+        assert!(parse_tool_arguments("```json\n{\"x\": 1}\n``` extra").is_none());
+        assert!(parse_tool_arguments(r#"<tool_call>{"x": 1}</other>"#).is_none());
+        assert!(parse_tool_arguments(r#"</tool_call>"#).is_none());
+        assert!(parse_tool_arguments("```").is_none());
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_non_object_json_unchanged() {
+        assert_eq!(parse_tool_arguments("null"), Some(serde_json::Value::Null));
+        assert_eq!(parse_tool_arguments("42"), Some(serde_json::json!(42)));
+        assert_eq!(
+            parse_tool_arguments("[1, 2]"),
+            Some(serde_json::json!([1, 2]))
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_plain_string_preserved() {
+        let plain = r#""hello""#;
+        let parsed = parse_tool_arguments(plain).expect("valid JSON string should parse");
+        assert_eq!(parsed, serde_json::json!("hello"));
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_fenced_truncated_still_fails() {
+        let truncated = "```json\n{\"path\": \"/report.md\", \"content\": \"# cut";
+        assert!(parse_tool_arguments(truncated).is_none());
     }
 
     #[test]

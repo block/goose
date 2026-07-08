@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Нет доступных приложений"
   },
-  "appsView.retry": {
-    "defaultMessage": "Повторить"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Повторить"
   },
   "appsView.title": {
     "defaultMessage": "Приложения"
@@ -1745,11 +1745,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Скачивание"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Войдите, чтобы увеличить лимиты запросов при поиске и загрузке моделей, а также получить доступ к приватным или ограниченным репозиториям Hugging Face."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Настройки модели"
@@ -2020,6 +2026,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "ожидание"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% от ввода)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "чтение кэша"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "запись кэша"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Сжатие"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Стоимость"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(оценочно)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Первый токен"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Ввод"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Вывод"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(заявлено)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Скорость"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Всего"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Общее время"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Выберите микрофон для диктовки"
@@ -3992,6 +4043,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Чат"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Внешний бэкенд"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"
   },
@@ -4003,9 +4057,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Промпты"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Сеанс"
   },
   "settingsView.title": {
     "defaultMessage": "Настройки"

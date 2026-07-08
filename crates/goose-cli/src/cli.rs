@@ -408,7 +408,9 @@ async fn get_or_create_session_id(
 
     let resolved_id = if resume {
         let Some(id) = identifier else {
-            let sessions = session_manager.list_sessions().await?;
+            let sessions = session_manager
+                .list_sessions_by_types(&[SessionType::User])
+                .await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
@@ -1433,7 +1435,6 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         config_dir: Paths::config_dir(),
         goose_platform: platform.into(),
         additional_source_roots,
-        scheduler: None,
     }));
     let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()

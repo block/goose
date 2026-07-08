@@ -93,7 +93,7 @@ impl GooseAcpAgent {
         let mut counter = 1;
         let existing_names = existing_app_names(&cache)?;
 
-        while existing_names.contains(&app.resource.name) {
+        while existing_names.contains(&normalized_app_name(&app.resource.name)) {
             app.resource.name = format!("{}_{}", original_name, counter);
             app.resource.uri = format!("ui://apps/{}", app.resource.name);
             counter += 1;
@@ -142,9 +142,7 @@ impl GooseAcpAgent {
                 .internal_err()?;
         }
 
-        if app_html_file_exists(&app.resource.name) {
-            delete_app_html_file(&app.resource.name)?;
-        }
+        delete_app_html_file(&app.resource.name)?;
 
         Ok(AppsDeleteResponse {
             name: app.resource.name.clone(),
@@ -160,7 +158,7 @@ fn existing_app_names(
         .list_apps()
         .internal_err_ctx("Failed to list apps")?
         .into_iter()
-        .map(|app| app.resource.name)
+        .map(|app| normalized_app_name(&app.resource.name))
         .collect::<std::collections::HashSet<_>>();
 
     for name in list_filesystem_app_names()? {
@@ -182,7 +180,7 @@ fn list_filesystem_app_names() -> Result<Vec<String>, agent_client_protocol::Err
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) == Some("html") {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                names.push(stem.to_string());
+                names.push(normalized_app_name(stem));
             }
         }
     }
@@ -203,18 +201,36 @@ fn app_html_file_path(app_name: &str) -> Option<std::path::PathBuf> {
     Some(Paths::in_data_dir(APPS_EXTENSION_NAME).join(format!("{app_name}.html")))
 }
 
-fn app_html_file_exists(app_name: &str) -> bool {
-    app_html_file_path(app_name)
-        .map(|path| path.exists())
-        .unwrap_or(false)
+fn normalized_app_name(app_name: &str) -> String {
+    app_name.to_lowercase()
+}
+
+fn exact_app_html_file_path(
+    app_name: &str,
+) -> Result<Option<std::path::PathBuf>, agent_client_protocol::Error> {
+    let Some(html_path) = app_html_file_path(app_name) else {
+        return Ok(None);
+    };
+    let Some(file_name) = html_path.file_name() else {
+        return Ok(None);
+    };
+    let apps_dir = Paths::in_data_dir(APPS_EXTENSION_NAME);
+    if !apps_dir.exists() {
+        return Ok(None);
+    }
+
+    for entry in std::fs::read_dir(&apps_dir).internal_err()? {
+        let path = entry.internal_err()?.path();
+        if path.file_name() == Some(file_name) {
+            return Ok(Some(path));
+        }
+    }
+
+    Ok(None)
 }
 
 fn delete_app_html_file(app_name: &str) -> Result<(), agent_client_protocol::Error> {
-    let Some(html_path) = app_html_file_path(app_name) else {
-        return Ok(());
-    };
-
-    if html_path.exists() {
+    if let Some(html_path) = exact_app_html_file_path(app_name)? {
         std::fs::remove_file(html_path).internal_err()?;
     }
 
@@ -228,4 +244,51 @@ fn apps_to_values(
         .map(serde_json::to_value)
         .collect::<Result<Vec<_>, _>>()
         .internal_err()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use tempfile::TempDir;
+
+    fn with_temp_root<F>(test: F)
+    where
+        F: FnOnce(),
+    {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        test();
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn existing_app_names_normalizes_cache_and_filesystem_names() {
+        with_temp_root(|| {
+            let cache = McpAppCache::new().unwrap();
+            let apps_dir = Paths::in_data_dir(APPS_EXTENSION_NAME);
+            std::fs::create_dir_all(&apps_dir).unwrap();
+            std::fs::write(apps_dir.join("Clock.html"), "<html></html>").unwrap();
+
+            let names = existing_app_names(&cache).unwrap();
+
+            assert!(names.contains("clock"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn delete_app_html_file_requires_exact_file_name_match() {
+        with_temp_root(|| {
+            let apps_dir = Paths::in_data_dir(APPS_EXTENSION_NAME);
+            std::fs::create_dir_all(&apps_dir).unwrap();
+            let clock_path = apps_dir.join("clock.html");
+            std::fs::write(&clock_path, "<html></html>").unwrap();
+
+            delete_app_html_file("Clock").unwrap();
+
+            assert!(clock_path.exists());
+        });
+    }
 }

@@ -84,11 +84,7 @@ impl GooseAcpAgent {
         let response = self
             .build_new_session_response(&reloaded_session, &extension_results)
             .await?;
-        super::send_session_setup_notifications(
-            cx,
-            &reloaded_session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        self.notify_session_setup(cx, &reloaded_session).await?;
         Ok(response)
     }
 

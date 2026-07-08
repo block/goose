@@ -1745,11 +1745,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Téléchargement en cours"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modèles en vedette"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Connectez-vous pour augmenter les limites de débit lors de la recherche et du téléchargement de modèles, et pour accéder aux dépôts Hugging Face privés ou à accès restreint."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Paramètres du modèle"
@@ -2020,6 +2026,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "en attente"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent} % de l'entrée)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lecture du cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "écriture du cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compactage"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Coût"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimé)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Premier token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Entrée"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Sortie"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(rapporté)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Vitesse"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Temps total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Choisissez le microphone à utiliser pour la dictée"
@@ -3992,6 +4043,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Discussion"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externe"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Clavier"
   },
@@ -4003,9 +4057,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Invites"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
   },
   "settingsView.title": {
     "defaultMessage": "Paramètres"

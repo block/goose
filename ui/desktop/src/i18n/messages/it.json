@@ -1745,11 +1745,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Download in corso"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelli in evidenza"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Accedi per aumentare i limiti di frequenza durante la ricerca e il download dei modelli e per accedere ai repository Hugging Face privati o ad accesso limitato."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Impostazioni modello"
@@ -2020,6 +2026,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "in attesa"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dell'input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lettura cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "scrittura cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compattazione"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Costo"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(stimato)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Primo token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(riportato)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Velocità"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Totale"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tempo totale"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Scegli quale microfono usare per la dettatura"
@@ -3992,6 +4043,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend esterno"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"
   },
@@ -4003,9 +4057,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sessione"
   },
   "settingsView.title": {
     "defaultMessage": "Impostazioni"

@@ -1,6 +1,6 @@
 [package]
 name = "goose-providers"
-version.workspace = true
+version = "0.1.0-alpha.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -35,8 +35,8 @@ anyhow = { workspace = true }
 async-stream = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-goose-provider-types = { path = "../goose-provider-types", default-features = false }
-goose-local-inference = { path = "../goose-local-inference", default-features = false, optional = true }
+goose-provider-types = { version = "0.1.0-alpha.0", path = "../goose-provider-types", default-features = false }
+goose-local-inference = { version = "0.1.0-alpha.0", path = "../goose-local-inference", default-features = false, optional = true }
 reqwest = { workspace = true }
 rmcp = { workspace = true, features = ["server", "macros"] }
 serde = { workspace = true }
@@ -48,11 +48,13 @@ tokio = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }
 url = { workspace = true }
+urlencoding = { workspace = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
 # v0.10 matches the der/const-oid series used by sec1 v0.7 and pkcs1 v0.7; upgrading to v0.11 causes type mismatches across those crates.
 pkcs8 = { version = "0.10", default-features = false, features = ["alloc", "std"], optional = true }
 sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", "std"], optional = true }
+include_dir = { workspace = true }
 
 [dev-dependencies]
 test-case = { workspace = true }

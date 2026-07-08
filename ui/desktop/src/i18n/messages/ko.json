@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "사용 가능한 앱이 없습니다."
   },
-  "appsView.retry": {
-    "defaultMessage": "다시 시도"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "다시 시도"
   },
   "appsView.title": {
     "defaultMessage": "앱"
@@ -1745,11 +1745,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "다운로드 중"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "주요 모델"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "모델 검색 및 다운로드 시 속도 제한 한도를 높이고 비공개 또는 접근 제한된 Hugging Face 리포지토리에 액세스하려면 로그인하세요."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "모델 설정"
@@ -2020,6 +2026,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "대기 중"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(입력의 {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "캐시 읽기"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "캐시 쓰기"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "압축"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "비용"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(추정)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "첫 토큰"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "입력"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "출력"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(보고됨)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "속도"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "합계"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "총 시간"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "받아쓰기에 사용할 마이크 선택"
@@ -3992,6 +4043,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "채팅"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "외부 백엔드"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "키보드"
   },
@@ -4003,9 +4057,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "프롬프트"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "세션"
   },
   "settingsView.title": {
     "defaultMessage": "설정"
