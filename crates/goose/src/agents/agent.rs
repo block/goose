@@ -2909,10 +2909,8 @@ impl Agent {
             }
         };
 
-        // Defense-in-depth: if the saved model is the ACP sentinel "current"
-        // but the provider is not an ACP provider, resolve the default model
-        // from the registry. This handles sessions saved before the fix in
-        // update_provider that have the sentinel leaked to a non-ACP provider.
+        // if the saved model is the ACP sentinel "current", only preserve this if the provider
+        // uses this sentinel to indicate it's an ACP provider that manages its model
         if model_config.model_name == crate::acp::ACP_CURRENT_MODEL {
             if let Ok(entry) = crate::providers::get_from_registry(&provider_name).await {
                 if entry.metadata().default_model != crate::acp::ACP_CURRENT_MODEL {

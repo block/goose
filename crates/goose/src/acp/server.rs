@@ -3056,12 +3056,6 @@ impl GooseAcpAgent {
                 .get_goose_model()
                 .internal_err_ctx("Failed to resolve default model from config")?
         } else if is_changing_provider {
-            // Resolve the default model for the new provider from its registry
-            // entry. For ACP providers (claude-acp, codex-acp, etc.) this is
-            // ACP_CURRENT_MODEL since the agent manages its own model. For
-            // other providers (e.g. databricks_v2) this is the provider's
-            // actual default model — using the sentinel here would leak
-            // "current" to the gateway and cause a 404.
             crate::providers::get_from_registry(&resolved_provider_name)
                 .await
                 .ok()
