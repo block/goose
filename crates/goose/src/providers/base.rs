@@ -2,7 +2,7 @@ use super::api_client::TlsConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
 pub use goose_providers::conversation::token_usage::{
-    DraftStats, ProviderStats, ProviderUsage, Usage,
+    CostSource, DraftStats, ProviderStats, ProviderUsage, Usage,
 };
 use serde::{Deserialize, Serialize};
 

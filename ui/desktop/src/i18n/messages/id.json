@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Mengunduh"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Unggulan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Masuk untuk meningkatkan batas laju saat mencari dan mengunduh model, serta untuk mengakses repositori Hugging Face yang privat atau terbatas."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Pengaturan Model"
@@ -2011,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dari masukan)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Biaya"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(perkiraan)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Masukan"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Keluaran"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kecepatan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Waktu total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon mana yang akan digunakan untuk dikte"
@@ -3983,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Obrolan"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Eksternal"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -3994,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
   },
   "settingsView.title": {
     "defaultMessage": "Pengaturan"

@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "下載中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "精選模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型設定"
@@ -2011,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（佔輸入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "快取讀取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "快取寫入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "壓縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "費用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首個權杖"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "輸入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "輸出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（回報）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "總計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "總時間"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "選擇要用於聽寫的麥克風"
@@ -3983,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部後端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "鍵盤"
   },
@@ -3994,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "工作階段"
   },
   "settingsView.title": {
     "defaultMessage": "設定"

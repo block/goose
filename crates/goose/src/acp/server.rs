@@ -34,6 +34,7 @@ use crate::providers::inventory::{
     RefreshSkipReason,
 };
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::session_manager::SessionUsageTotals;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
 };
@@ -838,13 +839,16 @@ pub(super) struct UsageUpdates {
     pub(super) standard: UsageUpdate,
 }
 
-pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
+pub(super) fn build_usage_updates(
+    session: &Session,
+    totals: &SessionUsageTotals,
+) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
     let accumulated_input_tokens =
-        to_nonnegative_u64(session.accumulated_usage.input_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
-        to_nonnegative_u64(session.accumulated_usage.output_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.output_tokens).unwrap_or(0);
     Some(UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
@@ -853,12 +857,12 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 context_limit: ctx_limit,
                 accumulated_input_tokens,
                 accumulated_output_tokens,
-                accumulated_cost: session.accumulated_cost,
+                accumulated_cost: totals.accumulated_cost,
             }),
         },
         standard: {
             let mut standard = UsageUpdate::new(used, ctx_limit);
-            if let Some(amount) = session.accumulated_cost {
+            if let Some(amount) = totals.accumulated_cost {
                 standard = standard.cost(Cost::new(amount, "USD"));
             }
             standard
@@ -890,6 +894,24 @@ impl GooseAcpAgent {
             .get()
             .copied()
             .unwrap_or(false)
+    }
+
+    pub(super) async fn notify_session_setup(
+        &self,
+        cx: &ConnectionTo<Client>,
+        session: &Session,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session.id)
+            .await
+            .unwrap_or_default();
+        send_session_setup_notifications(
+            cx,
+            session,
+            &totals,
+            self.supports_goose_custom_notifications(),
+        )
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -2052,6 +2074,23 @@ fn send_status_message_update(
     Ok(())
 }
 
+fn send_progress_message_update(
+    cx: &ConnectionTo<Client>,
+    supports_goose_custom_notifications: bool,
+    session_id: &str,
+    message: String,
+) -> Result<(), agent_client_protocol::Error> {
+    if supports_goose_custom_notifications {
+        cx.send_notification(GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                status: StatusMessage::Progress { message },
+            }),
+        })?;
+    }
+    Ok(())
+}
+
 fn status_message_from_system_notification(
     notification: &SystemNotificationContent,
 ) -> Option<StatusMessage> {
@@ -2059,10 +2098,39 @@ fn status_message_from_system_notification(
         SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
             message: notification.msg.clone(),
         }),
-        SystemNotificationType::ThinkingMessage => Some(StatusMessage::Progress {
-            message: notification.msg.clone(),
-        }),
+        SystemNotificationType::ThinkingMessage | SystemNotificationType::ProgressMessage => {
+            Some(StatusMessage::Progress {
+                message: notification.msg.clone(),
+            })
+        }
         SystemNotificationType::CreditsExhausted => None,
+    }
+}
+
+/// Conversion to the sdk-types wire mirror carried by `message_usage`.
+fn message_usage_update(
+    message_id: Option<String>,
+    usage: &crate::conversation::message::MessageUsage,
+) -> MessageUsageUpdate {
+    use crate::conversation::token_usage::CostSource;
+
+    MessageUsageUpdate {
+        message_id,
+        usage: MessageUsageData {
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            total_tokens: usage.total_tokens,
+            cache_read_tokens: usage.cache_read_tokens,
+            cache_write_tokens: usage.cache_write_tokens,
+            cost: usage.cost,
+            cost_source: usage.cost_source.map(|source| match source {
+                CostSource::ProviderReported => CostSourceData::ProviderReported,
+                CostSource::Estimated => CostSourceData::Estimated,
+            }),
+            elapsed_ms: usage.elapsed_ms,
+            time_to_first_token_ms: usage.time_to_first_token_ms,
+            is_compaction: usage.is_compaction,
+        },
     }
 }
 
@@ -2435,6 +2503,44 @@ impl GooseAcpAgent {
         ))
     }
 
+    async fn send_local_inference_progress_update(
+        &self,
+        cx: &ConnectionTo<Client>,
+        acp_session_id: &SessionId,
+        session_id: &str,
+        agent: &Arc<Agent>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let Ok(provider) = agent.provider().await else {
+            return Ok(());
+        };
+        if provider.get_name() != "local" {
+            return Ok(());
+        }
+
+        let model_config = agent.model_config_for_session(session_id).await.ok();
+        let model_name = model_config
+            .as_ref()
+            .map(|config| config.model_name.clone())
+            .unwrap_or_else(|| "local model".to_string());
+
+        #[cfg(feature = "local-inference")]
+        if let Some(model_config) = model_config.as_ref() {
+            if crate::providers::local_inference::is_model_loaded(&model_config.model_name)
+                .await
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+        }
+
+        send_progress_message_update(
+            cx,
+            self.supports_goose_custom_notifications(),
+            acp_session_id.0.as_ref(),
+            format!("Loading local model {model_name}..."),
+        )
+    }
+
     async fn on_load_session(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2474,6 +2580,15 @@ impl GooseAcpAgent {
 
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
             self.clear_active_run(&session_id, &run_id).await;
+            return Err(error);
+        }
+
+        if let Err(error) = self
+            .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+            .await
+        {
+            self.clear_active_run(&session_id, &run_id).await;
+            let _ = Self::send_active_run_update(cx, &args.session_id, None);
             return Err(error);
         }
 
@@ -2640,6 +2755,16 @@ impl GooseAcpAgent {
                         ))?;
                     }
                 }
+                Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.clone(),
+                            update: GooseSessionUpdate::MessageUsage(message_usage_update(
+                                message_id, &usage,
+                            )),
+                        })?;
+                    }
+                }
                 Ok(_) => {}
                 Err(e) => {
                     stream_error = Some(
@@ -2672,7 +2797,12 @@ impl GooseAcpAgent {
             .get_session(&session_id, false)
             .await
             .internal_err_ctx("Failed to load session")?;
-        if let Some(updates) = build_usage_updates(&session) {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session_id)
+            .await
+            .unwrap_or_default();
+        if let Some(updates) = build_usage_updates(&session, &totals) {
             if self.supports_goose_custom_notifications() {
                 cx.send_notification(updates.custom)?;
             }
@@ -2928,7 +3058,11 @@ impl GooseAcpAgent {
                 .get_goose_model()
                 .internal_err_ctx("Failed to resolve default model from config")?
         } else if is_changing_provider {
-            ACP_CURRENT_MODEL.to_string()
+            crate::providers::get_from_registry(&resolved_provider_name)
+                .await
+                .ok()
+                .map(|entry| entry.metadata().default_model.clone())
+                .unwrap_or(ACP_CURRENT_MODEL.to_string())
         } else {
             current_model
         };
@@ -3066,7 +3200,6 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
-            scheduler: None,
         },
     );
     let agent = server.create_agent().await?;
@@ -3880,7 +4013,12 @@ print(\"hello, world\")
             goose_providers::model::ModelConfig::new("test-model")
                 .with_context_limit(Some(258_000)),
         );
-        let updates = build_usage_updates(&session).expect("usage updates should be present");
+        let totals = SessionUsageTotals {
+            accumulated_usage: session.accumulated_usage,
+            accumulated_cost: session.accumulated_cost,
+        };
+        let updates =
+            build_usage_updates(&session, &totals).expect("usage updates should be present");
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -3898,7 +4036,7 @@ print(\"hello, world\")
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        assert!(build_usage_updates(&session).is_none());
+        assert!(build_usage_updates(&session, &SessionUsageTotals::default()).is_none());
     }
 
     #[test]

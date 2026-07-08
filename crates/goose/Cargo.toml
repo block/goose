@@ -47,6 +47,7 @@ rustls-tls = [
     "dep:axum-server",
     "dep:aws-lc-rs",
     "axum-server/tls-rustls",
+    "rcgen/aws_lc_rs",
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
@@ -62,6 +63,9 @@ native-tls = [
     "dep:axum-server",
     "dep:openssl",
     "axum-server/tls-openssl",
+    # rcgen requires a crypto backend; ring is used here because aws-lc-rs is
+    # reserved for the rustls-tls path and openssl does not provide this interface.
+    "rcgen/ring",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -99,7 +103,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
-jsonschema = { version = "0.30", default-features = false }
+jsonschema = { version = "0.46", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
@@ -173,7 +177,7 @@ unicode-normalization = { version = "0.1.22", default-features = false, features
 # For local Whisper transcription (optional, behind "local-inference" feature)
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
-candle-transformers = { version = "0.10", default-features = false, optional = true }
+candle-transformers = { version = "0.11", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
@@ -208,7 +212,7 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
-rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"], optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"], optional = true }
 axum-server = { version = "0.8", default-features = false, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
@@ -241,7 +245,7 @@ libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
-mockall = { version = "0.14", default-features = false }
+mockall = { version = "0.15", default-features = false }
 wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }

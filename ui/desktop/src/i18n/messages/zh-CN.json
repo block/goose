@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total}（{percent}%）"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "推荐模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登录后可在搜索和下载模型时提高速率限制，并访问私有或受限的 Hugging Face 仓库。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型设置"
@@ -2011,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（占输入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "缓存读取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "缓存写入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "压缩"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "费用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首个令牌"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "输入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "输出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（上报）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "总计"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "总耗时"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "选择用于语音输入的麦克风"
@@ -3983,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部后端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
   },
@@ -3994,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
   },
   "settingsView.title": {
     "defaultMessage": "设置"

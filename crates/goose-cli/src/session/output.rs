@@ -248,7 +248,8 @@ pub fn render_message(message: &Message, debug: bool) {
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
-                    SystemNotificationType::ThinkingMessage => {
+                    SystemNotificationType::ThinkingMessage
+                    | SystemNotificationType::ProgressMessage => {
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }
@@ -330,7 +331,8 @@ pub fn render_message_streaming(
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
-                    SystemNotificationType::ThinkingMessage => {
+                    SystemNotificationType::ThinkingMessage
+                    | SystemNotificationType::ProgressMessage => {
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }

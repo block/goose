@@ -1,6 +1,6 @@
 [package]
 name = "goose-provider-types"
-version.workspace = true
+version = "0.1.0-alpha.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true

@@ -34,7 +34,7 @@ use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
-    ActionRequiredData, InferenceMetadata, Message, MessageContent, ProviderMetadata,
+    ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType, ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
@@ -53,6 +53,7 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
+use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
@@ -67,7 +68,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
-const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
@@ -264,8 +265,26 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     Usage(crate::providers::base::ProviderUsage),
+    MessageUsage {
+        message_id: Option<String>,
+        usage: MessageUsage,
+    },
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
+}
+
+fn attach_turn_usage(
+    messages: &mut Conversation,
+    usage: &ProviderUsage,
+) -> Option<(Option<String>, MessageUsage)> {
+    let message = messages
+        .messages_mut()
+        .iter_mut()
+        .rev()
+        .find(|m| m.role == rmcp::model::Role::Assistant)?;
+    let message_usage = MessageUsage::from_provider_usage(usage, false);
+    message.metadata.usage = Some(Box::new(message_usage.clone()));
+    Some((message.id.clone(), message_usage))
 }
 
 impl Default for Agent {
@@ -1750,8 +1769,8 @@ impl Agent {
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
-                        SystemNotificationType::ThinkingMessage,
-                        COMPACTION_THINKING_TEXT,
+                        SystemNotificationType::ProgressMessage,
+                        COMPACTION_PROGRESS_TEXT,
                     )
                 );
 
@@ -2018,6 +2037,7 @@ impl Agent {
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
                 let mut pending_final_output: Option<String> = None;
+                let mut pending_turn_usage: Option<ProviderUsage> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -2034,11 +2054,23 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
-                                yield AgentEvent::Usage(usage.clone());
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                yield AgentEvent::Usage(enriched.clone());
+                                pending_turn_usage = Some(enriched);
                             }
 
                             if let Some(response) = response {
+                                if !response.content.is_empty()
+                                    && response
+                                    .content
+                                    .iter()
+                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                {
+                                    yield AgentEvent::Message(response);
+                                    tokio::task::yield_now().await;
+                                    continue;
+                                }
+
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -2406,8 +2438,8 @@ impl Agent {
                             );
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    COMPACTION_THINKING_TEXT,
+                                    SystemNotificationType::ProgressMessage,
+                                    COMPACTION_PROGRESS_TEXT,
                                 )
                             );
 
@@ -2655,7 +2687,7 @@ impl Agent {
                     yield AgentEvent::Message(message);
                 }
 
-                let messages_to_add = if let Some(ref inference) = inference {
+                let mut messages_to_add = if let Some(ref inference) = inference {
                     Conversation::new_unvalidated(
                         messages_to_add
                             .into_iter()
@@ -2664,6 +2696,14 @@ impl Agent {
                 } else {
                     messages_to_add
                 };
+
+                if let Some(usage) = pending_turn_usage.take() {
+                    if let Some((message_id, usage)) =
+                        attach_turn_usage(&mut messages_to_add, &usage)
+                    {
+                        yield AgentEvent::MessageUsage { message_id, usage };
+                    }
+                }
 
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
@@ -2857,7 +2897,7 @@ impl Agent {
             .or_else(|| config.get_goose_provider().ok())
             .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
 
-        let model_config = match session.model_config.clone() {
+        let mut model_config = match session.model_config.clone() {
             Some(saved_config) => saved_config,
             None => {
                 let model_name = config
@@ -2868,6 +2908,20 @@ impl Agent {
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
+
+        // if the saved model is the ACP sentinel "current", only preserve this if the provider
+        // uses this sentinel to indicate it's an ACP provider that manages its model
+        if model_config.model_name == crate::acp::ACP_CURRENT_MODEL {
+            if let Ok(entry) = crate::providers::get_from_registry(&provider_name).await {
+                if entry.metadata().default_model != crate::acp::ACP_CURRENT_MODEL {
+                    model_config = crate::model_config::model_config_from_user_config(
+                        &provider_name,
+                        &entry.metadata().default_model,
+                    )
+                    .map_err(|e| anyhow!("Could not resolve default model: {}", e))?;
+                }
+            }
+        }
 
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
@@ -3751,7 +3805,8 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 AgentEvent::Message(message) => messages.push(message),
                 AgentEvent::McpNotification(_)
                 | AgentEvent::HistoryReplaced(_)
-                | AgentEvent::Usage(_) => {}
+                | AgentEvent::Usage(_)
+                | AgentEvent::MessageUsage { .. } => {}
             }
         }
         Ok(messages)
@@ -3986,5 +4041,51 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(extract_string_arg(&input, &["path"]).is_none());
         let input = serde_json::json!({ "path": "" });
         assert!(extract_string_arg(&input, &["path"]).is_none());
+    }
+
+    #[test]
+    fn attach_turn_usage_targets_last_assistant_message() {
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_text("hi"),
+            Message::assistant().with_id("a1").with_text("first"),
+            Message::user().with_text("again"),
+            Message::assistant().with_id("a2").with_text("second"),
+        ]);
+
+        let (message_id, attached) =
+            attach_turn_usage(&mut conversation, &usage).expect("usage should attach");
+
+        assert_eq!(message_id.as_deref(), Some("a2"));
+        assert_eq!(attached.input_tokens, Some(1200));
+        assert_eq!(attached.output_tokens, Some(340));
+        assert!(!attached.is_compaction, "turn usage is not a compaction");
+
+        let messages = conversation.messages();
+        let stored = messages[3]
+            .metadata
+            .usage
+            .as_deref()
+            .expect("usage must be stored on the last assistant message");
+        assert_eq!(*stored, attached);
+        assert!(
+            messages[1].metadata.usage.is_none(),
+            "earlier assistant message must not receive the usage"
+        );
+    }
+
+    #[test]
+    fn attach_turn_usage_returns_none_without_assistant_message() {
+        let usage = ProviderUsage::new("test-model".to_string(), Usage::default());
+        let mut conversation = Conversation::new_unvalidated([Message::user().with_text("hi")]);
+
+        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+        assert!(
+            conversation.messages()[0].metadata.usage.is_none(),
+            "user message must stay untouched"
+        );
     }
 }

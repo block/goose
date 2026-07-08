@@ -121,6 +121,7 @@ import type {
   LocalInferenceModelDownloadProgressResponse_unstable,
   LocalInferenceModelDownloadRequest_unstable,
   LocalInferenceModelDownloadResponse_unstable,
+  LocalInferenceModelEvictRequest_unstable,
   LocalInferenceModelSettingsReadRequest_unstable,
   LocalInferenceModelSettingsReadResponse_unstable,
   LocalInferenceModelSettingsUpdateRequest_unstable,
@@ -1373,6 +1374,15 @@ export class GooseExtClient {
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/local-inference/models/delete",
+      params,
+    );
+  }
+
+  async localInferenceModelsEvict_unstable(
+    params: LocalInferenceModelEvictRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/local-inference/models/evict",
       params,
     );
   }
