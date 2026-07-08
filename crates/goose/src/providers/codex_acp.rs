@@ -62,7 +62,10 @@ impl ProviderDef for CodexAcpProvider {
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
             let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
-            // fixed goose mode via -c overrides until session/set-mode works
+            // Goose mode is pinned via -c overrides instead of ACP mode
+            // negotiation: session mode ids differ across codex-acp bridges
+            // (@zed-industries <=0.16 vs @agentclientprotocol >=1.0), so any
+            // hardcoded id set breaks one of them.
             let (approval_policy, sandbox_mode) = map_goose_mode(goose_mode);
             let mut args = vec![
                 "-c".to_string(),
@@ -83,14 +86,6 @@ impl ProviderDef for CodexAcpProvider {
                 ]);
             }
 
-            // Chat and Approve both map to "read-only".
-            let mode_mapping = HashMap::from([
-                (GooseMode::Auto, "full-access".to_string()),
-                (GooseMode::Approve, "read-only".to_string()),
-                (GooseMode::SmartApprove, "auto".to_string()),
-                (GooseMode::Chat, "read-only".to_string()),
-            ]);
-
             let provider_config = AcpProviderConfig {
                 command: resolved_command,
                 args,
@@ -98,11 +93,13 @@ impl ProviderDef for CodexAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers,
-                // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
+                // No session_mode_id and an empty mode_mapping keep goose
+                // from ever sending session/set_mode; behavior is pinned via
+                // the -c args above.
                 session_mode_id: None,
                 session_config_options: vec![],
                 model_config_option_id: None,
-                mode_mapping,
+                mode_mapping: HashMap::new(),
                 notification_callback: None,
             };
 
