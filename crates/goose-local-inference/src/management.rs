@@ -26,6 +26,7 @@ use goose_sdk_types::custom_requests::{
     LocalInferenceModelSettingsReadResponse, LocalInferenceModelSettingsUpdateResponse,
     LocalInferenceModelsListResponse, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode,
 };
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
@@ -44,13 +45,16 @@ pub async fn list_models() -> Result<LocalInferenceModelsListResponse> {
     let runtime = management_runtime()?;
     let recommended_id = recommend_local_model(&runtime);
 
+    let loaded_model_ids = crate::loaded_model_ids()
+        .await
+        .map_err(|error| anyhow!(error.to_string()))?;
     let registry = get_registry()
         .lock()
         .map_err(|_| anyhow!("Failed to acquire registry lock"))?;
     let mut models: Vec<LocalInferenceModelDto> = registry
         .list_models()
         .iter()
-        .map(|entry| local_model_to_dto(entry, &recommended_id))
+        .map(|entry| local_model_to_dto(entry, &recommended_id, &loaded_model_ids))
         .collect();
 
     models.sort_by(|a, b| {
@@ -202,6 +206,20 @@ pub fn delete_model(model_id: &str) -> Result<()> {
         anyhow::bail!("Model not found");
     }
     registry.delete_model(model_id)
+}
+
+pub fn model_exists(model_id: &str) -> Result<bool> {
+    let registry = get_registry()
+        .lock()
+        .map_err(|_| anyhow!("Failed to acquire registry lock"))?;
+    Ok(registry.get_model(model_id).is_some())
+}
+
+pub async fn evict_model(model_id: &str) -> Result<()> {
+    crate::evict_model(model_id)
+        .await
+        .map(|_| ())
+        .map_err(|error| anyhow!(error.to_string()))
 }
 
 pub fn get_model_settings(model_id: &str) -> Result<LocalInferenceModelSettingsReadResponse> {
@@ -412,7 +430,11 @@ pub async fn ensure_featured_models_current() -> Result<()> {
     Ok(())
 }
 
-fn local_model_to_dto(entry: &LocalModelEntry, recommended_id: &str) -> LocalInferenceModelDto {
+fn local_model_to_dto(
+    entry: &LocalModelEntry,
+    recommended_id: &str,
+    loaded_model_ids: &HashSet<String>,
+) -> LocalInferenceModelDto {
     let vision_capable = entry.settings.vision_capable;
     LocalInferenceModelDto {
         id: entry.id.clone(),
@@ -422,6 +444,7 @@ fn local_model_to_dto(entry: &LocalModelEntry, recommended_id: &str) -> LocalInf
         size_bytes: entry.file_size(),
         status: model_download_status_to_dto(entry.download_status()),
         recommended: recommended_id == entry.id,
+        is_loaded: loaded_model_ids.contains(&entry.id),
         settings: model_settings_to_dto(&entry.settings),
         vision_capable,
         mmproj_status: vision_capable

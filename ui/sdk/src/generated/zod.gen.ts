@@ -2505,6 +2505,7 @@ export const zLocalInferenceModelDto = z.object({
     sizeBytes: z.number().int().gte(0),
     status: zLocalInferenceModelDownloadStatusDto,
     recommended: z.boolean(),
+    isLoaded: z.boolean(),
     settings: zLocalInferenceModelSettingsDto,
     visionCapable: z.boolean(),
     mmprojStatus: z.union([
@@ -2570,6 +2571,10 @@ export const zLocalInferenceModelDownloadCancelRequest_unstable = z.object({
 });
 
 export const zLocalInferenceModelDeleteRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelEvictRequest_unstable = z.object({
     modelId: z.string()
 });
 
@@ -2699,6 +2704,70 @@ export const zStatusMessageUpdate = z.object({
 });
 
 /**
+ * Wire mirror of the conversation `CostSource`.
+ */
+export const zCostSourceData = z.union([
+    z.literal('provider_reported'),
+    z.literal('estimated')
+]);
+
+/**
+ * Wire mirror of the conversation `MessageUsage` (this crate cannot depend on
+ * goose-provider-types); field names and serde casing MUST stay in parity.
+ */
+export const zMessageUsageData = z.object({
+    inputTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    outputTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    totalTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    cacheReadTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    cacheWriteTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    cost: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    costSource: z.union([
+        zCostSourceData,
+        z.null()
+    ]).optional(),
+    elapsedMs: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    timeToFirstTokenMs: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    isCompaction: z.boolean().optional().default(false)
+});
+
+/**
+ * Per-message token usage/cost/timing, keyed by the message id used for
+ * chunk matching. Sent live after a turn's messages and on replay.
+ */
+export const zMessageUsageUpdate = z.object({
+    messageId: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    usage: zMessageUsageData
+});
+
+/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
@@ -2712,7 +2781,10 @@ export const zGooseSessionUpdate = z.union([
     }).and(zSessionUsageUpdate),
     z.object({
         sessionUpdate: z.literal('status_message')
-    }).and(zStatusMessageUpdate)
+    }).and(zStatusMessageUpdate),
+    z.object({
+        sessionUpdate: z.literal('message_usage')
+    }).and(zMessageUsageUpdate)
 ]);
 
 /**
@@ -2847,6 +2919,7 @@ export const zExtRequest = z.object({
             zLocalInferenceModelDownloadProgressRequest_unstable,
             zLocalInferenceModelDownloadCancelRequest_unstable,
             zLocalInferenceModelDeleteRequest_unstable,
+            zLocalInferenceModelEvictRequest_unstable,
             zLocalInferenceModelSettingsReadRequest_unstable,
             zLocalInferenceModelSettingsUpdateRequest_unstable,
             zLocalInferenceHuggingFaceSearchRequest_unstable,

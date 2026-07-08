@@ -23,12 +23,7 @@ import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
 import RecipeActivities from './recipes/RecipeActivities';
-import {
-  getThinkingMessage,
-  getTextAndImageContent,
-  type Message,
-  type UserInput,
-} from '../types/message';
+import { getTextAndImageContent, type Message, type UserInput } from '../types/message';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
@@ -92,6 +87,7 @@ export default function BaseChat({
     session,
     messages,
     chatState,
+    progressMessage,
     updateSession,
     handleSubmit,
     onSteerQueuedMessage,
@@ -469,14 +465,7 @@ export default function BaseChat({
 
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                chatState={chatState}
-                message={
-                  messages.length > 0
-                    ? getThinkingMessage(messages[messages.length - 1])
-                    : undefined
-                }
-              />
+              <LoadingGoose chatState={chatState} message={progressMessage} />
             </div>
           )}
         </div>

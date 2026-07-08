@@ -13,6 +13,7 @@ export interface UseChatSessionResult {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
+  progressMessage?: string;
   updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;

@@ -40,7 +40,7 @@
 ## Project-Specific Context
 
 - This is a Rust project using cargo workspaces
-- Core crates: `goose` (agent logic), `goose-cli` (CLI), `goose-server` (backend), `goose-mcp` (MCP servers)
+- Core crates: `goose` (agent logic and ACP server), `goose-cli` (CLI), `goose-mcp` (MCP servers)
 - Error handling: Use `anyhow::Result`, not `unwrap()` in production code
 - Async runtime: tokio
 - MCP protocol implementations require extra scrutiny

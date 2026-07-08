@@ -27,10 +27,9 @@ use serde_json::json;
 use std::borrow::Cow;
 use uuid::Uuid;
 
-use super::super::{finalize_usage, StreamSender};
+use super::super::{finalize_usage, thinking_output::ThinkingOutputFilter, StreamSender};
 use super::inference_engine::{
-    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer,
-    ThinkingOutputFilter, TokenAction,
+    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer, TokenAction,
 };
 
 const SHELL_TOOL: &str = "developer__shell";

@@ -454,9 +454,10 @@ impl Scheduler {
             }
         };
 
-        let reset_stale_running_state = list
-            .iter_mut()
-            .fold(false, |changed, job| clear_running_state(job) || changed);
+        let mut reset_stale_running_state = false;
+        for job in &mut list {
+            reset_stale_running_state |= clear_running_state(job);
+        }
         if reset_stale_running_state {
             match serde_json::to_string_pretty(&list) {
                 Ok(data) => {
@@ -635,7 +636,7 @@ impl Scheduler {
             .map(|s| (s.id.clone(), s))
             .collect();
 
-        schedule_sessions.sort_by(|a, b| b.1.created_at.cmp(&a.1.created_at));
+        schedule_sessions.sort_by_key(|(_, session)| std::cmp::Reverse(session.created_at));
         schedule_sessions.truncate(limit);
 
         Ok(schedule_sessions)
