@@ -54,6 +54,14 @@ impl OllamaCloudProvider {
             None
         };
 
+        if config.dynamic_models == Some(false) && custom_models.is_none() {
+            return Err(anyhow::anyhow!(
+                "Provider '{}' has dynamic_models: false but no static models listed; \
+                 at least one entry in `models` is required.",
+                config.name
+            ));
+        }
+
         let ollama_api_client = build_ollama_api_client(&config, tls_config)?;
 
         Ok(Self {
