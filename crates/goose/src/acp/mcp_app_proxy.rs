@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 const GUEST_HTML_TTL_SECS: u64 = 300;
 const GUEST_HTML_MAX_ENTRIES: usize = 64;
-const GUEST_HTML_MAX_BYTES: usize = 8 * 1024 * 1024;
+const GUEST_HTML_MAX_BYTES: usize = 16 * 1024 * 1024;
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
 
 type GuestHtmlStore = Arc<RwLock<HashMap<String, GuestHtmlEntry>>>;
@@ -392,7 +392,9 @@ pub(crate) fn routes(secret_key: String) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_csp_source, parse_domains, peer_addr_is_loopback};
+    use super::{
+        normalize_csp_source, parse_domains, peer_addr_is_loopback, routes, GUEST_HTML_MAX_BYTES,
+    };
     use axum::{
         body::Body,
         extract::ConnectInfo,
@@ -468,9 +470,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stores_guest_html_larger_than_default_body_limit() {
-        let app = super::routes("test-secret".to_string());
-        let large_html = "x".repeat(3 * 1024 * 1024);
+    async fn stores_guest_html_larger_than_previous_guest_limit() {
+        let app = routes("test-secret".to_string());
+        let large_html = "x".repeat(9 * 1024 * 1024);
         let body = serde_json::json!({
             "secret": "test-secret",
             "html": large_html,
@@ -490,5 +492,30 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejects_guest_html_larger_than_configured_limit() {
+        let app = routes("test-secret".to_string());
+        let oversized_html = "x".repeat(GUEST_HTML_MAX_BYTES + 1024 * 1024);
+        let body = serde_json::json!({
+            "secret": "test-secret",
+            "html": oversized_html,
+        })
+        .to_string();
+
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/mcp-app-guest")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        request.extensions_mut().insert(ConnectInfo(
+            "127.0.0.1:12345".parse::<SocketAddr>().unwrap(),
+        ));
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 }
