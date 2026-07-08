@@ -1,4 +1,4 @@
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
 use crate::conversation::message::Message;
@@ -236,7 +236,13 @@ impl ProviderDescriptor for OllamaCloudProvider {
             "qwen3-coder:480b-cloud",
             vec![],
             "https://ollama.com/library",
-            vec![],
+            vec![ConfigKey::new(
+                "ollama_cloud_api_key",
+                false,
+                true,
+                None,
+                true,
+            )],
         )
     }
 }
