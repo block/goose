@@ -1840,12 +1840,6 @@ impl Agent {
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
         let requested_model = model_config.model_name.clone();
-        // Always record provenance (at least the requested model), even when the
-        // provider can't resolve an upstream model name. The requested model is
-        // what downstream formatters use to detect stale, model-specific signed
-        // thinking blocks after a mid-conversation model switch; gating the whole
-        // metadata on `resolved_model` left direct Anthropic sessions without any
-        // provenance.
         let resolved_model = provider
             .fetch_model_info(&requested_model)
             .await

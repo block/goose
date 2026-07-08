@@ -48,8 +48,6 @@ pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
-    /// The model this request targets. See [`thinking_block_is_stale`] for how
-    /// this is used. `None` disables model-staleness checks.
     pub current_model: Option<String>,
 }
 
@@ -76,19 +74,6 @@ impl AnthropicFormatOptions {
     }
 }
 
-/// Returns true when `message` carries signed thinking content that was
-/// produced by a model other than `current_model`.
-///
-/// A signed thinking block's signature is issued by — and only valid for —
-/// the model that produced it. If the conversation switched models mid-stream,
-/// re-sending that message's signed `thinking` / `redacted_thinking` blocks
-/// makes Anthropic reject the whole request with 400 "blocks in the latest
-/// assistant message cannot be modified". Callers drop those stale signed
-/// blocks and still send the turn's text/tool content.
-///
-/// Returns false when we can't establish provenance (no `current_model`, or
-/// the message has no recorded originating model), so single-model
-/// conversations are unaffected.
 pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -> bool {
     let Some(current_model) = current_model else {
         return false;
@@ -96,14 +81,6 @@ pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -
     let Some(inference) = message.metadata.inference.as_ref() else {
         return false;
     };
-    // A block is stale only if `current_model` matches *neither* identity the
-    // prior message recorded. We can't assume which identity space the caller
-    // passes: callers pass `ModelConfig.model_name`, which is normally the
-    // endpoint name (matching `requested_model`) but for Databricks Claude-backed
-    // endpoints is rewritten to the *upstream* model name (matching
-    // `resolved_model`). Matching either keeps valid same-endpoint follow-ups
-    // (whichever identity is in play), and only a genuine model switch — which
-    // differs from both — is treated as stale.
     let requested = inference.requested_model.as_str();
     let resolved = inference.resolved_model.as_deref().unwrap_or("");
     if requested.is_empty() && resolved.is_empty() {

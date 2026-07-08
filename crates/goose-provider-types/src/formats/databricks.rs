@@ -108,10 +108,6 @@ fn format_tool_response(
     result
 }
 
-/// Convert internal Message format to Databricks' API message specification
-///   Databricks is mostly OpenAI compatible, but has some differences (reasoning type, etc)
-///   some openai compatible endpoints use the anthropic image spec at the content level
-///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(
     messages: &[Message],
     image_format: &ImageFormat,
@@ -824,17 +820,11 @@ mod tests {
             .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
             .unwrap_or(false);
         assert!(!has_reasoning, "stale reasoning block must be dropped");
-        // With reasoning gone, the lone "answer" text is the only content item,
-        // so it collapses to a bare string body.
         assert_eq!(spec[0].content, Value::String("answer".to_string()));
     }
 
     #[test]
     fn keeps_reasoning_when_endpoint_matches_despite_upstream_resolved_name() {
-        // Regression: Databricks stores the upstream model name in
-        // resolved_model (e.g. "claude-opus-4.6") while the request targets the
-        // endpoint name ("databricks-claude-opus-4-1"). A same-endpoint
-        // follow-up must NOT be treated as stale.
         use crate::conversation::message::InferenceMetadata;
         let message = Message::assistant()
             .with_content(MessageContent::thinking("internal", "sig-xyz"))
@@ -863,11 +853,6 @@ mod tests {
 
     #[test]
     fn keeps_reasoning_when_current_model_matches_upstream_resolved_name() {
-        // Regression: a Databricks Claude-backed endpoint rewrites the format
-        // config's model_name to the *upstream* name before formatting, so the
-        // stale check receives the upstream name as current_model while the
-        // message metadata recorded the endpoint name as requested_model. The
-        // block must still be kept because current_model matches resolved_model.
         use crate::conversation::message::InferenceMetadata;
         let message = Message::assistant()
             .with_content(MessageContent::thinking("internal", "sig-xyz"))
