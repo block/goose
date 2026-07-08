@@ -1,9 +1,10 @@
 use anyhow::Result;
+use comfy_table::{presets::UTF8_FULL_CONDENSED, ContentArrangement, Table};
 use console::style;
 use goose::recipe::validate_recipe::validate_recipe_template_from_file;
 use std::collections::HashMap;
 
-use crate::recipes::github_recipe::RecipeSource;
+use crate::recipes::github_recipe::{RecipeInfo, RecipeSource};
 use crate::recipes::search_recipe::{list_available_recipes, load_recipe_file};
 use goose::recipe_deeplink;
 
@@ -100,7 +101,7 @@ where
 }
 
 pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
-    let recipes = match list_available_recipes() {
+    let mut recipes = match list_available_recipes() {
         Ok(recipes) => recipes,
         Err(e) => {
             return Err(anyhow::anyhow!("Failed to list recipes: {}", e));
@@ -109,45 +110,94 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
 
     match format {
         "json" => {
+            // Unchanged: flat array, so existing automation/scripts don't break.
             println!("{}", serde_json::to_string(&recipes)?);
         }
         _ => {
             if recipes.is_empty() {
                 println!("No recipes found");
                 return Ok(());
-            } else {
-                println!("Available recipes:");
-                for recipe in recipes {
-                    let source_info = match recipe.source {
-                        RecipeSource::Local => format!("local: {}", recipe.path),
-                        RecipeSource::GitHub => format!("github: {}", recipe.path),
-                    };
+            }
 
-                    let description = if let Some(desc) = &recipe.description {
-                        if desc.is_empty() {
-                            "(none)"
-                        } else {
-                            desc
-                        }
-                    } else {
-                        "(none)"
-                    };
+            recipes.sort_by(|a, b| a.name.cmp(&b.name));
 
-                    let output = format!("{} - {} - {}", recipe.name, description, source_info);
-                    if verbose {
-                        println!("  {}", output);
-                        if let Some(title) = &recipe.title {
-                            println!("    Title: {}", title);
-                        }
-                        println!("    Path: {}", recipe.path);
-                    } else {
-                        println!("{}", output);
-                    }
+            // Group by name. A recipe found via more than one search path
+            // (GOOSE_RECIPE_PATH + cwd, most commonly) currently prints as
+            // flat, indistinguishable duplicate rows with no indication
+            // that one file silently shadows the other. Group instead of
+            // hiding the collision.
+            let mut groups: Vec<(String, Vec<&RecipeInfo>)> = Vec::new();
+            for recipe in &recipes {
+                match groups.last_mut() {
+                    Some((name, entries)) if *name == recipe.name => entries.push(recipe),
+                    _ => groups.push((recipe.name.clone(), vec![recipe])),
                 }
+            }
+
+            if verbose {
+                for (name, entries) in &groups {
+                    println!("{}", style(name).bold());
+                    println!("  {}", describe(entries[0]));
+                    if entries.len() > 1 {
+                        println!(
+                            "  {} found in {} locations (later paths override earlier ones):",
+                            style("⚠").yellow(),
+                            entries.len()
+                        );
+                        for (i, entry) in entries.iter().enumerate() {
+                            println!("    {}. {}", i + 1, source_path(entry));
+                        }
+                    } else {
+                        println!("  {}", source_path(entries[0]));
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+
+            let mut table = Table::new();
+            table
+                .load_preset(UTF8_FULL_CONDENSED)
+                .set_content_arrangement(ContentArrangement::Dynamic)
+                .set_header(vec!["Name", "Description", "Location"]);
+
+            for (name, entries) in &groups {
+                let location = if entries.len() > 1 {
+                    format!("⚠ {} locations", entries.len())
+                } else {
+                    source_path(entries[0])
+                };
+                table.add_row(vec![name.clone(), describe(entries[0]), location]);
+            }
+
+            println!("{table}");
+
+            let dup_count = groups.iter().filter(|(_, entries)| entries.len() > 1).count();
+            if dup_count > 0 {
+                println!(
+                    "\n{} {} recipe{} found in multiple locations. Run with --verbose for full paths.",
+                    style("⚠").yellow(),
+                    dup_count,
+                    if dup_count == 1 { "" } else { "s" }
+                );
             }
         }
     }
     Ok(())
+}
+
+fn describe(recipe: &RecipeInfo) -> String {
+    match &recipe.description {
+        Some(desc) if !desc.is_empty() => desc.clone(),
+        _ => "(none)".to_string(),
+    }
+}
+
+fn source_path(recipe: &RecipeInfo) -> String {
+    match recipe.source {
+        RecipeSource::Local => format!("local: {}", recipe.path),
+        RecipeSource::GitHub => format!("github: {}", recipe.path),
+    }
 }
 
 fn parse_params(params: &[String]) -> Result<HashMap<String, String>> {
@@ -480,5 +530,39 @@ instructions: "Test instructions"
         assert!(result.is_ok());
         let map = result.unwrap();
         assert!(map.is_empty());
+    }
+
+    fn recipe_info(source: RecipeSource, path: &str, description: Option<&str>) -> RecipeInfo {
+        RecipeInfo {
+            name: "example".to_string(),
+            source,
+            path: path.to_string(),
+            title: None,
+            description: description.map(|d| d.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_describe_with_description() {
+        let recipe = recipe_info(RecipeSource::Local, "recipe.yaml", Some("Does a thing"));
+        assert_eq!(describe(&recipe), "Does a thing");
+    }
+
+    #[test]
+    fn test_describe_missing_or_empty() {
+        let no_desc = recipe_info(RecipeSource::Local, "recipe.yaml", None);
+        assert_eq!(describe(&no_desc), "(none)");
+
+        let empty_desc = recipe_info(RecipeSource::Local, "recipe.yaml", Some(""));
+        assert_eq!(describe(&empty_desc), "(none)");
+    }
+
+    #[test]
+    fn test_source_path_local_and_github() {
+        let local = recipe_info(RecipeSource::Local, "/home/user/recipe.yaml", None);
+        assert_eq!(source_path(&local), "local: /home/user/recipe.yaml");
+
+        let github = recipe_info(RecipeSource::GitHub, "org/repo/recipe.yaml", None);
+        assert_eq!(source_path(&github), "github: org/repo/recipe.yaml");
     }
 }
