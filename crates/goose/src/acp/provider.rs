@@ -419,9 +419,8 @@ impl Provider for AcpProvider {
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        // An unmapped mode means the provider opted out of ACP mode
-        // negotiation (e.g. codex-acp); the mode is still tracked locally
-        // since it drives permission routing.
+        // An unmapped mode means the provider opted out of ACP mode negotiation;
+        // still track it locally since it drives permission routing.
         if let Some(mode_str) = self.mode_mapping.get(&mode).cloned() {
             if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
                 self.send_set_config_option(session_id, "mode".into(), mode_str)
@@ -1249,9 +1248,7 @@ async fn apply_session_mode(
     Ok(session)
 }
 
-// An empty mode_mapping with no session_mode_id means the provider opted out
-// of ACP mode negotiation entirely (e.g. codex-acp, which pins behavior via
-// CLI args); no session/set_mode is sent for a new session.
+// None means the provider opted out of mode negotiation; no session/set_mode is sent.
 fn initial_session_mode_id(
     config: &AcpProviderConfig,
     current_mode: Option<GooseMode>,
