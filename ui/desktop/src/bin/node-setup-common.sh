@@ -81,6 +81,15 @@ download_hermit_binary() {
         | gzip -dc > "${MCP_HERMIT_DIR}/bin/hermit" && chmod +x "${MCP_HERMIT_DIR}/bin/hermit"
 }
 
+activate_hermit_environment() {
+    if ! HERMIT_ENV=$(hermit env --shell=bash --activate 2>> "${LOG_FILE}"); then
+        log "Hermit does not support bash activation. Updating hermit binary."
+        download_hermit_binary
+        HERMIT_ENV=$(hermit env --shell=bash --activate 2>> "${LOG_FILE}")
+    fi
+    eval "${HERMIT_ENV}" >> "${LOG_FILE}" 2>&1
+}
+
 # Check if hermit binary exists and download if not
 if [ ! -f "${MCP_HERMIT_DIR}/bin/hermit" ]; then
     log "Hermit binary not found. Downloading hermit binary."
@@ -140,16 +149,12 @@ fi
 # hermit-managed node/npx onto PATH, so STDIO extensions fail with
 # "env: node: No such file or directory".
 log "Activating hermit environment."
-if ! HERMIT_ENV=$(hermit env --shell=bash --activate 2>> "${LOG_FILE}"); then
-    log "Hermit does not support bash activation. Updating hermit binary."
-    download_hermit_binary
-    HERMIT_ENV=$(hermit env --shell=bash --activate)
-fi
-eval "${HERMIT_ENV}" >> "${LOG_FILE}" 2>&1
+activate_hermit_environment
 
 # Install Node.js using hermit
 log "Installing Node.js with hermit."
 hermit install node >> "${LOG_FILE}"
+activate_hermit_environment
 
 # Verify installations
 log "Verifying installation locations:"
