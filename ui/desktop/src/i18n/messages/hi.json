@@ -4034,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "बातचीत"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "बाहरी बैकएंड"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"
   },

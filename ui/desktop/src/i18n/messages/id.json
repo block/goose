@@ -4034,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Obrolan"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Eksternal"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },

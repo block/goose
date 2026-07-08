@@ -4034,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Discussion"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externe"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Clavier"
   },
