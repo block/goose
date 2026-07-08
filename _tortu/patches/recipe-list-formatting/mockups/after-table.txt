@@ -1,0 +1,24 @@
+$ goose recipe list
+
+(patched behavior, non-verbose — same illustrative recipe set as before.txt)
+
+┌──────────────────┬──────────────────────────────┬─────────────────┐
+│ Name              │ Description                    │ Location         │
+╞══════════════════╪══════════════════════════════╪═════════════════╡
+│ code-review       │ (none)                         │ ⚠ 2 locations    │
+├──────────────────┼──────────────────────────────┼─────────────────┤
+│ daily-standup     │ (none)                         │ ⚠ 2 locations    │
+├──────────────────┼──────────────────────────────┼─────────────────┤
+│ pr-summary        │ Summarize a pull request       │ ⚠ 2 locations    │
+├──────────────────┼──────────────────────────────┼─────────────────┤
+│ refactor-helper   │ Refactor code with tests       │ ⚠ 2 locations    │
+├──────────────────┼──────────────────────────────┼─────────────────┤
+│ release-notes     │ (none)                         │ ⚠ 2 locations    │
+├──────────────────┼──────────────────────────────┼─────────────────┤
+│ test-writer       │ Write unit tests for a file    │ ⚠ 2 locations    │
+└──────────────────┴──────────────────────────────┴─────────────────┘
+
+⚠ 6 recipes found in multiple locations. Run with --verbose for full paths.
+
+(a recipe found in exactly one location just shows "local: <path>" or "github: <path>" in the
+Location column instead of the ⚠ count — the ⚠ only appears on genuine collisions.)

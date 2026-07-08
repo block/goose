@@ -1,0 +1,32 @@
+{
+  "name": "custom_omlx",
+  "engine": "openai",
+  "display_name": "OMLX",
+  "description": "Custom OMLX provider",
+  "api_key_env": "CUSTOM_OMLX_API_KEY",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "models": [
+    {
+      "name": "granite-4.1-3b-bf16",
+      "context_limit": 128000,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null,
+      "reasoning": false
+    }
+  ],
+  "headers": {},
+  "timeout_seconds": null,
+  "supports_streaming": true,
+  "requires_auth": true,
+  "catalog_provider_id": null,
+  "base_path": null,
+  "env_vars": null,
+  "dynamic_models": null,
+  "skip_canonical_filtering": false,
+  "model_doc_link": null,
+  "setup_steps": [],
+  "fast_model": null,
+  "preserves_thinking": true
+}

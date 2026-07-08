@@ -1,0 +1,22 @@
+$ goose recipe list
+
+(current native behavior — illustrative example. Exact recipe names shown here are generic
+placeholders since the original terminal output wasn't captured verbatim in this thread; the
+duplication pattern and line format are accurate to the real behavior Doug hit.)
+
+Available recipes:
+code-review - (none) - local: /Users/dougdaulton/.goose/recipes/code-review.yaml
+code-review - (none) - local: /Users/dougdaulton/AOF/resources/goose/recipes/code-review.yaml
+pr-summary - Summarize a pull request - local: /Users/dougdaulton/.goose/recipes/pr-summary.yaml
+pr-summary - Summarize a pull request - local: /Users/dougdaulton/AOF/resources/goose/recipes/pr-summary.yaml
+daily-standup - (none) - local: /Users/dougdaulton/.goose/recipes/daily-standup.yaml
+daily-standup - (none) - local: /Users/dougdaulton/AOF/resources/goose/recipes/daily-standup.yaml
+refactor-helper - Refactor code with tests - local: /Users/dougdaulton/.goose/recipes/refactor-helper.yaml
+refactor-helper - Refactor code with tests - local: /Users/dougdaulton/AOF/resources/goose/recipes/refactor-helper.yaml
+release-notes - (none) - local: /Users/dougdaulton/.goose/recipes/release-notes.yaml
+release-notes - (none) - local: /Users/dougdaulton/AOF/resources/goose/recipes/release-notes.yaml
+test-writer - Write unit tests for a file - local: /Users/dougdaulton/.goose/recipes/test-writer.yaml
+test-writer - Write unit tests for a file - local: /Users/dougdaulton/AOF/resources/goose/recipes/test-writer.yaml
+
+Problems: 12 lines for 6 unique recipes, no visual grouping, no indication that one file is
+silently shadowing the other, no alignment/columns.

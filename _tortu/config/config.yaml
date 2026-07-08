@@ -1,0 +1,150 @@
+OPENAI_HOST: http://127.0.0.1:8000
+OPENAI_BASE_PATH: v1/chat/completions
+extensions:
+  chatrecall:
+    enabled: false
+    type: platform
+    name: chatrecall
+    description: Search past conversations and load session summaries for contextual memory
+    display_name: Chat Recall
+    bundled: true
+    available_tools: []
+  skills:
+    enabled: true
+    type: platform
+    name: skills
+    description: Discover and provide skill instructions from filesystem and builtins
+    display_name: Skills
+    bundled: true
+    available_tools: []
+  analyze:
+    enabled: true
+    type: platform
+    name: analyze
+    description: 'Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs'
+    display_name: Analyze
+    bundled: true
+    available_tools: []
+  apps:
+    enabled: true
+    type: platform
+    name: apps
+    description: Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.
+    display_name: Apps
+    bundled: true
+    available_tools: []
+  summon:
+    enabled: true
+    type: platform
+    name: summon
+    description: Load knowledge and delegate tasks to subagents
+    display_name: Summon
+    bundled: true
+    available_tools: []
+  summarize:
+    enabled: false
+    type: platform
+    name: summarize
+    description: Load files/directories and get an LLM summary in a single call
+    display_name: Summarize
+    bundled: true
+    available_tools: []
+  orchestrator:
+    enabled: false
+    type: platform
+    name: orchestrator
+    description: 'Manage agent sessions: list, view, start, send messages, interrupt, and stop agents'
+    display_name: Orchestrator
+    bundled: true
+    available_tools: []
+  todo:
+    enabled: true
+    type: platform
+    name: todo
+    description: Enable a todo list for goose so it can keep track of what it is doing
+    display_name: Todo
+    bundled: true
+    available_tools: []
+  extensionmanager:
+    enabled: true
+    type: platform
+    name: Extension Manager
+    description: Enable extension management tools for discovering, enabling, and disabling extensions
+    display_name: Extension Manager
+    bundled: true
+    available_tools: []
+  code_execution:
+    enabled: false
+    type: platform
+    name: code_execution
+    description: Goose will make extension calls through code execution, saving tokens
+    display_name: Code Mode
+    bundled: true
+    available_tools: []
+  developer:
+    enabled: true
+    type: platform
+    name: developer
+    description: Write and edit files, and execute shell commands
+    display_name: Developer
+    bundled: true
+    available_tools: []
+  tom:
+    enabled: true
+    type: platform
+    name: tom
+    description: Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables
+    display_name: Top Of Mind
+    bundled: true
+    available_tools: []
+  computercontroller:
+    enabled: false
+    type: builtin
+    name: computercontroller
+    description: General computer control tools that don't require you to be a developer or engineer.
+    display_name: Computer Controller
+    timeout: 300
+    bundled: true
+    available_tools: []
+  autovisualiser:
+    enabled: false
+    type: builtin
+    name: autovisualiser
+    description: Data visualization and UI generation tools
+    display_name: Auto Visualiser
+    timeout: 300
+    bundled: true
+    available_tools: []
+  memory:
+    enabled: false
+    type: builtin
+    name: memory
+    description: Teach goose your preferences as you go.
+    display_name: Memory
+    timeout: 300
+    bundled: true
+    available_tools: []
+  tutorial:
+    enabled: false
+    type: builtin
+    name: tutorial
+    description: Access interactive tutorials and guides
+    display_name: Tutorial
+    timeout: 300
+    bundled: true
+    available_tools: []
+providers:
+  openai:
+    enabled: true
+    model: granite-4.1-3b-bf16
+    configured: true
+  custom_omlx:
+    enabled: true
+    model: granite-4.1-3b-bf16
+    configured: true
+  local:
+    enabled: true
+    model: bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M
+    configured: true
+active_provider: local
+GOOSE_TELEMETRY_ENABLED: true

@@ -1,0 +1,45 @@
+id: doc-writer
+version: 1.0.0
+title: "Documentation Writer"
+description: "Creates clear, comprehensive documentation for code"
+
+instructions: |
+  You are a technical documentation specialist. Create documentation that:
+  - Is clear and easy to understand
+  - Includes practical, runnable examples
+  - Follows documentation best practices
+  - Is well-structured with proper headings and sections
+  - Uses appropriate formatting (code blocks, lists, tables)
+  
+  Write for developers who are new to the code. Explain not just what, but why.
+
+activities:
+  - Analyze code structure and purpose
+  - Write clear explanations of functionality
+  - Create practical usage examples
+  - Document parameters, return values, and exceptions
+  - Add helpful tips and best practices
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+
+parameters:
+  - key: doc_type
+    input_type: string
+    requirement: optional
+    description: "Type of documentation (api, guide, tutorial, reference)"
+    default: "guide"
+  
+  - key: audience
+    input_type: string
+    requirement: optional
+    description: "Target audience (beginner, intermediate, advanced)"
+    default: "intermediate"
+
+prompt: |
+  Create {{doc_type}} documentation for {{audience}} developers.
+  Include clear examples, explanations, and practical usage patterns.

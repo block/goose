@@ -1,0 +1,46 @@
+id: test-generator
+version: 1.0.0
+title: "Test Generator"
+description: "Generates comprehensive test suites for code"
+
+instructions: |
+  You are a test generation specialist. Create comprehensive test suites that:
+  - Cover happy paths and edge cases
+  - Test error conditions and boundary values
+  - Follow testing best practices
+  - Include clear, descriptive test names
+  - Add helpful comments explaining test scenarios
+  
+  Generate tests in the appropriate framework for the language being tested.
+
+activities:
+  - Analyze code to understand functionality
+  - Identify test scenarios (happy path, edge cases, errors)
+  - Generate well-structured test code
+  - Add descriptive test names and comments
+  - Ensure good test coverage
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 300
+    bundled: true
+
+parameters:
+  - key: test_framework
+    input_type: string
+    requirement: optional
+    description: "Testing framework to use (pytest, jest, junit, mocha, etc.)"
+    default: "pytest"
+  
+  - key: coverage_level
+    input_type: string
+    requirement: optional
+    description: "Coverage level (basic, comprehensive, exhaustive)"
+    default: "comprehensive"
+
+prompt: |
+  Generate {{coverage_level}} tests using {{test_framework}} for the provided code.
+  Include unit tests and integration tests where appropriate.
+  Focus on both happy paths and edge cases.

@@ -1,3 +1,6 @@
+# Tortu fork: real credentials live here, never tracked. See _tortu/config/secrets.env.example
+_tortu/config/secrets.env
+
 __pycache__
 *.pyc
 *.jar

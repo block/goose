@@ -1,0 +1,27 @@
+$ goose recipe list --verbose
+
+(patched behavior, verbose — same illustrative recipe set as before.txt; showing 2 of the 6
+entries here, the other 4 follow the identical pattern)
+
+code-review
+  (none)
+  ⚠ found in 2 locations (later paths override earlier ones):
+    1. local: /Users/dougdaulton/.goose/recipes/code-review.yaml
+    2. local: /Users/dougdaulton/AOF/resources/goose/recipes/code-review.yaml
+
+daily-standup
+  (none)
+  ⚠ found in 2 locations (later paths override earlier ones):
+    1. local: /Users/dougdaulton/.goose/recipes/daily-standup.yaml
+    2. local: /Users/dougdaulton/AOF/resources/goose/recipes/daily-standup.yaml
+
+pr-summary
+  Summarize a pull request
+  ⚠ found in 2 locations (later paths override earlier ones):
+    1. local: /Users/dougdaulton/.goose/recipes/pr-summary.yaml
+    2. local: /Users/dougdaulton/AOF/resources/goose/recipes/pr-summary.yaml
+
+... (refactor-helper, release-notes, test-writer follow the same pattern)
+
+(a recipe found in only one location just prints its name, description, and a single
+"local: <path>" / "github: <path>" line — no numbered list, no ⚠ — same as native today.)
