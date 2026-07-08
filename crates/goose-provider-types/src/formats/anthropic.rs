@@ -1395,7 +1395,7 @@ mod tests {
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
         ]);
 
-        let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
+        let mut config = cfg_with_effort("claude-sonnet-4-5-20250929", "high");
         config.max_tokens = Some(64000);
 
         let messages = vec![Message::user().with_text("Hello")];
@@ -1417,7 +1417,7 @@ mod tests {
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
         ]);
 
-        let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
+        let mut config = cfg_with_effort("claude-sonnet-4-5-20250929", "high");
         let messages = vec![Message::user().with_text("Hello")];
 
         // Budget larger than max_tokens is clamped to leave room for a response.
@@ -1769,12 +1769,12 @@ mod tests {
         );
         // Non-adaptive Claude with effort → enabled
         assert_eq!(
-            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "high")),
+            thinking_type(&cfg_with_effort("claude-sonnet-4-5-20250929", "high")),
             ThinkingType::Enabled
         );
         // Non-adaptive Claude with off → disabled
         assert_eq!(
-            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
+            thinking_type(&cfg_with_effort("claude-sonnet-4-5-20250929", "off")),
             ThinkingType::Disabled
         );
     }
@@ -1833,7 +1833,7 @@ mod tests {
             ThinkingType::Disabled
         );
         assert_eq!(
-            thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
+            thinking_type(&cfg_with_effort("claude-sonnet-4-5-20250929", "off")),
             ThinkingType::Disabled
         );
     }
