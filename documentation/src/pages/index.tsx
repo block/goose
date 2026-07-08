@@ -131,8 +131,8 @@ function FeaturesSection() {
             description={
               <p>
                 Works with 15+ providers — Anthropic, OpenAI, Google, Ollama,
-                OpenRouter, Azure, Bedrock, and more. Use API keys or your
-                existing Claude, ChatGPT, or Gemini subscriptions via{" "}
+                OpenRouter, TokenLab, Azure, Bedrock, and more. Use API keys or
+                your existing Claude, ChatGPT, or Gemini subscriptions via{" "}
                 <Link to="/docs/guides/acp-providers">ACP</Link>.
               </p>
             }

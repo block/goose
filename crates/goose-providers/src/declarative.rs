@@ -44,6 +44,7 @@ pub(crate) mod declarative_providers {
         scaleway,
         tanzu,
         tensorix,
+        tokenlab,
         together,
         venice,
         vercel_ai_gateway,

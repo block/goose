@@ -1,0 +1,99 @@
+{
+  "name": "tokenlab",
+  "engine": "openai",
+  "display_name": "TokenLab",
+  "description": "Unified model gateway with OpenAI-compatible chat completions and native Responses, Anthropic Messages, and Gemini endpoints",
+  "api_key_env": "TOKENLAB_API_KEY",
+  "base_url": "https://api.tokenlab.sh/v1/chat/completions",
+  "models": [
+    {
+      "name": "claude-fable-5",
+      "context_limit": 1000000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "claude-opus-4-8",
+      "context_limit": 1000000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "claude-sonnet-5",
+      "context_limit": 1000000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "glm-5.2",
+      "context_limit": 1000000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "deepseek-v4-pro",
+      "context_limit": 1000000,
+      "max_tokens": 384000
+    },
+    {
+      "name": "deepseek-v4-flash",
+      "context_limit": 1000000,
+      "max_tokens": 384000
+    },
+    {
+      "name": "gpt-5.5",
+      "context_limit": 1000000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "gpt-5.4",
+      "context_limit": 400000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "gpt-5.4-mini",
+      "context_limit": 400000,
+      "max_tokens": 128000
+    },
+    {
+      "name": "minimax-m3",
+      "context_limit": 1048576,
+      "max_tokens": 524288
+    },
+    {
+      "name": "kimi-k2.7-code",
+      "context_limit": 262144,
+      "max_tokens": 131072
+    },
+    {
+      "name": "qwen3.7-max",
+      "context_limit": 991808,
+      "max_tokens": 65536
+    },
+    {
+      "name": "gemini-3.5-flash",
+      "context_limit": 1048576,
+      "max_tokens": 65536
+    },
+    {
+      "name": "gemini-3.1-flash-lite",
+      "context_limit": 1048576,
+      "max_tokens": 65536
+    },
+    {
+      "name": "grok-4.3",
+      "context_limit": 1000000,
+      "max_tokens": 131072
+    },
+    {
+      "name": "grok-4-fast",
+      "context_limit": 2000000,
+      "max_tokens": 16384
+    }
+  ],
+  "supports_streaming": true,
+  "dynamic_models": false,
+  "skip_canonical_filtering": true,
+  "model_doc_link": "https://tokenlab.sh/",
+  "setup_steps": [
+    "Go to https://tokenlab.sh/",
+    "Create or copy an existing API key",
+    "Paste the key above as TOKENLAB_API_KEY"
+  ]
+}

@@ -57,6 +57,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Snowflake](https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model) | Access the latest models using Snowflake Cortex services, including Claude models. **Requires a Snowflake account and programmatic access token (PAT)**.                                                     | `SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`                                                                                                                                                                 |
 | [VMware Tanzu Platform](https://techdocs.broadcom.com/us/en/vmware-tanzu/platform/ai-services/10-3/ai/index.html) | Enterprise-managed LLM access through AI Services on VMware Tanzu Platform. Models are fetched dynamically from the endpoint. | `TANZU_AI_API_KEY`, `TANZU_AI_ENDPOINT` |
 | [Tetrate Agent Router Service](https://router.tetrate.ai)                   | Unified API gateway for AI models including Claude, Gemini, GPT, open-weight models, and others. Supports PKCE authentication flow for secure API key generation.                                                                                | `TETRATE_API_KEY`, `TETRATE_HOST` (optional)                                                                                                                                        |
+| [TokenLab](https://tokenlab.sh/)                                             | Unified model gateway with OpenAI-compatible chat completions and native Responses, Anthropic Messages, and Gemini endpoints.                                                                                                                     | `TOKENLAB_API_KEY`                                                                                                                                                                  |
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
 | [Cerebras](https://cerebras.ai/)                                            | Fast inference on Cerebras wafer-scale engines with models like Llama, Qwen, and others.                                                                                                                                  | `CEREBRAS_API_KEY`                                                                                                                                                                  |
 | [xAI](https://x.ai/)                                                        | Access to xAI's Grok models including grok-3, grok-3-mini, and grok-3-fast with 131,072 token context window.                                                                                                            | `XAI_API_KEY`, `XAI_HOST` (optional)                                                                                                                                                |
@@ -858,6 +859,51 @@ To set up Routstr with goose, follow these steps:
     3. Follow the prompts to choose `Routstr` as the provider.
     4. Enter your API key when prompted (and optionally override `ROUTSTR_HOST`).
     5. Select the Routstr model of your choice.
+  </TabItem>
+</Tabs>
+
+### TokenLab
+[TokenLab](https://tokenlab.sh/) provides unified access to frontier chat models through an OpenAI-compatible API. TokenLab also exposes native Responses, Anthropic Messages, and Gemini endpoints for clients that can use those provider-native protocols.
+
+TokenLab models configured in goose include:
+- **claude-fable-5** - Claude Fable 5 with a 1M context window
+- **claude-opus-4-8** - Claude Opus 4.8 with a 1M context window
+- **claude-sonnet-5** - Claude Sonnet 5 with a 1M context window
+- **gpt-5.5** - GPT-5.5 with a 1M context window
+- **gpt-5.4** and **gpt-5.4-mini** - GPT-5.4 models with 400K context windows
+- **qwen3.7-max** - Qwen3.7 Max with a 991K context window
+- **deepseek-v4-pro** and **deepseek-v4-flash** - DeepSeek V4 models with 1M context windows
+- **glm-5.2** - GLM 5.2 with a 1M context window
+- **gemini-3.5-flash** and **gemini-3.1-flash-lite** - Gemini Flash models with 1M context windows
+- **grok-4.3** and **grok-4-fast** - Grok models with large context support
+- **kimi-k2.7-code** and **minimax-m3** - coding and long-context models
+
+For the complete list of TokenLab models configured in goose, see [tokenlab.json](https://github.com/block/goose/blob/main/crates/goose-providers/src/declarative/definitions/tokenlab.json).
+
+To set up TokenLab with goose, follow these steps:
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  **To update your LLM provider and API key:**
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `TokenLab` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
+    7. Select the TokenLab model of your choice.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    1. Run:
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+    3. Follow the prompts to choose `TokenLab` as the provider.
+    4. Enter your API key when prompted.
+    5. Select the TokenLab model of your choice.
   </TabItem>
 </Tabs>
 
