@@ -67,8 +67,15 @@ log "Changing to directory ${MCP_HERMIT_DIR}."
 cd "${MCP_HERMIT_DIR}"
 
 download_hermit_binary() {
-    curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
-        | gzip -dc > "${MCP_HERMIT_DIR}/bin/hermit" && chmod +x "${MCP_HERMIT_DIR}/bin/hermit"
+    local HERMIT_TMP
+    HERMIT_TMP=$(mktemp "${MCP_HERMIT_DIR}/bin/hermit.XXXXXX")
+    if curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
+        | gzip -dc > "${HERMIT_TMP}" && chmod +x "${HERMIT_TMP}"; then
+        mv "${HERMIT_TMP}" "${MCP_HERMIT_DIR}/bin/hermit"
+    else
+        rm -f "${HERMIT_TMP}"
+        return 1
+    fi
 }
 
 activate_hermit_environment() {
