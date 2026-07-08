@@ -34,14 +34,10 @@ vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./api', () => {
-  return {
-    initConfig: vi.fn().mockResolvedValue(undefined),
-    backupConfig: vi.fn().mockResolvedValue(undefined),
-    recoverConfig: vi.fn().mockResolvedValue(undefined),
-    validateConfig: vi.fn().mockResolvedValue(undefined),
-  };
-});
+vi.mock('./acp/sessions', () => ({
+  acpListSessions: vi.fn().mockResolvedValue({ sessions: [], nextCursor: null }),
+  acpDeleteSession: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('./sessions', () => ({
   fetchSessionDetails: vi

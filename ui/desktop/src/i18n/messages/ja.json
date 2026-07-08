@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "再試行"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "アプリ"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "デフォルトでは goose がサーバーを起動します。外部の goose サーバーに接続する場合に使用してください。"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "変更を有効にするには Goose の再起動が必要です。新しいチャットウィンドウは外部サーバーに接続します。"
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "サーバーURL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Server"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL形式が無効です"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "注目モデル"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "モデル設定"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "待機中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（入力の{percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "キャッシュ読み取り"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "キャッシュ書き込み"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "圧縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "コスト"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（推定）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "最初のトークン"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "入力"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "出力"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（報告値）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "合計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "合計時間"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "音声入力に使用するマイクを選択"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "チャット"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部バックエンド"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "プロンプト"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "セッション"
   },
   "settingsView.title": {
     "defaultMessage": "設定"

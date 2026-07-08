@@ -20,6 +20,7 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';
+import MessageUsageStats from './MessageUsageStats';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 
@@ -150,7 +151,7 @@ export default function GooseMessage({
             )}
 
             {toolRequests.length === 0 && (
-              <div className="relative flex justify-start">
+              <div className="relative flex items-center justify-between">
                 {!isStreaming && (
                   <div className="text-xs font-mono text-text-secondary pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                     {timestamp}
@@ -161,6 +162,11 @@ export default function GooseMessage({
                     <MessageCopyLink text={displayText} contentRef={contentRef} />
                   </div>
                 )}
+                {!isStreaming && message.metadata.usage && (
+                  <div className="pt-1 transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0">
+                    <MessageUsageStats usage={message.metadata.usage} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -168,7 +174,7 @@ export default function GooseMessage({
 
         {toolRequests.length > 0 && (
           <div className={cn(displayText && 'mt-2')}>
-            <div className="relative flex flex-col w-full">
+            <div className="relative flex flex-col w-full group">
               <div className="flex flex-col gap-3">
                 {toolRequests.map((toolRequest) => {
                   const hasResponse = toolResponsesMap.has(toolRequest.id);
@@ -193,8 +199,21 @@ export default function GooseMessage({
                   );
                 })}
               </div>
-              <div className="text-xs text-text-secondary transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
-                {!isStreaming && !hideTimestamp && timestamp}
+              <div className="flex items-center justify-between">
+                <div
+                  className={cn(
+                    'text-xs text-text-secondary pt-1',
+                    message.metadata.usage &&
+                      'transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0'
+                  )}
+                >
+                  {!isStreaming && !hideTimestamp && timestamp}
+                </div>
+                {!isStreaming && message.metadata.usage && (
+                  <div className="pt-1 transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0">
+                    <MessageUsageStats usage={message.metadata.usage} />
+                  </div>
+                )}
               </div>
             </div>
           </div>

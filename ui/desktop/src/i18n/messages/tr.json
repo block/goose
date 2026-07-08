@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Yeniden dene"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Uygulamalar"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Varsayılan olarak goose sizin için bir sunucu başlatır; harici bir goose sunucusuna bağlanmak için bunu kullanın"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Değişikliklerin etkili olması için Goose'nin yeniden başlatılması gerekir. Yeni sohbet pencereleri harici sunucuya bağlanacaktır."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "Sunucu URL'si"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Sunucu"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Geçersiz URL biçimi"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} (%{percent})"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Öne Çıkan Modeller"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Model ararken ve indirirken hız sınırlarını artırmak ve özel ya da erişimi kısıtlı Hugging Face depolarına erişmek için oturum açın."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Modeli Ayarları"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "beklemek"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(girdinin %{percent}'i)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "önbellek okuma"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "önbellek yazma"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Sıkıştırma"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Maliyet"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(tahmini)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "İlk jeton"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Girdi"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Çıktı"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(bildirilen)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Hız"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Toplam"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Toplam süre"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Dikte için hangi mikrofonun kullanılacağını seçin"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Sohbet"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Harici Arka Uç"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Klavye"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "İstemler"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Oturum"
   },
   "settingsView.title": {
     "defaultMessage": "Ayarlar"

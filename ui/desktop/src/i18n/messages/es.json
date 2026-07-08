@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Reintentar"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Apps"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Por defecto goose lanza un servidor por ti; usa esto para conectarte a un servidor goose externo"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Los cambios requieren reiniciar Goose para que surtan efecto. Las nuevas ventanas de chat se conectarán al servidor externo."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL del servidor"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Server"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Formato de URL inválido"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelos destacados"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Inicia sesión para aumentar los límites de uso al buscar y descargar modelos, y para acceder a repositorios de Hugging Face privados o restringidos."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Ajustes del modelo"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "esperando"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% de la entrada)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lectura de caché"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "escritura de caché"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compactación"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Costo"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimado)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Primer token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Entrada"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Salida"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(reportado)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Velocidad"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tiempo total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Elige qué micrófono usar para el dictado"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externo"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Teclado"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesión"
   },
   "settingsView.title": {
     "defaultMessage": "Ajustes"

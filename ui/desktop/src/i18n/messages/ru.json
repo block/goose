@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Повторить"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Приложения"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "По умолчанию goose запускает сервер за вас; используйте это для подключения к внешнему серверу goose"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Чтобы изменения вступили в силу, требуется перезапуск Goose. Новые окна чата будут подключаться к внешнему серверу."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL сервера"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Сервер Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Неверный формат URL"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Войдите, чтобы увеличить лимиты запросов при поиске и загрузке моделей, а также получить доступ к приватным или ограниченным репозиториям Hugging Face."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Настройки модели"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "ожидание"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% от ввода)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "чтение кэша"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "запись кэша"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Сжатие"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Стоимость"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(оценочно)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Первый токен"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Ввод"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Вывод"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(заявлено)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Скорость"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Всего"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Общее время"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Выберите микрофон для диктовки"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Чат"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Внешний бэкенд"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Промпты"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Сеанс"
   },
   "settingsView.title": {
     "defaultMessage": "Настройки"

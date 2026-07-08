@@ -41,6 +41,12 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "No apps available"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.retry": {
     "defaultMessage": "Retry"
   },
@@ -1167,25 +1173,34 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default goose launches a server for you, use this to connect to an external goose server"
+    "defaultMessage": "By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend."
+  },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes require restarting Goose to take effect. New chat windows will connect to the external server."
+    "defaultMessage": "Changes apply to new chat windows. Restart Goose to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "The secret key configured on the external backend (GOOSE_SERVER__SECRET_KEY)."
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Enter the server's secret key"
   },
   "externalBackendSection.serverUrl": {
-    "defaultMessage": "Server URL"
+    "defaultMessage": "Backend Base URL"
+  },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
-    "defaultMessage": "Goose Server"
+    "defaultMessage": "External Backend (ACP)"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Invalid URL format"
@@ -1194,10 +1209,10 @@
     "defaultMessage": "URL must use http or https protocol"
   },
   "externalBackendSection.useExternalServer": {
-    "defaultMessage": "Use external server"
+    "defaultMessage": "Use external backend"
   },
   "externalBackendSection.useExternalServerDescription": {
-    "defaultMessage": "Connect to a goose server running elsewhere (requires app restart)"
+    "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Downloading"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Featured Models"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Sign in to increase rate limits when searching and downloading models, and to access private or gated Hugging Face repositories."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Model Settings"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "waiting"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% of input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "cache read"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "cache write"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compaction"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Cost"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimated)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "First token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(reported)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Speed"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Total time"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Choose which microphone to use for dictation"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "External Backend"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"

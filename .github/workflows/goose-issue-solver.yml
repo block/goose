@@ -30,7 +30,7 @@ env:
       - Deletion is a feature: ask "can I delete code instead of adding?"
       - Complete changes: update ALL usages when changing a type. No exceptions.
       - When changing message types, update ALL provider format functions.
-      - When changing server routes, run `just generate-openapi`.
+      - When changing ACP request/response types, run `just generate-acp-types`.
       - Your context degrades. The TODO is your memory. Update it after each step.
 
       Types:

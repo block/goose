@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "重试"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "应用"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "默认情况下 goose 会为你启动一个服务器，此选项用于连接到外部的 goose 服务器"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "更改需要重启 Goose 才能生效。新的聊天窗口将连接到外部服务器。"
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "服务器地址"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose 服务器"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL 格式无效"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total}（{percent}%）"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "推荐模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登录后可在搜索和下载模型时提高速率限制，并访问私有或受限的 Hugging Face 仓库。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型设置"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（占输入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "缓存读取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "缓存写入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "压缩"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "费用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首个令牌"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "输入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "输出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（上报）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "总计"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "总耗时"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "选择用于语音输入的麦克风"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部后端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
   },
   "settingsView.title": {
     "defaultMessage": "设置"

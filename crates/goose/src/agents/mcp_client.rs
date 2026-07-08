@@ -527,6 +527,7 @@ impl ClientHandler for GooseClient {
             })
     }
 
+    #[allow(deprecated)]
     fn get_info(&self) -> ClientInfo {
         let extensions = self.resolved_extensions();
 
@@ -608,7 +609,7 @@ impl McpClient {
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
-        let server_info = client.peer_info().cloned();
+        let server_info = client.peer_info().map(|info| (*info).clone());
 
         Ok(Self {
             client: Mutex::new(client),

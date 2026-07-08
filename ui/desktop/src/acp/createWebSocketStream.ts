@@ -1,6 +1,10 @@
 import type { Stream } from '@aaif/goose-sdk';
 
-export function createWebSocketStream(wsUrl: string): Stream {
+export type ClosableAcpStream = Stream & {
+  close: () => void;
+};
+
+export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
   const ws = new window.WebSocket(wsUrl);
 
   const incoming: unknown[] = [];
@@ -73,5 +77,9 @@ export function createWebSocketStream(wsUrl: string): Stream {
     },
   });
 
-  return { readable, writable } as Stream;
+  return {
+    readable,
+    writable,
+    close: () => ws.close(),
+  } as ClosableAcpStream;
 }

@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "पुनः प्रयास करें"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "ऐप्स"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "डिफ़ॉल्ट रूप से goose आपके लिए एक सर्वर लॉन्च करता है, बाहरी goose सर्वर से कनेक्ट करने के लिए इसका उपयोग करें"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "परिवर्तनों को प्रभावी होने के लिए Goose को पुनः आरंभ करने की आवश्यकता है। नई चैट विंडो बाहरी सर्वर से कनेक्ट होंगी."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "सर्वर URL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose सर्वर"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "अमान्य URL प्रारूप"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "विशेष रुप से प्रदर्शित मॉडल"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "मॉडल खोजते और डाउनलोड करते समय दर सीमा बढ़ाने के लिए और निजी या गेटेड हगिंग फेस रिपॉजिटरी तक पहुंचने के लिए साइन इन करें।"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "मॉडल Settings"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "इंतज़ार कर रहा हूँ"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(इनपुट का {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "कैश रीड"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "कैश राइट"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "संक्षिप्तीकरण"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "लागत"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(अनुमानित)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "पहला टोकन"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "इनपुट"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "आउटपुट"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(रिपोर्ट किया गया)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "गति"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "कुल"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "कुल समय"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "श्रुतलेख के लिए कौन सा माइक्रोफ़ोन उपयोग करना है चुनें"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "बातचीत"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "बाहरी बैकएंड"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "संकेत"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "सत्र"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"

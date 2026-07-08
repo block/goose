@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Riprova"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "App"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Per impostazione predefinita goose avvia un server per te; usa questa opzione per connetterti a un server goose esterno"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Le modifiche richiedono il riavvio di Goose per avere effetto. Le nuove finestre di chat si connetteranno al server esterno."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL del server"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Server Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Formato URL non valido"
@@ -1721,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Download in corso"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelli in evidenza"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Accedi per aumentare i limiti di frequenza durante la ricerca e il download dei modelli e per accedere ai repository Hugging Face privati o ad accesso limitato."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Impostazioni modello"
@@ -1996,6 +2017,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "in attesa"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dell'input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lettura cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "scrittura cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compattazione"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Costo"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(stimato)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Primo token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(riportato)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Velocità"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Totale"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tempo totale"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Scegli quale microfono usare per la dettatura"
@@ -3968,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend esterno"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"
   },
@@ -3979,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sessione"
   },
   "settingsView.title": {
     "defaultMessage": "Impostazioni"
