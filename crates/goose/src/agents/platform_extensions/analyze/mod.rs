@@ -469,7 +469,7 @@ fn helper() { validate(0); }
         let file = tmp.path().join("types.c");
         fs::write(
             &file,
-            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\ntypedef struct Tagged { int z; } Tagged;\nstruct Opaque;\nstruct Opaque *make(void);\nint new(void) { return 0; }\n",
+            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\ntypedef struct Tagged { int z; }\nTagged;\nstruct Opaque;\nstruct Opaque *make(void);\nint new(void) { return 0; }\n",
         )
         .unwrap();
 

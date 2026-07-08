@@ -179,6 +179,9 @@ fn extract_classes(
         for cap in m.captures {
             if query.capture_names()[cap.index as usize] == "name" {
                 let name_text = node_text(source, &cap.node).to_string();
+                if is_duplicate_c_typedef_alias(&cap.node, &name_text, info, source) {
+                    continue;
+                }
                 let line = cap.node.start_position().row + 1;
 
                 let inheritance = cap
@@ -208,6 +211,33 @@ fn extract_classes(
     let mut seen = std::collections::HashSet::new();
     symbols.retain(|s| seen.insert((s.name.clone(), s.line)));
     symbols
+}
+
+fn is_duplicate_c_typedef_alias(
+    node: &tree_sitter::Node,
+    name: &str,
+    info: &LangInfo,
+    source: &str,
+) -> bool {
+    if info.name != "c"
+        || node
+            .parent()
+            .is_none_or(|parent| parent.kind() != "type_definition")
+    {
+        return false;
+    }
+
+    let Some(aggregate) = node
+        .parent()
+        .and_then(|parent| parent.child_by_field_name("type"))
+    else {
+        return false;
+    };
+
+    ["struct_specifier", "union_specifier", "enum_specifier"].contains(&aggregate.kind())
+        && aggregate
+            .child_by_field_name("name")
+            .is_some_and(|tag| node_text(source, &tag) == name)
 }
 
 /// Extract the superclass / extends / implements target from a class declaration node.
