@@ -45,7 +45,7 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -578,6 +578,53 @@ pub(crate) async fn merge_environments(
     Ok(Envs::new(all_envs).get_env())
 }
 
+fn resolve_static_oauth_client(
+    client_id: Option<&str>,
+    client_secret_key: Option<&str>,
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> ExtensionResult<Option<StaticOAuthClientConfig>> {
+    let Some(client_id) = client_id else {
+        if client_secret_key.is_some() {
+            return Err(ExtensionError::ConfigError(
+                "client_secret_key requires client_id".to_string(),
+            ));
+        }
+        return Ok(None);
+    };
+
+    let client_secret = match client_secret_key {
+        Some(key) => Some(resolve_static_oauth_secret(key, envs, config)?),
+        None => None,
+    };
+
+    Ok(Some(StaticOAuthClientConfig {
+        client_id: substitute_env_vars(client_id, envs),
+        client_secret,
+    }))
+}
+
+fn resolve_static_oauth_secret(
+    key: &str,
+    envs: &HashMap<String, String>,
+    config: &Config,
+) -> ExtensionResult<String> {
+    if let Some(value) = envs.get(key) {
+        return Ok(value.clone());
+    }
+
+    let value = config.get(key, true).map_err(|error| {
+        ExtensionError::ConfigError(format!(
+            "Failed to fetch OAuth client secret '{}' from config: {}",
+            key, error
+        ))
+    })?;
+
+    value.as_str().map(str::to_string).ok_or_else(|| {
+        ExtensionError::ConfigError(format!("OAuth client secret '{}' is not a string", key))
+    })
+}
+
 /// Substitute environment variables in a string. Supports both ${VAR} and $VAR syntax.
 pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
     let mut result = value.to_string();
@@ -664,6 +711,7 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     socket: Option<&str>,
+    static_oauth_client: Option<StaticOAuthClientConfig>,
     credential_store: Box<dyn CredentialStore>,
     provider: SharedProvider,
     client_name: String,
@@ -726,7 +774,13 @@ async fn create_streamable_http_client(
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.clone(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
@@ -779,7 +833,13 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        match oauth_flow(
+            &uri.to_string(),
+            &name.to_string(),
+            static_oauth_client.clone(),
+        )
+        .await
+        {
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
@@ -972,6 +1032,8 @@ impl ExtensionManager {
                 envs,
                 env_keys,
                 socket,
+                client_id,
+                client_secret_key,
                 ..
             } => {
                 let config = Config::global();
@@ -982,12 +1044,19 @@ impl ExtensionManager {
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
                     .collect();
                 let resolved_socket = socket.as_ref().map(|s| substitute_env_vars(s, &all_envs));
+                let static_oauth_client = resolve_static_oauth_client(
+                    client_id.as_deref(),
+                    client_secret_key.as_deref(),
+                    &all_envs,
+                    Config::global(),
+                )?;
                 create_streamable_http_client(
                     &resolved_uri,
                     *timeout,
                     &resolved_headers,
                     name,
                     resolved_socket.as_deref(),
+                    static_oauth_client,
                     Box::new(GooseCredentialStore::new(name.to_string())),
                     self.provider.clone(),
                     self.client_name.clone(),
@@ -3080,6 +3149,7 @@ mod tests {
             &headers,
             "test-ext",
             None,
+            None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
             "goose-test".to_string(),
@@ -3114,6 +3184,7 @@ mod tests {
             None,
             &headers,
             "test-ext",
+            None,
             None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,
@@ -3160,6 +3231,7 @@ mod tests {
             None,
             &headers,
             "test-ext",
+            None,
             None,
             Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
             provider,

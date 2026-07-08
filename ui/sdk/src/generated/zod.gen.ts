@@ -1548,6 +1548,14 @@ export const zRecipeExtensionDto = z.union([
             z.string(),
             z.null()
         ]).optional(),
+        client_id: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        client_secret_key: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
         bundled: z.union([
             z.boolean(),
             z.null()

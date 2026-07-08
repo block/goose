@@ -1584,6 +1584,8 @@ export type RecipeExtensionDto = {
     };
     timeout?: number | null;
     socket?: string | null;
+    client_id?: string | null;
+    client_secret_key?: string | null;
     bundled?: boolean | null;
     /**
      * Tool allowlist for this extension. Omit this field to allow all tools.

@@ -8,8 +8,9 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
-use rmcp::transport::AuthorizationManager;
+use rmcp::transport::auth::{
+    AuthorizationManager, CredentialStore, OAuthClientConfig, OAuthState, StoredCredentials,
+};
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -82,15 +83,47 @@ async fn wait_for_callback(
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct StaticOAuthClientConfig {
+    pub client_id: String,
+    pub client_secret: Option<String>,
+}
+
+fn static_client_config(
+    client: &StaticOAuthClientConfig,
+    redirect_uri: &str,
+    scopes: Vec<String>,
+) -> OAuthClientConfig {
+    let mut config = OAuthClientConfig::new(client.client_id.clone(), redirect_uri.to_string())
+        .with_scopes(scopes);
+    if let Some(secret) = &client.client_secret {
+        config = config.with_client_secret(secret.clone());
+    }
+    config
+}
+
 pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
+    static_client: Option<StaticOAuthClientConfig>,
 ) -> Result<AuthorizationManager, anyhow::Error> {
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
-    if auth_manager.initialize_from_store().await? {
+    if let Some(client) = &static_client {
+        let metadata = auth_manager.discover_metadata().await?;
+        auth_manager.set_metadata(metadata);
+        auth_manager.configure_client(static_client_config(client, mcp_server_url, Vec::new()))?;
+    }
+
+    let initialized_from_store = if static_client.is_some() {
+        credential_store.load().await?.is_some()
+    } else {
+        auth_manager.initialize_from_store().await?
+    };
+
+    if initialized_from_store {
         match auth_manager.refresh_token().await {
             Ok(_) => {
                 return Ok(auth_manager);
@@ -142,19 +175,34 @@ pub async fn oauth_flow(
         }
     });
 
-    let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
-
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
-    oauth_state
-        .start_authorization_with_metadata_url(
-            &[],
-            redirect_uri.as_str(),
-            Some("goose"),
-            Some(CLIENT_METADATA_URL),
-        )
-        .await?;
 
-    let authorization_url = oauth_state.get_authorization_url().await?;
+    let mut oauth_state = None;
+    let authorization_url = if let Some(client) = &static_client {
+        let metadata = auth_manager.discover_metadata().await?;
+        auth_manager.set_metadata(metadata);
+        let scopes = auth_manager.select_scopes(None, &[]);
+        auth_manager.configure_client(static_client_config(
+            client,
+            redirect_uri.as_str(),
+            scopes.clone(),
+        ))?;
+        let scope_refs: Vec<&str> = scopes.iter().map(|scope| scope.as_str()).collect();
+        auth_manager.get_authorization_url(&scope_refs).await?
+    } else {
+        let mut state = OAuthState::new(mcp_server_url, None).await?;
+        state
+            .start_authorization_with_metadata_url(
+                &[],
+                redirect_uri.as_str(),
+                Some("goose"),
+                Some(CLIENT_METADATA_URL),
+            )
+            .await?;
+        let authorization_url = state.get_authorization_url().await?;
+        oauth_state = Some(state);
+        authorization_url
+    };
     announce_authorization_url(name, authorization_url.as_str());
     if let Err(e) = webbrowser::open(authorization_url.as_str()) {
         warn!(
@@ -175,37 +223,43 @@ pub async fn oauth_flow(
         code: auth_code,
         state: csrf_token,
     } = callback_params?;
-    oauth_state.handle_callback(&auth_code, &csrf_token).await?;
+    if let Some(mut state) = oauth_state {
+        state.handle_callback(&auth_code, &csrf_token).await?;
 
-    let (client_id, token_response) = oauth_state.get_credentials().await?;
+        let (client_id, token_response) = state.get_credentials().await?;
 
-    let mut auth_manager = oauth_state
-        .into_authorization_manager()
-        .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
+        let mut auth_manager = state
+            .into_authorization_manager()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
-    let granted_scopes: Vec<String> = token_response
-        .as_ref()
-        .and_then(|tr| tr.scopes())
-        .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
-        .unwrap_or_default();
+        let granted_scopes: Vec<String> = token_response
+            .as_ref()
+            .and_then(|tr| tr.scopes())
+            .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
+            .unwrap_or_default();
 
-    credential_store
-        .save(StoredCredentials::new(
-            client_id,
-            token_response,
-            granted_scopes,
-            Some(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|duration| duration.as_secs())
-                    .unwrap_or(0),
-            ),
-        ))
-        .await?;
+        credential_store
+            .save(StoredCredentials::new(
+                client_id,
+                token_response,
+                granted_scopes,
+                Some(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|duration| duration.as_secs())
+                        .unwrap_or(0),
+                ),
+            ))
+            .await?;
 
-    auth_manager.set_credential_store(credential_store);
-
-    Ok(auth_manager)
+        auth_manager.set_credential_store(credential_store);
+        Ok(auth_manager)
+    } else {
+        auth_manager
+            .exchange_code_for_token(&auth_code, &csrf_token)
+            .await?;
+        Ok(auth_manager)
+    }
 }
 
 #[cfg(test)]

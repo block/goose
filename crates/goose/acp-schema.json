@@ -3843,6 +3843,18 @@
                 "null"
               ]
             },
+            "client_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "client_secret_key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "bundled": {
               "type": [
                 "boolean",
