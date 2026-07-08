@@ -583,13 +583,9 @@ describe('createAcpSessionNotificationAdapter', () => {
           status: { type: 'progress', message: 'Still working' },
         })
       );
-      messages = expectOnlyMessagesChange(progressStateChanges);
-
-      expect(firstContent(messages[2])).toMatchObject({
-        type: 'systemNotification',
-        notificationType: 'thinkingMessage',
-        msg: 'Still working',
-      });
+      expect(progressStateChanges).toEqual([
+        { type: 'progressMessage', message: 'Still working' },
+      ]);
     });
   });
 

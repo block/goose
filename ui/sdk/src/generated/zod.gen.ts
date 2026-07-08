@@ -2505,6 +2505,7 @@ export const zLocalInferenceModelDto = z.object({
     sizeBytes: z.number().int().gte(0),
     status: zLocalInferenceModelDownloadStatusDto,
     recommended: z.boolean(),
+    isLoaded: z.boolean(),
     settings: zLocalInferenceModelSettingsDto,
     visionCapable: z.boolean(),
     mmprojStatus: z.union([
@@ -2570,6 +2571,10 @@ export const zLocalInferenceModelDownloadCancelRequest_unstable = z.object({
 });
 
 export const zLocalInferenceModelDeleteRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelEvictRequest_unstable = z.object({
     modelId: z.string()
 });
 
@@ -2914,6 +2919,7 @@ export const zExtRequest = z.object({
             zLocalInferenceModelDownloadProgressRequest_unstable,
             zLocalInferenceModelDownloadCancelRequest_unstable,
             zLocalInferenceModelDeleteRequest_unstable,
+            zLocalInferenceModelEvictRequest_unstable,
             zLocalInferenceModelSettingsReadRequest_unstable,
             zLocalInferenceModelSettingsUpdateRequest_unstable,
             zLocalInferenceHuggingFaceSearchRequest_unstable,

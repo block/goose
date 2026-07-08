@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "주요 모델"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "모델 검색 및 다운로드 시 속도 제한 한도를 높이고 비공개 또는 접근 제한된 Hugging Face 리포지토리에 액세스하려면 로그인하세요."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "모델 설정"

@@ -25,6 +25,7 @@ pub enum CostSource {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderStats {
     pub time_to_first_token_ms: Option<u64>,
+    pub model_load_ms: Option<u64>,
     pub elapsed_ms: Option<u64>,
     pub output_tokens: Option<usize>,
     pub draft: Option<DraftStats>,

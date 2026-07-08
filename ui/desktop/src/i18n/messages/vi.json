@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Đang tải xuống"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Mô hình nổi bật"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Đăng nhập để tăng giới hạn tốc độ khi tìm kiếm và tải xuống mô hình, và để truy cập các kho lưu trữ Hugging Face riêng tư hoặc bị giới hạn."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Cài đặt mô hình"

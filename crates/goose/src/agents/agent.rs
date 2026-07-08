@@ -68,7 +68,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
-const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
@@ -1769,8 +1769,8 @@ impl Agent {
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
-                        SystemNotificationType::ThinkingMessage,
-                        COMPACTION_THINKING_TEXT,
+                        SystemNotificationType::ProgressMessage,
+                        COMPACTION_PROGRESS_TEXT,
                     )
                 );
 
@@ -2060,6 +2060,17 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
+                                if !response.content.is_empty()
+                                    && response
+                                    .content
+                                    .iter()
+                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                {
+                                    yield AgentEvent::Message(response);
+                                    tokio::task::yield_now().await;
+                                    continue;
+                                }
+
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -2427,8 +2438,8 @@ impl Agent {
                             );
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    COMPACTION_THINKING_TEXT,
+                                    SystemNotificationType::ProgressMessage,
+                                    COMPACTION_PROGRESS_TEXT,
                                 )
                             );
 

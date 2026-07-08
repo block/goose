@@ -38,7 +38,9 @@ function applyStatusMessage(
   sessionId: string,
   update: Extract<GooseSessionNotification_unstable['update'], { sessionUpdate: 'status_message' }>
 ): AcpChatStateChange[] {
-  const notificationType = update.status.type === 'notice' ? 'inlineMessage' : 'thinkingMessage';
+  if (update.status.type === 'progress') {
+    return [{ type: 'progressMessage', message: update.status.message }];
+  }
 
   state.messages.push({
     id: `acp_status_${sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -47,7 +49,7 @@ function applyStatusMessage(
     content: [
       {
         type: 'systemNotification',
-        notificationType,
+        notificationType: 'inlineMessage',
         msg: update.status.message,
       },
     ],

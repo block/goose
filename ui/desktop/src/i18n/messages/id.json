@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Mengunduh"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Unggulan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Masuk untuk meningkatkan batas laju saat mencari dan mengunduh model, serta untuk mengakses repositori Hugging Face yang privat atau terbatas."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Pengaturan Model"

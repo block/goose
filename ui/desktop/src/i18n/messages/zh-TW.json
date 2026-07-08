@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "下載中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "精選模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型設定"
