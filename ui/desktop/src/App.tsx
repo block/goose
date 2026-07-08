@@ -9,7 +9,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { importNostrSessionFromDeepLink } from './sessionLinks';
-import { setRecipeParametersForSession } from './utils/recipeParametersStore';
+import { setPendingRecipeParameters } from './utils/recipeParametersStore';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
@@ -413,17 +413,21 @@ export function AppInner() {
   useEffect(() => {
     const handleOpenRecipeDeeplink = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const payload = args[0] as
-        { recipeDeeplink?: string; recipeParameters?: Record<string, string> } | undefined;
+        | { recipeDeeplink?: string; recipeParameters?: Record<string, string> }
+        | undefined;
       const recipeDeeplink = payload?.recipeDeeplink;
       if (!recipeDeeplink) {
         return;
       }
+      // The parameter request arrives mid-`session/new`, before the session id
+      // exists, so stash the URL values first and clear them once this deep link is
+      // done so they cannot leak into an unrelated recipe.
+      setPendingRecipeParameters(payload?.recipeParameters);
       try {
         const newSession = await createSession(getInitialWorkingDir(), {
           recipeDeeplink,
           allExtensions: extensionsList,
         });
-        setRecipeParametersForSession(newSession.id, payload?.recipeParameters);
         window.dispatchEvent(
           new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
             detail: {
@@ -443,6 +447,8 @@ export function AppInner() {
           recoverable: true,
         });
         toast.error(`Failed to open recipe: ${errorMessage(error, 'Unknown error')}`);
+      } finally {
+        setPendingRecipeParameters(undefined);
       }
     };
     window.electron.on('open-recipe-deeplink', handleOpenRecipeDeeplink);

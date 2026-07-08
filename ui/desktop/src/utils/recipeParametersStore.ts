@@ -1,25 +1,15 @@
-// Bridges URL-supplied recipe parameters from the warm-launch IPC path into
-// ParameterInputModal. The cold-launch path seeds the same data into
-// window.appConfig.recipeParameters, which is fixed at preload and cannot be
-// mutated after window load.
+// Holds URL-supplied recipe parameters for a warm-launch deep link. The ACP
+// parameter request fires mid-`session/new`, before a session id exists, so the
+// caller stashes the values here and takePendingRecipeParameters consumes them once.
+let pendingRecipeParameters: Record<string, string> | undefined;
 
-const store = new Map<string, Record<string, string>>();
-
-export function setRecipeParametersForSession(
-  sessionId: string,
-  parameters: Record<string, string> | undefined
-): void {
-  if (parameters && Object.keys(parameters).length > 0) {
-    store.set(sessionId, parameters);
-  }
+export function setPendingRecipeParameters(parameters: Record<string, string> | undefined): void {
+  pendingRecipeParameters =
+    parameters && Object.keys(parameters).length > 0 ? parameters : undefined;
 }
 
-export function takeRecipeParametersForSession(
-  sessionId: string
-): Record<string, string> | undefined {
-  const value = store.get(sessionId);
-  if (value) {
-    store.delete(sessionId);
-  }
+export function takePendingRecipeParameters(): Record<string, string> | undefined {
+  const value = pendingRecipeParameters;
+  pendingRecipeParameters = undefined;
   return value;
 }

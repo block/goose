@@ -6,6 +6,10 @@ import {
   requestAcpRecipeParams,
   resolveAcpRecipeParamRequest,
 } from '../recipeParamRequests';
+import {
+  setPendingRecipeParameters,
+  takePendingRecipeParameters,
+} from '../../utils/recipeParametersStore';
 
 function recipeParamRequest(): RequestRecipeParams_unstable {
   return {
@@ -58,7 +62,46 @@ describe('ACP recipe param requests', () => {
 
   afterEach(() => {
     cancelPendingRecipeParamRequests();
+    takePendingRecipeParameters();
     Reflect.deleteProperty(window, 'appConfig');
+  });
+
+  it('prefills user_prompt parameters stashed before the session id is known', async () => {
+    // Warm deep-link path: the URL parameters are stashed before createSession, and the
+    // request arrives mid-session/new (no appConfig recipeParameters to fall back to).
+    setRecipeParameters({});
+    setPendingRecipeParameters({ topic: 'release notes' });
+
+    const response = requestAcpRecipeParams(recipeParamRequest());
+    const [pendingRequest] = getAcpRecipeParamRequestsSnapshot();
+
+    expect(pendingRequest).toMatchObject({
+      sessionId: 'session-1',
+      initialValues: { topic: 'release notes' },
+    });
+
+    resolveAcpRecipeParamRequest(pendingRequest.id, { topic: 'release notes' });
+    await expect(response).resolves.toEqual({
+      action: 'submit',
+      values: { topic: 'release notes' },
+    });
+  });
+
+  it('consumes the pending recipe parameters so they do not leak into a later deep link', async () => {
+    setRecipeParameters({});
+    setPendingRecipeParameters({ topic: 'first' });
+
+    const first = requestAcpRecipeParams(recipeParamRequest());
+    const [firstRequest] = getAcpRecipeParamRequestsSnapshot();
+    expect(firstRequest.initialValues).toEqual({ topic: 'first' });
+    resolveAcpRecipeParamRequest(firstRequest.id, { topic: 'first' });
+    await first;
+
+    const second = requestAcpRecipeParams(recipeParamRequest());
+    const [secondRequest] = getAcpRecipeParamRequestsSnapshot();
+    expect(secondRequest.initialValues).toEqual({});
+    cancelAcpRecipeParamRequest(secondRequest.id);
+    await second;
   });
 
   it('keeps missing user_prompt parameters pending for user input', async () => {

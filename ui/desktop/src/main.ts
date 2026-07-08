@@ -649,16 +649,26 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
 let windowDeeplinkURL: string | null = null;
 
 async function openRecipeDeeplink(url: string, openDir: string | null) {
+  // The OS can deliver one protocol URL more than once (macOS re-fires 'open-url';
+  // Windows/Linux relay through both 'second-instance' and startup argv). Drop the
+  // repeats so a single link does not create two sessions and two modals.
+  if (isBurstDuplicateSessionDeepLink(url)) {
+    log.info('[Main] Ignoring burst duplicate recipe deep link');
+    return;
+  }
+  recordSessionDeepLinkSend(url);
+
   const deeplinkData = parseRecipeDeeplink(url);
   const parsedUrl = new URL(url);
   const scheduledJobId = parsedUrl.searchParams.get('scheduledJob') || undefined;
 
-  const existingWindows = BrowserWindow.getAllWindows();
+  // Only reuse tracked chat windows. The launcher and standalone-app windows also
+  // mount AppInner but cannot host a chat session, so a recipe opened into one would
+  // be lost. Fall through to createChat when no chat window exists.
+  const focused = BrowserWindow.getFocusedWindow();
+  const chatWindows = Array.from(windowMap.values());
   const targetWindow =
-    BrowserWindow.getFocusedWindow() ??
-    existingWindows[existingWindows.length - 1] ??
-    existingWindows[0] ??
-    null;
+    (focused && windowMap.has(focused.id) ? focused : chatWindows[chatWindows.length - 1]) ?? null;
 
   if (targetWindow && !targetWindow.isDestroyed() && targetWindow.webContents) {
     if (targetWindow.isMinimized()) {
