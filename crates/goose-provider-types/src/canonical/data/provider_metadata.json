@@ -52,7 +52,7 @@
     "env": [
       "DASHSCOPE_API_KEY"
     ],
-    "model_count": 83
+    "model_count": 84
   },
   {
     "id": "alibaba-coding-plan",
@@ -285,7 +285,7 @@
     "env": [
       "DIGITALOCEAN_ACCESS_TOKEN"
     ],
-    "model_count": 80
+    "model_count": 82
   },
   {
     "id": "dinference",
@@ -362,7 +362,7 @@
     "env": [
       "FRIENDLI_TOKEN"
     ],
-    "model_count": 7
+    "model_count": 6
   },
   {
     "id": "frogbot",
@@ -384,7 +384,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 23
+    "model_count": 25
   },
   {
     "id": "github-models",
@@ -439,7 +439,7 @@
     "env": [
       "HF_TOKEN"
     ],
-    "model_count": 50
+    "model_count": 51
   },
   {
     "id": "iflowcn",
@@ -508,6 +508,17 @@
     "model_count": 61
   },
   {
+    "id": "kenari",
+    "display_name": "Kenari",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://kenari.id/v1",
+    "doc": "https://kenari.id/docs",
+    "env": [
+      "KENARI_API_KEY"
+    ],
+    "model_count": 23
+  },
+  {
     "id": "kilo",
     "display_name": "Kilo Gateway",
     "npm": "@ai-sdk/openai-compatible",
@@ -516,7 +527,7 @@
     "env": [
       "KILO_API_KEY"
     ],
-    "model_count": 345
+    "model_count": 346
   },
   {
     "id": "kimi-for-coding",
@@ -560,7 +571,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 182
+    "model_count": 180
   },
   {
     "id": "llmtr",
@@ -583,6 +594,17 @@
       "LMSTUDIO_API_KEY"
     ],
     "model_count": 3
+  },
+  {
+    "id": "longcat",
+    "display_name": "LongCat",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.longcat.chat/openai",
+    "doc": "https://longcat.chat/platform/docs/",
+    "env": [
+      "LONGCAT_API_KEY"
+    ],
+    "model_count": 1
   },
   {
     "id": "lucidquery",
@@ -836,7 +858,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 74
+    "model_count": 75
   },
   {
     "id": "opencode-go",
@@ -1058,7 +1080,7 @@
     "env": [
       "STEPFUN_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 8
   },
   {
     "id": "stepfun-ai",
@@ -1069,18 +1091,18 @@
     "env": [
       "STEPFUN_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 8
   },
   {
     "id": "subconscious",
     "display_name": "Subconscious",
-    "npm": "@ai-sdk/openai-compatible",
+    "npm": "@ai-sdk/anthropic",
     "api": "https://api.subconscious.dev/v1",
     "doc": "https://docs.subconscious.dev",
     "env": [
       "SUBCONSCIOUS_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 2
   },
   {
     "id": "submodel",
@@ -1116,6 +1138,17 @@
     "model_count": 8
   },
   {
+    "id": "tencent-token-plan",
+    "display_name": "Tencent Token Plan",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.lkeap.cloud.tencent.com/plan/v3",
+    "doc": "https://cloud.tencent.com/document/product/1823/130060",
+    "env": [
+      "TENCENT_TOKEN_PLAN_API_KEY"
+    ],
+    "model_count": 1
+  },
+  {
     "id": "tencent-tokenhub",
     "display_name": "Tencent TokenHub",
     "npm": "@ai-sdk/openai-compatible",
@@ -1124,7 +1157,7 @@
     "env": [
       "TENCENT_TOKENHUB_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 2
   },
   {
     "id": "the-grid-ai",
@@ -1145,6 +1178,17 @@
     "doc": "https://docs.tinfoil.sh",
     "env": [
       "TINFOIL_API_KEY"
+    ],
+    "model_count": 7
+  },
+  {
+    "id": "trustedrouter",
+    "display_name": "TrustedRouter",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.trustedrouter.com/v1",
+    "doc": "https://trustedrouter.com/docs",
+    "env": [
+      "TRUSTEDROUTER_API_KEY"
     ],
     "model_count": 7
   },
@@ -1190,7 +1234,7 @@
     "env": [
       "VIVGRID_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 14
   },
   {
     "id": "vultr",
@@ -1201,7 +1245,7 @@
     "env": [
       "VULTR_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 10
   },
   {
     "id": "wafer.ai",
@@ -1245,7 +1289,7 @@
     "env": [
       "XIAOMI_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 7
   },
   {
     "id": "xiaomi-token-plan-cn",
@@ -1256,7 +1300,7 @@
     "env": [
       "XIAOMI_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 7
   },
   {
     "id": "xiaomi-token-plan-sgp",
@@ -1267,7 +1311,7 @@
     "env": [
       "XIAOMI_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 7
   },
   {
     "id": "xpersona",
@@ -1278,7 +1322,7 @@
     "env": [
       "XPERSONA_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 3
   },
   {
     "id": "zai",
@@ -1322,7 +1366,7 @@
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 112
+    "model_count": 114
   },
   {
     "id": "zhipuai",
