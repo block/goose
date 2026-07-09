@@ -1390,12 +1390,19 @@ pub fn create_request_with_options(
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
+    let is_xai_reasoning = is_xai_reasoning_model(&model_name);
+    // Effort is narrower than temperature omit: classic `grok-4` and several
+    // newer slugs reject `reasoning_effort` even though they are reasoning models.
     let reasoning_effort = if is_reasoning_model {
         model_config
             .thinking_effort()
             .map_or(legacy_reasoning_effort, |effort| {
                 openai_reasoning_effort_for_thinking(&model_name, effort)
             })
+    } else if supports_xai_reasoning_effort(&model_name) {
+        model_config
+            .thinking_effort()
+            .and_then(xai_reasoning_effort_for_thinking)
     } else {
         None
     };
@@ -1426,7 +1433,7 @@ pub fn create_request_with_options(
         payload["tools"] = json!(tools_spec);
     }
 
-    if !is_reasoning_model {
+    if !is_reasoning_model && !is_xai_reasoning {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
@@ -1509,6 +1516,62 @@ pub fn is_openai_responses_model(model_name: &str) -> bool {
     let re =
         RE.get_or_init(|| Regex::new(r"(?i)(?:^|[-/])(?:o\d+(?:$|-)|gpt-5(?:$|[-.]))").unwrap());
     re.is_match(model_name)
+}
+
+/// True for xAI Grok models that perform server-side reasoning and therefore
+/// reject the `temperature` parameter (similar to OpenAI o-series / gpt-5).
+///
+/// This is **not** the same as [`is_openai_responses_model`] — xAI uses the
+/// standard Chat Completions API, not the Responses API, so the system role,
+/// `max_tokens` key, and other Responses-API quirks do not apply.  The only
+/// shared behaviour is that `temperature` must be omitted.
+///
+/// Prefer [`supports_xai_reasoning_effort`] before emitting `reasoning_effort`:
+/// not every temperature-sensitive Grok slug accepts that parameter.
+pub fn is_xai_reasoning_model(model_name: &str) -> bool {
+    let lower = model_name.to_ascii_lowercase();
+    if lower.starts_with("grok-3-mini") {
+        return true;
+    }
+    // grok-4+ (including dotted variants like grok-4.5) are reasoning models,
+    // except for explicit non-reasoning variants.
+    if lower.starts_with("grok-4") {
+        return !lower.contains("non-reasoning") && !lower.contains("non_reasoning");
+    }
+    false
+}
+
+/// True for xAI models that accept the Chat Completions `reasoning_effort`
+/// parameter.
+///
+/// Current xAI docs document `reasoning_effort` for `grok-4.5` (and the
+/// closely related `grok-4.3` migration target). Classic `grok-4` rejects it,
+/// and several current slugs such as `grok-4-1-fast` / `grok-4.20` are not
+/// documented as accepting this Chat Completions field either.
+pub fn supports_xai_reasoning_effort(model_name: &str) -> bool {
+    let lower = model_name.to_ascii_lowercase();
+    if lower.starts_with("grok-3-mini") {
+        return true;
+    }
+    if lower.starts_with("grok-4.5") || lower.starts_with("grok-4.3") {
+        return !lower.contains("non-reasoning") && !lower.contains("non_reasoning");
+    }
+    false
+}
+
+/// Map a [`ThinkingEffort`] to the `reasoning_effort` value xAI accepts.
+///
+/// xAI supports `"low"`, `"medium"`, and `"high"` for models that accept
+/// `reasoning_effort` (see [`supports_xai_reasoning_effort`]).
+/// `"none"` / `"xhigh"` are not used: `Off` omits the parameter entirely so
+/// xAI applies its default, and `Max` clamps to `"high"`.
+pub fn xai_reasoning_effort_for_thinking(effort: ThinkingEffort) -> Option<String> {
+    match effort {
+        ThinkingEffort::Off => None,
+        ThinkingEffort::Low => Some("low".to_string()),
+        ThinkingEffort::Medium => Some("medium".to_string()),
+        ThinkingEffort::High | ThinkingEffort::Max => Some("high".to_string()),
+    }
 }
 
 pub fn openai_reasoning_effort_for_thinking(
@@ -4089,6 +4152,292 @@ data: [DONE]"#;
                 "{model} should not match"
             );
         }
+    }
+
+    #[test]
+    fn test_is_xai_reasoning_model_detects_grok4_and_mini() {
+        for model in [
+            "grok-4-0709",
+            "grok-4-latest",
+            "grok-4.5",
+            "grok-4-fast-reasoning",
+            "grok-4-fast-reasoning-latest",
+            "grok-3-mini",
+            "grok-3-mini-fast",
+            "grok-3-mini-latest",
+        ] {
+            assert!(is_xai_reasoning_model(model), "{model} should be reasoning");
+        }
+    }
+
+    #[test]
+    fn test_is_xai_reasoning_model_excludes_non_reasoning_and_older() {
+        for model in [
+            "grok-4-fast-non-reasoning",
+            "grok-4-fast-non-reasoning-latest",
+            "grok-3",
+            "grok-3-fast",
+            "grok-2",
+            "grok-2-latest",
+            "grok-code-fast-1",
+        ] {
+            assert!(
+                !is_xai_reasoning_model(model),
+                "{model} should not be reasoning"
+            );
+        }
+    }
+
+    #[test]
+    fn test_supports_xai_reasoning_effort_allowlist() {
+        for model in [
+            "grok-4.5",
+            "grok-4.5-latest",
+            "grok-4.3",
+            "grok-3-mini",
+            "grok-3-mini-fast",
+        ] {
+            assert!(
+                supports_xai_reasoning_effort(model),
+                "{model} should accept reasoning_effort"
+            );
+        }
+    }
+
+    #[test]
+    fn test_supports_xai_reasoning_effort_excludes_classic_and_fast_slugs() {
+        for model in [
+            "grok-4",
+            "grok-4-0709",
+            "grok-4-latest",
+            "grok-4-1-fast",
+            "grok-4-1-fast-reasoning",
+            "grok-4-fast-reasoning",
+            "grok-4.20",
+            "grok-4.20-0309-reasoning",
+            "grok-4-fast-non-reasoning",
+            "grok-3",
+            "grok-code-fast-1",
+        ] {
+            assert!(
+                !supports_xai_reasoning_effort(model),
+                "{model} should not accept reasoning_effort"
+            );
+        }
+    }
+
+    #[test]
+    fn test_xai_reasoning_effort_maps_to_supported_values() {
+        use crate::thinking::ThinkingEffort;
+        assert_eq!(xai_reasoning_effort_for_thinking(ThinkingEffort::Off), None);
+        assert_eq!(
+            xai_reasoning_effort_for_thinking(ThinkingEffort::Low),
+            Some("low".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking(ThinkingEffort::Medium),
+            Some("medium".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking(ThinkingEffort::High),
+            Some("high".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking(ThinkingEffort::Max),
+            Some("high".to_string())
+        );
+    }
+
+    #[test]
+    fn test_create_request_omits_temperature_for_xai_reasoning() {
+        let mut model_config = ModelConfig::new("grok-4.5");
+        model_config.temperature = Some(0.0);
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            payload.get("temperature").is_none(),
+            "temperature must be omitted for xAI reasoning models, got: {:?}",
+            payload.get("temperature")
+        );
+    }
+
+    #[test]
+    fn test_create_request_sends_temperature_for_xai_non_reasoning() {
+        let mut model_config = ModelConfig::new("grok-3");
+        model_config.temperature = Some(1.0);
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(payload.get("temperature"), Some(&json!(1.0)));
+    }
+
+    #[test]
+    fn test_create_request_sends_xai_reasoning_effort() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config = ModelConfig::new("grok-4.5")
+            .with_thinking_effort(ThinkingEffort::High)
+            .with_temperature(Some(0.0));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(payload.get("model"), Some(&json!("grok-4.5")));
+        assert_eq!(payload.get("reasoning_effort"), Some(&json!("high")));
+        assert!(
+            payload.get("temperature").is_none(),
+            "temperature must still be omitted when reasoning_effort is set"
+        );
+    }
+
+    #[test]
+    fn test_create_request_maps_xai_medium_effort() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config =
+            ModelConfig::new("grok-4.5").with_thinking_effort(ThinkingEffort::Medium);
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(payload.get("reasoning_effort"), Some(&json!("medium")));
+    }
+
+    #[test]
+    fn test_create_request_omits_xai_reasoning_effort_when_off() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config = ModelConfig::new("grok-4.5").with_thinking_effort(ThinkingEffort::Off);
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            payload.get("reasoning_effort").is_none(),
+            "Off must omit reasoning_effort for xAI, got: {:?}",
+            payload.get("reasoning_effort")
+        );
+    }
+
+    #[test]
+    fn test_create_request_skips_reasoning_effort_for_xai_non_reasoning() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config = ModelConfig::new("grok-4-fast-non-reasoning")
+            .with_thinking_effort(ThinkingEffort::High)
+            .with_temperature(Some(0.7));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            payload.get("reasoning_effort").is_none(),
+            "non-reasoning xAI models must not send reasoning_effort"
+        );
+        assert_eq!(payload.get("temperature"), Some(&json!(0.7_f32)));
+    }
+
+    #[test]
+    fn test_create_request_skips_reasoning_effort_for_classic_grok4() {
+        use crate::thinking::ThinkingEffort;
+
+        // Classic grok-4 rejects reasoning_effort even though temperature must
+        // still be omitted for reasoning variants.
+        let model_config = ModelConfig::new("grok-4-0709")
+            .with_thinking_effort(ThinkingEffort::High)
+            .with_temperature(Some(0.0));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            payload.get("reasoning_effort").is_none(),
+            "classic grok-4 must not send reasoning_effort"
+        );
+        assert!(
+            payload.get("temperature").is_none(),
+            "temperature must still be omitted for classic grok-4 reasoning"
+        );
+    }
+
+    #[test]
+    fn test_create_request_skips_reasoning_effort_for_grok_4_1_fast() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config = ModelConfig::new("grok-4-1-fast-reasoning")
+            .with_thinking_effort(ThinkingEffort::Medium)
+            .with_temperature(Some(0.2));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            payload.get("reasoning_effort").is_none(),
+            "grok-4-1-fast must not send reasoning_effort"
+        );
+        assert!(
+            payload.get("temperature").is_none(),
+            "temperature must still be omitted for grok-4-1-fast-reasoning"
+        );
     }
 
     #[test]

@@ -10,6 +10,12 @@ pub const XAI_DEFAULT_MODEL: &str = "grok-code-fast-1";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
     "grok-code-fast-1",
     "grok-4-0709",
+    "grok-4-latest",
+    "grok-4-fast-reasoning",
+    "grok-4-fast-reasoning-latest",
+    "grok-4-fast-non-reasoning",
+    "grok-4-fast-non-reasoning-latest",
+    "grok-4.5",
     "grok-3",
     "grok-3-fast",
     "grok-3-mini",
@@ -30,16 +36,44 @@ pub const XAI_KNOWN_MODELS: &[&str] = &[
 
 pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
+/// Context window for `grok-4.5` from xAI model docs.
+///
+/// The canonical registry does not yet include `x-ai/grok-4.5`, so
+/// `model_info_for_provider_model` would fall back to `DEFAULT_CONTEXT_LIMIT`
+/// (128k) without this override.
+const GROK_4_5_CONTEXT_LIMIT: usize = 500_000;
+
 pub struct XaiProvider;
+
+/// Known-model metadata for both the API-key and OAuth xAI providers.
+///
+/// Most models resolve context limits via the canonical registry; `grok-4.5`
+/// is overridden until a canonical entry exists.
+pub fn xai_known_model_info() -> Vec<goose_providers::base::ModelInfo> {
+    use goose_providers::base::{model_info_for_provider_model, ModelInfo};
+
+    XAI_KNOWN_MODELS
+        .iter()
+        .map(|&model_name| {
+            if model_name == "grok-4.5" {
+                let mut info = ModelInfo::new(model_name, GROK_4_5_CONTEXT_LIMIT);
+                info.reasoning = true;
+                info
+            } else {
+                model_info_for_provider_model(XAI_PROVIDER_NAME, model_name)
+            }
+        })
+        .collect()
+}
 
 impl goose_providers::base::ProviderDescriptor for XaiProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::with_models(
             XAI_PROVIDER_NAME,
             "xAI",
             "Grok models from xAI, including reasoning and multimodal capabilities",
             XAI_DEFAULT_MODEL,
-            XAI_KNOWN_MODELS.to_vec(),
+            xai_known_model_info(),
             XAI_DOC_URL,
             vec![
                 ConfigKey::new("XAI_API_KEY", true, true, None, true),
@@ -73,5 +107,33 @@ impl ProviderDef for XaiProvider {
                 String::new(),
             ))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose_providers::base::ProviderDescriptor;
+
+    #[test]
+    fn grok_4_5_known_model_uses_documented_context_limit() {
+        let info = xai_known_model_info()
+            .into_iter()
+            .find(|m| m.name == "grok-4.5")
+            .expect("grok-4.5 present in known models");
+        assert_eq!(info.context_limit, GROK_4_5_CONTEXT_LIMIT);
+        assert!(info.reasoning);
+    }
+
+    #[test]
+    fn metadata_includes_grok_4_5_with_context_override() {
+        let metadata = XaiProvider::metadata();
+        let info = metadata
+            .known_models
+            .iter()
+            .find(|m| m.name == "grok-4.5")
+            .expect("grok-4.5 present in provider metadata");
+        assert_eq!(info.context_limit, GROK_4_5_CONTEXT_LIMIT);
+        assert!(info.reasoning);
     }
 }

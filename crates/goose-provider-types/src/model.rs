@@ -1,4 +1,6 @@
-use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
+use crate::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, is_xai_reasoning_model,
+};
 use crate::thinking::ThinkingEffort;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -234,6 +236,7 @@ impl ModelConfig {
         self.is_openai_reasoning_model()
             || self.model_name.to_lowercase().contains("claude")
             || Self::is_gemini3_reasoning_model_name(&self.model_name)
+            || is_xai_reasoning_model(&self.model_name)
     }
 
     fn is_gemini3_reasoning_model_name(model_name: &str) -> bool {
@@ -250,7 +253,7 @@ impl ModelConfig {
     }
 
     pub fn normalize_effort_suffix(&mut self) {
-        if !self.is_openai_reasoning_model() {
+        if !self.is_openai_reasoning_model() && !is_xai_reasoning_model(&self.model_name) {
             return;
         }
         let parts: Vec<&str> = self.model_name.split('-').collect();
@@ -513,6 +516,21 @@ mod tests {
         }
 
         #[test]
+        fn xai_reasoning_effort_suffix_stripped() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_THINKING_EFFORT", None::<&str>),
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_TEMPERATURE", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+                ("GOOSE_TOOLSHIM", None::<&str>),
+                ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ]);
+            let config = ModelConfig::new("grok-4.5-high");
+            assert_eq!(config.model_name, "grok-4.5");
+            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
+        }
+
+        #[test]
         fn parse_aliases() {
             assert_eq!("off".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Off));
             assert_eq!(
@@ -697,6 +715,11 @@ mod tests {
             assert!(ModelConfig::new("o3-mini").is_reasoning_model());
             assert!(ModelConfig::new("claude-sonnet-4").is_reasoning_model());
             assert!(ModelConfig::new("gemini-3-pro").is_reasoning_model());
+            assert!(ModelConfig::new("grok-4.5").is_reasoning_model());
+            assert!(ModelConfig::new("grok-4-0709").is_reasoning_model());
+            assert!(ModelConfig::new("grok-3-mini").is_reasoning_model());
+            assert!(!ModelConfig::new("grok-3").is_reasoning_model());
+            assert!(!ModelConfig::new("grok-4-fast-non-reasoning").is_reasoning_model());
         }
 
         #[test]
