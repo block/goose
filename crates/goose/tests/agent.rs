@@ -2877,10 +2877,12 @@ mod tests {
             }
         }
 
+        /// Runs a reply to completion and returns the messages yielded to the
+        /// caller along with the conversation persisted to the session store.
         async fn run_reply(
             provider: Arc<dyn Provider>,
             session_name: &str,
-        ) -> Result<Vec<Message>> {
+        ) -> Result<(Vec<Message>, Vec<Message>)> {
             let agent = Agent::new();
             let session = agent
                 .config
@@ -2896,6 +2898,7 @@ mod tests {
                 .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
                 .await?;
 
+            let session_id = session.id.clone();
             let session_config = SessionConfig {
                 id: session.id,
                 schedule_id: None,
@@ -2914,7 +2917,17 @@ mod tests {
                     messages.push(m);
                 }
             }
-            Ok(messages)
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+
+            Ok((messages, persisted))
         }
 
         fn concat_text(messages: &[Message]) -> String {
@@ -2929,12 +2942,16 @@ mod tests {
                 .join("\n")
         }
 
+        fn is_empty_assistant(message: &Message) -> bool {
+            message.role == rmcp::model::Role::Assistant && message.content.is_empty()
+        }
+
         /// A transient empty response should be retried and recover, ultimately
         /// delivering the real text response instead of stopping silently.
         #[tokio::test]
         async fn test_empty_turn_retries_then_recovers() -> Result<()> {
             let provider = Arc::new(EmptyThenTextProvider::new(2));
-            let messages = run_reply(provider, "empty-retry-recover").await?;
+            let (messages, persisted) = run_reply(provider, "empty-retry-recover").await?;
 
             let text = concat_text(&messages);
             assert!(
@@ -2945,6 +2962,10 @@ mod tests {
                 !text.contains("empty response"),
                 "should not surface the empty-turn fallback when recovery succeeds: {text:?}"
             );
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "retried empty turns must not be persisted: {persisted:?}"
+            );
             Ok(())
         }
 
@@ -2953,7 +2974,7 @@ mod tests {
         #[tokio::test]
         async fn test_persistent_empty_turn_surfaces_message() -> Result<()> {
             let provider = Arc::new(EmptyThenTextProvider::new(usize::MAX));
-            let messages = run_reply(provider, "empty-persistent").await?;
+            let (messages, persisted) = run_reply(provider, "empty-persistent").await?;
 
             let text = concat_text(&messages);
             assert!(
@@ -2966,6 +2987,10 @@ mod tests {
                 matches!(last.content.first(), Some(MessageContent::Text(_))),
                 "expected the final message to be visible text, got: {:?}",
                 last.content
+            );
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "empty assistant turn must not be persisted alongside the fallback: {persisted:?}"
             );
             Ok(())
         }
