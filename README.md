@@ -20,7 +20,7 @@ _your native open source AI agent — desktop app, CLI, and API — for code, wo
 </div>
 
 
-goose is a generalpurpose AI agent that runs on your machine. Not just for code — use it for research, writing, automation, data analysis, or anything you need to get done.
+goose is a general-purpose AI agent that runs on your machine. Not just for code — use it for research, writing, automation, data analysis, or anything you need to get done.
 
 A native desktop app for macOS, Linux, and Windows. A full CLI for terminal workflows. An API to embed it anywhere. Built in Rust for performance and portability.
 
