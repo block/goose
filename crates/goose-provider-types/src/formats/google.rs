@@ -1,6 +1,7 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::mcp_utils::{decode_blob_as_text, extract_text_from_resource};
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
@@ -145,27 +146,60 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     },
                     MessageContent::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
-                            // MCP marks mime_type optional on blob resources, but
-                            // Gemini has no safe inline representation for an
-                            // untyped binary blob (guessing application/octet-stream
-                            // is rejected as an unsupported MIME). Fail the tool call
-                            // rather than corrupt the next request.
-                            let untyped_blob_uri =
-                                result.content.iter().find_map(|c| match &c.raw {
+                            let mut tool_content = Vec::new();
+                            // Set to the URI of an untyped, non-text blob. MCP marks
+                            // mime_type optional, but Gemini cannot inline a binary
+                            // blob without a supported MIME type, so a truly opaque
+                            // untyped blob fails the whole tool call rather than
+                            // poisoning the next request.
+                            let mut untyped_binary_uri: Option<String> = None;
+
+                            for content in result.content.iter().map(|c| c.raw.clone()) {
+                                match &content {
+                                    // Images and blobs with an explicit MIME type are
+                                    // forwarded to inline_data as attachments.
+                                    RawContent::Image(image) => {
+                                        parts.push(json!({
+                                            "inline_data": {
+                                                "mime_type": image.mime_type,
+                                                "data": image.data,
+                                            }
+                                        }));
+                                    }
                                     RawContent::Resource(embedded) => match &embedded.resource {
                                         ResourceContents::BlobResourceContents {
-                                            uri,
+                                            blob,
                                             mime_type,
+                                            uri,
                                             ..
-                                        } if mime_type.as_deref().unwrap_or("").is_empty() => {
-                                            Some(uri.clone())
-                                        }
-                                        _ => None,
+                                        } => match mime_type.as_deref().filter(|m| !m.is_empty()) {
+                                            Some(mime) => {
+                                                parts.push(json!({
+                                                    "inline_data": {
+                                                        "mime_type": mime,
+                                                        "data": blob,
+                                                    }
+                                                }));
+                                            }
+                                            None => {
+                                                // No MIME type: forward decodable UTF-8
+                                                // blobs as text, otherwise fail the call.
+                                                if decode_blob_as_text(blob).is_some() {
+                                                    tool_content
+                                                        .push(content.clone().no_annotation());
+                                                } else {
+                                                    untyped_binary_uri
+                                                        .get_or_insert_with(|| uri.clone());
+                                                }
+                                            }
+                                        },
+                                        _ => tool_content.push(content.no_annotation()),
                                     },
-                                    _ => None,
-                                });
+                                    _ => tool_content.push(content.no_annotation()),
+                                }
+                            }
 
-                            let mut part = if let Some(uri) = untyped_blob_uri {
+                            let mut part = if let Some(uri) = untyped_binary_uri {
                                 build_function_response_part(
                                     &response.id,
                                     format!(
@@ -174,51 +208,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     ),
                                 )
                             } else {
-                                let mut tool_content = Vec::new();
-                                for content in result.content.iter().map(|c| c.raw.clone()) {
-                                    // Forward images and binary embedded-resource
-                                    // blobs to inline_data by mime type. Other
-                                    // content falls back to text.
-                                    let inline = match &content {
-                                        RawContent::Image(image) => {
-                                            Some((image.mime_type.clone(), image.data.clone()))
-                                        }
-                                        RawContent::Resource(embedded) => {
-                                            match &embedded.resource {
-                                                ResourceContents::BlobResourceContents {
-                                                    blob,
-                                                    mime_type,
-                                                    ..
-                                                } => mime_type
-                                                    .clone()
-                                                    .filter(|m| !m.is_empty())
-                                                    .map(|mime_type| (mime_type, blob.clone())),
-                                                _ => None,
-                                            }
-                                        }
-                                        _ => None,
-                                    };
-                                    if let Some((mime_type, data)) = inline {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": mime_type,
-                                                "data": data,
-                                            }
-                                        }));
-                                    } else {
-                                        tool_content.push(content.no_annotation());
-                                    }
-                                }
                                 let mut text = tool_content
                                     .iter()
                                     .filter_map(|c| match c.deref() {
                                         RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(raw_embedded_resource) => Some(
-                                            raw_embedded_resource
-                                                .clone()
-                                                .no_annotation()
-                                                .get_text(),
-                                        ),
+                                        RawContent::Resource(raw_embedded_resource) => {
+                                            Some(extract_text_from_resource(
+                                                &raw_embedded_resource.resource,
+                                            ))
+                                        }
                                         _ => None,
                                     })
                                     .collect::<Vec<_>>()
@@ -939,14 +937,17 @@ mod tests {
 
     #[test]
     fn test_tool_result_blob_without_mime_type_fails_tool_call() {
+        use base64::Engine;
         use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
 
-        // MCP allows an absent mime_type, but Gemini cannot inline an untyped
-        // binary blob, so the tool call must fail rather than default the MIME.
+        // A binary (non-UTF-8) blob with no mime_type cannot be inlined or decoded
+        // to text, so the tool call must fail rather than default the MIME.
+        let binary: Vec<u8> = vec![0xFF, 0xFE, 0x00, 0x01];
+        let blob_b64 = base64::engine::general_purpose::STANDARD.encode(&binary);
         let resource = ResourceContents::BlobResourceContents {
             uri: "file:///opaque.bin".to_string(),
             mime_type: None,
-            blob: "aGVsbG8=".to_string(),
+            blob: blob_b64,
             meta: None,
         };
         let blob = RawContent::Resource(RawEmbeddedResource {
@@ -968,6 +969,39 @@ mod tests {
         assert!(text.starts_with("Error:"), "unexpected text: {text}");
         assert!(text.contains("file:///opaque.bin"));
         assert!(text.contains("MIME type"));
+    }
+
+    #[test]
+    fn test_tool_result_untyped_text_blob_forwarded_as_text() {
+        use base64::Engine;
+        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
+
+        // A blob that omits its optional mime_type but decodes to UTF-8 text is
+        // forwarded as the tool result text rather than failing the call.
+        let blob_b64 =
+            base64::engine::general_purpose::STANDARD.encode("hello from tool".as_bytes());
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///notes.txt".to_string(),
+            mime_type: None,
+            blob: blob_b64,
+            meta: None,
+        };
+        let blob = RawContent::Resource(RawEmbeddedResource {
+            resource,
+            meta: None,
+        })
+        .no_annotation();
+
+        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
+        let payload = format_messages(&messages);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
+        assert!(payload[0]["parts"][0].get("inline_data").is_none());
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "hello from tool"
+        );
     }
 
     #[test]
