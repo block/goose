@@ -54,7 +54,7 @@ export async function answerQuestion({
       stopWhen: stepCountIs(MAX_STEPS),
     });
 
-    for await (const event of result.fullStream) {
+    for await (const event of result.stream) {
       if (event.type === "tool-call") {
         if (statusMessage) {
           try {
