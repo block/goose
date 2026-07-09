@@ -1317,7 +1317,7 @@ mod tests {
 
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
+        let mut model_config = ModelConfig::new("databricks-claude-sonnet-4.5");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1342,7 +1342,7 @@ mod tests {
             ("high", 16000),
             ("max", 32000),
         ] {
-            let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
+            let mut model_config = ModelConfig::new("databricks-claude-sonnet-4.5");
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
@@ -1361,7 +1361,7 @@ mod tests {
     #[test]
     fn test_response_to_message_claude_thinking() -> anyhow::Result<()> {
         let response = json!({
-            "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
             "choices": [{
                 "message": {
                     "role": "assistant",
@@ -1409,7 +1409,7 @@ mod tests {
     #[test]
     fn test_response_to_message_claude_encrypted_thinking() -> anyhow::Result<()> {
         let response = json!({
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-5-20250929",
             "choices": [{
                 "message": {
                     "role": "assistant",
@@ -1554,7 +1554,7 @@ mod tests {
     #[test]
     fn test_is_claude_model() {
         assert!(is_claude_model("databricks-claude-sonnet-4"));
-        assert!(is_claude_model("databricks-claude-3-7-sonnet"));
+        assert!(is_claude_model("databricks-claude-sonnet-4.5"));
         assert!(is_claude_model("claude-sonnet-4"));
         assert!(is_claude_model("goose-claude-sonnet"));
         assert!(!is_claude_model("gpt-4o"));

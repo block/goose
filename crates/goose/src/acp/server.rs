@@ -2072,6 +2072,23 @@ fn send_status_message_update(
     Ok(())
 }
 
+fn send_progress_message_update(
+    cx: &ConnectionTo<Client>,
+    supports_goose_custom_notifications: bool,
+    session_id: &str,
+    message: String,
+) -> Result<(), agent_client_protocol::Error> {
+    if supports_goose_custom_notifications {
+        cx.send_notification(GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                status: StatusMessage::Progress { message },
+            }),
+        })?;
+    }
+    Ok(())
+}
+
 fn status_message_from_system_notification(
     notification: &SystemNotificationContent,
 ) -> Option<StatusMessage> {
@@ -2079,9 +2096,11 @@ fn status_message_from_system_notification(
         SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
             message: notification.msg.clone(),
         }),
-        SystemNotificationType::ThinkingMessage => Some(StatusMessage::Progress {
-            message: notification.msg.clone(),
-        }),
+        SystemNotificationType::ThinkingMessage | SystemNotificationType::ProgressMessage => {
+            Some(StatusMessage::Progress {
+                message: notification.msg.clone(),
+            })
+        }
         SystemNotificationType::CreditsExhausted => None,
     }
 }
@@ -2482,6 +2501,44 @@ impl GooseAcpAgent {
         ))
     }
 
+    async fn send_local_inference_progress_update(
+        &self,
+        cx: &ConnectionTo<Client>,
+        acp_session_id: &SessionId,
+        session_id: &str,
+        agent: &Arc<Agent>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let Ok(provider) = agent.provider().await else {
+            return Ok(());
+        };
+        if provider.get_name() != "local" {
+            return Ok(());
+        }
+
+        let model_config = agent.model_config_for_session(session_id).await.ok();
+        let model_name = model_config
+            .as_ref()
+            .map(|config| config.model_name.clone())
+            .unwrap_or_else(|| "local model".to_string());
+
+        #[cfg(feature = "local-inference")]
+        if let Some(model_config) = model_config.as_ref() {
+            if crate::providers::local_inference::is_model_loaded(&model_config.model_name)
+                .await
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+        }
+
+        send_progress_message_update(
+            cx,
+            self.supports_goose_custom_notifications(),
+            acp_session_id.0.as_ref(),
+            format!("Loading local model {model_name}..."),
+        )
+    }
+
     async fn on_load_session(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2521,6 +2578,15 @@ impl GooseAcpAgent {
 
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
             self.clear_active_run(&session_id, &run_id).await;
+            return Err(error);
+        }
+
+        if let Err(error) = self
+            .send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+            .await
+        {
+            self.clear_active_run(&session_id, &run_id).await;
+            let _ = Self::send_active_run_update(cx, &args.session_id, None);
             return Err(error);
         }
 
@@ -2990,7 +3056,11 @@ impl GooseAcpAgent {
                 .get_goose_model()
                 .internal_err_ctx("Failed to resolve default model from config")?
         } else if is_changing_provider {
-            ACP_CURRENT_MODEL.to_string()
+            crate::providers::get_from_registry(&resolved_provider_name)
+                .await
+                .ok()
+                .map(|entry| entry.metadata().default_model.clone())
+                .unwrap_or(ACP_CURRENT_MODEL.to_string())
         } else {
             current_model
         };
@@ -3128,7 +3198,6 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
-            scheduler: None,
         },
     );
     let agent = server.create_agent().await?;

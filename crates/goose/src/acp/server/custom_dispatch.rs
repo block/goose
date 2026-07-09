@@ -875,6 +875,14 @@ impl GooseAcpAgent {
         self.on_local_inference_model_delete(req).await
     }
 
+    #[custom_method(LocalInferenceModelEvictRequest)]
+    async fn dispatch_local_inference_model_evict(
+        &self,
+        req: LocalInferenceModelEvictRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_evict(req).await
+    }
+
     #[custom_method(LocalInferenceModelSettingsReadRequest)]
     async fn dispatch_local_inference_model_settings_read(
         &self,

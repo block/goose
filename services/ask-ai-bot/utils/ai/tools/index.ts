@@ -117,7 +117,7 @@ export const aiTools = {
       filePaths: z
         .union([z.string(), z.array(z.string())])
         .describe(
-          "Path or array of paths to source files relative to the repo root (example: 'crates/goose/src/agents/agent.rs' or ['ui/desktop/src/main.ts', 'crates/goose-server/src/main.rs'])",
+          "Path or array of paths to source files relative to the repo root (example: 'crates/goose/src/agents/agent.rs' or ['ui/desktop/src/main.ts', 'crates/goose/src/acp/server.rs'])",
         ),
       startLine: z
         .number()

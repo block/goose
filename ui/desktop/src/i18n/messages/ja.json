@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "注目モデル"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "モデル設定"
@@ -4028,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "チャット"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部バックエンド"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"
   },
@@ -4039,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "プロンプト"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "セッション"
   },
   "settingsView.title": {
     "defaultMessage": "設定"

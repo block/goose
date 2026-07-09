@@ -68,7 +68,7 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
-const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
@@ -1769,8 +1769,8 @@ impl Agent {
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
-                        SystemNotificationType::ThinkingMessage,
-                        COMPACTION_THINKING_TEXT,
+                        SystemNotificationType::ProgressMessage,
+                        COMPACTION_PROGRESS_TEXT,
                     )
                 );
 
@@ -2060,6 +2060,17 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
+                                if !response.content.is_empty()
+                                    && response
+                                    .content
+                                    .iter()
+                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                {
+                                    yield AgentEvent::Message(response);
+                                    tokio::task::yield_now().await;
+                                    continue;
+                                }
+
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -2427,8 +2438,8 @@ impl Agent {
                             );
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    COMPACTION_THINKING_TEXT,
+                                    SystemNotificationType::ProgressMessage,
+                                    COMPACTION_PROGRESS_TEXT,
                                 )
                             );
 
@@ -2886,7 +2897,7 @@ impl Agent {
             .or_else(|| config.get_goose_provider().ok())
             .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
 
-        let model_config = match session.model_config.clone() {
+        let mut model_config = match session.model_config.clone() {
             Some(saved_config) => saved_config,
             None => {
                 let model_name = config
@@ -2897,6 +2908,20 @@ impl Agent {
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
+
+        // if the saved model is the ACP sentinel "current", only preserve this if the provider
+        // uses this sentinel to indicate it's an ACP provider that manages its model
+        if model_config.model_name == crate::acp::ACP_CURRENT_MODEL {
+            if let Ok(entry) = crate::providers::get_from_registry(&provider_name).await {
+                if entry.metadata().default_model != crate::acp::ACP_CURRENT_MODEL {
+                    model_config = crate::model_config::model_config_from_user_config(
+                        &provider_name,
+                        &entry.metadata().default_model,
+                    )
+                    .map_err(|e| anyhow!("Could not resolve default model: {}", e))?;
+                }
+            }
+        }
 
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);

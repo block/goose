@@ -253,6 +253,7 @@ pub struct FrontendToolRequest {
 #[serde(rename_all = "camelCase")]
 pub enum SystemNotificationType {
     ThinkingMessage,
+    ProgressMessage,
     InlineMessage,
     CreditsExhausted,
 }

@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "विशेष रुप से प्रदर्शित मॉडल"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "मॉडल खोजते और डाउनलोड करते समय दर सीमा बढ़ाने के लिए और निजी या गेटेड हगिंग फेस रिपॉजिटरी तक पहुंचने के लिए साइन इन करें।"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "मॉडल Settings"
@@ -4028,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "बातचीत"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "बाहरी बैकएंड"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"
   },
@@ -4039,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "संकेत"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "सत्र"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"

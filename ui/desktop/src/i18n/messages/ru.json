@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloadProgress": {
     "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Войдите, чтобы увеличить лимиты запросов при поиске и загрузке моделей, а также получить доступ к приватным или ограниченным репозиториям Hugging Face."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Настройки модели"
@@ -4028,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Чат"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Внешний бэкенд"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Клавиатура"
   },
@@ -4039,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Промпты"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Сеанс"
   },
   "settingsView.title": {
     "defaultMessage": "Настройки"

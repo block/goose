@@ -430,6 +430,22 @@ pub fn register_declarative_provider(
                             huggingface_declarative_inventory_configured(&cfg)
                         },
                     );
+            } else if crate::providers::ollama_cloud::OllamaCloudProvider::matches_declarative_config(&config) {
+                registry.register_with_name::<crate::providers::ollama_cloud::OllamaCloudProvider, _, _>(
+                    &config,
+                    provider_type,
+                    config.dynamic_models.unwrap_or(false),
+                    move |tls_config| {
+                        let mut cfg = captured.clone();
+                        resolve_config(&mut cfg)?;
+                        crate::providers::ollama_cloud::OllamaCloudProvider::from_custom_config(cfg, tls_config)
+                    },
+                    move || {
+                        let mut cfg = identity_config.clone();
+                        resolve_config(&mut cfg)?;
+                        declarative_inventory_identity(&cfg)
+                    },
+                );
             } else {
                 registry.register_with_name::<OpenAiProviderDef, _, _>(
                     &config,

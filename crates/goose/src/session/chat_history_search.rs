@@ -293,7 +293,7 @@ impl<'a> ChatHistorySearch<'a> {
             )
             .collect();
 
-        results.sort_by(|a, b| b.last_activity.cmp(&a.last_activity));
+        results.sort_by_key(|result| std::cmp::Reverse(result.last_activity));
 
         let total_matches = results.iter().map(|r| r.messages.len()).sum();
         ChatRecallResults {

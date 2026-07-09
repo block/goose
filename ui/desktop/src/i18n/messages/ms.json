@@ -1736,11 +1736,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Memuat turun"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Pilihan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Log masuk untuk meningkatkan had kadar semasa mencari dan memuat turun model, dan untuk mengakses repositori Hugging Face peribadi atau berpagar."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Tetapan Model"
@@ -4028,6 +4034,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Sembang"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Luaran"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Papan Kekunci"
   },
@@ -4039,9 +4048,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Gesaan"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
   },
   "settingsView.title": {
     "defaultMessage": "Tetapan"

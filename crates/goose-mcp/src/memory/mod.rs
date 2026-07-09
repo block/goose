@@ -194,7 +194,7 @@ impl MemoryServer {
                     let category_memories = self.retrieve(&category, is_global, working_dir)?;
                     memories.insert(
                         category,
-                        category_memories.into_iter().flat_map(|(_, v)| v).collect(),
+                        category_memories.into_values().flatten().collect(),
                     );
                 }
             }
