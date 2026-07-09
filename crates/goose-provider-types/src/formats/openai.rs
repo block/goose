@@ -526,7 +526,10 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                 .is_some_and(|a| !a.is_empty());
         let base_reasoning = messages[i].get("reasoning_content");
 
-        if !is_assistant_tool_call || base_reasoning.is_none() {
+        if !is_assistant_tool_call
+            || base_reasoning.is_none()
+            || base_reasoning.is_some_and(|v| v.is_null())
+        {
             i += 1;
             continue;
         }
@@ -3366,7 +3369,11 @@ data: [DONE]"#;
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["role"], "user");
         assert_eq!(spec[1]["role"], "assistant");
-        assert!(spec[1].get("reasoning_content").is_none());
+        // reasoning_content is set to null on tool-call-only messages so
+        // DeepSeek thinking mode doesn't reject the request (the field must
+        // be present). It does NOT carry the stale thinking from the previous
+        // assistant message.
+        assert!(spec[1].get("reasoning_content").is_none_or(|v| v.is_null()));
 
         Ok(())
     }
