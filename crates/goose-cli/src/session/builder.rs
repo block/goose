@@ -1,7 +1,7 @@
 use crate::cli::StreamableHttpOptions;
 
-use super::output;
 use super::CliSession;
+use super::output;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
@@ -9,8 +9,8 @@ use goose::config::{Config, ExtensionConfig, GooseMode};
 use goose::model_config::model_config_from_user_config;
 use goose::providers::create;
 use goose::recipe::Recipe;
-use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
+use goose::session::session_manager::SessionType;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -527,6 +527,35 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let recipe = session_config.recipe.as_ref();
 
+    if let Some(recipe) = recipe {
+        let warnings = recipe.get_security_warnings();
+        if !warnings.is_empty() {
+            eprintln!(
+                "{} Security warnings found in recipe '{}':",
+                style("WARNING:").yellow(),
+                recipe.title
+            );
+            for warning in &warnings {
+                eprintln!("  - {}", style(warning).red());
+            }
+
+            let proceed = cliclack::confirm(
+                "This recipe may run commands on your system. Do you want to proceed?",
+            )
+            .initial_value(false)
+            .interact()
+            .unwrap_or(false);
+
+            if !proceed {
+                eprintln!(
+                    "{} Recipe execution cancelled by user.",
+                    style("Error:").red()
+                );
+                process::exit(1);
+            }
+        }
+    }
+
     agent
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
@@ -595,24 +624,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                     ),
                     Err(e2) => {
                         output::render_error(&format!(
-                        "Error {}.\n\
+                            "Error {}.\n\
                         Please check your system keychain and run 'goose configure' again.\n\
                         If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                         For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
-                        e2
-                    ));
+                            e2
+                        ));
                         process::exit(1);
                     }
                 }
             }
             Err(e) => {
                 output::render_error(&format!(
-                "Error {}.\n\
+                    "Error {}.\n\
                 Please check your system keychain and run 'goose configure' again.\n\
                 If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                 For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
-                e
-            ));
+                    e
+                ));
                 process::exit(1);
             }
         };
