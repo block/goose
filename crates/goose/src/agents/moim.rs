@@ -439,7 +439,7 @@ mod tests {
         }
 
         #[test]
-        fn current_time_includes_utc_offset() {
+        fn current_time_is_timezone_aware() {
             let block = moim(None, None, 0, 0, vec![]);
             let time_line = block
                 .lines()
@@ -450,14 +450,8 @@ mod tests {
                 .trim_start_matches(&format!("<{CURRENT_TIME_TAG}>"))
                 .trim_end_matches(&format!("</{CURRENT_TIME_TAG}>"));
 
-            let offset = value.rsplit(' ').next().unwrap();
-            assert!(
-                (offset.starts_with('+') || offset.starts_with('-'))
-                    && offset.contains(':')
-                    && offset.len() == 6,
-                "current-time must carry a numeric UTC offset so the timezone is unambiguous, \
-                 got: {value:?}"
-            );
+            chrono::DateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S %:z")
+                .expect("current-time should include a numeric UTC offset");
         }
     }
 }
