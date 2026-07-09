@@ -131,6 +131,101 @@ fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
     )
 }
 
+/// Truncate `s` to at most `max_chars` characters, appending `...` if cut.
+fn truncate_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}...")
+    }
+}
+
+/// Build a compact summary of this turn's tool calls + results for the Stop
+/// hook payload (see `HookContext::tool_trace`): tool name, a short rendering
+/// of its arguments, and ok/err with a truncated result snippet. Only tool
+/// requests made after `pre_turn_tool_count` prior requests are included, so
+/// earlier turns' tool calls are excluded. Overall size is capped by
+/// `HookContext::with_tool_trace`.
+fn build_tool_trace(conversation: &Conversation, pre_turn_tool_count: usize) -> Option<String> {
+    let mut seen_requests = 0usize;
+    let mut this_turn_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut lines: Vec<String> = Vec::new();
+
+    for message in conversation.messages() {
+        for content in &message.content {
+            match content {
+                MessageContent::ToolRequest(req) => {
+                    seen_requests += 1;
+                    if seen_requests > pre_turn_tool_count {
+                        this_turn_ids.insert(req.id.clone());
+                        let call_desc = match &req.tool_call {
+                            Ok(call) => format!(
+                                "{}({})",
+                                call.name,
+                                call.arguments
+                                    .as_ref()
+                                    .map(|a| serde_json::Value::Object(a.clone()).to_string())
+                                    .unwrap_or_default()
+                            ),
+                            Err(e) => format!("<invalid tool call: {e}>"),
+                        };
+                        lines.push(format!("-> {}", truncate_str(&call_desc, 200)));
+                    }
+                }
+                MessageContent::ToolResponse(resp) if this_turn_ids.contains(&resp.id) => {
+                    let outcome = match &resp.tool_result {
+                        Ok(result) => {
+                            let text = result
+                                .content
+                                .iter()
+                                .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            if text.is_empty() {
+                                "ok".to_string()
+                            } else {
+                                format!("ok: {}", truncate_str(&text, 200))
+                            }
+                        }
+                        Err(e) => format!("err: {}", truncate_str(&e.to_string(), 200)),
+                    };
+                    lines.push(format!("<- {outcome}"));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
+/// Build the agent-visible-only message that injects hook advisory text
+/// (non-blocking `additionalContext`, or a `warn` decision's reason) into the
+/// conversation. Returns `None` if there's nothing to inject, so callers can
+/// skip adding an empty message — backward compatible with hooks that don't
+/// use this shape.
+fn advisory_context_message(texts: &[String]) -> Option<Message> {
+    let joined = texts
+        .iter()
+        .filter(|t| !t.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if joined.is_empty() {
+        return None;
+    }
+    Some(
+        Message::user()
+            .with_text(format!("Context from a hook:\n\n{joined}"))
+            .with_visibility(false, true),
+    )
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -448,22 +543,36 @@ impl Agent {
         session_id: &str,
         last_assistant_message: &str,
         working_dir: &str,
+        tool_trace: Option<&str>,
     ) -> crate::hooks::HookContext {
-        crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
+        let ctx = crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
             .with_last_assistant_message(last_assistant_message.to_string())
-            .with_working_dir(working_dir.to_string())
+            .with_working_dir(working_dir.to_string());
+        match tool_trace {
+            Some(trace) => ctx.with_tool_trace(trace.to_string()),
+            None => ctx,
+        }
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str, working_dir: &str) {
+    /// Fire the non-blocking Stop hook. Returns any `additionalContext`
+    /// strings emitted by hooks (see `HookManager::emit`) so the caller can
+    /// inject them into the model's context for the next turn.
+    async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+        tool_trace: Option<&str>,
+    ) -> Vec<String> {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
-            return;
+            return Vec::new();
         }
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir, tool_trace),
             )
-            .await;
+            .await
     }
 
     async fn emit_stop_hook_blocking(
@@ -471,11 +580,12 @@ impl Agent {
         session_id: &str,
         last_assistant_message: &str,
         working_dir: &str,
-    ) -> crate::hooks::HookDecision {
+        tool_trace: Option<&str>,
+    ) -> crate::hooks::HookBlockingResult {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir, tool_trace),
             )
             .await
     }
@@ -1087,6 +1197,7 @@ impl Agent {
                 .hook_manager
                 .emit_blocking(crate::hooks::HookEvent::PreToolUse, ctx)
                 .await
+                .decision
             {
                 return (
                     request_id,
@@ -1604,7 +1715,7 @@ impl Agent {
                 .await;
         }
 
-        if self
+        let user_prompt_submit_context = if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
         {
@@ -1615,8 +1726,10 @@ impl Agent {
             .with_message(message_text.clone());
             self.hook_manager
                 .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                .await;
-        }
+                .await
+        } else {
+            Vec::new()
+        };
 
         let command_result = self
             .execute_command(&message_text, &session_config.id)
@@ -1726,6 +1839,13 @@ impl Agent {
                     .await?;
             }
         }
+
+        if let Some(message) = advisory_context_message(&user_prompt_submit_context) {
+            session_manager
+                .add_message(&session_config.id, &message)
+                .await?;
+        }
+
         let session = session_manager
             .get_session(&session_config.id, true)
             .await?;
@@ -1928,7 +2048,7 @@ impl Agent {
                 if can_drain_pending_steers {
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = message.as_concat_text();
-                        if self
+                        let additional_context = if self
                             .hook_manager
                             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
                         {
@@ -1939,11 +2059,18 @@ impl Agent {
                             .with_message(message_text);
                             self.hook_manager
                                 .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                                .await;
-                        }
+                                .await
+                        } else {
+                            Vec::new()
+                        };
                         session_manager.add_message(&session_config.id, &message).await?;
                         conversation.push(message.clone());
                         yield AgentEvent::Message(message);
+                        if let Some(context_message) = advisory_context_message(&additional_context) {
+                            session_manager.add_message(&session_config.id, &context_message).await?;
+                            conversation.push(context_message.clone());
+                            yield AgentEvent::Message(context_message);
+                        }
                     }
                 }
 
@@ -1958,11 +2085,17 @@ impl Agent {
                     session_manager.add_message(&session_config.id, &message).await?;
                     conversation.push(message);
 
-                    match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
-                        .await
-                    {
+                    let tool_trace = build_tool_trace(&conversation, pre_turn_tool_count);
+                    let hook_result = self
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy(), tool_trace.as_deref())
+                        .await;
+                    match hook_result.decision {
                         crate::hooks::HookDecision::Allow => {
+                            if let Some(message) = advisory_context_message(&hook_result.advisories) {
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                conversation.push(message.clone());
+                                yield AgentEvent::Message(message);
+                            }
                             stop_hook_handled_for_exit = true;
                             break;
                         }
@@ -2707,11 +2840,17 @@ impl Agent {
                 }
 
                 if exit_chat {
-                    match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
-                        .await
-                    {
+                    let tool_trace = build_tool_trace(&conversation, pre_turn_tool_count);
+                    let hook_result = self
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy(), tool_trace.as_deref())
+                        .await;
+                    match hook_result.decision {
                         crate::hooks::HookDecision::Allow => {
+                            if let Some(message) = advisory_context_message(&hook_result.advisories) {
+                                session_manager.add_message(&session_config.id, &message).await?;
+                                conversation.push(message.clone());
+                                yield AgentEvent::Message(message);
+                            }
                             stop_hook_handled_for_exit = true;
                             break;
                         }
@@ -2741,7 +2880,15 @@ impl Agent {
             }
 
             if !stop_hook_handled_for_exit {
-                self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
+                let tool_trace = build_tool_trace(&conversation, pre_turn_tool_count);
+                let additional_context = self
+                    .emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy(), tool_trace.as_deref())
+                    .await;
+                if let Some(message) = advisory_context_message(&additional_context) {
+                    session_manager.add_message(&session_config.id, &message).await?;
+                    conversation.push(message.clone());
+                    yield AgentEvent::Message(message);
+                }
             }
         }.instrument(reply_stream_span));
         Ok(inner)

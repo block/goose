@@ -169,7 +169,18 @@ pub struct HookContext {
     pub last_assistant_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
+    /// Compact summary of the turn's tool calls + results (tool name, short
+    /// args, ok/err or a truncated result), populated on `Stop` so a hook can
+    /// verify the assistant's claims against what actually ran. Capped at
+    /// [`MAX_TOOL_TRACE_BYTES`] by [`Self::with_tool_trace`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_trace: Option<String>,
 }
+
+/// Hard cap on `tool_trace` length. Hook scripts receive this over stdin;
+/// keeping it bounded avoids passing pathologically large payloads to child
+/// processes.
+const MAX_TOOL_TRACE_BYTES: usize = 16 * 1024;
 
 impl HookContext {
     pub fn new(event: HookEvent, session_id: impl Into<String>) -> Self {
@@ -183,6 +194,7 @@ impl HookContext {
             message: None,
             last_assistant_message: None,
             working_dir: None,
+            tool_trace: None,
         }
     }
 
@@ -218,12 +230,40 @@ impl HookContext {
         self.working_dir = Some(dir.into());
         self
     }
+
+    /// Attach a compact tool-execution trace for this turn, truncating to
+    /// [`MAX_TOOL_TRACE_BYTES`] (on a UTF-8 boundary) if needed.
+    pub fn with_tool_trace(mut self, trace: impl Into<String>) -> Self {
+        let trace = trace.into();
+        let capped = if trace.len() > MAX_TOOL_TRACE_BYTES {
+            let mut end = MAX_TOOL_TRACE_BYTES;
+            while end > 0 && !trace.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}...[truncated]", &trace[..end])
+        } else {
+            trace
+        };
+        self.tool_trace = Some(capped);
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HookDecision {
     Allow,
     Deny { reason: String, plugin: String },
+}
+
+/// Result of [`HookManager::emit_blocking`]: the allow/deny decision, plus any
+/// advisory text collected along the way — from a `{"decision":"warn",...}`
+/// response — that should be injected into the model's context (via the same
+/// path as [`HookManager::emit`]'s `additionalContext`) when the turn is
+/// allowed to proceed. A warn never denies; it's advise-and-continue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HookBlockingResult {
+    pub decision: HookDecision,
+    pub advisories: Vec<String>,
 }
 
 /// Loads and executes plugin hooks.
@@ -292,19 +332,27 @@ impl HookManager {
     /// Fire all rules whose matcher matches the event context. Errors from
     /// individual hooks are logged but never propagated — a misbehaving hook
     /// MUST NOT crash the host tool.
-    pub async fn emit(&self, event: HookEvent, ctx: HookContext) {
+    ///
+    /// Returns any non-empty `additionalContext` strings emitted by hooks via
+    /// `{"hookSpecificOutput": {"additionalContext": "..."}}` on stdout, so
+    /// callers can inject them into the model's context. This is purely
+    /// additive: hooks that print nothing, or stdout that doesn't match this
+    /// shape, yield nothing here and behave exactly as before.
+    pub async fn emit(&self, event: HookEvent, ctx: HookContext) -> Vec<String> {
+        let mut injected = Vec::new();
+
         let Some(rules) = self.rules.get(&event) else {
-            return;
+            return injected;
         };
         if rules.is_empty() {
-            return;
+            return injected;
         }
 
         let payload = match serde_json::to_string(&ctx) {
             Ok(s) => s,
             Err(err) => {
                 warn!(event = %event, error = %err, "Failed to serialize hook context");
-                return;
+                return injected;
             }
         };
 
@@ -324,7 +372,7 @@ impl HookManager {
                     command = %command,
                     "Running plugin hook",
                 );
-                let res = run_command_hook(
+                let output = match run_command_hook(
                     command,
                     &rule.plugin_root,
                     &payload,
@@ -332,45 +380,67 @@ impl HookManager {
                     self.use_login_shell_path,
                 )
                 .await
-                .and_then(|o| {
-                    if o.status.success() {
-                        Ok(())
-                    } else {
-                        anyhow::bail!(
-                            "hook `{command}` exited with {:?}: {}",
-                            o.status.code(),
-                            String::from_utf8_lossy(&o.stderr).trim()
-                        )
+                {
+                    Ok(o) => o,
+                    Err(err) => {
+                        warn!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            error = %err,
+                            "Plugin hook failed",
+                        );
+                        continue;
                     }
-                });
-                if let Err(err) = res {
+                };
+
+                if !output.status.success() {
                     warn!(
                         plugin = %rule.plugin_name,
                         event = %event,
                         command = %command,
-                        error = %err,
+                        status = ?output.status.code(),
+                        stderr = %String::from_utf8_lossy(&output.stderr).trim(),
                         "Plugin hook failed",
                     );
+                    continue;
+                }
+
+                if let Some(context) = additional_context_from_output(&output) {
+                    injected.push(context);
                 }
             }
         }
+
+        injected
     }
 
     /// Like [`Self::emit`], but stops at the first rule that denies the event
     /// and returns the denial. A hook denies by exiting with status code 2
     /// (reason on stderr) or by printing `{"decision":"block","reason":"..."}`
-    /// to stdout. All other failures (spawn, timeout, other non-zero exits)
-    /// are logged and treated as Allow — a misbehaving hook MUST NOT block.
-    pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookDecision {
+    /// to stdout. A hook may instead *advise* without denying by printing
+    /// `{"decision":"warn","reason":"..."}`: the reason is collected into
+    /// `advisories` and the turn proceeds. All other failures (spawn,
+    /// timeout, other non-zero exits) are logged and treated as Allow — a
+    /// misbehaving hook MUST NOT block.
+    pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookBlockingResult {
+        let mut advisories = Vec::new();
+
         let Some(rules) = self.rules.get(&event) else {
-            return HookDecision::Allow;
+            return HookBlockingResult {
+                decision: HookDecision::Allow,
+                advisories,
+            };
         };
 
         let payload = match serde_json::to_string(&ctx) {
             Ok(s) => s,
             Err(err) => {
                 warn!(event = %event, error = %err, "Failed to serialize hook context");
-                return HookDecision::Allow;
+                return HookBlockingResult {
+                    decision: HookDecision::Allow,
+                    advisories,
+                };
             }
         };
 
@@ -406,33 +476,58 @@ impl HookManager {
                     }
                 };
 
-                if let Some(reason) = deny_reason(&output) {
-                    info!(
-                        plugin = %rule.plugin_name,
-                        event = %event,
-                        command = %command,
-                        reason = %reason,
-                        "Plugin hook denied tool call",
-                    );
-                    return HookDecision::Deny {
-                        reason,
-                        plugin: rule.plugin_name.clone(),
-                    };
+                match hook_response(&output) {
+                    Some(HookResponse::Deny(reason)) => {
+                        info!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            reason = %reason,
+                            "Plugin hook denied tool call",
+                        );
+                        return HookBlockingResult {
+                            decision: HookDecision::Deny {
+                                reason,
+                                plugin: rule.plugin_name.clone(),
+                            },
+                            advisories,
+                        };
+                    }
+                    Some(HookResponse::Warn(reason)) => {
+                        info!(
+                            plugin = %rule.plugin_name,
+                            event = %event,
+                            command = %command,
+                            reason = %reason,
+                            "Plugin hook advised (warn)",
+                        );
+                        advisories.push(reason);
+                    }
+                    None => {}
                 }
             }
         }
 
-        HookDecision::Allow
+        HookBlockingResult {
+            decision: HookDecision::Allow,
+            advisories,
+        }
     }
 }
 
-fn deny_reason(output: &std::process::Output) -> Option<String> {
+/// A hook's parsed stdout decision: either a denial or a non-blocking advisory.
+enum HookResponse {
+    Deny(String),
+    Warn(String),
+}
+
+fn hook_response(output: &std::process::Output) -> Option<HookResponse> {
     const DEFAULT: &str = "denied by plugin hook";
     let non_empty = |s: String| if s.is_empty() { DEFAULT.into() } else { s };
 
     if output.status.code() == Some(2) {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Some(non_empty(stderr));
+        return Some(HookResponse::Deny(non_empty(stderr)));
     }
 
     #[derive(Deserialize)]
@@ -447,8 +542,46 @@ fn deny_reason(output: &std::process::Output) -> Option<String> {
         return None;
     }
     let parsed: Resp = serde_json::from_str(trimmed).ok()?;
-    (parsed.decision.as_deref() == Some("block"))
-        .then(|| non_empty(parsed.reason.unwrap_or_default()))
+    match parsed.decision.as_deref() {
+        Some("block") => Some(HookResponse::Deny(non_empty(parsed.reason.unwrap_or_default()))),
+        Some("warn") => {
+            let reason = parsed.reason.unwrap_or_default();
+            if reason.is_empty() {
+                None
+            } else {
+                Some(HookResponse::Warn(reason))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Parses a hook's stdout for the non-blocking `additionalContext` shape:
+/// `{"hookSpecificOutput": {"hookEventName": "...", "additionalContext": "..."}}`.
+/// Empty or malformed stdout (including plain, non-JSON output) yields `None`.
+fn additional_context_from_output(output: &std::process::Output) -> Option<String> {
+    #[derive(Deserialize)]
+    struct HookSpecificOutput {
+        #[serde(default, rename = "additionalContext")]
+        additional_context: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    struct Resp {
+        #[serde(default, rename = "hookSpecificOutput")]
+        hook_specific_output: Option<HookSpecificOutput>,
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let trimmed = stdout.trim();
+    if !trimmed.starts_with('{') {
+        return None;
+    }
+    let parsed: Resp = serde_json::from_str(trimmed).ok()?;
+    parsed
+        .hook_specific_output
+        .and_then(|h| h.additional_context)
+        .filter(|s| !s.is_empty())
 }
 
 fn load_hooks_file(
@@ -761,17 +894,111 @@ mod tests {
             scope: PluginScope::User,
         }]);
 
-        let decision = mgr
+        let result = mgr
             .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
             .await;
 
         assert_eq!(
-            decision,
+            result.decision,
             HookDecision::Deny {
                 reason: "say something first".into(),
                 plugin: "p".into(),
             }
         );
+        assert!(result.advisories.is_empty());
+    }
+
+    #[tokio::test]
+    async fn emit_returns_additional_context_from_hook_stdout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"remember to run tests\"}}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let injected = mgr
+            .emit(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+
+        assert_eq!(injected, vec!["remember to run tests".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn emit_blocking_warn_decision_is_not_a_denial() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"printf '%s' '{\"decision\":\"warn\",\"reason\":\"claim not verified by tool trace\"}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let result = mgr
+            .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+
+        assert_eq!(result.decision, HookDecision::Allow);
+        assert_eq!(
+            result.advisories,
+            vec!["claim not verified by tool trace".to_string()]
+        );
+    }
+
+    #[test]
+    fn tool_trace_round_trips_through_hook_context_serialization() {
+        let ctx = HookContext::new(HookEvent::Stop, "s").with_tool_trace("-> shell(ls)\n<- ok: file.txt");
+        let json = serde_json::to_value(&ctx).unwrap();
+        assert_eq!(
+            json.get("tool_trace").and_then(|v| v.as_str()),
+            Some("-> shell(ls)\n<- ok: file.txt")
+        );
+
+        let long_trace = "x".repeat(MAX_TOOL_TRACE_BYTES + 100);
+        let capped = HookContext::new(HookEvent::Stop, "s").with_tool_trace(long_trace);
+        let trace = capped.tool_trace.unwrap();
+        assert!(trace.len() <= MAX_TOOL_TRACE_BYTES + "...[truncated]".len());
+        assert!(trace.ends_with("...[truncated]"));
+    }
+
+    #[tokio::test]
+    async fn malformed_or_empty_stdout_yields_no_injection_and_allows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{
+                "Stop":[
+                    {"hooks":[{"type":"command","command":"printf '%s' 'not json'"}]},
+                    {"hooks":[{"type":"command","command":"true"}]}
+                ]
+            }}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let injected = mgr
+            .emit(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+        assert!(injected.is_empty());
+
+        let result = mgr
+            .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+        assert_eq!(result.decision, HookDecision::Allow);
+        assert!(result.advisories.is_empty());
     }
 
     #[test]
