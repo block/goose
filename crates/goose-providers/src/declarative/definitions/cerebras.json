@@ -24,5 +24,10 @@
     }
   ],
   "supports_streaming": true,
-  "preserves_thinking": false
+  "preserves_thinking": true,
+  "reasoning_property": "reasoning",
+  "extra_body": {
+    "reasoning_format": "parsed",
+    "clear_thinking": false
+  }
 }

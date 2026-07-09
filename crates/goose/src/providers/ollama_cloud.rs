@@ -472,6 +472,8 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: true,
+            reasoning_property: None,
+            extra_body: None,
         }
     }
 

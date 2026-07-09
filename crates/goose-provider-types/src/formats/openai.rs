@@ -56,9 +56,19 @@ fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    pub reasoning_property: String,
+}
+
+impl Default for OpenAiFormatOptions {
+    fn default() -> Self {
+        Self {
+            preserve_thinking_context: false,
+            reasoning_property: "reasoning_content".to_string(),
+        }
+    }
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -182,6 +192,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         image_format,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -484,7 +495,7 @@ pub fn format_messages_with_options(
         // Include reasoning_content only when non-empty. Kimi rejects empty
         // reasoning_content (""), so we must omit it entirely.
         if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            converted["reasoning_content"] = json!(reasoning_text);
+            converted[&options.reasoning_property] = json!(reasoning_text);
         }
 
         if has_message_payload {
@@ -494,7 +505,7 @@ pub fn format_messages_with_options(
         messages_spec.extend(output);
     }
 
-    merge_split_tool_call_messages(&mut messages_spec);
+    merge_split_tool_call_messages(&mut messages_spec, &options.reasoning_property);
     messages_spec
 }
 
@@ -503,9 +514,9 @@ pub fn format_messages_with_options(
 /// This function merges them back into one assistant message with all tool_calls,
 /// followed by the tool results — the standard OpenAI format.
 ///
-/// Only merges when `reasoning_content` is present and matches, since that is
+/// Only merges when the specified reasoning property is present and matches, since that is
 /// the only signal that messages were split from the same turn.
-fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
+fn merge_split_tool_call_messages(messages: &mut Vec<Value>, reasoning_property: &str) {
     let mut i = 0;
     while i < messages.len() {
         let is_assistant_tool_call = messages[i].get("role") == Some(&json!("assistant"))
@@ -513,7 +524,7 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                 .get("tool_calls")
                 .and_then(|tc| tc.as_array())
                 .is_some_and(|a| !a.is_empty());
-        let base_reasoning = messages[i].get("reasoning_content");
+        let base_reasoning = messages[i].get(reasoning_property);
 
         if !is_assistant_tool_call || base_reasoning.is_none() {
             i += 1;
@@ -552,7 +563,7 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                     .and_then(|tc| tc.as_array())
                     .is_some_and(|a| !a.is_empty())
                 && has_no_content
-                && next.get("reasoning_content") == Some(&base_reasoning);
+                && next.get(reasoning_property) == Some(&base_reasoning);
 
             if !is_split {
                 break;
@@ -1360,6 +1371,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -3157,6 +3169,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3215,6 +3228,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
+                ..Default::default()
             },
         );
 
@@ -3267,6 +3281,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3297,6 +3312,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3325,6 +3341,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3349,6 +3366,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3385,6 +3403,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3443,6 +3462,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3490,6 +3510,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3580,7 +3601,7 @@ data: [DONE]"#;
             json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
             json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
         ];
-        merge_split_tool_call_messages(&mut messages);
+        merge_split_tool_call_messages(&mut messages, "reasoning_content");
 
         assert_eq!(messages.len(), 3);
         assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 2);
@@ -3596,7 +3617,7 @@ data: [DONE]"#;
             json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}]}),
             json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
         ];
-        merge_split_tool_call_messages(&mut messages);
+        merge_split_tool_call_messages(&mut messages, "reasoning_content");
 
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 1);
@@ -3612,7 +3633,7 @@ data: [DONE]"#;
             json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "click", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
             json!({"role": "tool", "tool_call_id": "tc2", "content": "clicked"}),
         ];
-        merge_split_tool_call_messages(&mut messages);
+        merge_split_tool_call_messages(&mut messages, "reasoning_content");
 
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 2);
@@ -3633,7 +3654,7 @@ data: [DONE]"#;
             json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}], "reasoning_content": "thinking..."}),
             json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
         ];
-        merge_split_tool_call_messages(&mut messages);
+        merge_split_tool_call_messages(&mut messages, "reasoning_content");
 
         assert_eq!(messages.len(), 5);
         assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 1);
@@ -3760,6 +3781,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -3794,6 +3816,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);

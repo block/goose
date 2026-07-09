@@ -136,6 +136,8 @@ pub struct OpenAiProvider {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    reasoning_property: Option<String>,
+    extra_body: Option<serde_json::Value>,
     #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
@@ -157,6 +159,8 @@ pub struct OpenAiProviderBuilder {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    reasoning_property: Option<String>,
+    extra_body: Option<serde_json::Value>,
 }
 
 impl OpenAiProviderBuilder {
@@ -173,6 +177,8 @@ impl OpenAiProviderBuilder {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            reasoning_property: None,
+            extra_body: None,
         }
     }
 
@@ -244,6 +250,16 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn reasoning_property(mut self, reasoning_property: Option<String>) -> Self {
+        self.reasoning_property = reasoning_property;
+        self
+    }
+
+    pub fn extra_body(mut self, extra_body: Option<serde_json::Value>) -> Self {
+        self.extra_body = extra_body;
+        self
+    }
+
     pub fn build(self) -> OpenAiProvider {
         OpenAiProvider {
             api_client: self.api_client,
@@ -257,6 +273,8 @@ impl OpenAiProviderBuilder {
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
+            reasoning_property: self.reasoning_property,
+            extra_body: self.extra_body,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -277,6 +295,8 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            reasoning_property: None,
+            extra_body: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -343,6 +363,14 @@ impl OpenAiProvider {
 
     fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
         if let Some(obj) = payload.as_object_mut() {
+            if let Some(extra) = &self.extra_body {
+                if let Some(extra_obj) = extra.as_object() {
+                    for (k, v) in extra_obj {
+                        obj.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+
             if Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
                 if let Some(value) = obj.remove("max_completion_tokens") {
                     obj.entry("max_tokens").or_insert(value);
@@ -600,6 +628,7 @@ impl Provider for OpenAiProvider {
         if self.should_use_responses_api_for_provider(&model_config.model_name) {
             let mut payload = create_responses_request(model_config, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
+            let payload = self.sanitize_request_for_compat(payload);
 
             let mut log = start_log(model_config, &payload)?;
 
@@ -664,6 +693,10 @@ impl Provider for OpenAiProvider {
                 self.supports_streaming,
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context,
+                    reasoning_property: self
+                        .reasoning_property
+                        .clone()
+                        .unwrap_or_else(|| "reasoning_content".to_string()),
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload);
@@ -799,7 +832,9 @@ pub fn from_declarative_config(
         .custom_models(custom_models)
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
-        .preserve_thinking_context(config.preserves_thinking))
+        .preserve_thinking_context(config.preserves_thinking)
+        .reasoning_property(config.reasoning_property)
+        .extra_body(config.extra_body))
 }
 
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -857,6 +892,8 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            reasoning_property: None,
+            extra_body: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -1107,6 +1144,8 @@ mod tests {
             setup_steps: vec![],
             fast_model: None,
             preserves_thinking: false,
+            reasoning_property: None,
+            extra_body: None,
         }
     }
 

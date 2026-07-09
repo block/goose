@@ -142,8 +142,19 @@ pub struct DeclarativeProviderConfig {
     pub setup_steps: Vec<String>,
     #[serde(default, deserialize_with = "deserialize_non_empty_string")]
     pub fast_model: Option<String>,
+    /// Indicates whether the provider supports preserving thinking/reasoning context in the message history.
+    /// If true, the thinking block from previous assistant messages will be appended back in subsequent requests.
     #[serde(default)]
     pub preserves_thinking: bool,
+    /// Specifies the exact JSON property name to use when sending the preserved reasoning context
+    /// to the provider (e.g. `reasoning_content` for DeepSeek, `reasoning` for Cerebras).
+    /// If not specified, a default is used depending on the engine (e.g., `reasoning_content` for OpenAI engine).
+    #[serde(default)]
+    pub reasoning_property: Option<String>,
+    /// Arbitrary additional fields to inject into the root of the outgoing JSON request payload.
+    /// This is useful for providers that require custom parameters (e.g., `{"reasoning_format": "parsed"}`).
+    #[serde(default)]
+    pub extra_body: Option<serde_json::Value>,
 }
 
 fn default_requires_auth() -> bool {
