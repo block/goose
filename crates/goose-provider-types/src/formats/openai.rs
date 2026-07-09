@@ -487,6 +487,17 @@ pub fn format_messages_with_options(
             converted["reasoning_content"] = json!(reasoning_text);
         }
 
+        // DeepSeek thinking mode requires reasoning_content on every tool-call
+        // assistant message. Ensure the field is present even when there is no
+        // reasoning to report — null signals "no reasoning" to the API without
+        // triggering Kimi's rejection of the empty string.
+        if options.preserve_thinking_context
+            && reasoning_text.is_empty()
+            && converted.get("tool_calls").is_some()
+        {
+            converted["reasoning_content"] = json!(null);
+        }
+
         if has_message_payload {
             output.insert(0, converted);
         }
