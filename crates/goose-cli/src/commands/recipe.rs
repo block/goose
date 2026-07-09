@@ -1,8 +1,8 @@
 use anyhow::Result;
-use comfy_table::{presets::UTF8_FULL_CONDENSED, ContentArrangement, Table};
-use console::style;
+use console::{measure_text_width, style, Term};
 use goose::recipe::validate_recipe::validate_recipe_template_from_file;
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::recipes::github_recipe::{RecipeInfo, RecipeSource};
 use crate::recipes::search_recipe::{list_available_recipes, load_recipe_file};
@@ -155,35 +155,191 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
                 return Ok(());
             }
 
-            let mut table = Table::new();
-            table
-                .load_preset(UTF8_FULL_CONDENSED)
-                .set_content_arrangement(ContentArrangement::Dynamic)
-                .set_header(vec!["Name", "Description", "Location"]);
+            let rows: Vec<RecipeRow> = groups
+                .iter()
+                .map(|(name, entries)| RecipeRow {
+                    name: name.clone(),
+                    description: describe(entries[0]),
+                    location: if entries.len() > 1 {
+                        format!("⚠ {} locations", entries.len())
+                    } else {
+                        short_source_path(entries[0])
+                    },
+                    has_collision: entries.len() > 1,
+                })
+                .collect();
+            let terminal_width = Term::stdout()
+                .size_checked()
+                .map(|(_height, width)| width as usize);
 
-            for (name, entries) in &groups {
-                let location = if entries.len() > 1 {
-                    format!("⚠ {} locations", entries.len())
-                } else {
-                    source_path(entries[0])
-                };
-                table.add_row(vec![name.clone(), describe(entries[0]), location]);
-            }
+            let row_count = rows.len();
+            println!(
+                "{}\n",
+                style(format!(
+                    "Available recipes ({row_count} recipe{}):",
+                    if row_count == 1 { "" } else { "s" }
+                ))
+                .bold()
+            );
 
-            println!("{table}");
+            print_recipe_rows(&rows, terminal_width);
 
             let dup_count = groups.iter().filter(|(_, entries)| entries.len() > 1).count();
             if dup_count > 0 {
                 println!(
-                    "\n{} {} recipe{} found in multiple locations. Run with --verbose for full paths.",
+                    "{} {} recipe{} found in multiple locations. Run with --verbose for full paths.\n",
                     style("⚠").yellow(),
                     dup_count,
                     if dup_count == 1 { "" } else { "s" }
                 );
             }
+
+            println!(
+                "{} {} recipe{} listed.",
+                style("✓").green().bold(),
+                row_count,
+                if row_count == 1 { "" } else { "s" }
+            );
         }
     }
     Ok(())
+}
+
+struct RecipeRow {
+    name: String,
+    description: String,
+    location: String,
+    has_collision: bool,
+}
+
+const RECIPE_LIST_INDENT: &str = "    ";
+// Used when stdout isn't a real terminal (piped/redirected) and no width
+// can be detected — wide enough that prose rarely wraps mid-thought.
+const DEFAULT_WRAP_WIDTH: usize = 100;
+
+// One block per recipe (name, then indented description and location) that
+// wraps to the real terminal width instead of truncating: a truncated
+// description or file path is not useful, it just hides information.
+fn print_recipe_rows(rows: &[RecipeRow], terminal_width: Option<usize>) {
+    let width = terminal_width.unwrap_or(DEFAULT_WRAP_WIDTH);
+    let content_width = width
+        .saturating_sub(measure_text_width(RECIPE_LIST_INDENT))
+        .max(1);
+
+    for row in rows {
+        if row.has_collision {
+            println!(
+                "{} {}",
+                style("⚠").yellow(),
+                style(&row.name).blue().bold()
+            );
+        } else {
+            println!("{}", style(&row.name).blue().bold());
+        }
+        for line in wrap_text(&row.description, content_width) {
+            println!("{RECIPE_LIST_INDENT}{}", style(line).white());
+        }
+        for line in wrap_path(&row.location, content_width) {
+            println!("{RECIPE_LIST_INDENT}{}", style(line).yellow());
+        }
+        println!();
+    }
+}
+
+// Word-wraps prose (splits on whitespace) to the given display width,
+// measuring width via console::measure_text_width so it stays correct if
+// the caller wraps already-styled/ANSI text.
+fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if measure_text_width(word) > max_width {
+            if !current.is_empty() {
+                lines.push(std::mem::take(&mut current));
+            }
+            lines.extend(hard_wrap(word, max_width));
+            continue;
+        }
+        let candidate = if current.is_empty() {
+            word.to_string()
+        } else {
+            format!("{current} {word}")
+        };
+        if measure_text_width(&candidate) <= max_width {
+            current = candidate;
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = word.to_string();
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+// Wraps a file path (or the "⚠ N locations" summary) at '/' boundaries
+// rather than whitespace, since paths have no spaces to break on.
+fn wrap_path(text: &str, max_width: usize) -> Vec<String> {
+    if measure_text_width(text) <= max_width {
+        return vec![text.to_string()];
+    }
+
+    let mut segments = Vec::new();
+    let mut segment = String::new();
+    for ch in text.chars() {
+        segment.push(ch);
+        if ch == '/' {
+            segments.push(std::mem::take(&mut segment));
+        }
+    }
+    if !segment.is_empty() {
+        segments.push(segment);
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for seg in segments {
+        if measure_text_width(&seg) > max_width {
+            if !current.is_empty() {
+                lines.push(std::mem::take(&mut current));
+            }
+            lines.extend(hard_wrap(&seg, max_width));
+            continue;
+        }
+        let candidate = format!("{current}{seg}");
+        if measure_text_width(&candidate) <= max_width {
+            current = candidate;
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = seg;
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+// Last-resort character-level split for a single token wider than the
+// available width (an unbroken long word, or a path segment with no '/').
+fn hard_wrap(token: &str, max_width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for ch in token.chars() {
+        let candidate_width = measure_text_width(&current) + measure_text_width(&ch.to_string());
+        if candidate_width > max_width && !current.is_empty() {
+            lines.push(std::mem::take(&mut current));
+        }
+        current.push(ch);
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
 }
 
 fn describe(recipe: &RecipeInfo) -> String {
@@ -196,6 +352,25 @@ fn describe(recipe: &RecipeInfo) -> String {
 fn source_path(recipe: &RecipeInfo) -> String {
     match recipe.source {
         RecipeSource::Local => format!("local: {}", recipe.path),
+        RecipeSource::GitHub => format!("github: {}", recipe.path),
+    }
+}
+
+// Compact form for the table view: collapses $HOME to `~` so a single
+// local path doesn't blow out the column width. Verbose mode keeps the
+// full path from `source_path` since that's the detail view.
+fn short_source_path(recipe: &RecipeInfo) -> String {
+    match recipe.source {
+        RecipeSource::Local => {
+            let display_path = match etcetera::home_dir().ok() {
+                Some(home) => match Path::new(&recipe.path).strip_prefix(&home) {
+                    Ok(rest) => format!("~/{}", rest.display()),
+                    Err(_) => recipe.path.clone(),
+                },
+                None => recipe.path.clone(),
+            };
+            format!("local: {display_path}")
+        }
         RecipeSource::GitHub => format!("github: {}", recipe.path),
     }
 }
@@ -564,5 +739,56 @@ instructions: "Test instructions"
 
         let github = recipe_info(RecipeSource::GitHub, "org/repo/recipe.yaml", None);
         assert_eq!(source_path(&github), "github: org/repo/recipe.yaml");
+    }
+
+    #[test]
+    fn test_wrap_text_breaks_on_whitespace_within_width() {
+        let text = "a fairly long description that should wrap across lines";
+        let lines = wrap_text(text, 20);
+        assert!(lines.len() > 1);
+        for line in &lines {
+            assert!(measure_text_width(line) <= 20, "line too wide: {line:?}");
+        }
+        assert_eq!(lines.join(" "), text);
+    }
+
+    #[test]
+    fn test_wrap_text_short_text_single_line() {
+        let text = "short";
+        assert_eq!(wrap_text(text, 40), vec!["short".to_string()]);
+    }
+
+    #[test]
+    fn test_wrap_text_never_truncates_content() {
+        let text = "supercalifragilisticexpialidocious word";
+        let lines = wrap_text(text, 10);
+        let rejoined: String = lines.join("");
+        assert!(rejoined.contains("supercalifragilisticexpialidocious"));
+        assert!(rejoined.contains("word"));
+    }
+
+    #[test]
+    fn test_wrap_path_breaks_on_slash_boundaries() {
+        let path = "local: ~/AOF/work/projects/forks/goose/_tortu/recipes/codebase-analyzer.yaml";
+        let lines = wrap_path(path, 30);
+        assert!(lines.len() > 1);
+        for line in &lines {
+            assert!(measure_text_width(line) <= 30, "line too wide: {line:?}");
+        }
+        assert_eq!(lines.concat(), path);
+        assert!(lines.last().unwrap().ends_with("codebase-analyzer.yaml"));
+    }
+
+    #[test]
+    fn test_wrap_path_short_text_unchanged() {
+        let path = "local: recipe.yaml";
+        assert_eq!(wrap_path(path, 40), vec![path.to_string()]);
+    }
+
+    #[test]
+    fn test_wrap_path_never_truncates_content() {
+        let path = "local: ~/AOF/work/projects/forks/goose/_tortu/recipes/codebase-analyzer.yaml";
+        let lines = wrap_path(path, 5);
+        assert_eq!(lines.concat(), path);
     }
 }
