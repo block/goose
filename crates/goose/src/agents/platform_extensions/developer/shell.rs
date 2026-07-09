@@ -171,6 +171,12 @@ struct TruncationInfo {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
     pub command: String,
+    /// Maximum time in seconds to allow the command to run before it is killed.
+    /// Use this to bound commands that may hang (test runners, servers, watchers,
+    /// commands that wait on unavailable services). If omitted, the default
+    /// extension timeout is applied (configurable via
+    /// `GOOSE_DEFAULT_EXTENSION_TIMEOUT`, defaulting to
+    /// `DEFAULT_EXTENSION_TIMEOUT` seconds).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -437,14 +443,10 @@ impl ShellTool {
         .collect();
 
         let is_error = if execution.timed_out {
-            if let Some(timeout_secs) = params.timeout_secs {
-                rendered.push_str(&format!(
-                    "\n\nCommand timed out after {} seconds",
-                    timeout_secs
-                ));
-            } else {
-                rendered.push_str("\n\nCommand timed out");
-            }
+            rendered.push_str(&format!(
+                "\n\nCommand timed out after {} seconds",
+                resolve_shell_timeout(params.timeout_secs)
+            ));
             true
         } else {
             execution.exit_code.unwrap_or(1) != 0
@@ -509,6 +511,22 @@ struct ExecutionOutput {
     output_collection_error: Option<String>,
 }
 
+/// Resolve the effective shell-command timeout.
+///
+/// An explicit `timeout_secs` from the tool call wins; otherwise fall back to
+/// the default extension timeout (configurable via `GOOSE_DEFAULT_EXTENSION_TIMEOUT`,
+/// defaulting to `DEFAULT_EXTENSION_TIMEOUT`). This mirrors `resolve_timeout` in
+/// the extension manager and `execution_timeout` in code-mode, so shell commands
+/// are bounded by the same default as every other tool call and can no longer
+/// hang indefinitely.
+fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
+    timeout_secs.unwrap_or_else(|| {
+        crate::config::Config::global()
+            .get_goose_default_extension_timeout()
+            .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+    })
+}
+
 async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
@@ -516,6 +534,10 @@ async fn run_command(
     login_path: Option<&str>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
+    // Fall back to the default extension timeout when the caller omits one, so a
+    // command that never exits cannot hang the session forever.
+    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+
     let mut command = build_shell_command(command_line, working_dir, login_path);
 
     command.stdout(Stdio::piped());
@@ -1103,5 +1125,43 @@ mod tests {
             text.contains("after"),
             "should capture output after background cmd"
         );
+    }
+
+    #[test]
+    fn resolve_shell_timeout_prefers_explicit_value() {
+        assert_eq!(resolve_shell_timeout(Some(42)), 42);
+    }
+
+    #[test]
+    fn resolve_shell_timeout_falls_back_to_a_bound_when_absent() {
+        // The key behavioral guarantee: an omitted timeout no longer means
+        // "run forever" — it resolves to the default extension timeout.
+        assert!(resolve_shell_timeout(None) > 0);
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_kills_hanging_command_after_explicit_timeout() {
+        let tool = ShellTool::new_for_test().unwrap();
+        let start = std::time::Instant::now();
+        let result = tool
+            .shell(ShellParams {
+                command: "sleep 30".to_string(),
+                timeout_secs: Some(1),
+            })
+            .await;
+
+        assert!(
+            start.elapsed().as_secs() < 10,
+            "shell should return shortly after the timeout, not wait for the command"
+        );
+        assert_eq!(result.is_error, Some(true));
+        let shell_output = extract_shell_output(&result);
+        assert!(shell_output.timed_out, "command should be marked timed_out");
+        assert!(
+            shell_output.exit_code.is_none(),
+            "killed process should have no exit code"
+        );
+        assert!(extract_text(&result).contains("Command timed out after 1 seconds"));
     }
 }
