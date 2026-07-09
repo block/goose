@@ -74,6 +74,9 @@ async function initializeConnection(): Promise<InitializedAcpClient> {
     const initializeResponse = await withTimeout(
       client.initialize({
         protocolVersion: PROTOCOL_VERSION,
+        _meta: {
+          'goose/useLoginShellPath': true,
+        },
         clientCapabilities: {
           elicitation: { form: {} },
           _meta: {
