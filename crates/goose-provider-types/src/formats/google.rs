@@ -145,57 +145,90 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     },
                     MessageContent::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
-                            let mut tool_content = Vec::new();
-                            for content in result.content.iter().map(|c| c.raw.clone()) {
-                                // Forward images and binary embedded-resource
-                                // blobs to inline_data by mime type. Other
-                                // content falls back to text.
-                                let inline = match &content {
-                                    RawContent::Image(image) => {
-                                        Some((image.mime_type.clone(), image.data.clone()))
-                                    }
+                            // MCP marks mime_type optional on blob resources, but
+                            // Gemini has no safe inline representation for an
+                            // untyped binary blob (guessing application/octet-stream
+                            // is rejected as an unsupported MIME). Fail the tool call
+                            // rather than corrupt the next request.
+                            let untyped_blob_uri =
+                                result.content.iter().find_map(|c| match &c.raw {
                                     RawContent::Resource(embedded) => match &embedded.resource {
                                         ResourceContents::BlobResourceContents {
-                                            blob,
+                                            uri,
                                             mime_type,
                                             ..
-                                        } => Some((
-                                            mime_type.clone().unwrap_or_else(|| {
-                                                "application/octet-stream".to_string()
-                                            }),
-                                            blob.clone(),
-                                        )),
+                                        } if mime_type.as_deref().unwrap_or("").is_empty() => {
+                                            Some(uri.clone())
+                                        }
                                         _ => None,
                                     },
                                     _ => None,
-                                };
-                                if let Some((mime_type, data)) = inline {
-                                    parts.push(json!({
-                                        "inline_data": {
-                                            "mime_type": mime_type,
-                                            "data": data,
-                                        }
-                                    }));
-                                } else {
-                                    tool_content.push(content.no_annotation());
-                                }
-                            }
-                            let mut text = tool_content
-                                .iter()
-                                .filter_map(|c| match c.deref() {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    RawContent::Resource(raw_embedded_resource) => Some(
-                                        raw_embedded_resource.clone().no_annotation().get_text(),
-                                    ),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
+                                });
 
-                            if text.is_empty() {
-                                text = "Tool call is done.".to_string();
-                            }
-                            let mut part = build_function_response_part(&response.id, text);
+                            let mut part = if let Some(uri) = untyped_blob_uri {
+                                build_function_response_part(
+                                    &response.id,
+                                    format!(
+                                        "Error: tool returned a binary resource ({uri}) without a \
+                                         MIME type, which cannot be forwarded to the model."
+                                    ),
+                                )
+                            } else {
+                                let mut tool_content = Vec::new();
+                                for content in result.content.iter().map(|c| c.raw.clone()) {
+                                    // Forward images and binary embedded-resource
+                                    // blobs to inline_data by mime type. Other
+                                    // content falls back to text.
+                                    let inline = match &content {
+                                        RawContent::Image(image) => {
+                                            Some((image.mime_type.clone(), image.data.clone()))
+                                        }
+                                        RawContent::Resource(embedded) => {
+                                            match &embedded.resource {
+                                                ResourceContents::BlobResourceContents {
+                                                    blob,
+                                                    mime_type,
+                                                    ..
+                                                } => mime_type
+                                                    .clone()
+                                                    .filter(|m| !m.is_empty())
+                                                    .map(|mime_type| (mime_type, blob.clone())),
+                                                _ => None,
+                                            }
+                                        }
+                                        _ => None,
+                                    };
+                                    if let Some((mime_type, data)) = inline {
+                                        parts.push(json!({
+                                            "inline_data": {
+                                                "mime_type": mime_type,
+                                                "data": data,
+                                            }
+                                        }));
+                                    } else {
+                                        tool_content.push(content.no_annotation());
+                                    }
+                                }
+                                let mut text = tool_content
+                                    .iter()
+                                    .filter_map(|c| match c.deref() {
+                                        RawContent::Text(t) => Some(t.text.clone()),
+                                        RawContent::Resource(raw_embedded_resource) => Some(
+                                            raw_embedded_resource
+                                                .clone()
+                                                .no_annotation()
+                                                .get_text(),
+                                        ),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+
+                                if text.is_empty() {
+                                    text = "Tool call is done.".to_string();
+                                }
+                                build_function_response_part(&response.id, text)
+                            };
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
@@ -902,6 +935,39 @@ mod tests {
             "image/png"
         );
         assert_eq!(payload[0]["parts"][0]["inline_data"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_result_blob_without_mime_type_fails_tool_call() {
+        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
+
+        // MCP allows an absent mime_type, but Gemini cannot inline an untyped
+        // binary blob, so the tool call must fail rather than default the MIME.
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///opaque.bin".to_string(),
+            mime_type: None,
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        };
+        let blob = RawContent::Resource(RawEmbeddedResource {
+            resource,
+            meta: None,
+        })
+        .no_annotation();
+
+        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
+        let payload = format_messages(&messages);
+
+        // No inline_data part is emitted; the function response carries an error.
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
+        assert!(payload[0]["parts"][0].get("inline_data").is_none());
+        let text = payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"]
+            .as_str()
+            .unwrap();
+        assert!(text.starts_with("Error:"), "unexpected text: {text}");
+        assert!(text.contains("file:///opaque.bin"));
+        assert!(text.contains("MIME type"));
     }
 
     #[test]
