@@ -297,11 +297,24 @@ fn format_messages_with_options(
                                 continue;
                             }
                             if let RawContent::Image(image) = &c.raw {
-                                has_media = true;
-                                blocks.push(convert_image(
-                                    &image.clone().no_annotation(),
-                                    &ImageFormat::Anthropic,
-                                ));
+                                // Only forward Claude-supported image types as an
+                                // image block. Unsupported types (e.g. image/svg+xml)
+                                // fall back to a textual marker so the request is not
+                                // rejected by the provider.
+                                if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&image.mime_type.as_str()) {
+                                    has_media = true;
+                                    blocks.push(convert_image(
+                                        &image.clone().no_annotation(),
+                                        &ImageFormat::Anthropic,
+                                    ));
+                                } else {
+                                    let marker = format!("[Image: {}]", image.mime_type);
+                                    text_parts.push(marker.clone());
+                                    blocks.push(json!({
+                                        TYPE_FIELD: TEXT_TYPE,
+                                        TEXT_TYPE: marker
+                                    }));
+                                }
                             }
                         }
 
@@ -1787,6 +1800,57 @@ mod tests {
 
         // No media block — the content collapses to the decoded text string.
         assert_eq!(spec[1]["content"][0]["content"], "hello");
+    }
+
+    #[test]
+    fn test_tool_response_forwards_raw_image_as_image_block() {
+        use rmcp::model::{AnnotateAble, CallToolResult, RawContent, RawImageContent};
+
+        let image = RawContent::Image(RawImageContent {
+            data: "aGVsbG8=".to_string(),
+            mime_type: "image/png".to_string(),
+            meta: None,
+        })
+        .no_annotation();
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("screenshot"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        let block = &spec[1]["content"][0]["content"][0];
+        assert_eq!(block["type"], "image");
+        assert_eq!(block["source"]["type"], "base64");
+        assert_eq!(block["source"]["media_type"], "image/png");
+        assert_eq!(block["source"]["data"], "aGVsbG8=");
+    }
+
+    #[test]
+    fn test_tool_response_unsupported_raw_image_mime_falls_back_to_text() {
+        use rmcp::model::{AnnotateAble, CallToolResult, RawContent, RawImageContent};
+
+        // image/svg+xml is not a Claude-supported image type, so a raw image with
+        // that mime must fall back to a text marker rather than an image block
+        // (which the provider would reject).
+        let image = RawContent::Image(RawImageContent {
+            data: "aGVsbG8=".to_string(),
+            mime_type: "image/svg+xml".to_string(),
+            meta: None,
+        })
+        .no_annotation();
+
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("render"))),
+            Message::user().with_tool_response("tool_1", Ok(CallToolResult::success(vec![image]))),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[1]["content"][0]["content"], "[Image: image/svg+xml]");
     }
 
     #[test]
