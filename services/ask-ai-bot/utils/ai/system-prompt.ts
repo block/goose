@@ -1,6 +1,6 @@
 import dedent from "dedent";
 
-export const MAX_STEPS = 15;
+export const MAX_STEPS = 25;
 
 export function buildSystemPrompt(serverContext?: string): string {
   let prompt = dedent`You are a helpful assistant in the goose Discord server.
