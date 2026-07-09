@@ -3,6 +3,7 @@ use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+    sanitize_function_name,
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
@@ -396,6 +397,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -412,7 +414,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -523,6 +525,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -534,7 +537,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -1992,6 +1995,46 @@ mod tests {
         assert_eq!(input[1]["type"], "function_call_output");
         assert_eq!(input[1]["call_id"], "call_ft1");
         assert_eq!(input[1]["output"], "clicked");
+    }
+
+    #[test]
+    fn test_responses_request_sanitizes_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "call_agent",
+                Ok(CallToolRequestParams::new("Crack Catcher")
+                    .with_arguments(object!({"prompt": "verify the work"}))),
+            ),
+            Message::assistant().with_frontend_tool_request(
+                "call_frontend_agent",
+                Ok(CallToolRequestParams::new("@Review Agent")
+                    .with_arguments(object!({"prompt": "check it"}))),
+            ),
+        ];
+
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        assert_eq!(input[0]["type"], "function_call");
+        assert_eq!(input[0]["call_id"], "call_agent");
+        assert_eq!(input[0]["name"], "Crack_Catcher");
+
+        assert_eq!(input[1]["type"], "function_call");
+        assert_eq!(input[1]["call_id"], "call_frontend_agent");
+        assert_eq!(input[1]["name"], "_Review_Agent");
     }
 
     #[test]
