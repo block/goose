@@ -2590,6 +2590,7 @@ impl Agent {
                         messages_to_add = Conversation::default();
                     } else {
                         warn!("Provider returned an empty response after retries; ending turn");
+                        last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
                         let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
                         messages_to_add.push(message.clone());
                         yield AgentEvent::Message(message);
