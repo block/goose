@@ -62,7 +62,7 @@ impl ProviderDef for CodexAcpProvider {
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
             let mcp_servers = extension_configs_to_mcp_servers(&extensions);
 
-            // -c overrides pin the initial behavior at spawn.
+            // fixed goose mode via -c overrides until session/set-mode works
             let (approval_policy, sandbox_mode) = map_goose_mode(goose_mode);
             let mut args = vec![
                 "-c".to_string(),
