@@ -339,10 +339,26 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .get("promptTokenCount")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
-        let output_tokens = usage_meta_data
+        // `candidatesTokenCount` is the visible output; thinking models
+        // (Gemini 2.5/3) report reasoning tokens separately in
+        // `thoughtsTokenCount`, and per the API spec `totalTokenCount` =
+        // prompt + thoughts + candidates. Fold thoughts into `output_tokens` so
+        // the record reconciles (input + output == total) and cost, which
+        // Google bills at the output rate, is correct -- matching the OpenAI
+        // (completion_tokens includes reasoning) and Anthropic (output_tokens
+        // includes thinking) adapters.
+        let candidates_tokens = usage_meta_data
             .get("candidatesTokenCount")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
+            .and_then(|v| v.as_u64());
+        let thoughts_tokens = usage_meta_data
+            .get("thoughtsTokenCount")
+            .and_then(|v| v.as_u64());
+        let output_tokens = match (candidates_tokens, thoughts_tokens) {
+            (None, None) => None,
+            (candidates, thoughts) => {
+                Some((candidates.unwrap_or(0) + thoughts.unwrap_or(0)) as i32)
+            }
+        };
         let total_tokens = usage_meta_data
             .get("totalTokenCount")
             .and_then(|v| v.as_u64())
@@ -742,6 +758,33 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(120));
         assert_eq!(usage.cache_read_input_tokens, Some(80));
         assert_eq!(usage.cache_write_input_tokens, None);
+    }
+
+    #[test]
+    fn test_get_usage_includes_thinking_tokens() {
+        // Gemini thinking models (2.5/3, the goose defaults) report reasoning
+        // tokens separately in `thoughtsTokenCount`, and per the API spec
+        // `totalTokenCount` = prompt + thoughts + candidates. `output_tokens`
+        // must include thoughts so the record reconciles (input + output ==
+        // total) and cost, which Google bills at the output rate, is correct --
+        // matching the OpenAI (completion_tokens includes reasoning) and
+        // Anthropic (output_tokens includes thinking) adapters.
+        let data = json!({
+            "usageMetadata": {
+                "promptTokenCount": 100,
+                "candidatesTokenCount": 50,
+                "thoughtsTokenCount": 200,
+                "totalTokenCount": 350
+            }
+        });
+        let usage = get_usage(&data).unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(250));
+        assert_eq!(usage.total_tokens, Some(350));
+        assert_eq!(
+            usage.input_tokens.unwrap() + usage.output_tokens.unwrap(),
+            usage.total_tokens.unwrap(),
+        );
     }
 
     #[test]
