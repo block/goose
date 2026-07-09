@@ -1,19 +1,6 @@
 use base64::Engine;
 use rmcp::model::ResourceContents;
 
-/// Decode a base64-encoded blob to UTF-8 text when possible.
-///
-/// Returns `Some(text)` when the blob is valid base64 that decodes to UTF-8,
-/// and `None` when the payload is binary (non-UTF-8). This lets callers forward
-/// text blobs that omit an optional `mime_type` while still detecting truly
-/// opaque binary content.
-pub(crate) fn decode_blob_as_text(blob: &str) -> Option<String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(blob)
-        .ok()?;
-    String::from_utf8(bytes).ok()
-}
-
 pub fn extract_text_from_resource(resource: &ResourceContents) -> String {
     match resource {
         ResourceContents::TextResourceContents { text, .. } => text.clone(),

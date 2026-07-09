@@ -1,7 +1,7 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
-use crate::mcp_utils::{decode_blob_as_text, extract_text_from_resource};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
@@ -147,12 +147,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
-                            // Set to the URI of an untyped, non-text blob. MCP marks
-                            // mime_type optional, but Gemini cannot inline a binary
-                            // blob without a supported MIME type, so a truly opaque
-                            // untyped blob fails the whole tool call rather than
-                            // poisoning the next request.
-                            let mut untyped_binary_uri: Option<String> = None;
 
                             for content in result.content.iter().map(|c| c.raw.clone()) {
                                 match &content {
@@ -170,7 +164,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                         ResourceContents::BlobResourceContents {
                                             blob,
                                             mime_type,
-                                            uri,
                                             ..
                                         } => match mime_type.as_deref().filter(|m| !m.is_empty()) {
                                             Some(mime) => {
@@ -181,17 +174,11 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                                     }
                                                 }));
                                             }
-                                            None => {
-                                                // No MIME type: forward decodable UTF-8
-                                                // blobs as text, otherwise fail the call.
-                                                if decode_blob_as_text(blob).is_some() {
-                                                    tool_content
-                                                        .push(content.clone().no_annotation());
-                                                } else {
-                                                    untyped_binary_uri
-                                                        .get_or_insert_with(|| uri.clone());
-                                                }
-                                            }
+                                            // No MIME type: cannot inline. Fall back to
+                                            // text extraction, which decodes UTF-8 blobs
+                                            // and otherwise emits a "[Binary content ...]"
+                                            // marker.
+                                            None => tool_content.push(content.no_annotation()),
                                         },
                                         _ => tool_content.push(content.no_annotation()),
                                     },
@@ -199,34 +186,22 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 }
                             }
 
-                            let mut part = if let Some(uri) = untyped_binary_uri {
-                                build_function_response_part(
-                                    &response.id,
-                                    format!(
-                                        "Error: tool returned a binary resource ({uri}) without a \
-                                         MIME type, which cannot be forwarded to the model."
+                            let mut text = tool_content
+                                .iter()
+                                .filter_map(|c| match c.deref() {
+                                    RawContent::Text(t) => Some(t.text.clone()),
+                                    RawContent::Resource(raw_embedded_resource) => Some(
+                                        extract_text_from_resource(&raw_embedded_resource.resource),
                                     ),
-                                )
-                            } else {
-                                let mut text = tool_content
-                                    .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(raw_embedded_resource) => {
-                                            Some(extract_text_from_resource(
-                                                &raw_embedded_resource.resource,
-                                            ))
-                                        }
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n");
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
 
-                                if text.is_empty() {
-                                    text = "Tool call is done.".to_string();
-                                }
-                                build_function_response_part(&response.id, text)
-                            };
+                            if text.is_empty() {
+                                text = "Tool call is done.".to_string();
+                            }
+                            let mut part = build_function_response_part(&response.id, text);
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
@@ -936,12 +911,12 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_result_blob_without_mime_type_fails_tool_call() {
+    fn test_tool_result_untyped_binary_blob_falls_back_to_marker() {
         use base64::Engine;
         use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
 
-        // A binary (non-UTF-8) blob with no mime_type cannot be inlined or decoded
-        // to text, so the tool call must fail rather than default the MIME.
+        // A binary (non-UTF-8) blob with no mime_type cannot be inlined, so it
+        // falls back to the "[Binary content ...]" marker rather than failing.
         let binary: Vec<u8> = vec![0xFF, 0xFE, 0x00, 0x01];
         let blob_b64 = base64::engine::general_purpose::STANDARD.encode(&binary);
         let resource = ResourceContents::BlobResourceContents {
@@ -959,16 +934,14 @@ mod tests {
         let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
         let payload = format_messages(&messages);
 
-        // No inline_data part is emitted; the function response carries an error.
+        // No inline_data part; the function response carries the binary marker.
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
         assert!(payload[0]["parts"][0].get("inline_data").is_none());
-        let text = payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"]
-            .as_str()
-            .unwrap();
-        assert!(text.starts_with("Error:"), "unexpected text: {text}");
-        assert!(text.contains("file:///opaque.bin"));
-        assert!(text.contains("MIME type"));
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "[Binary content (application/octet-stream) - 4 bytes]"
+        );
     }
 
     #[test]
