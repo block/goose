@@ -39,6 +39,10 @@ let cfg = {
       'Goose needs access to your calendars to help manage and query calendar events.',
     NSRemindersUsageDescription:
       'Goose needs access to your reminders to help manage and query reminders.',
+    NSContactsUsageDescription:
+      'Goose needs access to your contacts to help manage and query contact information.',
+    NSAppleEventsUsageDescription:
+      'Goose needs access to send Apple Events to control other apps, such as Contacts, on your behalf.',
   },
 };
 
