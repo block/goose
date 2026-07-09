@@ -60,6 +60,9 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-5.4-mini", 400_000),
     ("gpt-5.4-nano", 400_000),
     ("gpt-5.4-pro", 1_050_000),
+    ("gpt-5.6-luna", 1_050_000),
+    ("gpt-5.6-sol", 1_050_000),
+    ("gpt-5.6-terra", 1_050_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
