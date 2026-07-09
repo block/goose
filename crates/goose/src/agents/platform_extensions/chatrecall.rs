@@ -92,7 +92,12 @@ impl ChatRecallClient {
                         ))]);
                     }
 
-                    let msgs = conversation.unwrap().messages();
+                    let msgs: Vec<_> = conversation
+                        .unwrap()
+                        .messages()
+                        .iter()
+                        .filter(|msg| msg.metadata.user_visible)
+                        .collect();
                     let total = msgs.len();
 
                     if total == 0 {

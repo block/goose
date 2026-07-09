@@ -5,10 +5,13 @@ use std::{
 };
 
 use crate::config::paths::Paths;
+use crate::conversation::message::{Message, MessageContent};
 use crate::hints::import_files::read_referenced_files;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
+const SUBDIRECTORY_HINT_KEY_PREFIX: &str = "subdir_hints:";
+const SUBDIRECTORY_HINT_MARKER_PREFIX: &str = "GOOSE_SUBDIRECTORY_HINT_MARKER=";
 
 pub fn get_context_filenames() -> Vec<String> {
     use crate::config::Config;
@@ -75,24 +78,65 @@ impl SubdirectoryHintTracker {
             return Vec::new();
         }
 
+        let working_dir = normalize_dir(working_dir);
         let mut results = Vec::new();
         for dir in pending {
-            if !dir.starts_with(working_dir) || dir == working_dir {
+            let dir = normalize_dir(&dir);
+            if !dir.starts_with(&working_dir) || dir == working_dir {
                 continue;
             }
             if self.loaded_dirs.contains(&dir) {
                 continue;
             }
             if let Some(content) =
-                load_hints_from_directory(&dir, working_dir, &self.hints_filenames)
+                load_hints_from_directory(&dir, &working_dir, &self.hints_filenames)
             {
-                let key = format!("subdir_hints:{}", dir.display());
+                let key = subdirectory_hint_key(&dir);
                 results.push((key, content));
             }
             self.loaded_dirs.insert(dir);
         }
         results
     }
+
+    pub fn record_loaded_hints_from_messages(&mut self, messages: &[Message]) {
+        for message in messages {
+            if message.is_user_visible() || !message.is_agent_visible() {
+                continue;
+            }
+            for content in &message.content {
+                let MessageContent::Text(text) = content else {
+                    continue;
+                };
+                if let Some(dir) = subdirectory_hint_dir_from_text(&text.text) {
+                    self.loaded_dirs.insert(dir);
+                }
+            }
+        }
+    }
+}
+
+pub fn format_subdirectory_hint_message_text(key: &str, content: &str) -> String {
+    format!("{SUBDIRECTORY_HINT_MARKER_PREFIX}{key}\n{content}")
+}
+
+fn subdirectory_hint_key(dir: &Path) -> String {
+    format!("{SUBDIRECTORY_HINT_KEY_PREFIX}{}", dir.display())
+}
+
+fn subdirectory_hint_dir_from_text(text: &str) -> Option<PathBuf> {
+    let key = text
+        .lines()
+        .find_map(|line| line.strip_prefix(SUBDIRECTORY_HINT_MARKER_PREFIX))?;
+    let dir = key.strip_prefix(SUBDIRECTORY_HINT_KEY_PREFIX)?;
+    if dir.is_empty() {
+        return None;
+    }
+    Some(normalize_dir(Path::new(dir)))
+}
+
+fn normalize_dir(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn resolve_to_parent_dir(token: &str, working_dir: &Path) -> Option<PathBuf> {
@@ -325,6 +369,68 @@ mod tests {
         let hints = load_hint_files(dir.path(), &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Test hint content"));
+    }
+
+    #[test]
+    fn subdirectory_hint_tracker_rehydrates_loaded_dirs_from_messages() {
+        let workdir = TempDir::new().unwrap();
+        let subdir = workdir.path().join("sub");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdirectory rule").unwrap();
+
+        let mut args = serde_json::Map::new();
+        args.insert(
+            "path".to_string(),
+            serde_json::Value::String("sub/file.rs".to_string()),
+        );
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        tracker.record_tool_arguments(&Some(args.clone()), workdir.path());
+        let loaded = tracker.load_new_hints(workdir.path());
+        assert_eq!(loaded.len(), 1);
+
+        let (key, content) = loaded.into_iter().next().unwrap();
+        let message = Message::user()
+            .with_text(format_subdirectory_hint_message_text(&key, &content))
+            .with_visibility(false, true);
+
+        let mut resumed_tracker = SubdirectoryHintTracker::new();
+        resumed_tracker.record_loaded_hints_from_messages(&[message]);
+        resumed_tracker.record_tool_arguments(&Some(args), workdir.path());
+
+        assert!(
+            resumed_tracker.load_new_hints(workdir.path()).is_empty(),
+            "a resumed tracker should not reinject a directory already marked in conversation history"
+        );
+    }
+
+    #[test]
+    fn subdirectory_hint_tracker_ignores_fully_invisible_markers() {
+        let workdir = TempDir::new().unwrap();
+        let subdir = workdir.path().join("sub");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdirectory rule").unwrap();
+
+        let mut args = serde_json::Map::new();
+        args.insert(
+            "path".to_string(),
+            serde_json::Value::String("sub/file.rs".to_string()),
+        );
+
+        let key = subdirectory_hint_key(&subdir);
+        let message = Message::user()
+            .with_text(format_subdirectory_hint_message_text(&key, "Archived hint"))
+            .with_visibility(false, false);
+
+        let mut resumed_tracker = SubdirectoryHintTracker::new();
+        resumed_tracker.record_loaded_hints_from_messages(&[message]);
+        resumed_tracker.record_tool_arguments(&Some(args), workdir.path());
+
+        assert_eq!(
+            resumed_tracker.load_new_hints(workdir.path()).len(),
+            1,
+            "fully invisible archived markers should not suppress a fresh hint load"
+        );
     }
 
     #[test]

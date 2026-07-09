@@ -3019,6 +3019,68 @@ mod tests {
         assert_eq!(results.results[0].messages.len(), 2);
     }
 
+    #[tokio::test]
+    async fn test_search_chat_history_ignores_hidden_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/search-test"),
+                "Hidden search content".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.add_message(
+            &session.id,
+            &Message::user().with_text("visible public anchor"),
+        )
+        .await
+        .unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/project/sub\nultrasecretmarker")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+
+        let hidden_results = sm
+            .search_chat_history(
+                "ultrasecretmarker",
+                Some(10),
+                None,
+                None,
+                None,
+                vec![SessionType::User],
+            )
+            .await
+            .unwrap();
+        assert_eq!(hidden_results.total_matches, 0);
+        assert!(hidden_results.results.is_empty());
+
+        let visible_results = sm
+            .search_chat_history(
+                "visible public anchor",
+                Some(10),
+                None,
+                None,
+                None,
+                vec![SessionType::User],
+            )
+            .await
+            .unwrap();
+        assert_eq!(visible_results.total_matches, 1);
+        assert_eq!(visible_results.results[0].session_id, session.id);
+        assert!(!visible_results.results[0].messages[0]
+            .content
+            .contains("ultrasecretmarker"));
+    }
+
     async fn expected_session_list_ids(sm: &SessionManager, session_ids: &[String]) -> Vec<String> {
         let mut sessions = Vec::new();
         for session_id in session_ids {

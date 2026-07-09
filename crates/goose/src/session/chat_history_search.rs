@@ -160,6 +160,7 @@ impl<'a> ChatHistorySearch<'a> {
             r#"
                 )
             )
+            AND COALESCE(json_extract(m.metadata_json, '$.userVisible'), 1) != 0
         "#,
         );
 

@@ -370,6 +370,10 @@ fn export_session_to_markdown(
     session_name: &String,
 ) -> String {
     let mut markdown_output = String::new();
+    let messages: Vec<_> = messages
+        .into_iter()
+        .filter(|message| message.metadata.user_visible)
+        .collect();
 
     markdown_output.push_str(&format!("# Session Export: {}\n\n", session_name));
 
@@ -485,5 +489,33 @@ pub async fn prompt_interactive_session_selection(
         Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::conversation::message::Message;
+
+    #[test]
+    fn markdown_export_omits_hidden_messages() {
+        let session_name = "test session".to_string();
+        let messages = vec![
+            Message::user().with_text("visible request"),
+            Message::user()
+                .with_text(
+                    "GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/project/sub\nsecret hint",
+                )
+                .with_visibility(false, true),
+            Message::assistant().with_text("visible answer"),
+        ];
+
+        let output = export_session_to_markdown(messages, &session_name);
+
+        assert!(output.contains("visible request"));
+        assert!(output.contains("visible answer"));
+        assert!(output.contains("*Total messages: 2*"));
+        assert!(!output.contains("GOOSE_SUBDIRECTORY_HINT_MARKER"));
+        assert!(!output.contains("secret hint"));
     }
 }

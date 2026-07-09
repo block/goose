@@ -112,7 +112,8 @@ pub async fn compact_messages(
     // Find and preserve the most recent user message for non-manual compacts
     let (preserved_user_message, is_most_recent) = if !manual_compact {
         let found_msg = messages.iter().enumerate().rev().find(|(_, msg)| {
-            msg.is_agent_visible()
+            msg.is_user_visible()
+                && msg.is_agent_visible()
                 && matches!(msg.role, rmcp::model::Role::User)
                 && has_text_only(msg)
         });
@@ -733,6 +734,56 @@ mod tests {
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    #[tokio::test]
+    async fn test_hidden_user_messages_are_not_promoted_by_compaction() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProvider::new(response_message, 1);
+        let hidden_hint =
+            "GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/project/sub\nSecret hint";
+        let basic_conversation = vec![
+            Message::user().with_text("visible task"),
+            Message::assistant().with_text("assistant context"),
+            Message::user()
+                .with_text(hidden_hint)
+                .with_visibility(false, true),
+        ];
+
+        let conversation = Conversation::new_unvalidated(basic_conversation);
+        let model_config = provider.config.clone();
+        let (compacted_conversation, _usage) = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let visible_text = compacted_conversation
+            .messages()
+            .iter()
+            .filter(|message| message.is_user_visible())
+            .flat_map(|message| message.content.iter())
+            .filter_map(|content| match content {
+                MessageContent::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            visible_text.contains(&"visible task"),
+            "compaction should preserve the last visible user text"
+        );
+        assert!(
+            !visible_text
+                .iter()
+                .any(|text| text.contains("GOOSE_SUBDIRECTORY_HINT_MARKER")
+                    || text.contains("Secret hint")),
+            "hidden agent instructions must not become user-visible after compaction"
+        );
     }
 
     #[tokio::test]

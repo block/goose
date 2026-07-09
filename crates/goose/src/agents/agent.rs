@@ -1824,6 +1824,11 @@ impl Agent {
         session: Session,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        self.prompt_manager
+            .lock()
+            .await
+            .record_loaded_subdirectory_hints(conversation.messages());
+
         let context = self
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
             .await?;
@@ -2539,16 +2544,13 @@ impl Agent {
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
 
+                for message in self
+                    .prompt_manager
+                    .lock()
+                    .await
+                    .load_subdirectory_hints(&working_dir)
                 {
-                    let has_new_hints = self
-                        .prompt_manager
-                        .lock()
-                        .await
-                        .load_subdirectory_hints(&working_dir);
-                    if has_new_hints && !tools_updated {
-                        (tools, toolshim_tools, system_prompt, _) =
-                            self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
-                    }
+                    messages_to_add.push(message);
                 }
 
                 if no_tools_called && !exit_chat {

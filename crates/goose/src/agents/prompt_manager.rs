@@ -8,9 +8,13 @@ use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
 use crate::hints::load_hints::build_gitignore;
-use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
+use crate::hints::{
+    format_subdirectory_hint_message_text, get_context_filenames, load_hint_files,
+    SubdirectoryHintTracker,
+};
 use crate::{
     config::{Config, GooseMode},
+    conversation::message::Message,
     prompt_template,
     utils::sanitize_unicode_tags,
 };
@@ -240,13 +244,21 @@ impl PromptManager {
             .record_tool_arguments(arguments, working_dir);
     }
 
-    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> bool {
+    pub fn record_loaded_subdirectory_hints(&mut self, messages: &[Message]) {
+        self.subdirectory_hint_tracker
+            .record_loaded_hints_from_messages(messages);
+    }
+
+    pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> Vec<Message> {
         let new_hints = self.subdirectory_hint_tracker.load_new_hints(working_dir);
-        let has_new = !new_hints.is_empty();
-        for (key, content) in new_hints {
-            self.system_prompt_extras.insert(key, content);
-        }
-        has_new
+        new_hints
+            .into_iter()
+            .map(|(key, content)| {
+                Message::user()
+                    .with_text(format_subdirectory_hint_message_text(&key, &content))
+                    .with_visibility(false, true)
+            })
+            .collect()
     }
 
     /// Override the system prompt with custom text
@@ -372,6 +384,50 @@ mod tests {
         assert!(result.contains("🌍"));
         assert!(result.contains("Instruction with"));
         assert!(result.contains("emojis"));
+    }
+
+    #[test]
+    fn test_subdirectory_hints_are_agent_only_and_resume_deduped() {
+        let workdir = tempfile::tempdir().unwrap();
+        let subdir = workdir.path().join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(
+            subdir.join(".goosehints"),
+            "Prefer subdirectory local rules",
+        )
+        .unwrap();
+
+        let mut args = serde_json::Map::new();
+        args.insert(
+            "path".to_string(),
+            serde_json::Value::String("sub/file.rs".to_string()),
+        );
+
+        let mut manager = PromptManager::new();
+        manager.record_tool_arguments(&Some(args.clone()), workdir.path());
+        let hint_messages = manager.load_subdirectory_hints(workdir.path());
+
+        assert_eq!(hint_messages.len(), 1);
+        assert!(
+            !hint_messages[0].is_user_visible(),
+            "subdirectory hints should not be replayed into the visible transcript"
+        );
+        assert!(
+            hint_messages[0].is_agent_visible(),
+            "subdirectory hints must remain visible to the next model call"
+        );
+        assert!(hint_messages[0]
+            .as_concat_text()
+            .contains("Prefer subdirectory local rules"));
+
+        let mut resumed = PromptManager::new();
+        resumed.record_loaded_subdirectory_hints(&hint_messages);
+        resumed.record_tool_arguments(&Some(args), workdir.path());
+
+        assert!(
+            resumed.load_subdirectory_hints(workdir.path()).is_empty(),
+            "resume should rebuild the loaded directory set from prior hint marker messages"
+        );
     }
 
     #[test]
