@@ -1,0 +1,102 @@
+version: 1.0.0
+title: PR Generator
+description: Automatically generate pull request descriptions based on changes in a local git repo.
+instructions: >
+  Your job is to generate descriptive and helpful pull request descriptions without asking for additional information. Generate commit messages and branch names based on the actual code changes.
+author:
+  contact: lifeizhou-ap
+extensions:
+  - type: builtin
+    name: developer
+  - type: builtin
+    name: memory
+parameters:
+  - key: git_repo_path
+    input_type: string
+    requirement: required
+    description: Path to the local git repository
+    value: "{{git_repo_path}}"
+  - key: push_pr
+    input_type: boolean
+    requirement: optional
+    description: Whether to push changes and create a PR
+    value: false
+activities:
+  - Generate PR
+  - Analyze staged git changes
+  - Create PR description
+action: Generate PR
+prompt: |
+  Analyze the staged changes and any unpushed commits in the git repository {{git_repo_path}} to generate a comprehensive pull request description. Work autonomously without requesting additional information.
+
+  Analysis steps:
+  1. Get current branch name using `git branch --show-current`
+  2. If not on main/master/develop:
+     - Check for unpushed commits: `git log @{u}..HEAD` (if upstream exists)
+     - Include these commits in the analysis
+  3. Check staged changes: `git diff --staged`
+  4. Save the staged changes diff for the PR description
+  5. Determine the type of change (feature, fix, enhancement, etc.) from the code
+
+  Generate the PR description with:
+  1. A clear summary of the changes, including:
+     - New staged changes
+     - Any unpushed commits (if on a feature branch)
+  2. Technical implementation details based on both the diff and unpushed commits
+  3. List of modified files and their purpose
+  4. Impact analysis (what areas of the codebase are affected)
+  5. Testing approach and considerations
+  6. Any migration steps or breaking changes
+  7. Related issues or dependencies
+
+  Use git commands:
+  - `git diff --staged` for staged changes
+  - `git log @{u}..HEAD` for unpushed commits
+  - `git branch --show-current` for current branch
+  - `git status` for staged files
+  - `git show` for specific commit details
+  - `git rev-parse --abbrev-ref --symbolic-full-name @{u}` to check if branch has upstream
+
+  Format the description in markdown with appropriate sections and code blocks where relevant.
+
+  {% if push_pr %}
+  Execute the following steps for pushing:
+  1. Determine branch handling:
+     - If current branch is main/master/develop or unrelated:
+       - Generate branch name from staged changes (e.g., 'feature-add-user-auth')
+       - Create and switch to new branch: `git checkout -b [branch-name]`
+     - If current branch matches changes:
+       - Continue using current branch
+       - Note any unpushed commits
+
+  2. Handle commits and push:
+     a. If staged changes exist:
+        - Create commit using generated message: `git commit -m "[type]: [summary]"`
+        - Message should be concise and descriptive of actual changes
+     b. Push changes:
+        - For existing branches: `git push origin HEAD`
+        - For new branches: `git push -u origin HEAD`
+
+  3. Create PR:
+     - Use git/gh commands to create PR with generated description
+     - Set base branch appropriately
+     - Print PR URL after creation
+
+  Branch naming convention:
+  - Use kebab-case
+  - Prefix with type: feature-, fix-, enhance-, refactor-
+  - Keep names concise but descriptive
+  - Base on actual code changes
+
+  Commit message format:
+  - Start with type: feat, fix, enhance, refactor
+  - Followed by concise description
+  - Based on actual code changes
+  - No body text needed for straightforward changes
+
+  Do not:
+  - Ask for confirmation or additional input
+  - Create placeholder content
+  - Include TODO items
+  - Add WIP markers
+  {% endif %}

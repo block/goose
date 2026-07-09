@@ -133,6 +133,83 @@ extensions:
     timeout: 300
     bundled: true
     available_tools: []
+  # --- Tier 1 third-party MCP extensions, added per
+  # _tortu/_inbox/MANIFEST_2026-07-09_default-install-recommendations.md.
+  # All start disabled: none have been live-tested yet, and several need
+  # npx/uvx on PATH or (github) a secret. Flip enabled: true per-extension
+  # once verified.
+  github:
+    enabled: false
+    type: streamable_http
+    name: github
+    description: GitHub repository management and operations
+    uri: https://api.githubcopilot.com/mcp/
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+    headers:
+      Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+    timeout: 300
+    bundled: false
+    available_tools: []
+  context7:
+    enabled: false
+    type: stdio
+    name: Context7
+    description: Context7 MCP server for up-to-date code and docs
+    cmd: npx
+    args:
+      - "-y"
+      - "@upstash/context7-mcp"
+    timeout: 300
+    bundled: false
+    available_tools: []
+  fetch:
+    enabled: false
+    type: stdio
+    name: Fetch
+    description: Web content fetching and processing capabilities
+    cmd: uvx
+    args:
+      - mcp-server-fetch
+    timeout: 300
+    bundled: false
+    available_tools: []
+  playwright:
+    enabled: false
+    type: stdio
+    name: Playwright
+    description: Modern web testing and automation
+    cmd: npx
+    args:
+      - "-y"
+      - "@playwright/mcp@latest"
+    timeout: 300
+    bundled: false
+    available_tools: []
+  chrome-devtools:
+    enabled: false
+    type: stdio
+    name: Chrome DevTools
+    description: Browser automation and web performance testing capabilities
+    cmd: npx
+    args:
+      - "-y"
+      - "chrome-devtools-mcp@latest"
+    timeout: 300
+    bundled: false
+    available_tools: []
+  knowledge_graph_memory:
+    enabled: false
+    type: stdio
+    name: Knowledge Graph Memory
+    description: Graph-based memory system for persistent knowledge storage
+    cmd: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-memory"
+    timeout: 300
+    bundled: false
+    available_tools: []
 providers:
   openai:
     enabled: true

@@ -1,0 +1,49 @@
+{
+  "version": "4.0",
+  "generated_at": "2026-02-04T06:43:11.121061",
+  "period": {
+    "start": "2026-01-28",
+    "end": "2026-02-04",
+    "days": 7
+  },
+  "sessions_analyzed": 42,
+  "prompts_classified": 223,
+  "three_dimensions": {
+    "dok_adjusted": 2.20,
+    "dok_raw": 2.18,
+    "dok_lift": 0.02,
+    "tm_tier": 3,
+    "tm_name": "Ensemble",
+    "adt_zone": "Growing"
+  },
+  "dok_distribution": {
+    "dok1": 4.9,
+    "dok2": 73.1,
+    "dok3": 18.8,
+    "dok4": 3.1
+  },
+  "dok_distribution_counts": {
+    "dok1_count": 11,
+    "dok2_count": 163,
+    "dok3_count": 42,
+    "dok4_count": 7
+  },
+  "dok_3_4_pct": 21.9,
+  "compression_pct": 2.2,
+  "floor": 1.77,
+  "trajectory": "stable",
+  "domain_count": 3,
+  "domains": {
+    "~/development/my-project": {"count": 28, "tokens": 450000},
+    "~/development/side-project": {"count": 9, "tokens": 120000},
+    "~/notes": {"count": 5, "tokens": 30000}
+  },
+  "growth_targets": {
+    "dok_3_4_pct": 35,
+    "compression_pct": 5,
+    "next_tm_tier": 4,
+    "next_tm_name": "Chamber"
+  },
+  "average_dok_score": 2.20,
+  "estimated_stage": 5
+}

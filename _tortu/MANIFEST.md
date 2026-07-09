@@ -49,6 +49,50 @@ the binary to `~/.local/bin/goose`. It prints the `PATH` and
 `GOOSE_RECIPE_PATH` exports to add to your shell profile if they're not
 already set.
 
+## Extensions, recipes, and skills
+
+Curated from `_inbox/MANIFEST_2026-07-09_default-install-recommendations.md`
+(Cowork's tiered pass over goose-docs.ai's extension/recipe/skill catalogs).
+Only the "recommend adding now" / "strategically interesting" tiers from
+that draft were pulled in; "worth trying, not essential" and "skip" tiers
+were left out. See that file for the full tiering and the rationale behind
+each pick.
+
+**Extensions** (`config/config.yaml`) — six third-party MCP extensions were
+added on top of the built-ins already listed above, all **`enabled: false`**
+by default since none have been live-tested yet and several need external
+tooling or a secret:
+
+| Key | Needs | Purpose |
+|---|---|---|
+| `github` | `GITHUB_PERSONAL_ACCESS_TOKEN` (see `secrets.env.example`) | PR/issue ops via the hosted `streamable_http` GitHub MCP server |
+| `context7` | `npx` on `PATH` | Live library/crate docs instead of guessing at APIs |
+| `fetch` | `uvx` on `PATH` | Official MCP reference web-fetch server |
+| `playwright` | `npx` on `PATH` | Browser automation (Microsoft-maintained) |
+| `chrome-devtools` | `npx` on `PATH` | Deeper browser/DevTools inspection (official Chrome team) |
+| `knowledge_graph_memory` | `npx` on `PATH` | Official MCP reference structured-memory server |
+
+Flip an extension to `enabled: true` in `config.yaml` once its runtime
+dependency is confirmed present (and, for `github`, once
+`secrets.env` actually has a real token in it).
+
+**Recipes** (`recipes/`) — added alongside the existing six
+`goose-subagents-workshop` recipes: `generate-commit-message.yaml`,
+`pr-generator.yaml`, `test-coverage-optimizer.yaml`, `lint-my-code.yaml`,
+`change-log.yaml`, and the RPI research→plan→iterate→implement family
+(`rpi-research.yaml`, `rpi-plan.yaml`, `rpi-iterate.yaml`,
+`rpi-implement.yaml`, plus `subrecipes/rpi-codebase-locator.yaml`,
+`subrecipes/rpi-codebase-analyzer.yaml`, `subrecipes/rpi-pattern-finder.yaml`
+that `rpi-research.yaml` calls as sub-agents) and `ralph-work.yaml` /
+`ralph-review.yaml` (single-iteration work + cross-model ship/revise gate).
+Sourced directly from this repo's own
+`documentation/src/pages/recipes/data/recipes/` rather than fetched
+externally, so provenance is the goose monorepo itself.
+
+**Skills** (`config/skills/`) — four skills from `block/Agent-Skills` added
+alongside the existing custom `kn-*` skills: `code-review`,
+`testing-strategy`, `beads`, `rp-why`.
+
 ## Adding a new patch
 
 1. Branch off `origin/main` (not this fork's `main`) so the PR diff stays

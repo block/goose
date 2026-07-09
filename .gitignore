@@ -1,6 +1,9 @@
 # Tortu fork: real credentials live here, never tracked. See _tortu/config/secrets.env.example
 _tortu/config/secrets.env
 
+# Tortu fork: probe reports are machine-specific runtime output, not source
+_tortu/probes/reports/
+
 __pycache__
 *.pyc
 *.jar

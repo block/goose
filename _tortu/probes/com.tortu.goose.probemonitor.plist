@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tortu.goose.probemonitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/dougdaulton/AOF/work/projects/forks/goose/_tortu/probes/probe_monitor.sh</string>
+    </array>
+
+    <!-- Run once immediately when loaded, then every 900s (15 min) after that. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>900</integer>
+
+    <!-- If the Mac was asleep at a scheduled fire time, launchd runs it soon
+         after wake instead of silently skipping it. -->
+    <key>StandardOutPath</key>
+    <string>/Users/dougdaulton/AOF/work/projects/forks/goose/_tortu/probes/reports/monitor_launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dougdaulton/AOF/work/projects/forks/goose/_tortu/probes/reports/monitor_launchd.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

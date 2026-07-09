@@ -76,3 +76,15 @@ PR description should explain the problem (flat, undeduplicated output when a re
 more than one search path), show a before/after (the mockups in `../mockups/` are a good starting
 point — swap in real example output from the dogfooding step), and note the "no new dependency"
 point explicitly since that's usually a fast path to a friendly review.
+
+Also include this line, since the current implementation was built against clig.dev
+(https://clig.dev/) — semantic color/glyphs, NO_COLOR/non-TTY degradation via `console`'s built-in
+detection, no bordered table — using only crates already in goose-cli's `Cargo.toml`:
+
+> Output follows the clig.dev CLI guidelines (semantic color, NO_COLOR/non-TTY degradation); no new dependencies.
+
+Note: steps 1–2 and 5 above (comfy_table import, `PATCH.md`, `../mockups/after-table.txt`) describe
+an earlier bordered-table version of this patch. The implementation actually built and dogfooded in
+`recipe.rs` is the later stacked-block rewrite (grouped blocks, wrapped not truncated, `⚠` for
+collisions) — this file hasn't been re-synced to that yet. Treat steps 3–4 and 6 as still accurate;
+re-verify 1–2 and 5 against the real diff before running through this checklist for real.
