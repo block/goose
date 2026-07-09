@@ -9,47 +9,16 @@ import { answerQuestion } from "../utils/ai";
 import { buildServerContext } from "../utils/discord/server-context";
 import { logger } from "../utils/logger";
 
-async function shouldSendFollowUpHint(
-  message: OmitPartialGroupDMChannel<Message<boolean>>,
-): Promise<boolean> {
-  try {
-    const thread = message.channel;
-    if (!thread.isThread()) return false;
-
-    const botId = message.client.user?.id || "";
-    const starterMessage = await thread.fetchStarterMessage().catch(() => null);
-
-    const messages = await thread.messages.fetch({ limit: 20 });
-
-    let hasOtherHumanMessages = false;
-    let botWasPingedOrRepliedTo = false;
-
-    for (const msg of messages.values()) {
-      if (msg.author.bot) continue;
-      if (starterMessage && msg.id === starterMessage.id) continue;
-      if (msg.id === message.id) continue;
-
-      hasOtherHumanMessages = true;
-
-      if (msg.mentions.has(botId)) {
-        botWasPingedOrRepliedTo = true;
-      }
-
-      if (msg.reference?.messageId && !botWasPingedOrRepliedTo) {
-        const referenced = await thread.messages
-          .fetch(msg.reference.messageId)
-          .catch(() => null);
-        if (referenced?.author.bot) {
-          botWasPingedOrRepliedTo = true;
-        }
-      }
-    }
-
-    return !hasOtherHumanMessages && !botWasPingedOrRepliedTo;
-  } catch {
-    return false;
-  }
-}
+const followUpInstructions = {
+  embeds: [
+    {
+      title: "Want to ask a follow-up?",
+      description:
+        "Reply to one of my messages or @mention me in this thread so I know to answer.",
+      color: 0x6a9f58,
+    },
+  ],
+};
 
 export default {
   event: Events.MessageCreate,
@@ -98,15 +67,10 @@ export default {
           logger.verbose(
             `Ignoring thread message from ${message.author.username} (not mentioned or replied to)`,
           );
-
-          if (await shouldSendFollowUpHint(message)) {
-            await message.channel.send(
-              "To ask me a follow-up, please **reply to one of my messages** or **@mention me**. I won't see messages sent otherwise.",
-            );
-          }
-
           return;
         }
+
+        await message.channel.sendTyping();
 
         // Fetch last 10 messages from the thread for context
         const messages = await message.channel.messages.fetch({ limit: 10 });
@@ -160,6 +124,8 @@ export default {
             statusMessage,
             serverContext,
           });
+
+          await thread.send(followUpInstructions);
 
           logger.verbose(`Answered question for ${message.author.username}`);
         } catch (error) {
