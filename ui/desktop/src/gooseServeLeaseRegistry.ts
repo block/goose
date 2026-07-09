@@ -16,6 +16,7 @@ export interface GooseServeLease {
 
 export class GooseServeLeaseRegistry {
   private leasesByWindowId = new Map<number, GooseServeLease>();
+  private pendingCleanups = new Set<Promise<void>>();
 
   constructor(private readonly logger: Logger) {}
 
@@ -143,10 +144,23 @@ export class GooseServeLeaseRegistry {
     }
     lease.windowIds.clear();
 
+    // Track the in-flight cleanup so shutdown can await it. releaseWindow() is
+    // invoked fire-and-forget on window close, and it removes the lease from the
+    // registry before this async cleanup finishes. Without this tracking, a quit
+    // that races the cleanup sees activeLeaseCount() === 0, skips cleanupAll(),
+    // and exits while goosed is still being terminated -- orphaning the process.
+    const task = (async () => {
+      try {
+        await lease.cleanup();
+      } catch (error) {
+        this.logger.error('Failed to cleanup goose serve backend:', error);
+      }
+    })();
+    this.pendingCleanups.add(task);
     try {
-      await lease.cleanup();
-    } catch (error) {
-      this.logger.error('Failed to cleanup goose serve backend:', error);
+      await task;
+    } finally {
+      this.pendingCleanups.delete(task);
     }
   }
 
@@ -156,6 +170,28 @@ export class GooseServeLeaseRegistry {
 
   async cleanupAll() {
     await Promise.all(this.uniqueLeases().map((lease) => this.cleanupLease(lease)));
+    await this.settlePendingCleanups();
+  }
+
+  /**
+   * Whether any lease cleanup started fire-and-forget (e.g. by releaseWindow()
+   * on window close) is still running. Lets the quit path decide whether it must
+   * hold the app open until backend termination finishes.
+   */
+  hasPendingCleanups(): boolean {
+    return this.pendingCleanups.size > 0;
+  }
+
+  /**
+   * Await any in-flight lease cleanups started fire-and-forget (e.g. by
+   * releaseWindow() on window close). Call this during app shutdown so the
+   * process does not exit and orphan a goosed backend that is still being
+   * terminated.
+   */
+  async settlePendingCleanups(): Promise<void> {
+    while (this.pendingCleanups.size > 0) {
+      await Promise.all([...this.pendingCleanups]);
+    }
   }
 
   private uniqueLeases(): GooseServeLease[] {

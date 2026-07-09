@@ -93,6 +93,43 @@ describe('GooseServeLeaseRegistry', () => {
     expect(store.getSecretKey(2)).toBeNull();
   });
 
+  it('settles in-flight cleanups started by a fire-and-forget releaseWindow', async () => {
+    let resolveCleanup: () => void = () => undefined;
+    const cleanupStarted = vi.fn();
+    const cleanup = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          cleanupStarted();
+          resolveCleanup = resolve;
+        })
+    );
+    const store = new GooseServeLeaseRegistry(createLogger());
+    const lease = store.create(createGooseServeResult({ cleanup }), 'local-secret');
+    store.attachWindow(1, lease);
+
+    // Fire-and-forget, exactly how main.ts releases a lease on window close.
+    void store.releaseWindow(1);
+    await Promise.resolve();
+
+    // The lease is already gone from the registry, so a naive quit check that
+    // relies on activeLeaseCount() would see nothing to clean up...
+    expect(store.activeLeaseCount()).toBe(0);
+    expect(cleanupStarted).toHaveBeenCalledTimes(1);
+
+    // ...but settlePendingCleanups() must still wait for the running cleanup.
+    let settled = false;
+    const settlePromise = store.settlePendingCleanups().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveCleanup();
+    await settlePromise;
+    expect(settled).toBe(true);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
   it('creates an external ACP lease without process cleanup', async () => {
     const store = new GooseServeLeaseRegistry(createLogger());
     const lease = store.createExternal('wss://example.com/goose/acp?token=test', 'external-secret');

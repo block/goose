@@ -3107,11 +3107,52 @@ async function getAllowList(): Promise<string[]> {
   }
 }
 
-app.on('will-quit', async () => {
-  const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();
-  if (gooseServeLeaseCount > 0) {
-    log.info(`App quitting, cleaning up ${gooseServeLeaseCount} backend lease(s)`);
-    await gooseServeLeases.cleanupAll();
+// Electron does NOT await async `will-quit` listeners: once the synchronous
+// portion of the handler returns, the runtime proceeds to terminate. To finish
+// backend cleanup before exit we must hold the quit open synchronously with
+// event.preventDefault(), run the async cleanup, then re-issue the quit.
+let backendCleanupComplete = false;
+let backendCleanupStarted = false;
+
+app.on('will-quit', (event) => {
+  if (!backendCleanupComplete) {
+    // A previous will-quit already kicked off cleanup; keep blocking until it
+    // completes and re-issues the quit.
+    if (backendCleanupStarted) {
+      event.preventDefault();
+      return;
+    }
+
+    const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();
+    // Closing a window triggers releaseWindow() fire-and-forget, which starts an
+    // async backend cleanup and removes the lease from the registry immediately.
+    // So by quit time activeLeaseCount() may already be 0 while a cleanup that
+    // terminates goosed is still running -- hasPendingCleanups() catches that.
+    const needsCleanup = gooseServeLeaseCount > 0 || gooseServeLeases.hasPendingCleanups();
+
+    if (needsCleanup) {
+      event.preventDefault();
+      backendCleanupStarted = true;
+      if (gooseServeLeaseCount > 0) {
+        log.info(`App quitting, cleaning up ${gooseServeLeaseCount} backend lease(s)`);
+      }
+      void (async () => {
+        try {
+          await gooseServeLeases.cleanupAll();
+          await gooseServeLeases.settlePendingCleanups();
+        } catch (error) {
+          log.error('Error cleaning up goose backends during quit:', error);
+        } finally {
+          backendCleanupComplete = true;
+          // Re-issue the quit; the next will-quit short-circuits past the gate
+          // and runs the synchronous teardown below before the app terminates.
+          app.quit();
+        }
+      })();
+      return;
+    }
+
+    backendCleanupComplete = true;
   }
 
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
