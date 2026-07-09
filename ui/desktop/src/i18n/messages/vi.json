@@ -4585,5 +4585,20 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Tạo một phiên làm việc mới với tin nhắn đã chỉnh sửa"
+  },
+  "chatInput.continueWithResolvedModel": {
+    "defaultMessage": "Continue with {resolvedModel}"
+  },
+  "chatInput.modelResolutionMismatchDetail": {
+    "defaultMessage": "Choose how to proceed before sending another prompt. Goose will keep requesting {requestedModel} unless you change models."
+  },
+  "chatInput.modelResolutionMismatchNotice": {
+    "defaultMessage": "{requestedModel} was requested, but the last response ran on {resolvedModel}."
+  },
+  "chatInput.modelResolutionMismatchTitle": {
+    "defaultMessage": "Provider resolved a different model"
+  },
+  "chatInput.retryRequestedModel": {
+    "defaultMessage": "Edit prompt and retry {requestedModel}"
   }
 }

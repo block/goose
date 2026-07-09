@@ -530,7 +530,8 @@ impl Agent {
         }
 
         let mut filtered_message =
-            Message::new(response.role.clone(), response.created, filtered_content);
+            Message::new(response.role.clone(), response.created, filtered_content)
+                .with_metadata(response.metadata.clone());
 
         // Preserve the ID if it exists
         if let Some(id) = response.id.clone() {
@@ -846,6 +847,26 @@ mod tests {
             filtered_message.content[0],
             MessageContent::ToolRequest(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_preserves_response_metadata() {
+        let agent = crate::agents::Agent::new();
+        let response = Message::assistant().with_text("hello").with_inference(
+            crate::conversation::message::InferenceMetadata {
+                provider: "claude-acp".to_string(),
+                requested_model: "claude-fable-5".to_string(),
+                resolved_model: Some("claude-opus-4-8".to_string()),
+            },
+        );
+
+        let (_frontend_requests, _other_requests, filtered_message) =
+            agent.categorize_tool_requests(&response, &[], false).await;
+
+        assert_eq!(
+            filtered_message.metadata.inference,
+            response.metadata.inference
+        );
     }
 
     #[tokio::test]
