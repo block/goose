@@ -270,11 +270,30 @@ impl Recipe {
         }
     }
 
-    /// Returns true if harmful content is detected in any recipe field that
-    /// could execute code (stdlib extensions, retry shell checks, inline Python)
-    /// or contains hidden Unicode Tags Block characters in text fields.
+    /// Returns true if harmful hidden Unicode Tags Block characters are detected
+    /// in text fields. This is the hard-blocker used by save/schedule — recipes
+    /// that fail this check cannot be saved or scheduled.
+    /// For a broader scan that also warns about command-executing extensions and
+    /// retry shell checks, use `get_security_warnings()` instead.
     pub fn check_for_security_warnings(&self) -> bool {
-        !self.get_security_warnings().is_empty()
+        if [self.instructions.as_deref(), self.prompt.as_deref()]
+            .iter()
+            .flatten()
+            .any(|&field| contains_unicode_tags(field))
+        {
+            return true;
+        }
+
+        if let Some(activities) = &self.activities {
+            if activities
+                .iter()
+                .any(|activity| contains_unicode_tags(activity))
+            {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Returns a list of human-readable warnings about dangerous fields in this recipe
@@ -843,7 +862,7 @@ isGlobal: true"#;
     }
 
     #[test]
-    fn test_check_for_security_warnings_stdio_extension() {
+    fn test_get_security_warnings_stdio_extension_flagged() {
         let recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Test".to_string(),
@@ -870,7 +889,7 @@ isGlobal: true"#;
             sub_recipes: None,
             retry: None,
         };
-        assert!(recipe.check_for_security_warnings());
+        assert!(!recipe.get_security_warnings().is_empty());
     }
 
     #[test]
@@ -989,7 +1008,7 @@ isGlobal: true"#;
     }
 
     #[test]
-    fn test_check_for_security_warnings_inline_python_flagged() {
+    fn test_get_security_warnings_inline_python_flagged() {
         let recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Test".to_string(),
@@ -1012,11 +1031,11 @@ isGlobal: true"#;
             sub_recipes: None,
             retry: None,
         };
-        assert!(recipe.check_for_security_warnings());
+        assert!(!recipe.get_security_warnings().is_empty());
     }
 
     #[test]
-    fn test_check_for_security_warnings_retry_shell_check_flagged() {
+    fn test_get_security_warnings_retry_shell_check_flagged() {
         let recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Test".to_string(),
@@ -1040,11 +1059,11 @@ isGlobal: true"#;
                 on_failure_timeout_seconds: None,
             }),
         };
-        assert!(recipe.check_for_security_warnings());
+        assert!(!recipe.get_security_warnings().is_empty());
     }
 
     #[test]
-    fn test_check_for_security_warnings_retry_on_failure_flagged() {
+    fn test_get_security_warnings_retry_on_failure_flagged() {
         let recipe = Recipe {
             version: "1.0.0".to_string(),
             title: "Test".to_string(),
@@ -1066,7 +1085,7 @@ isGlobal: true"#;
                 on_failure_timeout_seconds: None,
             }),
         };
-        assert!(recipe.check_for_security_warnings());
+        assert!(!recipe.get_security_warnings().is_empty());
     }
 
     #[test]
