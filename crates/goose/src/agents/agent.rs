@@ -2051,6 +2051,7 @@ impl Agent {
             let mut stop_hook_handled_for_exit = false;
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
+            let mut stop_hook_warn_loops = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
 
@@ -2872,13 +2873,40 @@ impl Agent {
                         .await;
                     match hook_result.decision {
                         crate::hooks::HookDecision::Allow => {
-                            if let Some(message) = advisory_context_message(&hook_result.advisories) {
-                                session_manager.add_message(&session_config.id, &message).await?;
-                                conversation.push(message.clone());
-                                yield AgentEvent::Message(message);
+                            match advisory_context_message(&hook_result.advisories) {
+                                // A `warn` decision advises without denying: inject
+                                // the reason and loop back so the model can correct
+                                // the claim IN THIS turn (the provider is re-invoked
+                                // with the advisory now in `conversation`). Bounded
+                                // by the block cap so a hook that warns every time
+                                // can't loop forever — and because this is still
+                                // Allow, hitting the cap ends the turn regardless, so
+                                // warn can NEVER re-gate/deadlock the way block does.
+                                Some(message) if stop_hook_warn_loops < stop_hook_block_cap => {
+                                    stop_hook_warn_loops += 1;
+                                    session_manager.add_message(&session_config.id, &message).await?;
+                                    conversation.push(message.clone());
+                                    yield AgentEvent::Message(message);
+                                    // Do NOT break and do NOT set
+                                    // stop_hook_handled_for_exit: falling through
+                                    // continues the loop, which re-invokes the
+                                    // provider with the advisory now in
+                                    // `conversation` (`exit_chat` is re-initialized
+                                    // to false at the top of the next iteration).
+                                }
+                                // Plain allow (no advisory), or the warn cap is
+                                // reached: inject any pending advisory once, then end
+                                // the turn. This always terminates.
+                                maybe_message => {
+                                    if let Some(message) = maybe_message {
+                                        session_manager.add_message(&session_config.id, &message).await?;
+                                        conversation.push(message.clone());
+                                        yield AgentEvent::Message(message);
+                                    }
+                                    stop_hook_handled_for_exit = true;
+                                    break;
+                                }
                             }
-                            stop_hook_handled_for_exit = true;
-                            break;
                         }
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
@@ -3712,6 +3740,29 @@ cat > "$PLUGIN_ROOT/payload.json"
 exit 0
 "#;
 
+    // Always emits a non-blocking `warn` advisory on stdout.
+    const ALWAYS_WARN_SCRIPT: &str = r#"#!/bin/sh
+echo warned >> "$PLUGIN_ROOT/hook.log"
+printf '%s' '{"decision":"warn","reason":"verify the claim against the tool trace"}'
+exit 0
+"#;
+
+    // Warns on the first invocation, then plain-allows on every later one.
+    const WARN_ONCE_THEN_ALLOW_SCRIPT: &str = r#"#!/bin/sh
+count_file="$PLUGIN_ROOT/count"
+count=0
+if [ -f "$count_file" ]; then
+  count=$(cat "$count_file")
+fi
+count=$((count + 1))
+echo "$count" > "$count_file"
+echo "$count" >> "$PLUGIN_ROOT/hook.log"
+if [ "$count" -eq 1 ]; then
+  printf '%s' '{"decision":"warn","reason":"double-check before finishing"}'
+fi
+exit 0
+"#;
+
     struct StopHookTestEnv {
         temp_dir: TempDir,
         hook_log: PathBuf,
@@ -4119,6 +4170,75 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .iter()
                 .any(|text| text.contains("overriding and ending turn")),
             "non-consecutive Stop hook blocks should not trip the cap warning"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_warn_advises_and_lets_model_correct_in_turn() -> Result<()> {
+        let env = StopHookTestEnv::new(WARN_ONCE_THEN_ALLOW_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count(),
+            2,
+            "warn should NOT end the turn: the loop re-invokes the provider once with the advisory in context, then the follow-up allow ends it"
+        );
+        assert_eq!(
+            env.hook_invocations(),
+            2,
+            "Stop hook runs for the first response (warn) and the in-turn correction (allow)"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|text| text.contains("double-check before finishing")),
+            "the warn reason must be injected as advisory context"
+        );
+        assert!(
+            texts.iter().any(|text| text == "provider response 1"),
+            "the model must produce a second response after the advisory — the in-turn correction"
+        );
+        assert!(
+            !texts
+                .iter()
+                .any(|text| text.contains("overriding and ending turn")),
+            "warn is not a denial and must never trip the block-cap override"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_warn_is_capped_and_cannot_loop_forever() -> Result<()> {
+        let env = StopHookTestEnv::new(ALWAYS_WARN_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        // cap=2: two warn loop-backs (after responses 0 and 1), then the third
+        // warn hits the cap and the turn ends — 3 provider calls total. max_turns
+        // is 10, so hitting 3 proves the WARN cap (not max_turns) is the limiter.
+        assert_eq!(
+            provider.call_count(),
+            3,
+            "an always-warn hook must terminate at the warn cap, not loop forever"
+        );
+        assert_eq!(env.hook_invocations(), 3);
+        assert!(
+            !texts.iter().any(|text| text == MAX_TURNS_MESSAGE),
+            "the warn cap, not max_turns, should terminate the loop"
+        );
+        assert!(
+            !texts
+                .iter()
+                .any(|text| text.contains("overriding and ending turn")),
+            "warn is Allow, so it must never emit the block-cap override warning"
         );
 
         Ok(())
