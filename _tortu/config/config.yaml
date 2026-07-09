@@ -210,6 +210,40 @@ extensions:
     timeout: 300
     bundled: false
     available_tools: []
+  # Read-only surface into tortu-mcp's review engine, per
+  # _tortu/_inbox/from-tortu-mcp-mcp-connection-spec.md. available_tools is
+  # populated deliberately (not left empty) so goose's own extension.rs
+  # is_tool_available() allowlist enforces read-only at both tool-listing and
+  # dispatch time -- not relying solely on review.mcp's own posture. Mutating
+  # tools (decisions_create/update/revise/amend, markup_comment/resolve/
+  # reopen) and all of tortu-build stay excluded until Doug signs off and the
+  # P98 gate bug is resolved.
+  tortu-review:
+    enabled: true
+    type: stdio
+    name: tortu-review
+    description: Read-only access to tortu-mcp's review engine (decisions, markup, learning, comms, roadmap)
+    cmd: bash
+    args:
+      - "-lc"
+      - "cd /Users/dougdaulton/AOF/work/projects/tortu-tools/tortu-mcp && exec .venv/bin/python -m review.mcp"
+    timeout: 60
+    bundled: false
+    available_tools:
+      - decisions_pending
+      - decisions_status
+      - markup_list
+      - markup_get
+      - markup_stats
+      - notifications
+      - learning_list
+      - learning_stats
+      - learning_digest
+      - comms_read
+      - comms_feed
+      - comms_board
+      - comms_threads
+      - roadmap_get
 providers:
   openai:
     enabled: true
