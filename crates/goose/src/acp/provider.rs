@@ -4,9 +4,9 @@ use agent_client_protocol::schema::v1::{
     McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionMode, SessionModeId, SessionModeState,
-    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, SetSessionModeRequest,
-    SetSessionModeResponse, StopReason, TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -1616,7 +1616,9 @@ fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDeci
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::v1::SessionConfigSelectOption;
+    use agent_client_protocol::schema::v1::{
+        SessionConfigSelectOption, SessionMode, SessionModeId,
+    };
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
