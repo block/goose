@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Otomatik sıkıştırma eşiği"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Şimdi sıkıştır"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "Eşik kaydedilemedi: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "Anladım!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose görevi tamamladı."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Bağlam penceresi"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Dikte Hatası"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "İşleniyor..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Bağlam röntgenini aç"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Talimatlar ve ipuçları"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Uzantı talimatları"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Konuşma"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "Sistem promptu"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Araç tanımları"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Tur bağlamı"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Şimdi sıkıştır"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Sıkıştırma"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Sonuncuları tut"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "otomatik ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "araç çağrısı"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Sıkıştırma ve araç çağrısı özetleri için kullanılan model. Otomatik, sağlayıcının hızlı modelini seçer."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Sıkıştırma modeli"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Otomatik (sağlayıcının hızlı modeli)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Otomatik ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "Sıkıştırma ayarı kaydedilemedi"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Konuşma uzadıkça eski araç çağrılarını ve sonuçlarını tek satırlık özetlerle değiştirir."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Eski araç çağrılarını özetle"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Konuşmayı, bağlam penceresinin bu oranına ulaşıldığında otomatik olarak sıkıştırır."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Otomatik sıkıştırma eşiği"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "Son sağlayıcı çağrısı, çıktı dahil toplam {tokens} token kullandı."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Token sayıları o200k tokenizer ile tahmin edilmiştir."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Boş"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "{limit} token içinden · bağlam penceresinin {percent} kadarı"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "Bağlam raporu yüklenemedi."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} token · pencerenin {percent} kadarı"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit} tokenlik bağlam penceresi"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Yenile"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Yeniden dene"
+  },
+  "contextXray.title": {
+    "defaultMessage": "Bağlam röntgeni"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Tokenizer ek yükü"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, one {# araç} other {# araç}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Konuşma Sınırları"

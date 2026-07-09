@@ -57,17 +57,18 @@ function messageUsageNotification(
   });
 }
 
-function expectOnlyMessagesChange(chatStateChanges: AcpChatStateChange[]): Message[] {
-  expect(chatStateChanges).toHaveLength(1);
+function expectMessagesChange(chatStateChanges: AcpChatStateChange[]): Message[] {
+  const chatStateChange = chatStateChanges.find((change) => change.type === 'messages');
 
-  const [chatStateChange] = chatStateChanges;
-  expect(chatStateChange.type).toBe('messages');
-
-  if (chatStateChange.type !== 'messages') {
+  if (!chatStateChange || chatStateChange.type !== 'messages') {
     throw new Error('expected messages state change');
   }
 
   return chatStateChange.messages;
+}
+
+function findTokenStateChange(chatStateChanges: AcpChatStateChange[]) {
+  return chatStateChanges.find((change) => change.type === 'tokenState');
 }
 
 describe('applyGooseSessionNotification', () => {
@@ -77,7 +78,8 @@ describe('applyGooseSessionNotification', () => {
 
       const changes = applyGooseSessionNotification(state, messageUsageNotification('a1'));
 
-      const messages = expectOnlyMessagesChange(changes);
+      expect(changes).toHaveLength(2);
+      const messages = expectMessagesChange(changes);
       expect(messages).toHaveLength(3);
 
       const [, first, second] = messages;
@@ -86,6 +88,56 @@ describe('applyGooseSessionNotification', () => {
       expect(second.metadata.usage).toBeUndefined();
 
       expect(state.messages[1].metadata.usage).toEqual(FULL_USAGE);
+
+      expect(findTokenStateChange(changes)).toEqual({
+        type: 'tokenState',
+        tokenState: {
+          inputTokens: 1200,
+          outputTokens: 340,
+          totalTokens: 1540,
+          cacheReadTokens: 800,
+          cacheWriteTokens: 100,
+        },
+      });
+    });
+
+    it('omits nullish usage fields from the token state change', () => {
+      const state = makeState();
+
+      const changes = applyGooseSessionNotification(
+        state,
+        messageUsageNotification('a1', { outputTokens: 340, cacheReadTokens: null })
+      );
+
+      expect(findTokenStateChange(changes)).toEqual({
+        type: 'tokenState',
+        tokenState: { outputTokens: 340 },
+      });
+    });
+
+    it('emits no token state change when all token fields are nullish', () => {
+      const state = makeState();
+
+      const changes = applyGooseSessionNotification(
+        state,
+        messageUsageNotification('a1', { elapsedMs: 4200 })
+      );
+
+      expect(changes).toHaveLength(1);
+      expect(findTokenStateChange(changes)).toBeUndefined();
+    });
+
+    it('emits no token state change for compaction usage', () => {
+      const state = makeState();
+
+      const changes = applyGooseSessionNotification(
+        state,
+        messageUsageNotification('a1', { ...FULL_USAGE, isCompaction: true })
+      );
+
+      expect(changes).toHaveLength(1);
+      expect(findTokenStateChange(changes)).toBeUndefined();
+      expect(state.messages[1].metadata.usage).toEqual({ ...FULL_USAGE, isCompaction: true });
     });
 
     it.each([
@@ -96,7 +148,7 @@ describe('applyGooseSessionNotification', () => {
 
       const changes = applyGooseSessionNotification(state, messageUsageNotification(messageId));
 
-      const messages = expectOnlyMessagesChange(changes);
+      const messages = expectMessagesChange(changes);
       const [user, first, last] = messages;
       expect(user.metadata.usage).toBeUndefined();
       expect(first.metadata.usage).toBeUndefined();
@@ -121,13 +173,13 @@ describe('applyGooseSessionNotification', () => {
 
       const changes = applyGooseSessionNotification(state, messageUsageNotification('missing'));
 
-      const messages = expectOnlyMessagesChange(changes);
+      const messages = expectMessagesChange(changes);
       expect(messages[3].metadata.usage).toBeUndefined();
       expect(messages[2].id).toBe('a2');
       expect(messages[2].metadata.usage).toEqual(FULL_USAGE);
     });
 
-    it('returns no changes and mutates nothing when no assistant message exists', () => {
+    it('emits only a token state change when no assistant message exists', () => {
       const state: AdapterState = {
         messages: [message('u1', 'user')],
         localSteerTextByMessageId: new Map(),
@@ -136,7 +188,8 @@ describe('applyGooseSessionNotification', () => {
 
       const changes = applyGooseSessionNotification(state, messageUsageNotification('missing'));
 
-      expect(changes).toEqual([]);
+      expect(changes).toHaveLength(1);
+      expect(findTokenStateChange(changes)).toBeDefined();
       expect(state.messages[0].metadata.usage).toBeUndefined();
     });
   });

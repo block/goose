@@ -41,6 +41,7 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
         provider_name: entry.provider_name,
         description: entry.description,
         default_model: entry.default_model,
+        fast_model: entry.fast_model,
         configured: entry.configured,
         provider_type: format!("{:?}", entry.provider_type),
         category: provider_setup_category_to_dto(entry.category),

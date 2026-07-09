@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "자동 압축 기준"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "지금 압축"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "임계값 저장 실패: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "알았어요!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "goose가 작업을 완료했습니다."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "컨텍스트 창"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "받아쓰기 오류"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "처리 중..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "컨텍스트 엑스레이 열기"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "지침 및 힌트"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "확장 프로그램 지침"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "대화"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "시스템 프롬프트"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "도구 정의"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "턴 컨텍스트"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "지금 압축"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "압축"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "최근 유지"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "자동 ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "개 도구 호출"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "압축과 도구 호출 요약에 사용하는 모델입니다. 자동은 제공업체의 빠른 모델을 선택합니다."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "압축 모델"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "자동 (제공업체의 빠른 모델)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "자동 ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "압축 설정 저장 실패"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "대화가 길어지면 오래된 도구 호출과 결과를 한 줄 요약으로 대체합니다."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "오래된 도구 호출 요약"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "컨텍스트 창의 이 비율에 도달하면 대화를 자동으로 압축합니다."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "자동 압축 기준"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "마지막 공급자 호출에서 출력을 포함해 총 {tokens} 토큰을 사용했습니다."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "토큰 수는 o200k 토크나이저로 추정한 값입니다."
+  },
+  "contextXray.free": {
+    "defaultMessage": "여유"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "{limit} 토큰 중 · 컨텍스트 창의 {percent}"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "컨텍스트 보고서를 불러올 수 없습니다."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} 토큰 · 창의 {percent}"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit} 토큰 컨텍스트 창"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "새로고침"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "다시 시도"
+  },
+  "contextXray.title": {
+    "defaultMessage": "컨텍스트 엑스레이"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "토크나이저 오버헤드"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, other {도구 #개}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "대화 제한"

@@ -316,6 +316,50 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
         .collect()
 }
 
+// Escalation ladder of tool-response removal percentages tried until the
+// summarization prompt fits the compaction model's context window.
+const REMOVAL_PERCENTAGES: [u32; 5] = [0, 10, 20, 50, 100];
+
+/// Pick the first removal percentage whose estimated prompt size fits the
+/// compaction model's context window, so a compaction model with a smaller
+/// window than the main model doesn't waste full-context attempts that are
+/// guaranteed to fail.
+async fn initial_removal_index(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    messages: &[Message],
+) -> usize {
+    let compaction_model =
+        match crate::model_config::get_compaction_model(provider.get_name(), model_config).await {
+            Ok(model) => model,
+            Err(_) => return 0,
+        };
+    if compaction_model.model_name == model_config.model_name {
+        return 0;
+    }
+
+    let context_limit = provider
+        .get_context_limit(&compaction_model)
+        .await
+        .unwrap_or_else(|_| compaction_model.context_limit());
+    let budget = (context_limit as f64 * DEFAULT_COMPACTION_THRESHOLD) as usize;
+
+    let Ok(token_counter) = create_token_counter().await else {
+        return 0;
+    };
+
+    REMOVAL_PERCENTAGES
+        .iter()
+        .position(|&remove_percent| {
+            let estimated_tokens: usize = filter_tool_responses(messages, remove_percent)
+                .iter()
+                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(*msg), &[]))
+                .sum();
+            estimated_tokens <= budget
+        })
+        .unwrap_or(REMOVAL_PERCENTAGES.len() - 1)
+}
+
 async fn do_compact(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -325,10 +369,9 @@ async fn do_compact(
     let agent_visible_messages =
         Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
-    // Try progressively removing more tool response messages from the middle to reduce context length
-    let removal_percentages = [0, 10, 20, 50, 100];
+    let start_index = initial_removal_index(provider, model_config, &agent_visible_messages).await;
 
-    for (attempt, &remove_percent) in removal_percentages.iter().enumerate() {
+    for (attempt, &remove_percent) in REMOVAL_PERCENTAGES.iter().enumerate().skip(start_index) {
         let filtered_messages = filter_tool_responses(&agent_visible_messages, remove_percent);
 
         let messages_text = filtered_messages
@@ -347,7 +390,7 @@ async fn do_compact(
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match crate::model_config::complete_fast(
+        match crate::model_config::complete_compaction(
             provider,
             model_config,
             session_id,
@@ -379,7 +422,7 @@ async fn do_compact(
             }
             Err(e) => {
                 if matches!(e, ProviderError::ContextLengthExceeded(_)) {
-                    if attempt < removal_percentages.len() - 1 {
+                    if attempt < REMOVAL_PERCENTAGES.len() - 1 {
                         continue;
                     } else {
                         return Err(anyhow::anyhow!(
@@ -606,7 +649,7 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = crate::model_config::complete_fast(
+    let (mut response, _) = crate::model_config::complete_compaction(
         provider,
         model_config,
         session_id,

@@ -13,8 +13,12 @@ describe('usageFormatting', () => {
       [999, '999'],
       [1000, '1k'],
       [1234, '1.2k'],
+      [1500, '1.5k'],
       [12345, '12k'],
+      [200_000, '200k'],
       [999_499, '999k'],
+      [999_500, '1M'],
+      [1_048_576, '1M'],
       [1_200_000, '1.2M'],
     ])('formats %d as %s', (input, expected) => {
       expect(formatTokenCount(input)).toBe(expected);

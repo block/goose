@@ -87,6 +87,7 @@ pub use agent_requests::agent_request_schemas;
 mod agent_mentions;
 mod apps;
 mod config;
+mod context_report;
 mod custom_dispatch;
 mod diagnostics;
 mod dictation;

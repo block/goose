@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "自动压缩阈值"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "立即压缩"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "保存阈值失败：{error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "知道了！"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose 完成任务了。"
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "上下文窗口"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "语音输入错误"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "处理中…"
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "打开上下文透视"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "指令与提示"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "扩展指令"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "对话"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "系统提示词"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "工具定义"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "回合上下文"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "立即压缩"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "压缩"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "保留最近"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "自动({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "次工具调用"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "用于压缩和工具调用摘要的模型。自动会选择提供商的快速模型。"
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "压缩模型"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "自动(提供商快速模型)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "自动({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "保存压缩设置失败"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "随着对话变长,将旧的工具调用及其结果替换为单行摘要。"
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "总结旧的工具调用"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "当达到上下文窗口的此比例时自动压缩对话。"
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "自动压缩阈值"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "上一次提供商调用共使用了 {tokens} 个令牌，包括输出。"
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "令牌数量由 o200k 分词器估算。"
+  },
+  "contextXray.free": {
+    "defaultMessage": "可用"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "共 {limit} 令牌 · 占上下文窗口的 {percent}"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "无法加载上下文报告。"
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} 令牌 · 占窗口的 {percent}"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit} 令牌上下文窗口"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "刷新"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "重试"
+  },
+  "contextXray.title": {
+    "defaultMessage": "上下文透视"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "分词器开销"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, other {# 个工具}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "对话限制"

@@ -1,4 +1,5 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { TokenState } from '../../types/chat';
 import type { MessageUsage } from '../../types/message';
 import { type AcpChatStateChange, type AdapterState, messagesChange } from './shared';
 
@@ -66,6 +67,20 @@ function applyMessageUsage(
   state: AdapterState,
   update: Extract<GooseSessionNotification_unstable['update'], { sessionUpdate: 'message_usage' }>
 ): AcpChatStateChange[] {
+  const tokenState: Partial<TokenState> = {};
+  const { inputTokens, outputTokens, totalTokens, cacheReadTokens, cacheWriteTokens } =
+    update.usage;
+  if (inputTokens != null) tokenState.inputTokens = inputTokens;
+  if (outputTokens != null) tokenState.outputTokens = outputTokens;
+  if (totalTokens != null) tokenState.totalTokens = totalTokens;
+  if (cacheReadTokens != null) tokenState.cacheReadTokens = cacheReadTokens;
+  if (cacheWriteTokens != null) tokenState.cacheWriteTokens = cacheWriteTokens;
+
+  const tokenStateChange: AcpChatStateChange | null =
+    update.usage.isCompaction || Object.keys(tokenState).length === 0
+      ? null
+      : { type: 'tokenState', tokenState };
+
   // Live tool-call turns carry a server-side id the client never saw, so an
   // id miss falls back to the most recent assistant message with provider
   // content - skipping client-made rows (approval cards, status notices).
@@ -85,7 +100,7 @@ function applyMessageUsage(
       );
 
   if (!target) {
-    return [];
+    return tokenStateChange ? [tokenStateChange] : [];
   }
 
   const usage: MessageUsage = {
@@ -102,5 +117,5 @@ function applyMessageUsage(
   };
 
   target.metadata = { ...target.metadata, usage };
-  return messagesChange(state);
+  return tokenStateChange ? [...messagesChange(state), tokenStateChange] : messagesChange(state);
 }

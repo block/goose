@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Tự động nén tại"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Nén ngay"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "Không thể lưu ngưỡng: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "Đã hiểu!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose đã hoàn thành tác vụ."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Cửa sổ ngữ cảnh"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Lỗi đọc chính tả"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "Đang xử lý..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Mở x-quang ngữ cảnh"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Hướng dẫn & gợi ý"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Hướng dẫn tiện ích mở rộng"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Hội thoại"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "Prompt hệ thống"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Định nghĩa công cụ"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Ngữ cảnh lượt"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Nén ngay"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Nén"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Giữ lại"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "tự động ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "lệnh gọi công cụ gần nhất"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Mô hình dùng để nén và tóm tắt lệnh gọi công cụ. Tự động sẽ chọn mô hình nhanh của nhà cung cấp."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Mô hình nén"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Tự động (mô hình nhanh của nhà cung cấp)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Tự động ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "Không thể lưu cài đặt nén"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Thay các lệnh gọi công cụ cũ và kết quả bằng tóm tắt một dòng khi cuộc trò chuyện dài ra."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Tóm tắt các lệnh gọi công cụ cũ"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Tự động nén cuộc trò chuyện khi đạt tỷ lệ này của cửa sổ ngữ cảnh."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Tự động nén tại"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "Lần gọi nhà cung cấp gần nhất đã dùng tổng cộng {tokens} token, bao gồm cả đầu ra."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Số token được ước tính bằng bộ tách token o200k."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Còn trống"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "trên {limit} token · {percent} cửa sổ ngữ cảnh"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "Không thể tải báo cáo ngữ cảnh."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} token · {percent} cửa sổ"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · cửa sổ ngữ cảnh {limit} token"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Làm mới"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Thử lại"
+  },
+  "contextXray.title": {
+    "defaultMessage": "X-quang ngữ cảnh"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Chi phí bộ tách token"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, other {# công cụ}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Giới hạn cuộc trò chuyện"

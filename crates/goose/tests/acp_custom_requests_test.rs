@@ -1216,3 +1216,156 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
         );
     });
 }
+
+#[test]
+#[serial]
+fn test_custom_context_report() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(
+            vec![(
+                "start work".to_string(),
+                include_str!("acp_test_data/openai_steer_first.txt"),
+            )],
+            Arc::new(IgnoreSessionId),
+        )
+        .await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { mut session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.to_string();
+
+        let empty_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/context/report",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await
+        .expect("empty context report should succeed");
+        let empty_segments = empty_response["segments"]
+            .as_array()
+            .expect("empty report segments should be an array");
+        assert!(
+            !empty_segments
+                .iter()
+                .any(|segment| segment["category"] == "messages"),
+            "empty reports must not include reply-preparation placeholders: {empty_segments:?}"
+        );
+
+        let output = session
+            .prompt("start work", PermissionDecision::Cancel)
+            .await
+            .expect("prompt should succeed");
+        assert_eq!(output.text, "first response");
+
+        let project_id = "context-report-project";
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/sources/create",
+            serde_json::json!({
+                "type": "project",
+                "name": project_id,
+                "description": "Context report test project",
+                "content": "Always include project instructions in the context report.",
+                "target": { "scope": "global" },
+            }),
+        )
+        .await
+        .expect("project source should be created");
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/project/update",
+            serde_json::json!({ "sessionId": session_id, "projectId": project_id }),
+        )
+        .await
+        .expect("session project should be updated");
+
+        let response = send_custom(
+            conn.cx(),
+            "_goose/unstable/context/report",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await
+        .expect("context report should succeed");
+
+        let segments = response["segments"]
+            .as_array()
+            .expect("segments should be an array");
+        assert!(!segments.is_empty(), "segments should not be empty");
+
+        let categories: std::collections::HashSet<&str> = segments
+            .iter()
+            .filter_map(|segment| segment["category"].as_str())
+            .collect();
+        assert!(categories.contains("system_prompt"), "got: {categories:?}");
+        assert!(
+            categories.contains("tool_definitions"),
+            "got: {categories:?}"
+        );
+        assert!(categories.contains("messages"), "got: {categories:?}");
+
+        let assistant_messages = segments
+            .iter()
+            .find(|segment| segment["label"] == "Assistant messages")
+            .expect("latest assistant reply should be represented");
+        assert!(assistant_messages["parts"].as_array().is_some_and(|parts| {
+            parts.iter().any(|part| {
+                part["contentPreview"]
+                    .as_str()
+                    .is_some_and(|preview| preview.contains("first response"))
+            })
+        }));
+
+        assert!(segments.iter().any(|segment| {
+            segment["category"] == "turn_context" && segment["label"] == "Current turn context"
+        }));
+        assert!(!segments.iter().any(|segment| {
+            segment["category"] == "messages"
+                && segment["parts"].as_array().is_some_and(|parts| {
+                    parts.iter().any(|part| {
+                        part["contentPreview"]
+                            .as_str()
+                            .is_some_and(|preview| preview.contains("<turn-context>"))
+                    })
+                })
+        }));
+
+        assert!(segments.iter().any(|segment| {
+            segment["category"] == "additional_instructions"
+                && segment["label"] == "Project instructions"
+                && segment["contentPreview"].as_str().is_some_and(|preview| {
+                    preview.contains("Always include project instructions in the context report.")
+                })
+        }));
+
+        let estimated = response["estimatedTotalTokens"]
+            .as_u64()
+            .expect("estimatedTotalTokens");
+        let wire = response["wireTotalTokens"]
+            .as_u64()
+            .expect("wireTotalTokens");
+        let sum: u64 = segments
+            .iter()
+            .map(|segment| segment["tokenCount"].as_u64().expect("tokenCount"))
+            .sum();
+        assert_eq!(estimated, sum);
+        assert!(estimated > 0);
+        assert!(wire > 0);
+        assert_eq!(
+            estimated, wire,
+            "segments plus prompt overhead must account for the wire total exactly"
+        );
+
+        if let Some(position) = segments
+            .iter()
+            .position(|segment| segment["label"] == "Prompt overhead")
+        {
+            let overhead = &segments[position];
+            assert_eq!(position, segments.len() - 1, "overhead must be last");
+            assert_eq!(overhead["category"], "system_prompt");
+            assert_eq!(overhead["charCount"], 0);
+            assert!(overhead["contentPreview"].is_null());
+            assert!(overhead["parts"].is_null());
+        }
+    });
+}

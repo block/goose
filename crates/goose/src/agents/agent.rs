@@ -717,7 +717,7 @@ impl Agent {
             )
             .await
     }
-    async fn load_project_instructions(&self, session: &Session) -> Option<String> {
+    pub(crate) async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
         let entry = crate::sources::read_project(project_id).ok()?;
         let mut parts = Vec::new();
@@ -731,7 +731,7 @@ impl Agent {
         Some(parts.join("\n\n"))
     }
 
-    async fn prepare_reply_context(
+    pub(crate) async fn prepare_reply_context(
         &self,
         session_id: &str,
         unfixed_conversation: Conversation,

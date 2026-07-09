@@ -169,6 +169,19 @@ fn message_has_timing_content(message: &Message) -> bool {
 }
 
 impl Agent {
+    pub(crate) async fn is_code_execution_active(&self) -> bool {
+        #[cfg(feature = "code-mode")]
+        {
+            self.extension_manager
+                .is_extension_enabled(code_execution::EXTENSION_NAME)
+                .await
+        }
+        #[cfg(not(feature = "code-mode"))]
+        {
+            false
+        }
+    }
+
     pub async fn prepare_tools_and_prompt(
         &self,
         session_id: &str,
@@ -176,13 +189,7 @@ impl Agent {
     ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
         let mut tools = self.list_tools(session_id, None).await;
 
-        #[cfg(feature = "code-mode")]
-        let code_execution_active = self
-            .extension_manager
-            .is_extension_enabled(code_execution::EXTENSION_NAME)
-            .await;
-        #[cfg(not(feature = "code-mode"))]
-        let code_execution_active = false;
+        let code_execution_active = self.is_code_execution_active().await;
         #[cfg(feature = "code-mode")]
         if code_execution_active {
             let disclosure_style =

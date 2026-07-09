@@ -8,7 +8,10 @@ use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
 use crate::hints::load_hints::build_gitignore;
-use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
+use crate::hints::{
+    combine_hint_sources, get_context_filenames, load_hint_files, HintSource,
+    SubdirectoryHintTracker,
+};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -18,6 +21,8 @@ use std::path::Path;
 
 const MAX_EXTENSIONS: usize = 5;
 const MAX_TOOLS: usize = 50;
+const CONTEXT_REPORT_EXTENSION_MARKER_PREFIX: &str = "__GOOSE_CONTEXT_REPORT_EXTENSION_";
+const CONTEXT_REPORT_MOIM_MARKER: &str = "__GOOSE_CONTEXT_REPORT_MOIM__";
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
@@ -46,6 +51,17 @@ struct SystemPromptContext {
     code_execution_mode: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     moim_system_prompt_block: Option<String>,
+}
+
+const CHAT_MODE_INSTRUCTION: &str =
+    "Right now you are in the chat only mode, no access to any tool use and system.";
+
+pub struct SystemPromptSegments {
+    pub base_template_blanked: String,
+    pub base_is_override: bool,
+    pub moim_block: Option<String>,
+    pub extension_instructions: Vec<(String, String)>,
+    pub extras: IndexMap<String, String>,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
@@ -104,6 +120,14 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_hint_sources(mut self, sources: &[HintSource]) -> Self {
+        let hints = combine_hint_sources(sources);
+        if !hints.is_empty() {
+            self.hints = Some(hints);
+        }
+        self
+    }
+
     pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
         self.subagents_enabled = subagents_enabled;
         self
@@ -114,50 +138,53 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn build(self) -> String {
-        let mut extensions_info = self.extensions_info;
+    fn prepared_extensions(&self) -> Vec<ExtensionInfo> {
+        let mut extensions_info = self.extensions_info.clone();
 
-        // Add frontend instructions to extensions_info to simplify json rendering
-        if let Some(frontend_instructions) = self.frontend_instructions {
-            extensions_info.push(ExtensionInfo::new(
-                "frontend",
-                &frontend_instructions,
-                false,
-            ));
+        if let Some(frontend_instructions) = &self.frontend_instructions {
+            extensions_info.push(ExtensionInfo::new("frontend", frontend_instructions, false));
         }
-        // Stable tool ordering is important for multi session prompt caching.
         extensions_info.sort_by(|a, b| a.name.cmp(&b.name));
 
-        let sanitized_extensions_info: Vec<ExtensionInfo> = extensions_info
+        extensions_info
             .into_iter()
             .map(|mut ext_info| {
                 ext_info.instructions = sanitize_unicode_tags(&ext_info.instructions);
                 ext_info
             })
-            .collect();
+            .collect()
+    }
 
-        let goose_mode = self
-            .goose_mode
-            .unwrap_or_else(|| Config::global().get_goose_mode().unwrap_or_default());
+    fn resolved_goose_mode(&self) -> GooseMode {
+        self.goose_mode
+            .unwrap_or_else(|| Config::global().get_goose_mode().unwrap_or_default())
+    }
 
-        let extension_tool_limits = self
-            .extension_tool_count
-            .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS);
+    fn extension_tool_limits(&self) -> Option<(usize, usize)> {
+        self.extension_tool_count
+            .filter(|(extensions, tools)| *extensions > MAX_EXTENSIONS || *tools > MAX_TOOLS)
+    }
 
+    fn render_base(
+        &self,
+        extensions: Vec<ExtensionInfo>,
+        goose_mode: GooseMode,
+        moim_system_prompt_block: Option<String>,
+    ) -> String {
         let context = SystemPromptContext {
-            extensions: sanitized_extensions_info,
+            extensions,
             current_date_time: self.manager.current_date_timestamp.clone(),
-            extension_tool_limits,
+            extension_tool_limits: self.extension_tool_limits(),
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
             enable_subagents: self.subagents_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
             code_execution_mode: self.code_execution_mode,
-            moim_system_prompt_block: moim::system_prompt_block(),
+            moim_system_prompt_block,
         };
 
-        let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
+        if let Some(override_prompt) = &self.manager.system_prompt_override {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
             prompt_template::render_string(&sanitized_override_prompt, &context)
         } else {
@@ -165,36 +192,112 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         }
         .unwrap_or_else(|_| {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
-        });
+        })
+    }
 
-        let mut system_prompt_extras = self.manager.system_prompt_extras.clone();
+    fn finalize_extras(&self, goose_mode: GooseMode) -> IndexMap<String, String> {
+        let mut extras = self.manager.system_prompt_extras.clone();
 
-        // Add hints if provided
-        if let Some(hints) = self.hints {
-            system_prompt_extras.insert("hints".to_string(), hints);
+        if let Some(hints) = &self.hints {
+            extras.insert("hints".to_string(), hints.clone());
         }
 
         if goose_mode == GooseMode::Chat {
-            system_prompt_extras.insert(
-                "chat_mode".to_string(),
-                "Right now you are in the chat only mode, no access to any tool use and system."
-                    .to_string(),
-            );
+            extras.insert("chat_mode".to_string(), CHAT_MODE_INSTRUCTION.to_string());
         }
 
-        if system_prompt_extras.is_empty() {
+        extras
+            .into_iter()
+            .map(|(key, value)| (key, sanitize_unicode_tags(&value)))
+            .collect()
+    }
+
+    fn rendered_extension_instructions(
+        &self,
+        extensions: &[ExtensionInfo],
+        goose_mode: GooseMode,
+    ) -> Vec<bool> {
+        let markers: Vec<String> = (0..extensions.len())
+            .map(|index| format!("{CONTEXT_REPORT_EXTENSION_MARKER_PREFIX}{index}__"))
+            .collect();
+        let marked_extensions = extensions
+            .iter()
+            .zip(&markers)
+            .map(|(extension, marker)| {
+                let mut extension = extension.clone();
+                extension.instructions = marker.clone();
+                extension
+            })
+            .collect();
+        let rendered = self.render_base(marked_extensions, goose_mode, None);
+
+        markers
+            .iter()
+            .map(|marker| rendered.contains(marker))
+            .collect()
+    }
+
+    fn renders_moim_block(&self, extensions: Vec<ExtensionInfo>, goose_mode: GooseMode) -> bool {
+        self.render_base(
+            extensions,
+            goose_mode,
+            Some(CONTEXT_REPORT_MOIM_MARKER.to_string()),
+        )
+        .contains(CONTEXT_REPORT_MOIM_MARKER)
+    }
+
+    pub fn build(self) -> String {
+        let goose_mode = self.resolved_goose_mode();
+        let base_prompt = self.render_base(
+            self.prepared_extensions(),
+            goose_mode,
+            moim::system_prompt_block(),
+        );
+
+        let extras = self.finalize_extras(goose_mode);
+
+        if extras.is_empty() {
             base_prompt
         } else {
-            let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
-                .into_values()
-                .map(|extra| sanitize_unicode_tags(&extra))
-                .collect();
-
             format!(
                 "{}\n\n# Additional Instructions:\n\n{}",
                 base_prompt,
-                sanitized_system_prompt_extras.join("\n\n")
+                extras.into_values().collect::<Vec<_>>().join("\n\n")
             )
+        }
+    }
+
+    pub fn build_segments(self) -> SystemPromptSegments {
+        let goose_mode = self.resolved_goose_mode();
+        let prepared = self.prepared_extensions();
+        let rendered_extension_instructions =
+            self.rendered_extension_instructions(&prepared, goose_mode);
+        let includes_moim = self.renders_moim_block(prepared.clone(), goose_mode);
+
+        let extension_instructions = prepared
+            .iter()
+            .zip(rendered_extension_instructions)
+            .filter(|(extension, rendered)| *rendered && !extension.instructions.is_empty())
+            .map(|(extension, _)| (extension.name.clone(), extension.instructions.clone()))
+            .collect();
+
+        let blanked: Vec<ExtensionInfo> = prepared
+            .into_iter()
+            .map(|mut ext| {
+                ext.instructions = String::new();
+                ext
+            })
+            .collect();
+
+        let base_template_blanked = self.render_base(blanked, goose_mode, None);
+        let extras = self.finalize_extras(goose_mode);
+
+        SystemPromptSegments {
+            base_template_blanked,
+            base_is_override: self.manager.system_prompt_override.is_some(),
+            moim_block: includes_moim.then(moim::system_prompt_block).flatten(),
+            extension_instructions,
+            extras,
         }
     }
 }
@@ -221,8 +324,6 @@ impl PromptManager {
         }
     }
 
-    /// Add an additional instruction to the system prompt with a key
-    /// Using the same key will replace the previous instruction
     pub fn add_system_prompt_extra(&mut self, key: String, instruction: String) {
         self.system_prompt_extras.insert(key, instruction);
     }
@@ -249,7 +350,6 @@ impl PromptManager {
         has_new
     }
 
-    /// Override the system prompt with custom text
     pub fn set_system_prompt_override(&mut self, template: String) {
         self.system_prompt_override = Some(template);
     }
@@ -369,6 +469,113 @@ mod tests {
 
         manager.clear_system_prompt_override();
         assert!(!manager.builder().build().contains("Replacement prompt"));
+    }
+
+    #[test]
+    fn test_build_segments_respects_override_without_extension_or_moim_variables() {
+        let mut manager = PromptManager::new();
+        manager.set_system_prompt_override("Replacement prompt".to_string());
+
+        let segments = manager
+            .builder()
+            .with_extension(ExtensionInfo::new("test", "extension instructions", true))
+            .build_segments();
+
+        assert!(segments.base_is_override);
+        assert!(segments.extension_instructions.is_empty());
+        assert!(segments.moim_block.is_none());
+        assert_eq!(segments.base_template_blanked, "Replacement prompt");
+    }
+
+    #[test]
+    fn test_build_segments_ignores_literal_variable_names_in_override() {
+        let mut manager = PromptManager::new();
+        manager.set_system_prompt_override(
+            "Do not mention extensions or moim_system_prompt_block in responses.".to_string(),
+        );
+
+        let segments = manager
+            .builder()
+            .with_extension(ExtensionInfo::new("test", "extension instructions", true))
+            .build_segments();
+
+        assert!(segments.base_is_override);
+        assert!(segments.extension_instructions.is_empty());
+        assert!(segments.moim_block.is_none());
+    }
+
+    #[test]
+    fn test_build_segments_tracks_variables_rendered_by_override() {
+        let mut manager = PromptManager::new();
+        manager.set_system_prompt_override(
+            "{% for extension in extensions %}{{ extension.instructions }}{% endfor %}\n{{ moim_system_prompt_block }}"
+                .to_string(),
+        );
+
+        let segments = manager
+            .builder()
+            .with_extension(ExtensionInfo::new("test", "extension instructions", true))
+            .build_segments();
+
+        assert!(segments.base_is_override);
+        assert_eq!(
+            segments.extension_instructions,
+            vec![("test".to_string(), "extension instructions".to_string())]
+        );
+        assert!(segments.moim_block.is_some());
+    }
+
+    #[test]
+    fn test_build_segments_without_override_reports_template_base() {
+        let manager = PromptManager::new();
+
+        let segments = manager
+            .builder()
+            .with_goose_mode(GooseMode::Auto)
+            .build_segments();
+
+        assert!(!segments.base_is_override);
+        assert!(!segments.base_template_blanked.is_empty());
+    }
+
+    #[test]
+    fn test_hint_sources_combine_to_loaded_hints() {
+        use crate::hints::load_hint_files_with_sources;
+
+        let home_dir = tempfile::tempdir().unwrap();
+        let home = home_dir.path().display().to_string();
+        let _guard = env_lock::lock_env([
+            ("HOME", Some(home.as_str())),
+            ("GOOSE_PATH_ROOT", Some(home.as_str())),
+        ]);
+
+        let config_dir = crate::config::paths::Paths::config_dir();
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(config_dir.join("AGENTS.md"), "global hint content").unwrap();
+
+        let working_dir = tempfile::tempdir().unwrap();
+        std::fs::write(working_dir.path().join("AGENTS.md"), "project hint content").unwrap();
+
+        let filenames = vec!["AGENTS.md".to_string()];
+        let ignore = build_gitignore(working_dir.path());
+        let sources = load_hint_files_with_sources(working_dir.path(), &filenames, &ignore);
+        let combined = combine_hint_sources(&sources);
+
+        assert_eq!(
+            combined,
+            load_hint_files(working_dir.path(), &filenames, &ignore)
+        );
+        assert!(combined.contains("global hint content"));
+        assert!(combined.contains("project hint content"));
+
+        let manager = PromptManager::new();
+        let prompt = manager
+            .builder()
+            .with_goose_mode(GooseMode::Auto)
+            .with_hint_sources(&sources)
+            .build();
+        assert!(prompt.contains("global hint content"));
+        assert!(prompt.contains("project hint content"));
     }
 
     #[test]

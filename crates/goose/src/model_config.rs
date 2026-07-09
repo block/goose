@@ -70,32 +70,59 @@ fn materialize_model_config_inner(
     Ok(model)
 }
 
-fn configured_fast_model_name() -> Option<String> {
+fn configured_model_name(key: &str) -> Option<String> {
     Config::global()
-        .get_param::<String>("GOOSE_FAST_MODEL")
+        .get_param::<String>(key)
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
 }
 
-/// Resolve the model config to use for lightweight "fast" tasks (session
-/// naming, compaction, summarization). Resolution order:
-///   1. `GOOSE_FAST_MODEL` (user override)
-///   2. the provider's declared default fast model
-///   3. the supplied `model_config` (i.e. the main model)
-///
-/// The resulting config is materialized against the same provider so it picks
-/// up context limits, temperature, and other provider defaults.
+fn configured_fast_model_name() -> Option<String> {
+    configured_model_name("GOOSE_FAST_MODEL")
+}
+
+fn configured_compaction_model_name() -> Option<String> {
+    configured_compaction_model_name_from(Config::global())
+}
+
+fn configured_compaction_model_name_from(config: &Config) -> Option<String> {
+    match config.get_param::<String>("GOOSE_COMPACTION_MODEL") {
+        Ok(value) => (!value.trim().is_empty()).then(|| value.trim().to_string()),
+        Err(ConfigError::NotFound(_)) => None,
+        Err(error) => {
+            tracing::warn!("Ignoring unreadable GOOSE_COMPACTION_MODEL value: {error}");
+            None
+        }
+    }
+}
+
 pub async fn get_fast_model(
     provider_name: &str,
     model_config: &ModelConfig,
 ) -> Result<ModelConfig> {
-    let fast_model_name = match configured_fast_model_name() {
+    resolve_lightweight_model(provider_name, model_config, configured_fast_model_name()).await
+}
+
+pub async fn get_compaction_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+) -> Result<ModelConfig> {
+    let override_name = configured_compaction_model_name().or_else(configured_fast_model_name);
+    resolve_lightweight_model(provider_name, model_config, override_name).await
+}
+
+async fn resolve_lightweight_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    override_name: Option<String>,
+) -> Result<ModelConfig> {
+    let model_name = match override_name {
         Some(name) => Some(name),
         None => provider_default_fast_model(provider_name).await,
     };
 
-    match fast_model_name {
+    match model_name {
         Some(name) if name != model_config.model_name => {
             model_config_from_user_config(provider_name, name)
                 .map(|config| config.with_request_headers(model_config.request_headers.clone()))
@@ -104,9 +131,14 @@ pub async fn get_fast_model(
     }
 }
 
-/// Run a completion for a lightweight "fast" task (session naming, compaction,
-/// summarization) using the provider's fast model, falling back to the supplied
-/// main `model_config` if the fast model errors.
+struct CompletionRequest<'a> {
+    configured_model_key: Option<&'static str>,
+    session_id: &'a str,
+    system: &'a str,
+    messages: &'a [Message],
+    tools: &'a [Tool],
+}
+
 pub async fn complete_fast(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -115,31 +147,96 @@ pub async fn complete_fast(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<(Message, ProviderUsage), ProviderError> {
-    let fast_model_config = get_fast_model(provider.get_name(), model_config)
-        .await
+    let resolved = get_fast_model(provider.get_name(), model_config).await;
+    complete_with_model(
+        provider,
+        model_config,
+        resolved,
+        CompletionRequest {
+            configured_model_key: None,
+            session_id,
+            system,
+            messages,
+            tools,
+        },
+    )
+    .await
+}
+
+pub async fn complete_compaction(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let configured_model_key = configured_compaction_model_name().map(|_| "GOOSE_COMPACTION_MODEL");
+    let resolved = get_compaction_model(provider.get_name(), model_config).await;
+    complete_with_model(
+        provider,
+        model_config,
+        resolved,
+        CompletionRequest {
+            configured_model_key,
+            session_id,
+            system,
+            messages,
+            tools,
+        },
+    )
+    .await
+}
+
+async fn complete_with_model(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    resolved: Result<ModelConfig>,
+    request: CompletionRequest<'_>,
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let resolved_config = resolved
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
         .with_thinking_effort(ThinkingEffort::Off);
 
     match crate::session_context::with_session_id(
-        Some(session_id.to_string()),
-        provider.complete(&fast_model_config, system, messages, tools),
+        Some(request.session_id.to_string()),
+        provider.complete(
+            &resolved_config,
+            request.system,
+            request.messages,
+            request.tools,
+        ),
     )
     .await
     {
         Ok(response) => Ok(response),
-        Err(e) if fast_model_config.model_name != model_config.model_name => {
-            tracing::warn!(
-                "Fast model {} failed with error: {}. Falling back to main model {}",
-                fast_model_config.model_name,
-                e,
-                model_config.model_name
-            );
+        Err(e) if resolved_config.model_name != model_config.model_name => {
+            match request.configured_model_key {
+                Some(key) => tracing::warn!(
+                    "Model {} (set via {}) failed with error: {}. Falling back to main model {}",
+                    resolved_config.model_name,
+                    key,
+                    e,
+                    model_config.model_name
+                ),
+                None => tracing::warn!(
+                    "Model {} failed with error: {}. Falling back to main model {}",
+                    resolved_config.model_name,
+                    e,
+                    model_config.model_name
+                ),
+            }
             let fallback_config = model_config
                 .clone()
                 .with_thinking_effort(ThinkingEffort::Off);
             crate::session_context::with_session_id(
-                Some(session_id.to_string()),
-                provider.complete(&fallback_config, system, messages, tools),
+                Some(request.session_id.to_string()),
+                provider.complete(
+                    &fallback_config,
+                    request.system,
+                    request.messages,
+                    request.tools,
+                ),
             )
             .await
         }
@@ -205,7 +302,6 @@ fn get_goose_toolshim(config: &Config) -> Result<Option<bool>> {
     }
 }
 
-/// Resolve the global toolshim setting, defaulting to false when unset.
 pub fn global_toolshim() -> bool {
     get_goose_toolshim(Config::global())
         .ok()
@@ -245,5 +341,123 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::{stream_from_single_message, MessageStream};
+    use async_trait::async_trait;
+    use goose_providers::conversation::token_usage::Usage;
+    use std::sync::Mutex;
+
+    fn test_config() -> (tempfile::TempDir, Config) {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = Config::new_with_file_secrets(
+            temp_dir.path().join("config.yaml"),
+            temp_dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+
+        (temp_dir, config)
+    }
+
+    #[test]
+    fn compaction_model_name_treats_missing_or_blank_value_as_unset() {
+        let (_temp_dir, config) = test_config();
+
+        assert_eq!(configured_compaction_model_name_from(&config), None);
+
+        config.set_param("GOOSE_COMPACTION_MODEL", "   ").unwrap();
+        assert_eq!(configured_compaction_model_name_from(&config), None);
+    }
+
+    #[test]
+    fn compaction_model_name_treats_malformed_value_as_unset() {
+        let (_temp_dir, config) = test_config();
+
+        config
+            .set_param("GOOSE_COMPACTION_MODEL", vec!["not-a-model-name"])
+            .unwrap();
+
+        assert_eq!(configured_compaction_model_name_from(&config), None);
+    }
+
+    #[test]
+    fn compaction_model_name_uses_valid_value() {
+        let (_temp_dir, config) = test_config();
+
+        config
+            .set_param("GOOSE_COMPACTION_MODEL", " compaction-model ")
+            .unwrap();
+
+        assert_eq!(
+            configured_compaction_model_name_from(&config),
+            Some("compaction-model".to_string())
+        );
+    }
+
+    struct FallbackProbe {
+        failing_model: &'static str,
+        calls: Mutex<Vec<String>>,
+    }
+
+    #[async_trait]
+    impl Provider for FallbackProbe {
+        fn get_name(&self) -> &str {
+            "mock"
+        }
+
+        async fn stream(
+            &self,
+            model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> std::result::Result<MessageStream, ProviderError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(model_config.model_name.clone());
+            if model_config.model_name == self.failing_model {
+                return Err(ProviderError::ExecutionError("no such model".to_string()));
+            }
+            Ok(stream_from_single_message(
+                Message::assistant().with_text("ok"),
+                ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_compaction_model_failure_falls_back_to_main_model() {
+        let provider = FallbackProbe {
+            failing_model: "broken-compaction-model",
+            calls: Mutex::new(Vec::new()),
+        };
+        let main_model = ModelConfig::new("main-model");
+        let resolved = Ok(ModelConfig::new("broken-compaction-model"));
+
+        let (message, _usage) = complete_with_model(
+            &provider,
+            &main_model,
+            resolved,
+            CompletionRequest {
+                configured_model_key: Some("GOOSE_COMPACTION_MODEL"),
+                session_id: "test-session",
+                system: "system",
+                messages: &[],
+                tools: &[],
+            },
+        )
+        .await
+        .expect("fallback to the main model should succeed");
+
+        assert_eq!(message.as_concat_text(), "ok");
+        assert_eq!(
+            provider.calls.lock().unwrap().as_slice(),
+            ["broken-compaction-model", "main-model"]
+        );
     }
 }

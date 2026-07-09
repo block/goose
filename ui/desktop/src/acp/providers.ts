@@ -6,7 +6,11 @@ import type {
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
+import type {
+  ProviderDetails,
+  ThinkingEffort,
+  UpdateCustomProviderRequest,
+} from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
@@ -41,6 +45,7 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
       display_name: entry.providerName,
       description: entry.description,
       default_model: entry.defaultModel,
+      fast_model: entry.fastModel ?? null,
       model_doc_link: '',
       model_selection_hint: entry.modelSelectionHint ?? null,
       config_keys: entry.configKeys.map((key) => ({
@@ -55,6 +60,7 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
       known_models: entry.models.map((model) => ({
         name: model.id,
         context_limit: model.contextLimit ?? 0,
+        recommended: model.recommended ?? false,
         reasoning: model.reasoning ?? undefined,
       })),
       setup_steps: entry.setupSteps,
@@ -195,6 +201,13 @@ export async function acpSaveThinkingEffort(effort: ThinkingEffort): Promise<voi
   const client = await getAcpClient();
   await client.goose.preferencesSave_unstable({
     values: [{ key: 'gooseThinkingEffort', value: effort }],
+  });
+}
+
+export async function acpSaveAutoCompactThreshold(threshold: number): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.preferencesSave_unstable({
+    values: [{ key: 'autoCompactThreshold', value: threshold }],
   });
 }
 

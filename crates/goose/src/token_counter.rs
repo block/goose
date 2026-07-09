@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex};
 use tiktoken_rs::CoreBPE;
 use tokio::sync::OnceCell;
 
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 
 static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
 
@@ -126,6 +127,24 @@ impl TokenCounter {
         func_token_count
     }
 
+    pub fn count_message_tokens(&self, message: &Message) -> usize {
+        let tokens_per_message = 4;
+        let mut num_tokens = 0;
+
+        if !message.metadata.agent_visible {
+            return 0;
+        }
+
+        num_tokens += tokens_per_message;
+        for content in &message.content {
+            if let Some(text) = message_content_token_text(content) {
+                num_tokens += self.count_tokens(&text);
+            }
+        }
+
+        num_tokens
+    }
+
     pub fn count_chat_tokens(
         &self,
         system_prompt: &str,
@@ -140,25 +159,7 @@ impl TokenCounter {
         }
 
         for message in messages {
-            if !message.metadata.agent_visible {
-                continue;
-            }
-            num_tokens += tokens_per_message;
-            for content in &message.content {
-                if let Some(content_text) = content.as_text() {
-                    num_tokens += self.count_tokens(content_text);
-                } else if let Some(tool_request) = content.as_tool_request() {
-                    if let Ok(tool_call) = tool_request.tool_call.as_ref() {
-                        let text = format!(
-                            "{}:{}:{:?}",
-                            tool_request.id, tool_call.name, tool_call.arguments
-                        );
-                        num_tokens += self.count_tokens(&text);
-                    }
-                } else if let Some(tool_response_text) = content.as_tool_response_text() {
-                    num_tokens += self.count_tokens(&tool_response_text);
-                }
-            }
+            num_tokens += self.count_message_tokens(message);
         }
 
         if !tools.is_empty() {
@@ -202,6 +203,76 @@ impl TokenCounter {
     }
 }
 
+pub(crate) fn message_content_token_text(content: &MessageContent) -> Option<String> {
+    match content {
+        MessageContent::Text(text) => Some(text.text.clone()),
+        MessageContent::Image(image) => Some(format!(
+            "[image: {}, {} base64 chars]",
+            image.mime_type,
+            image.data.len()
+        )),
+        MessageContent::ToolRequest(request) => match request.tool_call.as_ref() {
+            Ok(call) => Some(format!(
+                "{}:{}:{}",
+                request.id,
+                call.name,
+                serde_json::to_string(&call.arguments)
+                    .unwrap_or_else(|_| format!("{:?}", call.arguments))
+            )),
+            Err(error) => Some(format!("[tool call error: {}] {}", request.id, error)),
+        },
+        MessageContent::FrontendToolRequest(request) => match request.tool_call.as_ref() {
+            Ok(call) => Some(format!(
+                "{}:{}:{}",
+                request.id,
+                call.name,
+                serde_json::to_string(&call.arguments)
+                    .unwrap_or_else(|_| format!("{:?}", call.arguments))
+            )),
+            Err(error) => Some(format!(
+                "[frontend tool call error: {}] {}",
+                request.id, error
+            )),
+        },
+        MessageContent::ToolResponse(response) => match response.tool_result.as_ref() {
+            Ok(result) => {
+                if result.content.is_empty() {
+                    return Some("[tool result]".to_string());
+                }
+
+                let parts: Vec<String> = result
+                    .content
+                    .iter()
+                    .map(|content| match content {
+                        rmcp::model::ContentBlock::Text(text) => text.text.clone(),
+                        rmcp::model::ContentBlock::Image(image) => format!(
+                            "[image: {}, {} base64 chars]",
+                            image.mime_type,
+                            image.data.len()
+                        ),
+                        rmcp::model::ContentBlock::Resource(resource) => {
+                            extract_text_from_resource(&resource.resource)
+                        }
+                        rmcp::model::ContentBlock::ResourceLink(_) => "[resource link]".to_string(),
+                        rmcp::model::ContentBlock::Audio(_) => "[audio content]".to_string(),
+                        _ => "[unsupported content]".to_string(),
+                    })
+                    .collect();
+                Some(parts.join("\n"))
+            }
+            Err(error) => Some(format!("[tool result error: {}] {}", response.id, error)),
+        },
+        MessageContent::Thinking(thinking) => Some(thinking.thinking.clone()),
+        MessageContent::RedactedThinking(redacted) => Some(format!(
+            "[redacted thinking: {} base64 chars]",
+            redacted.data.len()
+        )),
+        MessageContent::ToolConfirmationRequest(_)
+        | MessageContent::ActionRequired(_)
+        | MessageContent::SystemNotification(_) => Some(content.to_string()),
+    }
+}
+
 async fn get_tokenizer() -> Result<Arc<CoreBPE>, String> {
     Ok(TOKENIZER
         .get_or_init(|| async {
@@ -219,6 +290,7 @@ pub async fn create_token_counter() -> Result<TokenCounter, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::{ErrorCode, ErrorData};
 
     #[tokio::test]
     async fn test_token_caching() {
@@ -322,5 +394,33 @@ mod tests {
 
         assert!(counter.cache_size() > 0);
         assert!(counter.cache_size() <= MAX_TOKEN_CACHE_SIZE);
+    }
+
+    #[tokio::test]
+    async fn test_message_accounting_includes_non_text_provider_content() {
+        let counter = create_token_counter().await.unwrap();
+        let message = Message::user()
+            .with_image("iVBORw0KGgo=", "image/png")
+            .with_thinking("reasoning text", "signature")
+            .with_tool_response(
+                "call_1",
+                Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "tool failed".to_string(),
+                    None,
+                )),
+            );
+
+        assert!(counter.count_message_tokens(&message) > 4);
+        assert!(message_content_token_text(&message.content[0])
+            .unwrap()
+            .contains("image/png"));
+        assert_eq!(
+            message_content_token_text(&message.content[1]).unwrap(),
+            "reasoning text"
+        );
+        assert!(message_content_token_text(&message.content[2])
+            .unwrap()
+            .contains("tool failed"));
     }
 }

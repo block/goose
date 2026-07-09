@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "自動圧縮の実行タイミング"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "今すぐ圧縮"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "しきい値の保存に失敗しました: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "了解しました"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Gooseがタスクを完了しました。"
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "コンテキストウィンドウ"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "音声入力エラー"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "処理中..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "コンテキストX線を開く"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "指示とヒント"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "拡張機能の指示"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "会話"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "システムプロンプト"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "ツール定義"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "ターンコンテキスト"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "今すぐ圧縮"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "圧縮"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "直近を保持"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "自動({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "件のツール呼び出し"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "圧縮とツール呼び出しの要約に使うモデル。自動ではプロバイダーの高速モデルを使用します。"
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "圧縮モデル"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "自動(プロバイダーの高速モデル)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "自動({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "圧縮設定の保存に失敗しました"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "会話が長くなると、古いツール呼び出しと結果を1行の要約に置き換えます。"
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "古いツール呼び出しを要約"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "コンテキストウィンドウのこの割合に達すると会話を自動的に圧縮します。"
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "自動圧縮のしきい値"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "直前のプロバイダー呼び出しでは、出力を含めて合計{tokens}トークンを使用しました。"
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "トークン数はo200kトークナイザーによる推定値です。"
+  },
+  "contextXray.free": {
+    "defaultMessage": "空き"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "{limit}トークン中 · コンテキストウィンドウの{percent}"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "コンテキストレポートを読み込めませんでした。"
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens}トークン · ウィンドウの{percent}"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit}トークンのコンテキストウィンドウ"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "更新"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "再試行"
+  },
+  "contextXray.title": {
+    "defaultMessage": "コンテキストX線"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "トークナイザーのオーバーヘッド"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, other {# 個のツール}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "会話制限"

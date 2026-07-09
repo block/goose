@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Auto compact at"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Compact now"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "Failed to save threshold: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "Got it!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose finished the task."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Context window"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Dictation Error"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "Processing..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Open context x-ray"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Instructions & hints"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Extension instructions"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Conversation"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "System prompt"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Tool definitions"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Turn context"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Compact now"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Compaction"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Keep last"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "auto ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "tool calls"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Model used for compaction and tool call summaries. Auto picks the provider's fast model."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Compaction model"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Auto (provider fast model)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Auto ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "Failed to save compaction setting"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Replace old tool calls and results with one-line summaries as the conversation grows."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Summarize old tool calls"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Compact the conversation automatically at this share of the context window."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Auto-compact at"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "Last provider call used {tokens} total tokens, including output."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Token counts estimated with the o200k tokenizer."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Free"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "of {limit} tokens · {percent} of context window"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "Could not load the context report."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} tokens · {percent} of window"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit} token context window"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Refresh"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Retry"
+  },
+  "contextXray.title": {
+    "defaultMessage": "Context x-ray"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Tokenizer overhead"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count,plural,one{# tool} other{# tools}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Conversation Limits"

@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Padatkan automatik pada"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Padatkan sekarang"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "Gagal menyimpan ambang: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "Faham!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose telah menyelesaikan tugasan."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Tetingkap konteks"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Ralat Imlak"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "Memproses..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Buka x-ray konteks"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Arahan & petunjuk"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Arahan sambungan"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Perbualan"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "Prompt sistem"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Definisi alat"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Konteks giliran"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Padatkan sekarang"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Pemadatan"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Simpan terakhir"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "auto ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "panggilan alat"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Model yang digunakan untuk pemadatan dan ringkasan panggilan alat. Auto memilih model pantas pembekal."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Model pemadatan"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Auto (model pantas pembekal)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Auto ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "Gagal menyimpan tetapan pemadatan"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Ganti panggilan alat lama dan hasilnya dengan ringkasan satu baris apabila perbualan semakin panjang."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Ringkaskan panggilan alat lama"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Padatkan perbualan secara automatik pada bahagian tetingkap konteks ini."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Padatkan automatik pada"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "Panggilan penyedia terakhir menggunakan {tokens} token secara keseluruhan, termasuk output."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Kiraan token dianggarkan dengan tokenizer o200k."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Kosong"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "daripada {limit} token · {percent} daripada tetingkap konteks"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "Laporan konteks tidak dapat dimuatkan."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} token · {percent} daripada tetingkap"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · tetingkap konteks {limit} token"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Muat semula"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Cuba lagi"
+  },
+  "contextXray.title": {
+    "defaultMessage": "X-ray konteks"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Overhed tokenizer"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, other {# alat}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Had Perbualan"

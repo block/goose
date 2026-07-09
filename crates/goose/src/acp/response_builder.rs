@@ -456,6 +456,7 @@ mod tests {
             provider_name: "Mock".to_string(),
             description: "Mock".to_string(),
             default_model: "unused".to_string(),
+            fast_model: None,
             configured: true,
             provider_type: crate::providers::base::ProviderType::Builtin,
             category: crate::providers::catalog::ProviderSetupCategory::Model,

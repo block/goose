@@ -259,6 +259,71 @@ pub struct DiagnosticsGetResponse {
     pub report: serde_json::Value,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/context/report", response = ContextReportResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextReportRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextReportResponse {
+    pub model: ContextReportModel,
+    pub estimated_total_tokens: u64,
+    pub wire_total_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live_total_tokens: Option<u64>,
+    pub segments: Vec<ContextSegment>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextReportModel {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    pub model_name: String,
+    pub context_limit: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextSegment {
+    pub category: ContextCategory,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    pub token_count: u64,
+    pub char_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_preview: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parts: Vec<ContextPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextPart {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    pub token_count: u64,
+    pub char_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_preview: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextCategory {
+    SystemPrompt,
+    TurnContext,
+    ExtensionInstructions,
+    AdditionalInstructions,
+    ToolDefinitions,
+    Messages,
+}
+
 /// Information about a prompt template, including its default content and customization status.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1752,6 +1817,8 @@ pub struct ProviderInventoryEntryDto {
     pub description: String,
     /// The default/recommended model for this provider.
     pub default_model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_model: Option<String>,
     /// Whether Goose has enough configuration to use this provider.
     pub configured: bool,
     /// Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.

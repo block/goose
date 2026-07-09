@@ -599,6 +599,69 @@ export const zDiagnosticsGetResponse_unstable = z.object({
     report: z.unknown()
 });
 
+export const zContextReportRequest_unstable = z.object({
+    sessionId: z.string()
+});
+
+export const zContextReportModel = z.object({
+    provider: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    modelName: z.string(),
+    contextLimit: z.number().int().gte(0)
+});
+
+export const zContextCategory = z.enum([
+    'system_prompt',
+    'turn_context',
+    'extension_instructions',
+    'additional_instructions',
+    'tool_definitions',
+    'messages'
+]);
+
+export const zContextPart = z.object({
+    label: z.string(),
+    source: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    tokenCount: z.number().int().gte(0),
+    charCount: z.number().int().gte(0),
+    contentPreview: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zContextSegment = z.object({
+    category: zContextCategory,
+    label: z.string(),
+    source: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    tokenCount: z.number().int().gte(0),
+    charCount: z.number().int().gte(0),
+    contentPreview: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    parts: z.array(zContextPart).optional()
+});
+
+export const zContextReportResponse_unstable = z.object({
+    model: zContextReportModel,
+    estimatedTotalTokens: z.number().int().gte(0),
+    wireTotalTokens: z.number().int().gte(0),
+    liveTotalTokens: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    segments: z.array(zContextSegment)
+});
+
 /**
  * List all available Goose prompt templates.
  */
@@ -775,6 +838,10 @@ export const zProviderInventoryEntryDto = z.object({
     providerName: z.string(),
     description: z.string(),
     defaultModel: z.string(),
+    fastModel: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
     configured: z.boolean(),
     providerType: z.string(),
     category: zProviderSetupCategoryDto,
@@ -2836,6 +2903,7 @@ export const zExtRequest = z.object({
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
             zDiagnosticsGetRequest_unstable,
+            zContextReportRequest_unstable,
             zListPromptsRequest_unstable,
             zGetPromptRequest_unstable,
             zSavePromptRequest_unstable,
@@ -2959,6 +3027,7 @@ export const zExtResponse = z.union([
                 zAppsDeleteResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
+                zContextReportResponse_unstable,
                 zListPromptsResponse_unstable,
                 zGetPromptResponse_unstable,
                 zPromptOperationResponse_unstable,

@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Compactar automáticamente al"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Compactar ahora"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "No se pudo guardar el umbral: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "¡Entendido!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose terminó la tarea."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Ventana de contexto"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Error de dictado"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "Procesando..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Abrir radiografía de contexto"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Instrucciones y sugerencias"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Instrucciones de extensiones"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Conversación"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "Prompt del sistema"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Definiciones de herramientas"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Contexto del turno"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Compactar ahora"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Compactación"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Conservar últimas"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "auto ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "llamadas a herramientas"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Modelo usado para la compactación y los resúmenes de llamadas a herramientas. Auto elige el modelo rápido del proveedor."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Modelo de compactación"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Auto (modelo rápido del proveedor)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Auto ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "No se pudo guardar el ajuste de compactación"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Reemplaza las llamadas a herramientas antiguas y sus resultados por resúmenes de una línea a medida que crece la conversación."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Resumir llamadas a herramientas antiguas"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Compacta la conversación automáticamente al alcanzar esta proporción de la ventana de contexto."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Compactar automáticamente al"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "La última llamada al proveedor usó {tokens} tokens en total, incluida la salida."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Recuentos de tokens estimados con el tokenizador o200k."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Libre"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "de {limit} tokens · {percent} de la ventana de contexto"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "No se pudo cargar el informe de contexto."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} tokens · {percent} de la ventana"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · ventana de contexto de {limit} tokens"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Actualizar"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Reintentar"
+  },
+  "contextXray.title": {
+    "defaultMessage": "Radiografía de contexto"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Sobrecarga del tokenizador"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, one {# herramienta} other {# herramientas}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Límites de conversación"

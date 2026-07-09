@@ -222,13 +222,25 @@ pub fn build_gitignore(cwd: &Path) -> Gitignore {
     })
 }
 
-pub fn load_hint_files(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HintScope {
+    Global,
+    Project,
+}
+
+#[derive(Debug, Clone)]
+pub struct HintSource {
+    pub path: PathBuf,
+    pub scope: HintScope,
+    pub content: String,
+}
+
+pub fn load_hint_files_with_sources(
     cwd: &Path,
     hints_filenames: &[String],
     ignore_patterns: &Gitignore,
-) -> String {
-    let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
-    let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
+) -> Vec<HintSource> {
+    let mut sources = Vec::new();
 
     let mut global_hints_paths: Vec<PathBuf> = hints_filenames
         .iter()
@@ -256,10 +268,15 @@ pub fn load_hint_files(
                 &global_ignore_patterns,
             );
             if !expanded_content.is_empty() {
-                global_hints_contents.push(expanded_content);
+                sources.push(HintSource {
+                    path: global_hints_path.clone(),
+                    scope: HintScope::Global,
+                    content: expanded_content,
+                });
             }
         }
     }
+
     let git_root = find_git_root(cwd);
     let local_directories = get_local_directories(git_root, cwd);
 
@@ -278,11 +295,39 @@ pub fn load_hint_files(
                     ignore_patterns,
                 );
                 if !expanded_content.is_empty() {
-                    local_hints_contents.push(expanded_content);
+                    sources.push(HintSource {
+                        path: hints_path.clone(),
+                        scope: HintScope::Project,
+                        content: expanded_content,
+                    });
                 }
             }
         }
     }
+
+    sources
+}
+
+pub fn load_hint_files(
+    cwd: &Path,
+    hints_filenames: &[String],
+    ignore_patterns: &Gitignore,
+) -> String {
+    let sources = load_hint_files_with_sources(cwd, hints_filenames, ignore_patterns);
+    combine_hint_sources(&sources)
+}
+
+pub fn combine_hint_sources(sources: &[HintSource]) -> String {
+    let global_hints_contents: Vec<&str> = sources
+        .iter()
+        .filter(|source| source.scope == HintScope::Global)
+        .map(|source| source.content.as_str())
+        .collect();
+    let local_hints_contents: Vec<&str> = sources
+        .iter()
+        .filter(|source| source.scope == HintScope::Project)
+        .map(|source| source.content.as_str())
+        .collect();
 
     let mut hints = String::new();
     if !global_hints_contents.is_empty() {

@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "Автосжимать при"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "Сжать сейчас"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "Не удалось сохранить пороговое значение: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "Понятно!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose завершил задачу."
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "Контекстное окно"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "Ошибка диктовки"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "Обработка..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "Открыть рентген контекста"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "Инструкции и подсказки"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "Инструкции расширений"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "Диалог"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "Системный промпт"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "Определения инструментов"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "Контекст хода"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "Сжать сейчас"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "Сжатие"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "Сохранять последние"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "авто ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "вызовов инструментов"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "Модель для сжатия и сводок вызовов инструментов. Авто выбирает быструю модель провайдера."
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "Модель сжатия"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "Авто (быстрая модель провайдера)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "Авто ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "Не удалось сохранить настройку сжатия"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "Заменяет старые вызовы инструментов и их результаты однострочными сводками по мере роста разговора."
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "Сокращать старые вызовы инструментов"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "Автоматически сжимать разговор при достижении этой доли контекстного окна."
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "Автосжатие при"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "Последний вызов провайдера использовал всего {tokens} токенов, включая вывод."
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "Количество токенов оценено токенизатором o200k."
+  },
+  "contextXray.free": {
+    "defaultMessage": "Свободно"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "из {limit} токенов · {percent} контекстного окна"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "Не удалось загрузить отчёт о контексте."
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} токенов · {percent} окна"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · контекстное окно на {limit} токенов"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "Обновить"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "Повторить"
+  },
+  "contextXray.title": {
+    "defaultMessage": "Рентген контекста"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "Накладные расходы токенизатора"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, one {# инструмент} few {# инструмента} many {# инструментов} other {# инструмента}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Ограничения разговора"

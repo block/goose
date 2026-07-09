@@ -33,6 +33,7 @@ pub struct ProviderInventoryEntry {
     pub provider_name: String,
     pub description: String,
     pub default_model: String,
+    pub fast_model: Option<String>,
     pub configured: bool,
     pub provider_type: ProviderType,
     pub category: ProviderSetupCategory,
@@ -258,6 +259,7 @@ struct ProviderDescriptor {
     provider_name: String,
     description: String,
     default_model: String,
+    fast_model: Option<String>,
     identity: InventoryIdentity,
     configured: bool,
     provider_type: ProviderType,
@@ -302,6 +304,7 @@ impl ProviderInventoryService {
             provider_name: descriptor.provider_name,
             description: descriptor.description,
             default_model: descriptor.default_model,
+            fast_model: descriptor.fast_model,
             configured: descriptor.configured,
             provider_type: descriptor.provider_type,
             category: descriptor.category,
@@ -704,6 +707,12 @@ impl ProviderInventoryService {
             Err(_) => return Ok(None),
         };
         let metadata = entry.metadata().clone();
+        let fast_model = metadata.fast_model.clone().or_else(|| {
+            match metadata.name == goose_providers::openai::OPEN_AI_PROVIDER_NAME {
+                true => crate::providers::openai_def::live_fast_model(),
+                false => None,
+            }
+        });
         let identity = crate::providers::inventory_identity(provider_id)
             .await
             .unwrap_or_else(|_| fallback_inventory_identity(provider_id))
@@ -714,6 +723,7 @@ impl ProviderInventoryService {
             provider_name: metadata.display_name.clone(),
             description: metadata.description.clone(),
             default_model: metadata.default_model.clone(),
+            fast_model,
             identity,
             configured: entry.inventory_configured(),
             provider_type: entry.provider_type(),

@@ -1,13 +1,4 @@
 {
-  "alertBox.autoCompactAt": {
-    "defaultMessage": "ऑटो कॉम्पैक्ट पर"
-  },
-  "alertBox.compactNow": {
-    "defaultMessage": "अब संक्षिप्त करें"
-  },
-  "alertBox.failedToSaveThreshold": {
-    "defaultMessage": "सीमा सहेजने में विफल: {error}"
-  },
   "announcementModal.gotIt": {
     "defaultMessage": "समझ गया!"
   },
@@ -173,9 +164,6 @@
   "chat.notification.taskComplete.title": {
     "defaultMessage": "Goose ने कार्य पूरा किया।"
   },
-  "chatInput.contextWindow": {
-    "defaultMessage": "प्रसंग विंडो"
-  },
   "chatInput.dictationError": {
     "defaultMessage": "श्रुतलेख त्रुटि"
   },
@@ -316,6 +304,105 @@
   },
   "confirmationModal.processing": {
     "defaultMessage": "प्रसंस्करण..."
+  },
+  "contextWindowIndicator.openXray": {
+    "defaultMessage": "कॉन्टेक्स्ट एक्स-रे खोलें"
+  },
+  "contextXray.category.additionalInstructions": {
+    "defaultMessage": "निर्देश और संकेत"
+  },
+  "contextXray.category.extensionInstructions": {
+    "defaultMessage": "एक्सटेंशन निर्देश"
+  },
+  "contextXray.category.messages": {
+    "defaultMessage": "बातचीत"
+  },
+  "contextXray.category.systemPrompt": {
+    "defaultMessage": "सिस्टम प्रॉम्प्ट"
+  },
+  "contextXray.category.toolDefinitions": {
+    "defaultMessage": "टूल परिभाषाएँ"
+  },
+  "contextXray.category.turnContext": {
+    "defaultMessage": "टर्न कॉन्टेक्स्ट"
+  },
+  "contextXray.compaction.compactNow": {
+    "defaultMessage": "अभी संक्षिप्त करें"
+  },
+  "contextXray.compaction.heading": {
+    "defaultMessage": "कॉम्पैक्शन"
+  },
+  "contextXray.compaction.keepLastLabel": {
+    "defaultMessage": "आख़िरी रखें"
+  },
+  "contextXray.compaction.keepLastPlaceholder": {
+    "defaultMessage": "स्वतः ({count})"
+  },
+  "contextXray.compaction.keepLastUnit": {
+    "defaultMessage": "टूल कॉल"
+  },
+  "contextXray.compaction.modelHelper": {
+    "defaultMessage": "कॉम्पैक्शन और टूल कॉल सारांश के लिए उपयोग किया जाने वाला मॉडल। ऑटो प्रोवाइडर का फ़ास्ट मॉडल चुनता है।"
+  },
+  "contextXray.compaction.modelLabel": {
+    "defaultMessage": "कॉम्पैक्शन मॉडल"
+  },
+  "contextXray.compaction.modelPlaceholderAuto": {
+    "defaultMessage": "ऑटो (प्रोवाइडर का फ़ास्ट मॉडल)"
+  },
+  "contextXray.compaction.modelPlaceholderNamed": {
+    "defaultMessage": "ऑटो ({model})"
+  },
+  "contextXray.compaction.saveFailed": {
+    "defaultMessage": "कॉम्पैक्शन सेटिंग सहेजने में विफल"
+  },
+  "contextXray.compaction.summarizeHelper": {
+    "defaultMessage": "बातचीत बढ़ने पर पुराने टूल कॉल और परिणामों को एक-पंक्ति के सारांश से बदलें।"
+  },
+  "contextXray.compaction.summarizeLabel": {
+    "defaultMessage": "पुराने टूल कॉल का सारांश बनाएं"
+  },
+  "contextXray.compaction.thresholdHelper": {
+    "defaultMessage": "कॉन्टेक्स्ट विंडो के इस हिस्से पर पहुंचने पर बातचीत को स्वचालित रूप से संक्षिप्त करें।"
+  },
+  "contextXray.compaction.thresholdLabel": {
+    "defaultMessage": "इस स्तर पर ऑटो-कॉम्पैक्ट करें"
+  },
+  "contextXray.footerLive": {
+    "defaultMessage": "पिछली प्रदाता कॉल में आउटपुट सहित कुल {tokens} टोकन उपयोग हुए।"
+  },
+  "contextXray.footerTokenizer": {
+    "defaultMessage": "टोकन संख्या o200k टोकनाइज़र से अनुमानित है।"
+  },
+  "contextXray.free": {
+    "defaultMessage": "खाली"
+  },
+  "contextXray.heroDetail": {
+    "defaultMessage": "{limit} टोकन में से · कॉन्टेक्स्ट विंडो का {percent}"
+  },
+  "contextXray.loadError": {
+    "defaultMessage": "कॉन्टेक्स्ट रिपोर्ट लोड नहीं हो सकी।"
+  },
+  "contextXray.meter.tooltipDetail": {
+    "defaultMessage": "{tokens} टोकन · विंडो का {percent}"
+  },
+  "contextXray.modelSummary": {
+    "defaultMessage": "{model} · {limit} टोकन कॉन्टेक्स्ट विंडो"
+  },
+  "contextXray.refresh": {
+    "defaultMessage": "रीफ़्रेश करें"
+  },
+  "contextXray.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "contextXray.title": {
+    "defaultMessage": "कॉन्टेक्स्ट एक्स-रे"
+  },
+  "contextXray.tokenizerOverhead": {
+    "defaultMessage": "टोकनाइज़र ओवरहेड"
+  },
+  "contextXray.toolCount": {
+    "defaultMessage": "{count, plural, one {# टूल} other {# टूल}}"
   },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "बातचीत की सीमाएँ"
