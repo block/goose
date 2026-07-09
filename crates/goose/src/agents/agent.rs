@@ -204,6 +204,20 @@ fn build_tool_trace(conversation: &Conversation, pre_turn_tool_count: usize) -> 
     }
 }
 
+/// Collapse adjacent agent-visible messages that share a role, so an injected
+/// advisory placed immediately after a steer (both user-role) is not sent to
+/// the provider as two consecutive user turns — providers require alternating
+/// roles. The usual per-turn merge happens inside `moim::inject_moim` via
+/// `fix_conversation`, but moim is skipped entirely when the context limit is
+/// below `MIN_CONTEXT_FOR_MOIM` (e.g. a small `GOOSE_CONTEXT_LIMIT`); role
+/// alternation is a correctness invariant that must hold regardless of context
+/// size. `fix_conversation` scopes its merge to agent-visible messages, so
+/// persisted per-message visibility metadata in the session is untouched — this
+/// only reshapes the in-flight conversation handed toward the provider.
+fn merge_injected_advisory(conversation: Conversation) -> Conversation {
+    fix_conversation(conversation).0
+}
+
 /// Build the agent-visible-only message that injects hook advisory text
 /// (non-blocking `additionalContext`, or a `warn` decision's reason) into the
 /// conversation. Returns `None` if there's nothing to inject, so callers can
@@ -2046,6 +2060,7 @@ impl Agent {
                 }
 
                 if can_drain_pending_steers {
+                    let mut injected_advisory = false;
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = message.as_concat_text();
                         let additional_context = if self
@@ -2070,7 +2085,18 @@ impl Agent {
                             session_manager.add_message(&session_config.id, &context_message).await?;
                             conversation.push(context_message.clone());
                             yield AgentEvent::Message(context_message);
+                            injected_advisory = true;
                         }
+                    }
+                    // A steer and its injected advisory are both user-role, so
+                    // pushing them back-to-back leaves two consecutive user
+                    // turns. moim's per-turn merge normally fixes this, but it's
+                    // skipped for small context limits — merge here so the
+                    // provider never sees non-alternating roles. Only runs when
+                    // an advisory was actually injected, so the non-hook path is
+                    // byte-for-byte unchanged.
+                    if injected_advisory {
+                        conversation = merge_injected_advisory(conversation);
                     }
                 }
 
@@ -3451,6 +3477,78 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    /// Provider view of a conversation: agent-visible messages only, mapped to
+    /// their effective role (what `stream_response_from_provider` sends after
+    /// `is_agent_visible` filtering). Returns true iff two adjacent entries
+    /// share a role — the shape providers reject with "roles must alternate".
+    fn has_adjacent_same_role_agent_visible(conversation: &Conversation) -> bool {
+        let roles: Vec<String> = conversation
+            .messages()
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(crate::conversation::effective_role)
+            .collect();
+        roles.windows(2).any(|w| w[0] == w[1])
+    }
+
+    #[test]
+    fn injected_advisory_after_steer_keeps_provider_roles_alternating() {
+        // Repro for the advise-tier steer-drain bug: a small GOOSE_CONTEXT_LIMIT
+        // makes moim (and thus its per-turn role-merge) skip, so the injected
+        // advisory must be merged locally or it reaches the provider as two
+        // consecutive user turns.
+        assert!(
+            crate::agents::moim::should_skip_moim(Some(8_000)),
+            "sub-32k context limit must skip moim for this repro to be meaningful"
+        );
+
+        // What the steer-drain path pushes: a user-visible steer immediately
+        // followed by the agent-visible-only advisory the hook returned.
+        let steer = Message::user()
+            .with_text("also check the logs")
+            .with_steer();
+        let advisory =
+            advisory_context_message(&["remember to run the tests".to_string()]).unwrap();
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant().with_text("all done"),
+            steer,
+            advisory,
+        ]);
+
+        // Without the fix (raw conversation as pushed): two adjacent user turns.
+        assert!(
+            has_adjacent_same_role_agent_visible(&conversation),
+            "precondition: raw steer+advisory must be non-alternating"
+        );
+
+        // With the fix the steer-drain path applies before streaming:
+        let fixed = merge_injected_advisory(conversation);
+        assert!(
+            !has_adjacent_same_role_agent_visible(&fixed),
+            "after merge, provider-bound roles must alternate"
+        );
+    }
+
+    #[test]
+    fn multiple_steers_with_advisories_keep_roles_alternating() {
+        // Draining several steers, each firing a hook, appends
+        // [steer1, adv1, steer2, adv2, ...] — all user-role. A single merge
+        // after the loop must still leave alternating roles.
+        assert!(crate::agents::moim::should_skip_moim(Some(8_000)));
+
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant().with_text("done"),
+            Message::user().with_text("steer one").with_steer(),
+            advisory_context_message(&["advice one".to_string()]).unwrap(),
+            Message::user().with_text("steer two").with_steer(),
+            advisory_context_message(&["advice two".to_string()]).unwrap(),
+        ]);
+
+        assert!(has_adjacent_same_role_agent_visible(&conversation));
+        let fixed = merge_injected_advisory(conversation);
+        assert!(!has_adjacent_same_role_agent_visible(&fixed));
+    }
 
     #[test]
     fn resolve_use_login_shell_path_defaults_by_platform() {

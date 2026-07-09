@@ -129,7 +129,7 @@ pub async fn inject_moim(
     fixed
 }
 
-fn should_skip_moim(context_limit: Option<usize>) -> bool {
+pub(crate) fn should_skip_moim(context_limit: Option<usize>) -> bool {
     context_limit.is_some_and(|limit| limit < MIN_CONTEXT_FOR_MOIM)
 }
 
