@@ -23,5 +23,6 @@
       "context_limit": 131072
     }
   ],
-  "supports_streaming": true
+  "supports_streaming": true,
+  "preserves_thinking": false
 }
