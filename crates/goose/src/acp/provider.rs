@@ -4,9 +4,9 @@ use agent_client_protocol::schema::v1::{
     McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    SessionConfigSelectOptions, SessionId, SessionMode, SessionModeId, SessionModeState,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, SetSessionModeRequest,
+    SetSessionModeResponse, StopReason, TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -1897,15 +1897,10 @@ mod tests {
 
     fn mode_state(current: &str, available: &[&str]) -> SessionModeState {
         SessionModeState::new(
-            agent_client_protocol::schema::SessionModeId::new(current),
+            SessionModeId::new(current),
             available
                 .iter()
-                .map(|id| {
-                    agent_client_protocol::schema::SessionMode::new(
-                        agent_client_protocol::schema::SessionModeId::new(*id),
-                        *id,
-                    )
-                })
+                .map(|id| SessionMode::new(SessionModeId::new(*id), *id))
                 .collect(),
         )
     }
