@@ -2782,4 +2782,192 @@ mod tests {
             }
         }
     }
+
+    mod empty_turn_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentEvent, SessionConfig};
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+        };
+        use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use rmcp::model::Tool;
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        fn usage() -> ProviderUsage {
+            ProviderUsage::new(
+                "mock-model".to_string(),
+                Usage::new(Some(10), Some(5), Some(15)),
+            )
+        }
+
+        /// Yields empty responses (no text, no tool calls) for the first
+        /// `empty_count` provider calls, then a normal text response.
+        struct EmptyThenTextProvider {
+            call_count: AtomicUsize,
+            empty_count: usize,
+        }
+
+        impl EmptyThenTextProvider {
+            fn new(empty_count: usize) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    empty_count,
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for EmptyThenTextProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "empty-then-text-mock".to_string(),
+                    display_name: "Empty Then Text Mock".to_string(),
+                    description: "Mock provider for empty-turn tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for EmptyThenTextProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for EmptyThenTextProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                if call < self.empty_count {
+                    // Empty assistant turn: no text, no tool calls.
+                    Ok(stream_from_single_message(Message::assistant(), usage()))
+                } else {
+                    Ok(stream_from_single_message(
+                        Message::assistant().with_text("All done."),
+                        usage(),
+                    ))
+                }
+            }
+
+            fn get_name(&self) -> &str {
+                "empty-then-text-mock"
+            }
+        }
+
+        async fn run_reply(
+            provider: Arc<dyn Provider>,
+            session_name: &str,
+        ) -> Result<Vec<Message>> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    session_name.to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+            Ok(messages)
+        }
+
+        fn concat_text(messages: &[Message]) -> String {
+            messages
+                .iter()
+                .flat_map(|m| m.content.iter())
+                .filter_map(|c| match c {
+                    MessageContent::Text(t) => Some(t.text.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+
+        /// A transient empty response should be retried and recover, ultimately
+        /// delivering the real text response instead of stopping silently.
+        #[tokio::test]
+        async fn test_empty_turn_retries_then_recovers() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::new(2));
+            let messages = run_reply(provider, "empty-retry-recover").await?;
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("All done."),
+                "expected recovery to deliver the real response, got: {text:?}"
+            );
+            assert!(
+                !text.contains("empty response"),
+                "should not surface the empty-turn fallback when recovery succeeds: {text:?}"
+            );
+            Ok(())
+        }
+
+        /// A provider that only ever returns empty responses must not hang
+        /// silently — after the retry budget it surfaces a visible message.
+        #[tokio::test]
+        async fn test_persistent_empty_turn_surfaces_message() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::new(usize::MAX));
+            let messages = run_reply(provider, "empty-persistent").await?;
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("empty response"),
+                "expected a visible empty-response message, got: {text:?}"
+            );
+
+            let last = messages.last().expect("expected at least one message");
+            assert!(
+                matches!(last.content.first(), Some(MessageContent::Text(_))),
+                "expected the final message to be visible text, got: {:?}",
+                last.content
+            );
+            Ok(())
+        }
+    }
 }

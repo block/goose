@@ -70,6 +70,9 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
+const MAX_EMPTY_TURN_RETRIES: u32 = 3;
+const EMPTY_TURN_MESSAGE: &str =
+    "The model returned an empty response. Please resend your message to continue.";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1908,6 +1911,8 @@ impl Agent {
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;
+            let mut empty_turn_retries = 0u32;
+            let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
@@ -1984,6 +1989,8 @@ impl Agent {
 
                 if retrying_after_stop_hook_denial {
                     retrying_after_stop_hook_denial = false;
+                } else if retrying_after_empty_turn {
+                    retrying_after_empty_turn = false;
                 } else {
                     turns_taken += 1;
                 }
@@ -2036,6 +2043,7 @@ impl Agent {
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
+                let mut provider_errored = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
 
@@ -2411,6 +2419,7 @@ impl Agent {
                         }
                         #[allow(unused_variables)]
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
@@ -2470,6 +2479,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2494,6 +2504,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2509,6 +2520,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2520,6 +2532,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2551,7 +2564,42 @@ impl Agent {
                     }
                 }
 
-                if no_tools_called && !exit_chat {
+                // An empty provider turn — no tool calls, no text, no error, and no
+                // compaction/steer that legitimately produces no assistant output —
+                // must not silently end the loop. Retry a bounded number of times,
+                // then surface a visible message so the user is never left staring at
+                // a session that stopped with no response.
+                let empty_turn = no_tools_called
+                    && !exit_chat
+                    && !provider_errored
+                    && !did_recovery_compact_this_iteration
+                    && last_assistant_text.is_empty()
+                    && !self.has_pending_steers(&session_config.id).await;
+
+                if empty_turn {
+                    if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
+                        empty_turn_retries += 1;
+                        retrying_after_empty_turn = true;
+                        warn!(
+                            "Provider returned an empty response; retrying ({}/{})",
+                            empty_turn_retries, MAX_EMPTY_TURN_RETRIES
+                        );
+                        // Drop the empty assistant message rather than persisting it —
+                        // re-call the provider with the unchanged conversation so we
+                        // don't pollute history (strict providers reject empty turns).
+                        messages_to_add = Conversation::default();
+                    } else {
+                        warn!("Provider returned an empty response after retries; ending turn");
+                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
+                        messages_to_add.push(message.clone());
+                        yield AgentEvent::Message(message);
+                        exit_chat = true;
+                    }
+                } else {
+                    empty_turn_retries = 0;
+                }
+
+                if !empty_turn && no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
