@@ -2313,27 +2313,63 @@ impl Agent {
                                     })
                                     .cloned()
                                     .collect();
-                                // When thinking arrived in an earlier stream chunk it was stored as
-                                // a standalone thinking-only message; reuse that thinking on the
-                                // tool-call messages and drop the standalone so it isn't duplicated.
-                                let response_thinking = if direct_thinking.is_empty() {
-                                    let prior = messages_to_add.messages().iter().rposition(|m| {
-                                        m.role == response.role
-                                            && !m.content.is_empty()
-                                            && m.content.iter().all(|c| {
-                                                matches!(
-                                                    c,
-                                                    MessageContent::Thinking(_)
-                                                        | MessageContent::RedactedThinking(_)
-                                                )
-                                            })
-                                    });
-                                    match prior {
-                                        Some(idx) => messages_to_add.remove(idx).content,
-                                        None => Vec::new(),
+                                // When thinking arrived in earlier stream chunks it was stored as
+                                // standalone thinking-only messages; reuse that thinking on the
+                                // tool-call messages and drop the standalone messages so the
+                                // thinking isn't duplicated.
+                                // Always accumulate ALL prior thinking — even when
+                                // direct_thinking is non-empty (reasoning arrived on the same
+                                // chunk as tool_calls) — because otherwise only the last chunk's
+                                // reasoning ends up on split tool-call messages.
+                                // Also extract thinking from mixed (thinking+text) messages,
+                                // not just pure-thinking-only ones.
+                                let mut accumulated_prior: Vec<MessageContent> = Vec::new();
+                                let mut indices_to_remove: Vec<usize> = Vec::new();
+                                for (idx, m) in messages_to_add.messages().iter().enumerate() {
+                                    if m.role != response.role || m.content.is_empty() {
+                                        continue;
                                     }
-                                } else {
+                                    let thinking_only = m.content.iter().all(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    let has_thinking = m.content.iter().any(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    if has_thinking {
+                                        for c in &m.content {
+                                            if matches!(
+                                                c,
+                                                MessageContent::Thinking(_)
+                                                    | MessageContent::RedactedThinking(_)
+                                            ) {
+                                                accumulated_prior.push(c.clone());
+                                            }
+                                        }
+                                    }
+                                    if thinking_only {
+                                        indices_to_remove.push(idx);
+                                    }
+                                }
+                                // Remove in reverse order to preserve indices
+                                for idx in indices_to_remove.into_iter().rev() {
+                                    messages_to_add.remove(idx);
+                                }
+                                let response_thinking = if direct_thinking.is_empty() {
+                                    accumulated_prior
+                                } else if accumulated_prior.is_empty() {
                                     direct_thinking
+                                } else {
+                                    let mut merged = accumulated_prior;
+                                    merged.extend(direct_thinking);
+                                    merged
                                 };
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
