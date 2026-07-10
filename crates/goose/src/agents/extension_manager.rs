@@ -47,7 +47,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
-use crate::subprocess::configure_subprocess;
+use crate::subprocess::configure_long_lived_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
     MetaObject, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification, Tool,
@@ -420,7 +420,7 @@ async fn child_process_client(
     action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
-    configure_subprocess(&mut command);
+    configure_long_lived_subprocess(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);

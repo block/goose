@@ -60,13 +60,26 @@ impl SubprocessExt for std::process::Command {
     }
 }
 
-#[allow(unused_variables)]
-pub fn configure_subprocess(command: &mut Command) {
+fn configure_common_subprocess(command: &mut Command) {
     // Isolate subprocess into its own process group so it does not receive
     // SIGINT when the user presses Ctrl+C in the terminal.
     #[cfg(unix)]
     command.process_group(0);
+    command.set_no_window();
+}
+
+#[allow(unused_variables)]
+pub fn configure_subprocess(command: &mut Command) {
+    configure_common_subprocess(command);
     #[cfg(target_os = "linux")]
     configure_parent_death_signal(command);
-    command.set_no_window();
+}
+
+#[allow(unused_variables)]
+pub fn configure_long_lived_subprocess(command: &mut Command) {
+    // Long-lived stdio children outlive the Tokio worker thread that spawns
+    // them, so Linux PR_SET_PDEATHSIG would terminate them while goose remains
+    // alive. Keep the shared terminal/window behavior, but let stdio EOF handle
+    // process-exit cleanup.
+    configure_common_subprocess(command);
 }
