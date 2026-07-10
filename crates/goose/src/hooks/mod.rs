@@ -555,7 +555,9 @@ fn hook_response(output: &std::process::Output) -> Option<HookResponse> {
     }
     let parsed: Resp = serde_json::from_str(trimmed).ok()?;
     match parsed.decision.as_deref() {
-        Some("block") => Some(HookResponse::Deny(non_empty(parsed.reason.unwrap_or_default()))),
+        Some("block") => Some(HookResponse::Deny(non_empty(
+            parsed.reason.unwrap_or_default(),
+        ))),
         Some("warn") => {
             let reason = parsed.reason.unwrap_or_default();
             if reason.is_empty() {
@@ -988,15 +990,13 @@ mod tests {
             .await;
 
         assert_eq!(result.decision, HookDecision::Allow);
-        assert_eq!(
-            result.advisories,
-            vec!["remember to run tests".to_string()]
-        );
+        assert_eq!(result.advisories, vec!["remember to run tests".to_string()]);
     }
 
     #[test]
     fn tool_trace_round_trips_through_hook_context_serialization() {
-        let ctx = HookContext::new(HookEvent::Stop, "s").with_tool_trace("-> shell(ls)\n<- ok: file.txt");
+        let ctx =
+            HookContext::new(HookEvent::Stop, "s").with_tool_trace("-> shell(ls)\n<- ok: file.txt");
         let json = serde_json::to_value(&ctx).unwrap();
         assert_eq!(
             json.get("tool_trace").and_then(|v| v.as_str()),

@@ -548,11 +548,7 @@ impl Agent {
     /// `SessionEnd`). Returns any `additionalContext` strings the hooks emit,
     /// so the caller can route them through the same advisory-injection path as
     /// every other emit site instead of discarding them.
-    pub async fn emit_hook(
-        &self,
-        event: crate::hooks::HookEvent,
-        session_id: &str,
-    ) -> Vec<String> {
+    pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) -> Vec<String> {
         if !self.hook_manager.has_hooks(event) {
             return Vec::new();
         }
@@ -592,7 +588,12 @@ impl Agent {
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message, working_dir, tool_trace),
+                Self::stop_hook_context(
+                    session_id,
+                    last_assistant_message,
+                    working_dir,
+                    tool_trace,
+                ),
             )
             .await
     }
@@ -607,7 +608,12 @@ impl Agent {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message, working_dir, tool_trace),
+                Self::stop_hook_context(
+                    session_id,
+                    last_assistant_message,
+                    working_dir,
+                    tool_trace,
+                ),
             )
             .await
     }
