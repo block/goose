@@ -520,9 +520,8 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
-            let conversation_strings: Vec<String> = self
-                .messages
-                .iter()
+            let conversation_strings: Vec<String> = user_visible_history(&self.messages)
+                .into_iter()
                 .map(|msg| {
                     let role = match msg.role {
                         rmcp::model::Role::User => "User",
@@ -1311,9 +1310,9 @@ impl CliSession {
                                 if interactive { output::hide_thinking() };
                                 let _ = progress_bars.hide();
 
-                                if is_stream_json_mode {
+                                if is_stream_json_mode && message.is_user_visible() {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
-                                } else if !is_json_mode {
+                                } else if !is_json_mode && message.is_user_visible() {
                                     output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
                                     maybe_open_credits_top_up_url(
                                         &message,
@@ -1405,7 +1404,10 @@ impl CliSession {
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: user_visible_history(&self.messages)
+                    .into_iter()
+                    .cloned()
+                    .collect(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
