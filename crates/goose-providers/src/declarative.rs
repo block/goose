@@ -365,6 +365,14 @@ mod tests {
         assert!(!config.preserves_thinking);
     }
 
+    #[test]
+    fn vercel_ai_gateway_json_enables_dynamic_model_discovery() {
+        let config = deserialize_provider_config(crate::vercel_ai_gateway::JSON)
+            .expect("vercel_ai_gateway.json should parse");
+
+        assert_eq!(config.dynamic_models, Some(true));
+    }
+
     fn placeholder_var_names(template: &str) -> Vec<String> {
         template
             .split("${")
