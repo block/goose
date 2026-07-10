@@ -2357,10 +2357,21 @@ impl Agent {
                                     }
                                     if thinking_only {
                                         indices_to_remove.push(idx);
-                                    } else if has_thinking {
-                                        // Strip thinking blocks from mixed messages so the same
-                                        // signed/unsigned thinking is not duplicated when it is
-                                        // carried onto the tool-call request messages below.
+                                    } else if has_thinking
+                                        && !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
+                                        })
+                                    {
+                                        // Strip thinking blocks from mixed text+thinking
+                                        // messages so the same signed/unsigned thinking is not
+                                        // duplicated when carried onto the tool-call request
+                                        // messages below. Messages that already contain tool
+                                        // requests are prior-split request_msg items whose
+                                        // thinking was already attached — stripping their
+                                        // thinking would leave only the last split message
+                                        // with reasoning, violating the signed-thinking
+                                        // dedup expectation that the first split message
+                                        // retains it.
                                         m.content.retain(|c| {
                                             !matches!(
                                                 c,
