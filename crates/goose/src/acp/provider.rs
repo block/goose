@@ -58,9 +58,6 @@ pub struct AcpProviderConfig {
     /// provider re-applies this option from the per-completion `ModelConfig`
     /// whenever the active session model changes.
     pub model_config_option_id: Option<String>,
-    /// Candidate ACP mode ids per goose mode, in preference order. The first
-    /// id the agent actually offers is used, letting one mapping cover agent
-    /// versions that advertise different ids for the same behavior.
     pub mode_mapping: HashMap<GooseMode, Vec<String>>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
@@ -422,8 +419,6 @@ impl Provider for AcpProvider {
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        // An unmapped mode means the provider opted out of ACP mode negotiation;
-        // still track it locally since it drives permission routing.
         if let Some(candidates) = self.mode_mapping.get(&mode) {
             let mode_str = select_mode_id(candidates, self.session.response.modes.as_ref())
                 .ok_or_else(|| {
@@ -1259,7 +1254,6 @@ async fn apply_session_mode(
     Ok(session)
 }
 
-// Empty means the provider opted out of mode negotiation; no session/set_mode is sent.
 fn initial_mode_candidates(
     config: &AcpProviderConfig,
     current_mode: Option<GooseMode>,
@@ -1270,8 +1264,6 @@ fn initial_mode_candidates(
         .unwrap_or_default()
 }
 
-/// Picks the first candidate id the agent offers. Agents that don't advertise
-/// modes can't be filtered against, so the first candidate is used as-is.
 fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Option<String> {
     match modes {
         Some(state) => candidates

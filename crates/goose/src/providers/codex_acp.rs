@@ -83,10 +83,6 @@ impl ProviderDef for CodexAcpProvider {
                 ]);
             }
 
-            // Mode ids differ across codex-acp bridges: @zed-industries <=0.16
-            // advertises full-access/auto, @agentclientprotocol >=1.0 renamed
-            // them to agent-full-access/agent. List both; whichever the agent
-            // offers is used.
             let mode_mapping = HashMap::from([
                 (
                     GooseMode::Auto,
