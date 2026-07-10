@@ -545,7 +545,8 @@
     "description": "Read-only oracle for Nika AI workflows: validate .nika.yaml files, explain findings, estimate cost before running",
     "command": "nika mcp",
     "link": "https://github.com/supernovae-st/nika",
-    "installation_notes": "Install the nika binary first (single Rust binary): brew install supernovae-st/tap/nika — the MCP server ships inside it. Release tarballs with SHA256SUMS are on GitHub for Linux.",
+    "installation_notes": "Install the nika binary first (single Rust binary): brew install supernovae-st/tap/nika — the MCP server ships inside it. Release tarballs with SHA256SUMS are on GitHub for Linux. Then add it manually with 'goose session --with-extension \"nika mcp\"' or via Settings → Extensions → Add custom extension.",
+    "show_install_link": false,
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
