@@ -99,12 +99,12 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn into_user_visible_export(mut self) -> Self {
+    pub fn into_share_safe_export(mut self) -> Self {
         if let Some(conversation) = self.conversation.take() {
             let messages = conversation
                 .messages()
                 .iter()
-                .filter(|message| message.is_user_visible())
+                .filter(|message| !crate::hints::is_subdirectory_hint_message(message))
                 .cloned()
                 .collect::<Vec<_>>();
             self.message_count = messages.len();
@@ -2280,7 +2280,7 @@ impl SessionStorage {
     }
 
     async fn export_session(&self, id: &str) -> Result<String> {
-        let session = self.get_session(id, true).await?.into_user_visible_export();
+        let session = self.get_session(id, true).await?.into_share_safe_export();
         serde_json::to_string_pretty(&session).map_err(Into::into)
     }
 
@@ -3791,9 +3791,19 @@ mod tests {
         .await
         .unwrap();
 
+        sm.add_message(
+            &original.id,
+            &Message::assistant()
+                .with_text("compaction summary")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+
         let exported = sm.export_session(&original.id).await.unwrap();
         assert!(!exported.contains("GOOSE_SUBDIRECTORY_HINT_MARKER"));
         assert!(!exported.contains("secret"));
+        assert!(exported.contains("compaction summary"));
         let imported = sm.import_session(&exported, None).await.unwrap();
 
         assert_ne!(imported.id, original.id);
@@ -3801,12 +3811,24 @@ mod tests {
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
         assert_eq!(imported.usage, usage);
         assert_eq!(imported.accumulated_usage, accumulated_usage);
-        assert_eq!(imported.message_count, 2);
+        assert_eq!(imported.message_count, 3);
 
         let conversation = imported.conversation.unwrap();
-        assert_eq!(conversation.messages().len(), 2);
-        assert_eq!(conversation.messages()[0].role, Role::User);
-        assert_eq!(conversation.messages()[1].role, Role::Assistant);
+        assert_eq!(conversation.messages().len(), 3);
+        assert!(conversation
+            .messages()
+            .iter()
+            .any(|message| message.role == Role::User && message.as_concat_text() == USER_MESSAGE));
+        assert!(conversation.messages().iter().any(|message| {
+            message.role == Role::Assistant && message.as_concat_text() == ASSISTANT_MESSAGE
+        }));
+        let summary = conversation
+            .messages()
+            .iter()
+            .find(|message| message.as_concat_text() == "compaction summary")
+            .expect("agent-only compaction summary should survive export and import");
+        assert!(!summary.is_user_visible());
+        assert!(summary.is_agent_visible());
     }
 
     #[tokio::test]

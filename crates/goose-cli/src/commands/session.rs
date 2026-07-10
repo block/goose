@@ -241,7 +241,7 @@ pub async fn handle_session_export(
             ));
         }
     }
-    .into_user_visible_export();
+    .into_share_safe_export();
 
     let output = match format.as_str() {
         "json" => serde_json::to_string_pretty(&session)?,
