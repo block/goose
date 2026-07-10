@@ -255,7 +255,10 @@ impl PromptManager {
             .into_iter()
             .map(|(key, content)| {
                 Message::user()
-                    .with_text(format_subdirectory_hint_message_text(&key, &content))
+                    .with_text(format_subdirectory_hint_message_text(
+                        &key,
+                        &sanitize_unicode_tags(&content),
+                    ))
                     .with_visibility(false, true)
             })
             .collect()
@@ -393,7 +396,7 @@ mod tests {
         std::fs::create_dir_all(&subdir).unwrap();
         std::fs::write(
             subdir.join(".goosehints"),
-            "Prefer subdirectory local rules",
+            "Prefer\u{E0041} subdirectory local rules",
         )
         .unwrap();
 
@@ -419,6 +422,7 @@ mod tests {
         assert!(hint_messages[0]
             .as_concat_text()
             .contains("Prefer subdirectory local rules"));
+        assert!(!hint_messages[0].as_concat_text().contains('\u{E0041}'));
 
         let mut resumed = PromptManager::new();
         resumed.record_loaded_subdirectory_hints(&hint_messages);
