@@ -9,13 +9,10 @@ use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     StreamableHttpClientTransportConfig, StreamableHttpError,
 };
-use rmcp::transport::{
-    ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport, TokioChildProcess,
-};
+use rmcp::transport::{ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
@@ -47,7 +44,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::{oauth_flow, GooseCredentialStore, StaticOAuthClientConfig};
 use crate::prompt_template;
-use crate::subprocess::configure_long_lived_subprocess;
+use crate::subprocess::spawn_long_lived_mcp_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
     MetaObject, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification, Tool,
@@ -420,8 +417,6 @@ async fn child_process_client(
     action_required: Arc<ActionRequiredManager>,
     extension_manager: Weak<ExtensionManager>,
 ) -> ExtensionResult<McpClient> {
-    configure_long_lived_subprocess(&mut command);
-
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
     }
@@ -436,9 +431,7 @@ async fn child_process_client(
         );
     }
 
-    let (transport, mut stderr) = TokioChildProcess::builder(command)
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let (transport, mut stderr) = spawn_long_lived_mcp_subprocess(command).await?;
     let mut stderr = stderr.take().ok_or_else(|| {
         ExtensionError::SetupError("failed to attach child process stderr".to_owned())
     })?;

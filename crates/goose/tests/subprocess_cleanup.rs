@@ -1,14 +1,23 @@
 #![cfg(target_os = "linux")]
 
-use goose::subprocess::{configure_long_lived_subprocess, configure_subprocess};
+use goose::subprocess::{configure_subprocess, spawn_long_lived_mcp_subprocess};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 const HELPER_ENV: &str = "GOOSE_SUBPROCESS_PARENT_DEATH_HELPER";
 const THREAD_HELPER_ENV: &str = "GOOSE_SUBPROCESS_THREAD_DEATH_HELPER";
+
+struct HelperProcess(Child);
+
+impl Drop for HelperProcess {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 #[ctor::ctor]
 unsafe fn maybe_run_helper() {
@@ -61,9 +70,9 @@ fn run_thread_death_helper() {
             command.stdin(Stdio::null());
             command.stdout(Stdio::null());
             command.stderr(Stdio::null());
-            configure_long_lived_subprocess(&mut command);
-
-            let child = command.spawn().expect("spawn child");
+            let (child, _) = spawn_long_lived_mcp_subprocess(command)
+                .await
+                .expect("spawn child");
             let pid = child.id().expect("child pid");
             std::mem::forget(child);
             pid
@@ -83,13 +92,10 @@ fn run_thread_death_helper() {
         }
     }
 
-    terminate_child(child_pid);
-
     println!("{child_pid}");
     std::io::stdout().flush().expect("flush pid");
-
-    unsafe {
-        libc::_exit(0);
+    loop {
+        std::thread::park();
     }
 }
 
@@ -129,15 +135,53 @@ fn child_process_exits_when_parent_process_dies() {
 #[test]
 fn long_lived_child_process_survives_spawning_thread_exit() {
     let current_exe = std::env::current_exe().expect("current test binary");
-    let helper = Command::new(current_exe)
-        .env(THREAD_HELPER_ENV, "1")
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("spawn helper");
+    let mut helper = HelperProcess(
+        Command::new(current_exe)
+            .env(THREAD_HELPER_ENV, "1")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .expect("spawn helper"),
+    );
 
-    let status = helper.wait_with_output().expect("wait for helper").status;
-    assert!(status.success(), "helper exited unsuccessfully: {status}");
+    let stdout = helper.0.stdout.take().expect("helper stdout");
+    let (pid_tx, pid_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let pid = BufReader::new(stdout)
+            .lines()
+            .next()
+            .ok_or("helper exited without reporting a child pid")
+            .and_then(|line| line.map_err(|_| "failed to read helper child pid"))
+            .and_then(|line| line.parse::<u32>().map_err(|_| "invalid helper child pid"));
+        let _ = pid_tx.send(pid);
+    });
+    let child_pid = pid_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("timed out waiting for helper child pid")
+        .expect("helper child pid");
+
+    assert!(
+        process_is_running(child_pid),
+        "child process {child_pid} exited after spawning thread exit"
+    );
+
+    unsafe {
+        libc::kill(helper.0.id() as libc::pid_t, libc::SIGKILL);
+    }
+    let status = helper.0.wait().expect("wait for helper");
+    assert!(
+        !status.success(),
+        "helper should have been killed: {status}"
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while process_is_running(child_pid) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        !process_is_running(child_pid),
+        "child process {child_pid} survived parent process death"
+    );
 }
 
 fn process_exists(pid: u32) -> bool {
@@ -155,24 +199,4 @@ fn process_state(pid: u32) -> Option<char> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let (_, after_name) = stat.rsplit_once(") ")?;
     after_name.chars().next()
-}
-
-fn terminate_child(pid: u32) {
-    unsafe {
-        libc::kill(pid as libc::pid_t, libc::SIGTERM);
-    }
-
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        let mut status = 0;
-        let waited = unsafe { libc::waitpid(pid as libc::pid_t, &mut status, libc::WNOHANG) };
-        if waited == pid as libc::pid_t || !process_exists(pid) {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "child process {pid} did not exit after SIGTERM"
-        );
-        std::thread::sleep(Duration::from_millis(100));
-    }
 }
