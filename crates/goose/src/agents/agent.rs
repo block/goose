@@ -690,23 +690,15 @@ impl Agent {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-    ) -> Result<bool> {
-        let result = self
-            .retry_manager
+    ) -> Result<RetryResult> {
+        self.retry_manager
             .handle_retry_logic(
                 messages,
                 session_config,
                 initial_messages,
                 &self.final_output_tool,
             )
-            .await?;
-
-        match result {
-            RetryResult::Retried => Ok(true),
-            RetryResult::Skipped
-            | RetryResult::MaxAttemptsReached
-            | RetryResult::SuccessChecksPassed => Ok(false),
-        }
+            .await
     }
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
@@ -2642,40 +2634,45 @@ impl Agent {
                             );
                         }
 
-                        None if empty_response => {
-                            // Nothing else claimed this empty turn — it would
-                            // otherwise fall through to a silent exit. Retry a
-                            // bounded number of times, then surface a visible
-                            // message so the user is never left with no response.
-                            if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
-                                empty_turn_retries += 1;
-                                retrying_after_empty_turn = true;
-                                warn!(
-                                    "Provider returned an empty response; retrying ({}/{})",
-                                    empty_turn_retries, MAX_EMPTY_TURN_RETRIES
-                                );
-                            } else {
-                                warn!("Provider returned an empty response after retries; ending turn");
-                                last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
-                                let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
-                                messages_to_add.push(message.clone());
-                                yield AgentEvent::Message(message);
-                                exit_chat = true;
-                            }
-                        }
                         None => {
                             self.set_goal(None).await;
                             self.set_grind(None).await;
+                            // Recipe retry logic owns the turn whenever a
+                            // retry_config is present: it runs success checks,
+                            // on_failure, and max_retries. Only when no recipe
+                            // retry is configured (Skipped) does the empty-turn
+                            // fallback apply.
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                                Ok(should_retry) => {
-                                    if should_retry {
-                                        info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
+                                Ok(RetryResult::Retried) => {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                    messages_to_add = Conversation::default();
+                                    session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
+                                }
+                                Ok(RetryResult::Skipped) if empty_response => {
+                                    // No recipe retry configured, and this empty
+                                    // turn would otherwise fall through to a
+                                    // silent exit. Retry a bounded number of
+                                    // times, then surface a visible message so
+                                    // the user is never left with no response.
+                                    if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
+                                        empty_turn_retries += 1;
+                                        retrying_after_empty_turn = true;
+                                        warn!(
+                                            "Provider returned an empty response; retrying ({}/{})",
+                                            empty_turn_retries, MAX_EMPTY_TURN_RETRIES
+                                        );
                                     } else {
+                                        warn!("Provider returned an empty response after retries; ending turn");
+                                        last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
+                                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
+                                        messages_to_add.push(message.clone());
+                                        yield AgentEvent::Message(message);
                                         exit_chat = true;
                                     }
+                                }
+                                Ok(_) => {
+                                    exit_chat = true;
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);

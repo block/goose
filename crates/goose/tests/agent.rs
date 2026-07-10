@@ -3129,5 +3129,67 @@ mod tests {
             );
             Ok(())
         }
+
+        /// A recipe with retry_config owns the turn: recipe retry logic runs
+        /// its success checks before the empty-turn fallback. When the check
+        /// already passes, an empty final turn is the successful end of the
+        /// recipe, not a generic empty-response error.
+        #[tokio::test]
+        async fn test_empty_turn_defers_to_recipe_retry() -> Result<()> {
+            use goose::agents::types::{RetryConfig, SuccessCheck};
+
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "empty-recipe-retry".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(usize::MAX)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(3),
+                retry_config: Some(RetryConfig {
+                    max_retries: 2,
+                    checks: vec![SuccessCheck::Shell {
+                        command: "true".to_string(),
+                    }],
+                    on_failure: None,
+                    timeout_seconds: Some(30),
+                    on_failure_timeout_seconds: None,
+                }),
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                !text.contains("empty response"),
+                "recipe retry (passing check) must own the empty turn, not the fallback: {text:?}"
+            );
+            Ok(())
+        }
     }
 }
