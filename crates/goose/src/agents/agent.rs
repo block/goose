@@ -2325,7 +2325,8 @@ impl Agent {
                                 // not just pure-thinking-only ones.
                                 let mut accumulated_prior: Vec<MessageContent> = Vec::new();
                                 let mut indices_to_remove: Vec<usize> = Vec::new();
-                                for (idx, m) in messages_to_add.messages().iter().enumerate() {
+                                for (idx, m) in messages_to_add.messages_mut().iter_mut().enumerate()
+                                {
                                     if m.role != response.role || m.content.is_empty() {
                                         continue;
                                     }
@@ -2356,6 +2357,17 @@ impl Agent {
                                     }
                                     if thinking_only {
                                         indices_to_remove.push(idx);
+                                    } else if has_thinking {
+                                        // Strip thinking blocks from mixed messages so the same
+                                        // signed/unsigned thinking is not duplicated when it is
+                                        // carried onto the tool-call request messages below.
+                                        m.content.retain(|c| {
+                                            !matches!(
+                                                c,
+                                                MessageContent::Thinking(_)
+                                                    | MessageContent::RedactedThinking(_)
+                                            )
+                                        });
                                     }
                                 }
                                 // Remove in reverse order to preserve indices
