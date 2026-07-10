@@ -2118,6 +2118,17 @@ impl Agent {
                         .await;
                     match hook_result.decision {
                         crate::hooks::HookDecision::Allow => {
+                            // SCOPE: on this structured-output (`final_output` tool)
+                            // exit path a `warn` advisory is injected as next-turn
+                            // context and the turn ends here — it does NOT loop back
+                            // to let the model correct in-turn. In-turn warn
+                            // correction is implemented only on the conversational
+                            // exit path (see the `exit_chat` Stop-hook arm below).
+                            // Extending in-turn warn to this path is a deferred
+                            // follow-up (it needs different plumbing around the
+                            // structured-output completion). `block` and the
+                            // additionalContext injection behave identically on both
+                            // paths; only in-turn `warn` differs.
                             if let Some(message) = advisory_context_message(&hook_result.advisories) {
                                 session_manager.add_message(&session_config.id, &message).await?;
                                 conversation.push(message.clone());
