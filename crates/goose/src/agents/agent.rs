@@ -544,13 +544,21 @@ impl Agent {
             .unwrap_or(DEFAULT_STOP_HOOK_BLOCK_CAP)
     }
 
-    pub async fn emit_hook(&self, event: crate::hooks::HookEvent, session_id: &str) {
+    /// Fire a lifecycle hook event with no extra context (e.g. `SessionStart`,
+    /// `SessionEnd`). Returns any `additionalContext` strings the hooks emit,
+    /// so the caller can route them through the same advisory-injection path as
+    /// every other emit site instead of discarding them.
+    pub async fn emit_hook(
+        &self,
+        event: crate::hooks::HookEvent,
+        session_id: &str,
+    ) -> Vec<String> {
         if !self.hook_manager.has_hooks(event) {
-            return;
+            return Vec::new();
         }
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
-            .await;
+            .await
     }
 
     fn stop_hook_context(
@@ -1724,12 +1732,19 @@ impl Agent {
             .as_ref()
             .map(|conversation| conversation.messages().is_empty())
             .unwrap_or(true);
+        // Hook advisories collected before the turn, injected together at the
+        // single point below. SessionStart used to discard its advisories; now
+        // it shares the same path as UserPromptSubmit (order preserved:
+        // SessionStart context first, then this prompt's).
+        let mut user_prompt_submit_context: Vec<String> = Vec::new();
         if is_first_turn {
-            self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
-                .await;
+            user_prompt_submit_context.extend(
+                self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
+                    .await,
+            );
         }
 
-        let user_prompt_submit_context = if self
+        if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
         {
@@ -1738,12 +1753,12 @@ impl Agent {
                 &session_config.id,
             )
             .with_message(message_text.clone());
-            self.hook_manager
-                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-                .await
-        } else {
-            Vec::new()
-        };
+            user_prompt_submit_context.extend(
+                self.hook_manager
+                    .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                    .await,
+            );
+        }
 
         let command_result = self
             .execute_command(&message_text, &session_config.id)
@@ -3872,6 +3887,24 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             })
         }
 
+        /// Like `new`, but the SessionStart hook also advises via the
+        /// `additionalContext` shape, so tests can assert the advisory is
+        /// injected (it used to be discarded by `emit_hook`).
+        fn new_emitting_context(context: &str) -> Result<Self> {
+            let env = Self::new()?;
+            let start_sh = env.temp_dir.path().join("session-start/start.sh");
+            std::fs::write(
+                &start_sh,
+                format!(
+                    r#"#!/bin/sh
+echo start >> "$PLUGIN_ROOT/hook.log"
+printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additionalContext":"{context}"}}}}'
+"#,
+                ),
+            )?;
+            Ok(env)
+        }
+
         fn hook_manager(&self) -> crate::hooks::HookManager {
             crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
                 name: "session-start".into(),
@@ -4117,6 +4150,29 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         assert_eq!(env.hook_invocations(), 1);
         assert_eq!(provider.call_count(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn emit_hook_returns_additional_context_instead_of_discarding() -> Result<()> {
+        // Regression for the review gap: emit_hook used to discard emit()'s
+        // return value, so SessionStart's additionalContext never reached the
+        // caller. It now returns the advisories, which reply() merges into the
+        // same advisory-injection path as UserPromptSubmit (line ~1857).
+        let env = SessionStartHookTestEnv::new_emitting_context("project uses tabs, not spaces")?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        let advisories = agent
+            .emit_hook(crate::hooks::HookEvent::SessionStart, &session_id)
+            .await;
+
+        assert_eq!(
+            advisories,
+            vec!["project uses tabs, not spaces".to_string()],
+            "emit_hook must return the SessionStart additionalContext, not discard it"
+        );
         Ok(())
     }
 

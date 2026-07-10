@@ -505,6 +505,18 @@ impl HookManager {
                     }
                     None => {}
                 }
+
+                // Unify parsing with `emit`: a hook may advise via the
+                // `{"hookSpecificOutput":{"additionalContext":...}}` shape on a
+                // blocking event too (a `warn` reason and an `additionalContext`
+                // can even coexist). Without this, `additionalContext` is
+                // silently dropped on `Stop`'s primary (non-deny) exit paths.
+                // Guarded on success to match `emit`, which skips failed hooks.
+                if output.status.success() {
+                    if let Some(context) = additional_context_from_output(&output) {
+                        advisories.push(context);
+                    }
+                }
             }
         }
 
@@ -951,6 +963,34 @@ mod tests {
         assert_eq!(
             result.advisories,
             vec!["claim not verified by tool trace".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn emit_blocking_surfaces_additional_context_on_a_blocking_event() {
+        // A hook that advises via the `additionalContext` shape (no `decision`)
+        // on a blocking event (Stop) must have its context surfaced, exactly
+        // like `emit` does — not silently dropped on the non-deny exit path.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"remember to run tests\"}}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let result = mgr
+            .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+
+        assert_eq!(result.decision, HookDecision::Allow);
+        assert_eq!(
+            result.advisories,
+            vec!["remember to run tests".to_string()]
         );
     }
 
