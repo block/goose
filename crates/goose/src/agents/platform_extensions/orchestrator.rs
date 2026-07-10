@@ -263,7 +263,8 @@ impl OrchestratorClient {
             .session_manager
             .get_session(&session_id, true)
             .await
-            .map_err(|e| format!("Session '{}' not found: {}", session_id, e))?;
+            .map_err(|e| format!("Session '{}' not found: {}", session_id, e))?
+            .into_share_safe_export();
 
         let manager = self.get_agent_manager().await?;
         let is_busy = manager.is_session_busy(&session_id).await;

@@ -442,7 +442,7 @@ impl Agent {
             .get_session(session_id, true)
             .await
         {
-            Ok(metadata) => metadata,
+            Ok(metadata) => metadata.into_share_safe_export(),
             Err(e) => {
                 return Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
