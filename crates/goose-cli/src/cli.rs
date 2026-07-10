@@ -1664,7 +1664,20 @@ async fn handle_interactive_session(
                 let conversation = original
                     .conversation
                     .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
-                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                let hidden_hints = conversation
+                    .iter()
+                    .filter(|message| goose::hints::contains_subdirectory_hint_marker(message))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let editable = goose::conversation::Conversation::new_unvalidated(
+                    conversation
+                        .iter()
+                        .filter(|message| !goose::hints::contains_subdirectory_hint_marker(message))
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                );
+                let mut edited = crate::session::editor::edit_conversation(&editable)?;
+                edited.extend(hidden_hints);
                 session_manager
                     .replace_conversation(&target_id, &edited)
                     .await?;

@@ -1561,18 +1561,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let visible_messages = user_visible_history(&self.messages);
+        if visible_messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", visible_messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in visible_messages {
             output::render_message(message, self.debug);
         }
 
@@ -1755,6 +1756,13 @@ impl CliSession {
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
     }
+}
+
+fn user_visible_history(messages: &Conversation) -> Vec<&Message> {
+    messages
+        .iter()
+        .filter(|message| message.is_user_visible())
+        .collect()
 }
 
 fn message_has_text(message: &Message) -> bool {
@@ -2325,6 +2333,25 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn replay_history_excludes_hidden_messages() {
+        let messages = Conversation::new_unvalidated(vec![
+            Message::user().with_text("visible request"),
+            Message::user()
+                .with_text("hidden hint")
+                .with_visibility(false, true),
+            Message::assistant().with_text("visible response"),
+        ]);
+
+        assert_eq!(
+            user_visible_history(&messages)
+                .into_iter()
+                .map(Message::as_concat_text)
+                .collect::<Vec<_>>(),
+            vec!["visible request", "visible response"]
+        );
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
