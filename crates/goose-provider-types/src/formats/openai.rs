@@ -257,8 +257,8 @@ pub fn format_messages_with_options(
                 MessageContent::Thinking(t) => {
                     reasoning_text.push_str(&t.thinking);
                 }
-                MessageContent::RedactedThinking(r) => {
-                    reasoning_text.push_str(&r.data);
+                MessageContent::RedactedThinking(_) => {
+                    continue;
                 }
                 MessageContent::SystemNotification(_) => {
                     continue;
