@@ -495,7 +495,10 @@ pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<
     for message in messages {
         if let Some(last) = merged_messages.last_mut() {
             let effective = effective_role(&message);
-            if effective_role(last) == effective {
+            if effective_role(last) == effective
+                && last.metadata.user_visible == message.metadata.user_visible
+                && last.metadata.agent_visible == message.metadata.agent_visible
+            {
                 last.content.extend(message.content);
                 issues.push(format!("Merged consecutive {} messages", effective));
                 continue;
@@ -667,9 +670,30 @@ pub fn debug_conversation_fix(
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::Message;
-    use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+    use crate::conversation::{
+        debug_conversation_fix, fix_conversation, merge_consecutive_messages, Conversation,
+    };
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
+
+    #[test]
+    fn merge_consecutive_messages_keeps_different_visibility_separate() {
+        let hidden_hint = Message::user()
+            .with_text("hidden hint")
+            .with_visibility(false, true);
+        let visible_prompt = Message::user().with_text("visible prompt");
+
+        let (messages, issues) = merge_consecutive_messages(vec![hidden_hint, visible_prompt]);
+
+        assert_eq!(messages.len(), 2);
+        assert!(!messages[0].is_user_visible());
+        assert!(messages[0].is_agent_visible());
+        assert_eq!(messages[0].as_concat_text(), "hidden hint");
+        assert!(messages[1].is_user_visible());
+        assert!(messages[1].is_agent_visible());
+        assert_eq!(messages[1].as_concat_text(), "visible prompt");
+        assert!(issues.is_empty());
+    }
 
     macro_rules! assert_has_issues_unordered {
         ($fixed:expr, $issues:expr, $($expected:expr),+ $(,)?) => {

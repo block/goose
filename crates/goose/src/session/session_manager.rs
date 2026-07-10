@@ -98,6 +98,22 @@ pub struct Session {
     pub last_message_snippet: Option<String>,
 }
 
+impl Session {
+    pub fn into_user_visible_export(mut self) -> Self {
+        if let Some(conversation) = self.conversation.take() {
+            let messages = conversation
+                .messages()
+                .iter()
+                .filter(|message| message.is_user_visible())
+                .cloned()
+                .collect::<Vec<_>>();
+            self.message_count = messages.len();
+            self.conversation = Some(Conversation::new_unvalidated(messages));
+        }
+        self
+    }
+}
+
 impl From<&Session> for TokenState {
     fn from(session: &Session) -> Self {
         Self {
@@ -2264,7 +2280,7 @@ impl SessionStorage {
     }
 
     async fn export_session(&self, id: &str) -> Result<String> {
-        let session = self.get_session(id, true).await?;
+        let session = self.get_session(id, true).await?.into_user_visible_export();
         serde_json::to_string_pretty(&session).map_err(Into::into)
     }
 
@@ -3766,7 +3782,18 @@ mod tests {
         .await
         .unwrap();
 
+        sm.add_message(
+            &original.id,
+            &Message::user()
+                .with_text("GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/test/sub\nsecret")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+
         let exported = sm.export_session(&original.id).await.unwrap();
+        assert!(!exported.contains("GOOSE_SUBDIRECTORY_HINT_MARKER"));
+        assert!(!exported.contains("secret"));
         let imported = sm.import_session(&exported, None).await.unwrap();
 
         assert_ne!(imported.id, original.id);

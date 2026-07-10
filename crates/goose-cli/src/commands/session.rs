@@ -240,7 +240,8 @@ pub async fn handle_session_export(
                 e
             ));
         }
-    };
+    }
+    .into_user_visible_export();
 
     let output = match format.as_str() {
         "json" => serde_json::to_string_pretty(&session)?,
