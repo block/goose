@@ -2345,13 +2345,21 @@ impl Agent {
                                         )
                                     });
                                     if has_thinking {
-                                        for c in &m.content {
-                                            if matches!(
-                                                c,
-                                                MessageContent::Thinking(_)
-                                                    | MessageContent::RedactedThinking(_)
-                                            ) {
-                                                accumulated_prior.push(c.clone());
+                                        // Only accumulate thinking from messages that
+                                        // have not already been split into tool-call
+                                        // request_msg items — prior-split messages
+                                        // already carry their own thinking copy.
+                                        if !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
+                                        }) {
+                                            for c in &m.content {
+                                                if matches!(
+                                                    c,
+                                                    MessageContent::Thinking(_)
+                                                        | MessageContent::RedactedThinking(_)
+                                                ) {
+                                                    accumulated_prior.push(c.clone());
+                                                }
                                             }
                                         }
                                     }
