@@ -34,6 +34,7 @@ pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str
 
 fn is_user_loop_boundary(message: &Message) -> bool {
     message.role == Role::User
+        && message.is_user_visible()
         && message
             .content
             .iter()
@@ -1108,6 +1109,39 @@ mod tests {
         assert!(
             final_native_no_sig.content[0].as_text().is_some(),
             "Text without signature is regular text"
+        );
+    }
+
+    #[test]
+    fn test_agent_only_user_message_preserves_active_tool_loop_signatures() {
+        const SIG: &str = "thought_sig_abc";
+
+        let user_prompt = set_up_text_message("List files", Role::User);
+        let assistant = response_to_message(google_response(vec![json!({
+            "functionCall": {"name": "shell", "args": {"cmd": "ls"}},
+            "thoughtSignature": SIG
+        })]))
+        .unwrap();
+        let request = assistant.content[0]
+            .as_tool_request()
+            .expect("assistant tool request");
+        let mut tool_response = Message::user();
+        tool_response.add_tool_response_with_metadata(
+            request.id.clone(),
+            Ok(tool_result("output")),
+            request.metadata.as_ref(),
+        );
+        let hidden_hint = Message::user()
+            .with_text("agent-only subdirectory hint")
+            .with_visibility(false, true);
+
+        let formatted = format_messages(&[user_prompt, assistant, tool_response, hidden_hint]);
+
+        assert_eq!(formatted[1]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(formatted[2]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(
+            formatted[3]["parts"][0]["text"],
+            "agent-only subdirectory hint"
         );
     }
 

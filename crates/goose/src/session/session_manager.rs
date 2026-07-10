@@ -373,6 +373,7 @@ fn message_keyword_clause(keyword_count: usize) -> String {
             SELECT 1
             FROM messages mq
             WHERE mq.session_id = s.id
+              AND COALESCE(json_extract(mq.metadata_json, '$.userVisible'), 1) != 0
               AND EXISTS (
                   SELECT 1
                   FROM json_each(mq.content_json)
@@ -3365,6 +3366,66 @@ mod tests {
 
         assert_eq!(ids, vec![target]);
         assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_keyword_ignores_agent_only_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session_id = create_session_for_list_with_message(
+            &sm,
+            "/tmp/session-list",
+            "Visible session content",
+        )
+        .await;
+        sm.add_message(
+            &session_id,
+            &Message::user()
+                .with_text("private-subdirectory-marker")
+                .with_visibility(false, true),
+        )
+        .await
+        .unwrap();
+
+        let types = [SessionType::User];
+        let hidden_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("private-subdirectory-marker"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        assert!(hidden_page.sessions.is_empty());
+
+        let visible_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("visible"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            visible_page
+                .sessions
+                .iter()
+                .map(|session| session.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![session_id.as_str()]
+        );
     }
 
     #[tokio::test]
