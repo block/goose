@@ -1,6 +1,7 @@
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
+use crate::hints::is_subdirectory_hint_message;
 use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 #[cfg(test)]
@@ -140,7 +141,9 @@ pub async fn compact_messages(
     let mut final_messages = Vec::new();
 
     for (idx, msg) in messages_to_compact.iter().enumerate() {
-        let updated_metadata = if is_most_recent
+        let updated_metadata = if is_subdirectory_hint_message(msg) {
+            msg.metadata.clone()
+        } else if is_most_recent
             && idx == messages_to_compact.len() - 1
             && preserved_user_message.is_some()
         {
@@ -602,6 +605,8 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::Usage;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
+    use std::fs;
+    use tempfile::TempDir;
 
     fn create_tool_pair(
         call_id: &str,
@@ -740,13 +745,23 @@ mod tests {
     async fn test_hidden_user_messages_are_not_promoted_by_compaction() {
         let response_message = Message::assistant().with_text("<mock summary>");
         let provider = MockProvider::new(response_message, 1);
-        let hidden_hint =
-            "GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/project/sub\nSecret hint";
+        let workdir = TempDir::new().unwrap();
+        let subdir = workdir.path().join("sub");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(
+            subdir.join(crate::hints::GOOSE_HINTS_FILENAME),
+            "Secret hint",
+        )
+        .unwrap();
+        let hidden_hint = crate::hints::format_subdirectory_hint_message_text(
+            &format!("subdir_hints:{}", subdir.display()),
+            "Secret hint",
+        );
         let basic_conversation = vec![
             Message::user().with_text("visible task"),
             Message::assistant().with_text("assistant context"),
             Message::user()
-                .with_text(hidden_hint)
+                .with_text(&hidden_hint)
                 .with_visibility(false, true),
         ];
 
@@ -783,6 +798,27 @@ mod tests {
                 .any(|text| text.contains("GOOSE_SUBDIRECTORY_HINT_MARKER")
                     || text.contains("Secret hint")),
             "hidden agent instructions must not become user-visible after compaction"
+        );
+
+        let preserved_hint = compacted_conversation
+            .messages()
+            .iter()
+            .find(|message| is_subdirectory_hint_message(message))
+            .expect("compaction should retain the subdirectory hint marker");
+        assert!(!preserved_hint.is_user_visible());
+        assert!(preserved_hint.is_agent_visible());
+
+        let mut resumed_tracker = crate::hints::SubdirectoryHintTracker::new();
+        resumed_tracker.record_loaded_hints_from_messages(compacted_conversation.messages());
+        let mut args = serde_json::Map::new();
+        args.insert(
+            "path".to_string(),
+            serde_json::Value::String("sub/file.rs".to_string()),
+        );
+        resumed_tracker.record_tool_arguments(&Some(args), workdir.path());
+        assert!(
+            resumed_tracker.load_new_hints(workdir.path()).is_empty(),
+            "the preserved marker should prevent duplicate hint injection after resume"
         );
     }
 

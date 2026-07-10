@@ -120,6 +120,21 @@ pub fn format_subdirectory_hint_message_text(key: &str, content: &str) -> String
     format!("{SUBDIRECTORY_HINT_MARKER_PREFIX}{key}\n{content}")
 }
 
+pub fn is_subdirectory_hint_message(message: &Message) -> bool {
+    if message.role != rmcp::model::Role::User
+        || message.is_user_visible()
+        || !message.is_agent_visible()
+    {
+        return false;
+    }
+    message.content.iter().any(|content| {
+        let MessageContent::Text(text) = content else {
+            return false;
+        };
+        subdirectory_hint_dir_from_text(&text.text).is_some()
+    })
+}
+
 fn subdirectory_hint_key(dir: &Path) -> String {
     format!("{SUBDIRECTORY_HINT_KEY_PREFIX}{}", dir.display())
 }
