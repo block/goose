@@ -1,0 +1,24 @@
+[package]
+name = "goose-sonar-bridge"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+fs2 = "0.4"
+getrandom = "0.2"
+hex = "0.4"
+nostr = { version = "0.44", default-features = false, features = ["std", "nip44", "nip59"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sonar-core = { git = "https://github.com/hedwig-corp/bitchat-to-sonar", rev = "ec6a1841eaa42550eed52918158ad18ac5912807", version = "0.1.0" }
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "sync", "time", "io-std", "io-util", "fs", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

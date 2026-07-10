@@ -78,6 +78,7 @@ native-tls = [
 system-keyring = ["dep:keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
 nostr = ["dep:nostr", "dep:nostr-sdk"]
+sonar-gateway = ["tokio-util/codec"]
 
 [lints]
 workspace = true

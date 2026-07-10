@@ -680,7 +680,7 @@ enum GatewayCommand {
 
     #[command(about = "Start a gateway")]
     Start {
-        #[arg(help = "Gateway type (e.g., 'telegram')")]
+        #[arg(help = "Gateway type ('telegram' or 'sonar')")]
         gateway_type: String,
 
         #[arg(
@@ -688,7 +688,19 @@ enum GatewayCommand {
             help = "Bot token for the gateway platform",
             long_help = "Authentication token for the gateway platform (e.g., Telegram bot token)"
         )]
-        bot_token: String,
+        bot_token: Option<String>,
+
+        #[arg(long, help = "Path to the goose-sonar-bridge binary")]
+        bridge_path: Option<String>,
+
+        #[arg(long, help = "Persistent Sonar bridge state directory")]
+        sonar_home: Option<PathBuf>,
+
+        #[arg(long, action = clap::ArgAction::Append, help = "Sonar Nostr relay URL (repeatable)")]
+        relay: Vec<String>,
+
+        #[arg(long, action = clap::ArgAction::Append, help = "Sonar controller npub (repeatable)")]
+        controller: Vec<String>,
     },
 
     #[command(about = "Stop a running gateway")]
@@ -701,6 +713,12 @@ enum GatewayCommand {
     Pair {
         #[arg(help = "Gateway type to generate pairing code for")]
         gateway_type: String,
+
+        #[arg(
+            long,
+            help = "Bind the remote identity or group to an existing session"
+        )]
+        session_id: Option<String>,
     },
 }
 
@@ -1941,12 +1959,44 @@ async fn handle_gateway_command(command: GatewayCommand) -> Result<()> {
         GatewayCommand::Start {
             gateway_type,
             bot_token,
+            bridge_path,
+            sonar_home,
+            relay,
+            controller,
         } => {
-            let platform_config = serde_json::json!({ "bot_token": bot_token });
+            let platform_config = match gateway_type.as_str() {
+                "telegram" => serde_json::json!({
+                    "bot_token": bot_token.ok_or_else(|| {
+                        anyhow::anyhow!("--bot-token is required for the Telegram gateway")
+                    })?
+                }),
+                "sonar" => {
+                    if controller.is_empty() {
+                        return Err(anyhow::anyhow!(
+                            "at least one --controller npub is required for the Sonar gateway"
+                        ));
+                    }
+                    let mut value = serde_json::json!({
+                        "controllers": controller,
+                        "relays": relay,
+                    });
+                    if let Some(bridge_path) = bridge_path {
+                        value["bridge_path"] = serde_json::Value::String(bridge_path);
+                    }
+                    if let Some(home) = sonar_home {
+                        value["home"] = serde_json::Value::String(home.display().to_string());
+                    }
+                    value
+                }
+                other => return Err(anyhow::anyhow!("Unknown gateway type: {other}")),
+            };
             gateway::handle_gateway_start(gateway_type, platform_config).await
         }
         GatewayCommand::Stop { gateway_type } => gateway::handle_gateway_stop(gateway_type).await,
-        GatewayCommand::Pair { gateway_type } => gateway::handle_gateway_pair(gateway_type).await,
+        GatewayCommand::Pair {
+            gateway_type,
+            session_id,
+        } => gateway::handle_gateway_pair(gateway_type, session_id).await,
     }
 }
 

@@ -305,11 +305,21 @@ impl GatewayManager {
         }
     }
 
-    pub async fn generate_pairing_code(&self, gateway_type: &str) -> anyhow::Result<(String, i64)> {
+    pub async fn generate_pairing_code(
+        &self,
+        gateway_type: &str,
+        session_id: Option<&str>,
+    ) -> anyhow::Result<(String, i64)> {
+        if let Some(session_id) = session_id {
+            self.agent_manager
+                .session_manager()
+                .get_session(session_id, false)
+                .await?;
+        }
         let code = PairingStore::generate_code();
         let expires_at = chrono::Utc::now().timestamp() + 300;
         self.pairing_store
-            .store_pending_code(&code, gateway_type, expires_at)
+            .store_pending_code(&code, gateway_type, expires_at, session_id)
             .await?;
         Ok((code, expires_at))
     }

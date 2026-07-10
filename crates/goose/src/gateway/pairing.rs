@@ -23,6 +23,14 @@ struct StoredPendingCode {
     code: String,
     gateway_type: String,
     expires_at: i64,
+    #[serde(default)]
+    session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingPairing {
+    pub gateway_type: String,
+    pub session_id: Option<String>,
 }
 
 pub struct PairingStore {
@@ -95,6 +103,32 @@ impl PairingStore {
         Self::save_pairings_to_config(&pairings)
     }
 
+    pub async fn pair_with_session(
+        &self,
+        user: &PlatformUser,
+        session_id: &str,
+        paired_at: i64,
+        exclusive_session: bool,
+    ) -> anyhow::Result<()> {
+        let mut pairings = self.pairings.write().await;
+        if exclusive_session && session_has_other_pairing(&pairings, user, session_id) {
+            anyhow::bail!(
+                "session '{}' is already paired to another {} group",
+                session_id,
+                user.platform
+            );
+        }
+
+        pairings.insert(
+            user.clone(),
+            PairingState::Paired {
+                session_id: session_id.to_string(),
+                paired_at,
+            },
+        );
+        Self::save_pairings_to_config(&pairings)
+    }
+
     pub async fn remove(&self, user: &PlatformUser) -> anyhow::Result<()> {
         let mut pairings = self.pairings.write().await;
         pairings.remove(user);
@@ -106,6 +140,7 @@ impl PairingStore {
         code: &str,
         gateway_type: &str,
         expires_at: i64,
+        session_id: Option<&str>,
     ) -> anyhow::Result<()> {
         let mut codes = Self::load_pending_codes();
         codes.retain(|c| c.code != code);
@@ -113,11 +148,12 @@ impl PairingStore {
             code: code.to_string(),
             gateway_type: gateway_type.to_string(),
             expires_at,
+            session_id: session_id.map(str::to_string),
         });
         Self::save_pending_codes(&codes)
     }
 
-    pub async fn consume_pending_code(&self, code: &str) -> anyhow::Result<Option<String>> {
+    pub async fn consume_pending_code(&self, code: &str) -> anyhow::Result<Option<PendingPairing>> {
         let mut codes = Self::load_pending_codes();
         let pos = codes.iter().position(|c| c.code == code);
         let Some(pos) = pos else {
@@ -132,7 +168,10 @@ impl PairingStore {
             return Ok(None);
         }
 
-        Ok(Some(entry.gateway_type))
+        Ok(Some(PendingPairing {
+            gateway_type: entry.gateway_type,
+            session_id: entry.session_id,
+        }))
     }
 
     pub fn generate_code() -> String {
@@ -174,6 +213,24 @@ impl PairingStore {
     }
 }
 
+fn session_has_other_pairing(
+    pairings: &HashMap<PlatformUser, PairingState>,
+    user: &PlatformUser,
+    session_id: &str,
+) -> bool {
+    pairings.iter().any(|(paired_user, state)| {
+        paired_user != user
+            && paired_user.platform == user.platform
+            && matches!(
+                state,
+                PairingState::Paired {
+                    session_id: paired_session,
+                    ..
+                } if paired_session == session_id
+            )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +242,41 @@ mod tests {
         assert!(code
             .chars()
             .all(|c| "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(c)));
+    }
+
+    #[test]
+    fn legacy_pending_codes_deserialize_without_session() {
+        let code: StoredPendingCode = serde_json::from_value(serde_json::json!({
+            "code": "ABC234",
+            "gateway_type": "telegram",
+            "expires_at": 42
+        }))
+        .unwrap();
+
+        assert_eq!(code.session_id, None);
+    }
+
+    #[test]
+    fn sonar_session_pairing_is_exclusive_between_groups() {
+        let first = PlatformUser {
+            platform: "sonar".into(),
+            user_id: "group-a".into(),
+            display_name: None,
+        };
+        let second = PlatformUser {
+            platform: "sonar".into(),
+            user_id: "group-b".into(),
+            display_name: None,
+        };
+        let pairings = HashMap::from([(
+            first.clone(),
+            PairingState::Paired {
+                session_id: "session".into(),
+                paired_at: 1,
+            },
+        )]);
+
+        assert!(!session_has_other_pairing(&pairings, &first, "session"));
+        assert!(session_has_other_pairing(&pairings, &second, "session"));
     }
 }

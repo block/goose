@@ -17,4 +17,9 @@ Access goose from anywhere using supported messaging platforms. These features l
     description="Chat with goose through Telegram from any device."
     link="/docs/experimental/remote-access/telegram-gateway"
   />
+  <Card
+    title="Sonar Gateway"
+    description="Control a session from an encrypted, shareable Sonar group."
+    link="/docs/experimental/remote-access/sonar-gateway"
+  />
 </div>

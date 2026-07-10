@@ -14,7 +14,7 @@ use crate::execution::manager::AgentManager;
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
-use super::pairing::PairingStore;
+use super::pairing::{PairingStore, PendingPairing};
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};
 
 /// Conservative default cap on tool-calling loops for gateway sessions.
@@ -64,9 +64,10 @@ impl GatewayHandler {
 
         match pairing {
             PairingState::Unpaired => {
-                if let Some(gateway_type) = self.try_consume_code(message.text.trim()).await? {
-                    if gateway_type == self.config.gateway_type {
-                        self.complete_pairing(&message.user).await?;
+                if let Some(pending) = self.try_consume_code(message.text.trim()).await? {
+                    if pending.gateway_type == self.config.gateway_type {
+                        self.complete_pairing(&message.user, pending.session_id.as_deref())
+                            .await?;
                     } else {
                         self.gateway
                             .send_message(
@@ -104,7 +105,7 @@ impl GatewayHandler {
                         )
                         .await?;
                 } else if message.text.trim().eq_ignore_ascii_case(&code) {
-                    self.complete_pairing(&message.user).await?;
+                    self.complete_pairing(&message.user, None).await?;
                 } else {
                     self.gateway
                         .send_message(
@@ -124,7 +125,7 @@ impl GatewayHandler {
         Ok(())
     }
 
-    async fn try_consume_code(&self, text: &str) -> anyhow::Result<Option<String>> {
+    async fn try_consume_code(&self, text: &str) -> anyhow::Result<Option<PendingPairing>> {
         let normalized = text.to_uppercase().replace(['-', ' '], "");
         if normalized.len() == 6
             && normalized
@@ -136,7 +137,37 @@ impl GatewayHandler {
         Ok(None)
     }
 
-    async fn complete_pairing(&self, user: &PlatformUser) -> anyhow::Result<()> {
+    async fn complete_pairing(
+        &self,
+        user: &PlatformUser,
+        target_session_id: Option<&str>,
+    ) -> anyhow::Result<()> {
+        if let Some(session_id) = target_session_id {
+            let session = self
+                .agent_manager
+                .session_manager()
+                .get_session(session_id, false)
+                .await?;
+            let paired_at = chrono::Utc::now().timestamp();
+            self.pairing_store
+                .pair_with_session(
+                    user,
+                    &session.id,
+                    paired_at,
+                    self.config.gateway_type == "sonar",
+                )
+                .await?;
+            self.gateway
+                .send_message(
+                    user,
+                    OutgoingMessage::Text {
+                        body: format!("Paired to Goose session '{}'.", session.name),
+                    },
+                )
+                .await?;
+            return Ok(());
+        }
+
         let working_dir = gateway_working_dir(&user.platform, &user.user_id);
         std::fs::create_dir_all(&working_dir)?;
 
@@ -192,13 +223,7 @@ impl GatewayHandler {
 
         let now = chrono::Utc::now().timestamp();
         self.pairing_store
-            .set(
-                user,
-                PairingState::Paired {
-                    session_id: session.id.clone(),
-                    paired_at: now,
-                },
-            )
+            .pair_with_session(user, &session.id, now, self.config.gateway_type == "sonar")
             .await?;
 
         self.gateway
@@ -303,10 +328,11 @@ impl GatewayHandler {
             .get_session(session_id, false)
             .await?;
 
-        // Sync provider/model/extensions with the user's current desktop config.
-        // If extensions changed we must tear down the old agent so stale
-        // extension processes don't linger.
-        let extensions_changed = self.sync_session_config(&session).await?;
+        let extensions_changed = if session.session_type == SessionType::Gateway {
+            self.sync_session_config(&session).await?
+        } else {
+            false
+        };
         if extensions_changed {
             self.agent_manager
                 .remove_session_if_loaded(session_id)
@@ -342,7 +368,27 @@ impl GatewayHandler {
         agent.load_extensions_from_session(&session).await;
 
         let cancel = CancellationToken::new();
-        let user_message = Message::user().with_text(&message.text);
+        if let Err(error) = self
+            .agent_manager
+            .try_register_cancel_token(session_id, cancel.clone())
+            .await
+        {
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Text {
+                        body: format!("Session is busy: {error}"),
+                    },
+                )
+                .await?;
+            return Ok(());
+        }
+        let prompt = message
+            .sender_label
+            .as_deref()
+            .map(|sender| format!("[{sender}] {}", message.text))
+            .unwrap_or_else(|| message.text.clone());
+        let user_message = Message::user().with_text(&prompt);
 
         // Cap tool-calling loops so the agent doesn't run away doing
         // dozens of tool calls before responding.  After this many
@@ -371,6 +417,7 @@ impl GatewayHandler {
         {
             Ok(s) => s,
             Err(e) => {
+                self.agent_manager.unregister_cancel_token(session_id).await;
                 self.gateway
                     .send_message(
                         &message.user,
@@ -498,6 +545,7 @@ impl GatewayHandler {
                     // Stop typing indicator before sending error.
                     typing_cancel.cancel();
                     let _ = typing_handle.await;
+                    self.agent_manager.unregister_cancel_token(session_id).await;
                     self.gateway
                         .send_message(
                             &message.user,
@@ -514,6 +562,7 @@ impl GatewayHandler {
         // Stream finished — stop the typing indicator.
         typing_cancel.cancel();
         let _ = typing_handle.await;
+        self.agent_manager.unregister_cancel_token(session_id).await;
 
         tracing::debug!(
             session_id,

@@ -66,16 +66,21 @@ pub async fn handle_gateway_stop(gateway_type: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_gateway_pair(gateway_type: String) -> Result<()> {
+pub async fn handle_gateway_pair(gateway_type: String, session_id: Option<String>) -> Result<()> {
     let agent_manager = AgentManager::instance().await?;
     let gateway_manager = Arc::new(GatewayManager::new(agent_manager)?);
-    let (code, expires_at) = gateway_manager.generate_pairing_code(&gateway_type).await?;
+    let (code, expires_at) = gateway_manager
+        .generate_pairing_code(&gateway_type, session_id.as_deref())
+        .await?;
 
     let expires = chrono::DateTime::from_timestamp(expires_at, 0)
         .map(|dt| dt.format("%H:%M:%S").to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
     println!("Pairing code: {}", code);
+    if let Some(session_id) = session_id {
+        println!("Session: {}", session_id);
+    }
     println!("Expires at: {}", expires);
 
     Ok(())

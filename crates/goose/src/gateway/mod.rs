@@ -1,6 +1,8 @@
 pub mod handler;
 pub mod manager;
 pub mod pairing;
+#[cfg(feature = "sonar-gateway")]
+pub mod sonar;
 pub mod telegram;
 pub mod telegram_format;
 
@@ -38,6 +40,7 @@ impl std::hash::Hash for PlatformUser {
 #[allow(dead_code)]
 pub struct IncomingMessage {
     pub user: PlatformUser,
+    pub sender_label: Option<String>,
     pub text: String,
     pub platform_message_id: Option<String>,
     pub attachments: Vec<Attachment>,
@@ -97,6 +100,10 @@ pub trait Gateway: Send + Sync + 'static {
 pub fn create_gateway(config: &mut GatewayConfig) -> anyhow::Result<std::sync::Arc<dyn Gateway>> {
     match config.gateway_type.as_str() {
         "telegram" => Ok(std::sync::Arc::new(telegram::TelegramGateway::new(config)?)),
+        #[cfg(feature = "sonar-gateway")]
+        "sonar" => Ok(std::sync::Arc::new(sonar::SonarGateway::new(config)?)),
+        #[cfg(not(feature = "sonar-gateway"))]
+        "sonar" => anyhow::bail!("Sonar gateway support is not available in this build"),
         other => anyhow::bail!("Unknown gateway type: {}", other),
     }
 }

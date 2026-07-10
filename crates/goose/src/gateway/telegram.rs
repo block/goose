@@ -426,6 +426,7 @@ impl Gateway for TelegramGateway {
                                 let user = Self::to_platform_user(&tg_msg);
                                 let incoming = IncomingMessage {
                                     user,
+                                    sender_label: None,
                                     text,
                                     platform_message_id: Some(tg_msg.message_id.to_string()),
                                     attachments: vec![],
