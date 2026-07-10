@@ -301,7 +301,7 @@ async fn do_compact(
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
     let agent_visible_messages: Vec<Message> = messages
         .iter()
-        .filter(|msg| msg.is_agent_visible())
+        .filter(|msg| msg.is_agent_visible() && !is_subdirectory_hint_message(msg))
         .map(|msg| msg.agent_visible_content())
         .collect();
 
@@ -636,6 +636,7 @@ mod tests {
         message: Message,
         config: ModelConfig,
         max_tool_responses: Option<usize>,
+        forbidden_system_text: Option<String>,
     }
 
     impl MockProvider {
@@ -653,11 +654,17 @@ mod tests {
                     reasoning: None,
                 },
                 max_tool_responses: None,
+                forbidden_system_text: None,
             }
         }
 
         fn with_max_tool_responses(mut self, max: usize) -> Self {
             self.max_tool_responses = Some(max);
+            self
+        }
+
+        fn without_system_text(mut self, text: impl Into<String>) -> Self {
+            self.forbidden_system_text = Some(text.into());
             self
         }
     }
@@ -671,10 +678,16 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _system: &str,
+            system: &str,
             messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
+            if let Some(forbidden) = &self.forbidden_system_text {
+                assert!(
+                    !system.contains(forbidden),
+                    "compaction system prompt unexpectedly contained {forbidden:?}"
+                );
+            }
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -744,7 +757,7 @@ mod tests {
     #[tokio::test]
     async fn test_hidden_user_messages_are_not_promoted_by_compaction() {
         let response_message = Message::assistant().with_text("<mock summary>");
-        let provider = MockProvider::new(response_message, 1);
+        let provider = MockProvider::new(response_message, 1).without_system_text("Secret hint");
         let workdir = TempDir::new().unwrap();
         let subdir = workdir.path().join("sub");
         fs::create_dir_all(&subdir).unwrap();
