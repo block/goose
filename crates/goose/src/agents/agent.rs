@@ -2564,17 +2564,27 @@ impl Agent {
                     }
                 }
 
-                // An empty provider turn — no tool calls, no text, no error, and no
-                // compaction/steer that legitimately produces no assistant output —
-                // must not silently end the loop. Retry a bounded number of times,
-                // then surface a visible message so the user is never left staring at
-                // a session that stopped with no response.
-                let empty_turn = no_tools_called
+                // An empty provider response — no tool calls, no text, and no error
+                // or recovery compaction that legitimately produces no assistant
+                // output — must never be persisted: strict providers reject a
+                // conversation that contains an empty assistant turn. Drop it here
+                // regardless of what happens next (retry, steer, or fallback).
+                let empty_response = no_tools_called
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
-                    && last_assistant_text.is_empty()
-                    && !self.has_pending_steers(&session_config.id).await;
+                    && last_assistant_text.is_empty();
+
+                if empty_response {
+                    messages_to_add = Conversation::default();
+                }
+
+                // A steer takes over the turn, so an empty response with a queued
+                // steer is not a silent stop — let the pending-steer arm continue.
+                // Otherwise an empty response must not end the loop silently: retry
+                // a bounded number of times, then surface a visible message.
+                let empty_turn =
+                    empty_response && !self.has_pending_steers(&session_config.id).await;
 
                 if empty_turn {
                     if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
@@ -2584,17 +2594,9 @@ impl Agent {
                             "Provider returned an empty response; retrying ({}/{})",
                             empty_turn_retries, MAX_EMPTY_TURN_RETRIES
                         );
-                        // Drop the empty assistant message rather than persisting it —
-                        // re-call the provider with the unchanged conversation so we
-                        // don't pollute history (strict providers reject empty turns).
-                        messages_to_add = Conversation::default();
                     } else {
                         warn!("Provider returned an empty response after retries; ending turn");
                         last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
-                        // Drop the empty assistant turn already appended above so we
-                        // persist only the fallback, not an empty message strict
-                        // providers would reject on the next request.
-                        messages_to_add = Conversation::default();
                         let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
                         messages_to_add.push(message.clone());
                         yield AgentEvent::Message(message);

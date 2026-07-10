@@ -2994,5 +2994,73 @@ mod tests {
             );
             Ok(())
         }
+
+        /// An empty response with a queued steer hands the turn to the steer
+        /// rather than the empty-turn fallback, but the empty assistant message
+        /// must still not be persisted ahead of the steer.
+        #[tokio::test]
+        async fn test_empty_response_with_steer_drops_empty_message() -> Result<()> {
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "empty-steer".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(1)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            // Queue the steer before reply so it stays pending through the first
+            // (empty) turn instead of being drained at the loop's start.
+            agent
+                .steer(&session.id, Message::user().with_text("keep going"))
+                .await;
+
+            let session_id = session.id.clone();
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(50),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                event?;
+            }
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+
+            assert!(
+                !persisted.iter().any(is_empty_assistant),
+                "empty assistant turn must not be persisted before the steer: {persisted:?}"
+            );
+            assert!(
+                persisted
+                    .iter()
+                    .any(|m| m.as_concat_text().contains("keep going")),
+                "the queued steer should have been consumed: {persisted:?}"
+            );
+            Ok(())
+        }
     }
 }
