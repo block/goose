@@ -144,7 +144,7 @@ struct SetupData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -153,7 +153,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -165,6 +165,10 @@ impl TokenCache {
         std::fs::read_to_string(&self.cache_path)
             .ok()
             .and_then(|contents| serde_json::from_str(&contents).ok())
+    }
+
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, data: &SetupData) -> Result<()> {
@@ -1096,8 +1100,15 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_token_cache_roundtrip() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+
         let cache = TokenCache::new();
+        cache.clear();
+        assert!(!cache.has_token());
         let data = SetupData {
             project_id: "test-project".to_string(),
             token: TokenData {
@@ -1111,7 +1122,9 @@ mod tests {
         assert_eq!(loaded.project_id, "test-project");
         assert_eq!(loaded.token.access_token, "test-access");
         assert_eq!(loaded.token.refresh_token, "test-refresh");
+        assert!(cache.has_token());
         cache.clear();
         assert!(cache.load().is_none());
+        assert!(!cache.has_token());
     }
 }
