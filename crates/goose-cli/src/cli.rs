@@ -33,11 +33,21 @@ use crate::session::{build_session, SessionBuilderConfig};
 use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use tracing::warn;
 
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
+
+/// Emit OSC 0 escape sequence to set the terminal window/tab title.
+/// Most modern terminals (WezTerm, iTerm2, Ghostty, Windows Terminal,
+/// GNOME Terminal, Alacritty, Kitty) respect this for pane identification.
+fn set_terminal_title(title: &str) {
+    // OSC 0: ESC ] 0 ; title BEL
+    // Sets both window title and terminal tab title on most terminals.
+    print!("\x1b]0;{}\x07", title);
+    std::io::stdout().flush().ok();
+}
 
 fn generate_serve_secret_key() -> String {
     use rand::distributions::{Alphanumeric, DistString};
@@ -1214,6 +1224,8 @@ async fn handle_interactive_session(
         configure_telemetry_consent_dialog()?;
     }
 
+    set_terminal_title("goose");
+
     let session_start = std::time::Instant::now();
     let session_type = if fork {
         "forked"
@@ -1464,6 +1476,8 @@ async fn handle_run_command(
         goose_mode,
     )
     .await?;
+
+    set_terminal_title("goose");
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1763,6 +1777,8 @@ async fn handle_default_session() -> Result<()> {
 
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let session_id = get_or_create_session_id(None, false, false, goose_mode).await?;
+
+    set_terminal_title("goose");
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
