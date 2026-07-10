@@ -116,6 +116,11 @@ impl SubdirectoryHintTracker {
             }
         }
     }
+
+    pub fn sync_loaded_hints_from_messages(&mut self, messages: &[Message]) {
+        self.loaded_dirs.clear();
+        self.record_loaded_hints_from_messages(messages);
+    }
 }
 
 pub fn format_subdirectory_hint_message_text(key: &str, content: &str) -> String {
@@ -460,6 +465,42 @@ mod tests {
             resumed_tracker.load_new_hints(workdir.path()).len(),
             1,
             "fully invisible archived markers should not suppress a fresh hint load"
+        );
+    }
+
+    #[test]
+    fn subdirectory_hint_tracker_syncs_loaded_dirs_to_replaced_history() {
+        let workdir = TempDir::new().unwrap();
+        let subdir = workdir.path().join("sub");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), "Subdirectory rule").unwrap();
+
+        let mut args = serde_json::Map::new();
+        args.insert(
+            "path".to_string(),
+            serde_json::Value::String("sub/file.rs".to_string()),
+        );
+
+        let mut tracker = SubdirectoryHintTracker::new();
+        tracker.record_tool_arguments(&Some(args.clone()), workdir.path());
+        let (key, content) = tracker.load_new_hints(workdir.path()).remove(0);
+        let marker = Message::user()
+            .with_text(format_subdirectory_hint_message_text(&key, &content))
+            .with_visibility(false, true);
+
+        tracker.sync_loaded_hints_from_messages(&[]);
+        tracker.record_tool_arguments(&Some(args.clone()), workdir.path());
+        assert_eq!(
+            tracker.load_new_hints(workdir.path()).len(),
+            1,
+            "clearing history should allow its removed subdirectory hint to load again"
+        );
+
+        tracker.sync_loaded_hints_from_messages(&[marker]);
+        tracker.record_tool_arguments(&Some(args), workdir.path());
+        assert!(
+            tracker.load_new_hints(workdir.path()).is_empty(),
+            "replacing history with a retained marker should keep suppressing duplicates"
         );
     }
 

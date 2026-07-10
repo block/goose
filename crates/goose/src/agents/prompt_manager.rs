@@ -246,7 +246,7 @@ impl PromptManager {
 
     pub fn record_loaded_subdirectory_hints(&mut self, messages: &[Message]) {
         self.subdirectory_hint_tracker
-            .record_loaded_hints_from_messages(messages);
+            .sync_loaded_hints_from_messages(messages);
     }
 
     pub fn load_subdirectory_hints(&mut self, working_dir: &Path) -> Vec<Message> {
