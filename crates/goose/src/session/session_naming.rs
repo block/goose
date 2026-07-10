@@ -75,7 +75,7 @@ fn extract_short_title(text: &str) -> String {
 fn get_initial_user_messages(messages: &Conversation) -> Vec<String> {
     messages
         .iter()
-        .filter(|m| m.role == rmcp::model::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User && m.is_user_visible())
         .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
         .map(|m| {
             m.content
@@ -251,6 +251,22 @@ mod tests {
                 "lots of reasoning here about what to call it\nList current folder files"
             ),
             "List current folder files"
+        );
+    }
+
+    #[test]
+    fn initial_user_messages_exclude_hidden_hints() {
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("visible request"),
+            Message::user()
+                .with_text("GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/sub\nprivate hint")
+                .with_visibility(false, true),
+            Message::user().with_text("visible follow-up"),
+        ]);
+
+        assert_eq!(
+            get_initial_user_messages(&conversation),
+            vec!["visible request", "visible follow-up"]
         );
     }
 }

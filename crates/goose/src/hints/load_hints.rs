@@ -7,6 +7,7 @@ use std::{
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::hints::import_files::read_referenced_files;
+use crate::utils::sanitize_unicode_tags;
 
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
@@ -85,7 +86,8 @@ impl SubdirectoryHintTracker {
             if !dir.starts_with(&working_dir) || dir == working_dir {
                 continue;
             }
-            if self.loaded_dirs.contains(&dir) {
+            let identity = normalize_hint_identity(&dir);
+            if self.loaded_dirs.contains(&identity) {
                 continue;
             }
             if let Some(content) =
@@ -94,7 +96,7 @@ impl SubdirectoryHintTracker {
                 let key = subdirectory_hint_key(&dir);
                 results.push((key, content));
             }
-            self.loaded_dirs.insert(dir);
+            self.loaded_dirs.insert(identity);
         }
         results
     }
@@ -140,7 +142,16 @@ pub fn contains_subdirectory_hint_marker(message: &Message) -> bool {
 }
 
 fn subdirectory_hint_key(dir: &Path) -> String {
-    format!("{SUBDIRECTORY_HINT_KEY_PREFIX}{}", dir.display())
+    format!(
+        "{SUBDIRECTORY_HINT_KEY_PREFIX}{}",
+        normalize_hint_identity(dir).display()
+    )
+}
+
+fn normalize_hint_identity(path: &Path) -> PathBuf {
+    PathBuf::from(sanitize_unicode_tags(
+        &normalize_dir(path).to_string_lossy(),
+    ))
 }
 
 fn subdirectory_hint_dir_from_text(text: &str) -> Option<PathBuf> {

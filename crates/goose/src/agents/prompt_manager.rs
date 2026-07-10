@@ -255,9 +255,8 @@ impl PromptManager {
             .into_iter()
             .map(|(key, content)| {
                 Message::user()
-                    .with_text(format_subdirectory_hint_message_text(
-                        &key,
-                        &sanitize_unicode_tags(&content),
+                    .with_text(sanitize_unicode_tags(
+                        &format_subdirectory_hint_message_text(&key, &content),
                     ))
                     .with_visibility(false, true)
             })
@@ -392,7 +391,8 @@ mod tests {
     #[test]
     fn test_subdirectory_hints_are_agent_only_and_resume_deduped() {
         let workdir = tempfile::tempdir().unwrap();
-        let subdir = workdir.path().join("sub");
+        let subdir_name = "sub\u{E0041}";
+        let subdir = workdir.path().join(subdir_name);
         std::fs::create_dir_all(&subdir).unwrap();
         std::fs::write(
             subdir.join(".goosehints"),
@@ -403,7 +403,7 @@ mod tests {
         let mut args = serde_json::Map::new();
         args.insert(
             "path".to_string(),
-            serde_json::Value::String("sub/file.rs".to_string()),
+            serde_json::Value::String(format!("{subdir_name}/file.rs")),
         );
 
         let mut manager = PromptManager::new();
