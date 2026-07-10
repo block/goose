@@ -1,5 +1,47 @@
 use super::*;
 
+fn usize_from_meta(
+    meta: Option<&Meta>,
+    key: &str,
+) -> Result<Option<usize>, agent_client_protocol::Error> {
+    let Some(value) = meta.and_then(|meta| meta.get(key)) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+
+    value.as_u64().map(|n| n as usize).map(Some).ok_or_else(|| {
+        agent_client_protocol::Error::invalid_params()
+            .data(format!("{key} must be a non-negative integer"))
+    })
+}
+
+fn message_pagination_from_meta(
+    meta: Option<&Meta>,
+) -> Result<(Option<usize>, Option<usize>), agent_client_protocol::Error> {
+    let limit = usize_from_meta(meta, "messageLimit")?;
+    let offset = usize_from_meta(meta, "messageOffset")?;
+    Ok((limit, offset))
+}
+
+/// Returns the slice of `messages` selected by `offset`/`limit`, counting back from
+/// the most recent message. The returned messages stay in chronological order.
+fn paginate_messages<T: Clone>(
+    messages: &[T],
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Vec<T> {
+    let total = messages.len();
+    let offset = offset.unwrap_or(0).min(total);
+    let end = total - offset;
+    let start = match limit {
+        Some(limit) => end.saturating_sub(limit),
+        None => 0,
+    };
+    messages[start..end].to_vec()
+}
+
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     Annotations::new().audience(
         audience
@@ -30,6 +72,8 @@ fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
     supports_goose_custom_notifications: bool,
+    limit: Option<usize>,
+    offset: Option<usize>,
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
@@ -40,6 +84,11 @@ fn replay_conversation_to_client(
         .as_ref()
         .map(|c| c.messages().to_vec())
         .unwrap_or_default();
+    let messages = if limit.is_some() || offset.is_some() {
+        paginate_messages(&messages, limit, offset)
+    } else {
+        messages
+    };
     debug!(
         target: "perf",
         sid = %sid,
@@ -184,6 +233,7 @@ impl GooseAcpAgent {
     ) -> Result<LoadSessionResponse, agent_client_protocol::Error> {
         debug!(?args, "load session request");
         validate_absolute_cwd(&args.cwd)?;
+        let (message_limit, message_offset) = message_pagination_from_meta(args.meta.as_ref())?;
 
         let session_id_str = args.session_id.0.to_string();
         let sid = sid_short(&session_id_str);
@@ -206,6 +256,8 @@ impl GooseAcpAgent {
             cx,
             &session,
             self.supports_goose_custom_notifications(),
+            message_limit,
+            message_offset,
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
@@ -243,5 +295,85 @@ impl GooseAcpAgent {
         );
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meta_with(key: &str, value: serde_json::Value) -> Meta {
+        let mut meta = Meta::new();
+        meta.insert(key.to_string(), value);
+        meta
+    }
+
+    #[test]
+    fn paginate_returns_full_history_when_no_limit() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, None, None), messages);
+    }
+
+    #[test]
+    fn paginate_returns_most_recent_with_limit() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, Some(2), None), vec![4, 5]);
+    }
+
+    #[test]
+    fn paginate_offset_pages_backwards() {
+        let messages = vec![1, 2, 3, 4, 5];
+        assert_eq!(paginate_messages(&messages, Some(2), Some(2)), vec![2, 3]);
+    }
+
+    #[test]
+    fn paginate_clamps_oversized_limit_and_offset() {
+        let messages = vec![1, 2, 3];
+        assert_eq!(paginate_messages(&messages, Some(10), None), vec![1, 2, 3]);
+        assert_eq!(
+            paginate_messages(&messages, None, Some(10)),
+            Vec::<i32>::new()
+        );
+    }
+
+    #[test]
+    fn pagination_from_meta_is_none_when_absent() {
+        assert_eq!(message_pagination_from_meta(None).unwrap(), (None, None));
+        assert_eq!(
+            message_pagination_from_meta(Some(&Meta::new())).unwrap(),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn pagination_from_meta_treats_null_as_absent() {
+        let meta = meta_with("messageLimit", serde_json::Value::Null);
+        assert_eq!(
+            message_pagination_from_meta(Some(&meta)).unwrap(),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn pagination_from_meta_reads_limit_and_offset() {
+        let mut meta = Meta::new();
+        meta.insert("messageLimit".to_string(), serde_json::json!(50));
+        meta.insert("messageOffset".to_string(), serde_json::json!(10));
+        assert_eq!(
+            message_pagination_from_meta(Some(&meta)).unwrap(),
+            (Some(50), Some(10))
+        );
+    }
+
+    #[test]
+    fn pagination_from_meta_rejects_non_integer() {
+        for value in [
+            serde_json::json!("50"),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!(true),
+        ] {
+            assert!(message_pagination_from_meta(Some(&meta_with("messageLimit", value))).is_err());
+        }
     }
 }
