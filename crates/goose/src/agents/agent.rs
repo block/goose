@@ -2568,7 +2568,8 @@ impl Agent {
                 // or recovery compaction that legitimately produces no assistant
                 // output — must never be persisted: strict providers reject a
                 // conversation that contains an empty assistant turn. Drop it here
-                // regardless of what happens next (retry, steer, or fallback).
+                // regardless of what the match below decides to do about the turn
+                // (final-output nudge, steer, goal/grind, retry, or fallback).
                 let empty_response = no_tools_called
                     && !exit_chat
                     && !provider_errored
@@ -2577,36 +2578,11 @@ impl Agent {
 
                 if empty_response {
                     messages_to_add = Conversation::default();
-                }
-
-                // A steer takes over the turn, so an empty response with a queued
-                // steer is not a silent stop — let the pending-steer arm continue.
-                // Otherwise an empty response must not end the loop silently: retry
-                // a bounded number of times, then surface a visible message.
-                let empty_turn =
-                    empty_response && !self.has_pending_steers(&session_config.id).await;
-
-                if empty_turn {
-                    if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
-                        empty_turn_retries += 1;
-                        retrying_after_empty_turn = true;
-                        warn!(
-                            "Provider returned an empty response; retrying ({}/{})",
-                            empty_turn_retries, MAX_EMPTY_TURN_RETRIES
-                        );
-                    } else {
-                        warn!("Provider returned an empty response after retries; ending turn");
-                        last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
-                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
-                        messages_to_add.push(message.clone());
-                        yield AgentEvent::Message(message);
-                        exit_chat = true;
-                    }
                 } else {
                     empty_turn_retries = 0;
                 }
 
-                if !empty_turn && no_tools_called && !exit_chat {
+                if no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -2666,6 +2642,27 @@ impl Agent {
                             );
                         }
 
+                        None if empty_response => {
+                            // Nothing else claimed this empty turn — it would
+                            // otherwise fall through to a silent exit. Retry a
+                            // bounded number of times, then surface a visible
+                            // message so the user is never left with no response.
+                            if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
+                                empty_turn_retries += 1;
+                                retrying_after_empty_turn = true;
+                                warn!(
+                                    "Provider returned an empty response; retrying ({}/{})",
+                                    empty_turn_retries, MAX_EMPTY_TURN_RETRIES
+                                );
+                            } else {
+                                warn!("Provider returned an empty response after retries; ending turn");
+                                last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
+                                let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
+                                messages_to_add.push(message.clone());
+                                yield AgentEvent::Message(message);
+                                exit_chat = true;
+                            }
+                        }
                         None => {
                             self.set_goal(None).await;
                             self.set_grind(None).await;
