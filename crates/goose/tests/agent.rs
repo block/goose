@@ -3191,5 +3191,80 @@ mod tests {
             );
             Ok(())
         }
+
+        /// When a recipe exhausts its retries on empty turns, the max-attempts
+        /// failure message must be surfaced and persisted — not swallowed into a
+        /// silent stop.
+        #[tokio::test]
+        async fn test_recipe_max_retries_surfaces_failure() -> Result<()> {
+            use goose::agents::types::{RetryConfig, SuccessCheck};
+
+            let agent = Agent::new();
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "recipe-max-retries".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            let session_id = session.id.clone();
+            agent
+                .update_provider(
+                    Arc::new(EmptyThenTextProvider::new(usize::MAX)),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: Some(RetryConfig {
+                    max_retries: 1,
+                    checks: vec![SuccessCheck::Shell {
+                        command: "false".to_string(),
+                    }],
+                    on_failure: None,
+                    timeout_seconds: Some(30),
+                    on_failure_timeout_seconds: None,
+                }),
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hi"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let AgentEvent::Message(m) = event? {
+                    messages.push(m);
+                }
+            }
+
+            let text = concat_text(&messages);
+            assert!(
+                text.contains("Maximum retry attempts"),
+                "exhausted recipe retries must surface the failure message: {text:?}"
+            );
+
+            let persisted = agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .map(|c| c.messages().to_vec())
+                .unwrap_or_default();
+            assert!(
+                concat_text(&persisted).contains("Maximum retry attempts"),
+                "the max-retry failure message must be persisted: {persisted:?}"
+            );
+            Ok(())
+        }
     }
 }

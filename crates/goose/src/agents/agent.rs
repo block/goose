@@ -2671,6 +2671,15 @@ impl Agent {
                                         exit_chat = true;
                                     }
                                 }
+                                Ok(RetryResult::MaxAttemptsReached(message)) => {
+                                    // Surface and persist the failure message
+                                    // through the normal path so recipes don't
+                                    // exit silently when retries are exhausted.
+                                    last_assistant_text = message.as_concat_text();
+                                    messages_to_add.push(message.clone());
+                                    yield AgentEvent::Message(message);
+                                    exit_chat = true;
+                                }
                                 Ok(_) => {
                                     exit_chat = true;
                                 }
