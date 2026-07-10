@@ -1,14 +1,14 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{
-    stream_from_single_message, ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
 };
 use super::utils::filter_extensions_from_system_prompt;
 use crate::config::search_path::SearchPaths;
@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
@@ -478,6 +478,12 @@ impl ProviderDef for CursorAgentProvider {
 impl Provider for CursorAgentProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn skip_canonical_filtering(&self) -> bool {
+        // Cursor model IDs are CLI/account-specific and often absent from the
+        // canonical registry. Keep the live list intact for inventory/config.
+        true
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
