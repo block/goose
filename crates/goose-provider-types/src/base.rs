@@ -527,6 +527,13 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    /// Provider-native session identifier that can be used to resume this
+    /// provider's conversation state. Most API providers are stateless and
+    /// return `None`; stateful CLI/ACP providers may return an identifier.
+    fn external_session_id(&self) -> Option<String> {
+        None
+    }
+
     /// Whether the provider manages its own conversation context (e.g. CLI
     /// wrappers like Claude Code or Gemini CLI). When true, goose-side
     /// context management such as tool-pair summarization is skipped because

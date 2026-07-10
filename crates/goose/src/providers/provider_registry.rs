@@ -13,6 +13,7 @@ pub type ProviderConstructor = Arc<
     dyn Fn(
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            Option<String>,
             Option<TlsConfig>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
@@ -84,7 +85,7 @@ impl ProviderEntry {
     }
 
     pub async fn create(&self, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, None, self.tls_config.clone()).await
+        (self.constructor)(extensions, None, None, self.tls_config.clone()).await
     }
 
     pub async fn create_with_working_dir(
@@ -92,7 +93,22 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        (self.constructor)(extensions, Some(working_dir), self.tls_config.clone()).await
+        (self.constructor)(extensions, Some(working_dir), None, self.tls_config.clone()).await
+    }
+
+    pub async fn create_with_working_dir_and_session_id(
+        &self,
+        extensions: Vec<ExtensionConfig>,
+        working_dir: PathBuf,
+        external_session_id: String,
+    ) -> Result<Arc<dyn Provider>> {
+        (self.constructor)(
+            extensions,
+            Some(working_dir),
+            Some(external_session_id),
+            self.tls_config.clone(),
+        )
+        .await
     }
 }
 
@@ -133,18 +149,25 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|extensions, working_dir, tls_config| {
-                    Box::pin(async move {
-                        let provider = match working_dir {
-                            Some(working_dir) => {
-                                F::from_env_with_working_dir(extensions, working_dir, tls_config)
+                constructor: Arc::new(
+                    |extensions, working_dir, external_session_id, tls_config| {
+                        Box::pin(async move {
+                            let provider = match working_dir {
+                                Some(working_dir) => {
+                                    F::from_env_with_working_dir_and_session_id(
+                                        extensions,
+                                        working_dir,
+                                        external_session_id,
+                                        tls_config,
+                                    )
                                     .await?
-                            }
-                            None => F::from_env(extensions, tls_config).await?,
-                        };
-                        Ok(Arc::new(provider) as Arc<dyn Provider>)
-                    })
-                }),
+                                }
+                                None => F::from_env(extensions, tls_config).await?,
+                            };
+                            Ok(Arc::new(provider) as Arc<dyn Provider>)
+                        })
+                    },
+                ),
                 inventory_identity: inventory.identity,
                 inventory_configured: inventory.configured,
                 cleanup: None,
@@ -311,13 +334,15 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
-                    let result = constructor(tls_config);
-                    Box::pin(async move {
-                        let provider = result?;
-                        Ok(Arc::new(provider) as Arc<dyn Provider>)
-                    })
-                }),
+                constructor: Arc::new(
+                    move |_extensions, _working_dir, _external_session_id, tls_config| {
+                        let result = constructor(tls_config);
+                        Box::pin(async move {
+                            let provider = result?;
+                            Ok(Arc::new(provider) as Arc<dyn Provider>)
+                        })
+                    },
+                ),
                 inventory_identity: Arc::new(inventory_identity),
                 inventory_configured: inventory_configured.unwrap_or(default_inventory_configured),
                 cleanup: None,

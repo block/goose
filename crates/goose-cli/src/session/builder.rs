@@ -7,10 +7,12 @@ use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
 use goose::model_config::model_config_from_user_config;
-use goose::providers::create;
+use goose::providers::{create, create_with_working_dir, create_with_working_dir_and_session_id};
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::EnabledExtensionsState;
+use goose::session::{
+    EnabledExtensionsState, ExtensionState, ExternalProviderSessionState, Session,
+};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -18,6 +20,41 @@ use std::sync::Arc;
 use tokio::task::JoinSet;
 
 const EXTENSION_HINT_MAX_LEN: usize = 5;
+
+async fn create_session_provider(
+    provider_name: &str,
+    extensions: Vec<ExtensionConfig>,
+    resumed_session: Option<&Session>,
+) -> anyhow::Result<Arc<dyn goose::providers::base::Provider>> {
+    let Some(session) = resumed_session else {
+        return create(provider_name, extensions).await;
+    };
+
+    let external_session_id =
+        ExternalProviderSessionState::from_extension_data(&session.extension_data)
+            .filter(|state| state.provider_name == provider_name)
+            .map(|state| state.session_id);
+
+    if let Some(external_session_id) = external_session_id {
+        match create_with_working_dir_and_session_id(
+            provider_name,
+            extensions.clone(),
+            session.working_dir.clone(),
+            external_session_id,
+        )
+        .await
+        {
+            Ok(provider) => return Ok(provider),
+            Err(error) => tracing::warn!(
+                provider = provider_name,
+                %error,
+                "Could not resume provider session; starting a new session with a bounded handoff"
+            ),
+        }
+    }
+
+    create_with_working_dir(provider_name, extensions, session.working_dir.clone()).await
+}
 
 fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     let truncated: String = s.chars().take(max_len).collect();
@@ -509,18 +546,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let session_manager = agent.config.session_manager.clone();
 
-    let (saved_provider, saved_model_config) = if session_config.resume {
+    let resumed_session = if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
-            match session_manager.get_session(session_id, false).await {
-                Ok(session_data) => (session_data.provider_name, session_data.model_config),
-                Err(_) => (None, None),
-            }
+            session_manager.get_session(session_id, false).await.ok()
         } else {
-            (None, None)
+            None
         }
     } else {
-        (None, None)
+        None
     };
+    let (saved_provider, saved_model_config) = resumed_session
+        .as_ref()
+        .map(|session| (session.provider_name.clone(), session.model_config.clone()))
+        .unwrap_or((None, None));
 
     let resolved =
         resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config);
@@ -548,7 +586,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         };
 
     let (new_provider, effective_provider_name, effective_model_name, effective_model_config) =
-        match create(&resolved.provider_name, extensions_for_provider.clone()).await {
+        match create_session_provider(
+            &resolved.provider_name,
+            extensions_for_provider.clone(),
+            resumed_session.as_ref(),
+        )
+        .await
+        {
             Ok(provider) => (
                 provider,
                 resolved.provider_name.clone(),

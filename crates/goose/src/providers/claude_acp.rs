@@ -53,6 +53,15 @@ impl ProviderDef for ClaudeAcpProvider {
         working_dir: PathBuf,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
+        Self::from_env_with_working_dir_and_session_id(extensions, working_dir, None, _tls_config)
+    }
+
+    fn from_env_with_working_dir_and_session_id(
+        extensions: Vec<crate::config::ExtensionConfig>,
+        working_dir: PathBuf,
+        external_session_id: Option<String>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
             // with_npm() includes npm global bin dir (desktop app PATH may not)
@@ -85,6 +94,8 @@ impl ProviderDef for ClaudeAcpProvider {
                 model_config_option_id: None,
                 mode_mapping,
                 notification_callback: None,
+                existing_session_id: external_session_id,
+                preserve_session_on_drop: true,
             };
 
             let metadata = Self::metadata();

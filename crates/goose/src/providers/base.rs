@@ -47,4 +47,16 @@ pub trait ProviderDef: ProviderDescriptor + Send + Sync {
     {
         Self::from_env(extensions, tls_config)
     }
+
+    fn from_env_with_working_dir_and_session_id(
+        extensions: Vec<ExtensionConfig>,
+        working_dir: PathBuf,
+        _external_session_id: Option<String>,
+        tls_config: Option<TlsConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized,
+    {
+        Self::from_env_with_working_dir(extensions, working_dir, tls_config)
+    }
 }

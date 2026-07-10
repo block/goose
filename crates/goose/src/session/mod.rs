@@ -15,7 +15,9 @@ pub use diagnostics::{
     DiagnosticsLevel, DiagnosticsLogs, DiagnosticsPrompt, DiagnosticsReport,
     DiagnosticsScheduledRecipe, DiagnosticsTextFile, SystemInfo,
 };
-pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
+pub use extension_data::{
+    EnabledExtensionsState, ExtensionData, ExtensionState, ExternalProviderSessionState, TodoState,
+};
 pub use session_manager::{
     Session, SessionInsights, SessionManager, SessionNameUpdate, SessionType, SessionUpdateBuilder,
 };

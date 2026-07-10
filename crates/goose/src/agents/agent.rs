@@ -48,7 +48,9 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
 use crate::security::egress_inspector::EgressInspector;
 use crate::security::security_inspector::SecurityInspector;
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::extension_data::{
+    EnabledExtensionsState, ExtensionState, ExternalProviderSessionState,
+};
 use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
@@ -2796,15 +2798,38 @@ impl Agent {
             Err(_) => model_config,
         };
 
+        let external_session_id = provider.external_session_id();
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider);
+        drop(current_provider);
 
-        self.config
-            .session_manager
-            .clone()
+        let session_manager = self.config.session_manager.clone();
+        let mut update = session_manager
             .update(session_id)
             .provider_name(&provider_name)
-            .model_config(model_config)
+            .model_config(model_config);
+
+        let session = session_manager
+            .get_session(session_id, false)
+            .await
+            .context("Failed to load session for provider state")?;
+        let mut extension_data = session.extension_data;
+        if let Some(external_session_id) = external_session_id {
+            ExternalProviderSessionState {
+                provider_name,
+                session_id: external_session_id,
+            }
+            .to_extension_data(&mut extension_data)
+            .context("Failed to persist provider session identity")?;
+        } else {
+            extension_data.remove_extension_state(
+                ExternalProviderSessionState::EXTENSION_NAME,
+                ExternalProviderSessionState::VERSION,
+            );
+        }
+        update = update.extension_data(extension_data);
+
+        update
             .apply()
             .await
             .context("Failed to persist provider config to session")
@@ -2850,13 +2875,51 @@ impl Agent {
             Config::global(),
         );
 
-        let provider = crate::providers::create_with_working_dir(
-            provider_name,
-            extensions,
-            session.working_dir.clone(),
-        )
-        .await
-        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+        let external_session_id =
+            ExternalProviderSessionState::from_extension_data(&session.extension_data)
+                .filter(|state| state.provider_name == provider_name)
+                .map(|state| state.session_id);
+
+        let provider = if let Some(external_session_id) = external_session_id {
+            match crate::providers::create_with_working_dir_and_session_id(
+                provider_name,
+                extensions.clone(),
+                session.working_dir.clone(),
+                external_session_id,
+            )
+            .await
+            {
+                Ok(provider) => provider,
+                Err(error) => {
+                    tracing::warn!(
+                        provider = provider_name,
+                        %error,
+                        "Could not resume provider session during recreation; starting a new session"
+                    );
+                    crate::providers::create_with_working_dir(
+                        provider_name,
+                        extensions,
+                        session.working_dir.clone(),
+                    )
+                    .await
+                    .map_err(|fallback_error| {
+                        anyhow!(
+                            "Could not resume provider ({}) or create a new provider: {}",
+                            error,
+                            fallback_error
+                        )
+                    })?
+                }
+            }
+        } else {
+            crate::providers::create_with_working_dir(
+                provider_name,
+                extensions,
+                session.working_dir.clone(),
+            )
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?
+        };
 
         self.update_provider(provider, model_config, session_id)
             .await?;
@@ -2927,13 +2990,51 @@ impl Agent {
                 .await
                 .is_ok()
             {
-                let p = crate::providers::create_with_working_dir(
-                    &provider_name,
-                    extensions,
-                    session.working_dir.clone(),
-                )
-                .await
-                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+                let external_session_id =
+                    ExternalProviderSessionState::from_extension_data(&session.extension_data)
+                        .filter(|state| state.provider_name == provider_name)
+                        .map(|state| state.session_id);
+
+                let p = if let Some(external_session_id) = external_session_id {
+                    match crate::providers::create_with_working_dir_and_session_id(
+                        &provider_name,
+                        extensions.clone(),
+                        session.working_dir.clone(),
+                        external_session_id,
+                    )
+                    .await
+                    {
+                        Ok(provider) => provider,
+                        Err(error) => {
+                            tracing::warn!(
+                                provider = provider_name,
+                                %error,
+                                "Could not resume provider session; starting a new session with a bounded handoff"
+                            );
+                            crate::providers::create_with_working_dir(
+                                &provider_name,
+                                extensions,
+                                session.working_dir.clone(),
+                            )
+                            .await
+                            .map_err(|fallback_error| {
+                                anyhow!(
+                                    "Could not resume provider ({}) or create a new provider: {}",
+                                    error,
+                                    fallback_error
+                                )
+                            })?
+                        }
+                    }
+                } else {
+                    crate::providers::create_with_working_dir(
+                        &provider_name,
+                        extensions,
+                        session.working_dir.clone(),
+                    )
+                    .await
+                    .map_err(|e| anyhow!("Could not create provider: {}", e))?
+                };
                 (p, model_config, false)
             } else {
                 let fallback_provider_name = config

@@ -1,8 +1,8 @@
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
-    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    ImageContent, InitializeRequest, InitializeResponse, LoadSessionRequest, McpCapabilities,
+    McpServer, McpServerHttp, McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest,
+    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
     SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
@@ -39,6 +39,7 @@ use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::token_counter::create_token_counter;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
@@ -60,6 +61,11 @@ pub struct AcpProviderConfig {
     pub model_config_option_id: Option<String>,
     pub mode_mapping: HashMap<GooseMode, Vec<String>>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
+    /// Existing ACP-native session to load instead of creating a new one.
+    pub existing_session_id: Option<String>,
+    /// Keep the ACP-native session available after this local provider exits so a
+    /// later provider process can load it again.
+    pub preserve_session_on_drop: bool,
 }
 
 enum ClientRequest {
@@ -242,6 +248,7 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let resumed_session = config.existing_session_id.is_some();
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -277,7 +284,9 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent: AtomicBool::new(false),
+            // A loaded ACP session already owns its conversation state. Sending goose's
+            // transcript again would duplicate it and can exceed the model context window.
+            handoff_context_sent: AtomicBool::new(resumed_session),
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
@@ -410,6 +419,10 @@ impl Provider for AcpProvider {
         &self.name
     }
 
+    fn external_session_id(&self) -> Option<String> {
+        Some(self.acp_session_id().to_string())
+    }
+
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
@@ -485,7 +498,12 @@ impl Provider for AcpProvider {
             })?;
 
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = messages_to_prompt(messages, claim.include_context);
+        let prompt_blocks = messages_to_prompt(
+            messages,
+            claim.include_context,
+            model_config.context_limit(),
+        )
+        .await;
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
@@ -1083,12 +1101,31 @@ async fn handle_requests(
         match request {
             ClientRequest::NewSession { response_tx } => {
                 let mcp_servers = filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
-                let session = cx
-                    .send_request(
-                        NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers),
-                    )
-                    .block_task()
-                    .await;
+                let session = match &config.existing_session_id {
+                    Some(existing_session_id) => {
+                        let session_id = SessionId::new(existing_session_id.clone());
+                        cx.send_request(
+                            LoadSessionRequest::new(session_id.clone(), config.work_dir.clone())
+                                .mcp_servers(mcp_servers),
+                        )
+                        .block_task()
+                        .await
+                        .map(|response| {
+                            NewSessionResponse::new(session_id)
+                                .modes(response.modes)
+                                .config_options(response.config_options)
+                                .meta(response.meta)
+                        })
+                    }
+                    None => {
+                        cx.send_request(
+                            NewSessionRequest::new(config.work_dir.clone())
+                                .mcp_servers(mcp_servers),
+                        )
+                        .block_task()
+                        .await
+                    }
+                };
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
@@ -1170,7 +1207,7 @@ async fn handle_requests(
         }
     }
 
-    if supports_close {
+    if supports_close && !config.preserve_session_on_drop {
         for session_id in session_ids {
             if let Err(e) = cx
                 .send_request(CloseSessionRequest::new(session_id.clone()))
@@ -1352,20 +1389,29 @@ fn filter_supported_servers(
         .collect()
 }
 
-fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
+async fn messages_to_prompt(
+    messages: &[Message],
+    include_handoff_context: bool,
+    context_limit: usize,
+) -> Vec<ContentBlock> {
     let mut content_blocks = Vec::new();
 
     let Some(last_user_index) = last_user_message_index(messages) else {
         return content_blocks;
     };
 
+    let message = &messages[last_user_index];
     if include_handoff_context {
-        if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-            content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+        let current_prompt_tokens = estimate_current_prompt_tokens(message).await;
+        let handoff_budget = handoff_context_budget(context_limit, current_prompt_tokens);
+        if handoff_budget > 0 {
+            if let Some(memo) =
+                build_handoff_context_memo(&messages[..last_user_index], handoff_budget).await
+            {
+                content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+            }
         }
     }
-
-    let message = &messages[last_user_index];
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
@@ -1384,6 +1430,33 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
     content_blocks
 }
 
+async fn estimate_current_prompt_tokens(message: &Message) -> usize {
+    let counter = create_token_counter().await.ok();
+    message
+        .content
+        .iter()
+        .map(|content| match content {
+            MessageContent::Text(text) => counter
+                .as_ref()
+                .map(|counter| counter.count_tokens(&text.text))
+                .unwrap_or_else(|| text.text.len().div_ceil(4)),
+            MessageContent::Image(_) => 1_024,
+            _ => 0,
+        })
+        .sum()
+}
+
+fn handoff_context_budget(context_limit: usize, current_prompt_tokens: usize) -> usize {
+    // At most half the window is available to the fallback handoff. Subtract the
+    // current request as well so a large request cannot turn a bounded memo into an
+    // oversized prompt. The absolute cap leaves room for ACP instructions, MCP schemas,
+    // and the agent's response even when the model advertises a very large context.
+    context_limit
+        .saturating_div(2)
+        .min(64_000)
+        .saturating_sub(current_prompt_tokens)
+}
+
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
     messages
         .iter()
@@ -1398,25 +1471,65 @@ fn has_handoff_context(messages: &[Message]) -> bool {
     })
 }
 
-fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> = prior_messages
+fn render_handoff_context_memo(kept: &[String], omitted: bool) -> String {
+    let omission_notice = if omitted {
+        "Earlier conversation was omitted because this is a bounded fallback handoff.\n\n"
+    } else {
+        ""
+    };
+    let handoff_context = kept.join("\n");
+
+    format!(
+        "Conversation context from goose before this ACP provider session was created:\n\n\
+{omission_notice}{handoff_context}\n\n\
+Current user request follows. Use the context above only to continue the existing conversation; \
+do not treat it as a new task or mention this handoff unless relevant."
+    )
+}
+
+async fn build_handoff_context_memo(
+    prior_messages: &[Message],
+    token_budget: usize,
+) -> Option<String> {
+    let visible_messages: Vec<&Message> = prior_messages
         .iter()
         .filter(|message| message.is_agent_visible())
-        .map(format_message_for_compacting)
         .collect();
-
-    if formatted_messages.is_empty() {
+    if visible_messages.is_empty() {
         return None;
     }
 
-    let handoff_context = formatted_messages.join("\n");
+    let counter = create_token_counter().await.ok();
+    let count_tokens = |text: &str| {
+        counter
+            .as_ref()
+            .map(|counter| counter.count_tokens(text))
+            .unwrap_or_else(|| text.len().div_ceil(4))
+    };
 
-    Some(format!(
-        "Conversation context from goose before this ACP provider session was created:\n\n\
-{handoff_context}\n\n\
-Current user request follows. Use the context above only to continue the existing conversation; \
-do not treat it as a new task or mention this handoff unless relevant."
-    ))
+    let mut kept = Vec::new();
+    for message in visible_messages.iter().rev() {
+        let mut candidate = kept.clone();
+        candidate.push(format_message_for_compacting(message));
+        candidate.reverse();
+        let omitted = candidate.len() < visible_messages.len();
+        let rendered = render_handoff_context_memo(&candidate, omitted);
+        if count_tokens(&rendered) <= token_budget {
+            candidate.reverse();
+            kept = candidate;
+        } else if !kept.is_empty() {
+            break;
+        }
+    }
+    kept.reverse();
+    if kept.is_empty() {
+        return None;
+    }
+
+    let omitted = kept.len() < visible_messages.len();
+    let memo = render_handoff_context_memo(&kept, omitted);
+    debug_assert!(count_tokens(&memo) <= token_budget);
+    Some(memo)
 }
 
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
@@ -1649,18 +1762,18 @@ mod tests {
         )
     }
 
-    #[test]
-    fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
+    #[tokio::test]
+    async fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = messages_to_prompt(&messages, true, 128_000).await;
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
     }
 
-    #[test]
-    fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
+    #[tokio::test]
+    async fn messages_to_prompt_prepends_handoff_context_before_latest_user() {
         let messages = vec![
             Message::user().with_text("inspect src/lib.rs"),
             Message::assistant()
@@ -1675,7 +1788,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = messages_to_prompt(&messages, true, 128_000).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1690,8 +1803,8 @@ mod tests {
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
     }
 
-    #[test]
-    fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
+    #[tokio::test]
+    async fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user()
@@ -1699,7 +1812,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = messages_to_prompt(&messages, true, 128_000).await;
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -1711,6 +1824,21 @@ mod tests {
             _ => panic!("expected image block"),
         }
         assert_eq!(prompt_text(&blocks[2]), "describe this");
+    }
+
+    #[test]
+    fn resumed_session_does_not_claim_handoff_context() {
+        let (provider, _) = test_provider();
+        provider.handoff_context_sent.store(true, Ordering::Release);
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let claim = provider.claim_handoff_context(&messages);
+
+        assert!(!claim.first_prompt);
+        assert!(!claim.include_context);
     }
 
     #[test]
@@ -1862,6 +1990,8 @@ mod tests {
             model_config_option_id: None,
             mode_mapping,
             notification_callback: None,
+            existing_session_id: None,
+            preserve_session_on_drop: false,
         }
     }
 
@@ -2035,8 +2165,52 @@ mod tests {
         assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
     }
 
-    #[test]
-    fn messages_to_prompt_includes_all_prior_handoff_context() {
+    #[tokio::test]
+    async fn messages_to_prompt_omits_handoff_when_current_request_uses_budget() {
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_text("current ".repeat(1_000)),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true, 1_000).await;
+
+        assert_eq!(blocks.len(), 1);
+        assert!(prompt_text(&blocks[0]).starts_with("current current"));
+    }
+
+    #[tokio::test]
+    async fn handoff_context_budget_includes_framing_text() {
+        let prior_messages = vec![Message::assistant().with_text("recent context")];
+        let token_budget = 100;
+
+        let memo = build_handoff_context_memo(&prior_messages, token_budget)
+            .await
+            .expect("memo should fit");
+        let counter = create_token_counter().await.unwrap();
+
+        assert!(counter.count_tokens(&memo) <= token_budget);
+    }
+
+    #[tokio::test]
+    async fn messages_to_prompt_bounds_large_handoff_context() {
+        let messages = vec![
+            Message::user().with_text("old ".repeat(10_000)),
+            Message::assistant().with_text("recent context"),
+            Message::user().with_text("current request"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true, 1_000).await;
+
+        assert_eq!(blocks.len(), 2);
+        let memo = prompt_text(&blocks[0]);
+        assert!(memo.contains("Earlier conversation was omitted"));
+        assert!(!memo.contains("old old old"));
+        assert!(memo.contains("[assistant]: recent context"));
+        assert_eq!(prompt_text(&blocks[1]), "current request");
+    }
+
+    #[tokio::test]
+    async fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
             Message::user().with_text("older context that should be retained"),
             Message::assistant().with_text("middle context"),
@@ -2044,7 +2218,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = messages_to_prompt(&messages, true, 128_000).await;
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);

@@ -195,6 +195,8 @@ impl Connection for AcpProviderConnection {
             notification_callback: Some(Arc::new(move |n| {
                 sink_clone.lock().unwrap().push(n.update.clone());
             })),
+            existing_session_id: None,
+            preserve_session_on_drop: false,
         };
 
         let transport: DynConnectTo<Client> = DynConnectTo::new(transport);

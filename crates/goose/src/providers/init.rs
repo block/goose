@@ -234,6 +234,18 @@ pub async fn create_with_working_dir(
     entry.create_with_working_dir(extensions, working_dir).await
 }
 
+pub async fn create_with_working_dir_and_session_id(
+    name: &str,
+    extensions: Vec<ExtensionConfig>,
+    working_dir: PathBuf,
+    external_session_id: String,
+) -> Result<Arc<dyn Provider>> {
+    let entry = get_from_registry(name).await?;
+    entry
+        .create_with_working_dir_and_session_id(extensions, working_dir, external_session_id)
+        .await
+}
+
 pub async fn create_with_default_model(
     name: impl AsRef<str>,
     extensions: Vec<ExtensionConfig>,
