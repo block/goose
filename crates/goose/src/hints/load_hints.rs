@@ -127,6 +127,10 @@ pub fn is_subdirectory_hint_message(message: &Message) -> bool {
     {
         return false;
     }
+    contains_subdirectory_hint_marker(message)
+}
+
+pub fn contains_subdirectory_hint_marker(message: &Message) -> bool {
     message.content.iter().any(|content| {
         let MessageContent::Text(text) = content else {
             return false;

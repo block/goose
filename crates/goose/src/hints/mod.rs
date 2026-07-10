@@ -2,7 +2,7 @@ mod import_files;
 pub mod load_hints;
 
 pub use load_hints::{
-    build_gitignore, format_subdirectory_hint_message_text, get_context_filenames,
-    is_subdirectory_hint_message, load_hint_files, SubdirectoryHintTracker, AGENTS_MD_FILENAME,
-    GOOSE_HINTS_FILENAME,
+    build_gitignore, contains_subdirectory_hint_marker, format_subdirectory_hint_message_text,
+    get_context_filenames, is_subdirectory_hint_message, load_hint_files, SubdirectoryHintTracker,
+    AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME,
 };

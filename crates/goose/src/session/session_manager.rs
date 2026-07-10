@@ -104,7 +104,7 @@ impl Session {
             let messages = conversation
                 .messages()
                 .iter()
-                .filter(|message| !crate::hints::is_subdirectory_hint_message(message))
+                .filter(|message| !crate::hints::contains_subdirectory_hint_marker(message))
                 .cloned()
                 .collect::<Vec<_>>();
             self.message_count = messages.len();
@@ -3793,6 +3793,17 @@ mod tests {
 
         sm.add_message(
             &original.id,
+            &Message::user()
+                .with_text(
+                    "GOOSE_SUBDIRECTORY_HINT_MARKER=subdir_hints:/tmp/test/archived\nlegacy instruction",
+                )
+                .with_visibility(false, false),
+        )
+        .await
+        .unwrap();
+
+        sm.add_message(
+            &original.id,
             &Message::assistant()
                 .with_text("compaction summary")
                 .with_visibility(false, true),
@@ -3803,6 +3814,7 @@ mod tests {
         let exported = sm.export_session(&original.id).await.unwrap();
         assert!(!exported.contains("GOOSE_SUBDIRECTORY_HINT_MARKER"));
         assert!(!exported.contains("secret"));
+        assert!(!exported.contains("legacy instruction"));
         assert!(exported.contains("compaction summary"));
         let imported = sm.import_session(&exported, None).await.unwrap();
 
