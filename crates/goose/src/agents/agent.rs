@@ -637,6 +637,17 @@ impl Agent {
         self.pending_steers.lock().await.remove(session_id);
     }
 
+    /// Drop any PreToolUse advisory queued for this session but not yet drained.
+    /// Called from the same abort/cleanup path as `discard_pending_steers` so a
+    /// run cancelled between a PreToolUse hook queuing advice and the next turn
+    /// boundary can't leak that advice into a later, unrelated prompt.
+    pub async fn discard_pre_tool_advisories(&self, session_id: &str) {
+        self.pending_pre_tool_advisories
+            .lock()
+            .await
+            .remove(session_id);
+    }
+
     async fn has_pending_steers(&self, session_id: &str) -> bool {
         self.pending_steers
             .lock()
@@ -2964,7 +2975,19 @@ impl Agent {
                                 // can't loop forever — and because this is still
                                 // Allow, hitting the cap ends the turn regardless, so
                                 // warn can NEVER re-gate/deadlock the way block does.
-                                Some(message) if stop_hook_warn_loops < stop_hook_block_cap => {
+                                //
+                                // Gated on `hook_result.warned`: only an explicit
+                                // `warn` decision loops back. A hook that passively
+                                // emits `additionalContext` on every Stop (no warn)
+                                // also lands its text in `advisories`, but must NOT
+                                // trigger a retry — otherwise a purely observational
+                                // context hook would fire up to the block cap extra
+                                // model calls each turn. Those fall through to the
+                                // inject-once arm below.
+                                Some(message)
+                                    if hook_result.warned
+                                        && stop_hook_warn_loops < stop_hook_block_cap =>
+                                {
                                     stop_hook_warn_loops += 1;
                                     session_manager.add_message(&session_config.id, &message).await?;
                                     conversation.push(message.clone());
@@ -3835,6 +3858,14 @@ printf '%s' '{"decision":"warn","reason":"verify the claim against the tool trac
 exit 0
 "#;
 
+    // Passively emits `additionalContext` on every Stop (exit 0, no `decision`).
+    // The context must be injected but must NOT loop the model — unlike a `warn`.
+    const ALWAYS_ADDITIONAL_CONTEXT_SCRIPT: &str = r#"#!/bin/sh
+echo ctx >> "$PLUGIN_ROOT/hook.log"
+printf '%s' '{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"repo has an uncommitted migration"}}'
+exit 0
+"#;
+
     // Warns on the first invocation, then plain-allows on every later one.
     const WARN_ONCE_THEN_ALLOW_SCRIPT: &str = r#"#!/bin/sh
 count_file="$PLUGIN_ROOT/count"
@@ -4457,6 +4488,37 @@ printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additional
     }
 
     #[tokio::test]
+    async fn stop_hook_additional_context_injects_once_without_looping() -> Result<()> {
+        // Regression (codex #10361): a Stop hook that only emits
+        // `additionalContext` (no `warn` decision) lands its text in
+        // `advisories` after the emit_blocking unify, but must be treated as a
+        // plain allow — inject the context once and END the turn. It must NOT
+        // loop the model the way `warn` does; otherwise a purely observational
+        // context hook would fire up to the block cap extra provider calls.
+        let env = StopHookTestEnv::new(ALWAYS_ADDITIONAL_CONTEXT_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count(),
+            1,
+            "additionalContext-only must inject once and end the turn — no loop-back \
+             (contrast ALWAYS_WARN_SCRIPT, which reaches the cap at 3)"
+        );
+        assert_eq!(env.hook_invocations(), 1);
+        assert!(
+            texts
+                .iter()
+                .any(|text| text.contains("repo has an uncommitted migration")),
+            "the additionalContext must still be injected as advisory context"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn stop_hook_payload_includes_streamed_assistant_reply_text() -> Result<()> {
         let env = StopHookTestEnv::new(RECORD_PAYLOAD_SCRIPT)?;
         let provider = Arc::new(ChunkedTextProvider);
@@ -4566,6 +4628,25 @@ printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additional
             "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
         );
         assert!(agent.drain_pending_steers(session_id).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn discard_pre_tool_advisories_clears_queued_advice() {
+        // Regression (codex #10361): a PreToolUse advisory queued but not yet
+        // drained when a run is cancelled must be cleared on the same cleanup
+        // path as steers, or it leaks into a later unrelated prompt.
+        let agent = Agent::new();
+        let session_id = "session-discard-pretool";
+
+        agent
+            .queue_pre_tool_advisory(session_id, vec!["tool policy note".to_string()])
+            .await;
+        agent.discard_pre_tool_advisories(session_id).await;
+
+        assert!(
+            agent.drain_pre_tool_advisories(session_id).await.is_empty(),
+            "discarding must drop PreToolUse advisories orphaned by a cancelled run"
+        );
     }
 
     #[tokio::test]

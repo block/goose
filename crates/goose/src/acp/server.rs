@@ -2385,6 +2385,7 @@ impl GooseAcpAgent {
         };
         if let Some(agent) = agent {
             agent.discard_pending_steers(session_id).await;
+            agent.discard_pre_tool_advisories(session_id).await;
         }
 
         if self.closed_session_ids.lock().await.contains(session_id) {

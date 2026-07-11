@@ -257,13 +257,21 @@ pub enum HookDecision {
 
 /// Result of [`HookManager::emit_blocking`]: the allow/deny decision, plus any
 /// advisory text collected along the way — from a `{"decision":"warn",...}`
-/// response — that should be injected into the model's context (via the same
-/// path as [`HookManager::emit`]'s `additionalContext`) when the turn is
-/// allowed to proceed. A warn never denies; it's advise-and-continue.
+/// reason or a `{"hookSpecificOutput":{"additionalContext":...}}` shape — that
+/// should be injected into the model's context (via the same path as
+/// [`HookManager::emit`]'s `additionalContext`) when the turn is allowed to
+/// proceed. A warn never denies; it's advise-and-continue.
+///
+/// `warned` records whether any hook returned an explicit `warn` *decision* (as
+/// opposed to only passively emitting `additionalContext`). Callers that treat
+/// `warn` as a request to re-invoke the model in-turn (the conversational Stop
+/// path) must gate that retry on `warned`, so a passive context-only hook that
+/// fires every turn does not trigger repeated model calls.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HookBlockingResult {
     pub decision: HookDecision,
     pub advisories: Vec<String>,
+    pub warned: bool,
 }
 
 /// Loads and executes plugin hooks.
@@ -425,11 +433,13 @@ impl HookManager {
     /// misbehaving hook MUST NOT block.
     pub async fn emit_blocking(&self, event: HookEvent, ctx: HookContext) -> HookBlockingResult {
         let mut advisories = Vec::new();
+        let mut warned = false;
 
         let Some(rules) = self.rules.get(&event) else {
             return HookBlockingResult {
                 decision: HookDecision::Allow,
                 advisories,
+                warned,
             };
         };
 
@@ -440,6 +450,7 @@ impl HookManager {
                 return HookBlockingResult {
                     decision: HookDecision::Allow,
                     advisories,
+                    warned,
                 };
             }
         };
@@ -491,6 +502,7 @@ impl HookManager {
                                 plugin: rule.plugin_name.clone(),
                             },
                             advisories,
+                            warned,
                         };
                     }
                     Some(HookResponse::Warn(reason)) => {
@@ -502,6 +514,7 @@ impl HookManager {
                             "Plugin hook advised (warn)",
                         );
                         advisories.push(reason);
+                        warned = true;
                     }
                     None => {}
                 }
@@ -523,6 +536,7 @@ impl HookManager {
         HookBlockingResult {
             decision: HookDecision::Allow,
             advisories,
+            warned,
         }
     }
 }
