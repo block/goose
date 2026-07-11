@@ -138,6 +138,7 @@ pub struct OpenAiProvider {
     preserve_thinking_context: bool,
     reasoning_property: Option<String>,
     extra_body: Option<serde_json::Value>,
+    model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
@@ -161,6 +162,7 @@ pub struct OpenAiProviderBuilder {
     preserve_thinking_context: bool,
     reasoning_property: Option<String>,
     extra_body: Option<serde_json::Value>,
+    model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
 }
 
 impl OpenAiProviderBuilder {
@@ -179,6 +181,7 @@ impl OpenAiProviderBuilder {
             preserve_thinking_context: false,
             reasoning_property: None,
             extra_body: None,
+            model_extra_bodies: None,
         }
     }
 
@@ -260,6 +263,14 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn model_extra_bodies(
+        mut self,
+        model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.model_extra_bodies = model_extra_bodies;
+        self
+    }
+
     pub fn build(self) -> OpenAiProvider {
         OpenAiProvider {
             api_client: self.api_client,
@@ -275,6 +286,7 @@ impl OpenAiProviderBuilder {
             preserve_thinking_context: self.preserve_thinking_context,
             reasoning_property: self.reasoning_property,
             extra_body: self.extra_body,
+            model_extra_bodies: self.model_extra_bodies,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -297,6 +309,7 @@ impl OpenAiProvider {
             preserve_thinking_context: false,
             reasoning_property: None,
             extra_body: None,
+            model_extra_bodies: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -367,6 +380,20 @@ impl OpenAiProvider {
                 if let Some(extra_obj) = extra.as_object() {
                     for (k, v) in extra_obj {
                         obj.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+
+            let model_name = obj.get("model").and_then(|model| model.as_str());
+
+            if let Some(model_name) = model_name {
+                if let Some(model_extra_bodies) = &self.model_extra_bodies {
+                    if let Some(model_extra) = model_extra_bodies.get(model_name) {
+                        if let Some(extra_obj) = model_extra.as_object() {
+                            for (k, v) in extra_obj {
+                                obj.insert(k.clone(), v.clone());
+                            }
+                        }
                     }
                 }
             }
@@ -761,6 +788,22 @@ pub fn from_declarative_config(
         None
     };
 
+    let model_extra_bodies = if !config.models.is_empty() {
+        let mut map = HashMap::new();
+        for m in &config.models {
+            if let Some(eb) = &m.extra_body {
+                map.insert(m.name.clone(), eb.clone());
+            }
+        }
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
+    } else {
+        None
+    };
+
     if config.dynamic_models == Some(false) && custom_models.is_none() {
         return Err(anyhow::anyhow!(
             "Provider '{}' has dynamic_models: false but no static models listed; \
@@ -834,7 +877,8 @@ pub fn from_declarative_config(
         .skip_canonical_filtering(config.skip_canonical_filtering)
         .preserve_thinking_context(config.preserves_thinking)
         .reasoning_property(config.reasoning_property)
-        .extra_body(config.extra_body))
+        .extra_body(config.extra_body)
+        .model_extra_bodies(model_extra_bodies))
 }
 
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -894,6 +938,7 @@ mod tests {
             preserve_thinking_context: false,
             reasoning_property: None,
             extra_body: None,
+            model_extra_bodies: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -961,6 +1006,40 @@ mod tests {
 
         assert!(obj.contains_key("max_completion_tokens"));
         assert!(!obj.contains_key("max_tokens"));
+    }
+
+    #[test]
+    fn sanitize_injects_model_specific_extra_body() {
+        let mut provider = make_provider("cerebras");
+        let mut model_extras = HashMap::new();
+        model_extras.insert(
+            "zai-glm-4.7".to_string(),
+            json!({
+                "reasoning_format": "parsed",
+                "clear_thinking": false
+            }),
+        );
+        provider.model_extra_bodies = Some(model_extras);
+
+        // Test that zai-glm-4.7 receives the extra parameters
+        let payload_glm = json!({
+            "model": "zai-glm-4.7",
+            "messages": []
+        });
+        let result_glm = provider.sanitize_request_for_compat(payload_glm);
+        let obj_glm = result_glm.as_object().unwrap();
+        assert_eq!(obj_glm.get("reasoning_format").unwrap(), &json!("parsed"));
+        assert_eq!(obj_glm.get("clear_thinking").unwrap(), &json!(false));
+
+        // Test that gpt-oss-120b does NOT receive the extra parameters
+        let payload_llama = json!({
+            "model": "gpt-oss-120b",
+            "messages": []
+        });
+        let result_llama = provider.sanitize_request_for_compat(payload_llama);
+        let obj_llama = result_llama.as_object().unwrap();
+        assert!(!obj_llama.contains_key("reasoning_format"));
+        assert!(!obj_llama.contains_key("clear_thinking"));
     }
 
     #[test]

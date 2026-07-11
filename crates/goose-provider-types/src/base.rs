@@ -238,6 +238,9 @@ pub struct ModelInfo {
     /// Whether this model supports reasoning/thinking controls
     #[serde(default)]
     pub reasoning: bool,
+    /// Model-specific extra body parameters
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_body: Option<serde_json::Value>,
 }
 
 impl ModelInfo {
@@ -252,6 +255,7 @@ impl ModelInfo {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            extra_body: None,
         }
     }
 
@@ -271,6 +275,7 @@ impl ModelInfo {
             currency: Some("$".to_string()),
             supports_cache_control: None,
             reasoning: false,
+            extra_body: None,
         }
     }
 }
@@ -316,6 +321,7 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         currency: None,
         supports_cache_control: None,
         reasoning,
+        extra_body: None,
     }
 }
 
@@ -675,6 +681,7 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            extra_body: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -688,6 +695,7 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            extra_body: None,
         };
         assert_eq!(info, info2);
 
@@ -701,6 +709,7 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            extra_body: None,
         };
         assert_ne!(info, info3);
     }

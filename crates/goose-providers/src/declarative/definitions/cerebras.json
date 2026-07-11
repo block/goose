@@ -7,27 +7,23 @@
   "base_url": "https://api.cerebras.ai/v1/chat/completions",
   "models": [
     {
-      "name": "llama3.1-8b",
-      "context_limit": 131072
-    },
-    {
       "name": "gpt-oss-120b",
       "context_limit": 131072
     },
     {
-      "name": "qwen-3-235b-a22b-instruct-2507",
+      "name": "gemma-4-31b",
       "context_limit": 131072
     },
     {
       "name": "zai-glm-4.7",
-      "context_limit": 131072
+      "context_limit": 131072,
+      "extra_body": {
+        "reasoning_format": "parsed",
+        "clear_thinking": false
+      }
     }
   ],
   "supports_streaming": true,
   "preserves_thinking": true,
-  "reasoning_property": "reasoning",
-  "extra_body": {
-    "reasoning_format": "parsed",
-    "clear_thinking": false
-  }
+  "reasoning_property": "reasoning"
 }

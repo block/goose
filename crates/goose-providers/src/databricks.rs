@@ -469,6 +469,7 @@ impl DatabricksProvider {
             currency: None,
             supports_cache_control: None,
             reasoning,
+            extra_body: None,
         }
     }
 
