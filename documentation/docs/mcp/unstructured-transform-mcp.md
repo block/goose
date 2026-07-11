@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-This tutorial covers how to add [Unstructured Transform](https://unstructured.io) as a goose extension to turn documents (PDF, DOCX, PPTX, XLSX, HTML, EML, images, and roughly 70 other formats) into clean, structured, LLM-ready output such as Markdown, Element JSON, HTML, or plain text.
+This tutorial covers how to add [Unstructured Transform](https://unstructured.io) as a goose extension to turn documents (PDF, DOCX, PPTX, XLSX, HTML, EML, images, and roughly 70 other formats) into clean, structured, LLM-ready output such as Markdown, Element JSON, HTML, or plain text. You will need goose [installed](/docs/getting-started/installation) with a model provider configured.
 
 :::tip Quick Install
 <Tabs groupId="interface">
@@ -27,7 +27,7 @@ This tutorial covers how to add [Unstructured Transform](https://unstructured.io
 :::
 
 :::info OAUTH FLOW
-An OAuth window will open in your browser the first time you use the Transform tools. Follow the prompts to sign in to Unstructured. To authenticate with an API key instead (for example, for headless or CI use), see [Authentication](#authentication) below.
+An OAuth window will open in your browser when goose first connects to the extension (at the start of your next session or chat). Follow the prompts to sign in to Unstructured. Quick Install and the deeplink use OAuth only; to authenticate with an API key instead (for example, for headless or CI use), skip Quick Install and see [Authentication](#authentication) below.
 :::
 
 ## What is Unstructured Transform?
@@ -55,7 +55,7 @@ The extension provides four tools that goose drives end to end: `request_file_up
       type="http"
       url="https://mcp.transform.unstructured.io"
       timeout={300}
-      infoNote="OAuth authentication will happen automatically in your browser when you first use the Transform tools"
+      commandNote="OAuth authentication happens automatically in your browser when goose first connects to the extension"
     />
   </TabItem>
 </Tabs>
@@ -64,7 +64,7 @@ The extension provides four tools that goose drives end to end: `request_file_up
 
 Unstructured Transform supports two authentication methods:
 
-- **OAuth (default)**: With no additional configuration, a browser window opens the first time you use the Transform tools. Sign in to Unstructured and goose stores and refreshes the tokens for you.
+- **OAuth (default)**: With no additional configuration, a browser window opens when goose first connects to the extension. Sign in to Unstructured and goose stores and refreshes the tokens for you.
 - **API key**: For headless or CI use, send an Unstructured API key as a bearer token instead. [Get an API key](https://transform.unstructured.io/get-started), then add a request header to the extension. In `~/.config/goose/config.yaml`:
 
   ```yaml
@@ -76,20 +76,24 @@ Unstructured Transform supports two authentication methods:
       uri: https://mcp.transform.unstructured.io
       headers:
         Authorization: Bearer ${UNSTRUCTURED_API_KEY}
+      env_keys:
+        - UNSTRUCTURED_API_KEY
       timeout: 300
   ```
 
-  The `${UNSTRUCTURED_API_KEY}` reference is substituted from the environment at connection time, so the key stays out of the config file. Export the variable in any shell that runs goose.
+  The `env_keys` entry is required: goose substitutes `${UNSTRUCTURED_API_KEY}` only from keys it resolves through `env_keys`, which reads the `UNSTRUCTURED_API_KEY` environment variable (falling back to a secret stored in goose's keyring). Export the variable in the shell that runs goose, or put the literal key in the header value instead.
 
 ## Example Usage
 
 Ask goose to transform a local document:
 
 ```
-Use the unstructured-transform tools to transform ./quarterly-report.pdf into markdown and give me the element count and a preview of the output.
+Use the unstructured-transform tools to transform ./quarterly-report.pdf into markdown. Upload the file bytes yourself with a plain HTTP PUT to the pre-signed upload URL, without an Authorization header on that request. Then give me the element count and a preview of the output.
 ```
 
-goose requests a pre-signed upload URL, uploads the file with its shell tools, starts the transform job, polls until the job completes, and downloads the finished Markdown. Transforms take from about 10 seconds to several minutes, depending on page count.
+goose requests a pre-signed upload URL, uploads the file with its shell tools, starts the transform job, polls until the job completes, and downloads the finished Markdown. goose shows the result inline by default; ask it to save the output to a file if you want it on disk. Transforms take from about 10 seconds to several minutes, depending on page count.
+
+The upload and download URLs are pre-signed and reject requests that carry an `Authorization` header, which is why the example prompt calls it out.
 
 Parsing requests have the following limits, which the server also reports back to goose through its tool responses:
 
