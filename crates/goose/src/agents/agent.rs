@@ -368,6 +368,11 @@ pub struct Agent {
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
     pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
+    // PreToolUse fires mid-turn, while a tool call is already executing, so an
+    // Allow-with-advisory can't be injected into the conversation right there.
+    // Queued here and drained at the next turn boundary in `reply_internal`,
+    // the same deferral pattern as `pending_steers`.
+    pending_pre_tool_advisories: Mutex<HashMap<String, Vec<String>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -518,6 +523,7 @@ impl Agent {
             goal: Mutex::new(None),
             grind: Mutex::new(None),
             pending_steers: Mutex::new(HashMap::new()),
+            pending_pre_tool_advisories: Mutex::new(HashMap::new()),
         }
     }
 
@@ -645,6 +651,30 @@ impl Agent {
             .await
             .remove(session_id)
             .map(|messages| messages.into_iter().map(Message::with_steer).collect())
+            .unwrap_or_default()
+    }
+
+    /// Queue a PreToolUse advisory for delivery at the next turn boundary.
+    /// PreToolUse fires while a tool call is already in flight, so the
+    /// advisory can't be injected into the conversation right there — it's
+    /// drained in `reply_internal` (see `drain_pre_tool_advisories`).
+    async fn queue_pre_tool_advisory(&self, session_id: &str, advisories: Vec<String>) {
+        if advisories.is_empty() {
+            return;
+        }
+        self.pending_pre_tool_advisories
+            .lock()
+            .await
+            .entry(session_id.to_string())
+            .or_default()
+            .extend(advisories);
+    }
+
+    async fn drain_pre_tool_advisories(&self, session_id: &str) -> Vec<String> {
+        self.pending_pre_tool_advisories
+            .lock()
+            .await
+            .remove(session_id)
             .unwrap_or_default()
     }
 
@@ -1221,12 +1251,11 @@ impl Agent {
                             .map(|a| serde_json::Value::Object(a.clone())),
                     )
                     .with_working_dir(session.working_dir.to_string_lossy().to_string());
-            if let crate::hooks::HookDecision::Deny { reason, plugin } = self
+            let hook_result = self
                 .hook_manager
                 .emit_blocking(crate::hooks::HookEvent::PreToolUse, ctx)
-                .await
-                .decision
-            {
+                .await;
+            if let crate::hooks::HookDecision::Deny { reason, plugin } = hook_result.decision {
                 return (
                     request_id,
                     Err(ErrorData::new(
@@ -1239,6 +1268,12 @@ impl Agent {
                     )),
                 );
             }
+            // Allow with a non-empty advisory (`warn` or `additionalContext`):
+            // the tool is about to run mid-turn, so the advisory can't be
+            // delivered to the model here — queue it for delivery at the next
+            // turn boundary instead of dropping it.
+            self.queue_pre_tool_advisory(&session.id, hook_result.advisories)
+                .await;
         }
 
         let tool_input_for_extended = tool_call
@@ -2082,6 +2117,21 @@ impl Agent {
                 }
 
                 if can_drain_pending_steers {
+                    let pre_tool_advisories = self.drain_pre_tool_advisories(&session_config.id).await;
+                    if let Some(message) = advisory_context_message(&pre_tool_advisories) {
+                        // A PreToolUse hook warned (or emitted additionalContext)
+                        // while a tool call was in flight; that advisory was
+                        // queued rather than injected on the spot. This is the
+                        // next turn boundary — deliver it now, then merge so it
+                        // doesn't leave two consecutive user-role turns for
+                        // strict providers when moim's per-turn merge is skipped
+                        // (small context limits).
+                        session_manager.add_message(&session_config.id, &message).await?;
+                        conversation.push(message.clone());
+                        yield AgentEvent::Message(message);
+                        conversation = merge_injected_advisory(conversation);
+                    }
+
                     let mut injected_advisory = false;
                     for message in self.drain_pending_steers(&session_config.id).await {
                         let message_text = message.as_concat_text();
@@ -2919,6 +2969,12 @@ impl Agent {
                                     session_manager.add_message(&session_config.id, &message).await?;
                                     conversation.push(message.clone());
                                     yield AgentEvent::Message(message);
+                                    // Same accounting as the Deny retry: an in-turn warn
+                                    // correction must not consume a turn, or a low
+                                    // `max_turns` (e.g. 1) can trip the max-turns check
+                                    // below before the provider is re-invoked with the
+                                    // advisory.
+                                    retrying_after_stop_hook_denial = true;
                                     // Do NOT break and do NOT set
                                     // stop_hook_handled_for_exit: falling through
                                     // continues the loop, which re-invokes the
@@ -4182,6 +4238,89 @@ printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additional
         Ok(())
     }
 
+    struct CapturingTextProvider {
+        call_count: AtomicUsize,
+        last_messages: tokio::sync::Mutex<Vec<Message>>,
+    }
+
+    impl CapturingTextProvider {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+                last_messages: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for CapturingTextProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            *self.last_messages.lock().await = messages.to_vec();
+            let message = Message::assistant().with_text(format!("provider response {call}"));
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_name(&self) -> &str {
+            "capturing-text"
+        }
+    }
+
+    #[tokio::test]
+    async fn session_start_advisory_keeps_provider_roles_alternating_in_small_context_sessions(
+    ) -> Result<()> {
+        // System-level invariant guard. The review (#10361) worried that the
+        // SessionStart/UserPromptSubmit advisory injection could leave two
+        // consecutive user-role turns for strict providers in a small-context
+        // session, where moim's per-turn merge (`inject_moim` ->
+        // `fix_conversation`) is skipped entirely (`should_skip_moim`). It can't:
+        // `prepare_reply_context` unconditionally runs `fix_conversation` on the
+        // incoming conversation at the top of every `reply_internal` call,
+        // independent of moim — so the role-alternation invariant already holds
+        // at this injection point, and no extra merge is needed at the call site.
+        // This test proves it end-to-end by asserting on exactly what the
+        // provider receives (via `CapturingTextProvider`), not on persisted
+        // session history (`fix_conversation` only reshapes the in-flight
+        // conversation, never persisted per-message visibility).
+        let env = SessionStartHookTestEnv::new_emitting_context("project uses tabs, not spaces")?;
+        let provider = Arc::new(CapturingTextProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        let small_context_limit = 8_000;
+        assert!(
+            crate::agents::moim::should_skip_moim(Some(small_context_limit)),
+            "sub-32k context limit must skip moim for this repro to be meaningful"
+        );
+        agent
+            .update_provider(
+                provider.clone(),
+                goose_providers::model::ModelConfig::new("mock-model")
+                    .with_context_limit(Some(small_context_limit)),
+                &session_id,
+            )
+            .await?;
+
+        run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+
+        let sent_messages = provider.last_messages.lock().await.clone();
+        let sent_conversation = Conversation::new_unvalidated(sent_messages);
+        assert!(
+            !has_adjacent_same_role_agent_visible(&sent_conversation),
+            "the SessionStart advisory must be merged into the in-flight conversation so the \
+             provider never sees two consecutive user-role turns when moim is skipped"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn stop_hook_block_cap_allows_configured_consecutive_blocks_then_overrides() -> Result<()>
     {
@@ -4427,6 +4566,269 @@ printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additional
             "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
         );
         assert!(agent.drain_pending_steers(session_id).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn queue_pre_tool_advisory_is_drained_once() {
+        let agent = Agent::new();
+        let session_id = "session-pre-tool-advisory";
+
+        agent
+            .queue_pre_tool_advisory(session_id, vec!["be careful".to_string()])
+            .await;
+        agent
+            .queue_pre_tool_advisory(session_id, vec!["double check".to_string()])
+            .await;
+
+        assert_eq!(
+            agent.drain_pre_tool_advisories(session_id).await,
+            vec!["be careful".to_string(), "double check".to_string()],
+            "advisories queued from separate PreToolUse calls must accumulate in order"
+        );
+        assert!(
+            agent.drain_pre_tool_advisories(session_id).await.is_empty(),
+            "draining must remove the queued advisories so they are not delivered twice"
+        );
+    }
+
+    struct PreToolUseHookTestEnv {
+        temp_dir: TempDir,
+        hook_log: PathBuf,
+    }
+
+    impl PreToolUseHookTestEnv {
+        /// A PreToolUse hook that always warns (Allow + advisory) via the
+        /// `{"decision":"warn",...}` shape, without denying the tool call.
+        fn new_warning(reason: &str) -> Result<Self> {
+            let temp_dir = tempfile::tempdir()?;
+            let plugin_dir = temp_dir.path().join("pre-tool-warn");
+            std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+            std::fs::write(
+                plugin_dir.join("hooks/hooks.json"),
+                r#"{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/warn.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+            )?;
+            std::fs::write(
+                plugin_dir.join("warn.sh"),
+                format!(
+                    r#"#!/bin/sh
+echo warned >> "$PLUGIN_ROOT/hook.log"
+printf '%s' '{{"decision":"warn","reason":"{reason}"}}'
+"#,
+                ),
+            )?;
+
+            Ok(Self {
+                temp_dir,
+                hook_log: plugin_dir.join("hook.log"),
+            })
+        }
+
+        fn hook_manager(&self) -> crate::hooks::HookManager {
+            crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+                name: "pre-tool-warn".into(),
+                root: self.temp_dir.path().join("pre-tool-warn"),
+                scope: PluginScope::Project,
+            }])
+        }
+
+        fn data_dir(&self) -> PathBuf {
+            self.temp_dir.path().join("data")
+        }
+
+        fn hook_invocations(&self) -> usize {
+            std::fs::read_to_string(&self.hook_log)
+                .unwrap_or_default()
+                .lines()
+                .count()
+        }
+    }
+
+    fn final_output_response_schema() -> Response {
+        Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } }
+            })),
+        }
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_warn_is_queued_by_dispatch_tool_call() -> Result<()> {
+        // Tight unit test for the exact code path Fix 1 changes:
+        // `dispatch_tool_call`'s PreToolUse handling used to project to just
+        // `.decision`, discarding `.advisories` on an Allow. It must now queue
+        // a non-empty advisory instead of dropping it. This calls the real
+        // `dispatch_tool_call` directly rather than driving it through the
+        // full `reply()` loop, since PreToolUse only fires once a tool call
+        // is already being dispatched (see the end-to-end test below for
+        // that full path).
+        let env = PreToolUseHookTestEnv::new_warning("double-check this tool call")?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider).await?;
+
+        agent
+            .add_final_output_tool(final_output_response_schema())
+            .await;
+
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+
+        let mut arguments = serde_json::Map::new();
+        arguments.insert("result".to_string(), Value::String("done".to_string()));
+        let tool_call = CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME.to_string())
+            .with_arguments(arguments);
+
+        let (_request_id, result) = agent
+            .dispatch_tool_call(tool_call, "req-1".to_string(), None, &session)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "a warn decision is Allow, not Deny: the tool call must still execute"
+        );
+        assert_eq!(env.hook_invocations(), 1);
+        assert_eq!(
+            agent.drain_pre_tool_advisories(&session_id).await,
+            vec!["double-check this tool call".to_string()],
+            "the warn advisory must be queued for the next turn boundary, not dropped"
+        );
+
+        Ok(())
+    }
+
+    struct FinalOutputToolCallProvider {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for FinalOutputToolCallProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            let mut arguments = serde_json::Map::new();
+            arguments.insert("result".to_string(), Value::String("done".to_string()));
+            let message = Message::assistant().with_tool_request(
+                "call-1",
+                Ok(
+                    CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME.to_string())
+                        .with_arguments(arguments),
+                ),
+            );
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_name(&self) -> &str {
+            "final-output-tool-call"
+        }
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_warn_advisory_reaches_next_turn_end_to_end() -> Result<()> {
+        // End-to-end: the model calls a tool, PreToolUse warns while that
+        // tool call is being dispatched, and the advisory must show up as an
+        // agent-visible message once the loop reaches the next turn boundary
+        // (here, the same iteration that notices `final_output` was set) —
+        // not be silently dropped.
+        let env = PreToolUseHookTestEnv::new_warning("verify this before finishing")?;
+        let provider = Arc::new(FinalOutputToolCallProvider {
+            call_count: AtomicUsize::new(0),
+        });
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        agent
+            .add_final_output_tool(final_output_response_schema())
+            .await;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "go").await?;
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "only one provider call is needed: the tool call resolves final_output directly"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|text| text.contains("verify this before finishing")),
+            "the PreToolUse warn advisory must reach the conversation, not be dropped: {texts:?}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stop_hook_warn_retry_does_not_trip_max_turns() -> Result<()> {
+        // Fix 3 regression: the warn loopback arm used to fall through to
+        // continue the loop without setting `retrying_after_stop_hook_denial`,
+        // so with a low `max_turns` the turns_taken accounting (which the Deny
+        // retry is exempted from via that same flag) would trip the
+        // max-turns check and break BEFORE the provider was re-invoked with
+        // the warn advisory.
+        let env = StopHookTestEnv::new(WARN_ONCE_THEN_ALLOW_SCRIPT)?;
+        let (agent, session_id, provider) = create_stop_hook_test_agent(&env, 2).await?;
+
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(1),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(Message::user().with_text("hello"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut messages = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            if let AgentEvent::Message(message) = event? {
+                messages.push(message);
+            }
+        }
+        let texts = visible_texts(&messages);
+
+        assert_eq!(
+            provider.call_count(),
+            2,
+            "the in-turn warn retry must not consume a turn: with max_turns=1 the provider \
+             must still be re-invoked once with the advisory, exactly as it would with a \
+             generous max_turns"
+        );
+        assert_eq!(env.hook_invocations(), 2);
+        assert!(
+            texts
+                .iter()
+                .any(|text| text.contains("double-check before finishing")),
+            "the warn reason must be injected as advisory context: {texts:?}"
+        );
+        assert!(
+            !texts.iter().any(|text| text == MAX_TURNS_MESSAGE),
+            "the warn retry must not trip max_turns before the provider is re-invoked: {texts:?}"
+        );
+
+        Ok(())
     }
 
     #[test]
