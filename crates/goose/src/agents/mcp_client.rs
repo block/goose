@@ -27,7 +27,8 @@ use rmcp::{
 };
 use serde_json::Value;
 use std::{
-    collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, time::Duration,
+    collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, sync::Weak,
+    time::Duration,
 };
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -38,6 +39,15 @@ use tokio_util::sync::CancellationToken;
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;
+
+/// Lets a `GooseClient` invalidate the owning `ExtensionManager`'s tool cache when
+/// an MCP server sends `notifications/tools/list_changed`. Held as a `Weak` so the
+/// client never keeps the manager (and thus the child MCP process) alive past the
+/// session — see `ExtensionManager`'s impl and the construction sites.
+#[async_trait::async_trait]
+pub trait ToolCacheInvalidator: Send + Sync {
+    async fn invalidate_tools(&self);
+}
 
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
@@ -181,6 +191,7 @@ pub struct GooseClient {
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
+    tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
 }
 
 impl GooseClient {
@@ -191,6 +202,24 @@ impl GooseClient {
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
     ) -> Self {
+        Self::new_with_invalidator(
+            handlers,
+            provider,
+            client_name,
+            capabilities,
+            working_dir,
+            None,
+        )
+    }
+
+    pub fn new_with_invalidator(
+        handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+        provider: SharedProvider,
+        client_name: String,
+        capabilities: GooseMcpClientCapabilities,
+        working_dir: PathBuf,
+        tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
+    ) -> Self {
         GooseClient {
             notification_handlers: handlers,
             provider,
@@ -199,11 +228,26 @@ impl GooseClient {
             client_name,
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
+            tool_cache_invalidator,
         }
     }
 
     pub fn shared_working_dir(&self) -> Arc<tokio::sync::RwLock<PathBuf>> {
         self.working_dir.clone()
+    }
+
+    /// Ask the owning `ExtensionManager` to drop its tool cache. The back-reference
+    /// is `Weak`, so if the manager has been torn down this is a safe no-op.
+    /// Extracted from `on_tool_list_changed` so it can be unit-tested without
+    /// constructing an rmcp `NotificationContext`.
+    async fn invalidate_tool_cache(&self) {
+        if let Some(invalidator) = self
+            .tool_cache_invalidator
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+        {
+            invalidator.invalidate_tools().await;
+        }
     }
 
     async fn set_session_id(&self, session_id: &str) {
@@ -371,6 +415,20 @@ impl ClientHandler for GooseClient {
                 let _ =
                     handler.try_send(ServerNotification::LoggingMessageNotification(notification));
             });
+    }
+
+    /// An MCP server told us its tool set changed (e.g. an stdio proxy that served
+    /// an "offline" tool set while its upstream was unreachable, then re-published
+    /// the real tools once connectivity returned). rmcp's default is a no-op, which
+    /// would leave Goose serving the tool list it fetched at init. Invalidate the
+    /// owning `ExtensionManager`'s cache so the next agent turn re-fetches
+    /// `tools/list`. If the manager has been torn down (session ended), the `Weak`
+    /// fails to upgrade and this is a safe no-op.
+    async fn on_tool_list_changed(
+        &self,
+        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        self.invalidate_tool_cache().await;
     }
 
     async fn create_message(
@@ -560,6 +618,7 @@ pub struct McpClient {
 }
 
 impl McpClient {
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
@@ -567,6 +626,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -580,10 +640,12 @@ impl McpClient {
             client_name,
             capabilities,
             working_dir,
+            tool_cache_invalidator,
         )
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
@@ -592,6 +654,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -600,12 +663,13 @@ impl McpClient {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(
+        let client = GooseClient::new_with_invalidator(
             notification_subscribers.clone(),
             provider,
             client_name.clone(),
             capabilities.clone(),
             working_dir,
+            tool_cache_invalidator,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
@@ -1015,6 +1079,52 @@ mod tests {
             capabilities,
             std::env::current_dir().unwrap_or_default(),
         )
+    }
+
+    /// A live invalidator triggers a tool-cache invalidation; once the owning
+    /// manager is dropped, the `Weak` fails to upgrade and the handler is a safe
+    /// no-op (no panic, no double-count). This is the P1 the review of the earlier
+    /// attempt (PR #8276) flagged: the back-reference must be `Weak`, not a
+    /// retaining `Arc`.
+    #[tokio::test]
+    async fn on_tool_list_changed_invalidates_then_noops_after_drop() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct CountingInvalidator {
+            calls: AtomicUsize,
+        }
+
+        #[async_trait::async_trait]
+        impl ToolCacheInvalidator for CountingInvalidator {
+            async fn invalidate_tools(&self) {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        let invalidator = Arc::new(CountingInvalidator {
+            calls: AtomicUsize::new(0),
+        });
+        let weak = Arc::downgrade(&invalidator) as Weak<dyn ToolCacheInvalidator>;
+
+        let client = GooseClient::new_with_invalidator(
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(None)),
+            "test".to_string(),
+            GooseMcpClientCapabilities {
+                mcpui: false,
+                host_info: None,
+            },
+            std::env::current_dir().unwrap_or_default(),
+            Some(weak),
+        );
+
+        // Manager is alive: the notification flows through to invalidation.
+        client.invalidate_tool_cache().await;
+        assert_eq!(invalidator.calls.load(Ordering::SeqCst), 1);
+
+        // Manager torn down (session ended): the Weak can't upgrade — no-op, no panic.
+        drop(invalidator);
+        client.invalidate_tool_cache().await;
     }
 
     fn request_extensions(request: &ClientRequest) -> Option<&Extensions> {

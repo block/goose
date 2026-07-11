@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
@@ -39,7 +39,7 @@ use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{
-    GooseMcpClientCapabilities, GooseMcpHostInfo, McpClient, McpClientTrait,
+    GooseMcpClientCapabilities, GooseMcpHostInfo, McpClient, McpClientTrait, ToolCacheInvalidator,
 };
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
@@ -402,6 +402,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -410,6 +411,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -448,6 +450,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        tool_cache_invalidator,
     )
     .await;
 
@@ -618,6 +621,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -652,6 +656,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            tool_cache_invalidator,
         )
         .await?,
     ))
@@ -669,6 +674,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -682,6 +688,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            tool_cache_invalidator,
         )
         .await;
     }
@@ -737,6 +744,7 @@ async fn create_streamable_http_client(
                     client_name.clone(),
                     capabilities.clone(),
                     roots_dir,
+                    tool_cache_invalidator.clone(),
                 )
                 .await;
 
@@ -775,6 +783,7 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        tool_cache_invalidator.clone(),
     )
     .await;
 
@@ -790,6 +799,7 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    tool_cache_invalidator,
                 )
                 .await
             }
@@ -812,6 +822,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -849,6 +860,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        tool_cache_invalidator,
     )
     .await;
 
@@ -958,6 +970,13 @@ impl ExtensionManager {
             .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
+        // A `Weak` back-reference so each MCP client can invalidate our tool cache
+        // when its server sends `notifications/tools/list_changed`. Weak (not Arc)
+        // so a client never keeps this manager — and thus the child MCP process —
+        // alive past the session.
+        let tool_cache_invalidator: Option<Weak<dyn ToolCacheInvalidator>> =
+            Some(Arc::downgrade(self) as Weak<dyn ToolCacheInvalidator>);
+
         let client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse { .. } => {
                 return Err(ExtensionError::ConfigError(
@@ -993,6 +1012,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    tool_cache_invalidator.clone(),
                 )
                 .await?
             }
@@ -1050,6 +1070,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            tool_cache_invalidator.clone(),
                         )
                         .await?;
                         Box::new(client)
@@ -1066,6 +1087,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                tool_cache_invalidator.clone(),
                             )
                             .await?,
                         )
@@ -1127,6 +1149,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    tool_cache_invalidator.clone(),
                 )
                 .await?;
                 Box::new(client)
@@ -1159,6 +1182,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    tool_cache_invalidator.clone(),
                 )
                 .await?;
 
@@ -2104,6 +2128,15 @@ impl ExtensionManager {
     }
 }
 
+#[async_trait::async_trait]
+impl ToolCacheInvalidator for ExtensionManager {
+    async fn invalidate_tools(&self) {
+        // A server published `notifications/tools/list_changed`. Drop the cache so
+        // the next `get_prefixed_tools` re-fetches every extension's `tools/list`.
+        self.invalidate_tools_cache_and_bump_version().await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2576,6 +2609,110 @@ mod tests {
         let tool_names: Vec<String> = tools_after.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_b__")));
+    }
+
+    #[tokio::test]
+    async fn test_tools_cache_invalidated_on_tool_list_changed() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        // A client that publishes one tool, then a second once `expanded` flips —
+        // modeling an MCP server that emits notifications/tools/list_changed (e.g.
+        // an stdio proxy re-publishing the real tools once its upstream recovers).
+        // The invalidation must make the new tool visible without a restart.
+        struct GrowingMockClient {
+            expanded: Arc<AtomicBool>,
+        }
+
+        #[async_trait::async_trait]
+        impl McpClientTrait for GrowingMockClient {
+            fn get_info(&self) -> Option<&InitializeResult> {
+                None
+            }
+
+            async fn list_tools(
+                &self,
+                _session_id: &str,
+                _next_cursor: Option<String>,
+                _cancellation_token: CancellationToken,
+            ) -> Result<ListToolsResult, Error> {
+                use serde_json::json;
+                let schema = Arc::new(json!({}).as_object().unwrap().clone());
+                let mut tools = vec![Tool::new(
+                    "first".to_string(),
+                    "first tool".to_string(),
+                    schema.clone(),
+                )];
+                if self.expanded.load(Ordering::SeqCst) {
+                    tools.push(Tool::new(
+                        "second".to_string(),
+                        "second tool".to_string(),
+                        schema,
+                    ));
+                }
+                Ok(ListToolsResult {
+                    tools,
+                    next_cursor: None,
+                    meta: None,
+                })
+            }
+
+            async fn call_tool(
+                &self,
+                _ctx: &ToolCallContext,
+                _name: &str,
+                _arguments: Option<JsonObject>,
+                _cancellation_token: CancellationToken,
+            ) -> Result<CallToolResult, Error> {
+                Ok(CallToolResult::success(vec![]))
+            }
+        }
+
+        async fn tool_names(em: &ExtensionManager) -> Vec<String> {
+            em.get_prefixed_tools("test-session-id", None)
+                .await
+                .unwrap()
+                .iter()
+                .map(|t| t.name.to_string())
+                .collect()
+        }
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+
+        let expanded = Arc::new(AtomicBool::new(false));
+        extension_manager
+            .add_mock_extension(
+                "growing".to_string(),
+                Arc::new(GrowingMockClient {
+                    expanded: expanded.clone(),
+                }),
+            )
+            .await;
+
+        // First fetch caches the initial single-tool list.
+        let names = tool_names(&extension_manager).await;
+        assert!(names.iter().any(|n| n.starts_with("growing__first")));
+        assert!(!names.iter().any(|n| n.starts_with("growing__second")));
+
+        // The server now exposes a new tool, but the cache hides it from Goose.
+        expanded.store(true, Ordering::SeqCst);
+        let names = tool_names(&extension_manager).await;
+        assert!(
+            !names.iter().any(|n| n.starts_with("growing__second")),
+            "cached tool list should hide the new tool until invalidated"
+        );
+
+        // Receiving notifications/tools/list_changed invalidates the cache.
+        ToolCacheInvalidator::invalidate_tools(extension_manager.as_ref()).await;
+
+        // Next fetch re-lists and surfaces the new tool — no restart required.
+        let names = tool_names(&extension_manager).await;
+        assert!(
+            names.iter().any(|n| n.starts_with("growing__second")),
+            "invalidation should surface the newly published tool"
+        );
     }
 
     #[tokio::test]
@@ -3134,6 +3271,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3169,6 +3307,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3215,6 +3354,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3296,6 +3436,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
