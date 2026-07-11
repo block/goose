@@ -64,7 +64,7 @@ The extension provides four tools that goose drives end to end: `request_file_up
 
 Unstructured Transform supports two authentication methods:
 
-- **OAuth (default)**: With no additional configuration, a browser window opens when goose first connects to the extension. Sign in to Unstructured and goose stores and refreshes the tokens for you.
+- **OAuth (default)**: With no additional configuration, a browser window opens when goose first connects to the extension. Sign in to Unstructured once; goose stores the tokens in your system keychain and refreshes them automatically, so later sessions connect without the browser.
 - **API key**: For headless or CI use, send an Unstructured API key as a bearer token instead. [Get an API key](https://transform.unstructured.io/get-started), then add a request header to the extension. In `~/.config/goose/config.yaml`:
 
   ```yaml
