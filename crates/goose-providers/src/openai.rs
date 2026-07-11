@@ -411,20 +411,8 @@ impl OpenAiProvider {
             return Err(ProviderError::EndpointNotFound(body));
         }
 
-        // Check HTTP status first — non-success responses (auth errors,
-        // rate limits, bad requests, etc.) propagate unchanged. A string
-        // match on the error message would be fragile: a 400 whose body
-        // happens to contain "not valid JSON" must NOT be reclassified
-        // as EndpointNotFound.
         let response = handle_status(response).await?;
 
-        // Read the body as text first, then parse JSON separately. Using
-        // `response.json()` directly would conflate transport/encoding errors
-        // (e.g. bad gzip from a proxy) with JSON parse failures — both show
-        // up as `is_decode()` in reqwest. By splitting the steps, network/
-        // transport errors propagate as NetworkError while only genuine
-        // JSON parse failures (e.g. an HTML error page) become
-        // EndpointNotFound and trigger the static-list fallback.
         let body = response.text().await.map_err(|e| {
             ProviderError::NetworkError(format!("Failed to read response body: {}", e))
         })?;
@@ -432,8 +420,6 @@ impl OpenAiProvider {
             ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
         })?;
 
-        // Check for the standard OpenAI error shape first — this is always
-        // an error regardless of whether `data` is also present.
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
                 .get("message")
@@ -444,17 +430,8 @@ impl OpenAiProvider {
 
         let data = match json.get("data").and_then(|v| v.as_array()) {
             Some(data) => data,
-            // No `data` array — not a models payload. Check for a top-level
-            // `message` field as an error indicator (some providers return
-            // {"message": "invalid api key"} instead of the standard
-            // {"error": {"message": "..."}} shape). Only treat it as an
-            // error when `data` is missing, so that a valid payload like
-            // {"data": [...], "message": "ok"} is not rejected.
             None => {
-                if let Some(msg) = json.get("message").and_then(|v| v.as_str()) {
-                    return Err(ProviderError::Authentication(msg.to_string()));
-                }
-                return Err(ProviderError::EndpointNotFound(
+                return Err(ProviderError::RequestFailed(
                     "response is not a models payload (missing 'data' array)".into(),
                 ));
             }
@@ -1249,7 +1226,6 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // Simulate a misconfigured base URL that returns HTML instead of JSON.
         Mock::given(method("GET"))
             .and(path("/v1/models"))
             .respond_with(
@@ -1265,23 +1241,16 @@ mod tests {
             vec!["static-model".to_string()],
         );
 
-        // The invalid-JSON response must be reclassified as EndpointNotFound
-        // so the caller can fall back to the static list.
         let err = provider.fetch_models_from_api().await.unwrap_err();
-        assert!(
-            err.is_endpoint_not_found(),
-            "expected EndpointNotFound, got: {:?}",
-            err
-        );
+        assert!(err.is_endpoint_not_found(), "got: {:?}", err);
     }
 
     #[tokio::test]
-    async fn fetch_models_treats_missing_data_field_as_endpoint_not_found() {
+    async fn fetch_models_returns_request_failed_for_missing_data_field() {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // JSON response without a `data` array — not a models payload.
         Mock::given(method("GET"))
             .and(path("/v1/models"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
@@ -1297,8 +1266,8 @@ mod tests {
 
         let err = provider.fetch_models_from_api().await.unwrap_err();
         assert!(
-            err.is_endpoint_not_found(),
-            "expected EndpointNotFound, got: {:?}",
+            matches!(err, ProviderError::RequestFailed(_)),
+            "expected RequestFailed, got: {:?}",
             err
         );
     }
@@ -1322,12 +1291,10 @@ mod tests {
             predefined.clone(),
         );
 
-        // The invalid payload triggers EndpointNotFound, which the existing
-        // fetch_supported_models fallback catches and returns the static list.
         let models = provider
             .fetch_supported_models()
             .await
-            .expect("should fall back to predefined list on invalid payload");
+            .expect("should fall back");
         assert_eq!(models, predefined);
     }
 
@@ -1351,12 +1318,10 @@ mod tests {
             vec!["static-model".to_string()],
         );
 
-        // Auth errors must propagate — they indicate a real misconfiguration
-        // that the user needs to know about.
         let err = provider.fetch_supported_models().await.unwrap_err();
         assert!(
             matches!(err, ProviderError::Authentication(_)),
-            "expected Authentication error, got: {:?}",
+            "got: {:?}",
             err
         );
     }
@@ -1367,9 +1332,6 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // A 400 response whose body contains "not valid JSON" must NOT be
-        // reclassified as EndpointNotFound. This was a bug identified during
-        // review: the old string-match guard would incorrectly swallow this.
         Mock::given(method("GET"))
             .and(path("/v1/models"))
             .respond_with(ResponseTemplate::new(400).set_body_json(json!({
@@ -1385,51 +1347,15 @@ mod tests {
         );
 
         let err = provider.fetch_supported_models().await.unwrap_err();
-        assert!(
-            !err.is_endpoint_not_found(),
-            "400 must not be reclassified as EndpointNotFound, got: {:?}",
-            err
-        );
+        assert!(!err.is_endpoint_not_found(), "got: {:?}", err);
     }
 
     #[tokio::test]
-    async fn fetch_supported_models_propagates_top_level_message_error() {
+    async fn fetch_supported_models_accepts_payload_with_extra_fields() {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // Some providers return errors with a top-level `message` field
-        // instead of the standard `{"error": {"message": "..."}}` shape.
-        Mock::given(method("GET"))
-            .and(path("/v1/models"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "message": "invalid api key"
-            })))
-            .mount(&server)
-            .await;
-
-        let provider = make_provider_with_custom_models(
-            &server.uri(),
-            "v1/chat/completions",
-            vec!["static-model".to_string()],
-        );
-
-        let err = provider.fetch_supported_models().await.unwrap_err();
-        assert!(
-            matches!(err, ProviderError::Authentication(_)),
-            "expected Authentication error, got: {:?}",
-            err
-        );
-    }
-
-    #[tokio::test]
-    async fn fetch_supported_models_ignores_top_level_message_when_data_present() {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let server = MockServer::start().await;
-        // A valid models payload with an extra informational `message` field
-        // must NOT be treated as an error. The `data` array takes precedence.
         Mock::given(method("GET"))
             .and(path("/v1/models"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -1445,10 +1371,7 @@ mod tests {
             vec!["static-model".to_string()],
         );
 
-        let models = provider
-            .fetch_supported_models()
-            .await
-            .expect("valid payload with extra message field should succeed");
+        let models = provider.fetch_supported_models().await.unwrap();
         assert_eq!(models, vec!["model-a".to_string(), "model-b".to_string()]);
     }
 }
