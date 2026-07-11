@@ -880,5 +880,24 @@
     }
   ]
 }
-
+,
+  {
+  "id": "unstructured-transform",
+  "name": "Unstructured Transform",
+  "description": "Turn documents into clean, structured, LLM-ready Markdown, JSON, HTML, or text",
+  "url": "https://mcp.transform.unstructured.io",
+  "type": "streamable-http",
+  "link": "https://unstructured.io",
+  "installation_notes": "This is a remote extension. Authentication happens through an OAuth browser window on first use. Alternatively, send an Unstructured API key from https://transform.unstructured.io/get-started as a request header, e.g. Authorization: Bearer <YOUR_UNSTRUCTURED_API_KEY>, which suits headless or CI use.",
+  "is_builtin": false,
+  "endorsed": false,
+  "environmentVariables": [],
+  "headers": [
+    {
+      "name": "Authorization",
+      "description": "Optional: Bearer <YOUR_UNSTRUCTURED_API_KEY>. Omit to authenticate through the OAuth browser flow instead.",
+      "required": false
+    }
+  ]
+  }
 ]
