@@ -240,6 +240,7 @@ impl ProviderRegistry {
                 currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
                 reasoning: m.reasoning,
+                extra_body: m.extra_body.clone(),
             })
             .collect();
 
