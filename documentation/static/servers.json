@@ -879,6 +879,34 @@
       "required": false
     }
   ]
-}
+},
+  {
+    "id": "aioproductos",
+    "name": "AIOProductOS",
+    "description": "Product management MCP for the AIOProductOS spine — read and act on tasks, features, roadmaps, insights, releases, and product analytics across your workspace on one typed record.",
+    "command": "npx -y @aioproductoscom/mcp",
+    "link": "https://github.com/AIOProductOS/claude-plugin",
+    "installation_notes": "Install using npx. Requires a paid AIOProductOS workspace and a personal access token set as PRODUCTOS_TOKEN. A hosted remote endpoint (Streamable HTTP, OAuth 2.1) is also available at https://platform.aioproductos.com/api/mcp.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PRODUCTOS_TOKEN",
+        "description": "Personal access token for your AIOProductOS workspace (required).",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "aioproductos-studio",
+    "name": "AIOProductOS Studio",
+    "description": "Films your product in the browser and returns MP4/GIF recordings plus screenshots — themed recording stage, cursor glide, zooms, captions, and an end card. Runs 100% locally with no account.",
+    "command": "npx -y @aioproductoscom/mcp-studio",
+    "link": "https://github.com/AIOProductOS/studio-mcp",
+    "installation_notes": "Install using npx. Requires Node 18+, Playwright Chromium, and ffmpeg. No authentication — all recording happens locally in your own browser.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 
 ]
