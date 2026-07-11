@@ -42,6 +42,27 @@ fn paginate_messages<T: Clone>(
     messages[start..end].to_vec()
 }
 
+/// Selects the messages to replay, paginating over the user-visible set. Hidden
+/// agent-only messages (summaries, continuations in compacted sessions) never
+/// consume a page, so `messageLimit` always yields that many visible messages
+/// when they exist.
+fn paginate_visible_messages(
+    messages: &[Message],
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Vec<Message> {
+    let visible: Vec<Message> = messages
+        .iter()
+        .filter(|message| message.is_user_visible())
+        .cloned()
+        .collect();
+    if limit.is_some() || offset.is_some() {
+        paginate_messages(&visible, limit, offset)
+    } else {
+        visible
+    }
+}
+
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     Annotations::new().audience(
         audience
@@ -82,13 +103,8 @@ fn replay_conversation_to_client(
     let messages = session
         .conversation
         .as_ref()
-        .map(|c| c.messages().to_vec())
+        .map(|c| paginate_visible_messages(c.messages(), limit, offset))
         .unwrap_or_default();
-    let messages = if limit.is_some() || offset.is_some() {
-        paginate_messages(&messages, limit, offset)
-    } else {
-        messages
-    };
     debug!(
         target: "perf",
         sid = %sid,
@@ -100,10 +116,6 @@ fn replay_conversation_to_client(
         HashMap::<String, crate::conversation::message::ToolRequest>::new();
 
     for message in &messages {
-        if !message.metadata.user_visible {
-            continue;
-        }
-
         for content_item in &message.content {
             match content_item {
                 MessageContent::Text(text) => {
@@ -334,6 +346,46 @@ mod tests {
             paginate_messages(&messages, None, Some(10)),
             Vec::<i32>::new()
         );
+    }
+
+    #[test]
+    fn paginate_visible_skips_hidden_messages() {
+        let messages = vec![
+            Message::user().with_text("first"),
+            Message::assistant().with_text("second"),
+            Message::assistant().with_text("summary").agent_only(),
+            Message::assistant().with_text("continuation").agent_only(),
+        ];
+        // The two newest raw messages are agent-only; a limit of 2 must still
+        // return the two visible messages rather than an empty page.
+        let page = paginate_visible_messages(&messages, Some(2), None);
+        let texts: Vec<String> = page.iter().map(|m| m.as_concat_text()).collect();
+        assert_eq!(texts, vec!["first".to_string(), "second".to_string()]);
+    }
+
+    #[test]
+    fn paginate_visible_offset_pages_over_visible_only() {
+        let messages = vec![
+            Message::user().with_text("a"),
+            Message::assistant().with_text("summary").agent_only(),
+            Message::user().with_text("b"),
+            Message::user().with_text("c"),
+        ];
+        let page = paginate_visible_messages(&messages, Some(1), Some(1));
+        let texts: Vec<String> = page.iter().map(|m| m.as_concat_text()).collect();
+        assert_eq!(texts, vec!["b".to_string()]);
+    }
+
+    #[test]
+    fn paginate_visible_returns_all_visible_when_no_limit() {
+        let messages = vec![
+            Message::user().with_text("a"),
+            Message::assistant().with_text("summary").agent_only(),
+            Message::user().with_text("b"),
+        ];
+        let page = paginate_visible_messages(&messages, None, None);
+        let texts: Vec<String> = page.iter().map(|m| m.as_concat_text()).collect();
+        assert_eq!(texts, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
