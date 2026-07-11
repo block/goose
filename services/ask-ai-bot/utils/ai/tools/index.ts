@@ -279,14 +279,14 @@ export const aiTools = {
           );
           result += `\n**Comments (${comments.length}):**\n`;
           result += comments
-            .slice(0, 20)
+            .slice(0, commentLimit)
             .map(
               (c) =>
                 `\n**${c.author}** (${c.createdAt.slice(0, 10)}):\n${c.body.slice(0, 1500)}`,
             )
             .join("\n---");
-          if (comments.length > 20) {
-            result += `\n\n... and ${comments.length - 20} more comments. Use get_github_issue_or_pr with includeComments=true and commentLimit to fetch more.`;
+          if (item.comments > comments.length) {
+            result += `\n\n... and ${item.comments - comments.length} more comments. Use get_github_issue_or_pr with includeComments=true and a larger commentLimit to fetch more.`;
           }
         }
 

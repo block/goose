@@ -45,7 +45,8 @@ export async function searchGitHub(
   const { sort, order = "desc", state = "all", limit = 10 } = options;
   const api = getOctokit();
 
-  const q = `repo:${REPO_OWNER}/${REPO_NAME} ${query}${state !== "all" ? ` state:${state}` : ""}`;
+  const sanitized = query.replace(/\b(?:repo|org|user):\S+/gi, "").trim();
+  const q = `repo:${REPO_OWNER}/${REPO_NAME} ${sanitized}${state !== "all" ? ` state:${state}` : ""}`;
 
   const response = await api.rest.search.issuesAndPullRequests({
     q,
@@ -100,17 +101,29 @@ export async function getGitHubItemComments(
   limit: number = 30,
 ): Promise<GitHubComment[]> {
   const api = getOctokit();
+  const perPage = Math.min(limit, 100);
+  const comments: GitHubComment[] = [];
 
-  const response = await api.rest.issues.listComments({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    issue_number: number,
-    per_page: limit,
-  });
+  for (let page = 1; comments.length < limit; page++) {
+    const response = await api.rest.issues.listComments({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      issue_number: number,
+      per_page: perPage,
+      page,
+    });
 
-  return response.data.map((comment) => ({
-    author: comment.user?.login ?? "unknown",
-    createdAt: comment.created_at,
-    body: comment.body ?? "",
-  }));
+    if (response.data.length === 0) break;
+
+    for (const comment of response.data) {
+      comments.push({
+        author: comment.user?.login ?? "unknown",
+        createdAt: comment.created_at,
+        body: comment.body ?? "",
+      });
+      if (comments.length >= limit) break;
+    }
+  }
+
+  return comments;
 }
