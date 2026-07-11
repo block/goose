@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.10",
+    "@octokit/rest": "^22.0.1",
     "ai": "^7.0.18",
     "consola": "^3.4.2",
     "dedent": "^1.7.2",
