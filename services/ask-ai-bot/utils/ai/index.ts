@@ -127,6 +127,10 @@ export async function answerQuestion({
           }
         } else if (event.toolName === "list_codebase_files") {
           tracker.recordListDir();
+        } else if (event.toolName === "search_github") {
+          tracker.recordGitHubSearch();
+        } else if (event.toolName === "get_github_issue_or_pr") {
+          tracker.recordGitHubRead();
         }
       }
     }
