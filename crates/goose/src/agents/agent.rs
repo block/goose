@@ -2014,6 +2014,15 @@ impl Agent {
                 }
             };
 
+            // Any PreToolUse advisory still queued for this session is an orphan
+            // from a prior run that was cancelled or dropped before its next-turn
+            // drain — a PreToolUse advisory only lives within a single reply's
+            // loop. Clear it here, on the generic reply path (elicitation
+            // responses return early above and never reach this point), so a
+            // cancelled run on ANY driver — ACP, orchestrator, or otherwise —
+            // can't leak stale advice into this fresh turn.
+            self.discard_pre_tool_advisories(&session_config.id).await;
+
             let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
@@ -4647,6 +4656,39 @@ printf '%s' '{{"hookSpecificOutput":{{"hookEventName":"SessionStart","additional
             agent.drain_pre_tool_advisories(session_id).await.is_empty(),
             "discarding must drop PreToolUse advisories orphaned by a cancelled run"
         );
+    }
+
+    #[tokio::test]
+    async fn reply_clears_orphaned_pre_tool_advisory_before_the_turn() -> Result<()> {
+        // Regression (codex #10361): a PreToolUse advisory queued by a run that
+        // was cancelled before its drain must NOT leak into the next reply on the
+        // same session. reply() clears the buffer at entry, generically —
+        // independent of which driver (ACP, orchestrator, …) cancelled the prior
+        // run.
+        let env = SessionStartHookTestEnv::new()?; // SessionStart hook emits no advisory
+        let provider = Arc::new(CountingTextProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        agent
+            .queue_pre_tool_advisory(&session_id, vec!["STALE_LEAK_ADVISORY".to_string()])
+            .await;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let texts = visible_texts(&messages);
+
+        assert!(
+            !texts.iter().any(|t| t.contains("STALE_LEAK_ADVISORY")),
+            "an orphaned PreToolUse advisory must be cleared at reply entry, not injected into the next turn"
+        );
+        assert!(
+            agent
+                .drain_pre_tool_advisories(&session_id)
+                .await
+                .is_empty(),
+            "the buffer must be empty after reply cleared it at entry"
+        );
+        Ok(())
     }
 
     #[tokio::test]
