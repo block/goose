@@ -774,6 +774,17 @@
     ]
   },
   {
+    "id": "tap",
+    "name": "Tap",
+    "description": "Authenticated browser MCP that drives your own logged-in Chrome so credentials stay local; compiles a task into a deterministic .plan.json program replayed at zero LLM tokens",
+    "command": "npx -y @taprun/cli mcp start",
+    "link": "https://github.com/LeonTing1010/tap",
+    "installation_notes": "Install using npx package manager. No API key required; authentication uses your own logged-in Chrome session.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "tavily",
     "name": "Tavily Web Search",
     "description": "Web search capabilities powered by Tavily",
