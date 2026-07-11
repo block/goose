@@ -540,6 +540,33 @@
     ]
   },
   {
+    "id": "nora",
+    "name": "Nora",
+    "description": "Operate a self-hosted AI agent fleet from goose",
+    "command": "npx -y @noraai/mcp-server",
+    "link": "https://github.com/solomon2773/nora",
+    "installation_notes": "Install using npx. Requires a Nora backend URL and workspace API key. Destructive tools are disabled by default.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "NORA_API_URL",
+        "description": "Base URL of your Nora backend API",
+        "required": true
+      },
+      {
+        "name": "NORA_API_KEY",
+        "description": "Nora workspace API key",
+        "required": true
+      },
+      {
+        "name": "NORA_MCP_ALLOW_DESTRUCTIVE",
+        "description": "Set to true to register destructive tools such as delete_agent",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "nostrbook-mcp",
     "name": "NostrBook",
     "description": "Nostr protocol integration for decentralized social",
