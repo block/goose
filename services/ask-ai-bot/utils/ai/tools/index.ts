@@ -220,14 +220,21 @@ export const aiTools = {
         }
 
         return results
-          .map(
-            (r) =>
-              `**#${r.number}** (${r.state}) - ${r.title}\n` +
+          .map((r) => {
+            const status =
+              r.state === "closed"
+                ? r.isMerged
+                  ? "merged"
+                  : "closed"
+                : r.state;
+            return (
+              `**#${r.number}** (${status}) - ${r.title}\n` +
               `Author: ${r.author} | Created: ${r.createdAt.slice(0, 10)} | Comments: ${r.comments}\n` +
               `Labels: ${r.labels.join(", ") || "none"}\n` +
               `${r.body ? truncateBody(r.body) + "\n" : ""}` +
-              `URL: <${r.url}>`,
-          )
+              `URL: <${r.url}>`
+            );
+          })
           .join("\n\n");
       } catch (error) {
         const errorMsg =
@@ -261,9 +268,15 @@ export const aiTools = {
       try {
         const item = await getGitHubItem(issueNumber);
 
+        const status =
+          item.state === "closed"
+            ? item.isMerged
+              ? "merged"
+              : "closed"
+            : item.state;
         let result =
           `## #${item.number}: ${item.title}\n` +
-          `**State:** ${item.state} | **Author:** ${item.author}\n` +
+          `**State:** ${status} | **Author:** ${item.author}\n` +
           `**Created:** ${item.createdAt} | **Updated:** ${item.updatedAt}\n` +
           `**Labels:** ${item.labels.join(", ") || "none"}\n` +
           `**URL:** <${item.url}>\n\n`;

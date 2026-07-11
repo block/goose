@@ -18,6 +18,7 @@ export interface GitHubItem {
   number: number;
   title: string;
   state: string;
+  isMerged: boolean;
   author: string;
   createdAt: string;
   updatedAt: string;
@@ -54,10 +55,11 @@ export async function searchGitHub(
     per_page: limit,
   });
 
-  return response.data.items.map((item) => ({
+  return response.data.items.map((item: any) => ({
     number: item.number,
     title: item.title,
     state: item.state,
+    isMerged: !!item.pull_request?.merged_at,
     author: item.user?.login ?? "unknown",
     createdAt: item.created_at,
     updatedAt: item.updated_at,
@@ -79,11 +81,12 @@ export async function getGitHubItem(number: number): Promise<GitHubItem> {
     issue_number: number,
   });
 
-  const item = response.data;
+  const item: any = response.data;
   return {
     number: item.number,
     title: item.title,
     state: item.state,
+    isMerged: !!item.pull_request?.merged_at,
     author: item.user?.login ?? "unknown",
     createdAt: item.created_at,
     updatedAt: item.updated_at,
