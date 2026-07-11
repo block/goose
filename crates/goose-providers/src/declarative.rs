@@ -27,6 +27,7 @@ pub(crate) mod declarative_providers {
         inception,
         llama_swap,
         lmstudio,
+        meta,
         minimax,
         mistral,
         moonshot,
