@@ -7,7 +7,7 @@ import { searchDocs } from "./docs-search";
 import { viewDocs } from "./docs-viewer";
 import { getGitHubItem, getGitHubItemComments, searchGitHub } from "./github";
 
-function truncateBody(body: string, maxLen: number = 3000): string {
+function truncateBody(body: string, maxLen: number = 500): string {
   return body.length > maxLen ? body.slice(0, maxLen) + "..." : body;
 }
 
