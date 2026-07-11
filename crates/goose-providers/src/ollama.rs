@@ -571,6 +571,7 @@ mod tests {
             fast_model: None,
             preserves_thinking: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
         }
     }

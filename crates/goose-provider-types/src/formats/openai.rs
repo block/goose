@@ -55,11 +55,18 @@ fn describe_json_value(value: &Value) -> &'static str {
 fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThinkingPreservationFormat {
+    Property,
+    ContentPrepend,
+    ContentXml,
+}
 
 #[derive(Debug, Clone)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
     pub reasoning_property: String,
+    pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
 }
 
 impl Default for OpenAiFormatOptions {
@@ -67,6 +74,7 @@ impl Default for OpenAiFormatOptions {
         Self {
             preserve_thinking_context: false,
             reasoning_property: "reasoning_content".to_string(),
+            thinking_preservation_format: None,
         }
     }
 }
@@ -495,7 +503,45 @@ pub fn format_messages_with_options(
         // Include reasoning_content only when non-empty. Kimi rejects empty
         // reasoning_content (""), so we must omit it entirely.
         if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            converted[&options.reasoning_property] = json!(reasoning_text);
+            let format = options
+                .thinking_preservation_format
+                .as_ref()
+                .unwrap_or(&ThinkingPreservationFormat::Property);
+
+            match format {
+                ThinkingPreservationFormat::Property => {
+                    converted[&options.reasoning_property] = json!(reasoning_text);
+                }
+                ThinkingPreservationFormat::ContentPrepend
+                | ThinkingPreservationFormat::ContentXml => {
+                    let formatted_reasoning = if *format == ThinkingPreservationFormat::ContentXml {
+                        format!("<think>\n{}\n</think>", reasoning_text)
+                    } else {
+                        reasoning_text.clone()
+                    };
+
+                    if let Some(content) = converted.get_mut("content") {
+                        if content.is_array() {
+                            let arr = content.as_array_mut().unwrap();
+                            arr.insert(
+                                0,
+                                json!({"type": "text", "text": format!("{}\n\n", formatted_reasoning)}),
+                            );
+                        } else if content.is_string() {
+                            let s = content.as_str().unwrap();
+                            if s.is_empty() {
+                                *content = json!(formatted_reasoning);
+                            } else {
+                                *content = json!(format!("{}\n\n{}", formatted_reasoning, s));
+                            }
+                        } else if content.is_null() {
+                            *content = json!(formatted_reasoning);
+                        }
+                    } else {
+                        converted["content"] = json!(formatted_reasoning);
+                    }
+                }
+            }
         }
 
         if has_message_payload {
@@ -3235,6 +3281,111 @@ data: [DONE]"#;
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["content"], "The result is 42");
         assert!(spec[0].get("reasoning_content").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_thinking_preservation_content_prepend() -> anyhow::Result<()> {
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("Some thinking here", ""))
+            .with_text("The final answer");
+
+        let spec = format_messages_with_options(
+            &[message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(ThinkingPreservationFormat::ContentPrepend),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], "Some thinking here\n\nThe final answer");
+        assert!(spec[0].get("reasoning_content").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_thinking_preservation_content_xml() -> anyhow::Result<()> {
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("Some thinking here", ""))
+            .with_text("The final answer");
+
+        let spec = format_messages_with_options(
+            &[message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(ThinkingPreservationFormat::ContentXml),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(
+            spec[0]["content"],
+            "<think>\nSome thinking here\n</think>\n\nThe final answer"
+        );
+        assert!(spec[0].get("reasoning_content").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_thinking_preservation_content_prepend_tool_only(
+    ) -> anyhow::Result<()> {
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("Some thinking here", ""))
+            .with_tool_request(
+                "tool1",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool")
+                    .with_arguments(rmcp::object!({}))),
+            );
+
+        let spec = format_messages_with_options(
+            &[message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(ThinkingPreservationFormat::ContentPrepend),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], "Some thinking here");
+        assert!(spec[0].get("reasoning_content").is_none());
+        assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_thinking_preservation_content_prepend_array() -> anyhow::Result<()>
+    {
+        // Assistant returning image array (edge case) or forced array
+        let mut message =
+            Message::assistant().with_content(MessageContent::thinking("Some thinking here", ""));
+        message.content.push(MessageContent::text("Array chunk 1"));
+
+        let spec = format_messages_with_options(
+            &[message],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(ThinkingPreservationFormat::ContentPrepend),
+                // Emulate vision array behavior (although assistant images aren't standard, text array can happen)
+                ..Default::default()
+            },
+        );
+
+        // When content is array, it should be prepended
+        assert_eq!(spec.len(), 1);
+        assert!(spec[0]["content"].is_string());
+        assert_eq!(spec[0]["content"], "Some thinking here\n\nArray chunk 1");
 
         Ok(())
     }

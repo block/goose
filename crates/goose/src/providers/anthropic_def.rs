@@ -118,8 +118,9 @@ mod tests {
             model_doc_link: None,
             setup_steps: vec![],
             fast_model: None,
-            preserves_thinking: false,
+            preserves_thinking: true,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
         }
     }

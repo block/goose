@@ -240,6 +240,7 @@ impl ProviderRegistry {
                 currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
                 reasoning: m.reasoning,
+                thinking_preservation_format: m.thinking_preservation_format.clone(),
                 extra_body: m.extra_body.clone(),
             })
             .collect();
@@ -395,8 +396,9 @@ mod tests {
             model_doc_link: None,
             setup_steps: vec![],
             fast_model: None,
-            preserves_thinking: false,
+            preserves_thinking: true,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
         }
     }

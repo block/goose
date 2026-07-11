@@ -151,6 +151,10 @@ pub struct DeclarativeProviderConfig {
     /// If not specified, a default is used depending on the engine (e.g., `reasoning_content` for OpenAI engine).
     #[serde(default)]
     pub reasoning_property: Option<String>,
+    /// Format to use when preserving thinking context (e.g. `content_prepend`, `content_xml`).
+    /// If not specified, falls back to `property` format using `reasoning_property`.
+    #[serde(default)]
+    pub thinking_preservation_format: Option<String>,
     /// Arbitrary additional fields to inject into the root of the outgoing JSON request payload.
     /// This is useful for providers that require custom parameters (e.g., `{"reasoning_format": "parsed"}`).
     #[serde(default)]

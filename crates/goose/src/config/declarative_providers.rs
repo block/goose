@@ -217,6 +217,7 @@ pub fn create_custom_provider(
         fast_model: None,
         preserves_thinking,
         reasoning_property: None,
+        thinking_preservation_format: None,
         extra_body: None,
     };
 
@@ -299,6 +300,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             fast_model: existing_config.fast_model.clone(),
             preserves_thinking,
             reasoning_property: existing_config.reasoning_property,
+            thinking_preservation_format: existing_config.thinking_preservation_format,
             extra_body: existing_config.extra_body,
         };
 
@@ -546,7 +548,7 @@ mod tests {
             api_key_env: String::new(),
             base_url: "https://router.huggingface.co/v1".to_string(),
             models: vec![ModelInfo {
-                name: "test/model".to_string(),
+                name: "meta-llama/Llama-3.1-70B-Instruct".to_string(),
                 resolved_model: None,
                 context_limit: 128_000,
                 input_token_cost: None,
@@ -554,6 +556,8 @@ mod tests {
                 currency: None,
                 supports_cache_control: None,
                 reasoning: false,
+                extra_body: None,
+                thinking_preservation_format: None,
             }],
             headers: None,
             timeout_seconds: None,
@@ -565,10 +569,11 @@ mod tests {
             dynamic_models: Some(false),
             skip_canonical_filtering: false,
             model_doc_link: None,
-            setup_steps: Vec::new(),
+            setup_steps: vec![],
             fast_model: None,
-            preserves_thinking: true,
+            preserves_thinking: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
         }
     }

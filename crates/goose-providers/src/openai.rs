@@ -137,7 +137,9 @@ pub struct OpenAiProvider {
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
     reasoning_property: Option<String>,
+    thinking_preservation_format: Option<String>,
     extra_body: Option<serde_json::Value>,
+    model_thinking_preservation_formats: Option<HashMap<String, String>>,
     model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
     #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
@@ -161,7 +163,9 @@ pub struct OpenAiProviderBuilder {
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
     reasoning_property: Option<String>,
+    thinking_preservation_format: Option<String>,
     extra_body: Option<serde_json::Value>,
+    model_thinking_preservation_formats: Option<HashMap<String, String>>,
     model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
 }
 
@@ -180,7 +184,9 @@ impl OpenAiProviderBuilder {
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
+            model_thinking_preservation_formats: None,
             model_extra_bodies: None,
         }
     }
@@ -258,8 +264,21 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn thinking_preservation_format(mut self, format: Option<String>) -> Self {
+        self.thinking_preservation_format = format;
+        self
+    }
+
     pub fn extra_body(mut self, extra_body: Option<serde_json::Value>) -> Self {
         self.extra_body = extra_body;
+        self
+    }
+
+    pub fn model_thinking_preservation_formats(
+        mut self,
+        formats: Option<HashMap<String, String>>,
+    ) -> Self {
+        self.model_thinking_preservation_formats = formats;
         self
     }
 
@@ -285,7 +304,9 @@ impl OpenAiProviderBuilder {
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
             reasoning_property: self.reasoning_property,
+            thinking_preservation_format: self.thinking_preservation_format,
             extra_body: self.extra_body,
+            model_thinking_preservation_formats: self.model_thinking_preservation_formats,
             model_extra_bodies: self.model_extra_bodies,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -308,7 +329,9 @@ impl OpenAiProvider {
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
+            model_thinking_preservation_formats: None,
             model_extra_bodies: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -711,6 +734,25 @@ impl Provider for OpenAiProvider {
                 Ok(super::base::stream_from_single_message(message, usage))
             }
         } else {
+            let format_str = self
+                .model_thinking_preservation_formats
+                .as_ref()
+                .and_then(|m| m.get(&model_config.model_name))
+                .or(self.thinking_preservation_format.as_ref());
+
+            let thinking_preservation_format = match format_str.map(|s| s.as_str()) {
+                Some("content_prepend") => {
+                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentPrepend)
+                }
+                Some("content_xml") => {
+                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentXml)
+                }
+                Some("property") => {
+                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::Property)
+                }
+                _ => None,
+            };
+
             let payload = create_request_with_options(
                 model_config,
                 system,
@@ -724,6 +766,7 @@ impl Provider for OpenAiProvider {
                         .reasoning_property
                         .clone()
                         .unwrap_or_else(|| "reasoning_content".to_string()),
+                    thinking_preservation_format,
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload);
@@ -793,6 +836,22 @@ pub fn from_declarative_config(
         for m in &config.models {
             if let Some(eb) = &m.extra_body {
                 map.insert(m.name.clone(), eb.clone());
+            }
+        }
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
+    } else {
+        None
+    };
+
+    let model_thinking_preservation_formats = if !config.models.is_empty() {
+        let mut map = HashMap::new();
+        for m in &config.models {
+            if let Some(format) = &m.thinking_preservation_format {
+                map.insert(m.name.clone(), format.clone());
             }
         }
         if map.is_empty() {
@@ -877,7 +936,9 @@ pub fn from_declarative_config(
         .skip_canonical_filtering(config.skip_canonical_filtering)
         .preserve_thinking_context(config.preserves_thinking)
         .reasoning_property(config.reasoning_property)
+        .thinking_preservation_format(config.thinking_preservation_format)
         .extra_body(config.extra_body)
+        .model_thinking_preservation_formats(model_thinking_preservation_formats)
         .model_extra_bodies(model_extra_bodies))
 }
 
@@ -937,7 +998,9 @@ mod tests {
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
+            model_thinking_preservation_formats: None,
             model_extra_bodies: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -1224,6 +1287,7 @@ mod tests {
             fast_model: None,
             preserves_thinking: false,
             reasoning_property: None,
+            thinking_preservation_format: None,
             extra_body: None,
         }
     }
