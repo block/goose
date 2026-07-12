@@ -248,6 +248,14 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     Ok(())
 }
 
+fn trailing_user_messages(messages: &[Message]) -> Vec<&Message> {
+    messages
+        .iter()
+        .rev()
+        .take_while(|message| message.role == Role::User)
+        .collect()
+}
+
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
     let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
@@ -268,18 +276,13 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         .await?;
 
     let session = session_manager.get_session(&session_id, true).await?;
-    let user_messages_after_last_assistant: Vec<&Message> =
-        if let Some(conv) = &session.conversation {
-            conv.messages()
-                .iter()
-                .rev()
-                .take_while(|m| m.role != Role::Assistant)
-                .collect()
-        } else {
-            Vec::new()
-        };
+    let trailing_user_messages: Vec<&Message> = if let Some(conv) = &session.conversation {
+        trailing_user_messages(conv.messages())
+    } else {
+        Vec::new()
+    };
 
-    if let Some(oldest_user) = user_messages_after_last_assistant.last() {
+    if let Some(oldest_user) = trailing_user_messages.last() {
         if let Some(message_id) = oldest_user.id.as_deref() {
             session_manager
                 .truncate_conversation_from_message(&session_id, message_id)
@@ -291,10 +294,15 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         }
     }
 
-    let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
+    let trailing_user_visible_messages = trailing_user_messages
+        .into_iter()
+        .filter(|message| message.is_user_visible())
+        .collect::<Vec<_>>();
+
+    let prompt_with_context = if trailing_user_visible_messages.is_empty() {
         prompt
     } else {
-        let history = user_messages_after_last_assistant
+        let history = trailing_user_visible_messages
             .iter()
             .rev() // back to chronological order
             .map(|m| m.as_concat_text())
@@ -378,6 +386,35 @@ pub async fn handle_term_info() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trailing_shell_history_excludes_hidden_user_messages_without_mutating_history() {
+        let messages = vec![
+            Message::assistant().with_text("previous response"),
+            Message::user().with_text("visible prompt one"),
+            Message::user()
+                .with_text(goose::hints::format_subdirectory_hint_message_text(
+                    "subdir_hints:/workspace/subdirectory",
+                    "hidden subdirectory hint",
+                ))
+                .with_visibility(false, true),
+            Message::user().with_text("visible prompt two"),
+        ];
+        let original_messages = messages.clone();
+
+        let trailing_messages = trailing_user_messages(&messages);
+        let truncation_boundary = trailing_messages.last().copied();
+        let history = trailing_messages
+            .iter()
+            .filter(|message| message.is_user_visible())
+            .rev()
+            .map(|message| message.as_concat_text())
+            .collect::<Vec<_>>();
+
+        assert_eq!(history, ["visible prompt one", "visible prompt two"]);
+        assert_eq!(truncation_boundary, messages.get(1));
+        assert_eq!(messages, original_messages);
+    }
 
     #[test]
     fn render_term_init_script_includes_nushell_hooks() {
