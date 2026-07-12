@@ -1438,8 +1438,10 @@ pub fn create_request_with_options(
     }
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
-    let is_reasoning_model = is_openai_responses_model(&model_name);
-    let reasoning_effort = if is_reasoning_model {
+    let is_openai_reasoning = is_openai_responses_model(&model_name);
+    let supports_reasoning = is_openai_reasoning || model_config.reasoning.unwrap_or(false);
+
+    let reasoning_effort = if supports_reasoning {
         model_config
             .thinking_effort()
             .map_or(legacy_reasoning_effort, |effort| {
@@ -1450,7 +1452,7 @@ pub fn create_request_with_options(
     };
 
     let system_message = json!({
-        "role": if is_reasoning_model { "developer" } else { "system" },
+        "role": if is_openai_reasoning { "developer" } else { "system" },
         "content": system
     });
 
@@ -1475,7 +1477,7 @@ pub fn create_request_with_options(
         payload["tools"] = json!(tools_spec);
     }
 
-    if !is_reasoning_model {
+    if !is_openai_reasoning {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
@@ -1487,7 +1489,7 @@ pub fn create_request_with_options(
     // lmstudio) sending the historic 4096 default truncates non-trivial
     // responses; omitting the field lets the server use its own max.
     if let Some(max_tokens) = model_config.max_tokens {
-        let key = if is_reasoning_model {
+        let key = if is_openai_reasoning {
             "max_completion_tokens"
         } else {
             "max_tokens"
