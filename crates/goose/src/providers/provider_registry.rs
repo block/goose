@@ -62,14 +62,19 @@ impl ProviderEntry {
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
-        if model.context_limit.is_none() {
+        if model.context_limit.is_none() || model.reasoning.is_none() {
             if let Some(info) = self
                 .metadata
                 .known_models
                 .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
+                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name))
             {
-                model.context_limit = Some(info.context_limit);
+                if model.context_limit.is_none() && info.context_limit > 0 {
+                    model.context_limit = Some(info.context_limit);
+                }
+                if model.reasoning.is_none() {
+                    model.reasoning = Some(info.reasoning);
+                }
             }
         }
 

@@ -1450,7 +1450,9 @@ pub fn create_request_with_options(
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
     let is_openai_reasoning = is_openai_responses_model(&model_name);
-    let supports_reasoning = is_openai_reasoning || model_config.reasoning.unwrap_or(false);
+    let supports_reasoning = is_openai_reasoning
+        || model_config.reasoning.unwrap_or(false)
+        || format_options.reasoning_effort_mapping.is_some();
 
     let reasoning_effort = if supports_reasoning {
         model_config
