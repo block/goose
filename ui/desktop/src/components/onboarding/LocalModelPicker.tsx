@@ -195,6 +195,22 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
         setDownloadProgress(progress);
         if (progress.status === 'completed') {
           cleanup();
+          setModels((previousModels) =>
+            previousModels.map((model) =>
+              model.id === modelId
+                ? {
+                    ...model,
+                    status: {
+                      ...model.status,
+                      state: 'Downloaded',
+                      progressPercent: 100,
+                      bytesDownloaded: model.sizeBytes,
+                      totalBytes: model.sizeBytes,
+                    },
+                  }
+                : model
+            )
+          );
           await finishSetup(modelId);
         } else if (progress.status === 'failed') {
           cleanup();
