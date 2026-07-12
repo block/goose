@@ -236,8 +236,8 @@ pub struct ModelInfo {
     /// Whether this model supports cache control
     pub supports_cache_control: Option<bool>,
     /// Whether this model supports reasoning/thinking controls
-    #[serde(default)]
-    pub reasoning: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<bool>,
     /// Format to use when preserving thinking context
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thinking_preservation_format: Option<String>,
@@ -260,7 +260,7 @@ impl ModelInfo {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: None,
             thinking_preservation_format: None,
             extra_body: None,
             reasoning_effort_mapping: None,
@@ -282,7 +282,7 @@ impl ModelInfo {
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: None,
             thinking_preservation_format: None,
             extra_body: None,
             reasoning_effort_mapping: None,
@@ -330,7 +330,7 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         output_token_cost: None,
         currency: None,
         supports_cache_control: None,
-        reasoning,
+        reasoning: Some(reasoning),
         thinking_preservation_format: None,
         extra_body: None,
         reasoning_effort_mapping: None,

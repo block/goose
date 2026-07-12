@@ -73,7 +73,9 @@ impl ProviderEntry {
                     model.context_limit = Some(info.context_limit);
                 }
                 if model.reasoning.is_none() {
-                    model.reasoning = Some(info.reasoning);
+                    if let Some(r) = info.reasoning {
+                        model.reasoning = Some(r);
+                    }
                 }
             }
         }

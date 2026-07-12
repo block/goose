@@ -468,7 +468,7 @@ impl DatabricksProvider {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning,
+            reasoning: Some(reasoning),
             thinking_preservation_format: None,
             extra_body: None,
             reasoning_effort_mapping: None,
