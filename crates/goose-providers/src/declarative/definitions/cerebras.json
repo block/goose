@@ -8,6 +8,7 @@
   "models": [
     {
       "name": "gpt-oss-120b",
+      "reasoning": true,
       "context_limit": 131072,
       "thinking_preservation_format": "content_prepend",
       "reasoning_effort_mapping": {
@@ -20,6 +21,7 @@
     },
     {
       "name": "zai-glm-4.7",
+      "reasoning": true,
       "context_limit": 131072,
       "thinking_preservation_format": "content_xml",
       "extra_body": {
