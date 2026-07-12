@@ -244,6 +244,9 @@ pub struct ModelInfo {
     /// Model-specific extra body parameters
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra_body: Option<serde_json::Value>,
+    /// Mapping of reasoning effort to provider-specific values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort_mapping: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 impl ModelInfo {
@@ -260,6 +263,7 @@ impl ModelInfo {
             reasoning: false,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 
@@ -281,6 +285,7 @@ impl ModelInfo {
             reasoning: false,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 }
@@ -328,6 +333,7 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         reasoning,
         thinking_preservation_format: None,
         extra_body: None,
+        reasoning_effort_mapping: None,
     }
 }
 

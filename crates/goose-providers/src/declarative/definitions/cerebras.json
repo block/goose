@@ -28,5 +28,9 @@
   "supports_streaming": true,
   "preserves_thinking": true,
   "reasoning_property": "reasoning",
+  "reasoning_effort_mapping": {
+    "off": "none",
+    "max": "high"
+  },
   "dynamic_models": false
 }

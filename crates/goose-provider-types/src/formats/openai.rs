@@ -67,6 +67,7 @@ pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
     pub reasoning_property: String,
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
+    pub reasoning_effort_mapping: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 impl Default for OpenAiFormatOptions {
@@ -75,6 +76,7 @@ impl Default for OpenAiFormatOptions {
             preserve_thinking_context: false,
             reasoning_property: "reasoning_content".to_string(),
             thinking_preservation_format: None,
+            reasoning_effort_mapping: None,
         }
     }
 }
@@ -1456,6 +1458,19 @@ pub fn create_request_with_options(
             .map_or(legacy_reasoning_effort, |effort| {
                 if is_openai_reasoning {
                     openai_reasoning_effort_for_thinking(&model_name, effort)
+                } else if let Some(mapping) = &format_options.reasoning_effort_mapping {
+                    match mapping.get(&effort.to_string()) {
+                        Some(serde_json::Value::Null) => None,
+                        Some(serde_json::Value::String(s)) => Some(s.clone()),
+                        Some(v) => Some(v.to_string()),
+                        None => {
+                            if effort == ThinkingEffort::Off {
+                                None
+                            } else {
+                                Some(effort.to_string())
+                            }
+                        }
+                    }
                 } else {
                     if effort == ThinkingEffort::Off {
                         None
@@ -3515,7 +3530,6 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_with_thinking_preservation_content_prepend_array() -> anyhow::Result<()>
     {
-        // Assistant returning image array (edge case) or forced array
         let mut message =
             Message::assistant().with_content(MessageContent::thinking("Some thinking here", ""));
         message.content.push(MessageContent::text("Array chunk 1"));
@@ -4442,4 +4456,49 @@ data: [DONE]"#;
             }
         }
     }
+}
+
+#[test]
+fn test_reasoning_effort_mapping() {
+    let mut model_config = test_model_config("gemma-4-31b");
+    model_config.reasoning = Some(true);
+    model_config.set_thinking_effort(ThinkingEffort::Max);
+
+    let mut format_options = OpenAiFormatOptions::default();
+    let mut mapping = std::collections::HashMap::new();
+    mapping.insert(
+        "max".to_string(),
+        serde_json::Value::String("high".to_string()),
+    );
+    mapping.insert("off".to_string(), serde_json::Value::Null);
+    format_options.reasoning_effort_mapping = Some(mapping);
+
+    let req = create_request_with_options(
+        &model_config,
+        "system",
+        &[],
+        &[],
+        ImageFormat::Auto,
+        false,
+        &format_options,
+    )
+    .unwrap();
+
+    let req_json = serde_json::to_value(req).unwrap();
+    assert_eq!(req_json["reasoning_effort"], "high");
+
+    model_config.set_thinking_effort(ThinkingEffort::Off);
+    let req2 = create_request_with_options(
+        &model_config,
+        "system",
+        &[],
+        &[],
+        ImageFormat::Auto,
+        false,
+        &format_options,
+    )
+    .unwrap();
+
+    let req2_json = serde_json::to_value(req2).unwrap();
+    assert!(req2_json.get("reasoning_effort").is_none());
 }

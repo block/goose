@@ -159,6 +159,9 @@ pub struct DeclarativeProviderConfig {
     /// This is useful for providers that require custom parameters (e.g., `{"reasoning_format": "parsed"}`).
     #[serde(default)]
     pub extra_body: Option<serde_json::Value>,
+    /// Mapping of reasoning effort (e.g., "high", "low", "off") to provider-specific values
+    #[serde(default)]
+    pub reasoning_effort_mapping: Option<HashMap<String, serde_json::Value>>,
 }
 
 fn default_requires_auth() -> bool {

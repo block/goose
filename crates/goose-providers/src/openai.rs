@@ -141,6 +141,8 @@ pub struct OpenAiProvider {
     extra_body: Option<serde_json::Value>,
     model_thinking_preservation_formats: Option<HashMap<String, String>>,
     model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
+    reasoning_effort_mapping: Option<HashMap<String, serde_json::Value>>,
+    model_reasoning_effort_mapping: Option<HashMap<String, HashMap<String, serde_json::Value>>>,
     #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
@@ -167,6 +169,8 @@ pub struct OpenAiProviderBuilder {
     extra_body: Option<serde_json::Value>,
     model_thinking_preservation_formats: Option<HashMap<String, String>>,
     model_extra_bodies: Option<HashMap<String, serde_json::Value>>,
+    reasoning_effort_mapping: Option<HashMap<String, serde_json::Value>>,
+    model_reasoning_effort_mapping: Option<HashMap<String, HashMap<String, serde_json::Value>>>,
 }
 
 impl OpenAiProviderBuilder {
@@ -188,6 +192,8 @@ impl OpenAiProviderBuilder {
             extra_body: None,
             model_thinking_preservation_formats: None,
             model_extra_bodies: None,
+            reasoning_effort_mapping: None,
+            model_reasoning_effort_mapping: None,
         }
     }
 
@@ -290,6 +296,22 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn reasoning_effort_mapping(
+        mut self,
+        reasoning_effort_mapping: Option<HashMap<String, serde_json::Value>>,
+    ) -> Self {
+        self.reasoning_effort_mapping = reasoning_effort_mapping;
+        self
+    }
+
+    pub fn model_reasoning_effort_mapping(
+        mut self,
+        model_reasoning_effort_mapping: Option<HashMap<String, HashMap<String, serde_json::Value>>>,
+    ) -> Self {
+        self.model_reasoning_effort_mapping = model_reasoning_effort_mapping;
+        self
+    }
+
     pub fn build(self) -> OpenAiProvider {
         OpenAiProvider {
             api_client: self.api_client,
@@ -308,6 +330,8 @@ impl OpenAiProviderBuilder {
             extra_body: self.extra_body,
             model_thinking_preservation_formats: self.model_thinking_preservation_formats,
             model_extra_bodies: self.model_extra_bodies,
+            reasoning_effort_mapping: self.reasoning_effort_mapping,
+            model_reasoning_effort_mapping: self.model_reasoning_effort_mapping,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -333,6 +357,8 @@ impl OpenAiProvider {
             extra_body: None,
             model_thinking_preservation_formats: None,
             model_extra_bodies: None,
+            reasoning_effort_mapping: None,
+            model_reasoning_effort_mapping: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -481,6 +507,13 @@ impl OpenAiProvider {
             self.preserve_thinking_context
         };
 
+        let reasoning_effort_mapping = self
+            .model_reasoning_effort_mapping
+            .as_ref()
+            .and_then(|m| m.get(model_name))
+            .or(self.reasoning_effort_mapping.as_ref())
+            .cloned();
+
         OpenAiFormatOptions {
             preserve_thinking_context,
             reasoning_property: self
@@ -488,6 +521,7 @@ impl OpenAiProvider {
                 .clone()
                 .unwrap_or_else(|| "reasoning_content".to_string()),
             thinking_preservation_format,
+            reasoning_effort_mapping,
         }
     }
 
@@ -880,6 +914,22 @@ pub fn from_declarative_config(
         None
     };
 
+    let model_reasoning_effort_mapping = if !config.models.is_empty() {
+        let mut map = HashMap::new();
+        for m in &config.models {
+            if let Some(mapping) = &m.reasoning_effort_mapping {
+                map.insert(m.name.clone(), mapping.clone());
+            }
+        }
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
+    } else {
+        None
+    };
+
     if config.dynamic_models == Some(false) && custom_models.is_none() {
         return Err(anyhow::anyhow!(
             "Provider '{}' has dynamic_models: false but no static models listed; \
@@ -956,7 +1006,9 @@ pub fn from_declarative_config(
         .thinking_preservation_format(config.thinking_preservation_format)
         .extra_body(config.extra_body)
         .model_thinking_preservation_formats(model_thinking_preservation_formats)
-        .model_extra_bodies(model_extra_bodies))
+        .model_extra_bodies(model_extra_bodies)
+        .reasoning_effort_mapping(config.reasoning_effort_mapping)
+        .model_reasoning_effort_mapping(model_reasoning_effort_mapping))
 }
 
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -1019,6 +1071,8 @@ mod tests {
             extra_body: None,
             model_thinking_preservation_formats: None,
             model_extra_bodies: None,
+            reasoning_effort_mapping: None,
+            model_reasoning_effort_mapping: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -1306,6 +1360,7 @@ mod tests {
             reasoning_property: None,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 

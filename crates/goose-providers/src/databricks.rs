@@ -471,6 +471,7 @@ impl DatabricksProvider {
             reasoning,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 
