@@ -1491,27 +1491,44 @@ mod tests {
     fn build_format_options_merges_reasoning_effort_mapping() {
         let mut provider = make_provider("test");
         let mut base_map = HashMap::new();
-        base_map.insert("max".to_string(), serde_json::Value::String("high".to_string()));
-        base_map.insert("low".to_string(), serde_json::Value::String("low".to_string()));
+        base_map.insert(
+            "max".to_string(),
+            serde_json::Value::String("high".to_string()),
+        );
+        base_map.insert(
+            "low".to_string(),
+            serde_json::Value::String("low".to_string()),
+        );
         provider.reasoning_effort_mapping = Some(base_map);
 
         let mut model_map = HashMap::new();
         model_map.insert("off".to_string(), serde_json::Value::Null);
-        model_map.insert("max".to_string(), serde_json::Value::String("ultra".to_string()));
-        
+        model_map.insert(
+            "max".to_string(),
+            serde_json::Value::String("ultra".to_string()),
+        );
+
         let mut model_maps = HashMap::new();
         model_maps.insert("test-model".to_string(), model_map);
         provider.model_reasoning_effort_mapping = Some(model_maps);
 
         let options = provider.build_format_options("test-model");
-        let merged_map = options.reasoning_effort_mapping.expect("Should have a merged map");
-        
+        let merged_map = options
+            .reasoning_effort_mapping
+            .expect("Should have a merged map");
+
         // Base mapping preserved
-        assert_eq!(merged_map.get("low").unwrap(), &serde_json::Value::String("low".to_string()));
-        
+        assert_eq!(
+            merged_map.get("low").unwrap(),
+            &serde_json::Value::String("low".to_string())
+        );
+
         // Model mapping overrides base mapping
-        assert_eq!(merged_map.get("max").unwrap(), &serde_json::Value::String("ultra".to_string()));
-        
+        assert_eq!(
+            merged_map.get("max").unwrap(),
+            &serde_json::Value::String("ultra".to_string())
+        );
+
         // Model mapping added
         assert_eq!(merged_map.get("off").unwrap(), &serde_json::Value::Null);
     }

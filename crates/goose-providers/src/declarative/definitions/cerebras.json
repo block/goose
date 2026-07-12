@@ -24,6 +24,13 @@
       "reasoning": true,
       "context_limit": 131072,
       "thinking_preservation_format": "content_xml",
+      "reasoning_effort_mapping": {
+        "off": "none",
+        "low": null,
+        "medium": null,
+        "high": null,
+        "max": null
+      },
       "extra_body": {
         "reasoning_format": "parsed",
         "clear_thinking": false
