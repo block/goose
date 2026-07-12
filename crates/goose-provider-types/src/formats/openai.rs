@@ -503,24 +503,36 @@ pub fn format_messages_with_options(
         // Include reasoning_content only when non-empty. Kimi rejects empty
         // reasoning_content (""), so we must omit it entirely.
         if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            let format = options
-                .thinking_preservation_format
-                .as_ref()
-                .unwrap_or(&ThinkingPreservationFormat::Property);
+            // Unconditionally preserve it as a property so `merge_split_tool_call_messages` can find it.
+            converted[&options.reasoning_property] = json!(reasoning_text);
+        }
 
-            match format {
-                ThinkingPreservationFormat::Property => {
-                    converted[&options.reasoning_property] = json!(reasoning_text);
-                }
-                ThinkingPreservationFormat::ContentPrepend
-                | ThinkingPreservationFormat::ContentXml => {
+        if has_message_payload {
+            output.insert(0, converted);
+        }
+
+        messages_spec.extend(output);
+    }
+
+    merge_split_tool_call_messages(&mut messages_spec, &options.reasoning_property);
+
+    if options.preserve_thinking_context {
+        let format = options
+            .thinking_preservation_format
+            .as_ref()
+            .unwrap_or(&ThinkingPreservationFormat::Property);
+
+        if *format != ThinkingPreservationFormat::Property {
+            for msg in &mut messages_spec {
+                if let Some(reasoning_val) = msg.get(&options.reasoning_property) {
+                    let reasoning_text = reasoning_val.as_str().unwrap().to_string();
                     let formatted_reasoning = if *format == ThinkingPreservationFormat::ContentXml {
                         format!("<think>\n{}\n</think>", reasoning_text)
                     } else {
-                        reasoning_text.clone()
+                        reasoning_text
                     };
 
-                    if let Some(content) = converted.get_mut("content") {
+                    if let Some(content) = msg.get_mut("content") {
                         if content.is_array() {
                             let arr = content.as_array_mut().unwrap();
                             arr.insert(
@@ -538,20 +550,15 @@ pub fn format_messages_with_options(
                             *content = json!(formatted_reasoning);
                         }
                     } else {
-                        converted["content"] = json!(formatted_reasoning);
+                        msg["content"] = json!(formatted_reasoning);
                     }
+
+                    msg.as_object_mut().unwrap().remove(&options.reasoning_property);
                 }
             }
         }
-
-        if has_message_payload {
-            output.insert(0, converted);
-        }
-
-        messages_spec.extend(output);
     }
 
-    merge_split_tool_call_messages(&mut messages_spec, &options.reasoning_property);
     messages_spec
 }
 
@@ -3397,6 +3404,70 @@ data: [DONE]"#;
         assert_eq!(spec[0]["content"], "Some thinking here");
         assert!(spec[0].get("reasoning_content").is_none());
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_thinking_preservation_content_prepend_multiple_tools(
+    ) -> anyhow::Result<()> {
+        let message1 = Message::assistant()
+            .with_content(MessageContent::thinking("Shared thinking block", ""))
+            .with_tool_request(
+                "tool1",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool_1")
+                    .with_arguments(rmcp::object!({}))),
+            );
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result 1"),
+            ])),
+        );
+
+        let message2 = Message::assistant()
+            .with_content(MessageContent::thinking("Shared thinking block", ""))
+            .with_tool_request(
+                "tool2",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool_2")
+                    .with_arguments(rmcp::object!({}))),
+            );
+        let tool_result2 = Message::user().with_tool_response(
+            "tool2",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result 2"),
+            ])),
+        );
+
+        let spec = format_messages_with_options(
+            &[message1, tool_result1, message2, tool_result2],
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(ThinkingPreservationFormat::ContentPrepend),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(spec.len(), 3);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"], "Shared thinking block");
+        assert!(spec[0].get("reasoning_content").is_none());
+        assert_eq!(
+            spec[0]["tool_calls"].as_array().unwrap().len(),
+            2,
+            "Tool calls should be merged"
+        );
+        assert_eq!(
+            spec[0]["tool_calls"][0]["function"]["name"],
+            "test_tool_1"
+        );
+        assert_eq!(
+            spec[0]["tool_calls"][1]["function"]["name"],
+            "test_tool_2"
+        );
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[2]["role"], "tool");
 
         Ok(())
     }
