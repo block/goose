@@ -804,7 +804,7 @@ mod tests {
             model_info.resolved_model.as_deref(),
             Some("claude-opus-4.6")
         );
-        assert!(model_info.reasoning);
+        assert_eq!(model_info.reasoning, Some(true));
     }
 
     #[test]
