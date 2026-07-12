@@ -1539,8 +1539,9 @@ impl CliSession {
     }
 
     /// Await background extension loading if it hasn't completed yet, then surface any
-    /// failures and persist the now-complete extension state. Called at terminal-safe
-    /// checkpoints (between readline calls, before message processing).
+    /// failures. Extension state is persisted by the bulk loader itself, so this only
+    /// needs to refresh derived state. Called at terminal-safe checkpoints (between
+    /// readline calls, before message processing).
     async fn ensure_extensions_loaded(&mut self) -> Result<()> {
         if let Some(handle) = self.extension_loading.take() {
             let was_in_progress = !handle.is_finished();
@@ -1551,10 +1552,6 @@ impl CliSession {
                 .await
                 .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
             self.print_extension_failures(failures);
-
-            if let Err(e) = self.agent.persist_extension_state(&self.session_id).await {
-                tracing::warn!("Failed to save extension state: {}", e);
-            }
 
             if was_in_progress || self.loading_announced {
                 output::show_extensions_ready();
@@ -1567,22 +1564,33 @@ impl CliSession {
 
     fn print_extension_failures(&self, failures: Vec<ExtensionFailure>) {
         for failure in failures {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "  ⚠ Failed to start extension '{}' ({}), continuing without it",
-                    failure.label, failure.error
-                ))
-                .yellow()
-            );
-            eprintln!(
-                "{}",
-                style(format!(
-                    "    Hint: ask goose to help debug the '{}' extension",
-                    failure.label
-                ))
-                .dim()
-            );
+            if failure.label.is_empty() {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "  ⚠ Failed to start extensions ({})",
+                        failure.error
+                    ))
+                    .yellow()
+                );
+            } else {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "  ⚠ Failed to start extension '{}' ({}), continuing without it",
+                        failure.label, failure.error
+                    ))
+                    .yellow()
+                );
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "    Hint: ask goose to help debug the '{}' extension",
+                        failure.label
+                    ))
+                    .dim()
+                );
+            }
         }
     }
 
