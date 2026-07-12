@@ -507,12 +507,16 @@ impl OpenAiProvider {
             self.preserve_thinking_context
         };
 
-        let reasoning_effort_mapping = self
-            .model_reasoning_effort_mapping
-            .as_ref()
-            .and_then(|m| m.get(model_name))
-            .or(self.reasoning_effort_mapping.as_ref())
-            .cloned();
+        let mut reasoning_effort_mapping = self.reasoning_effort_mapping.clone();
+        if let Some(model_maps) = &self.model_reasoning_effort_mapping {
+            if let Some(model_map) = model_maps.get(model_name) {
+                if let Some(base_map) = &mut reasoning_effort_mapping {
+                    base_map.extend(model_map.clone());
+                } else {
+                    reasoning_effort_mapping = Some(model_map.clone());
+                }
+            }
+        }
 
         OpenAiFormatOptions {
             preserve_thinking_context,
@@ -1481,5 +1485,34 @@ mod tests {
         let options = provider.build_format_options("no_format");
         // Because there is a fallback format defined on the provider level, it should still preserve thinking.
         assert!(options.preserve_thinking_context);
+    }
+
+    #[test]
+    fn build_format_options_merges_reasoning_effort_mapping() {
+        let mut provider = make_provider("test");
+        let mut base_map = HashMap::new();
+        base_map.insert("max".to_string(), serde_json::Value::String("high".to_string()));
+        base_map.insert("low".to_string(), serde_json::Value::String("low".to_string()));
+        provider.reasoning_effort_mapping = Some(base_map);
+
+        let mut model_map = HashMap::new();
+        model_map.insert("off".to_string(), serde_json::Value::Null);
+        model_map.insert("max".to_string(), serde_json::Value::String("ultra".to_string()));
+        
+        let mut model_maps = HashMap::new();
+        model_maps.insert("test-model".to_string(), model_map);
+        provider.model_reasoning_effort_mapping = Some(model_maps);
+
+        let options = provider.build_format_options("test-model");
+        let merged_map = options.reasoning_effort_mapping.expect("Should have a merged map");
+        
+        // Base mapping preserved
+        assert_eq!(merged_map.get("low").unwrap(), &serde_json::Value::String("low".to_string()));
+        
+        // Model mapping overrides base mapping
+        assert_eq!(merged_map.get("max").unwrap(), &serde_json::Value::String("ultra".to_string()));
+        
+        // Model mapping added
+        assert_eq!(merged_map.get("off").unwrap(), &serde_json::Value::Null);
     }
 }
