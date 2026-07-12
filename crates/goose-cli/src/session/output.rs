@@ -177,6 +177,24 @@ pub fn hide_thinking() {
     }
 }
 
+pub fn show_loading_extensions_background() {
+    eprintln!(
+        "  {}",
+        style("⏳ loading extensions in background...").dim()
+    );
+}
+
+pub fn show_waiting_for_extensions() {
+    eprintln!(
+        "  {}",
+        style("⏳ waiting for extensions to finish loading...").dim()
+    );
+}
+
+pub fn show_extensions_ready() {
+    eprintln!("  {}", style("✓ extensions ready").green());
+}
+
 pub fn run_status_hook(status: &str) {
     if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
         let status = status.to_string();

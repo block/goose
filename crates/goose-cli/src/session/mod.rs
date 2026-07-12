@@ -20,8 +20,8 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, SessionBuilderConfig};
-use console::Color;
+pub use builder::{build_session, ExtensionFailure, ExtensionLoadOutcome, SessionBuilderConfig};
+use console::{style, Color};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -165,7 +165,7 @@ impl HistoryManager {
 }
 
 pub struct CliSession {
-    agent: Agent,
+    agent: Arc<Agent>,
     messages: Conversation,
     session_id: String,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
@@ -177,6 +177,8 @@ pub struct CliSession {
     retry_config: Option<RetryConfig>,
     output_format: String,
     stats: bool,
+    extension_loading: Option<AbortOnDropHandle<ExtensionLoadOutcome>>,
+    loading_announced: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,7 +250,7 @@ pub async fn classify_planner_response(
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        agent: Agent,
+        agent: Arc<Agent>,
         session_id: String,
         debug: bool,
         scheduled_job_id: Option<String>,
@@ -257,6 +259,7 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
         stats: bool,
+        extension_loading: Option<AbortOnDropHandle<ExtensionLoadOutcome>>,
     ) -> Self {
         let messages = agent
             .config
@@ -279,6 +282,8 @@ impl CliSession {
             retry_config,
             output_format,
             stats,
+            extension_loading,
+            loading_announced: false,
         }
     }
 
@@ -506,9 +511,17 @@ impl CliSession {
 
     async fn run_interactive(&mut self, prompt: Option<String>) -> Result<()> {
         if let Some(prompt) = prompt {
+            self.ensure_extensions_loaded().await?;
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default(), true)
                 .await?;
+        } else if self
+            .extension_loading
+            .as_ref()
+            .is_some_and(|h| !h.is_finished())
+        {
+            self.loading_announced = true;
+            output::show_loading_extensions_background();
         }
 
         self.update_completion_cache().await?;
@@ -518,6 +531,14 @@ impl CliSession {
         history_manager.load(&mut editor);
 
         loop {
+            let loading_finished = self
+                .extension_loading
+                .as_ref()
+                .is_some_and(|h| h.is_finished());
+            if loading_finished {
+                self.ensure_extensions_loaded().await?;
+            }
+
             self.display_context_usage().await?;
 
             let conversation_strings: Vec<String> = self
@@ -691,6 +712,7 @@ impl CliSession {
     ) -> Result<()> {
         match self.run_mode {
             RunMode::Normal => {
+                self.ensure_extensions_loaded().await?;
                 history.save(editor);
                 self.push_message(Message::user().with_text(content));
 
@@ -719,6 +741,7 @@ impl CliSession {
                 println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
             }
             RunMode::Plan => {
+                self.ensure_extensions_loaded().await?;
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
                 let (reasoner, reasoner_model_config) = get_reasoner().await?;
@@ -1038,6 +1061,7 @@ impl CliSession {
         };
 
         if should_summarize {
+            self.ensure_extensions_loaded().await?;
             self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
             output::show_thinking();
             self.process_agent_response(true, CancellationToken::default())
@@ -1135,6 +1159,7 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
+        self.ensure_extensions_loaded().await?;
         let message = Message::user().with_text(&prompt);
         let result = self
             .process_message(message, CancellationToken::default(), false)
@@ -1514,6 +1539,54 @@ impl CliSession {
         Ok(())
     }
 
+    /// Await background extension loading if it hasn't completed yet, then surface any
+    /// failures and persist the now-complete extension state. Called at terminal-safe
+    /// checkpoints (between readline calls, before message processing).
+    async fn ensure_extensions_loaded(&mut self) -> Result<()> {
+        if let Some(handle) = self.extension_loading.take() {
+            let was_in_progress = !handle.is_finished();
+            if was_in_progress {
+                output::show_waiting_for_extensions();
+            }
+            let outcome = handle
+                .await
+                .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
+            self.print_extension_failures(outcome.failures);
+
+            if let Err(e) = self.agent.persist_extension_state(&self.session_id).await {
+                tracing::warn!("Failed to save extension state: {}", e);
+            }
+
+            if was_in_progress || self.loading_announced {
+                output::show_extensions_ready();
+            }
+            self.loading_announced = false;
+            self.update_completion_cache().await?;
+        }
+        Ok(())
+    }
+
+    fn print_extension_failures(&self, failures: Vec<ExtensionFailure>) {
+        for failure in failures {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "  ⚠ Failed to start extension '{}' ({}), continuing without it",
+                    failure.label, failure.error
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!(
+                    "    Hint: ask goose to help debug the '{}' extension",
+                    failure.label
+                ))
+                .dim()
+            );
+        }
+    }
+
     /// Update the completion cache with fresh data
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
@@ -1642,6 +1715,8 @@ impl CliSession {
             output::render_error("Prompt name argument is required");
             return Ok(());
         }
+
+        self.ensure_extensions_loaded().await?;
 
         if opts.info {
             match self.get_prompt_info(&opts.name).await? {
