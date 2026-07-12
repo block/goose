@@ -13,8 +13,7 @@
     },
     {
       "name": "gemma-4-31b",
-      "context_limit": 131072,
-      "thinking_preservation_format": "content_prepend"
+      "context_limit": 131072
     },
     {
       "name": "zai-glm-4.7",
