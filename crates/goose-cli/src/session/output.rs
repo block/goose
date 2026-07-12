@@ -1,3 +1,4 @@
+use crate::session::builder::ExtensionFailure;
 use anstream::println;
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
@@ -193,6 +194,38 @@ pub fn show_waiting_for_extensions() {
 
 pub fn show_extensions_ready() {
     eprintln!("  {}", style("✓ extensions ready").green());
+}
+
+pub fn show_extension_failures(failures: &[ExtensionFailure]) {
+    for failure in failures {
+        if failure.label.is_empty() {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "  ⚠ Failed to start extensions ({})",
+                    failure.error
+                ))
+                .yellow()
+            );
+        } else {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "  ⚠ Failed to start extension '{}' ({}), continuing without it",
+                    failure.label, failure.error
+                ))
+                .yellow()
+            );
+            eprintln!(
+                "{}",
+                style(format!(
+                    "    Hint: ask goose to help debug the '{}' extension",
+                    failure.label
+                ))
+                .dim()
+            );
+        }
+    }
 }
 
 pub fn run_status_hook(status: &str) {
