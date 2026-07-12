@@ -1456,6 +1456,39 @@ Beyond single-model setups, goose supports [multi-model configurations](/docs/gu
 - **Planning Mode** - Use a dedicated planner model to create detailed project breakdowns before execution
 - **Subagents** - Delegate scoped tasks to isolated sessions to keep your primary workflow focused and efficient
 
+## Meta Muse Spark Reasoning Effort
+
+Meta's Muse Spark models support a configurable reasoning effort that maps to Meta's `reasoning_effort` request parameter:
+- **Low** - Faster responses, lighter reasoning
+- **Medium** - Balanced reasoning depth and latency
+- **High** - Deeper reasoning, higher latency
+- **Max** - Sent as `xhigh`, the deepest reasoning level Meta supports
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    When selecting a Muse Spark model, a "Thinking Effort" dropdown appears automatically. Select your preference and the setting persists across sessions.
+  </TabItem>
+
+  <TabItem value="cli" label="goose CLI">
+    When you run `goose configure` and select a Muse Spark model, you'll be prompted to choose a thinking effort:
+
+    ```
+    ◆  Select thinking effort:
+    │  ● Off - No extended thinking
+    │  ○ Low - Better latency, lighter reasoning
+    │  ○ Medium - Moderate thinking
+    │  ○ High - Deep reasoning
+    │  ○ Max - No constraints on thinking depth
+    ```
+
+    You can also set this globally with the `GOOSE_THINKING_EFFORT` environment variable (`off`, `low`, `medium`, `high`, or `max`).
+  </TabItem>
+</Tabs>
+
+:::note
+Muse Spark always reasons and has no way to disable it, so choosing `off` is clamped to `low` (the lightest level Meta supports) rather than omitting the `reasoning_effort` parameter.
+:::
+
 ## Gemini 3 Thinking Levels
 
 Gemini 3 models support configurable thinking levels to balance response latency and reasoning depth:
