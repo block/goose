@@ -1360,23 +1360,31 @@ impl Agent {
             .into_iter()
             .map(|config| {
                 let ext_manager = Arc::clone(&self.extension_manager);
+                let agent = Arc::clone(self);
                 let working_dir = working_dir.clone();
                 let container = container.clone();
                 let sid = session_id.to_string();
 
                 async move {
                     let name = config.name().to_string();
-                    match ext_manager
-                        .add_extension(config, working_dir, container.as_ref(), Some(&sid))
-                        .await
-                    {
+                    let result = match &config {
+                        ExtensionConfig::Frontend { .. } => {
+                            agent.insert_frontend_extension(config.clone()).await;
+                            Ok(())
+                        }
+                        _ => ext_manager
+                            .add_extension(config, working_dir, container.as_ref(), Some(&sid))
+                            .await
+                            .map_err(|e| e.to_string()),
+                    };
+
+                    match result {
                         Ok(_) => ExtensionLoadResult {
                             name,
                             success: true,
                             error: None,
                         },
-                        Err(e) => {
-                            let error_msg = e.to_string();
+                        Err(error_msg) => {
                             warn!("Failed to load extension {}: {}", name, error_msg);
                             ExtensionLoadResult {
                                 name,

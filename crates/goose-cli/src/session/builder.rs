@@ -14,7 +14,6 @@ use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::process;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tokio_util::task::AbortOnDropHandle;
 
 const EXTENSION_HINT_MAX_LEN: usize = 5;
@@ -162,35 +161,29 @@ pub struct ExtensionFailure {
 
 async fn load_extensions(
     agent: Arc<Agent>,
-    extensions_to_load: Vec<(String, ExtensionConfig)>,
+    extensions: Vec<ExtensionConfig>,
     session_id: &str,
 ) -> ExtensionLoadOutcome {
-    let mut set = JoinSet::new();
-
-    for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
-        let agent = agent.clone();
-        let cfg = extension.clone();
-        let sid = session_id.to_string();
-        set.spawn(async move { (id, agent.add_extension(cfg, &sid).await) });
-    }
-
-    let mut failed: Vec<(usize, anyhow::Error)> = Vec::new();
-    while let Some(result) = set.join_next().await {
-        match result {
-            Ok((_id, Ok(_))) => {}
-            Ok((id, Err(e))) => failed.push((id, e.into())),
-            Err(e) => tracing::error!("failed to add extension: {}", e),
+    let results = match agent.add_extensions_bulk(extensions, session_id).await {
+        Ok(results) => results,
+        Err(e) => {
+            tracing::error!("failed to load extensions: {}", e);
+            return ExtensionLoadOutcome {
+                failures: vec![ExtensionFailure {
+                    label: String::new(),
+                    error: e,
+                }],
+            };
         }
-    }
+    };
 
-    let failures: Vec<ExtensionFailure> = failed
+    let failures = results
         .into_iter()
-        .map(|(id, err)| {
-            let label = extensions_to_load
-                .get(id)
-                .map(|e| e.0.clone())
-                .unwrap_or_default();
-            ExtensionFailure { label, error: err }
+        .filter_map(|r| {
+            r.error.map(|error| ExtensionFailure {
+                label: r.name,
+                error: anyhow::anyhow!(error),
+            })
         })
         .collect();
 
@@ -419,19 +412,6 @@ async fn collect_extension_configs(
     Ok(all)
 }
 
-async fn resolve_and_load_extensions(
-    agent: Arc<Agent>,
-    extensions: Vec<ExtensionConfig>,
-    session_id: &str,
-) -> ExtensionLoadOutcome {
-    let extensions_to_load: Vec<(String, ExtensionConfig)> = extensions
-        .into_iter()
-        .map(|cfg| (cfg.name(), cfg))
-        .collect();
-
-    load_extensions(agent, extensions_to_load, session_id).await
-}
-
 async fn configure_session_prompts(
     session: &CliSession,
     config: &Config,
@@ -616,7 +596,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let loading_handle = tokio::spawn({
         let agent = agent_ptr.clone();
         let sid = session_id.clone();
-        async move { resolve_and_load_extensions(agent, extensions_for_provider, &sid).await }
+        async move { load_extensions(agent, extensions_for_provider, &sid).await }
     });
     let loading_handle = AbortOnDropHandle::new(loading_handle);
 
