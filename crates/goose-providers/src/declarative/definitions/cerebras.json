@@ -28,5 +28,6 @@
   ],
   "supports_streaming": true,
   "preserves_thinking": true,
-  "reasoning_property": "reasoning"
+  "reasoning_property": "reasoning",
+  "dynamic_models": false
 }
