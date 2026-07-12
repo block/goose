@@ -20,7 +20,7 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, ExtensionFailure, ExtensionLoadOutcome, SessionBuilderConfig};
+pub use builder::{build_session, ExtensionFailure, SessionBuilderConfig};
 use console::{style, Color};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
@@ -177,7 +177,7 @@ pub struct CliSession {
     retry_config: Option<RetryConfig>,
     output_format: String,
     stats: bool,
-    extension_loading: Option<AbortOnDropHandle<ExtensionLoadOutcome>>,
+    extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
     loading_announced: bool,
 }
 
@@ -259,7 +259,7 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
         stats: bool,
-        extension_loading: Option<AbortOnDropHandle<ExtensionLoadOutcome>>,
+        extension_loading: Option<AbortOnDropHandle<Vec<ExtensionFailure>>>,
     ) -> Self {
         let messages = agent
             .config
@@ -531,11 +531,11 @@ impl CliSession {
         history_manager.load(&mut editor);
 
         loop {
-            let loading_finished = self
+            if self
                 .extension_loading
                 .as_ref()
-                .is_some_and(|h| h.is_finished());
-            if loading_finished {
+                .is_some_and(|h| h.is_finished())
+            {
                 self.ensure_extensions_loaded().await?;
             }
 
@@ -710,9 +710,9 @@ impl CliSession {
         history: &HistoryManager,
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     ) -> Result<()> {
+        self.ensure_extensions_loaded().await?;
         match self.run_mode {
             RunMode::Normal => {
-                self.ensure_extensions_loaded().await?;
                 history.save(editor);
                 self.push_message(Message::user().with_text(content));
 
@@ -741,7 +741,6 @@ impl CliSession {
                 println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
             }
             RunMode::Plan => {
-                self.ensure_extensions_loaded().await?;
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
                 let (reasoner, reasoner_model_config) = get_reasoner().await?;
@@ -1548,10 +1547,10 @@ impl CliSession {
             if was_in_progress {
                 output::show_waiting_for_extensions();
             }
-            let outcome = handle
+            let failures = handle
                 .await
                 .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
-            self.print_extension_failures(outcome.failures);
+            self.print_extension_failures(failures);
 
             if let Err(e) = self.agent.persist_extension_state(&self.session_id).await {
                 tracing::warn!("Failed to save extension state: {}", e);

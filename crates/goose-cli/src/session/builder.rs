@@ -150,10 +150,6 @@ impl Default for SessionBuilderConfig {
     }
 }
 
-pub struct ExtensionLoadOutcome {
-    pub failures: Vec<ExtensionFailure>,
-}
-
 pub struct ExtensionFailure {
     pub label: String,
     pub error: anyhow::Error,
@@ -163,21 +159,19 @@ async fn load_extensions(
     agent: Arc<Agent>,
     extensions: Vec<ExtensionConfig>,
     session_id: &str,
-) -> ExtensionLoadOutcome {
+) -> Vec<ExtensionFailure> {
     let results = match agent.add_extensions_bulk(extensions, session_id).await {
         Ok(results) => results,
         Err(e) => {
             tracing::error!("failed to load extensions: {}", e);
-            return ExtensionLoadOutcome {
-                failures: vec![ExtensionFailure {
-                    label: String::new(),
-                    error: e,
-                }],
-            };
+            return vec![ExtensionFailure {
+                label: String::new(),
+                error: e,
+            }];
         }
     };
 
-    let failures = results
+    results
         .into_iter()
         .filter_map(|r| {
             r.error.map(|error| ExtensionFailure {
@@ -185,9 +179,7 @@ async fn load_extensions(
                 error: anyhow::anyhow!(error),
             })
         })
-        .collect();
-
-    ExtensionLoadOutcome { failures }
+        .collect()
 }
 
 struct ResolvedProviderConfig {
