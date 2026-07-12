@@ -5,7 +5,7 @@ use std::fmt;
 use std::path::Path;
 
 use crate::agents::extension::ExtensionConfig;
-use crate::agents::types::RetryConfig;
+use crate::agents::types::{RetryConfig, SuccessCheck};
 use crate::recipe::read_recipe_file_content::read_recipe_file;
 use crate::recipe::yaml_format_utils::reformat_fields_with_multiline_values;
 use crate::utils::contains_unicode_tags;
@@ -270,7 +270,11 @@ impl Recipe {
         }
     }
 
-    /// Returns true if harmful content is detected in instructions, prompt, or activities fields
+    /// Returns true if harmful hidden Unicode Tags Block characters are detected
+    /// in text fields. This is the hard-blocker used by save/schedule — recipes
+    /// that fail this check cannot be saved or scheduled.
+    /// For a broader scan that also warns about command-executing extensions and
+    /// retry shell checks, use `get_security_warnings()` instead.
     pub fn check_for_security_warnings(&self) -> bool {
         if [self.instructions.as_deref(), self.prompt.as_deref()]
             .iter()
@@ -281,12 +285,78 @@ impl Recipe {
         }
 
         if let Some(activities) = &self.activities {
-            return activities
+            if activities
                 .iter()
-                .any(|activity| contains_unicode_tags(activity));
+                .any(|activity| contains_unicode_tags(activity))
+            {
+                return true;
+            }
         }
 
         false
+    }
+
+    /// Returns a list of human-readable warnings about dangerous fields in this recipe
+    pub fn get_security_warnings(&self) -> Vec<String> {
+        let mut warnings = Vec::new();
+
+        if let Some(instructions) = &self.instructions {
+            if contains_unicode_tags(instructions) {
+                warnings
+                    .push("instructions field contains hidden Unicode tag characters".to_string());
+            }
+        }
+        if let Some(prompt) = &self.prompt {
+            if contains_unicode_tags(prompt) {
+                warnings.push("prompt field contains hidden Unicode tag characters".to_string());
+            }
+        }
+        if let Some(activities) = &self.activities {
+            for (i, activity) in activities.iter().enumerate() {
+                if contains_unicode_tags(activity) {
+                    warnings.push(format!(
+                        "activity[{}] contains hidden Unicode tag characters",
+                        i
+                    ));
+                }
+            }
+        }
+
+        if let Some(extensions) = &self.extensions {
+            for ext in extensions {
+                match ext {
+                    ExtensionConfig::Stdio {
+                        name, cmd, args, ..
+                    } if !cmd.is_empty() => {
+                        let args_str = if args.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" {}", args.join(" "))
+                        };
+                        warnings.push(format!(
+                            "extension '{}' runs command: {}{}",
+                            name, cmd, args_str
+                        ));
+                    }
+                    ExtensionConfig::InlinePython { name, .. } => {
+                        warnings.push(format!("extension '{}' runs inline Python code", name));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(retry) = &self.retry {
+            for check in &retry.checks {
+                let SuccessCheck::Shell { command } = check;
+                warnings.push(format!("retry check runs shell command: {}", command));
+            }
+            if let Some(cmd) = &retry.on_failure {
+                warnings.push(format!("retry on_failure runs command: {}", cmd));
+            }
+        }
+
+        warnings
     }
 
     pub fn to_yaml(&self) -> Result<String> {
@@ -789,6 +859,253 @@ isGlobal: true"#;
         // Malicious prompt
         recipe.prompt = Some(format!("prompt{}", '\u{E0042}'));
         assert!(recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_get_security_warnings_stdio_extension_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::Stdio {
+                name: "evil".to_string(),
+                description: String::new(),
+                cmd: "sh".to_string(),
+                args: vec!["-c".to_string(), "id".to_string()],
+                envs: Default::default(),
+                env_keys: vec![],
+                timeout: Some(30),
+                cwd: None,
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.get_security_warnings().is_empty());
+    }
+
+    #[test]
+    fn test_check_for_security_warnings_stdio_empty_cmd_not_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::Stdio {
+                name: "benign".to_string(),
+                description: String::new(),
+                cmd: String::new(),
+                args: vec![],
+                envs: Default::default(),
+                env_keys: vec![],
+                timeout: Some(30),
+                cwd: None,
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_check_for_security_warnings_builtin_not_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::Builtin {
+                name: "developer".to_string(),
+                description: String::new(),
+                display_name: None,
+                timeout: Some(300),
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_check_for_security_warnings_platform_not_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::Platform {
+                name: "analyze".to_string(),
+                description: String::new(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_check_for_security_warnings_streamable_http_not_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::StreamableHttp {
+                name: "remote".to_string(),
+                description: String::new(),
+                uri: "https://example.com/mcp".to_string(),
+                envs: Default::default(),
+                env_keys: vec![],
+                headers: std::collections::HashMap::new(),
+                timeout: Some(30),
+                socket: None,
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.check_for_security_warnings());
+    }
+
+    #[test]
+    fn test_get_security_warnings_inline_python_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: Some(vec![ExtensionConfig::InlinePython {
+                name: "injector".to_string(),
+                description: String::new(),
+                code: "import os; os.system('evil')".to_string(),
+                timeout: Some(30),
+                dependencies: None,
+                available_tools: vec![],
+            }]),
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.get_security_warnings().is_empty());
+    }
+
+    #[test]
+    fn test_get_security_warnings_retry_shell_check_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: None,
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: Some(RetryConfig {
+                max_retries: 3,
+                checks: vec![SuccessCheck::Shell {
+                    command: "id > /tmp/pwned".to_string(),
+                }],
+                on_failure: None,
+                timeout_seconds: Some(60),
+                on_failure_timeout_seconds: None,
+            }),
+        };
+        assert!(!recipe.get_security_warnings().is_empty());
+    }
+
+    #[test]
+    fn test_get_security_warnings_retry_on_failure_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: None,
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: Some(RetryConfig {
+                max_retries: 3,
+                checks: vec![],
+                on_failure: Some("rm -rf /".to_string()),
+                timeout_seconds: Some(60),
+                on_failure_timeout_seconds: None,
+            }),
+        };
+        assert!(!recipe.get_security_warnings().is_empty());
+    }
+
+    #[test]
+    fn test_check_for_security_warnings_clean_recipe_not_flagged() {
+        let recipe = Recipe {
+            version: "1.0.0".to_string(),
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            instructions: Some("clean".to_string()),
+            prompt: Some("clean".to_string()),
+            extensions: None,
+            settings: None,
+            activities: None,
+            author: None,
+            parameters: None,
+            response: None,
+            sub_recipes: None,
+            retry: None,
+        };
+        assert!(!recipe.check_for_security_warnings());
     }
 
     #[test]
