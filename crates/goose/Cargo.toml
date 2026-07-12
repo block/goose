@@ -244,6 +244,7 @@ keyring = { workspace = true, features = ["sync-secret-service"], optional = tru
 libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
+jsonwebtoken = { version = "10.2", default-features = false, features = ["rust_crypto", "use_pem"] }
 serial_test = { workspace = true }
 mockall = { version = "0.15", default-features = false }
 wiremock = { workspace = true }

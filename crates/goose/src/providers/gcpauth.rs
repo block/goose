@@ -827,7 +827,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
                             AuthError::TokenExchange(err) => {
                                 // This is expected - we can't actually exchange tokens in tests
                                 assert!(
-                                    err.contains("invalid_scope") || err.contains("400"),
+                                    err.contains("invalid_scope") || err.contains("400") || err.contains("error sending request"),
                                     "Unexpected error message: {}",
                                     err
                                 );

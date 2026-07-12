@@ -701,9 +701,7 @@ mod tests {
         let temp_dir = tempfile::tempdir()?;
         let session_manager = std::sync::Arc::new(
             crate::session::SessionManager::new(
-                crate::session::sqlite::SqliteSessionStore::new(
-                    temp_dir.path().join("sessions.db")
-                ).await?
+                temp_dir.path().to_path_buf()
             )
         );
         let config = crate::agents::AgentConfig::new(
