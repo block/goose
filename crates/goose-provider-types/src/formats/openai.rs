@@ -1454,7 +1454,15 @@ pub fn create_request_with_options(
         model_config
             .thinking_effort()
             .map_or(legacy_reasoning_effort, |effort| {
-                openai_reasoning_effort_for_thinking(&model_name, effort)
+                if is_openai_reasoning {
+                    openai_reasoning_effort_for_thinking(&model_name, effort)
+                } else {
+                    if effort == ThinkingEffort::Off {
+                        None
+                    } else {
+                        Some(effort.to_string())
+                    }
+                }
             })
     } else {
         None
@@ -2640,7 +2648,7 @@ mod tests {
     fn test_create_request_non_openai_reasoning_effort() -> anyhow::Result<()> {
         let mut model_config = test_model_config("gemma-4-31b")
             .with_max_tokens(Some(1024))
-            .with_thinking_effort(ThinkingEffort::High);
+            .with_thinking_effort(ThinkingEffort::Max);
         model_config.reasoning = Some(true); // explicitly enable reasoning
 
         let request = create_request(
@@ -2660,7 +2668,7 @@ mod tests {
                     "content": "system"
                 }
             ],
-            "reasoning_effort": "high",
+            "reasoning_effort": "max",
             "max_tokens": 1024
         });
 
@@ -2668,6 +2676,42 @@ mod tests {
             assert_eq!(obj.get(key).unwrap(), value);
         }
         assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_non_openai_reasoning_effort_off() -> anyhow::Result<()> {
+        let mut model_config = test_model_config("gemma-4-31b")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Off);
+        model_config.reasoning = Some(true); // explicitly enable reasoning
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+        let expected = json!({
+            "model": "gemma-4-31b",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "system"
+                }
+            ],
+            "max_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
+        assert!(obj.get("thinking_effort").is_none());
+        assert!(obj.get("reasoning_effort").is_none());
 
         Ok(())
     }
