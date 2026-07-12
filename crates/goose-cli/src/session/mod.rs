@@ -511,7 +511,7 @@ impl CliSession {
 
     async fn run_interactive(&mut self, prompt: Option<String>) -> Result<()> {
         if let Some(prompt) = prompt {
-            self.ensure_extensions_loaded().await?;
+            self.ensure_extensions_loaded(true).await?;
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default(), true)
                 .await?;
@@ -536,7 +536,7 @@ impl CliSession {
                 .as_ref()
                 .is_some_and(|h| h.is_finished())
             {
-                self.ensure_extensions_loaded().await?;
+                self.ensure_extensions_loaded(true).await?;
             }
 
             self.display_context_usage().await?;
@@ -710,7 +710,7 @@ impl CliSession {
         history: &HistoryManager,
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     ) -> Result<()> {
-        self.ensure_extensions_loaded().await?;
+        self.ensure_extensions_loaded(true).await?;
         match self.run_mode {
             RunMode::Normal => {
                 history.save(editor);
@@ -1060,7 +1060,7 @@ impl CliSession {
         };
 
         if should_summarize {
-            self.ensure_extensions_loaded().await?;
+            self.ensure_extensions_loaded(true).await?;
             self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
             output::show_thinking();
             self.process_agent_response(true, CancellationToken::default())
@@ -1158,7 +1158,7 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
-        self.ensure_extensions_loaded().await?;
+        self.ensure_extensions_loaded(false).await?;
         let message = Message::user().with_text(&prompt);
         let result = self
             .process_message(message, CancellationToken::default(), false)
@@ -1540,10 +1540,10 @@ impl CliSession {
 
     /// Await background extension loading and surface any failures. Called at
     /// terminal-safe checkpoints so messages are never processed mid-load.
-    async fn ensure_extensions_loaded(&mut self) -> Result<()> {
+    async fn ensure_extensions_loaded(&mut self, show_status: bool) -> Result<()> {
         if let Some(handle) = self.extension_loading.take() {
             let was_in_progress = !handle.is_finished();
-            if was_in_progress {
+            if show_status && was_in_progress {
                 output::show_waiting_for_extensions();
             }
             let failures = handle
@@ -1551,7 +1551,7 @@ impl CliSession {
                 .map_err(|e| anyhow::anyhow!("Extension loading task failed: {}", e))?;
             output::show_extension_failures(&failures);
 
-            if was_in_progress || self.loading_announced {
+            if show_status && (was_in_progress || self.loading_announced) {
                 output::show_extensions_ready();
             }
             self.loading_announced = false;
@@ -1689,7 +1689,7 @@ impl CliSession {
             return Ok(());
         }
 
-        self.ensure_extensions_loaded().await?;
+        self.ensure_extensions_loaded(true).await?;
 
         if opts.info {
             match self.get_prompt_info(&opts.name).await? {
