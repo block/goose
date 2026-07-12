@@ -695,6 +695,7 @@ mod tests {
             reasoning: false,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -710,6 +711,7 @@ mod tests {
             reasoning: false,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         };
         assert_eq!(info, info2);
 
@@ -725,6 +727,7 @@ mod tests {
             reasoning: false,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         };
         assert_ne!(info, info3);
     }

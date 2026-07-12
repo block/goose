@@ -219,6 +219,7 @@ pub fn create_custom_provider(
         reasoning_property: None,
         thinking_preservation_format: None,
         extra_body: None,
+        reasoning_effort_mapping: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -309,6 +310,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             reasoning_property: existing_config.reasoning_property,
             thinking_preservation_format: existing_config.thinking_preservation_format,
             extra_body: existing_config.extra_body,
+            reasoning_effort_mapping: existing_config.reasoning_effort_mapping,
         };
 
         let file_path = custom_provider_file_path(&updated_config.name)?;
@@ -564,6 +566,7 @@ mod tests {
                 supports_cache_control: None,
                 reasoning: false,
                 extra_body: None,
+                reasoning_effort_mapping: None,
                 thinking_preservation_format: None,
             }],
             headers: None,
@@ -582,6 +585,7 @@ mod tests {
             reasoning_property: None,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 

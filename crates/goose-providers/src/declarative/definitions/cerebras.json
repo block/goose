@@ -9,7 +9,10 @@
     {
       "name": "gpt-oss-120b",
       "context_limit": 131072,
-      "thinking_preservation_format": "content_prepend"
+      "thinking_preservation_format": "content_prepend",
+      "reasoning_effort_mapping": {
+        "off": null
+      }
     },
     {
       "name": "gemma-4-31b",

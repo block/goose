@@ -242,6 +242,7 @@ impl ProviderRegistry {
                 reasoning: m.reasoning,
                 thinking_preservation_format: m.thinking_preservation_format.clone(),
                 extra_body: m.extra_body.clone(),
+                reasoning_effort_mapping: m.reasoning_effort_mapping.clone(),
             })
             .collect();
 
@@ -400,6 +401,7 @@ mod tests {
             reasoning_property: None,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 

@@ -475,6 +475,7 @@ mod tests {
             reasoning_property: None,
             thinking_preservation_format: None,
             extra_body: None,
+            reasoning_effort_mapping: None,
         }
     }
 

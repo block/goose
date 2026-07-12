@@ -4456,49 +4456,59 @@ data: [DONE]"#;
             }
         }
     }
-}
 
-#[test]
-fn test_reasoning_effort_mapping() {
-    let mut model_config = test_model_config("gemma-4-31b");
-    model_config.reasoning = Some(true);
-    model_config.set_thinking_effort(ThinkingEffort::Max);
+    #[test]
+    fn test_reasoning_effort_mapping() {
+        let mut model_config = test_model_config("gemma-4-31b");
+        model_config.reasoning = Some(true);
+        let mut params = std::collections::HashMap::new();
+        params.insert(
+            "thinking_effort".to_string(),
+            serde_json::Value::String("max".to_string()),
+        );
+        model_config.request_params = Some(params);
 
-    let mut format_options = OpenAiFormatOptions::default();
-    let mut mapping = std::collections::HashMap::new();
-    mapping.insert(
-        "max".to_string(),
-        serde_json::Value::String("high".to_string()),
-    );
-    mapping.insert("off".to_string(), serde_json::Value::Null);
-    format_options.reasoning_effort_mapping = Some(mapping);
+        let mut format_options = OpenAiFormatOptions::default();
+        let mut mapping = std::collections::HashMap::new();
+        mapping.insert(
+            "max".to_string(),
+            serde_json::Value::String("high".to_string()),
+        );
+        mapping.insert("off".to_string(), serde_json::Value::Null);
+        format_options.reasoning_effort_mapping = Some(mapping);
 
-    let req = create_request_with_options(
-        &model_config,
-        "system",
-        &[],
-        &[],
-        ImageFormat::Auto,
-        false,
-        &format_options,
-    )
-    .unwrap();
+        let req = create_request_with_options(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &crate::images::ImageFormat::OpenAi,
+            false,
+            format_options.clone(),
+        )
+        .unwrap();
 
-    let req_json = serde_json::to_value(req).unwrap();
-    assert_eq!(req_json["reasoning_effort"], "high");
+        let req_json = serde_json::to_value(req).unwrap();
+        assert_eq!(req_json["reasoning_effort"], "high");
 
-    model_config.set_thinking_effort(ThinkingEffort::Off);
-    let req2 = create_request_with_options(
-        &model_config,
-        "system",
-        &[],
-        &[],
-        ImageFormat::Auto,
-        false,
-        &format_options,
-    )
-    .unwrap();
+        let mut params = std::collections::HashMap::new();
+        params.insert(
+            "thinking_effort".to_string(),
+            serde_json::Value::String("off".to_string()),
+        );
+        model_config.request_params = Some(params);
+        let req2 = create_request_with_options(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &crate::images::ImageFormat::OpenAi,
+            false,
+            format_options,
+        )
+        .unwrap();
 
-    let req2_json = serde_json::to_value(req2).unwrap();
-    assert!(req2_json.get("reasoning_effort").is_none());
+        let req2_json = serde_json::to_value(req2).unwrap();
+        assert!(req2_json.get("reasoning_effort").is_none());
+    }
 }
