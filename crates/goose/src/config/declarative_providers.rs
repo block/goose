@@ -564,7 +564,7 @@ mod tests {
                 output_token_cost: None,
                 currency: None,
                 supports_cache_control: None,
-                reasoning: false,
+                reasoning: None,
                 extra_body: None,
                 reasoning_effort_mapping: None,
                 thinking_preservation_format: None,

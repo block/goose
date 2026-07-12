@@ -698,7 +698,23 @@ mod tests {
 
     #[tokio::test]
     async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
-        let agent = crate::agents::Agent::new();
+        let temp_dir = tempfile::tempdir()?;
+        let session_manager = std::sync::Arc::new(
+            crate::session::SessionManager::new(
+                crate::session::sqlite::SqliteSessionStore::new(
+                    temp_dir.path().join("sessions.db")
+                ).await?
+            )
+        );
+        let config = crate::agents::AgentConfig::new(
+            session_manager.clone(),
+            crate::config::PermissionManager::instance(),
+            None,
+            crate::config::GooseMode::default(),
+            false,
+            crate::agents::GoosePlatform::GooseCli,
+        );
+        let agent = crate::agents::Agent::with_config(config);
 
         let session = agent
             .config
