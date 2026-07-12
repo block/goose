@@ -262,7 +262,14 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
+            .map(|name| {
+                existing_config
+                    .models
+                    .iter()
+                    .find(|m| m.name == name)
+                    .cloned()
+                    .unwrap_or_else(|| ModelInfo::new(name, 128000))
+            })
             .collect();
 
         let engine = ProviderEngine::from_str(&params.engine)?;

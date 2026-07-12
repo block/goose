@@ -553,7 +553,9 @@ pub fn format_messages_with_options(
                         msg["content"] = json!(formatted_reasoning);
                     }
 
-                    msg.as_object_mut().unwrap().remove(&options.reasoning_property);
+                    msg.as_object_mut()
+                        .unwrap()
+                        .remove(&options.reasoning_property);
                 }
             }
         }
@@ -3458,14 +3460,8 @@ data: [DONE]"#;
             2,
             "Tool calls should be merged"
         );
-        assert_eq!(
-            spec[0]["tool_calls"][0]["function"]["name"],
-            "test_tool_1"
-        );
-        assert_eq!(
-            spec[0]["tool_calls"][1]["function"]["name"],
-            "test_tool_2"
-        );
+        assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool_1");
+        assert_eq!(spec[0]["tool_calls"][1]["function"]["name"], "test_tool_2");
         assert_eq!(spec[1]["role"], "tool");
         assert_eq!(spec[2]["role"], "tool");
 
