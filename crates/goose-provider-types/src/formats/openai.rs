@@ -2627,6 +2627,42 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_create_request_non_openai_reasoning_effort() -> anyhow::Result<()> {
+        let mut model_config = test_model_config("gemma-4-31b")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::High);
+        model_config.reasoning = Some(true); // explicitly enable reasoning
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+        let expected = json!({
+            "model": "gemma-4-31b",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "system"
+                }
+            ],
+            "reasoning_effort": "high",
+            "max_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
+        assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
     struct StreamingUsageTestResult {
         usage_count: usize,
         usage: Option<ProviderUsage>,
