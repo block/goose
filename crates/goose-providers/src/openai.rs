@@ -450,6 +450,47 @@ impl OpenAiProvider {
         payload
     }
 
+    pub fn build_format_options(&self, model_name: &str) -> OpenAiFormatOptions {
+        let format_str = self
+            .model_thinking_preservation_formats
+            .as_ref()
+            .and_then(|m| m.get(model_name))
+            .or(self.thinking_preservation_format.as_ref());
+
+        let thinking_preservation_format = match format_str.map(|s| s.as_str()) {
+            Some("content_prepend") => Some(
+                goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentPrepend,
+            ),
+            Some("content_xml") => {
+                Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentXml)
+            }
+            Some("property") => {
+                Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::Property)
+            }
+            _ => None,
+        };
+
+        let has_model_specific_formats = self
+            .model_thinking_preservation_formats
+            .as_ref()
+            .is_some_and(|m| !m.is_empty());
+
+        let preserve_thinking_context = if has_model_specific_formats && format_str.is_none() {
+            false
+        } else {
+            self.preserve_thinking_context
+        };
+
+        OpenAiFormatOptions {
+            preserve_thinking_context,
+            reasoning_property: self
+                .reasoning_property
+                .clone()
+                .unwrap_or_else(|| "reasoning_content".to_string()),
+            thinking_preservation_format,
+        }
+    }
+
     fn should_use_responses_api_for_provider(&self, model_name: &str) -> bool {
         if Self::PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS.contains(&self.name.as_str()) {
             return false;
@@ -734,24 +775,7 @@ impl Provider for OpenAiProvider {
                 Ok(super::base::stream_from_single_message(message, usage))
             }
         } else {
-            let format_str = self
-                .model_thinking_preservation_formats
-                .as_ref()
-                .and_then(|m| m.get(&model_config.model_name))
-                .or(self.thinking_preservation_format.as_ref());
-
-            let thinking_preservation_format = match format_str.map(|s| s.as_str()) {
-                Some("content_prepend") => {
-                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentPrepend)
-                }
-                Some("content_xml") => {
-                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::ContentXml)
-                }
-                Some("property") => {
-                    Some(goose_provider_types::formats::openai::ThinkingPreservationFormat::Property)
-                }
-                _ => None,
-            };
+            let format_options = self.build_format_options(&model_config.model_name);
 
             let payload = create_request_with_options(
                 model_config,
@@ -760,14 +784,7 @@ impl Provider for OpenAiProvider {
                 tools,
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
-                OpenAiFormatOptions {
-                    preserve_thinking_context: self.preserve_thinking_context,
-                    reasoning_property: self
-                        .reasoning_property
-                        .clone()
-                        .unwrap_or_else(|| "reasoning_content".to_string()),
-                    thinking_preservation_format,
-                },
+                format_options,
             )?;
             let payload = self.sanitize_request_for_compat(payload);
             let mut log = start_log(model_config, &payload)?;
@@ -1373,5 +1390,41 @@ mod tests {
     fn derive_base_path_does_not_treat_v_word_as_version() {
         let r = derive_base_path("/api/voice");
         assert_eq!(r, "api/voice/v1/chat/completions");
+    }
+    #[test]
+    fn build_format_options_preserves_thinking_if_no_per_model_formats() {
+        let mut provider = make_provider("test");
+        provider.preserve_thinking_context = true;
+        let options = provider.build_format_options("any_model");
+        assert!(options.preserve_thinking_context);
+    }
+
+    #[test]
+    fn build_format_options_disables_preservation_for_models_without_format_when_curated() {
+        let mut provider = make_provider("test");
+        provider.preserve_thinking_context = true;
+        let mut map = HashMap::new();
+        map.insert("has_format".to_string(), "property".to_string());
+        provider.model_thinking_preservation_formats = Some(map);
+
+        let options = provider.build_format_options("has_format");
+        assert!(options.preserve_thinking_context);
+
+        let options2 = provider.build_format_options("no_format");
+        assert!(!options2.preserve_thinking_context);
+    }
+
+    #[test]
+    fn build_format_options_uses_provider_fallback_for_models_without_format_when_curated() {
+        let mut provider = make_provider("test");
+        provider.preserve_thinking_context = true;
+        provider.thinking_preservation_format = Some("content_prepend".to_string());
+        let mut map = HashMap::new();
+        map.insert("has_format".to_string(), "property".to_string());
+        provider.model_thinking_preservation_formats = Some(map);
+
+        let options = provider.build_format_options("no_format");
+        // Because there is a fallback format defined on the provider level, it should still preserve thinking.
+        assert!(options.preserve_thinking_context);
     }
 }
