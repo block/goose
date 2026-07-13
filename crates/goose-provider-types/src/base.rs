@@ -233,11 +233,19 @@ pub enum ThinkingPreservationFormat {
 /// Configuration block for models that require advanced reasoning parameters
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
 pub struct ReasoningConfig {
-    /// Whether reasoning is enabled
+    #[serde(default)]
     pub enabled: bool,
-    /// How to format reasoning content when returning it in message history
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
+    /// The property name for configuring reasoning effort (e.g. "thinking_effort" or "reasoning_effort")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_property: Option<String>,
+    /// A mapping from standard effort levels ("low", "medium", "high") to provider-specific effort levels
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort_mapping: Option<serde_json::Value>,
+    /// Any extra JSON fields to merge into the provider payload when reasoning is enabled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_body: Option<serde_json::Value>,
 }
 
 /// Reasoning support configuration

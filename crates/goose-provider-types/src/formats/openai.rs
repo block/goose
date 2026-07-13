@@ -1416,19 +1416,40 @@ pub fn create_request_with_options(
     }
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
-    let is_reasoning_model = is_openai_responses_model(&model_name);
+    let is_openai_model = is_openai_responses_model(&model_name);
+    let is_reasoning_model = model_config.is_reasoning_model() || is_openai_model;
+
+    let (reasoning_property, effort_mapping, extra_body) = match &model_config.reasoning {
+        Some(crate::base::Reasoning::ReasoningConfig(c)) => (
+            c.reasoning_property.as_deref(),
+            c.effort_mapping.as_ref(),
+            c.extra_body.as_ref(),
+        ),
+        _ => (None, None, None),
+    };
+
+    let property_key = reasoning_property.unwrap_or("reasoning_effort");
+
     let reasoning_effort = if is_reasoning_model {
         model_config
             .thinking_effort()
-            .map_or(legacy_reasoning_effort, |effort| {
-                openai_reasoning_effort_for_thinking(&model_name, effort)
+            .map_or(legacy_reasoning_effort.map(|s| json!(s)), |effort| {
+                if let Some(mapping) = effort_mapping {
+                    let effort_str = effort.to_string();
+                    mapping
+                        .get(&effort_str)
+                        .cloned()
+                        .or_else(|| openai_reasoning_effort_for_thinking(&model_name, effort).map(|s| json!(s)))
+                } else {
+                    openai_reasoning_effort_for_thinking(&model_name, effort).map(|s| json!(s))
+                }
             })
     } else {
         None
     };
 
     let system_message = json!({
-        "role": if is_reasoning_model { "developer" } else { "system" },
+        "role": if is_openai_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -1446,14 +1467,22 @@ pub fn create_request_with_options(
     });
 
     if let Some(effort) = reasoning_effort {
-        payload["reasoning_effort"] = json!(effort);
+        payload[property_key] = effort;
+    }
+
+    if let Some(extra) = extra_body {
+        if let (Some(payload_obj), Some(extra_obj)) = (payload.as_object_mut(), extra.as_object()) {
+            for (k, v) in extra_obj {
+                payload_obj.insert(k.clone(), v.clone());
+            }
+        }
     }
 
     if !tools_spec.is_empty() {
         payload["tools"] = json!(tools_spec);
     }
 
-    if !is_reasoning_model {
+    if !is_openai_model {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
@@ -2566,6 +2595,44 @@ mod tests {
         let obj = request.as_object().unwrap();
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
+        assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_custom_reasoning_config() -> anyhow::Result<()> {
+        let mut model_config = test_model_config("my-custom-model")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::High);
+        
+        let mut reasoning = crate::base::ReasoningConfig {
+            enabled: true,
+            reasoning_property: Some("custom_effort_property".to_string()),
+            effort_mapping: Some(json!({
+                "high": 0.8,
+                "low": 0.2
+            })),
+            extra_body: Some(json!({
+                "stream_options": { "include_usage": true }
+            })),
+            ..Default::default()
+        };
+        model_config.reasoning = Some(crate::base::Reasoning::ReasoningConfig(reasoning));
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+        
+        assert_eq!(obj.get("custom_effort_property"), Some(&json!(0.8)));
+        assert_eq!(obj.get("stream_options"), Some(&json!({ "include_usage": true })));
+        assert!(obj.get("reasoning_effort").is_none());
         assert!(obj.get("thinking_effort").is_none());
 
         Ok(())
