@@ -238,7 +238,9 @@ pub fn render_message(message: &Message, debug: bool) {
                 }
             },
             MessageContent::Text(text) if is_user_message => print_user_message(&text.text),
-            MessageContent::Text(text) => print_markdown(&text.text, theme),
+            MessageContent::Text(text) => {
+                print_markdown(&text.text, theme, true);
+            }
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, debug),
             MessageContent::Image(image) => {
@@ -247,7 +249,7 @@ pub fn render_message(message: &Message, debug: bool) {
             MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
             MessageContent::RedactedThinking(_) => {
                 println!("\n{}", style("Thinking:").dim().italic());
-                print_markdown("Thinking was redacted", theme);
+                print_markdown("Thinking was redacted", theme, true);
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
@@ -276,10 +278,20 @@ pub fn render_message(message: &Message, debug: bool) {
 
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
+///
+/// `text_at_line_start` tracks whether the terminal cursor is at the start
+/// of a fresh line, across the many separate flushes that make up one
+/// streamed reply (each flush is rendered — and gutter-indented — on its
+/// own, so this state must survive between calls; see
+/// [`formatting::indent_block`]). Every branch here other than plain
+/// assistant text ends by printing a complete, newline-terminated line (a
+/// tool header, an action notice, etc.), so it resets the flag to `true`
+/// once it's done.
 pub fn render_message_streaming(
     message: &Message,
     buffer: &mut MarkdownBuffer,
     thinking_header_shown: &mut bool,
+    text_at_line_start: &mut bool,
     debug: bool,
 ) {
     let theme = get_theme();
@@ -289,6 +301,7 @@ pub fn render_message_streaming(
         if !matches!(content, MessageContent::Thinking(_)) {
             if *thinking_header_shown {
                 println!();
+                *text_at_line_start = true;
             }
             *thinking_header_shown = false;
         }
@@ -297,23 +310,26 @@ pub fn render_message_streaming(
             MessageContent::Text(text) if is_user_message => {
                 if let Some(safe_content) = buffer.push(&text.text) {
                     print_user_message(&safe_content);
+                    *text_at_line_start = true;
                 }
             }
             MessageContent::Text(text) => {
                 if let Some(safe_content) = buffer.push(&text.text) {
-                    print_markdown(&safe_content, theme);
+                    *text_at_line_start = print_markdown(&safe_content, theme, *text_at_line_start);
                 }
             }
             MessageContent::ToolRequest(req) => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 render_tool_request(req, theme, debug);
+                *text_at_line_start = true;
             }
             MessageContent::ToolResponse(resp) => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 render_tool_response(resp, debug);
+                *text_at_line_start = true;
             }
             MessageContent::ActionRequired(action) => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 match &action.data {
                     ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                         println!("action_required(tool_confirmation): {}", tool_name)
@@ -325,18 +341,26 @@ pub fn render_message_streaming(
                         println!("action_required(elicitation_response): {}", id)
                     }
                 }
+                *text_at_line_start = true;
             }
             MessageContent::Image(image) => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+                *text_at_line_start = true;
             }
             MessageContent::Thinking(t) => {
-                render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
+                render_thinking_streaming(
+                    &t.thinking,
+                    buffer,
+                    thinking_header_shown,
+                    text_at_line_start,
+                    theme,
+                );
             }
             MessageContent::RedactedThinking(_) => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 println!("\n{}", style("Thinking:").dim().italic());
-                print_markdown("Thinking was redacted", theme);
+                *text_at_line_start = print_markdown("Thinking was redacted", theme, true);
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
@@ -346,19 +370,22 @@ pub fn render_message_streaming(
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
-                        flush_markdown_buffer(buffer, theme);
+                        flush_markdown_buffer(buffer, theme, text_at_line_start);
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
+                        *text_at_line_start = true;
                     }
                     SystemNotificationType::CreditsExhausted => {
-                        flush_markdown_buffer(buffer, theme);
+                        flush_markdown_buffer(buffer, theme, text_at_line_start);
                         render_credits_exhausted_notification(notification);
+                        *text_at_line_start = true;
                     }
                 }
             }
             _ => {
-                flush_markdown_buffer(buffer, theme);
+                flush_markdown_buffer(buffer, theme, text_at_line_start);
                 eprintln!("WARNING: Message content type could not be rendered");
+                *text_at_line_start = true;
             }
         }
     }
@@ -400,15 +427,15 @@ pub fn get_credits_top_up_url(message: &Message) -> Option<String> {
     })
 }
 
-pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
+pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme, at_line_start: &mut bool) {
     let remaining = buffer.flush();
     if !remaining.is_empty() {
-        print_markdown(&remaining, theme);
+        *at_line_start = print_markdown(&remaining, theme, *at_line_start);
     }
 }
 
-pub fn flush_markdown_buffer_current_theme(buffer: &mut MarkdownBuffer) {
-    flush_markdown_buffer(buffer, get_theme());
+pub fn flush_markdown_buffer_current_theme(buffer: &mut MarkdownBuffer, at_line_start: &mut bool) {
+    flush_markdown_buffer(buffer, get_theme(), at_line_start);
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
@@ -469,7 +496,7 @@ fn should_show_thinking() -> bool {
 fn render_thinking(text: &str, theme: Theme) {
     if should_show_thinking() {
         println!("\n{}", formatting::apply(Role::Muted, "Thinking:").italic());
-        print_markdown(text, theme);
+        print_markdown(text, theme, true);
     }
 }
 
@@ -477,16 +504,24 @@ fn render_thinking_streaming(
     text: &str,
     buffer: &mut MarkdownBuffer,
     header_shown: &mut bool,
+    text_at_line_start: &mut bool,
     theme: Theme,
 ) {
     if should_show_thinking() {
-        flush_markdown_buffer(buffer, theme);
+        flush_markdown_buffer(buffer, theme, text_at_line_start);
         if !*header_shown {
             println!("\n{}", formatting::apply(Role::Muted, "Thinking:").italic());
             *header_shown = true;
         }
         print!("{}", formatting::apply(Role::Muted, text));
         let _ = std::io::stdout().flush();
+        // The dim thinking text is printed raw (not through the gutter
+        // pipeline) and rarely ends in a newline, so the next assistant
+        // text chunk after thinking finishes must not assume it's at a
+        // fresh line; the `*thinking_header_shown` transition in the
+        // caller's loop is what actually re-establishes a fresh line via
+        // its own blank-line `println!()`.
+        *text_at_line_start = false;
     }
 }
 
@@ -519,7 +554,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         },
         Err(e) => {
             mark_tool_header_suppressed(&req.id);
-            print_markdown(&e.to_string(), theme);
+            print_markdown(&e.to_string(), theme, true);
         }
     }
 }
@@ -527,6 +562,12 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
 fn render_tool_response(resp: &ToolResponse, debug: bool) {
     let config = Config::global();
     let show_footer = !take_tool_header_was_suppressed(&resp.id);
+    // In terminal mode `print_tool_output` always ends on a fresh line (it
+    // prints one full, newline-terminated line at a time), but in
+    // non-terminal mode it dumps the raw text verbatim, which may not end
+    // in a newline. Track that so the footer never gets glued onto the end
+    // of un-terminated tool output (e.g. `printf x` piped to a file).
+    let mut at_line_start = true;
 
     match &resp.tool_result {
         Ok(result) => {
@@ -552,16 +593,28 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
 
                 if debug {
                     println!("{:#?}", content);
+                    at_line_start = true;
                 } else if let Some(text) = content.as_text() {
-                    print_tool_output(&text.text);
+                    if !text.text.is_empty() {
+                        print_tool_output(&text.text);
+                        at_line_start =
+                            std::io::stdout().is_terminal() || text.text.ends_with('\n');
+                    }
                 }
             }
             if show_footer {
-                if let Some(footer) = formatting::format_tool_status_line_plain(ToolStatus::Success)
-                {
+                if !at_line_start {
+                    println!();
+                }
+                // `Ok(result)` only means the tool call completed without a
+                // protocol-level error; the tool itself may still report
+                // failure (e.g. a shell command with a non-zero exit code)
+                // via `is_error`, which must not be shown as `● done`.
+                let status = formatting::tool_result_status(result.is_error);
+                if let Some(footer) = formatting::format_tool_status_line_plain(status) {
                     println!(
                         "{}",
-                        formatting::apply(formatting::status_role(ToolStatus::Success), &footer)
+                        formatting::apply(formatting::status_role(status), &footer)
                     );
                 }
             }
@@ -1079,28 +1132,43 @@ fn print_user_message(text: &str) {
     println!("{}", formatting::apply(Role::Primary, rest));
 }
 
-fn print_markdown(content: &str, theme: Theme) {
+/// Renders `content` as markdown, indented under the shared gutter.
+///
+/// `at_line_start` says whether the cursor is already at the start of a
+/// fresh line before anything here is printed; returns whether it's at the
+/// start of a fresh line afterwards, so callers that render a message in
+/// several separate chunks (streaming) can thread this through the whole
+/// sequence of calls without double-indenting a chunk that only continues
+/// the previous one's still-open line. See [`formatting::indent_block`].
+fn print_markdown(content: &str, theme: Theme, at_line_start: bool) -> bool {
     if std::io::stdout().is_terminal() {
         if let Some((before, table, after)) = extract_markdown_table(content) {
+            let mut at_line_start = at_line_start;
             if !before.is_empty() {
-                print_markdown_raw(&before, theme);
+                at_line_start = print_markdown_raw(&before, theme, at_line_start);
             }
-            print_table(&table, theme);
+            at_line_start = print_table(&table, theme, at_line_start);
             if !after.is_empty() {
-                print_markdown(after, theme);
+                at_line_start = print_markdown(after, theme, at_line_start);
             }
+            at_line_start
         } else {
-            print_markdown_raw(content, theme);
+            print_markdown_raw(content, theme, at_line_start)
         }
     } else {
         print!("{}", content);
+        if content.is_empty() {
+            at_line_start
+        } else {
+            content.ends_with('\n')
+        }
     }
 }
 
 /// Renders markdown content using bat (no table processing), indented
 /// under the shared gutter so normal model replies line up with the
 /// user-message prompt glyph rather than sitting flush-left.
-fn print_markdown_raw(content: &str, theme: Theme) {
+fn print_markdown_raw(content: &str, theme: Theme, at_line_start: bool) -> bool {
     let mut rendered = String::new();
     bat::PrettyPrinter::new()
         .input(bat::Input::from_bytes(content.as_bytes()))
@@ -1110,7 +1178,12 @@ fn print_markdown_raw(content: &str, theme: Theme) {
         .wrapping_mode(WrappingMode::NoWrapping(true))
         .print_with_writer(Some(&mut rendered))
         .unwrap();
-    print!("{}", formatting::indent_block(&rendered));
+    print!("{}", formatting::indent_block(&rendered, at_line_start));
+    if rendered.is_empty() {
+        at_line_start
+    } else {
+        formatting::ends_at_line_start(&rendered)
+    }
 }
 
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
@@ -1194,7 +1267,7 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
     Some((before, table, after))
 }
 
-fn print_table(table_lines: &[&str], theme: Theme) {
+fn print_table(table_lines: &[&str], theme: Theme, at_line_start: bool) -> bool {
     use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
 
     let mut table = Table::new();
@@ -1275,7 +1348,7 @@ fn print_table(table_lines: &[&str], theme: Theme) {
     }
 
     let table_str = table.to_string();
-    print_markdown_raw(&table_str, theme);
+    print_markdown_raw(&table_str, theme, at_line_start)
 }
 
 fn print_value_with_prefix(prefix: &String, value: &Value, debug: bool) {
@@ -1643,7 +1716,21 @@ mod tests {
         print_markdown_raw(
             "Sure! Use `ls -la /tmp`.\n\n- flag `-l` for long form\n- flag `-a` for hidden files\n",
             Theme::Ansi,
+            true,
         );
+    }
+
+    #[test]
+    #[ignore]
+    fn manual_visual_smoke_check_streaming_chunks_mid_sentence() {
+        // Simulates two streaming flushes that split mid-sentence (no
+        // newline at the chunk boundary), the way `MarkdownBuffer::push`
+        // routinely does. Should print one gutter-indented line reading
+        // "Hello world!", not two lines each with their own gutter.
+        std::println!("--- expect exactly one gutter before \"Hello world!\" ---");
+        let at_line_start = print_markdown_raw("Hello ", Theme::Ansi, true);
+        print_markdown_raw("world!", Theme::Ansi, at_line_start);
+        std::println!();
     }
 
     #[test]
