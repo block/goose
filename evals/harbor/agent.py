@@ -258,6 +258,39 @@ class GooseBinaryAgent(Goose):
                 complete_event = event
         return complete_event
 
+    def _compute_cost_from_pricing(
+        self,
+        prompt_tokens: int | None,
+        completion_tokens: int | None,
+        cache_read_tokens: int | None,
+        cache_write_tokens: int | None,
+    ) -> float | None:
+        if not self.model_name or not (prompt_tokens or completion_tokens):
+            return None
+        try:
+            import litellm
+        except ImportError:
+            return None
+        pricing = None
+        for key in (self.model_name, self.model_name.split("/", 1)[-1]):
+            entry = litellm.model_cost.get(key)
+            if entry:
+                pricing = entry
+                break
+        if pricing is None:
+            return None
+        input_cost = pricing.get("input_cost_per_token") or 0.0
+        cache_read = cache_read_tokens or 0
+        cache_write = cache_write_tokens or 0
+        uncached = max((prompt_tokens or 0) - cache_read - cache_write, 0)
+        return (
+            uncached * input_cost
+            + cache_read * (pricing.get("cache_read_input_token_cost") or input_cost)
+            + cache_write
+            * (pricing.get("cache_creation_input_token_cost") or input_cost)
+            + (completion_tokens or 0) * (pricing.get("output_cost_per_token") or 0.0)
+        )
+
     def populate_context_post_run(self, context: AgentContext) -> None:
         super().populate_context_post_run(context)
         txt_path = self.logs_dir / "goose.txt"
@@ -285,5 +318,12 @@ class GooseBinaryAgent(Goose):
                 "cache_write_input_tokens": cache_write or 0,
             }
         cost = complete_event.get("cost_usd")
+        if cost is None:
+            cost = self._compute_cost_from_pricing(inp, out, cache_read, cache_write)
+            if cost is not None:
+                context.metadata = {
+                    **(context.metadata or {}),
+                    "cost_source": "litellm_estimate",
+                }
         if cost is not None:
             context.cost_usd = cost
