@@ -172,11 +172,7 @@ struct TruncationInfo {
 pub struct ShellParams {
     pub command: String,
     /// Maximum time in seconds to allow the command to run before it is killed.
-    /// Use this to bound commands that may hang (test runners, servers, watchers,
-    /// commands that wait on unavailable services). If omitted, the default
-    /// extension timeout is applied (configurable via
-    /// `GOOSE_DEFAULT_EXTENSION_TIMEOUT`, defaulting to
-    /// `DEFAULT_EXTENSION_TIMEOUT` seconds).
+    /// If omitted, defaults to DEFAULT_EXTENSION_TIMEOUT.
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -511,14 +507,6 @@ struct ExecutionOutput {
     output_collection_error: Option<String>,
 }
 
-/// Resolve the effective shell-command timeout.
-///
-/// An explicit `timeout_secs` from the tool call wins; otherwise fall back to
-/// the default extension timeout (configurable via `GOOSE_DEFAULT_EXTENSION_TIMEOUT`,
-/// defaulting to `DEFAULT_EXTENSION_TIMEOUT`). This mirrors `resolve_timeout` in
-/// the extension manager and `execution_timeout` in code-mode, so shell commands
-/// are bounded by the same default as every other tool call and can no longer
-/// hang indefinitely.
 fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
     timeout_secs.unwrap_or_else(|| {
         crate::config::Config::global()
@@ -534,8 +522,6 @@ async fn run_command(
     login_path: Option<&str>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
-    // Fall back to the default extension timeout when the caller omits one, so a
-    // command that never exits cannot hang the session forever.
     let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
 
     let mut command = build_shell_command(command_line, working_dir, login_path);
