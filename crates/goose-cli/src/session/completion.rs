@@ -467,7 +467,10 @@ impl Highlighter for GooseCompleter {
         prompt: &'p str,
         _default: bool,
     ) -> Cow<'b, str> {
-        Cow::Borrowed(prompt)
+        // Color the prompt glyph with the same accent used for user
+        // messages elsewhere in the transcript, so the live prompt and
+        // the historical (`/resume`) view of the same turn look the same.
+        Cow::Owned(super::formatting::apply(super::formatting::Role::Accent, prompt).to_string())
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
