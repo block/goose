@@ -490,6 +490,21 @@ fn render_thinking_streaming(
     }
 }
 
+thread_local! {
+    /// Ids of tool requests whose header was suppressed (e.g. the internal
+    /// `load` tool), so the matching response doesn't print an orphaned
+    /// status footer with no header above it.
+    static HEADERLESS_TOOL_IDS: RefCell<std::collections::HashSet<String>> = RefCell::new(std::collections::HashSet::new());
+}
+
+fn mark_tool_header_suppressed(id: &str) {
+    HEADERLESS_TOOL_IDS.with(|ids| ids.borrow_mut().insert(id.to_string()));
+}
+
+fn take_tool_header_was_suppressed(id: &str) -> bool {
+    HEADERLESS_TOOL_IDS.with(|ids| ids.borrow_mut().remove(id))
+}
+
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
@@ -499,15 +514,19 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
-            "load" => {}
+            "load" => mark_tool_header_suppressed(&req.id),
             _ => render_default_request(call, debug),
         },
-        Err(e) => print_markdown(&e.to_string(), theme),
+        Err(e) => {
+            mark_tool_header_suppressed(&req.id);
+            print_markdown(&e.to_string(), theme);
+        }
     }
 }
 
 fn render_tool_response(resp: &ToolResponse, debug: bool) {
     let config = Config::global();
+    let show_footer = !take_tool_header_was_suppressed(&resp.id);
 
     match &resp.tool_result {
         Ok(result) => {
@@ -537,21 +556,26 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     print_tool_output(&text.text);
                 }
             }
-            if let Some(footer) = formatting::format_tool_status_line_plain(ToolStatus::Success) {
-                println!(
-                    "{}",
-                    formatting::apply(formatting::status_role(ToolStatus::Success), &footer)
-                );
+            if show_footer {
+                if let Some(footer) = formatting::format_tool_status_line_plain(ToolStatus::Success)
+                {
+                    println!(
+                        "{}",
+                        formatting::apply(formatting::status_role(ToolStatus::Success), &footer)
+                    );
+                }
             }
         }
         Err(e) => {
-            let line = format!(
-                "{}{} {}",
-                formatting::GUTTER,
-                formatting::status_glyph(ToolStatus::Error),
-                e
-            );
-            println!("{}", formatting::apply(Role::Error, &line));
+            if show_footer {
+                println!(
+                    "{}",
+                    formatting::apply(
+                        Role::Error,
+                        &formatting::format_error_line_plain(&e.to_string())
+                    )
+                );
+            }
         }
     }
 }
@@ -801,11 +825,12 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
             format!(" (uses {})", deps.join(", "))
         };
         println!(
-            "    {}. {} {}{}",
-            style(i + 1).dim(),
-            style(tool).dim(),
-            style(desc).dim(),
-            style(deps_str).dim()
+            "{}{}. {} {}{}",
+            formatting::PARAM_INDENT,
+            formatting::apply(Role::Muted, &(i + 1).to_string()),
+            formatting::apply(Role::Muted, tool),
+            formatting::apply(Role::Muted, desc),
+            formatting::apply(Role::Muted, &deps_str)
         );
     }
 
@@ -999,11 +1024,12 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
             format!(" (uses {})", deps.join(", "))
         };
         println!(
-            "    {}. {} {}{}",
-            style(i + 1).dim(),
-            style(tool).dim(),
-            style(desc).dim(),
-            style(deps_str).dim()
+            "{}{}. {} {}{}",
+            formatting::PARAM_INDENT,
+            formatting::apply(Role::Muted, &(i + 1).to_string()),
+            formatting::apply(Role::Muted, tool),
+            formatting::apply(Role::Muted, desc),
+            formatting::apply(Role::Muted, &deps_str)
         );
     }
     println!();
@@ -1645,6 +1671,16 @@ mod tests {
         } else {
             env::remove_var("HOME");
         }
+    }
+
+    #[test]
+    fn test_suppressed_tool_header_hides_exactly_one_matching_footer() {
+        mark_tool_header_suppressed("tool-call-1");
+        // A different id's footer is unaffected.
+        assert!(!take_tool_header_was_suppressed("tool-call-2"));
+        // The matching id's footer is suppressed exactly once.
+        assert!(take_tool_header_was_suppressed("tool-call-1"));
+        assert!(!take_tool_header_was_suppressed("tool-call-1"));
     }
 
     #[test]

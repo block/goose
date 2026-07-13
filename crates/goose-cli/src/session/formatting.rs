@@ -39,11 +39,15 @@ pub enum ToolStatus {
 pub enum Role {
     /// Primary conversational text (assistant/user body copy).
     Primary,
-    /// Secondary/structural text: labels, tool names, headers.
+    /// Secondary/structural text: labels, tool names, headers. Bold but
+    /// colorless, so it stands out from `Muted` by weight rather than hue,
+    /// keeping the palette mostly grey.
     Secondary,
     /// Muted/auxiliary text: parameter values, timestamps, hints.
     Muted,
-    /// The single accent used for the user prompt glyph and pending state.
+    /// The single accent color used for the user prompt glyph and pending
+    /// state. Kept distinct from every other role's color, since it's the
+    /// only splash of hue in an otherwise grey/dim palette.
     Accent,
     /// Successful/completed outcomes.
     Success,
@@ -72,9 +76,9 @@ pub fn role_style(role: Role) -> RoleStyle {
             italic: false,
         },
         Role::Secondary => RoleStyle {
-            color: Some(Color::Cyan),
-            dim: true,
-            bold: false,
+            color: None,
+            dim: false,
+            bold: true,
             italic: false,
         },
         Role::Muted => RoleStyle {
@@ -149,12 +153,12 @@ pub fn status_role(status: ToolStatus) -> Role {
 
 /// Format a user-submitted message for echo into the transcript: the
 /// first line is marked with the accent prompt glyph, continuation lines
-/// align under it using [`GUTTER`].
+/// align under it using [`GUTTER`]. Always includes the glyph, even for
+/// an empty message, so a user turn is never rendered as nothing at all.
 pub fn format_user_message_plain(text: &str) -> String {
     let mut lines = text.lines();
-    let mut out = String::new();
+    let mut out = String::from(USER_PROMPT_GLYPH);
     if let Some(first) = lines.next() {
-        out.push_str(USER_PROMPT_GLYPH);
         out.push(' ');
         out.push_str(first);
     }
@@ -209,6 +213,11 @@ mod tests {
     }
 
     #[test]
+    fn empty_user_message_still_renders_the_prompt_glyph() {
+        assert_eq!(format_user_message_plain(""), USER_PROMPT_GLYPH);
+    }
+
+    #[test]
     fn multiline_user_message_continuation_lines_align_under_the_gutter() {
         assert_eq!(
             format_user_message_plain("first\nsecond\nthird"),
@@ -255,19 +264,23 @@ mod tests {
 
     #[test]
     fn successful_tool_calls_get_a_status_footer() {
-        let footer = format_tool_status_line_plain(ToolStatus::Success);
-        assert!(footer.is_some());
-        let footer = footer.unwrap();
-        assert!(footer.starts_with(GUTTER));
-        assert!(footer.contains(status_glyph(ToolStatus::Success)));
+        assert_eq!(
+            format_tool_status_line_plain(ToolStatus::Success),
+            Some(format!("{GUTTER}● done"))
+        );
     }
 
     #[test]
     fn failed_tool_calls_get_a_status_footer_with_the_error_glyph() {
-        let footer = format_tool_status_line_plain(ToolStatus::Error);
-        assert!(footer.is_some());
-        let footer = footer.unwrap();
-        assert!(footer.contains(status_glyph(ToolStatus::Error)));
+        assert_eq!(
+            format_tool_status_line_plain(ToolStatus::Error),
+            Some(format!("{GUTTER}✗ error"))
+        );
+    }
+
+    #[test]
+    fn running_tool_calls_get_no_status_footer() {
+        assert_eq!(format_tool_status_line_plain(ToolStatus::Running), None);
     }
 
     #[test]
@@ -310,10 +323,28 @@ mod tests {
     }
 
     #[test]
+    fn secondary_role_is_colorless_so_accent_stays_the_only_hue() {
+        assert_eq!(
+            role_style(Role::Secondary).color,
+            None,
+            "Secondary should stand out from Muted by weight (bold), not by \
+             borrowing Accent's color, to keep the palette mostly grey"
+        );
+    }
+
+    #[test]
     fn apply_is_a_no_op_on_plain_text_when_colors_are_disabled() {
+        // `console`'s color setting is process-global, so save/restore it
+        // rather than leaking `false` into other tests that run in the
+        // same process.
+        let was_enabled = console::colors_enabled();
         console::set_colors_enabled(false);
-        assert_eq!(apply(Role::Error, "boom").to_string(), "boom");
-        assert_eq!(apply(Role::Primary, "hello").to_string(), "hello");
+        let result = std::panic::catch_unwind(|| {
+            assert_eq!(apply(Role::Error, "boom").to_string(), "boom");
+            assert_eq!(apply(Role::Primary, "hello").to_string(), "hello");
+        });
+        console::set_colors_enabled(was_enabled);
+        result.unwrap();
     }
 
     #[test]
