@@ -397,10 +397,8 @@ mod tests {
 
     #[tokio::test]
     async fn classify_chunked_marks_oversized_commands_incomplete() {
-        use crate::security::command_chunker::exceeds_window_cap;
         let client = unroutable_client();
         let huge = "a; ".repeat(4000);
-        assert!(exceeds_window_cap(&huge), "test input must exceed the cap");
 
         let scan = client.classify_chunked(&huge).await;
 

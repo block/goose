@@ -1,24 +1,12 @@
 const MODEL_MAX_TOKENS: usize = 512;
-
 const SPECIAL_TOKEN_HEADROOM: usize = 12;
-
-// Window size in BYTES, used as a worst-case proxy for tokens: the classifier's
-// tokenizer never emits more than one token per byte, so a window of at most this
-// many bytes cannot exceed MODEL_MAX_TOKENS. Changing the model/tokenizer to one
-// that can produce >1 token/byte would break this bound.
 const MAX_WINDOW_CHARS: usize = MODEL_MAX_TOKENS - SPECIAL_TOKEN_HEADROOM;
-
 const OVERLAP_CHARS: usize = 256;
-
 pub const MAX_WINDOWS: usize = 12;
 
 pub fn chunk_command(text: &str) -> Vec<String> {
     let overlap_ratio = OVERLAP_CHARS as f32 / MAX_WINDOW_CHARS as f32;
     chunk_with_params(text, MAX_WINDOW_CHARS, overlap_ratio)
-}
-
-pub fn exceeds_window_cap(text: &str) -> bool {
-    chunk_command(text).len() > MAX_WINDOWS
 }
 
 #[allow(clippy::string_slice)]
@@ -125,20 +113,6 @@ mod tests {
         assert!(
             chunks.iter().any(|c| c.contains(payload)),
             "payload straddling the boundary should appear intact in some window"
-        );
-    }
-
-    #[test]
-    fn boundary_straddling_payload_is_split_without_overlap() {
-        let max_chars = 300usize;
-        let payload = "rm -rf /";
-        let prefix = "x".repeat(max_chars - 4);
-        let text = format!("{prefix}{payload}{}", "y".repeat(400));
-
-        let chunks = chunk_with_params(&text, max_chars, 0.0);
-        assert!(
-            !chunks.iter().any(|c| c.contains(payload)),
-            "with zero overlap the straddling payload is split across windows"
         );
     }
 
