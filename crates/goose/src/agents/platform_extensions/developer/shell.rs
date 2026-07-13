@@ -348,7 +348,7 @@ impl ShellTool {
     }
 
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
-        self.shell_with_cwd(params, None, CancellationToken::new())
+        self.shell_with_cwd(params, None, None, CancellationToken::new())
             .await
     }
 
@@ -356,6 +356,7 @@ impl ShellTool {
         &self,
         params: ShellParams,
         working_dir: Option<&std::path::Path>,
+        session_id: Option<&str>,
         cancellation_token: CancellationToken,
     ) -> CallToolResult {
         if params.command.trim().is_empty() {
@@ -374,6 +375,7 @@ impl ShellTool {
             params.timeout_secs,
             working_dir,
             login_path_ref,
+            session_id,
             cancellation_token,
         )
         .await
@@ -520,11 +522,12 @@ async fn run_command(
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
     let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
 
-    let mut command = build_shell_command(command_line, working_dir, login_path);
+    let mut command = build_shell_command(command_line, working_dir, login_path, session_id);
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -599,8 +602,8 @@ async fn run_command(
         }
         Err(_) => {
             tracing::debug!(
-                    "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
-                );
+                "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
+            );
             abort_handle.abort();
             true
         }
@@ -625,6 +628,7 @@ fn build_shell_command(
     command_line: &str,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
 ) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
@@ -681,8 +685,17 @@ fn build_shell_command(
         }
     };
 
+    apply_session_environment(&mut command, session_id);
     command.set_no_window();
     command
+}
+
+fn apply_session_environment(command: &mut tokio::process::Command, session_id: Option<&str>) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.env("AGENT_SESSION_ID", session_id);
+    } else {
+        command.env_remove("AGENT_SESSION_ID");
+    }
 }
 
 /// Split tagged lines into (stdout, stderr, interleaved) strings.
@@ -872,6 +885,7 @@ mod tests {
                     timeout_secs: None,
                 },
                 Some(dir.path()),
+                None,
                 CancellationToken::new(),
             )
             .await;
@@ -880,6 +894,36 @@ mod tests {
         let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
         let expected = std::fs::canonicalize(dir.path()).unwrap();
         assert_eq!(observed, expected);
+    }
+
+    #[test]
+    fn session_environment_is_scoped_to_the_shell_command() {
+        let mut command = tokio::process::Command::new("ignored");
+
+        apply_session_environment(&mut command, Some("session-123"));
+
+        assert_eq!(
+            command.as_std().get_envs().find_map(|(key, value)| {
+                (key == "AGENT_SESSION_ID").then(|| value.unwrap().to_owned())
+            }),
+            Some(std::ffi::OsString::from("session-123"))
+        );
+    }
+
+    #[test]
+    fn session_environment_removes_stale_id_without_context() {
+        let mut command = tokio::process::Command::new("ignored");
+        command.env("AGENT_SESSION_ID", "stale-session");
+
+        apply_session_environment(&mut command, None);
+
+        assert_eq!(
+            command
+                .as_std()
+                .get_envs()
+                .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
+            Some(None)
+        );
     }
 
     #[cfg(not(windows))]
@@ -901,6 +945,7 @@ mod tests {
                     command: "sleep 30".to_string(),
                     timeout_secs: None,
                 },
+                None,
                 None,
                 token,
             )
