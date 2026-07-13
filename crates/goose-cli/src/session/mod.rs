@@ -73,6 +73,12 @@ struct JsonMetadata {
     input_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_read_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_write_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost_usd: Option<f64>,
     status: String,
 }
 
@@ -96,6 +102,12 @@ enum StreamEvent {
         input_tokens: Option<i32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_read_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_write_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cost_usd: Option<f64>,
     },
 }
 
@@ -1379,28 +1391,25 @@ impl CliSession {
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
             {
-                Ok(session) => JsonMetadata {
-                    total_tokens: session
-                        .accumulated_usage
-                        .total_tokens
-                        .or(session.usage.total_tokens),
-                    input_tokens: session
-                        .accumulated_usage
-                        .input_tokens
-                        .or(session.usage.input_tokens),
-                    output_tokens: session
-                        .accumulated_usage
-                        .output_tokens
-                        .or(session.usage.output_tokens),
+                Ok(totals) => JsonMetadata {
+                    total_tokens: totals.accumulated_usage.total_tokens,
+                    input_tokens: totals.accumulated_usage.input_tokens,
+                    output_tokens: totals.accumulated_usage.output_tokens,
+                    cache_read_input_tokens: totals.accumulated_usage.cache_read_input_tokens,
+                    cache_write_input_tokens: totals.accumulated_usage.cache_write_input_tokens,
+                    cost_usd: totals.accumulated_cost,
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
                     input_tokens: None,
                     output_tokens: None,
+                    cache_read_input_tokens: None,
+                    cache_write_input_tokens: None,
+                    cost_usd: None,
                     status: "completed".to_string(),
                 },
             };
@@ -1410,25 +1419,38 @@ impl CliSession {
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let session = self
+            let totals = self
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
                 .ok();
-            let (total_tokens, input_tokens, output_tokens) = match session {
-                Some(s) => (
-                    s.accumulated_usage.total_tokens.or(s.usage.total_tokens),
-                    s.accumulated_usage.input_tokens.or(s.usage.input_tokens),
-                    s.accumulated_usage.output_tokens.or(s.usage.output_tokens),
+            let (
+                total_tokens,
+                input_tokens,
+                output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
+            ) = match totals {
+                Some(totals) => (
+                    totals.accumulated_usage.total_tokens,
+                    totals.accumulated_usage.input_tokens,
+                    totals.accumulated_usage.output_tokens,
+                    totals.accumulated_usage.cache_read_input_tokens,
+                    totals.accumulated_usage.cache_write_input_tokens,
+                    totals.accumulated_cost,
                 ),
-                None => (None, None, None),
+                None => (None, None, None, None, None, None),
             };
             emit_stream_event(&StreamEvent::Complete {
                 total_tokens,
                 input_tokens,
                 output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
             });
         } else {
             println!();
