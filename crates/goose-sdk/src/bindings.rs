@@ -125,8 +125,6 @@ fn is_output_token_limit(message: &str) -> bool {
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderMessage {
     pub role: MessageRole,
-    pub text: String,
-    #[uniffi(default = [])]
     pub content: Vec<MessageContent>,
 }
 
@@ -170,33 +168,11 @@ impl ProviderMessage {
             MessageRole::Assistant => Role::Assistant,
             MessageRole::System => unreachable!(),
         };
-        let content = if self.content.is_empty() && !self.text.is_empty() {
-            vec![MessageContent::Text {
-                text: self.text.clone(),
-            }]
-        } else {
-            self.content.clone()
-        };
-
         let mut message = Message::new(role, chrono_now(), Vec::new());
-        for content in &content {
+        for content in &self.content {
             message = message.with_content(content.to_goose_content()?);
         }
         Ok(Some(message))
-    }
-
-    pub fn text(&self) -> String {
-        if !self.text.is_empty() {
-            return self.text.clone();
-        }
-        self.content
-            .iter()
-            .filter_map(|content| match content {
-                MessageContent::Text { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
     }
 }
 
@@ -415,13 +391,6 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct ProviderStreamChunk {
-    pub text: Option<String>,
-    pub message_json: Option<String>,
-    pub usage_json: Option<String>,
-}
-
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum StreamChunk {
     TextChunk {
@@ -437,9 +406,6 @@ pub enum StreamChunk {
     },
     ErrorChunk {
         error: GooseStreamError,
-    },
-    ToolTrimChunk {
-        event: ToolTrimEvent,
     },
 }
 
@@ -504,12 +470,6 @@ impl From<GooseError> for GooseStreamError {
             },
         }
     }
-}
-
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct ToolTrimEvent {
-    pub removed_tool_names: Vec<String>,
-    pub reason: String,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -865,27 +825,6 @@ pub struct ProviderStream {
 
 #[uniffi::export]
 impl ProviderStream {
-    pub async fn next(&self) -> Result<Option<ProviderStreamChunk>, GooseError> {
-        let stream = Arc::clone(&self.stream);
-        run_on_runtime(async move {
-            let mut stream = stream.lock().await;
-            let Some((message, usage)) = stream.next().await.transpose()? else {
-                return Ok(None);
-            };
-
-            let text = message.as_ref().map(Message::as_concat_text);
-            let message_json = message.as_ref().map(serde_json::to_string).transpose()?;
-            let usage_json = usage.as_ref().map(serde_json::to_string).transpose()?;
-
-            Ok(Some(ProviderStreamChunk {
-                text,
-                message_json,
-                usage_json,
-            }))
-        })
-        .await?
-    }
-
     pub async fn next_chunk(&self) -> Result<Option<StreamChunk>, GooseError> {
         loop {
             if let Some(chunk) = self.pending.lock().await.pop() {
@@ -959,27 +898,6 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                     },
                 }),
             },
-            GooseMessageContent::SystemNotification(notification)
-                if notification.msg.to_ascii_lowercase().contains("trim") =>
-            {
-                Some(StreamChunk::ToolTrimChunk {
-                    event: ToolTrimEvent {
-                        removed_tool_names: notification
-                            .data
-                            .as_ref()
-                            .and_then(|data| data.get("removed_tool_names"))
-                            .and_then(Value::as_array)
-                            .map(|items| {
-                                items
-                                    .iter()
-                                    .filter_map(|item| item.as_str().map(str::to_string))
-                                    .collect()
-                            })
-                            .unwrap_or_default(),
-                        reason: notification.msg,
-                    },
-                })
-            }
             _ => None,
         })
         .collect()
@@ -1021,8 +939,9 @@ mod tests {
     fn provider_message_converts_user_text() {
         let message = ProviderMessage {
             role: MessageRole::User,
-            text: "what is the capital of France?".to_string(),
-            content: vec![],
+            content: vec![MessageContent::Text {
+                text: "what is the capital of France?".to_string(),
+            }],
         }
         .to_goose_message()
         .unwrap()

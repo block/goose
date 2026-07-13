@@ -8,18 +8,6 @@ public fun Provider.streamFlow(
     system: String,
     messages: List<ProviderMessage>,
     tools: List<ProviderTool> = emptyList(),
-): Flow<ProviderStreamChunk> = flow {
-    val stream = stream(model, system, messages, tools)
-    while (true) {
-        emit(stream.next() ?: break)
-    }
-}
-
-public fun Provider.streamChunkFlow(
-    model: ProviderModelConfig,
-    system: String,
-    messages: List<ProviderMessage>,
-    tools: List<ProviderTool> = emptyList(),
 ): Flow<StreamChunk> = flow {
     val stream = stream(model, system, messages, tools)
     while (true) {
