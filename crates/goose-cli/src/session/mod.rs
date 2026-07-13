@@ -3,6 +3,7 @@ mod completion;
 pub mod editor;
 mod elicitation;
 mod export;
+mod formatting;
 mod input;
 mod output;
 pub mod streaming_buffer;

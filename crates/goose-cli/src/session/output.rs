@@ -20,6 +20,7 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
 use std::time::Duration;
 
+use super::formatting::{self, Role, ToolStatus};
 use super::streaming_buffer::MarkdownBuffer;
 
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
@@ -221,6 +222,7 @@ pub fn set_thinking_message(s: &String) {
 
 pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
+    let is_user_message = message.role == rmcp::model::Role::User;
 
     for content in &message.content {
         match content {
@@ -235,6 +237,7 @@ pub fn render_message(message: &Message, debug: bool) {
                     println!("action_required(elicitation_response): {}", id)
                 }
             },
+            MessageContent::Text(text) if is_user_message => print_user_message(&text.text),
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, debug),
@@ -280,6 +283,7 @@ pub fn render_message_streaming(
     debug: bool,
 ) {
     let theme = get_theme();
+    let is_user_message = message.role == rmcp::model::Role::User;
 
     for content in &message.content {
         if !matches!(content, MessageContent::Thinking(_)) {
@@ -290,6 +294,11 @@ pub fn render_message_streaming(
         }
 
         match content {
+            MessageContent::Text(text) if is_user_message => {
+                if let Some(safe_content) = buffer.push(&text.text) {
+                    print_user_message(&safe_content);
+                }
+            }
             MessageContent::Text(text) => {
                 if let Some(safe_content) = buffer.push(&text.text) {
                     print_markdown(&safe_content, theme);
@@ -459,7 +468,7 @@ fn should_show_thinking() -> bool {
 
 fn render_thinking(text: &str, theme: Theme) {
     if should_show_thinking() {
-        println!("\n{}", style("Thinking:").dim().italic());
+        println!("\n{}", formatting::apply(Role::Muted, "Thinking:").italic());
         print_markdown(text, theme);
     }
 }
@@ -473,10 +482,10 @@ fn render_thinking_streaming(
     if should_show_thinking() {
         flush_markdown_buffer(buffer, theme);
         if !*header_shown {
-            println!("\n{}", style("Thinking:").dim().italic());
+            println!("\n{}", formatting::apply(Role::Muted, "Thinking:").italic());
             *header_shown = true;
         }
-        print!("{}", style(text).dim());
+        print!("{}", formatting::apply(Role::Muted, text));
         let _ = std::io::stdout().flush();
     }
 }
@@ -528,9 +537,21 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     print_tool_output(&text.text);
                 }
             }
+            if let Some(footer) = formatting::format_tool_status_line_plain(ToolStatus::Success) {
+                println!(
+                    "{}",
+                    formatting::apply(formatting::status_role(ToolStatus::Success), &footer)
+                );
+            }
         }
         Err(e) => {
-            println!("    {}", style(e.to_string()).red().dim());
+            let line = format!(
+                "{}{} {}",
+                formatting::GUTTER,
+                formatting::status_glyph(ToolStatus::Error),
+                e
+            );
+            println!("{}", formatting::apply(Role::Error, &line));
         }
     }
 }
@@ -551,25 +572,40 @@ fn print_tool_output(text: &str) {
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() <= max_lines {
         for line in &lines {
-            println!("    {}", style(line).dim());
+            println!(
+                "{}{}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Muted, line)
+            );
         }
     } else {
         let head = max_lines / 2;
         let tail = max_lines - head;
         for line in &lines[..head] {
-            println!("    {}", style(line).dim());
+            println!(
+                "{}{}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Muted, line)
+            );
         }
         println!(
-            "    {}",
-            style(format!(
-                "... ({} lines hidden, /toggle to show all)",
-                lines.len() - head - tail
-            ))
-            .dim()
+            "{}{}",
+            formatting::PARAM_INDENT,
+            formatting::apply(
+                Role::Muted,
+                &format!(
+                    "... ({} lines hidden, /toggle to show all)",
+                    lines.len() - head - tail
+                )
+            )
             .italic()
         );
         for line in &lines[lines.len() - tail..] {
-            println!("    {}", style(line).dim());
+            println!(
+                "{}{}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Muted, line)
+            );
         }
     }
 }
@@ -583,7 +619,10 @@ fn is_file_tool_name(name: &str) -> bool {
 }
 
 pub fn render_error(message: &str) {
-    println!("\n  {} {}\n", style("error:").red().bold(), message);
+    println!(
+        "\n{}\n",
+        formatting::apply(Role::Error, &formatting::format_error_line_plain(message))
+    );
 }
 
 pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
@@ -683,9 +722,10 @@ fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
     if let Some(args) = &call.arguments {
         if let Some(Value::String(path)) = args.get("path") {
             println!(
-                "    {} {}",
-                style("path").dim(),
-                style(shorten_path(path, debug)).dim()
+                "{}{} {}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Secondary, "path"),
+                formatting::apply(Role::Muted, &shorten_path(path, debug))
             );
         }
 
@@ -724,12 +764,17 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
 
     let count = tool_graph.len();
     let plural = if count == 1 { "" } else { "s" };
+    let status = ToolStatus::Running;
     println!();
     println!(
-        "  {} {} {} tool call{}",
-        style("▸").dim(),
-        style("execute").dim(),
-        style(count).dim(),
+        "{}{} {} {} tool call{}",
+        formatting::GUTTER,
+        formatting::apply(
+            formatting::status_role(status),
+            formatting::status_glyph(status)
+        ),
+        formatting::apply(Role::Secondary, "execute"),
+        formatting::apply(Role::Muted, &count.to_string()),
         plural,
     );
 
@@ -782,7 +827,12 @@ fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
 
     if let Some(args) = &call.arguments {
         if let Some(Value::String(source)) = args.get("source") {
-            println!("    {} {}", style("source").dim(), style(source).dim());
+            println!(
+                "{}{} {}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Secondary, "source"),
+                formatting::apply(Role::Muted, source)
+            );
         }
 
         if let Some(Value::String(instructions)) = args.get("instructions") {
@@ -792,14 +842,19 @@ fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
                 instructions.clone()
             };
             println!(
-                "    {} {}",
-                style("instructions").dim(),
-                style(display).dim()
+                "{}{} {}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Secondary, "instructions"),
+                formatting::apply(Role::Muted, &display)
             );
         }
 
         if let Some(Value::Object(params)) = args.get("parameters") {
-            println!("    {}:", style("parameters").dim());
+            println!(
+                "{}{}:",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Secondary, "parameters")
+            );
             print_params(&Some(params.clone()), 2, debug);
         }
 
@@ -823,7 +878,12 @@ fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
 
     if let Some(args) = &call.arguments {
         if let Some(Value::String(content)) = args.get("content") {
-            println!("    {} {}", style("content").dim(), style(content).dim());
+            println!(
+                "{}{} {}",
+                formatting::PARAM_INDENT,
+                formatting::apply(Role::Secondary, "content"),
+                formatting::apply(Role::Muted, content)
+            );
         }
     }
     println!();
@@ -878,10 +938,18 @@ pub fn render_subagent_tool_call(
             return render_subagent_tool_graph(subagent_id, tool_graph);
         }
     }
+    let status = ToolStatus::Running;
     let tool_header = format!(
-        "  {} {}",
-        style("▸").dim(),
-        style(format_subagent_tool_call_message(subagent_id, tool_name)).dim(),
+        "{}{} {}",
+        formatting::GUTTER,
+        formatting::apply(
+            formatting::status_role(status),
+            formatting::status_glyph(status)
+        ),
+        formatting::apply(
+            Role::Secondary,
+            &format_subagent_tool_call_message(subagent_id, tool_name)
+        ),
     );
     println!();
     println!("{}", tool_header);
@@ -893,13 +961,18 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
     let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
     let count = tool_graph.len();
     let plural = if count == 1 { "" } else { "s" };
+    let status = ToolStatus::Running;
     println!();
     println!(
-        "  {} {} {} {} tool call{}",
-        style("▸").dim(),
-        style(format!("[subagent:{}]", short_id)).dim(),
-        style("execute_typescript").dim(),
-        style(count).dim(),
+        "{}{} {} {} {} tool call{}",
+        formatting::GUTTER,
+        formatting::apply(
+            formatting::status_role(status),
+            formatting::status_glyph(status)
+        ),
+        formatting::apply(Role::Secondary, &format!("[subagent:{}]", short_id)),
+        formatting::apply(Role::Secondary, "execute_typescript"),
+        formatting::apply(Role::Muted, &count.to_string()),
         plural,
     );
 
@@ -940,25 +1013,44 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 
 fn print_tool_header(call: &CallToolRequestParams) {
     let (tool, extension) = split_tool_name(&call.name);
-    let tool_header = if extension.is_empty() {
-        format!("  {} {}", style("▸").dim(), style(&tool).dim())
-    } else {
-        format!(
-            "  {} {} {}",
-            style("▸").dim(),
-            style(&tool).dim(),
-            style(extension).magenta().dim(),
-        )
-    };
+    let status = ToolStatus::Running;
+    let glyph = formatting::status_glyph(status);
+    // Build the plain (unstyled) line once so the header's structure stays
+    // in lockstep with `format_tool_header_plain`'s spec, then recolor the
+    // status glyph separately from the tool/extension label.
+    let plain = formatting::format_tool_header_plain(&tool, &extension, status);
+    let label = plain
+        .strip_prefix(&format!("{}{} ", formatting::GUTTER, glyph))
+        .unwrap_or(&plain);
     println!();
-    println!("  {}", style("─".repeat(40)).dim());
-    println!("{}", tool_header);
+    println!(
+        "{}{} {}",
+        formatting::GUTTER,
+        formatting::apply(formatting::status_role(status), glyph),
+        formatting::apply(Role::Secondary, label),
+    );
 }
 
 // Respect NO_COLOR, as https://crates.io/crates/console already does
 pub fn env_no_color() -> bool {
     // if NO_COLOR is defined at all disable colors
     std::env::var_os("NO_COLOR").is_none()
+}
+
+/// Print a user-submitted message with the accent-colored prompt glyph,
+/// aligning any continuation lines under it. Mirrors the Ink TUI's `❯`
+/// prefix so user turns read as clearly distinct from assistant/tool
+/// content when browsing history (e.g. `/resume`).
+fn print_user_message(text: &str) {
+    let plain = formatting::format_user_message_plain(text);
+    let Some(rest) = plain.strip_prefix(formatting::USER_PROMPT_GLYPH) else {
+        return;
+    };
+    print!(
+        "{}",
+        formatting::apply(Role::Accent, formatting::USER_PROMPT_GLYPH)
+    );
+    println!("{}", formatting::apply(Role::Primary, rest));
 }
 
 fn print_markdown(content: &str, theme: Theme) {
@@ -1156,8 +1248,6 @@ fn print_table(table_lines: &[&str], theme: Theme) {
     print_markdown_raw(&table_str, theme);
 }
 
-const INDENT: &str = "    ";
-
 fn print_value_with_prefix(prefix: &String, value: &Value, debug: bool) {
     let prefix_width = measure_text_width(prefix.as_str());
     print!("{}", prefix);
@@ -1169,28 +1259,28 @@ fn print_value(value: &Value, debug: bool, reserve_width: usize) {
         .size_checked()
         .map(|(_h, w)| (w as usize).saturating_sub(reserve_width));
     let show_full = get_show_full_tool_output();
-    let formatted = match value {
+    let text = match value {
         Value::String(s) => match (max_width, debug || show_full) {
-            (Some(w), false) if s.len() > w => style(safe_truncate(s, w)),
-            _ => style(s.to_string()),
-        }
-        .green(),
-        Value::Number(n) => style(n.to_string()).yellow(),
-        Value::Bool(b) => style(b.to_string()).yellow(),
-        Value::Null => style("null".to_string()).dim(),
+            (Some(w), false) if s.len() > w => safe_truncate(s, w),
+            _ => s.to_string(),
+        },
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Null => "null".to_string(),
         _ => unreachable!(),
     };
-    println!("{}", formatted);
+    println!("{}", formatting::apply(Role::Muted, &text));
 }
 
 fn print_params(value: &Option<JsonObject>, depth: usize, debug: bool) {
-    let indent = INDENT.repeat(depth);
+    let indent = formatting::PARAM_INDENT.repeat(depth);
 
     if let Some(json_object) = value {
         for (key, val) in json_object.iter() {
+            let key_label = formatting::apply(Role::Secondary, key);
             match val {
                 Value::Object(obj) => {
-                    println!("{}{}:", indent, style(key).dim());
+                    println!("{}{}:", indent, key_label);
                     print_params(&Some(obj.clone()), depth + 1, debug);
                 }
                 Value::Array(arr) => {
@@ -1216,29 +1306,25 @@ fn print_params(value: &Option<JsonObject>, depth: usize, debug: bool) {
                             .collect();
                         let joined_values = values.join(", ");
                         print_value_with_prefix(
-                            &format!("{}{}: ", indent, style(key).dim()),
+                            &format!("{}{}: ", indent, key_label),
                             &Value::String(joined_values),
                             debug,
                         );
                     } else {
                         // Use the original multi-line format for complex arrays
-                        println!("{}{}:", indent, style(key).dim());
+                        println!("{}{}:", indent, key_label);
                         for item in arr.iter() {
                             if let Value::Object(obj) = item {
-                                println!("{}{}- ", indent, INDENT);
+                                println!("{}{}- ", indent, formatting::PARAM_INDENT);
                                 print_params(&Some(obj.clone()), depth + 2, debug);
                             } else {
-                                println!("{}{}- {}", indent, INDENT, item);
+                                println!("{}{}- {}", indent, formatting::PARAM_INDENT, item);
                             }
                         }
                     }
                 }
                 _ => {
-                    print_value_with_prefix(
-                        &format!("{}{}: ", indent, style(key).dim()),
-                        val,
-                        debug,
-                    );
+                    print_value_with_prefix(&format!("{}{}: ", indent, key_label), val, debug);
                 }
             }
         }

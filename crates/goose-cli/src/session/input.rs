@@ -150,7 +150,8 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
-    let input = match editor.readline("> ") {
+    let prompt = format!("{} ", super::formatting::USER_PROMPT_GLYPH);
+    let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
