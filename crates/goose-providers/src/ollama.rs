@@ -1,5 +1,5 @@
 use super::api_client::ApiClient;
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
+use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::api_client::{AuthMethod, TlsConfig};
@@ -82,7 +82,7 @@ pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     options: OllamaOptions,
@@ -91,7 +91,7 @@ pub struct OllamaProvider {
 pub struct OllamaProviderBuilder {
     api_client: ApiClient,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     options: OllamaOptions,
@@ -132,7 +132,7 @@ impl OllamaProviderBuilder {
         self
     }
 
-    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+    pub fn custom_models(mut self, custom_models: Option<Vec<ModelInfo>>) -> Self {
         self.custom_models = custom_models;
         self
     }
@@ -273,13 +273,7 @@ pub fn from_declarative_config(
     key_resolver: impl KeyResolver,
 ) -> Result<OllamaProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
+        Some(config.models.clone())
     } else {
         None
     };
@@ -440,7 +434,7 @@ impl Provider for OllamaProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(custom_models.iter().map(|m| m.name.clone()).collect());
             }
 
             match self.fetch_models_from_api().await {
@@ -451,7 +445,7 @@ impl Provider for OllamaProvider {
                         self.name,
                         e
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(custom_models.iter().map(|m| m.name.clone()).collect());
                 }
                 Err(e) => return Err(e),
             }
