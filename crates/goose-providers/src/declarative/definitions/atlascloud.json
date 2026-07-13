@@ -1,0 +1,21 @@
+{
+  "name": "atlascloud",
+  "engine": "openai",
+  "display_name": "Atlas Cloud",
+  "description": "Atlas Cloud OpenAI-compatible LLM API.",
+  "api_key_env": "ATLASCLOUD_API_KEY",
+  "base_url": "https://api.atlascloud.ai",
+  "models": [
+    {
+      "name": "deepseek-ai/deepseek-v4-pro",
+      "context_limit": 1048576
+    },
+    {
+      "name": "qwen/qwen3.5-flash",
+      "context_limit": 1000000
+    }
+  ],
+  "dynamic_models": true,
+  "supports_streaming": true,
+  "preserves_thinking": true
+}
