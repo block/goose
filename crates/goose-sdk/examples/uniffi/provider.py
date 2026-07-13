@@ -24,6 +24,7 @@ async def main() -> None:
         model,
         "You are a knowledgable geography expert",
         messages,
+        [],
     )
 
     while chunk := await stream.next():

@@ -5,7 +5,10 @@ as the Maven artifact `io.github.aaif-goose:gdk`.
 
 The artifact version is read from `crates/goose-sdk/Cargo.toml`, so it stays in
 lockstep with the Rust crate version. The jar includes the generated Kotlin API
-and native libraries under JNA platform resource directories.
+and native libraries under JNA platform resource directories. Packaging supports
+`darwin-aarch64`, `darwin-x86-64`, `linux-x86-64`, `linux-aarch64`, and
+`win32-x86-64` resource prefixes; CI is responsible for assembling every native
+library into the final published jar.
 
 Build locally from the repository root:
 
