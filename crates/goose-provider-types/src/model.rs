@@ -1,5 +1,6 @@
 use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
 use crate::thinking::ThinkingEffort;
+use crate::base::Reasoning;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -33,7 +34,7 @@ pub struct ModelConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<bool>,
+    pub reasoning: Option<Reasoning>,
 }
 
 impl<'de> Deserialize<'de> for ModelConfig {
@@ -52,7 +53,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             request_params: Option<HashMap<String, Value>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
-            reasoning: Option<bool>,
+            reasoning: Option<Reasoning>,
         }
 
         let raw = RawModelConfig::deserialize(deserializer)?;
@@ -115,7 +116,7 @@ impl ModelConfig {
                     .map(|output| output as i32);
             }
             if self.reasoning.is_none() {
-                self.reasoning = canonical.reasoning;
+                self.reasoning = canonical.reasoning.map(Reasoning::Enabled);
             }
         }
 
@@ -227,8 +228,8 @@ impl ModelConfig {
     }
 
     pub fn is_reasoning_model(&self) -> bool {
-        if let Some(reasoning) = self.reasoning {
-            return reasoning;
+        if let Some(reasoning) = &self.reasoning {
+            return reasoning.is_enabled();
         }
 
         self.is_openai_reasoning_model()
@@ -539,7 +540,7 @@ mod tests {
 
             assert_eq!(config.context_limit, Some(128_000));
             assert_eq!(config.max_tokens, Some(16_384));
-            assert_eq!(config.reasoning, Some(false));
+            assert_eq!(config.reasoning, Some(Reasoning::Enabled(false)));
         }
 
         #[test]
@@ -592,7 +593,7 @@ mod tests {
 
             assert_eq!(config.context_limit, Some(1_000_000));
             assert_eq!(config.max_tokens, Some(128_000));
-            assert_eq!(config.reasoning, Some(true));
+            assert_eq!(config.reasoning, Some(Reasoning::Enabled(true)));
         }
 
         #[test]
@@ -703,11 +704,11 @@ mod tests {
         fn uses_explicit_metadata_first() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
             let mut config = ModelConfig::new("provider-alias");
-            config.reasoning = Some(true);
+            config.reasoning = Some(Reasoning::Enabled(true));
             assert!(config.is_reasoning_model());
 
             let mut config = ModelConfig::new("claude-sonnet-4");
-            config.reasoning = Some(false);
+            config.reasoning = Some(Reasoning::Enabled(false));
             assert!(!config.is_reasoning_model());
         }
     }

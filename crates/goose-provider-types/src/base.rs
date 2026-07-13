@@ -217,6 +217,38 @@ impl ConfigKey {
     }
 }
 
+/// Configuration block for models that require advanced reasoning parameters
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
+pub struct ReasoningConfig {
+    /// Whether reasoning is enabled
+    pub enabled: bool,
+}
+
+/// Reasoning support configuration
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(untagged)]
+pub enum Reasoning {
+    /// Legacy/simple boolean flag
+    Enabled(bool),
+    /// Advanced reasoning configuration block
+    ReasoningConfig(ReasoningConfig),
+}
+
+impl Reasoning {
+    pub fn is_enabled(&self) -> bool {
+        match self {
+            Self::Enabled(enabled) => *enabled,
+            Self::ReasoningConfig(config) => config.enabled,
+        }
+    }
+}
+
+impl Default for Reasoning {
+    fn default() -> Self {
+        Self::Enabled(false)
+    }
+}
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -237,7 +269,7 @@ pub struct ModelInfo {
     pub supports_cache_control: Option<bool>,
     /// Whether this model supports reasoning/thinking controls
     #[serde(default)]
-    pub reasoning: bool,
+    pub reasoning: Reasoning,
 }
 
 impl ModelInfo {
@@ -251,7 +283,7 @@ impl ModelInfo {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: Reasoning::default(),
         }
     }
 
@@ -270,7 +302,7 @@ impl ModelInfo {
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: Reasoning::default(),
         }
     }
 }
@@ -303,7 +335,14 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
     let reasoning = canonical
         .as_ref()
         .and_then(|model| model.reasoning)
-        .unwrap_or_else(|| ModelConfig::new(model_name).is_reasoning_model());
+        .map(Reasoning::Enabled)
+        .unwrap_or_else(|| {
+            if ModelConfig::new(model_name).is_reasoning_model() {
+                Reasoning::Enabled(true)
+            } else {
+                Reasoning::Enabled(false)
+            }
+        });
 
     ModelInfo {
         name: model_name.to_string(),
@@ -674,7 +713,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: Reasoning::default(),
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -687,7 +726,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: Reasoning::default(),
         };
         assert_eq!(info, info2);
 
@@ -700,7 +739,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: false,
+            reasoning: Reasoning::default(),
         };
         assert_ne!(info, info3);
     }
@@ -713,5 +752,36 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    #[test]
+    fn test_reasoning_deserialization() {
+        // Test basic boolean deserialization
+        let json_bool_true = "true";
+        let reasoning_bool_true: Reasoning = serde_json::from_str(json_bool_true).unwrap();
+        assert_eq!(reasoning_bool_true, Reasoning::Enabled(true));
+        assert!(reasoning_bool_true.is_enabled());
+
+        let json_bool_false = "false";
+        let reasoning_bool_false: Reasoning = serde_json::from_str(json_bool_false).unwrap();
+        assert_eq!(reasoning_bool_false, Reasoning::Enabled(false));
+        assert!(!reasoning_bool_false.is_enabled());
+
+        // Test struct deserialization
+        let json_struct_true = r#"{"enabled": true}"#;
+        let reasoning_struct_true: Reasoning = serde_json::from_str(json_struct_true).unwrap();
+        assert_eq!(
+            reasoning_struct_true,
+            Reasoning::ReasoningConfig(ReasoningConfig { enabled: true })
+        );
+        assert!(reasoning_struct_true.is_enabled());
+
+        let json_struct_false = r#"{"enabled": false}"#;
+        let reasoning_struct_false: Reasoning = serde_json::from_str(json_struct_false).unwrap();
+        assert_eq!(
+            reasoning_struct_false,
+            Reasoning::ReasoningConfig(ReasoningConfig { enabled: false })
+        );
+        assert!(!reasoning_struct_false.is_enabled());
     }
 }
