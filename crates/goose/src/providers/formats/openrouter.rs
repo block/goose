@@ -234,7 +234,7 @@ mod tests {
         // Reasoning-capable model (per canonical) with thinking explicitly off, as a
         // fast-model config is built: OpenRouter must still emit the disable object.
         let mut model_config = ModelConfig::new("google/gemini-2.5-flash");
-        model_config.reasoning = Some(true);
+        model_config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
         model_config.request_params = Some(params);
@@ -254,7 +254,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
-        model_config.reasoning = Some(true);
+        model_config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
 
         apply_reasoning_config(&mut payload, &model_config);
 
@@ -287,7 +287,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
-        model_config.reasoning = Some(false);
+        model_config.reasoning = Some(goose_providers::base::Reasoning::Enabled(false));
 
         apply_reasoning_config(&mut payload, &model_config);
 
@@ -304,7 +304,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
         model_config.request_params = Some(params);
-        model_config.reasoning = Some(true);
+        model_config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
 
         apply_reasoning_config(&mut payload, &model_config);
 

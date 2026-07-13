@@ -618,7 +618,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), json!("low"));
         let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
 
         let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
         assert_eq!(
@@ -641,7 +641,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), json!("low"));
         let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.max_tokens = Some(3000);
 
         let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
@@ -664,7 +664,7 @@ mod tests {
         params.insert("thinking_effort".to_string(), json!("low"));
         let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.max_tokens = Some(1500);
 
         assert!(bedrock_anthropic_thinking_fields(&config).is_none());
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn test_bedrock_anthropic_thinking_fields_disabled() {
         let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
             json!("off"),
@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
         let mut config = ModelConfig::new("global.anthropic.claude-fable-5");
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
             json!("off"),
@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
         let mut config = ModelConfig::new("us.anthropic.claude-opus-4.7");
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
             json!("low"),
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
         let mut config = ModelConfig::new("us.anthropic.claude-opus-4-7-20251101-v1:0");
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
             json!("low"),
@@ -742,7 +742,7 @@ mod tests {
     #[test]
     fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
         let mut config = ModelConfig::new("us.deepseek.r1-v1:0");
-        config.reasoning = Some(true);
+        config.reasoning = Some(goose_providers::base::Reasoning::Enabled(true));
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
             json!("low"),
