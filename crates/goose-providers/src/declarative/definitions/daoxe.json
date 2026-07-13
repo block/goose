@@ -10,7 +10,7 @@
   "models": [
     {
       "name": "gpt-5.5",
-      "context_limit": 400000
+      "context_limit": 1050000
     },
     {
       "name": "claude-sonnet-4-6",
