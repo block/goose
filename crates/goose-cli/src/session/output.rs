@@ -1097,16 +1097,20 @@ fn print_markdown(content: &str, theme: Theme) {
     }
 }
 
-/// Renders markdown content using bat (no table processing)
+/// Renders markdown content using bat (no table processing), indented
+/// under the shared gutter so normal model replies line up with the
+/// user-message prompt glyph rather than sitting flush-left.
 fn print_markdown_raw(content: &str, theme: Theme) {
+    let mut rendered = String::new();
     bat::PrettyPrinter::new()
         .input(bat::Input::from_bytes(content.as_bytes()))
         .theme(theme.as_str())
         .colored_output(env_no_color())
         .language("Markdown")
         .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
+        .print_with_writer(Some(&mut rendered))
         .unwrap();
+    print!("{}", formatting::indent_block(&rendered));
 }
 
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
@@ -1630,6 +1634,17 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::env;
+
+    #[test]
+    #[ignore]
+    fn manual_visual_smoke_check() {
+        print_user_message("How do I list files in /tmp?");
+        std::println!();
+        print_markdown_raw(
+            "Sure! Use `ls -la /tmp`.\n\n- flag `-l` for long form\n- flag `-a` for hidden files\n",
+            Theme::Ansi,
+        );
+    }
 
     #[test]
     fn test_short_paths_unchanged() {

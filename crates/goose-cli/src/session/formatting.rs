@@ -192,6 +192,25 @@ pub fn format_tool_status_line_plain(status: ToolStatus) -> Option<String> {
     }
 }
 
+/// Indent every non-empty line of a rendered block (e.g. an assistant
+/// reply's already-highlighted markdown) under the shared [`GUTTER`], so
+/// normal model output aligns with the user-message prompt glyph instead
+/// of sitting flush-left. Blank lines are left empty rather than padded
+/// with trailing whitespace, and the exact number of lines (including a
+/// trailing blank one from a trailing newline) is preserved.
+pub fn indent_block(text: &str) -> String {
+    text.split('\n')
+        .map(|line| {
+            if line.is_empty() {
+                String::new()
+            } else {
+                format!("{GUTTER}{line}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Format the plain-text error line shown for CLI-level errors.
 pub fn format_error_line_plain(message: &str) -> String {
     format!(
@@ -350,5 +369,39 @@ mod tests {
     #[test]
     fn param_indent_is_wider_than_the_gutter() {
         assert!(PARAM_INDENT.len() > GUTTER.len());
+    }
+
+    #[test]
+    fn normal_model_messages_are_indented_under_the_gutter() {
+        assert_eq!(
+            indent_block("Sure, here's the answer."),
+            format!("{GUTTER}Sure, here's the answer.")
+        );
+    }
+
+    #[test]
+    fn multiline_model_messages_have_every_line_indented_under_the_gutter() {
+        assert_eq!(
+            indent_block("first line\nsecond line\nthird line"),
+            format!("{GUTTER}first line\n{GUTTER}second line\n{GUTTER}third line")
+        );
+    }
+
+    #[test]
+    fn blank_lines_in_a_model_message_are_not_padded_with_trailing_whitespace() {
+        assert_eq!(
+            indent_block("first paragraph\n\nsecond paragraph"),
+            format!("{GUTTER}first paragraph\n\n{GUTTER}second paragraph")
+        );
+    }
+
+    #[test]
+    fn indent_block_preserves_a_trailing_newline() {
+        assert_eq!(indent_block("hello\n"), format!("{GUTTER}hello\n"));
+    }
+
+    #[test]
+    fn indent_block_is_a_no_op_on_empty_input() {
+        assert_eq!(indent_block(""), "");
     }
 }
