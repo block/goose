@@ -33,6 +33,7 @@ use std::io::{IsTerminal, Write};
 // useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
+const MAX_PROVIDER_ROWS: usize = 10;
 const SHOW_CURSOR: &[u8] = b"\x1b[?25h";
 
 struct CursorRestoreGuard;
@@ -733,6 +734,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .initial_value(&default_provider)
         .items(&provider_items)
         .filter_mode()
+        .max_rows(MAX_PROVIDER_ROWS)
         .interact()?;
 
     // Get the selected provider's metadata
