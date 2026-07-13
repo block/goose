@@ -151,6 +151,19 @@ pub fn status_role(status: ToolStatus) -> Role {
     }
 }
 
+/// The [`ToolStatus`] for a tool call that completed without a
+/// protocol-level error, based on `CallToolResult::is_error`. A tool can
+/// report `Ok(..)` at the protocol level while still failing at the
+/// application level (e.g. a shell command with a non-zero exit code sets
+/// `is_error: Some(true)`), and that must not be shown as a success.
+pub fn tool_result_status(is_error: Option<bool>) -> ToolStatus {
+    if is_error == Some(true) {
+        ToolStatus::Error
+    } else {
+        ToolStatus::Success
+    }
+}
+
 /// Format a user-submitted message for echo into the transcript: the
 /// first line is marked with the accent prompt glyph, continuation lines
 /// align under it using [`GUTTER`]. Always includes the glyph, even for
@@ -192,23 +205,40 @@ pub fn format_tool_status_line_plain(status: ToolStatus) -> Option<String> {
     }
 }
 
-/// Indent every non-empty line of a rendered block (e.g. an assistant
-/// reply's already-highlighted markdown) under the shared [`GUTTER`], so
-/// normal model output aligns with the user-message prompt glyph instead
-/// of sitting flush-left. Blank lines are left empty rather than padded
-/// with trailing whitespace, and the exact number of lines (including a
-/// trailing blank one from a trailing newline) is preserved.
-pub fn indent_block(text: &str) -> String {
-    text.split('\n')
-        .map(|line| {
-            if line.is_empty() {
-                String::new()
-            } else {
-                format!("{GUTTER}{line}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+/// Indent a rendered block (e.g. an assistant reply's already-highlighted
+/// markdown) under the shared [`GUTTER`], so normal model output aligns
+/// with the user-message prompt glyph instead of sitting flush-left.
+///
+/// `at_line_start` says whether the terminal cursor is already at the
+/// start of a fresh line before this text is printed. This matters because
+/// streamed replies are rendered in separate chunks that don't necessarily
+/// break on line boundaries: a chunk that continues the previous chunk's
+/// last (unterminated) line must NOT get its own leading gutter, or the
+/// gutter would be inserted mid-sentence. Every line *after* an internal
+/// `\n` in `text` unambiguously starts a fresh line and is always indented.
+/// Blank lines are left empty rather than padded with trailing whitespace,
+/// and the exact number of lines (including a trailing blank one from a
+/// trailing newline) is preserved.
+pub fn indent_block(text: &str, at_line_start: bool) -> String {
+    let mut out = String::new();
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let indent_this_line = if i == 0 { at_line_start } else { true };
+        if indent_this_line && !line.is_empty() {
+            out.push_str(GUTTER);
+        }
+        out.push_str(line);
+    }
+    out
+}
+
+/// Whether the text printed by [`indent_block`] leaves the cursor at the
+/// start of a fresh line afterwards, i.e. whether it ends in a newline.
+/// Callers use this to track `at_line_start` across separate chunks.
+pub fn ends_at_line_start(text: &str) -> bool {
+    text.ends_with('\n')
 }
 
 /// Format the plain-text error line shown for CLI-level errors.
@@ -311,6 +341,21 @@ mod tests {
     }
 
     #[test]
+    fn tool_result_with_is_error_true_is_reported_as_a_failure() {
+        assert_eq!(tool_result_status(Some(true)), ToolStatus::Error);
+    }
+
+    #[test]
+    fn tool_result_with_is_error_false_is_reported_as_a_success() {
+        assert_eq!(tool_result_status(Some(false)), ToolStatus::Success);
+    }
+
+    #[test]
+    fn tool_result_with_no_is_error_field_defaults_to_success() {
+        assert_eq!(tool_result_status(None), ToolStatus::Success);
+    }
+
+    #[test]
     fn pending_tool_status_uses_the_accent_role() {
         assert_eq!(status_role(ToolStatus::Running), Role::Accent);
     }
@@ -374,7 +419,7 @@ mod tests {
     #[test]
     fn normal_model_messages_are_indented_under_the_gutter() {
         assert_eq!(
-            indent_block("Sure, here's the answer."),
+            indent_block("Sure, here's the answer.", true),
             format!("{GUTTER}Sure, here's the answer.")
         );
     }
@@ -382,7 +427,7 @@ mod tests {
     #[test]
     fn multiline_model_messages_have_every_line_indented_under_the_gutter() {
         assert_eq!(
-            indent_block("first line\nsecond line\nthird line"),
+            indent_block("first line\nsecond line\nthird line", true),
             format!("{GUTTER}first line\n{GUTTER}second line\n{GUTTER}third line")
         );
     }
@@ -390,18 +435,60 @@ mod tests {
     #[test]
     fn blank_lines_in_a_model_message_are_not_padded_with_trailing_whitespace() {
         assert_eq!(
-            indent_block("first paragraph\n\nsecond paragraph"),
+            indent_block("first paragraph\n\nsecond paragraph", true),
             format!("{GUTTER}first paragraph\n\n{GUTTER}second paragraph")
         );
     }
 
     #[test]
     fn indent_block_preserves_a_trailing_newline() {
-        assert_eq!(indent_block("hello\n"), format!("{GUTTER}hello\n"));
+        assert_eq!(indent_block("hello\n", true), format!("{GUTTER}hello\n"));
     }
 
     #[test]
     fn indent_block_is_a_no_op_on_empty_input() {
-        assert_eq!(indent_block(""), "");
+        assert_eq!(indent_block("", true), "");
+        assert_eq!(indent_block("", false), "");
+    }
+
+    #[test]
+    fn a_streamed_chunk_continuing_the_previous_line_is_not_re_indented() {
+        // Simulates two streaming flushes of "Hello world!" that don't
+        // happen to split on a line boundary: the second chunk continues
+        // the first chunk's still-open line, so it must not get its own
+        // gutter, or the sentence would visibly break in the middle.
+        let first = indent_block("Hello ", true);
+        assert_eq!(first, format!("{GUTTER}Hello "));
+        let second = indent_block("world!", ends_at_line_start(&first));
+        assert_eq!(second, "world!");
+    }
+
+    #[test]
+    fn a_streamed_chunk_starting_a_new_line_is_indented_even_mid_stream() {
+        // The first chunk ends with a newline, so the next chunk starts a
+        // genuinely fresh line and must be indented, even though this is a
+        // continuation of the same streamed reply rather than a new message.
+        let first = indent_block("first line\n", true);
+        assert_eq!(first, format!("{GUTTER}first line\n"));
+        let second = indent_block("second line", ends_at_line_start(&first));
+        assert_eq!(second, format!("{GUTTER}second line"));
+    }
+
+    #[test]
+    fn lines_after_an_internal_newline_are_always_indented_regardless_of_at_line_start() {
+        assert_eq!(
+            indent_block("continues\nbut this is fresh", false),
+            format!("continues\n{GUTTER}but this is fresh")
+        );
+    }
+
+    #[test]
+    fn ends_at_line_start_reflects_a_trailing_newline() {
+        assert!(ends_at_line_start("hello\n"));
+        assert!(!ends_at_line_start("hello"));
+        // Empty text doesn't move the cursor at all, so callers must treat
+        // this as "unchanged", not "now at line start" — see the empty
+        // check in `print_markdown_raw` before this is consulted.
+        assert!(!ends_at_line_start(""));
     }
 }
