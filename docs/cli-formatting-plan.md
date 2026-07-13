@@ -29,11 +29,28 @@ formatting, no changes to `ui/desktop`.
 ## Non-goals
 
 - No new TUI, no Ink/React work.
-- No change to the underlying markdown engine (`bat`) or its light/dark/ansi
-  theme system — only the *chrome* around tool calls/errors/user echo.
+- No change to `bat`'s light/dark/ansi theme system or how markdown is
+  highlighted — only how the already-highlighted output is captured and
+  laid out (see "Update" below for the one change that touches this).
 - No change to `ui/desktop`.
 - No change to JSON / stream-json output modes (`emit_stream_event`) — those
   are structured output for tooling, not human-facing formatting.
+
+**Update (follow-up to goal 4):** the original pass above only indented the
+*chrome* (headers/footers/errors/params), leaving ordinary model replies
+flush-left and visually disconnected from the rest of the gutter-aligned
+transcript. A follow-up change extends goal 4 to indent normal assistant
+markdown too, by capturing `bat`'s rendered output via
+`PrettyPrinter::print_with_writer` (instead of letting it write directly to
+stdout) and post-processing it with `formatting::indent_block`. This still
+doesn't touch `bat`'s highlighting/theme behavior, but it does mean the CLI
+now owns the final `print!()` of that output instead of `bat`. Because
+streamed replies are rendered in several chunks that don't necessarily
+align with line boundaries, `indent_block` takes an explicit
+`at_line_start` flag so a chunk that only continues the previous chunk's
+still-open line isn't re-indented mid-sentence; this state is threaded
+through `render_message_streaming` the same way `thinking_header_shown`
+already is.
 
 ## Steps
 
@@ -46,7 +63,8 @@ formatting, no changes to `ui/desktop`.
      `role_style` returning `RoleStyle { color, dim, bold, italic }`:
      - `Primary`: no color/no decoration (inherits terminal default —
        matches TUI's `TEXT_PRIMARY` and Claude Code's default body text).
-     - `Secondary`: cyan + dim (tool names, section labels).
+     - `Secondary`: bold, no color (tool names, section labels) — kept
+       colorless so `Accent` remains the palette's only hue.
      - `Muted`: dim only, no color (param values, hints, secondary detail —
        matches TUI's `TEXT_DIM`).
      - `Accent`: cyan + bold (user prompt glyph, pending tool status).
