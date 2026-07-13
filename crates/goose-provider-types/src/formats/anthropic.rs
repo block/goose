@@ -59,9 +59,11 @@ impl AnthropicFormatOptions {
             .request_param::<bool>("preserve_unsigned_thinking")
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
-        let thinking_disabled =
-            model_config.reasoning.as_ref().is_some_and(|r| !r.is_enabled())
-                || model_config.thinking_effort() == Some(ThinkingEffort::Off);
+        let thinking_disabled = model_config
+            .reasoning
+            .as_ref()
+            .is_some_and(|r| !r.is_enabled())
+            || model_config.thinking_effort() == Some(ThinkingEffort::Off);
 
         Self {
             preserve_unsigned_thinking,
@@ -92,10 +94,9 @@ pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
 
 pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfig) -> ThinkingType {
     let mode = canonical_thinking_mode(provider_name, &model_config.model_name);
-    let reasoning = model_config
-        .reasoning
-        .clone()
-        .or_else(|| canonical_reasoning(provider_name, model_config).map(crate::base::Reasoning::Enabled));
+    let reasoning = model_config.reasoning.clone().or_else(|| {
+        canonical_reasoning(provider_name, model_config).map(crate::base::Reasoning::Enabled)
+    });
 
     if !reasoning.is_some_and(|r| r.is_enabled()) {
         return ThinkingType::Disabled;

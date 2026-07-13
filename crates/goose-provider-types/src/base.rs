@@ -822,7 +822,10 @@ mod tests {
         let reasoning_struct_true: Reasoning = serde_json::from_str(json_struct_true).unwrap();
         assert_eq!(
             reasoning_struct_true,
-            Reasoning::ReasoningConfig(ReasoningConfig { enabled: true, ..Default::default() })
+            Reasoning::ReasoningConfig(ReasoningConfig {
+                enabled: true,
+                ..Default::default()
+            })
         );
         assert!(reasoning_struct_true.is_enabled());
 
@@ -830,7 +833,10 @@ mod tests {
         let reasoning_struct_false: Reasoning = serde_json::from_str(json_struct_false).unwrap();
         assert_eq!(
             reasoning_struct_false,
-            Reasoning::ReasoningConfig(ReasoningConfig { enabled: false, ..Default::default() })
+            Reasoning::ReasoningConfig(ReasoningConfig {
+                enabled: false,
+                ..Default::default()
+            })
         );
         assert!(!reasoning_struct_false.is_enabled());
     }

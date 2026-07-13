@@ -1469,10 +1469,9 @@ pub fn create_request_with_options(
             .map_or(legacy_reasoning_effort.map(|s| json!(s)), |effort| {
                 if let Some(mapping) = effort_mapping {
                     let effort_str = effort.to_string();
-                    mapping
-                        .get(&effort_str)
-                        .cloned()
-                        .or_else(|| openai_reasoning_effort_for_thinking(&model_name, effort).map(|s| json!(s)))
+                    mapping.get(&effort_str).cloned().or_else(|| {
+                        openai_reasoning_effort_for_thinking(&model_name, effort).map(|s| json!(s))
+                    })
                 } else {
                     openai_reasoning_effort_for_thinking(&model_name, effort).map(|s| json!(s))
                 }
@@ -2652,8 +2651,8 @@ mod tests {
         let mut model_config = test_model_config("my-custom-model")
             .with_max_tokens(Some(1024))
             .with_thinking_effort(ThinkingEffort::High);
-        
-        let mut reasoning = crate::base::ReasoningConfig {
+
+        let reasoning = crate::base::ReasoningConfig {
             enabled: true,
             reasoning_property: Some("custom_effort_property".to_string()),
             effort_mapping: Some(json!({
@@ -2676,9 +2675,12 @@ mod tests {
             false,
         )?;
         let obj = request.as_object().unwrap();
-        
+
         assert_eq!(obj.get("custom_effort_property"), Some(&json!(0.8)));
-        assert_eq!(obj.get("stream_options"), Some(&json!({ "include_usage": true })));
+        assert_eq!(
+            obj.get("stream_options"),
+            Some(&json!({ "include_usage": true }))
+        );
         assert!(obj.get("reasoning_effort").is_none());
         assert!(obj.get("thinking_effort").is_none());
 
@@ -3354,7 +3356,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3413,7 +3415,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3466,7 +3468,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3497,7 +3499,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3526,7 +3528,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3551,7 +3553,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3588,7 +3590,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3647,7 +3649,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3695,7 +3697,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
 
@@ -3966,7 +3968,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4001,7 +4003,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-            ..Default::default()
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4330,14 +4332,19 @@ data: [DONE]"#;
 
     #[test]
     fn test_thinking_preservation_format() {
-        let msg = Message::assistant().with_text("Hello").with_thinking("Thinking process", "");
+        let msg = Message::assistant()
+            .with_text("Hello")
+            .with_thinking("Thinking process", "");
 
         let options_prepend = OpenAiFormatOptions {
             preserve_thinking_context: true,
-            thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ContentPrepend),
+            thinking_preservation_format: Some(
+                crate::base::ThinkingPreservationFormat::ContentPrepend,
+            ),
         };
 
-        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_prepend);
+        let result =
+            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_prepend);
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "Thinking process\n\nHello");
@@ -4348,7 +4355,8 @@ data: [DONE]"#;
             thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ContentXml),
         };
 
-        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_xml);
+        let result =
+            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_xml);
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "<think>\nThinking process\n</think>\n\nHello");
@@ -4356,10 +4364,13 @@ data: [DONE]"#;
 
         let options_reasoning = OpenAiFormatOptions {
             preserve_thinking_context: true,
-            thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ReasoningContent),
+            thinking_preservation_format: Some(
+                crate::base::ThinkingPreservationFormat::ReasoningContent,
+            ),
         };
 
-        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_reasoning);
+        let result =
+            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_reasoning);
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "Hello");

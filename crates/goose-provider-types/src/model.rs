@@ -1,6 +1,6 @@
+use crate::base::Reasoning;
 use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
 use crate::thinking::ThinkingEffort;
-use crate::base::Reasoning;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
