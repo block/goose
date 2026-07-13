@@ -36,6 +36,13 @@ const MULTISELECT_VISIBILITY_HINT: &str = "<";
 const MAX_PROVIDER_ROWS: usize = 10;
 const SHOW_CURSOR: &[u8] = b"\x1b[?25h";
 
+fn move_selected_item_into_view<T>(items: &mut Vec<T>, selected_index: Option<usize>) {
+    if let Some(index) = selected_index.filter(|&index| index >= MAX_PROVIDER_ROWS) {
+        let selected = items.remove(index);
+        items.insert(0, selected);
+    }
+}
+
 struct CursorRestoreGuard;
 
 impl Drop for CursorRestoreGuard {
@@ -719,14 +726,21 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Sort providers alphabetically by display name
     available_providers.sort_by(|a, b| a.0.display_name.cmp(&b.0.display_name));
 
+    // Get current default provider if it exists
+    let current_provider: Option<String> = config.get_goose_provider().ok();
+    let current_provider_index = current_provider.as_ref().and_then(|current_provider| {
+        available_providers
+            .iter()
+            .position(|(provider, _)| &provider.name == current_provider)
+    });
+    move_selected_item_into_view(&mut available_providers, current_provider_index);
+
     // Create selection items from provider metadata
     let provider_items: Vec<(&String, &str, &str)> = available_providers
         .iter()
         .map(|(p, _)| (&p.name, p.display_name.as_str(), p.description.as_str()))
         .collect();
 
-    // Get current default provider if it exists
-    let current_provider: Option<String> = config.get_goose_provider().ok();
     let default_provider = current_provider.unwrap_or_default();
 
     // Select provider
@@ -2175,4 +2189,29 @@ fn print_config_file_saved() -> anyhow::Result<()> {
         config.path()
     ))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_item_inside_visible_window_keeps_order() {
+        let mut items: Vec<_> = (0..MAX_PROVIDER_ROWS + 1).collect();
+        let expected = items.clone();
+
+        move_selected_item_into_view(&mut items, Some(MAX_PROVIDER_ROWS - 1));
+
+        assert_eq!(items, expected);
+    }
+
+    #[test]
+    fn selected_item_outside_visible_window_moves_to_front() {
+        let mut items: Vec<_> = (0..MAX_PROVIDER_ROWS + 2).collect();
+
+        move_selected_item_into_view(&mut items, Some(MAX_PROVIDER_ROWS + 1));
+
+        assert_eq!(items[0], MAX_PROVIDER_ROWS + 1);
+        assert_eq!(items[1..], (0..MAX_PROVIDER_ROWS + 1).collect::<Vec<_>>());
+    }
 }
