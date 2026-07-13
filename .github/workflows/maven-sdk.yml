@@ -24,9 +24,6 @@ jobs:
           - name: darwin-aarch64
             os: macos-14
             resource-prefix: darwin-aarch64
-          - name: darwin-x86-64
-            os: macos-13
-            resource-prefix: darwin-x86-64
           - name: linux-x86-64
             os: ubuntu-latest
             container: quay.io/pypa/manylinux_2_28_x86_64@sha256:441c35fdc6ee809ff9260894f8468ab4fea8c15dc880f8700a3f81b7922c1cda
