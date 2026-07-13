@@ -264,6 +264,37 @@ impl Reasoning {
             Self::ReasoningConfig(config) => config.enabled,
         }
     }
+
+    /// Merges provider-specific declarative configuration into the user's requested reasoning state.
+    pub fn with_provider_defaults(self, provider_defaults: Option<&Reasoning>) -> Self {
+        let Some(Self::ReasoningConfig(provider_rc)) = provider_defaults else {
+            return self;
+        };
+
+        match self {
+            Self::Enabled(enabled) => {
+                // Upgrade to ReasoningConfig with provider defaults, but keep user's enabled flag
+                let mut merged = provider_rc.clone();
+                merged.enabled = enabled;
+                Self::ReasoningConfig(merged)
+            }
+            Self::ReasoningConfig(mut config) => {
+                if config.thinking_preservation_format.is_none() {
+                    config.thinking_preservation_format = provider_rc.thinking_preservation_format;
+                }
+                if config.reasoning_property.is_none() {
+                    config.reasoning_property = provider_rc.reasoning_property.clone();
+                }
+                if config.effort_mapping.is_none() {
+                    config.effort_mapping = provider_rc.effort_mapping.clone();
+                }
+                if config.extra_body.is_none() {
+                    config.extra_body = provider_rc.extra_body.clone();
+                }
+                Self::ReasoningConfig(config)
+            }
+        }
+    }
 }
 
 impl Default for Reasoning {
@@ -839,5 +870,45 @@ mod tests {
             })
         );
         assert!(!reasoning_struct_false.is_enabled());
+    }
+
+    #[test]
+    fn test_reasoning_with_provider_defaults() {
+        let provider_config = Reasoning::ReasoningConfig(ReasoningConfig {
+            enabled: true,
+            thinking_preservation_format: Some(ThinkingPreservationFormat::ContentPrepend),
+            reasoning_property: Some("thinking_effort".to_string()),
+            effort_mapping: None,
+            extra_body: Some(serde_json::json!({"custom": "value"})),
+        });
+
+        // 1. User specified simple Enabled(false), should upgrade to ReasoningConfig keeping enabled=false
+        let user_req = Reasoning::Enabled(false);
+        let merged = user_req.with_provider_defaults(Some(&provider_config));
+        match merged {
+            Reasoning::ReasoningConfig(c) => {
+                assert!(!c.enabled);
+                assert_eq!(c.thinking_preservation_format, Some(ThinkingPreservationFormat::ContentPrepend));
+                assert_eq!(c.reasoning_property.as_deref(), Some("thinking_effort"));
+                assert_eq!(c.extra_body, Some(serde_json::json!({"custom": "value"})));
+            }
+            _ => panic!("Expected ReasoningConfig"),
+        }
+
+        // 2. User has explicit ReasoningConfig without some fields
+        let user_req = Reasoning::ReasoningConfig(ReasoningConfig {
+            enabled: true,
+            reasoning_property: Some("override_property".to_string()),
+            ..Default::default()
+        });
+        let merged = user_req.with_provider_defaults(Some(&provider_config));
+        match merged {
+            Reasoning::ReasoningConfig(c) => {
+                assert!(c.enabled);
+                assert_eq!(c.reasoning_property.as_deref(), Some("override_property"));
+                assert_eq!(c.thinking_preservation_format, Some(ThinkingPreservationFormat::ContentPrepend));
+            }
+            _ => panic!("Expected ReasoningConfig"),
+        }
     }
 }

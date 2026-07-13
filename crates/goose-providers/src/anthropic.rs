@@ -265,6 +265,18 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let mut patched_model_config = model_config.clone();
+        if let Some(m) = self.custom_models.as_ref().and_then(|models| {
+            models.iter().find(|m| m.name == model_config.model_name)
+        }) {
+            patched_model_config.reasoning = Some(
+                patched_model_config
+                    .reasoning
+                    .unwrap_or_default()
+                    .with_provider_defaults(Some(&m.reasoning)),
+            );
+        }
+        let model_config = &patched_model_config;
         let mut payload = create_request(
             ANTHROPIC_PROVIDER_NAME,
             model_config,
