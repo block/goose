@@ -888,7 +888,10 @@ mod tests {
         match merged {
             Reasoning::ReasoningConfig(c) => {
                 assert!(!c.enabled);
-                assert_eq!(c.thinking_preservation_format, Some(ThinkingPreservationFormat::ContentPrepend));
+                assert_eq!(
+                    c.thinking_preservation_format,
+                    Some(ThinkingPreservationFormat::ContentPrepend)
+                );
                 assert_eq!(c.reasoning_property.as_deref(), Some("thinking_effort"));
                 assert_eq!(c.extra_body, Some(serde_json::json!({"custom": "value"})));
             }
@@ -906,7 +909,10 @@ mod tests {
             Reasoning::ReasoningConfig(c) => {
                 assert!(c.enabled);
                 assert_eq!(c.reasoning_property.as_deref(), Some("override_property"));
-                assert_eq!(c.thinking_preservation_format, Some(ThinkingPreservationFormat::ContentPrepend));
+                assert_eq!(
+                    c.thinking_preservation_format,
+                    Some(ThinkingPreservationFormat::ContentPrepend)
+                );
             }
             _ => panic!("Expected ReasoningConfig"),
         }
