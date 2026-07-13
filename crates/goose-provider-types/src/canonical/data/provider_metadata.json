@@ -19,7 +19,7 @@
     "env": [
       "ABACUS_API_KEY"
     ],
-    "model_count": 65
+    "model_count": 95
   },
   {
     "id": "abliteration-ai",
@@ -31,6 +31,17 @@
       "ABLIT_KEY"
     ],
     "model_count": 1
+  },
+  {
+    "id": "ai-router",
+    "display_name": "AI-ROUTER",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.ai-router.dev/v1",
+    "doc": "https://ai-router.dev/openai-compatible-api-gateway/",
+    "env": [
+      "AI_ROUTER_API_KEY"
+    ],
+    "model_count": 5
   },
   {
     "id": "alibaba",
@@ -107,7 +118,7 @@
     "env": [
       "AMBIENT_API_KEY"
     ],
-    "model_count": 3
+    "model_count": 6
   },
   {
     "id": "anyapi",
@@ -174,6 +185,17 @@
       "BERGET_API_KEY"
     ],
     "model_count": 8
+  },
+  {
+    "id": "blueclaw",
+    "display_name": "Blue Claw",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://openai.blueclaw.network/v1",
+    "doc": "https://blueclaw.network",
+    "env": [
+      "BLUECLAW_API_KEY"
+    ],
+    "model_count": 2
   },
   {
     "id": "chutes",
@@ -254,6 +276,28 @@
     "model_count": 23
   },
   {
+    "id": "crossmodel",
+    "display_name": "CrossModel",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.crossmodel.ai/v1",
+    "doc": "https://www.crossmodel.ai/docs",
+    "env": [
+      "CROSSMODEL_API_KEY"
+    ],
+    "model_count": 40
+  },
+  {
+    "id": "daoxe",
+    "display_name": "DaoXE",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://daoxe.com/v1",
+    "doc": "https://daoxe.com/pricing",
+    "env": [
+      "DAOXE_API_KEY"
+    ],
+    "model_count": 9
+  },
+  {
     "id": "databricks",
     "display_name": "Databricks",
     "npm": "@ai-sdk/openai-compatible",
@@ -263,7 +307,7 @@
       "DATABRICKS_HOST",
       "DATABRICKS_TOKEN"
     ],
-    "model_count": 25
+    "model_count": 30
   },
   {
     "id": "deepseek",
@@ -308,6 +352,28 @@
       "DRUN_API_KEY"
     ],
     "model_count": 3
+  },
+  {
+    "id": "ebcloud",
+    "display_name": "EBCloud",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://maas-api.ebcloud.com/v1",
+    "doc": "https://docs.ebtech.com/ai/model-api.html",
+    "env": [
+      "EBCLOUD_API_KEY"
+    ],
+    "model_count": 4
+  },
+  {
+    "id": "empiriolabs",
+    "display_name": "EmpirioLabs AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.empiriolabs.ai/v1",
+    "doc": "https://docs.empiriolabs.ai",
+    "env": [
+      "EMPIRIOLABS_API_KEY"
+    ],
+    "model_count": 36
   },
   {
     "id": "evroc",
@@ -384,7 +450,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 25
+    "model_count": 28
   },
   {
     "id": "github-models",
@@ -428,7 +494,7 @@
     "env": [
       "HPC_AI_API_KEY"
     ],
-    "model_count": 3
+    "model_count": 9
   },
   {
     "id": "huggingface",
@@ -484,6 +550,17 @@
       "INFERENCE_API_KEY"
     ],
     "model_count": 9
+  },
+  {
+    "id": "inferx",
+    "display_name": "InferX",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://model.inferx.net/v1",
+    "doc": "https://model.inferx.net/endpoints",
+    "env": [
+      "INFERX_API_KEY"
+    ],
+    "model_count": 6
   },
   {
     "id": "io-net",
@@ -571,7 +648,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 180
+    "model_count": 178
   },
   {
     "id": "llmtr",
@@ -618,6 +695,17 @@
     "model_count": 4
   },
   {
+    "id": "lynkr",
+    "display_name": "Lynkr",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "http://127.0.0.1:8081/v1",
+    "doc": "https://github.com/Fast-Editor/Lynkr",
+    "env": [
+      "LYNKR_API_KEY"
+    ],
+    "model_count": 1
+  },
+  {
     "id": "meganova",
     "display_name": "Meganova",
     "npm": "@ai-sdk/openai-compatible",
@@ -627,6 +715,17 @@
       "MEGANOVA_API_KEY"
     ],
     "model_count": 19
+  },
+  {
+    "id": "meta",
+    "display_name": "Meta",
+    "npm": "@ai-sdk/openai",
+    "api": "https://api.meta.ai/v1",
+    "doc": "https://dev.meta.ai/docs",
+    "env": [
+      "META_MODEL_API_KEY"
+    ],
+    "model_count": 1
   },
   {
     "id": "meta-llama",
@@ -704,6 +803,17 @@
       "MOARK_API_KEY"
     ],
     "model_count": 2
+  },
+  {
+    "id": "model-oracle-ai",
+    "display_name": "Model Oracle AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.modeloracle.com/api/v1",
+    "doc": "https://modeloracle.com/setup/",
+    "env": [
+      "MODEL_ORACLE_API_KEY"
+    ],
+    "model_count": 15
   },
   {
     "id": "modelscope",
@@ -786,13 +896,13 @@
     "id": "neon",
     "display_name": "Neon",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "${NEON_AI_GATEWAY_BASE_URL}/ai-gateway/mlflow/v1",
+    "api": "${NEON_AI_GATEWAY_BASE_URL}/v1",
     "doc": "https://neon.com/docs",
     "env": [
       "NEON_AI_GATEWAY_BASE_URL",
       "NEON_AI_GATEWAY_TOKEN"
     ],
-    "model_count": 25
+    "model_count": 36
   },
   {
     "id": "neuralwatt",
@@ -858,7 +968,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 75
+    "model_count": 79
   },
   {
     "id": "opencode-go",
@@ -905,6 +1015,17 @@
     "model_count": 18
   },
   {
+    "id": "pioneer",
+    "display_name": "Pioneer",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.pioneer.ai/v1",
+    "doc": "https://agent.pioneer.ai/llms.txt",
+    "env": [
+      "PIONEER_API_KEY"
+    ],
+    "model_count": 76
+  },
+  {
     "id": "poe",
     "display_name": "Poe",
     "npm": "@ai-sdk/openai-compatible",
@@ -924,7 +1045,7 @@
     "env": [
       "POOLSIDE_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 3
   },
   {
     "id": "privatemode-ai",
@@ -986,12 +1107,12 @@
     "id": "routing-run",
     "display_name": "routing.run",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://ai.routing.sh/v1",
+    "api": "https://api.routing.run/v1",
     "doc": "https://docs.routing.run/api-reference/models",
     "env": [
       "ROUTING_RUN_API_KEY"
     ],
-    "model_count": 26
+    "model_count": 15
   },
   {
     "id": "sakana",
@@ -1058,7 +1179,7 @@
       "SNOWFLAKE_ACCOUNT",
       "SNOWFLAKE_CORTEX_PAT"
     ],
-    "model_count": 18
+    "model_count": 21
   },
   {
     "id": "stackit",
@@ -1073,7 +1194,7 @@
   },
   {
     "id": "stepfun",
-    "display_name": "StepFun",
+    "display_name": "StepFun (China)",
     "npm": "@ai-sdk/openai-compatible",
     "api": "https://api.stepfun.com/v1",
     "doc": "https://platform.stepfun.com/docs/zh/overview/concept",
@@ -1084,14 +1205,36 @@
   },
   {
     "id": "stepfun-ai",
-    "display_name": "StepFun AI",
+    "display_name": "StepFun (Global)",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.stepfun.ai/step_plan/v1",
-    "doc": "https://platform.stepfun.ai/docs/en/step-plan/integrations/open-code",
+    "api": "https://api.stepfun.ai/v1",
+    "doc": "https://platform.stepfun.ai/docs/en/overview/concept",
     "env": [
       "STEPFUN_API_KEY"
     ],
     "model_count": 8
+  },
+  {
+    "id": "stepfun-ai-step-plan",
+    "display_name": "StepFun Step Plan (Global)",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.stepfun.ai/step_plan/v1",
+    "doc": "https://platform.stepfun.ai/docs/en/step-plan/integrations/reasoning-api",
+    "env": [
+      "STEPFUN_API_KEY"
+    ],
+    "model_count": 3
+  },
+  {
+    "id": "stepfun-step-plan",
+    "display_name": "StepFun Step Plan (China)",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.stepfun.com/step_plan/v1",
+    "doc": "https://platform.stepfun.com/docs/zh/step-plan/integrations/reasoning-api",
+    "env": [
+      "STEPFUN_API_KEY"
+    ],
+    "model_count": 4
   },
   {
     "id": "subconscious",
@@ -1215,6 +1358,17 @@
     "model_count": 6
   },
   {
+    "id": "unorouter",
+    "display_name": "UnoRouter",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.unorouter.com/v1",
+    "doc": "https://unorouter.com/models",
+    "env": [
+      "UNOROUTER_API_KEY"
+    ],
+    "model_count": 23
+  },
+  {
     "id": "upstage",
     "display_name": "Upstage",
     "npm": "@ai-sdk/openai-compatible",
@@ -1234,7 +1388,7 @@
     "env": [
       "VIVGRID_API_KEY"
     ],
-    "model_count": 14
+    "model_count": 17
   },
   {
     "id": "vultr",
@@ -1256,7 +1410,7 @@
     "env": [
       "WAFER_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 5
   },
   {
     "id": "wandb",
@@ -1267,7 +1421,7 @@
     "env": [
       "WANDB_API_KEY"
     ],
-    "model_count": 18
+    "model_count": 29
   },
   {
     "id": "xiaomi",
@@ -1358,6 +1512,17 @@
     "model_count": 1
   },
   {
+    "id": "zenifra",
+    "display_name": "Zenifra",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://ai.zenifra.com/v1",
+    "doc": "https://docs.zenifra.com",
+    "env": [
+      "ZENIFRA_AI_KEY"
+    ],
+    "model_count": 1
+  },
+  {
     "id": "zenmux",
     "display_name": "ZenMux",
     "npm": "@ai-sdk/openai-compatible",
@@ -1366,7 +1531,7 @@
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 114
+    "model_count": 118
   },
   {
     "id": "zhipuai",
