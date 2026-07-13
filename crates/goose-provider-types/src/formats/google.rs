@@ -541,7 +541,10 @@ fn get_thinking_config(
     model_config: &ModelConfig,
     thinking_budget: Option<i32>,
 ) -> Option<ThinkingConfig> {
-    if model_config.reasoning.as_ref().is_some_and(|r| !r.is_enabled())
+    if model_config
+        .reasoning
+        .as_ref()
+        .is_some_and(|r| !r.is_enabled())
         || model_config.thinking_effort() == Some(ThinkingEffort::Off)
     {
         // Gemini 2.5 Flash defaults to dynamic thinking; only an explicit budget

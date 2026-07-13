@@ -669,9 +669,13 @@ impl Provider for OpenAiProvider {
                 self.supports_streaming,
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context,
-                    thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| match r {
-                        goose_provider_types::base::Reasoning::ReasoningConfig(c) => c.thinking_preservation_format,
-                        _ => None,
+                    thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| {
+                        match r {
+                            goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
+                                c.thinking_preservation_format
+                            }
+                            _ => None,
+                        }
                     }),
                 },
             )?;
