@@ -133,14 +133,8 @@ mod tests {
         let provider = make_provider_with_server(
             &server.uri(),
             Some(vec![
-                ModelInfo {
-                    name: "m1".to_string(),
-                    ..Default::default()
-                },
-                ModelInfo {
-                    name: "m2".to_string(),
-                    ..Default::default()
-                },
+                ModelInfo::new("m1", 8192),
+                ModelInfo::new("m2", 8192),
             ]),
             Some(false),
         );
