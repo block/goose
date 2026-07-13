@@ -1,0 +1,41 @@
+{
+  "name": "daoxe",
+  "engine": "openai",
+  "display_name": "DaoXE",
+  "description": "Multi-model multi-protocol API gateway (OpenAI Chat Completions / Responses and Anthropic Messages). Live model catalog is account-scoped; not available in mainland China.",
+  "api_key_env": "DAOXE_API_KEY",
+  "base_url": "https://daoxe.com/v1",
+  "dynamic_models": true,
+  "skip_canonical_filtering": true,
+  "models": [
+    {
+      "name": "gpt-5.5",
+      "context_limit": 400000
+    },
+    {
+      "name": "claude-sonnet-4-6",
+      "context_limit": 200000
+    },
+    {
+      "name": "gemini-3.1-pro-preview",
+      "context_limit": 1048576
+    },
+    {
+      "name": "grok-4.5",
+      "context_limit": 256000
+    },
+    {
+      "name": "kimi-k2.5",
+      "context_limit": 262144
+    }
+  ],
+  "supports_streaming": true,
+  "preserves_thinking": true,
+  "model_doc_link": "https://daoxe.com/pricing",
+  "setup_steps": [
+    "Sign in at https://daoxe.com (not available in mainland China)",
+    "Create an API key in the dashboard",
+    "Paste the key above as DAOXE_API_KEY",
+    "Prefer model IDs from your live DaoXE catalog / GET /v1/models over any seed list"
+  ]
+}
