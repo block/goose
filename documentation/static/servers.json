@@ -101,6 +101,17 @@
     "environmentVariables": []
   },
   {
+    "id": "breckenwander",
+    "name": "BreckenWander Travel",
+    "description": "Search flights, hotels, and experiences at all-in prices and get a link to complete the booking on breckenwander.com. Keyless, read-only.",
+    "url": "https://mcp.breckenwander.com/mcp",
+    "link": "https://github.com/durwardjohnson/breckenwander-travel-connector",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "browserbase-mcp",
     "name": "Browserbase",
     "description": "Browser automation and web scraping",
