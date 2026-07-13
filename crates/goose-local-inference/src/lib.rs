@@ -314,13 +314,13 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
         let mut models: Vec<_> = registry
             .list_models()
             .iter()
-            .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
+            .filter(|m| is_featured_model(&m.id) && m.file_size() > 0)
             .collect();
-        models.sort_by_key(|model| std::cmp::Reverse(model.size_bytes));
+        models.sort_by_key(|model| std::cmp::Reverse(model.file_size()));
 
         // Return largest that fits in available memory
         for model in &models {
-            if available_memory >= model.size_bytes {
+            if available_memory >= model.file_size() {
                 return model.id.clone();
             }
         }
