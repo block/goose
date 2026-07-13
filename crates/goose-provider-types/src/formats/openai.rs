@@ -4272,8 +4272,11 @@ data: [DONE]"#;
             ),
         };
 
-        let result =
-            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_prepend);
+        let result = format_messages_with_options(
+            std::slice::from_ref(&msg),
+            &ImageFormat::OpenAi,
+            options_prepend,
+        );
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "Thinking process\n\nHello");
@@ -4284,8 +4287,11 @@ data: [DONE]"#;
             thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ContentXml),
         };
 
-        let result =
-            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_xml);
+        let result = format_messages_with_options(
+            std::slice::from_ref(&msg),
+            &ImageFormat::OpenAi,
+            options_xml,
+        );
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "<think>\nThinking process\n</think>\n\nHello");
@@ -4298,8 +4304,11 @@ data: [DONE]"#;
             ),
         };
 
-        let result =
-            format_messages_with_options(std::slice::from_ref(&msg), &ImageFormat::OpenAi, options_reasoning);
+        let result = format_messages_with_options(
+            std::slice::from_ref(&msg),
+            &ImageFormat::OpenAi,
+            options_reasoning,
+        );
         assert_eq!(result.len(), 1);
         let content = result[0]["content"].as_str().unwrap();
         assert_eq!(content, "Hello");
