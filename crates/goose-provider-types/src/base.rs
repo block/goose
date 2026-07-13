@@ -216,11 +216,27 @@ impl ConfigKey {
     }
 }
 
+/// Controls how reasoning/thinking content is preserved and formatted when returned to a provider.
+/// Providers like Cerebras may crash if `reasoning_content` is passed back in the message history.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinkingPreservationFormat {
+    /// Prepend the reasoning content to the normal content response as plain text.
+    ContentPrepend,
+    /// Wrap the reasoning content in XML tags (e.g., `<think>...</think>`) and embed it in the normal content response.
+    ContentXml,
+    /// Pass the reasoning content directly in the `reasoning_content` field (standard OpenAI-compatible behavior).
+    ReasoningContent,
+}
+
 /// Configuration block for models that require advanced reasoning parameters
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
 pub struct ReasoningConfig {
     /// Whether reasoning is enabled
     pub enabled: bool,
+    /// How to format reasoning content when returning it in message history
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
 }
 
 /// Reasoning support configuration
@@ -798,7 +814,7 @@ mod tests {
         let reasoning_struct_true: Reasoning = serde_json::from_str(json_struct_true).unwrap();
         assert_eq!(
             reasoning_struct_true,
-            Reasoning::ReasoningConfig(ReasoningConfig { enabled: true })
+            Reasoning::ReasoningConfig(ReasoningConfig { enabled: true, ..Default::default() })
         );
         assert!(reasoning_struct_true.is_enabled());
 
@@ -806,7 +822,7 @@ mod tests {
         let reasoning_struct_false: Reasoning = serde_json::from_str(json_struct_false).unwrap();
         assert_eq!(
             reasoning_struct_false,
-            Reasoning::ReasoningConfig(ReasoningConfig { enabled: false })
+            Reasoning::ReasoningConfig(ReasoningConfig { enabled: false, ..Default::default() })
         );
         assert!(!reasoning_struct_false.is_enabled());
     }

@@ -2583,7 +2583,7 @@ mod tests {
                 "anthropic_beta".to_string(),
                 serde_json::json!(["output-128k-2025-02-19"]),
             )])),
-            reasoning: Some(false),
+            reasoning: Some(goose_providers::base::Reasoning::Enabled(false)),
         };
 
         let switched =

@@ -696,7 +696,7 @@ mod tests {
             ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
                 [("thinking_effort".to_string(), serde_json::json!("high"))],
             ));
-        model_config.reasoning = Some(false);
+        model_config.reasoning = Some(goose_providers::base::Reasoning::Enabled(false));
 
         let options = build_config_options(
             &mode_state,

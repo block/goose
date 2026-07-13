@@ -59,6 +59,7 @@ fn is_reserved_request_param_key(key: &str) -> bool {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    pub thinking_preservation_format: Option<crate::base::ThinkingPreservationFormat>,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -191,6 +192,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         image_format,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -493,7 +495,40 @@ pub fn format_messages_with_options(
         // Include reasoning_content only when non-empty. Kimi rejects empty
         // reasoning_content (""), so we must omit it entirely.
         if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            converted["reasoning_content"] = json!(reasoning_text);
+            let mut format_as_content = false;
+            let mut formatted_text = String::new();
+
+            if let Some(format) = &options.thinking_preservation_format {
+                match format {
+                    crate::base::ThinkingPreservationFormat::ContentPrepend => {
+                        format_as_content = true;
+                        formatted_text = format!("{}\n\n", reasoning_text);
+                    }
+                    crate::base::ThinkingPreservationFormat::ContentXml => {
+                        format_as_content = true;
+                        formatted_text = format!("<think>\n{}\n</think>\n\n", reasoning_text);
+                    }
+                    crate::base::ThinkingPreservationFormat::ReasoningContent => {}
+                }
+            }
+
+            if format_as_content {
+                if let Some(content) = converted.get_mut("content") {
+                    if content.is_string() {
+                        let s = content.as_str().unwrap();
+                        *content = json!(format!("{}{}", formatted_text, s));
+                    } else if content.is_array() {
+                        let arr = content.as_array_mut().unwrap();
+                        arr.insert(0, json!({ "type": "text", "text": formatted_text }));
+                    } else if content.is_null() {
+                        *content = json!(formatted_text.trim_end());
+                    }
+                } else {
+                    converted["content"] = json!(formatted_text.trim_end());
+                }
+            } else {
+                converted["reasoning_content"] = json!(reasoning_text);
+            }
         }
 
         if has_message_payload {
@@ -1393,6 +1428,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -3251,6 +3287,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3309,6 +3346,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
+            ..Default::default()
             },
         );
 
@@ -3361,6 +3399,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3391,6 +3430,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3419,6 +3459,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3443,6 +3484,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3479,6 +3521,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3537,6 +3580,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3584,6 +3628,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
 
@@ -3854,6 +3899,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -3888,6 +3934,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+            ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4212,5 +4259,44 @@ data: [DONE]"#;
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn test_thinking_preservation_format() {
+        let msg = Message::assistant().with_text("Hello").with_thinking("Thinking process", "");
+
+        let options_prepend = OpenAiFormatOptions {
+            preserve_thinking_context: true,
+            thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ContentPrepend),
+        };
+
+        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_prepend);
+        assert_eq!(result.len(), 1);
+        let content = result[0]["content"].as_str().unwrap();
+        assert_eq!(content, "Thinking process\n\nHello");
+        assert!(result[0].get("reasoning_content").is_none());
+
+        let options_xml = OpenAiFormatOptions {
+            preserve_thinking_context: true,
+            thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ContentXml),
+        };
+
+        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_xml);
+        assert_eq!(result.len(), 1);
+        let content = result[0]["content"].as_str().unwrap();
+        assert_eq!(content, "<think>\nThinking process\n</think>\n\nHello");
+        assert!(result[0].get("reasoning_content").is_none());
+
+        let options_reasoning = OpenAiFormatOptions {
+            preserve_thinking_context: true,
+            thinking_preservation_format: Some(crate::base::ThinkingPreservationFormat::ReasoningContent),
+        };
+
+        let result = format_messages_with_options(&[msg.clone()], &ImageFormat::OpenAi, options_reasoning);
+        assert_eq!(result.len(), 1);
+        let content = result[0]["content"].as_str().unwrap();
+        assert_eq!(content, "Hello");
+        let reasoning = result[0]["reasoning_content"].as_str().unwrap();
+        assert_eq!(reasoning, "Thinking process");
     }
 }
