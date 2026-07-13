@@ -37,6 +37,7 @@ futures = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 strum = { workspace = true }
+strsim = "0.11"
 tempfile = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
