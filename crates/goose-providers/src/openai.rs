@@ -140,12 +140,12 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
     #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
+    custom_models: Option<Vec<ModelInfo>>,
 }
 
 /// Builder for [`OpenAiProvider`].
@@ -161,7 +161,7 @@ pub struct OpenAiProviderBuilder {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -232,7 +232,7 @@ impl OpenAiProviderBuilder {
         self
     }
 
-    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+    pub fn custom_models(mut self, custom_models: Option<Vec<ModelInfo>>) -> Self {
         self.custom_models = custom_models;
         self
     }
@@ -619,7 +619,7 @@ impl Provider for OpenAiProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(custom_models.iter().map(|m| m.name.clone()).collect());
             }
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
@@ -629,7 +629,7 @@ impl Provider for OpenAiProvider {
                         self.name,
                         e
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(custom_models.iter().map(|m| m.name.clone()).collect());
                 }
                 Err(e) => return Err(e),
             }
@@ -712,14 +712,29 @@ impl Provider for OpenAiProvider {
                 self.supports_streaming,
                 OpenAiFormatOptions {
                     preserve_thinking_context: self.preserve_thinking_context,
-                    thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| {
-                        match r {
+                    thinking_preservation_format: {
+                        let config_format = model_config.reasoning.as_ref().and_then(|r| match r {
                             goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
                                 c.thinking_preservation_format
                             }
                             _ => None,
-                        }
-                    }),
+                        });
+
+                        let provider_format = self
+                            .custom_models
+                            .as_ref()
+                            .and_then(|models| {
+                                models.iter().find(|m| m.name == model_config.model_name)
+                            })
+                            .and_then(|m| match &m.reasoning {
+                                goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
+                                    c.thinking_preservation_format
+                                }
+                                _ => None,
+                            });
+
+                        config_format.or(provider_format)
+                    },
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload, model_config);
@@ -773,13 +788,7 @@ pub fn from_declarative_config(
     key_resolver: impl KeyResolver,
 ) -> Result<OpenAiProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
+        Some(config.models.clone())
     } else {
         None
     };

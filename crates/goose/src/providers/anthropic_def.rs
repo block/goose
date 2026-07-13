@@ -76,7 +76,7 @@ mod tests {
 
     fn make_provider_with_server(
         server_uri: &str,
-        custom_models: Option<Vec<String>>,
+        custom_models: Option<Vec<ModelInfo>>,
         dynamic_models: Option<bool>,
     ) -> AnthropicProvider {
         let auth = AuthMethod::ApiKey {
@@ -132,7 +132,16 @@ mod tests {
 
         let provider = make_provider_with_server(
             &server.uri(),
-            Some(vec!["m1".to_string(), "m2".to_string()]),
+            Some(vec![
+                ModelInfo {
+                    name: "m1".to_string(),
+                    ..Default::default()
+                },
+                ModelInfo {
+                    name: "m2".to_string(),
+                    ..Default::default()
+                },
+            ]),
             Some(false),
         );
 

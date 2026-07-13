@@ -1526,7 +1526,7 @@ pub fn create_request_with_options(
     // lmstudio) sending the historic 4096 default truncates non-trivial
     // responses; omitting the field lets the server use its own max.
     if let Some(max_tokens) = model_config.max_tokens {
-        let key = if is_reasoning_model {
+        let key = if is_openai_model {
             "max_completion_tokens"
         } else {
             "max_tokens"
@@ -2683,6 +2683,8 @@ mod tests {
         );
         assert!(obj.get("reasoning_effort").is_none());
         assert!(obj.get("thinking_effort").is_none());
+        assert_eq!(obj.get("max_tokens"), Some(&json!(1024)));
+        assert!(obj.get("max_completion_tokens").is_none());
 
         Ok(())
     }
