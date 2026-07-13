@@ -70,6 +70,9 @@ const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
+const MAX_EMPTY_TURN_RETRIES: u32 = 3;
+const EMPTY_TURN_MESSAGE: &str =
+    "The model returned an empty response. Please resend your message to continue.";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -687,23 +690,15 @@ impl Agent {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-    ) -> Result<bool> {
-        let result = self
-            .retry_manager
+    ) -> Result<RetryResult> {
+        self.retry_manager
             .handle_retry_logic(
                 messages,
                 session_config,
                 initial_messages,
                 &self.final_output_tool,
             )
-            .await?;
-
-        match result {
-            RetryResult::Retried => Ok(true),
-            RetryResult::Skipped
-            | RetryResult::MaxAttemptsReached
-            | RetryResult::SuccessChecksPassed => Ok(false),
-        }
+            .await
     }
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
@@ -1908,6 +1903,8 @@ impl Agent {
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;
+            let mut empty_turn_retries = 0u32;
+            let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
@@ -1984,6 +1981,8 @@ impl Agent {
 
                 if retrying_after_stop_hook_denial {
                     retrying_after_stop_hook_denial = false;
+                } else if retrying_after_empty_turn {
+                    retrying_after_empty_turn = false;
                 } else {
                     turns_taken += 1;
                 }
@@ -2036,6 +2035,7 @@ impl Agent {
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
+                let mut provider_errored = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
 
@@ -2411,6 +2411,7 @@ impl Agent {
                         }
                         #[allow(unused_variables)]
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
@@ -2470,6 +2471,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2494,6 +2496,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2509,6 +2512,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2520,6 +2524,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2549,6 +2554,24 @@ impl Agent {
                         (tools, toolshim_tools, system_prompt, _) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                     }
+                }
+
+                // An empty provider response — no tool calls, no text, and no error
+                // or recovery compaction that legitimately produces no assistant
+                // output — must never be persisted: strict providers reject a
+                // conversation that contains an empty assistant turn. Drop it here
+                // regardless of what the match below decides to do about the turn
+                // (final-output nudge, steer, goal/grind, retry, or fallback).
+                let empty_response = no_tools_called
+                    && !exit_chat
+                    && !provider_errored
+                    && !did_recovery_compact_this_iteration
+                    && last_assistant_text.is_empty();
+
+                if empty_response {
+                    messages_to_add = Conversation::default();
+                } else {
+                    empty_turn_retries = 0;
                 }
 
                 if no_tools_called && !exit_chat {
@@ -2614,16 +2637,51 @@ impl Agent {
                         None => {
                             self.set_goal(None).await;
                             self.set_grind(None).await;
+                            // Recipe retry logic owns the turn whenever a
+                            // retry_config is present: it runs success checks,
+                            // on_failure, and max_retries. Only when no recipe
+                            // retry is configured (Skipped) does the empty-turn
+                            // fallback apply.
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                                Ok(should_retry) => {
-                                    if should_retry {
-                                        info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
+                                Ok(RetryResult::Retried) => {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                    messages_to_add = Conversation::default();
+                                    session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
+                                }
+                                Ok(RetryResult::Skipped) if empty_response => {
+                                    // No recipe retry configured, and this empty
+                                    // turn would otherwise fall through to a
+                                    // silent exit. Retry a bounded number of
+                                    // times, then surface a visible message so
+                                    // the user is never left with no response.
+                                    if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
+                                        empty_turn_retries += 1;
+                                        retrying_after_empty_turn = true;
+                                        warn!(
+                                            "Provider returned an empty response; retrying ({}/{})",
+                                            empty_turn_retries, MAX_EMPTY_TURN_RETRIES
+                                        );
                                     } else {
+                                        warn!("Provider returned an empty response after retries; ending turn");
+                                        last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
+                                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
+                                        messages_to_add.push(message.clone());
+                                        yield AgentEvent::Message(message);
                                         exit_chat = true;
                                     }
+                                }
+                                Ok(RetryResult::MaxAttemptsReached(message)) => {
+                                    // Surface and persist the failure message
+                                    // through the normal path so recipes don't
+                                    // exit silently when retries are exhausted.
+                                    last_assistant_text = message.as_concat_text();
+                                    messages_to_add.push(message.clone());
+                                    yield AgentEvent::Message(message);
+                                    exit_chat = true;
+                                }
+                                Ok(_) => {
+                                    exit_chat = true;
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);

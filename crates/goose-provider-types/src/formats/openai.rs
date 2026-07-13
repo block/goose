@@ -1535,6 +1535,8 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
             || normalized.contains("gpt-5-4")
             || normalized.contains("gpt-5.5")
             || normalized.contains("gpt-5-5")
+            || normalized.contains("gpt-5.6")
+            || normalized.contains("gpt-5-6")
         {
             &["low", "medium", "high", "xhigh"]
         } else {
@@ -2507,6 +2509,27 @@ mod tests {
         let obj = request.as_object().unwrap();
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("none")));
+        assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_gpt56_max_effort_uses_xhigh() -> anyhow::Result<()> {
+        let model_config = test_model_config("gpt-5.6-luna")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Max);
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
         assert!(obj.get("thinking_effort").is_none());
 
         Ok(())
