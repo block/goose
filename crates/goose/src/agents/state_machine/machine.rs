@@ -21,7 +21,6 @@ use crate::agents::types::SessionConfig;
 use crate::agents::{Agent, AgentEvent};
 use crate::config::Config;
 use crate::conversation::message::Message;
-use goose_providers::conversation::token_usage::Usage;
 
 /// State-machine replacement for `Agent::reply`.
 pub async fn reply(
@@ -89,16 +88,20 @@ pub async fn reply(
         Arc::new(SlashCommandOperation::new(agent)),
         Arc::new(MaxTurnsOperation::new(max_turns)),
         Arc::new(CompactionOperation::new(
+            agent,
             provider.clone(),
             model_config.clone(),
+            session_config.schedule_id.clone(),
         )),
         Arc::new(ToolApprovalOperation::new(agent)),
         Arc::new(ToolExecutionOperation::new(agent.extension_manager.clone())),
         Arc::new(LlmOperation::new(
+            agent,
             provider,
             model_config,
             system_prompt,
             tools,
+            session_config.schedule_id.clone(),
         )),
         Arc::new(ExitOnErrorOperation),
     ];
@@ -166,14 +169,6 @@ pub async fn reply(
                     TurnEffect::ReplaceConversation(conversation) => {
                         session_manager
                             .replace_conversation(&session.id, &conversation)
-                            .await?;
-                        // The recorded usage described the old conversation; clear it
-                        // so the next iteration recomputes against the new one rather
-                        // than re-triggering compaction on a stale token count.
-                        session_manager
-                            .update(&session.id)
-                            .usage(Usage::default())
-                            .apply()
                             .await?;
                         yield AgentEvent::HistoryReplaced(conversation);
                     }

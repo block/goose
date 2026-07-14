@@ -5,35 +5,43 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use rmcp::model::{Role, Tool};
 
+use crate::agents::agent::attach_turn_usage;
 use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnOutcome};
-use crate::agents::AgentEvent;
-use crate::conversation::message::Message;
+use crate::agents::state_machine::ops_toolcalling::current_request_start;
+use crate::agents::{Agent, AgentEvent};
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
 /// Calls the LLM when the last message in the conversation is from the user.
-pub struct LlmOperation {
+pub struct LlmOperation<'a> {
+    agent: &'a Agent,
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
     system_prompt: String,
     tools: Vec<Tool>,
+    schedule_id: Option<String>,
 }
 
-impl LlmOperation {
+impl<'a> LlmOperation<'a> {
     pub fn new(
+        agent: &'a Agent,
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
         system_prompt: String,
         tools: Vec<Tool>,
+        schedule_id: Option<String>,
     ) -> Self {
         Self {
+            agent,
             provider,
             model_config,
             system_prompt,
             tools,
+            schedule_id,
         }
     }
 
@@ -48,14 +56,14 @@ impl LlmOperation {
 }
 
 #[async_trait]
-impl Operation for LlmOperation {
+impl Operation for LlmOperation<'_> {
     fn name(&self) -> &'static str {
         "llm"
     }
 
     async fn run(
         &self,
-        _session: &Session,
+        session: &Session,
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
@@ -63,11 +71,36 @@ impl Operation for LlmOperation {
             return Ok(OperationResult::NotApplicable(emit));
         }
 
+        let answered: std::collections::HashSet<&str> = conversation
+            .messages()
+            .iter()
+            .flat_map(|m| m.get_tool_response_ids())
+            .collect();
+
+        // Unanswered tool requests from before the current request are stale
+        // leftovers (a crash mid-execution). They stay in the transcript but
+        // must not reach the provider, which rejects a tool call without a
+        // matching result. Requests from the current request are kept — an
+        // approval may still be pending on them.
+        let start = current_request_start(conversation.messages());
         let messages_for_provider: Vec<_> = conversation
             .messages()
             .iter()
-            .filter(|m| m.is_agent_visible())
-            .map(|m| m.agent_visible_content())
+            .enumerate()
+            .filter(|(_, m)| m.is_agent_visible())
+            .map(|(idx, m)| {
+                let mut m = m.agent_visible_content();
+                if idx < start {
+                    m.content.retain(|c| match c {
+                        MessageContent::ToolRequest(request) => {
+                            answered.contains(request.id.as_str())
+                        }
+                        _ => true,
+                    });
+                }
+                m
+            })
+            .filter(|m| !m.content.is_empty())
             .collect();
 
         if !matches!(
@@ -100,13 +133,14 @@ impl Operation for LlmOperation {
         // thinking blocks by signature, deduping by message id, forwarding
         // inference metadata to the right prior message.
         let mut accumulator = Conversation::empty();
+        let mut turn_usage: Option<ProviderUsage> = None;
         loop {
             tokio::select! {
                 biased;
                 _ = emit.cancelled() => break,
                 next = stream.next() => {
                     let Some(result) = next else { break };
-                    let (msg_opt, _usage_opt) = match result {
+                    let (msg_opt, usage_opt) = match result {
                         Ok(chunk) => chunk,
                         // A mid-stream provider error: discard the partial
                         // assistant turn and append a tagged error message so a
@@ -114,11 +148,29 @@ impl Operation for LlmOperation {
                         // iteration. The conversation never keeps a half-turn.
                         Err(err) => return Ok(OperationResult::Applied(self.error_outcome(&err, &emit).await)),
                     };
+                    if let Some(usage) = usage_opt {
+                        let enriched = self
+                            .agent
+                            .update_session_metrics(&session.id, self.schedule_id.clone(), &usage, false)
+                            .await?;
+                        emit.emit(AgentEvent::Usage(enriched.clone())).await;
+                        turn_usage = Some(enriched);
+                    }
                     if let Some(chunk) = msg_opt {
                         emit.emit(AgentEvent::Message(chunk.clone())).await;
                         accumulator.push(chunk);
                     }
                 }
+            }
+        }
+
+        if let Some(usage) = turn_usage {
+            if let Some((message_id, message_usage)) = attach_turn_usage(&mut accumulator, &usage) {
+                emit.emit(AgentEvent::MessageUsage {
+                    message_id,
+                    usage: message_usage,
+                })
+                .await;
             }
         }
 

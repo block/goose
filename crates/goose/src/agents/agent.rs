@@ -273,7 +273,7 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
-fn attach_turn_usage(
+pub(crate) fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
 ) -> Option<(Option<String>, MessageUsage)> {

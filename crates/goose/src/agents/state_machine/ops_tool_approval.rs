@@ -167,15 +167,18 @@ impl ApprovalState {
         let mut approval_responses = HashMap::new();
         let mut tool_requests = Vec::new();
 
-        for message in messages {
+        let start = crate::agents::state_machine::ops_toolcalling::current_request_start(messages);
+        for (idx, message) in messages.iter().enumerate() {
             for content in &message.content {
                 match content {
                     MessageContent::ToolResponse(response) => {
                         answered.insert(response.id.clone());
                     }
                     MessageContent::ToolRequest(request) => {
-                        if let Some(message_id) = &message.id {
-                            tool_requests.push((message_id.clone(), request.clone()));
+                        if idx >= start {
+                            if let Some(message_id) = &message.id {
+                                tool_requests.push((message_id.clone(), request.clone()));
+                            }
                         }
                     }
                     MessageContent::ActionRequired(action) => match &action.data {

@@ -54,7 +54,10 @@ impl Operation for MaxTurnsOperation {
             "I've reached the maximum number of actions I can do without user input. \
              Would you like me to continue?",
         );
-        emit.emit(AgentEvent::Message(message)).await;
-        Ok(OperationResult::Applied(vec![TurnEffect::YieldToClient]))
+        emit.emit(AgentEvent::Message(message.clone())).await;
+        Ok(OperationResult::Applied(vec![
+            message.into(),
+            TurnEffect::YieldToClient,
+        ]))
     }
 }

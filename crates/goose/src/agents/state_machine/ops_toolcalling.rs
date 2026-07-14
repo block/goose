@@ -34,6 +34,19 @@ impl ToolExecutionOperation {
     }
 }
 
+/// Index of the last genuine user prompt — the message that started the
+/// current request. Tool requests before it are stale leftovers (e.g. from a
+/// crash mid-execution): they are not executed or re-approved, and the LLM op
+/// hides them from the provider. Approval-flow re-entry messages
+/// (`ToolConfirmationResponse`, agent-invisible) don't move the boundary, so
+/// requests awaiting approval stay current.
+pub(crate) fn current_request_start(messages: &[Message]) -> usize {
+    messages
+        .iter()
+        .rposition(|m| m.role == Role::User && !m.is_tool_response() && m.is_agent_visible())
+        .unwrap_or(0)
+}
+
 fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolDisposition)> {
     let mut answered = HashSet::new();
     let mut approval_requests = HashSet::new();
@@ -58,8 +71,8 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
         }
     }
 
-    conversation
-        .messages()
+    let start = current_request_start(conversation.messages());
+    conversation.messages()[start..]
         .iter()
         .filter(|message| message.role == Role::Assistant)
         .flat_map(|message| {

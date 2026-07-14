@@ -5,7 +5,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
-use crate::agents::AgentEvent;
+use crate::agents::{Agent, AgentEvent};
 use crate::config::Config;
 use crate::context_mgmt::{compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -29,9 +29,11 @@ const MAX_CONTEXT_ERROR_RETRIES: usize = 2;
 /// When the token total is unknown the op stays out of the way —
 /// proactive compaction is best-effort, and the reactive `ContextLengthExceeded`
 /// path remains the backstop.
-pub struct CompactionOperation {
+pub struct CompactionOperation<'a> {
+    agent: &'a Agent,
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
+    schedule_id: Option<String>,
     context_limit: usize,
     threshold: f64,
     manages_own_context: bool,
@@ -45,16 +47,23 @@ pub struct CompactionOperation {
     failed_compact_retries: AtomicUsize,
 }
 
-impl CompactionOperation {
-    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
+impl<'a> CompactionOperation<'a> {
+    pub fn new(
+        agent: &'a Agent,
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        schedule_id: Option<String>,
+    ) -> Self {
         let context_limit = model_config.context_limit();
         let manages_own_context = provider.manages_own_context();
         let threshold = Config::global()
             .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
         Self {
+            agent,
             provider,
             model_config,
+            schedule_id,
             context_limit,
             threshold,
             manages_own_context,
@@ -71,7 +80,7 @@ impl CompactionOperation {
 }
 
 #[async_trait]
-impl Operation for CompactionOperation {
+impl Operation for CompactionOperation<'_> {
     fn name(&self) -> &'static str {
         "compaction"
     }
@@ -161,7 +170,13 @@ impl Operation for CompactionOperation {
         )
         .await
         {
-            Ok((compacted, _usage)) => {
+            Ok((compacted, usage)) => {
+                // Recorded with the compaction flag: the summary's output size
+                // becomes the session's new context total, which is also what
+                // keeps the proactive check from re-triggering on the old count.
+                self.agent
+                    .update_session_metrics(&session.id, self.schedule_id.clone(), &usage, true)
+                    .await?;
                 emit.emit(AgentEvent::Message(
                     Message::assistant().with_system_notification(
                         SystemNotificationType::InlineMessage,

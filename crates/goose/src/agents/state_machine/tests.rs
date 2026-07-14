@@ -82,10 +82,16 @@ async fn stops_at_max_turns() -> Result<()> {
         "last message: {limit:#?}"
     );
 
-    // The 3 tool-calling turns are persisted; the limit message is not.
+    // The 3 tool-calling turns and the limit message are persisted, so a
+    // reloaded transcript shows why the agent stopped.
     let persisted = harness.persisted_messages().await?;
     let tool_call_turns = persisted.iter().filter(|m| m.is_tool_call()).count();
     assert_eq!(tool_call_turns, 3);
+    let last = persisted.last().expect("a persisted message");
+    assert!(
+        last.as_concat_text().contains("maximum number of actions"),
+        "tail: {last:?}"
+    );
 
     Ok(())
 }
@@ -267,6 +273,62 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
 }
 
 #[tokio::test]
+async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
+    // A crash mid-execution leaves an unanswered tool request behind. On the
+    // next user prompt it must not be executed or re-approved, and the
+    // provider must not see it (an unanswered tool call is a protocol error).
+    // It stays in the transcript as history.
+    let provider = Arc::new(ScriptedProvider::from_fn(|messages, _tools| {
+        assert!(
+            messages.iter().all(|m| m
+                .content
+                .iter()
+                .all(|c| !matches!(c, MessageContent::ToolRequest(_)))),
+            "provider saw an orphaned tool request: {messages:#?}"
+        );
+        vec![Message::assistant().with_text("fresh start")]
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_default_extension()
+        .await;
+
+    let session_manager = harness.agent.config.session_manager.clone();
+    session_manager
+        .add_message(
+            &harness.session_id,
+            &Message::user().with_text("old prompt"),
+        )
+        .await?;
+    session_manager
+        .add_message(
+            &harness.session_id,
+            &Message::assistant().with_tool_request(
+                "orphan_1",
+                Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                    .with_arguments(serde_json::Map::new())),
+            ),
+        )
+        .await?;
+
+    let messages = harness.run("are you there?", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 1);
+    assert_eq!(messages.len(), 1, "events: {messages:#?}");
+    assert_eq!(messages[0].as_concat_text(), "fresh start");
+
+    let persisted = harness.persisted_messages().await?;
+    assert!(persisted.iter().any(|m| {
+        m.content
+            .iter()
+            .any(|c| matches!(c, MessageContent::ToolRequest(request) if request.id == "orphan_1"))
+    }));
+    assert!(!persisted.iter().any(|m| m.is_tool_response()));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn compacts_when_over_token_threshold() -> Result<()> {
     // Every provider call (the compaction summary and the post-compaction LLM
     // turn) returns plain text, so the loop ends after one real turn.
@@ -302,9 +364,48 @@ async fn compacts_when_over_token_threshold() -> Result<()> {
     // Provider was called for the summary and then the post-compaction turn.
     assert_eq!(harness.provider.call_count(), 2);
 
-    // The token total was cleared so compaction doesn't re-trigger.
+    // The stale 120k total was replaced by real usage — first the compaction's
+    // summary size, then the post-compaction turn's total (the scripted
+    // provider reports 15) — so compaction doesn't re-trigger.
     let reloaded = harness.reload().await?;
-    assert!(reloaded.usage.total_tokens.is_none());
+    assert_eq!(reloaded.usage.total_tokens, Some(15));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn llm_turn_records_usage_on_session_and_message() -> Result<()> {
+    let harness = TestHarness::with_steps([Step::Text("hi there".to_string())]).await;
+
+    let events = harness.run_events("hello", 10).await?;
+
+    // The scripted provider reports (10 in, 5 out, 15 total) per call.
+    let reloaded = harness.reload().await?;
+    assert_eq!(reloaded.usage.total_tokens, Some(15));
+    assert_eq!(reloaded.usage.input_tokens, Some(10));
+    assert_eq!(reloaded.usage.output_tokens, Some(5));
+
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::Usage(u) if u.usage.total_tokens == Some(15))),
+        "events: {events:#?}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::MessageUsage { .. })),
+        "events: {events:#?}"
+    );
+
+    // The usage ledger is attached to the persisted assistant message.
+    let persisted = harness.persisted_messages().await?;
+    let assistant = persisted
+        .iter()
+        .find(|m| m.role == Role::Assistant)
+        .expect("an assistant message");
+    let usage = assistant.metadata.usage.as_ref().expect("message usage");
+    assert_eq!(usage.total_tokens, Some(15));
 
     Ok(())
 }
