@@ -1402,7 +1402,7 @@ pub fn create_request_with_options(
     } else if supports_xai_reasoning_effort(&model_name) {
         model_config
             .thinking_effort()
-            .and_then(xai_reasoning_effort_for_thinking)
+            .and_then(|effort| xai_reasoning_effort_for_thinking(&model_name, effort))
     } else {
         None
     };
@@ -1562,12 +1562,22 @@ pub fn supports_xai_reasoning_effort(model_name: &str) -> bool {
 /// Map a [`ThinkingEffort`] to the `reasoning_effort` value xAI accepts.
 ///
 /// xAI supports `"low"`, `"medium"`, and `"high"` for models that accept
-/// `reasoning_effort` (see [`supports_xai_reasoning_effort`]).
-/// `"none"` / `"xhigh"` are not used: `Off` omits the parameter entirely so
-/// xAI applies its default, and `Max` clamps to `"high"`.
-pub fn xai_reasoning_effort_for_thinking(effort: ThinkingEffort) -> Option<String> {
+/// `reasoning_effort` (see [`supports_xai_reasoning_effort`]). `Max` clamps
+/// to `"high"`. For `Off`, grok-4.3 documents `"none"` as a valid value that
+/// explicitly disables reasoning; other models omit the parameter so xAI
+/// applies its default.
+pub fn xai_reasoning_effort_for_thinking(
+    model_name: &str,
+    effort: ThinkingEffort,
+) -> Option<String> {
     match effort {
-        ThinkingEffort::Off => None,
+        ThinkingEffort::Off => {
+            if model_name.to_ascii_lowercase().starts_with("grok-4.3") {
+                Some("none".to_string())
+            } else {
+                None
+            }
+        }
         ThinkingEffort::Low => Some("low".to_string()),
         ThinkingEffort::Medium => Some("medium".to_string()),
         ThinkingEffort::High | ThinkingEffort::Max => Some("high".to_string()),
@@ -4229,22 +4239,40 @@ data: [DONE]"#;
     #[test]
     fn test_xai_reasoning_effort_maps_to_supported_values() {
         use crate::thinking::ThinkingEffort;
-        assert_eq!(xai_reasoning_effort_for_thinking(ThinkingEffort::Off), None);
+        // grok-4.5: Off omits reasoning_effort (not documented as accepting "none")
         assert_eq!(
-            xai_reasoning_effort_for_thinking(ThinkingEffort::Low),
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Off),
+            None
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Low),
             Some("low".to_string())
         );
         assert_eq!(
-            xai_reasoning_effort_for_thinking(ThinkingEffort::Medium),
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Medium),
             Some("medium".to_string())
         );
         assert_eq!(
-            xai_reasoning_effort_for_thinking(ThinkingEffort::High),
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::High),
             Some("high".to_string())
         );
         assert_eq!(
-            xai_reasoning_effort_for_thinking(ThinkingEffort::Max),
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Max),
             Some("high".to_string())
+        );
+    }
+
+    #[test]
+    fn test_xai_reasoning_effort_off_maps_to_none_for_grok_4_3() {
+        use crate::thinking::ThinkingEffort;
+        // grok-4.3 documents "none" as a valid reasoning_effort value
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.3", ThinkingEffort::Off),
+            Some("none".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.3-latest", ThinkingEffort::Off),
+            Some("none".to_string())
         );
     }
 
@@ -4352,8 +4380,31 @@ data: [DONE]"#;
 
         assert!(
             payload.get("reasoning_effort").is_none(),
-            "Off must omit reasoning_effort for xAI, got: {:?}",
+            "Off must omit reasoning_effort for grok-4.5, got: {:?}",
             payload.get("reasoning_effort")
+        );
+    }
+
+    #[test]
+    fn test_create_request_sends_none_effort_for_grok_4_3_off() {
+        use crate::thinking::ThinkingEffort;
+
+        let model_config = ModelConfig::new("grok-4.3").with_thinking_effort(ThinkingEffort::Off);
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            payload.get("reasoning_effort"),
+            Some(&json!("none")),
+            "Off must send reasoning_effort=none for grok-4.3 (documented support)"
         );
     }
 
