@@ -5091,6 +5091,7 @@ dependencies = [
  "sha2 0.11.0",
  "shlex 2.0.1",
  "sigstore-verify",
+ "strsim",
  "strum 0.28.0",
  "tar",
  "tempfile",
