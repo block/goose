@@ -563,6 +563,21 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
     }
 }
 
+fn is_gpt_5_6_model(model_name: &str) -> bool {
+    let normalized = model_name.to_ascii_lowercase();
+    ["gpt-5.6", "gpt-5-6"].iter().any(|needle| {
+        normalized.match_indices(needle).any(|(start, matched)| {
+            let before = start
+                .checked_sub(1)
+                .and_then(|index| normalized.as_bytes().get(index));
+            let after = normalized.as_bytes().get(start + matched.len());
+
+            before.is_none_or(|byte| matches!(byte, b'-' | b'/'))
+                && after.is_none_or(|byte| matches!(byte, b'-' | b'/'))
+        })
+    })
+}
+
 pub fn create_responses_request(
     model_config: &ModelConfig,
     system: &str,
@@ -605,20 +620,44 @@ pub fn create_responses_request(
     };
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
+    let reasoning_mode = model_config
+        .request_param::<String>("reasoning_mode")
+        .map(|mode| {
+            let normalized = mode.to_ascii_lowercase();
+            match normalized.as_str() {
+                "standard" | "pro" => Ok(normalized),
+                _ => Err(anyhow!(
+                    "Invalid reasoning_mode '{}'. Supported values are: standard, pro",
+                    mode
+                )),
+            }
+        })
+        .transpose()?;
+    if reasoning_mode.is_some() && !is_gpt_5_6_model(&model_name) {
+        return Err(anyhow!(
+            "reasoning_mode is only supported for GPT-5.6 models"
+        ));
+    }
+
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
         "store": store,
     });
 
-    if let Some(effort) = reasoning_effort {
-        payload.as_object_mut().unwrap().insert(
-            "reasoning".to_string(),
-            json!({
-                "effort": effort,
-                "summary": "auto",
-            }),
-        );
+    if reasoning_effort.is_some() || reasoning_mode.is_some() {
+        let mut reasoning = serde_json::Map::new();
+        if let Some(effort) = reasoning_effort {
+            reasoning.insert("effort".to_string(), json!(effort));
+            reasoning.insert("summary".to_string(), json!("auto"));
+        }
+        if let Some(mode) = reasoning_mode {
+            reasoning.insert("mode".to_string(), json!(mode));
+        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("reasoning".to_string(), Value::Object(reasoning));
     }
 
     if !tools.is_empty() {
@@ -650,10 +689,12 @@ pub fn create_responses_request(
         }
     }
 
-    payload.as_object_mut().unwrap().insert(
-        "max_output_tokens".to_string(),
-        json!(model_config.max_output_tokens()),
-    );
+    if let Some(max_tokens) = model_config.max_tokens {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_output_tokens".to_string(), json!(max_tokens));
+    }
 
     Ok(payload)
 }
@@ -1453,6 +1494,67 @@ mod tests {
         assert_eq!(result["model"], "o3-mini");
         assert_eq!(result["reasoning"]["effort"], "high");
         assert_eq!(result["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
+    fn test_responses_request_supports_gpt_5_6_reasoning_mode() {
+        for model_name in [
+            "gpt-5.6-sol",
+            "openrouter/openai/gpt-5.6-sol",
+            "vendor-gpt-5-6",
+        ] {
+            let model_config = ModelConfig::new(model_name).with_merged_request_params(
+                std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+            );
+
+            let result =
+                create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+            assert_eq!(result["reasoning"]["mode"], "pro");
+            assert!(result["reasoning"].get("effort").is_none());
+            assert!(result["reasoning"].get("summary").is_none());
+        }
+    }
+
+    #[test]
+    fn test_responses_request_rejects_reasoning_mode_for_non_gpt_5_6_model() {
+        for model_name in ["gpt-5.5", "gpt-5.60", "notgpt-5.6", "gpt-5.6ish"] {
+            let model_config = ModelConfig::new(model_name).with_merged_request_params(
+                std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+            );
+
+            let error = create_responses_request(&model_config, "You are helpful.", &[], &[])
+                .expect_err("reasoning mode should be gated to GPT-5.6 models");
+
+            assert!(error
+                .to_string()
+                .contains("reasoning_mode is only supported for GPT-5.6 models"));
+        }
+    }
+
+    #[test]
+    fn test_responses_request_omits_default_max_output_tokens_for_unknown_model() {
+        let model_config = ModelConfig::new("gpt-5.6-sol");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert!(
+            result.get("max_output_tokens").is_none(),
+            "unknown/new models should not receive Goose's fallback max_output_tokens"
+        );
+    }
+
+    #[test]
+    fn test_responses_request_includes_canonical_max_output_tokens() {
+        let model_config = ModelConfig::new("gpt-5.4").with_canonical_limits("openai");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(
+            result["max_output_tokens"],
+            model_config.max_tokens.unwrap()
+        );
     }
 
     #[test]
