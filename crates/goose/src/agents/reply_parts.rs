@@ -564,12 +564,15 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
+    /// `post_compaction_context_tokens` is `Some` when this usage came from a
+    /// compaction call: the value (the retained summary size, not the billable
+    /// output) becomes the session's new context baseline.
     pub(crate) async fn update_session_metrics(
         &self,
         session_id: &str,
         schedule_id: Option<String>,
         usage: &ProviderUsage,
-        is_compaction_usage: bool,
+        post_compaction_context_tokens: Option<i32>,
     ) -> Result<ProviderUsage> {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
@@ -580,14 +583,13 @@ impl Agent {
         let mut enriched = usage.clone();
         enriched.cost = chunk_cost;
         enriched.cost_source = cost_source;
-        let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
+        let ledger =
+            MessageUsage::from_provider_usage(&enriched, post_compaction_context_tokens.is_some());
 
-        let current_usage = if is_compaction_usage {
-            // After compaction: summary output becomes new input context
-            let new_input = usage.usage.output_tokens;
-            Usage::new(new_input, None, new_input)
-        } else {
-            usage.usage
+        let current_usage = match post_compaction_context_tokens {
+            // After compaction: the retained summary becomes the new input context
+            Some(retained) => Usage::new(Some(retained), None, Some(retained)),
+            None => usage.usage,
         };
 
         manager
