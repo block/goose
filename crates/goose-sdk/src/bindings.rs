@@ -21,9 +21,10 @@ use goose_providers::{
     declarative::{DeclarativeProviderConfig, EnvKeyResolver},
     model::ModelConfig,
     openai::OpenAiProviderBuilder,
+    utils::sanitize_unicode_tags,
 };
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content, Role, Tool};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum GooseError {
@@ -179,7 +180,9 @@ impl ProviderMessage {
 impl MessageContent {
     fn to_goose_content(&self) -> Result<GooseMessageContent, GooseError> {
         match self {
-            MessageContent::Text { text } => Ok(GooseMessageContent::text(text.clone())),
+            MessageContent::Text { text } => {
+                Ok(GooseMessageContent::text(sanitize_unicode_tags(text)))
+            }
             MessageContent::Image { mime_type, data } => Ok(GooseMessageContent::image(
                 base64::engine::general_purpose::STANDARD.encode(data),
                 mime_type.clone(),
@@ -309,12 +312,6 @@ pub struct ProviderModelConfig {
     #[uniffi(default = None)]
     pub reasoning: Option<bool>,
     #[uniffi(default = None)]
-    pub top_p: Option<f32>,
-    #[uniffi(default = None)]
-    pub top_k: Option<i32>,
-    #[uniffi(default = [])]
-    pub stop_sequences: Vec<String>,
-    #[uniffi(default = None)]
     pub timeout_ms: Option<u64>,
 }
 
@@ -330,19 +327,6 @@ impl ProviderModelConfig {
         let mut request_params = serde_json::Map::new();
         merge_params(&mut request_params, self.request_params_json.as_ref())?;
         merge_params(&mut request_params, self.provider_params_json.as_ref())?;
-        if let Some(top_p) = self.top_p {
-            request_params.insert("top_p".to_string(), json!(top_p));
-        }
-        if let Some(top_k) = self.top_k {
-            request_params.insert("top_k".to_string(), json!(top_k));
-        }
-        if !self.stop_sequences.is_empty() {
-            request_params.insert("stop".to_string(), json!(self.stop_sequences));
-            request_params.insert("stop_sequences".to_string(), json!(self.stop_sequences));
-        }
-        if let Some(timeout_ms) = self.timeout_ms {
-            request_params.insert("timeout_ms".to_string(), json!(timeout_ms));
-        }
         if !request_params.is_empty() {
             config = config.with_merged_request_params(request_params.into_iter().collect());
         }
@@ -555,15 +539,11 @@ impl ProviderHandle {
         messages: Vec<ProviderMessage>,
         tools: Vec<ProviderTool>,
     ) -> Result<Arc<ProviderStream>, GooseError> {
+        let timeout_ms = model.timeout_ms;
         let model = model.to_goose_model_config()?;
         let messages = convert_messages(messages)?;
         let tools = convert_tools(tools)?;
         let provider = Arc::clone(&self.provider);
-        let timeout_ms = model
-            .request_params
-            .as_ref()
-            .and_then(|params| params.get("timeout_ms"))
-            .and_then(Value::as_u64);
         let stream = run_provider_future(timeout_ms, async move {
             provider.stream(&model, &system, &messages, &tools).await
         })
@@ -584,15 +564,11 @@ impl ProviderHandle {
         messages: Vec<ProviderMessage>,
         tools: Vec<ProviderTool>,
     ) -> Result<ProviderCompletion, GooseError> {
+        let timeout_ms = model.timeout_ms;
         let model = model.to_goose_model_config()?;
         let messages = convert_messages(messages)?;
         let tools = convert_tools(tools)?;
         let provider = Arc::clone(&self.provider);
-        let timeout_ms = model
-            .request_params
-            .as_ref()
-            .and_then(|params| params.get("timeout_ms"))
-            .and_then(Value::as_u64);
         let (message, usage) = run_provider_future(timeout_ms, async move {
             provider.complete(&model, &system, &messages, &tools).await
         })
@@ -918,9 +894,6 @@ mod tests {
             request_params_json: None,
             provider_params_json: None,
             reasoning: None,
-            top_p: None,
-            top_k: None,
-            stop_sequences: vec![],
             timeout_ms: None,
         }
     }
