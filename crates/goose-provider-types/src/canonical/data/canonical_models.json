@@ -158618,6 +158618,93 @@
     }
   },
   {
+    "id": "x-ai/grok-4",
+    "name": "Grok 4",
+    "family": "grok",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-07",
+    "release_date": "2025-07-09",
+    "last_updated": "2025-07-09",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.75,
+      "cache_write": 15.0
+    },
+    "limit": {
+      "context": 256000,
+      "output": 64000
+    }
+  },
+  {
+    "id": "x-ai/grok-4-fast-non-reasoning",
+    "name": "Grok 4 Fast Non-Reasoning",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-12-18",
+    "last_updated": "2025-12-18",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {},
+    "limit": {
+      "context": 2000000,
+      "output": 2000000
+    }
+  },
+  {
+    "id": "x-ai/grok-4-fast-reasoning",
+    "name": "Grok 4 Fast Reasoning",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-12-18",
+    "last_updated": "2025-12-18",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {},
+    "limit": {
+      "context": 2000000,
+      "output": 2000000
+    }
+  },
+  {
     "id": "x-ai/grok-4.20-0309-non-reasoning",
     "name": "Grok 4.20 (Non-Reasoning)",
     "family": "grok",

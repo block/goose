@@ -62,8 +62,9 @@ via the live provider fetch path and may not appear in the picker.
 
 ```bash
 # Full regeneration from models.dev (writes canonical_models.json + provider_metadata.json)
+# The release process runs this via `just build-canonical-models` and includes all changes.
 source bin/activate-hermit   # provides cmake needed by llama-cpp-sys-2
-cargo run --bin build_canonical_models
+just build-canonical-models
 ```
 
 This pulls the entire models.dev API and produces a large diff (thousands of lines). For a **focused PR**
