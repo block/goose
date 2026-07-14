@@ -4,7 +4,7 @@ use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{
@@ -229,6 +229,15 @@ impl CursorAgentProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        let stderr = child.stderr.take();
+        let stderr_drain = tokio::spawn(async move {
+            let mut buf = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = AsyncReadExt::read_to_string(&mut stderr, &mut buf).await;
+            }
+            buf
+        });
+
         let mut reader = BufReader::new(stdout);
         let mut lines = Vec::new();
         let mut line = String::new();
@@ -252,19 +261,30 @@ impl CursorAgentProvider {
             }
         }
 
+        let stderr_text = stderr_drain.await.unwrap_or_default();
         let exit_status = child.wait().await.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
         })?;
 
         if !exit_status.success() {
+            let stderr_snippet = stderr_text.trim();
             if !self.get_authentication_status().await {
-                return Err(ProviderError::Authentication(
-                    "You are not logged in to cursor-agent. Please run 'cursor-agent login' to authenticate first."
-                        .to_string()));
+                let detail = if stderr_snippet.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {stderr_snippet}")
+                };
+                return Err(ProviderError::Authentication(format!(
+                    "You are not logged in to cursor-agent. Please run 'cursor-agent login' to authenticate first.{detail}"
+                )));
             }
+            let detail = if stderr_snippet.is_empty() {
+                format!("exit code {:?}", exit_status.code())
+            } else {
+                format!("exit code {:?}: {stderr_snippet}", exit_status.code())
+            };
             return Err(ProviderError::RequestFailed(format!(
-                "Command failed with exit code: {:?}",
-                exit_status.code()
+                "cursor-agent command failed ({detail})"
             )));
         }
 
