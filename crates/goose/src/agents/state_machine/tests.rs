@@ -273,6 +273,68 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
 }
 
 #[tokio::test]
+async fn old_tool_pairs_are_summarized_away() -> Result<()> {
+    // Default cutoff for the test model is 15 and the batch size is 10, so 26
+    // answered pairs put exactly one batch over the threshold.
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("summary of the pair")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+
+    let session_manager = harness.agent.config.session_manager.clone();
+    session_manager
+        .add_message(&harness.session_id, &Message::user().with_text("old work"))
+        .await?;
+    for n in 0..26 {
+        let id = format!("call_{n}");
+        session_manager
+            .add_message(
+                &harness.session_id,
+                &Message::assistant().with_tool_request(
+                    id.clone(),
+                    Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                        .with_arguments(serde_json::Map::new())),
+                ),
+            )
+            .await?;
+        let mut response = Message::user();
+        response.add_tool_response_with_metadata(
+            id,
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result"),
+            ])),
+            None,
+        );
+        session_manager
+            .add_message(&harness.session_id, &response)
+            .await?;
+    }
+
+    harness.run("carry on", 10).await?;
+
+    // One batch of 10 summaries plus the actual turn.
+    assert_eq!(harness.provider.call_count(), 11);
+
+    let persisted = harness.persisted_messages().await?;
+    let visible_requests = persisted
+        .iter()
+        .filter(|m| m.is_agent_visible() && m.is_tool_call())
+        .count();
+    assert_eq!(visible_requests, 16, "persisted: {persisted:#?}");
+    let summaries = persisted
+        .iter()
+        .filter(|m| {
+            m.as_concat_text() == "summary of the pair"
+                && m.is_agent_visible()
+                && !m.is_user_visible()
+        })
+        .count();
+    assert_eq!(summaries, 10);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn chat_mode_skips_tool_execution() -> Result<()> {
     let harness = TestHarness::with_steps([
         Step::ToolCall {

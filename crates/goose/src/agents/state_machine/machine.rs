@@ -18,6 +18,7 @@ use crate::agents::state_machine::ops_retry::RetryOperation;
 use crate::agents::state_machine::ops_slash_command::SlashCommandOperation;
 use crate::agents::state_machine::ops_stop_hook::StopHookOperation;
 use crate::agents::state_machine::ops_tool_approval::ToolApprovalOperation;
+use crate::agents::state_machine::ops_tool_pair_compaction::ToolPairCompactionOperation;
 use crate::agents::state_machine::ops_toolcalling::ToolExecutionOperation;
 use crate::agents::types::SessionConfig;
 use crate::agents::{Agent, AgentEvent};
@@ -118,6 +119,10 @@ pub async fn reply(
             provider.clone(),
             model_config.clone(),
             session_config.schedule_id.clone(),
+        )),
+        Arc::new(ToolPairCompactionOperation::new(
+            provider.clone(),
+            model_config.clone(),
         )),
         Arc::new(ToolApprovalOperation::new(agent)),
         Arc::new(ToolExecutionOperation::new(agent)),

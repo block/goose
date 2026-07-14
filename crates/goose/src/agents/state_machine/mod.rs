@@ -17,6 +17,7 @@ mod ops_retry;
 mod ops_slash_command;
 mod ops_stop_hook;
 mod ops_tool_approval;
+mod ops_tool_pair_compaction;
 mod ops_toolcalling;
 
 pub mod test_helpers;
