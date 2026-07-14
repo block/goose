@@ -72,6 +72,9 @@ function patchAcpSessionProviderModel(
   const currentSession = acpChatSessionStore.getSnapshot(sessionId)?.session;
   if (!currentSession) return;
 
+  // The reported context limit belongs to the previous model; drop it before the
+  // metadata patch so no snapshot can carry it over to the newly selected model.
+  acpChatSessionActions.clearReportedContextLimit(sessionId);
   acpChatSessionActions.setSessionMetadata(sessionId, {
     ...currentSession,
     provider_name: providerId ?? currentSession.provider_name,

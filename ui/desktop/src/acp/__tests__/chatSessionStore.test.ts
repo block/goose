@@ -215,6 +215,29 @@ describe('acpChatSessionStore', () => {
     expect(snapshot.sessionLoadError).toBeUndefined();
   });
 
+  it('clears the reported context limit without touching other token state', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.applyAcpGooseSessionNotification({
+      sessionId: currentSessionId,
+      update: {
+        sessionUpdate: 'usage_update',
+        used: 42,
+        contextLimit: 200000,
+        accumulatedInputTokens: 10,
+        accumulatedOutputTokens: 15,
+      },
+    });
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.tokenState.contextLimit).toBe(200000);
+
+    const snapshot = acpChatSessionActions.clearReportedContextLimit(currentSessionId);
+
+    expect(snapshot.tokenState.contextLimit).toBeUndefined();
+    expect(snapshot.tokenState.totalTokens).toBe(42);
+    expect(snapshot.tokenState.accumulatedTotalTokens).toBe(25);
+  });
+
   it('keeps multiple session snapshots isolated', () => {
     const firstSessionId = sessionId('session-1');
     const secondSessionId = sessionId('session-2');
