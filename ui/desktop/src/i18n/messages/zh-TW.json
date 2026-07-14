@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "回到首頁"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "連線已中斷。正在重新連線…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"
   },

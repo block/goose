@@ -309,7 +309,7 @@ fn get_tool_meta_value(tool: &Tool) -> Option<Value> {
     tool.meta.as_ref().map(|meta| Value::Object(meta.0.clone()))
 }
 
-fn get_tool_resource_uri(tool: &Tool) -> Option<String> {
+pub(crate) fn get_tool_resource_uri(tool: &Tool) -> Option<String> {
     tool.meta
         .as_ref()
         .and_then(|meta| meta.0.get("ui"))
@@ -2200,6 +2200,20 @@ mod tests {
                         "hidden tool".to_string(),
                         Arc::new(json!({}).as_object().unwrap().clone()),
                     ),
+                    {
+                        let mut t = Tool::new(
+                            "render_chart".to_string(),
+                            "Render a chart".to_string(),
+                            Arc::new(json!({}).as_object().unwrap().clone()),
+                        );
+                        t.meta = Some(Meta(
+                            json!({ "ui": { "resourceUri": "ui://autovisualiser/chart" } })
+                                .as_object()
+                                .unwrap()
+                                .clone(),
+                        ));
+                        t
+                    },
                 ],
                 next_cursor: None,
                 meta: None,
@@ -2214,7 +2228,7 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" | "available_tool" | "hidden_tool" => {
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" | "render_chart" => {
                     Ok(CallToolResult::success(vec![]))
                 }
                 _ => Err(Error::TransportClosed),
@@ -2391,7 +2405,10 @@ mod tests {
         assert!(tool_names
             .iter()
             .any(|name| name == "test_extension__hidden_tool"));
-        assert!(tool_names.len() == 3);
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__render_chart"));
+        assert!(tool_names.len() == 4);
     }
 
     #[tokio::test]
@@ -2582,6 +2599,38 @@ mod tests {
 
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(tool_names.iter().any(|n| n.starts_with("ext_b__")));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_app_tools_identified_for_code_mode_exclusion() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+
+        extension_manager
+            .add_mock_extension("autovisualiser".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let tools = extension_manager
+            .get_prefixed_tools_excluding("test-session-id", "code_execution")
+            .await
+            .unwrap();
+
+        let (mcp_app_tools, regular_tools): (Vec<_>, Vec<_>) = tools
+            .iter()
+            .partition(|t| get_tool_resource_uri(t).is_some());
+
+        assert_eq!(mcp_app_tools.len(), 1, "exactly one MCP app tool");
+        assert_eq!(
+            mcp_app_tools[0].name.as_ref(),
+            "autovisualiser__render_chart"
+        );
+        assert!(
+            regular_tools
+                .iter()
+                .all(|t| get_tool_resource_uri(t).is_none()),
+            "non-MCP-app tools have no resourceUri"
+        );
     }
 
     #[tokio::test]
