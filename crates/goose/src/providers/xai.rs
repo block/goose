@@ -36,33 +36,17 @@ pub const XAI_KNOWN_MODELS: &[&str] = &[
 
 pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
-/// Context window for `grok-4.5` from xAI model docs.
-///
-/// The canonical registry does not yet include `x-ai/grok-4.5`, so
-/// `model_info_for_provider_model` would fall back to `DEFAULT_CONTEXT_LIMIT`
-/// (128k) without this override.
-const GROK_4_5_CONTEXT_LIMIT: usize = 500_000;
-
 pub struct XaiProvider;
 
 /// Known-model metadata for both the API-key and OAuth xAI providers.
-///
-/// Most models resolve context limits via the canonical registry; `grok-4.5`
-/// is overridden until a canonical entry exists.
+/// All models resolve context limits and reasoning flags via the canonical
+/// registry (`x-ai/grok-*`).
 pub fn xai_known_model_info() -> Vec<goose_providers::base::ModelInfo> {
-    use goose_providers::base::{model_info_for_provider_model, ModelInfo};
+    use goose_providers::base::model_info_for_provider_model;
 
     XAI_KNOWN_MODELS
         .iter()
-        .map(|&model_name| {
-            if model_name == "grok-4.5" {
-                let mut info = ModelInfo::new(model_name, GROK_4_5_CONTEXT_LIMIT);
-                info.reasoning = true;
-                info
-            } else {
-                model_info_for_provider_model(XAI_PROVIDER_NAME, model_name)
-            }
-        })
+        .map(|&model_name| model_info_for_provider_model(XAI_PROVIDER_NAME, model_name))
         .collect()
 }
 
@@ -116,24 +100,24 @@ mod tests {
     use goose_providers::base::ProviderDescriptor;
 
     #[test]
-    fn grok_4_5_known_model_uses_documented_context_limit() {
+    fn grok_4_5_known_model_resolves_via_canonical_registry() {
         let info = xai_known_model_info()
             .into_iter()
             .find(|m| m.name == "grok-4.5")
             .expect("grok-4.5 present in known models");
-        assert_eq!(info.context_limit, GROK_4_5_CONTEXT_LIMIT);
+        assert_eq!(info.context_limit, 500_000);
         assert!(info.reasoning);
     }
 
     #[test]
-    fn metadata_includes_grok_4_5_with_context_override() {
+    fn metadata_includes_grok_4_5_from_canonical_registry() {
         let metadata = XaiProvider::metadata();
         let info = metadata
             .known_models
             .iter()
             .find(|m| m.name == "grok-4.5")
             .expect("grok-4.5 present in provider metadata");
-        assert_eq!(info.context_limit, GROK_4_5_CONTEXT_LIMIT);
+        assert_eq!(info.context_limit, 500_000);
         assert!(info.reasoning);
     }
 }
