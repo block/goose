@@ -1520,7 +1520,10 @@ pub fn create_request_with_options(
 
     if for_streaming {
         payload["stream"] = json!(true);
-        if let Some(stream_opts) = payload.get_mut("stream_options").and_then(|v| v.as_object_mut()) {
+        if let Some(stream_opts) = payload
+            .get_mut("stream_options")
+            .and_then(|v| v.as_object_mut())
+        {
             stream_opts.insert("include_usage".to_string(), json!(true));
         } else {
             payload["stream_options"] = json!({"include_usage": true});
