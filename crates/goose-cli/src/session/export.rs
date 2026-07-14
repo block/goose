@@ -361,6 +361,12 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                             .unwrap_or_else(|_| "{}".to_string())
                     ));
                 }
+                ActionRequiredData::ToolConfirmationResponse { id, permission } => {
+                    md.push_str(&format!(
+                        "**Action Required** (tool_confirmation_response): {} ({:?})\n\n",
+                        id, permission
+                    ));
+                }
             },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
