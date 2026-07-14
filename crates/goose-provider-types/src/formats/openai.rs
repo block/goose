@@ -1508,11 +1508,6 @@ pub fn create_request_with_options(
             .insert(key.to_string(), json!(max_tokens));
     }
 
-    if for_streaming {
-        payload["stream"] = json!(true);
-        payload["stream_options"] = json!({"include_usage": true});
-    }
-
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
@@ -1520,6 +1515,15 @@ pub fn create_request_with_options(
                     obj.insert(key.clone(), value.clone());
                 }
             }
+        }
+    }
+
+    if for_streaming {
+        payload["stream"] = json!(true);
+        if let Some(stream_opts) = payload.get_mut("stream_options").and_then(|v| v.as_object_mut()) {
+            stream_opts.insert("include_usage".to_string(), json!(true));
+        } else {
+            payload["stream_options"] = json!({"include_usage": true});
         }
     }
 
@@ -2642,6 +2646,39 @@ mod tests {
         assert!(obj.get("thinking_effort").is_none());
         assert_eq!(obj.get("max_tokens"), Some(&json!(1024)));
         assert!(obj.get("max_completion_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_preserves_stream_options_from_extra_body() -> anyhow::Result<()> {
+        let mut model_config = test_model_config("my-custom-model");
+
+        let reasoning = crate::base::ReasoningConfig {
+            enabled: true,
+            extra_body: Some(json!({
+                "stream_options": { "foo": "bar" }
+            })),
+            ..Default::default()
+        };
+        model_config.reasoning = Some(crate::base::Reasoning::ReasoningConfig(reasoning));
+
+        // Use `true` for streaming
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+        let obj = request.as_object().unwrap();
+
+        // `include_usage: true` should have been merged into `stream_options`
+        assert_eq!(
+            obj.get("stream_options"),
+            Some(&json!({ "foo": "bar", "include_usage": true }))
+        );
 
         Ok(())
     }
