@@ -58,12 +58,22 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
     #[serde(flatten)]
     map: HashMap<String, String>,
+}
+
+impl<'de> Deserialize<'de> for Envs {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = HashMap::<String, String>::deserialize(deserializer)?;
+        Ok(Self::new(map))
+    }
 }
 
 impl Envs {
@@ -181,8 +191,11 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Built-in extension that is part of the bundled goose MCP server
@@ -199,6 +212,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Platform extensions that have direct access to the agent etc and run in the agent process
@@ -214,6 +228,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
@@ -244,6 +259,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
@@ -262,6 +278,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
@@ -281,6 +298,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         dependencies: Option<Vec<String>>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
 }
@@ -333,6 +351,7 @@ impl ExtensionConfig {
             env_keys: Vec::new(),
             description: description.into(),
             timeout: Some(timeout.into()),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -366,6 +385,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 description,
                 bundled,
                 available_tools,
@@ -378,6 +398,7 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             },
@@ -443,6 +464,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             } => {
@@ -452,9 +474,10 @@ impl ExtensionConfig {
                     description,
                     cmd,
                     args,
-                    envs: Envs::new(merged),
+                    envs: Envs::new(merged.clone()),
                     env_keys: vec![],
                     timeout,
+                    cwd: cwd.map(|s| substitute_env_vars(&s, &merged)),
                     bundled,
                     available_tools,
                 })
@@ -658,6 +681,49 @@ available_tools: []
         }
     }
 
+    #[test]
+    fn envs_deserialization_filters_disallowed_keys() {
+        let envs: extension::Envs =
+            serde_yaml::from_str("LD_PRELOAD: /tmp/injected.so\nSAFE_VAR: ok\n").unwrap();
+        let map = envs.get_env();
+
+        assert!(!map.contains_key("LD_PRELOAD"));
+        assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
+    }
+
+    #[test]
+    fn serialization_omits_empty_available_tools() {
+        let config = ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: Some("Developer".into()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: vec![],
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+
+        assert!(!yaml.contains("available_tools"));
+    }
+
+    #[test]
+    fn serialization_preserves_available_tools() {
+        let config = ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: Some("Developer".into()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: vec!["shell".to_string()],
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+
+        assert!(yaml.contains("available_tools"));
+        assert!(yaml.contains("- shell"));
+    }
+
     #[test_case(
         ExtensionConfig::Builtin {
             name: "developer".into(),
@@ -731,6 +797,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -742,6 +809,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -756,6 +824,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -771,6 +840,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -858,6 +928,7 @@ available_tools: []
             }),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -873,6 +944,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }

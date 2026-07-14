@@ -1,6 +1,6 @@
 import { Button } from '../../ui/button';
 import { RefreshCw } from 'lucide-react';
-import { useConfig } from '../../ConfigContext';
+import { acpClearDefaults } from '../../../acp/providers';
 import { View, ViewOptions } from '../../../utils/navigationUtils';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -21,12 +21,10 @@ interface ResetProviderSectionProps {
 
 export default function ResetProviderSection(_props: ResetProviderSectionProps) {
   const intl = useIntl();
-  const { remove } = useConfig();
 
   const handleResetProvider = async () => {
     try {
-      await remove('GOOSE_PROVIDER', false);
-      await remove('GOOSE_MODEL', false);
+      await acpClearDefaults();
 
       window.location.reload();
     } catch (error) {

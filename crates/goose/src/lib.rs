@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 #[cfg(all(feature = "rustls-tls", feature = "native-tls"))]
 compile_error!("Features `rustls-tls` and `native-tls` are mutually exclusive");
 
@@ -24,7 +26,7 @@ pub mod hooks;
 pub mod instance_id;
 pub mod logging;
 pub mod mcp_utils;
-pub mod model;
+pub mod model_config;
 pub mod oauth;
 #[cfg(feature = "otel")]
 pub mod otel;

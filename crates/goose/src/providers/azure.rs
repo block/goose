@@ -5,7 +5,6 @@ use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
 use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
-use crate::model::ModelConfig;
 use futures::future::BoxFuture;
 
 const AZURE_PROVIDER_NAME: &str = "azure_openai";
@@ -50,9 +49,7 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl ProviderDef for AzureProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for AzureProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             AZURE_PROVIDER_NAME,
@@ -70,10 +67,14 @@ impl ProviderDef for AzureProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for AzureProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -105,7 +106,12 @@ impl ProviderDef for AzureProvider {
 
             let auth_provider = AzureAuthProvider { auth };
             let host = format!("{}/openai", endpoint.trim_end_matches('/'));
-            let mut api_client = ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?;
+            let mut api_client = ApiClient::new_with_tls(
+                host,
+                AuthMethod::Custom(Box::new(auth_provider)),
+                tls_config,
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
             if let Some(version) = api_version {
                 api_client = api_client.with_query(vec![("api-version".to_string(), version)]);
             }
@@ -113,7 +119,6 @@ impl ProviderDef for AzureProvider {
             Ok(OpenAiCompatibleProvider::new(
                 AZURE_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 format!("deployments/{}/", deployment_name),
             ))
         })

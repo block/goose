@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
+import { acpListProviderDetails, acpReadDefaults, acpSaveDefaults } from '../../acp/providers';
 import { Goose } from '../icons';
 import { Button } from '../ui/button';
 import ProviderSelector from './ProviderSelector';
@@ -47,7 +48,7 @@ interface OnboardingGuardProps {
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
-  const { read, upsert, getProviders } = useConfig();
+  const { upsert } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
   const [isCheckingProvider, setIsCheckingProvider] = useState(true);
@@ -66,7 +67,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     setCheckProviderError(false);
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const provider = (await read('GOOSE_PROVIDER', false, { throwOnError: true })) as string | null;
+        const { providerId: provider } = await acpReadDefaults();
         if (provider?.trim()) {
           setHasProvider(true);
           setIsCheckingProvider(false);
@@ -75,8 +76,8 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
         const fallback = await getFallbackModelAndProvider();
         if (fallback.provider?.trim() && fallback.model?.trim()) {
-          const configuredProvider = (await read('GOOSE_PROVIDER', false)) as string | null;
-          const configuredModel = (await read('GOOSE_MODEL', false)) as string | null;
+          const { providerId: configuredProvider, modelId: configuredModel } =
+            await acpReadDefaults();
           if (configuredProvider?.trim() && configuredModel?.trim()) {
             await refreshCurrentModelAndProvider();
             setHasProvider(true);
@@ -113,16 +114,11 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   const handleConfigured = async (providerName: string, modelId?: string) => {
     trackOnboardingProviderSelected({ provider: providerName });
-    await upsert('GOOSE_PROVIDER', providerName, false);
-    const providers = await getProviders(true);
+    const providers = await acpListProviderDetails();
     const matchedProvider = providers.find((p) => p.name === providerName);
-    if (modelId) {
-      await upsert('GOOSE_MODEL', modelId, false);
-      setConfiguredModel(modelId);
-    } else if (matchedProvider) {
-      await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
-      setConfiguredModel(matchedProvider.metadata.default_model);
-    }
+    const resolvedModel = modelId ?? matchedProvider?.metadata.default_model ?? null;
+    await acpSaveDefaults(providerName, resolvedModel);
+    setConfiguredModel(resolvedModel);
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
     setConfiguredProviderDisplayName(matchedProvider?.metadata.display_name || providerName);

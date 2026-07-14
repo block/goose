@@ -73,6 +73,8 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
             obj.entry("message_count").or_insert(serde_json::json!(0));
             obj.entry("working_dir").or_insert(serde_json::json!(""));
 
+            crate::session::import_formats::nest_legacy_token_fields(obj);
+
             if let Some(desc) = obj.get_mut("description") {
                 if let Some(desc_str) = desc.as_str() {
                     *desc = serde_json::json!(desc_str
@@ -137,5 +139,25 @@ mod tests {
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].role, Role::User);
         assert_eq!(messages[1].role, Role::Assistant);
+    }
+
+    #[test]
+    fn test_load_legacy_session_preserves_flat_token_fields() {
+        let temp_dir = TempDir::new().unwrap();
+        let session_path = temp_dir.path().join("20240101_120000.jsonl");
+
+        let legacy_content = r#"{"description":"test","id":"20240101_120000","created_at":"2024-01-01T12:00:00Z","updated_at":"2024-01-01T12:00:00Z","extension_data":{},"message_count":0,"input_tokens":11,"output_tokens":22,"total_tokens":33,"accumulated_input_tokens":111,"accumulated_output_tokens":222,"accumulated_total_tokens":333}
+{"id":"msg1","role":"user","created":1704110400,"content":[{"type":"text","text":"Hello"}]}"#;
+
+        fs::write(&session_path, legacy_content).unwrap();
+
+        let session = load_session("20240101_120000", &session_path).unwrap();
+
+        assert_eq!(session.usage.input_tokens, Some(11));
+        assert_eq!(session.usage.output_tokens, Some(22));
+        assert_eq!(session.usage.total_tokens, Some(33));
+        assert_eq!(session.accumulated_usage.input_tokens, Some(111));
+        assert_eq!(session.accumulated_usage.output_tokens, Some(222));
+        assert_eq!(session.accumulated_usage.total_tokens, Some(333));
     }
 }

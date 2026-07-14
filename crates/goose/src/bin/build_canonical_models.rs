@@ -321,7 +321,7 @@ impl MappingReport {
 
 fn data_file_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../goose-providers/src/canonical/data")
+        .join("../goose-provider-types/src/canonical/data")
         .join(filename)
 }
 
@@ -361,6 +361,7 @@ fn inferred_thinking_mode(canonical_id: &str) -> Option<ThinkingMode> {
         "anthropic/claude-opus-4.7" => Some(ThinkingMode::Adaptive),
         "anthropic/claude-opus-4.8" => Some(ThinkingMode::Adaptive),
         "anthropic/claude-sonnet-4.6" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-sonnet-5" => Some(ThinkingMode::Adaptive),
         _ => None,
     }
 }
@@ -619,11 +620,11 @@ async fn build_canonical_models() -> Result<()> {
 
 async fn check_provider(
     provider_name: &str,
-    model_for_init: &str,
+    _model_for_init: &str,
 ) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
-    let provider = match create_with_named_model(provider_name, model_for_init, Vec::new()).await {
+    let provider = match create_with_named_model(provider_name, Vec::new()).await {
         Ok(p) => p,
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);
@@ -644,7 +645,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models().await {
+    let recommended_models = match provider.fetch_recommended_models(false).await {
         Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models

@@ -74,6 +74,7 @@ async function postProcessTypes() {
 async function postProcessIndex(meta: {
   methods: unknown[];
   notifications?: unknown[];
+  agentRequests?: unknown[];
 }) {
   const indexPath = resolve(OUTPUT_DIR, "index.ts");
   let src = await fs.readFile(indexPath, "utf8");
@@ -95,6 +96,10 @@ export type GooseExtMethod = (typeof GOOSE_EXT_METHODS)[number];
 export const GOOSE_EXT_NOTIFICATIONS = ${JSON.stringify(meta.notifications ?? [], null, 2)} as const;
 
 export type GooseExtNotification = (typeof GOOSE_EXT_NOTIFICATIONS)[number];
+
+export const GOOSE_EXT_AGENT_REQUESTS = ${JSON.stringify(meta.agentRequests ?? [], null, 2)} as const;
+
+export type GooseExtAgentRequest = (typeof GOOSE_EXT_AGENT_REQUESTS)[number];
 `,
     { parser: "typescript" },
   );
@@ -136,6 +141,12 @@ interface MethodMeta {
 interface NotificationMeta {
   method: string;
   paramsType: string | null;
+}
+
+interface AgentRequestMeta {
+  method: string;
+  requestType: string | null;
+  responseType: string | null;
 }
 
 function methodToHandlerName(method: string): string {
@@ -186,6 +197,7 @@ function methodToCamelCase(method: string): string {
 async function generateClient(meta: {
   methods: MethodMeta[];
   notifications?: NotificationMeta[];
+  agentRequests?: AgentRequestMeta[];
 }) {
   const typeImports = new Set<string>();
   const zodImports = new Set<string>();
@@ -269,8 +281,75 @@ async function generateClient(meta: {
     );
   }
 
+  const agentRequestHandlerFields: string[] = [];
+  const agentRequestDispatchCases: string[] = [];
+
+  for (const r of meta.agentRequests ?? []) {
+    const handlerName = methodToHandlerName(r.method);
+    const argType = r.requestType ?? "Record<string, unknown>";
+    const retType = r.responseType ?? "Record<string, unknown>";
+
+    if (r.requestType) typeImports.add(r.requestType);
+    if (r.responseType) typeImports.add(r.responseType);
+
+    agentRequestHandlerFields.push(
+      `  ${handlerName}?: (request: ${argType}) => Promise<${retType}>;`,
+    );
+
+    const parseLine = r.requestType
+      ? (() => {
+          zodImports.add(`z${r.requestType}`);
+          return `const parsed = z${r.requestType}.parse(params) as ${r.requestType};`;
+        })()
+      : `const parsed = params as Record<string, unknown>;`;
+
+    agentRequestDispatchCases.push(
+      `      case "${r.method}": {
+        if (callbacks.${handlerName}) {
+          ${parseLine}
+          return await callbacks.${handlerName}(parsed);
+        }
+        if (callbacks.extMethod) {
+          return await callbacks.extMethod(method, params);
+        }
+        throw new Error(\`unhandled ext method: \${method}\`);
+      }`,
+    );
+  }
+
   const handlersInterface = `export interface GooseExtNotifications {
 ${handlerFields.join("\n")}
+}`;
+
+  const agentRequestsInterface = `export interface GooseExtAgentRequests {
+${agentRequestHandlerFields.join("\n")}
+}`;
+
+  const agentRequestDispatcherFn = `export function installGooseExtAgentRequestDispatcher(
+  callbacks: GooseClientCallbacks,
+): Client {
+  const dispatcher: Pick<Client, "extMethod"> = {
+    extMethod: async (method, params) => {
+      switch (method) {
+${agentRequestDispatchCases.join("\n")}
+        default:
+          if (callbacks.extMethod) {
+            return await callbacks.extMethod(method, params);
+          }
+          throw new Error(\`unhandled ext method: \${method}\`);
+      }
+    },
+  };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extMethod") {
+        return dispatcher.extMethod;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
 }`;
 
   const dispatcherFn = `export function installGooseExtNotificationDispatcher(
@@ -323,12 +402,17 @@ ${methodDefs.join("\n")}
 
 ${handlersInterface}
 
+${agentRequestsInterface}
+
 export type GooseClientCallbacks =
-  Omit<Client, "extNotification"> &
-  Partial<Pick<Client, "extNotification">> &
-  GooseExtNotifications;
+  Omit<Client, "extNotification" | "extMethod"> &
+  Partial<Pick<Client, "extNotification" | "extMethod">> &
+  GooseExtNotifications &
+  GooseExtAgentRequests;
 
 ${dispatcherFn}
+
+${agentRequestDispatcherFn}
 `;
 
   src = await prettier.format(src, { parser: "typescript" });

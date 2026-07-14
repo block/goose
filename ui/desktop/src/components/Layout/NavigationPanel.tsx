@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronRight, PanelLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
@@ -12,12 +12,11 @@ import {
   type NavItem,
 } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
-import { Goose } from '../icons/Goose';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { updateSessionName } from '../../api';
-import type { SessionListItem } from '../../acp/sessions';
+import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
 import { cn } from '../../utils';
+import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
 
 type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
@@ -39,10 +38,6 @@ const i18n = defineMessages({
   untitledSession: {
     id: 'navigationPanel.untitledSession',
     defaultMessage: 'Untitled session',
-  },
-  collapseSidebar: {
-    id: 'navigationPanel.collapseSidebar',
-    defaultMessage: 'Collapse sidebar',
   },
 });
 
@@ -102,10 +97,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
       <InlineEditText
         value={session.name}
         onSave={async (newName) => {
-          await updateSessionName({
-            path: { session_id: session.id },
-            body: { name: newName },
-          });
+          await acpRenameSession(session.id, newName);
           window.dispatchEvent(
             new CustomEvent(AppEvents.SESSION_RENAMED, {
               detail: { sessionId: session.id, newName, userInitiated: true },
@@ -128,7 +120,7 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
 
 export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const intl = useIntl();
-  const { isNavExpanded, setIsNavExpanded } = useNavigationContext();
+  const { isNavExpanded } = useNavigationContext();
   const location = useLocation();
   const { extensionsList } = useConfig();
 
@@ -143,13 +135,8 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
-  const {
-    recentSessions,
-    activeSessionId,
-    fetchSessions,
-    handleNavClick,
-    handleSessionClick,
-  } = useNavigationSessions();
+  const { recentSessions, recentSessionsByProject, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
+    useNavigationSessions();
 
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
 
@@ -205,25 +192,11 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className={cn(
-        'bg-background-primary outline-none flex flex-col h-full',
-        className
-      )}
+      className={cn('bg-background-primary outline-none flex flex-col h-full', className)}
     >
-      {/* Header: logo + collapse button. Top padding clears the macOS traffic lights. */}
-      <div className="flex items-center justify-between px-4 pt-[34px] pb-2 no-drag">
-        <Goose className="w-6 h-6 text-text-primary" />
-        <button
-          onClick={() => setIsNavExpanded(false)}
-          className="p-1.5 rounded-md hover:bg-background-tertiary transition-colors"
-          title={intl.formatMessage(i18n.collapseSidebar)}
-        >
-          <PanelLeft className="w-4 h-4 text-text-secondary" />
-        </button>
-      </div>
+      <div className="h-[48px] no-drag" />
 
-      {/* Nav items */}
-      <div className="px-2 pt-2 flex flex-col gap-0.5">
+      <div className="px-2 flex flex-col gap-0.5">
         {visibleItems.map((item) => (
           <NavRow
             key={item.id}
@@ -234,7 +207,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         ))}
       </div>
 
-      {/* Chats section — takes remaining vertical space */}
       <div className="flex-1 min-h-0 flex flex-col mt-3">
         <button
           onClick={() => setIsChatsExpanded((v) => !v)}
@@ -253,6 +225,30 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
               <div className="px-3 py-2 text-xs text-text-secondary">
                 {intl.formatMessage(i18n.noChats)}
               </div>
+            ) : recentSessionsByProject.length > 1 ? (
+              recentSessionsByProject.map((group: ProjectGroup) => (
+                <React.Fragment key={group.path}>
+                  <div
+                    className="px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary truncate"
+                    title={group.path}
+                  >
+                    {group.label}
+                  </div>
+                  {group.sessions.map((session) => (
+                    <SessionRow
+                      key={session.id}
+                      session={session}
+                      active={session.id === activeSessionId}
+                      status={sessionStatuses.get(session.id)}
+                      onClick={() => {
+                        clearUnread(session.id);
+                        handleSessionClick(session.id);
+                      }}
+                      onRenamed={fetchSessions}
+                    />
+                  ))}
+                </React.Fragment>
+              ))
             ) : (
               recentSessions.map((session) => (
                 <SessionRow
@@ -272,7 +268,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         )}
       </div>
 
-      {/* Settings pinned to bottom */}
       <div className="px-2 pt-2 pb-2 border-t border-border-secondary">
         <NavRow
           item={SETTINGS_NAV_ITEM}

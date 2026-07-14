@@ -27,7 +27,7 @@ interface UpdateCheckResult {
 }
 
 export class GitHubUpdater {
-  private readonly owner = process.env.GITHUB_OWNER || 'block';
+  private readonly owner = process.env.GITHUB_OWNER || 'aaif-goose';
   private readonly repo = process.env.GITHUB_REPO || 'goose';
   private readonly bundleName = process.env.GOOSE_BUNDLE_NAME || 'Goose';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
@@ -249,7 +249,6 @@ export class GitHubUpdater {
 
       // Combine chunks into a single buffer
       log.info('GitHubUpdater: Combining chunks into buffer...');
-      // eslint-disable-next-line no-undef
       const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
       log.info(`GitHubUpdater: Buffer created - ${buffer.length} bytes`);
 

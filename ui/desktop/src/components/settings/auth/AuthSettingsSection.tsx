@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Loader2, LogIn, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
-  configureProviderOauth,
-  deleteProviderSecret,
-  listProviderSecrets,
-  ProviderSecret,
-} from '../../../api';
+  acpAuthenticateProvider,
+  acpDeleteProviderSecret,
+  acpListProviderSecrets,
+  type ProviderSecretDto,
+} from '../../../acp/providers';
 import { errorMessage } from '../../../utils/conversionUtils';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { Button } from '../../ui/button';
@@ -97,26 +97,26 @@ const i18n = defineMessages({
   },
 });
 
-function storageLabel(secret: ProviderSecret, intl: ReturnType<typeof useIntl>) {
+function storageLabel(secret: ProviderSecretDto, intl: ReturnType<typeof useIntl>) {
   if (secret.storage === 'provider_cache') {
     return intl.formatMessage(i18n.storageProviderCache);
   }
   return intl.formatMessage(i18n.storageSecretStore);
 }
 
-function expiryLabel(secret: ProviderSecret, intl: ReturnType<typeof useIntl>) {
-  if (!secret.expires_at) {
+function expiryLabel(secret: ProviderSecretDto, intl: ReturnType<typeof useIntl>) {
+  if (!secret.expiresAt) {
     return null;
   }
   return intl.formatMessage(i18n.expiresAt, {
-    date: intl.formatDate(new Date(secret.expires_at), {
+    date: intl.formatDate(new Date(secret.expiresAt), {
       dateStyle: 'medium',
       timeStyle: 'short',
     }),
   });
 }
 
-function expiryClass(secret: ProviderSecret) {
+function expiryClass(secret: ProviderSecretDto) {
   if (secret.status === 'expired') {
     return 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300';
   }
@@ -126,17 +126,17 @@ function expiryClass(secret: ProviderSecret) {
 export default function AuthSettingsSection() {
   const intl = useIntl();
   const { currentProvider } = useModelAndProvider();
-  const [secrets, setSecrets] = useState<ProviderSecret[]>([]);
+  const [secrets, setSecrets] = useState<ProviderSecretDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [configuringId, setConfiguringId] = useState<string | null>(null);
-  const [secretToDelete, setSecretToDelete] = useState<ProviderSecret | null>(null);
+  const [secretToDelete, setSecretToDelete] = useState<ProviderSecretDto | null>(null);
 
   const loadSecrets = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await listProviderSecrets({ throwOnError: true });
-      setSecrets(response.data?.secrets ?? []);
+      const secrets = await acpListProviderSecrets();
+      setSecrets(secrets);
     } catch {
       toast.error(intl.formatMessage(i18n.failedToLoad));
       setSecrets([]);
@@ -156,10 +156,7 @@ export default function AuthSettingsSection() {
 
     setDeletingId(secretToDelete.id);
     try {
-      await deleteProviderSecret({
-        path: { id: secretToDelete.id },
-        throwOnError: true,
-      });
+      await acpDeleteProviderSecret(secretToDelete.id);
       toast.success(intl.formatMessage(i18n.deleted));
       setSecretToDelete(null);
       await loadSecrets();
@@ -174,17 +171,14 @@ export default function AuthSettingsSection() {
     }
   };
 
-  const configureSecret = async (secret: ProviderSecret) => {
-    if (!secret.configure_provider) {
+  const configureSecret = async (secret: ProviderSecretDto) => {
+    if (!secret.configureProvider) {
       return;
     }
 
     setConfiguringId(secret.id);
     try {
-      await configureProviderOauth({
-        path: { name: secret.configure_provider },
-        throwOnError: true,
-      });
+      await acpAuthenticateProvider(secret.configureProvider);
       toast.success(intl.formatMessage(i18n.signedIn));
       await loadSecrets();
     } catch (error) {
@@ -229,7 +223,7 @@ export default function AuthSettingsSection() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-medium text-text-primary">
-                        {secret.provider_display_name}
+                        {secret.providerDisplayName}
                       </h3>
                       <span className="rounded border border-border-primary bg-background-secondary px-2 py-0.5 text-xs text-text-secondary">
                         {storageLabel(secret, intl)}
@@ -247,7 +241,7 @@ export default function AuthSettingsSection() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto">
-                    {secret.can_configure && secret.configure_provider && (
+                    {secret.canConfigure && secret.configureProvider && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -257,17 +251,17 @@ export default function AuthSettingsSection() {
                       >
                         {configuringId === secret.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : secret.has_secret || secret.configured ? (
+                        ) : secret.hasSecret || secret.configured ? (
                           <RefreshCw className="h-4 w-4" />
                         ) : (
                           <LogIn className="h-4 w-4" />
                         )}
-                        {secret.has_secret || secret.configured
+                        {secret.hasSecret || secret.configured
                           ? intl.formatMessage(i18n.reauthorize)
                           : intl.formatMessage(i18n.signIn)}
                       </Button>
                     )}
-                    {secret.can_delete && (
+                    {secret.canDelete && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -300,7 +294,7 @@ export default function AuthSettingsSection() {
           secretToDelete
             ? intl.formatMessage(i18n.deleteMessage, {
                 name: secretToDelete.name,
-                provider: secretToDelete.provider_display_name,
+                provider: secretToDelete.providerDisplayName,
               })
             : ''
         }

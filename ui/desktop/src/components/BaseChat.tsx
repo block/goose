@@ -10,30 +10,26 @@ import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatSession } from '../hooks/useChatSession';
+import { acpDeleteSession, acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
-import { UserInput } from '../types/message';
+import type { Recipe } from '../recipe';
 import RecipeActivities from './recipes/RecipeActivities';
-import { useToolCount } from './alerts/useToolCount';
-import { getThinkingMessage, getTextAndImageContent } from '../types/message';
-import ParameterInputModal from './ParameterInputModal';
+import { getTextAndImageContent, type Message, type UserInput } from '../types/message';
 import { substituteParameters } from '../utils/parameterSubstitution';
-import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
-import { toastSuccess } from '../toasts';
-import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
+import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -44,17 +40,9 @@ const i18n = defineMessages({
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
   },
-  noSession: {
-    id: 'baseChat.noSession',
-    defaultMessage: 'No Session',
-  },
-  recipeCreatedTitle: {
-    id: 'baseChat.recipeCreatedTitle',
-    defaultMessage: 'Recipe created successfully!',
-  },
-  recipeCreatedMessage: {
-    id: 'baseChat.recipeCreatedMessage',
-    defaultMessage: '"{title}" has been saved and is ready to use.',
+  reconnecting: {
+    id: 'baseChat.reconnecting',
+    defaultMessage: 'Connection lost. Reconnecting…',
   },
 });
 
@@ -92,6 +80,7 @@ export default function BaseChat({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+  const [acpRecovering, setAcpRecovering] = useState(isAcpRecovering);
   const isMobile = useIsMobile();
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
@@ -99,27 +88,42 @@ export default function BaseChat({
   const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
-  const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
+
+  useEffect(() => subscribeToAcpRecovery(setAcpRecovering), []);
 
   const {
     session,
     messages,
     chatState,
-    setChatState,
+    progressMessage,
+    updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
-    setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    pauseQueueOnStop,
+    queueProcessingBlocked,
     onMessageUpdate,
-  } = useChatStream({
+  } = useChatSession({
     sessionId,
     onStreamFinish,
   });
 
-  const recipe = session?.recipe;
+  const handleWorkingDirChange = useCallback(
+    async (newDir: string) => {
+      if (!session) {
+        throw new Error('Cannot update working directory before ACP session is loaded');
+      }
+      await acpUpdateWorkingDir(session.id, newDir);
+      updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
+    },
+    [session, updateSession]
+  );
+
+  const recipe = session?.recipe as Recipe | null | undefined;
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -137,6 +141,7 @@ export default function BaseChat({
   // such as forks or resumes should auto-submit normally.
   const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
   const canAutoSubmit =
+    !acpRecovering &&
     !suppressInitialAutoSubmit &&
     (session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false);
 
@@ -232,9 +237,18 @@ export default function BaseChat({
     if (recipe && accept) {
       await window.electron.recordRecipeHash(recipe);
       setHasNotAcceptedRecipe(false);
-    } else {
-      setView('chat');
+      return;
     }
+
+    if (sessionId) {
+      try {
+        await acpDeleteSession(sessionId);
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
+      } catch (error) {
+        console.error('Failed to delete declined recipe session:', error);
+      }
+    }
+    setView('chat');
   };
 
   // Track if this is the initial render for session resuming
@@ -255,9 +269,7 @@ export default function BaseChat({
     }
   }, [messages.length]);
 
-  const toolCount = useToolCount(sessionId);
-
-  // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
+  // Listen for global scroll-to-bottom requests (e.g., from MCP App message actions)
   useEffect(() => {
     const handleGlobalScrollRequest = () => {
       // Add a small delay to ensure content has been rendered
@@ -289,15 +301,6 @@ export default function BaseChat({
   }, [isActiveSession, sessionId, chatState]);
 
   useEffect(() => {
-    const handleMakeAgent = () => {
-      setIsCreateRecipeModalOpen(true);
-    };
-
-    window.addEventListener('make-agent-from-chat', handleMakeAgent);
-    return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
-  }, []);
-
-  useEffect(() => {
     const handleSessionForked = (event: Event) => {
       const customEvent = event as CustomEvent<{
         newSessionId: string;
@@ -327,20 +330,6 @@ export default function BaseChat({
       window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
   }, [location.pathname, navigate]);
-
-  const handleRecipeCreated = (recipe: Recipe) => {
-    toastSuccess({
-      title: intl.formatMessage(i18n.recipeCreatedTitle),
-      msg: intl.formatMessage(i18n.recipeCreatedMessage, { title: recipe.title }),
-    });
-  };
-
-  const chat: ChatType = {
-    messages,
-    recipe,
-    sessionId,
-    name: session?.name || intl.formatMessage(i18n.noSession),
-  };
 
   const lastSetNameRef = useRef<string>('');
 
@@ -433,7 +422,7 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          <SessionActionsHeader session={session} />
+          <SessionActionsHeader session={session} onSessionChange={updateSession} />
 
           <ScrollArea
             ref={scrollRef}
@@ -485,17 +474,16 @@ export default function BaseChat({
 
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                chatState={chatState}
-                message={
-                  messages.length > 0
-                    ? getThinkingMessage(messages[messages.length - 1])
-                    : undefined
-                }
-              />
+              <LoadingGoose chatState={chatState} message={progressMessage} />
             </div>
           )}
         </div>
+
+        {acpRecovering && (
+          <div role="status" className="mx-4 mb-2 text-sm text-text-secondary">
+            {intl.formatMessage(i18n.reconnecting)}
+          </div>
+        )}
 
         <ChatInputCard
           className={cn(
@@ -508,17 +496,23 @@ export default function BaseChat({
             sessionId={sessionId}
             handleSubmit={chatInputSubmit}
             chatState={chatState}
-            setChatState={setChatState}
             onStop={stopStreaming}
+            onSteerQueuedMessage={onSteerQueuedMessage}
+            pauseQueueOnStop={pauseQueueOnStop}
+            queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              tokenState?.accumulatedInputTokens ??
+              session?.accumulated_usage?.input_tokens ??
+              undefined
             }
             accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+              tokenState?.accumulatedOutputTokens ??
+              session?.accumulated_usage?.output_tokens ??
+              undefined
             }
             accumulatedCost={tokenState?.accumulatedCost ?? session?.accumulated_cost ?? undefined}
             droppedFiles={droppedFiles}
@@ -528,10 +522,11 @@ export default function BaseChat({
             recipe={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
+            workingDir={session?.working_dir}
+            onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
             {...customChatInputProps}
           />
@@ -551,28 +546,6 @@ export default function BaseChat({
           hasSecurityWarnings={hasRecipeSecurityWarnings}
         />
       )}
-
-      {recipe?.parameters &&
-        recipe.parameters.length > 0 &&
-        !session?.user_recipe_values &&
-        session?.session_type !== 'scheduled' && (
-          <ParameterInputModal
-            parameters={recipe.parameters}
-            onSubmit={setRecipeUserParams}
-            onClose={() => setView('chat')}
-            initialValues={
-              (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
-              undefined
-            }
-          />
-        )}
-
-      <CreateRecipeFromSessionModal
-        isOpen={isCreateRecipeModalOpen}
-        onClose={() => setIsCreateRecipeModalOpen(false)}
-        sessionId={chat.sessionId}
-        onRecipeCreated={handleRecipeCreated}
-      />
     </div>
   );
 }

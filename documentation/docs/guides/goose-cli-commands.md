@@ -206,6 +206,7 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--edit`**: Open the session's conversation in your editor (`$VISUAL` / `$EDITOR` / `vi`) as YAML. Edit, trim, or rewrite messages, then save and close to continue the session with the edited conversation. Must be used with `--resume`. Can be combined with `--fork` to create a new session from the edited result.
 - **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise, forks the most recent session.
 - **`--history`**: Show previous messages when resuming a session
 - **`--container <container_id>`**: Run extensions inside a [Docker container](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
@@ -234,6 +235,12 @@ goose session --resume --fork --name my-project
 
 # Fork the most recent session and show message history
 goose session --resume --fork --history
+
+# Edit a session's conversation in your editor
+goose session --resume --session-id 20251108_2 --edit
+
+# Edit and fork — create a new session from the edited conversation
+goose session --resume --session-id 20251108_2 --fork --edit --history
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -351,13 +358,13 @@ goose session export --path ./my-session.jsonl -o exported.md
 ---
 
 #### session diagnostics [options]
-Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
+Generate a comprehensive diagnostics JSON report for troubleshooting issues with a specific session.
 
 **Options:**
 - **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
 - **`--path <path>`**: Generate diagnostics for a specific session by file path (legacy)
-- **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
+- **`-o, --output <file>`**: Save diagnostics report to a specific file path (default: `diagnostics_{session_id}.json`)
 
 **What's included:**
 - **System Information**: App version, operating system, architecture, and timestamp
@@ -374,18 +381,18 @@ goose session diagnostics --session-id 20251108_5
 goose session diagnostics -n my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.json
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
 ```
 
 :::warning Privacy Notice
-Diagnostics bundles contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
+Diagnostics reports contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
 :::
 
 :::tip
-Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The ZIP file can be attached to GitHub issues or shared with support.
+Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The JSON file can be attached to GitHub issues or shared with support.
 :::
 
 ---

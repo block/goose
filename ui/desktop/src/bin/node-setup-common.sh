@@ -23,6 +23,12 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 
 log "Starting node setup (common)."
 
+# GUI-launched macOS apps inherit a minimal PATH that omits the system sbin
+# directories, so Hermit's bootstrap cannot find tools like `chown` (which lives
+# in /usr/sbin on macOS) and aborts with exit 127. Ensure they are reachable;
+# this is harmless on Linux, where these paths are typically already present.
+export PATH="/usr/sbin:/sbin:${PATH}"
+
 if [ -n "${GOOSE_PATH_ROOT:-}" ]; then
     RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_PATH_ROOT}/config"
 elif [ -n "${GOOSE_CONFIG_DIR:-}" ]; then
@@ -125,11 +131,13 @@ else
     log "Hermit environment already initialized. Skipping init."
 fi
 
-# Activate the environment with output redirected to log
-if [[ "$(uname -s)" == "Linux" ]]; then
-    log "Activating hermit environment."
-    { . "bin/activate-hermit"; } >> "${LOG_FILE}" 2>&1
-fi
+# Activate the environment with output redirected to log.
+# Activation must run on every platform: macOS GUI apps otherwise never get the
+# hermit-managed node/npx onto PATH, so STDIO extensions fail with
+# "env: node: No such file or directory". The Linux-only guard was introduced in
+# #5372 to "preserve existing behavior" on macOS, but that path is now broken.
+log "Activating hermit environment."
+{ . "bin/activate-hermit"; } >> "${LOG_FILE}" 2>&1
 
 # Install Node.js using hermit
 log "Installing Node.js with hermit."

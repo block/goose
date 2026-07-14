@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::get_tool_owner;
+use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
@@ -23,6 +23,7 @@ use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
@@ -87,6 +88,10 @@ impl CodeExecutionClient {
 
         let mut cfgs = vec![];
         for tool in tools {
+            if get_tool_resource_uri(&tool).is_some() {
+                continue;
+            }
+
             let (name, namespace) = if let Some((prefix, tool_name)) = tool.name.split_once("__") {
                 (tool_name.to_string(), Some(prefix.to_string()))
             } else if let Some(owner) = get_tool_owner(&tool) {
@@ -143,8 +148,9 @@ impl CodeExecutionClient {
     /// Build a PctxRegistry with all tool callbacks registered
     fn build_callback_registry(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         code_mode: &CodeMode,
+        cancellation_token: CancellationToken,
     ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
@@ -163,7 +169,12 @@ impl CodeExecutionClient {
                     .unwrap_or_default(),
                 &cfg.name
             );
-            let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
+            let callback = create_tool_callback(
+                ctx.clone(),
+                full_name,
+                manager.clone(),
+                cancellation_token.clone(),
+            );
             registry
                 .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
@@ -203,6 +214,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, String> {
         let input: ExecuteBashInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
@@ -212,23 +224,19 @@ impl CodeExecutionClient {
         let command = input.command;
         let code_mode = self.get_code_mode(session_id).await?;
 
-        // Deno runtime is not Send, so we need to run it in a blocking task
-        // with its own tokio runtime
-        let output = tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to create runtime: {e}"))?;
-
-            rt.block_on(async move {
+        let dispatch_token = cancellation_token.child_token();
+        let output = run_in_deno_runtime(
+            execution_timeout(),
+            cancellation_token,
+            dispatch_token,
+            move || async move {
                 code_mode
                     .execute_bash(&command)
                     .await
-                    .map_err(|e| format!("Typescript execution error: {e}"))
-            })
-        })
-        .await
-        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+                    .map_err(|e| format!("Bash execution error: {e}"))
+            },
+        )
+        .await?;
 
         Ok(vec![Content::text(output.markdown())])
     }
@@ -236,8 +244,9 @@ impl CodeExecutionClient {
     /// Handle the execute typescript tool call
     async fn handle_execute_typescript(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, String> {
         let args: ExecuteWithToolGraph = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
@@ -245,42 +254,112 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute_typescript")?;
 
+        let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, &code_mode)?;
+        let dispatch_token = cancellation_token.child_token();
+        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone())?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
-        // Deno runtime is not Send, so we need to run it in a blocking task
-        // with its own tokio runtime
-        let output = tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to create runtime: {e}"))?;
-
-            rt.block_on(async move {
+        let output = run_in_deno_runtime(
+            execution_timeout(),
+            cancellation_token,
+            dispatch_token,
+            move || async move {
                 code_mode
                     .execute_typescript(&code, disclosure, Some(registry))
                     .await
                     .map_err(|e| format!("Typescript execution error: {e}"))
-            })
-        })
-        .await
-        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+            },
+        )
+        .await?;
 
         Ok(vec![Content::text(output.markdown())])
     }
 }
 
+fn execution_timeout() -> Duration {
+    let secs = crate::config::Config::global()
+        .get_goose_default_extension_timeout()
+        .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT);
+    Duration::from_secs(secs)
+}
+
+/// Deno runtime is not Send, so execution runs in a blocking task with its
+/// own tokio runtime. pctx serializes all executions behind a process-wide
+/// V8 mutex, so a hung script would wedge code execution for every session:
+/// bound the wait with the extension timeout and honor cancellation.
+///
+/// `dispatch_token` is the child token shared with the callback dispatches that
+/// a script makes back into Goose tools. When execution is abandoned (timeout
+/// or cancellation), the token is cancelled so an in-flight nested tool call
+/// (e.g. a long `developer.shell` command) is told to stop instead of running
+/// on in the background.
+/// Grace period for nested tool calls to observe a dispatched cancellation
+/// signal and clean up (e.g. kill child processes) before the task future is
+/// abandoned.
+const DISPATCH_DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+
+async fn run_in_deno_runtime<T, F, Fut>(
+    timeout: Duration,
+    cancellation_token: CancellationToken,
+    dispatch_token: CancellationToken,
+    task: F,
+) -> Result<T, String>
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = Result<T, String>>,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("Failed to create runtime: {e}"))?;
+
+        rt.block_on(async move {
+            let task_future = task();
+            tokio::pin!(task_future);
+
+            tokio::select! {
+                _ = cancellation_token.cancelled() => {
+                    dispatch_token.cancel();
+                    let _ = tokio::time::timeout(
+                        DISPATCH_DRAIN_TIMEOUT,
+                        &mut task_future,
+                    ).await;
+                    Err("Execution cancelled".to_string())
+                }
+                _ = tokio::time::sleep(timeout) => {
+                    dispatch_token.cancel();
+                    let _ = tokio::time::timeout(
+                        DISPATCH_DRAIN_TIMEOUT,
+                        &mut task_future,
+                    ).await;
+                    Err(format!(
+                        "Execution timed out after {} seconds",
+                        timeout.as_secs()
+                    ))
+                }
+                result = &mut task_future => result,
+            }
+        })
+    })
+    .await
+    .map_err(|e| format!("Execution task failed: {e}"))?
+}
+
 fn create_tool_callback(
-    session_id: String,
+    ctx: ToolCallContext,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
+    cancellation_token: CancellationToken,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
-        let session_id = session_id.clone();
+        let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
+        let cancellation_token = cancellation_token.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -289,9 +368,8 @@ fn create_tool_callback(
                 }
                 params
             };
-            let ctx = crate::agents::ToolCallContext::new(session_id, None, None);
             match manager
-                .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
+                .dispatch_tool_call(&ctx, tool_call, cancellation_token)
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -447,7 +525,7 @@ impl McpClientTrait for CodeExecutionClient {
         ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let session_id = &ctx.session_id;
         let result = match name {
@@ -456,8 +534,14 @@ impl McpClientTrait for CodeExecutionClient {
                 self.handle_get_function_details(session_id, arguments)
                     .await
             }
-            "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
-            "execute_typescript" => self.handle_execute_typescript(session_id, arguments).await,
+            "execute_bash" => {
+                self.handle_execute_bash(session_id, arguments, cancellation_token)
+                    .await
+            }
+            "execute_typescript" => {
+                self.handle_execute_typescript(ctx, arguments, cancellation_token)
+                    .await
+            }
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -478,21 +562,8 @@ impl McpClientTrait for CodeExecutionClient {
 
         let disclosure_style_moim = match self.disclosure {
             ToolDisclosure::Catalog => {
-                let functions = code_mode.list_functions().functions;
-                let sandbox_only: Vec<_> = functions
-                    .iter()
-                    .filter(|f| !crate::agents::extension_manager::is_first_class_extension(&f.namespace))
-                    .map(|f| format!("{}.{}", &f.namespace, &f.name))
-                    .collect();
-                let mut msg = String::new();
-                if !sandbox_only.is_empty() {
-                    msg.push_str(&format!(
-                        "Additional functions available ONLY via execute_typescript (do NOT call these as direct tool calls): {}",
-                        sandbox_only.join(", ")
-                    ));
-                }
-                msg.push_str("\n\n                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.");
-                msg
+                let function_count = code_mode.list_functions().functions.len();
+                catalog_disclosure_moim(function_count)
             }
             ToolDisclosure::Filesystem => {
                 let available_filepaths: Vec<_> = code_mode
@@ -512,6 +583,16 @@ impl McpClientTrait for CodeExecutionClient {
             "#},
             disclosure_style_moim
         ))
+    }
+}
+
+fn catalog_disclosure_moim(function_count: usize) -> String {
+    if function_count == 0 {
+        "No execute_typescript callback functions are currently registered.".to_string()
+    } else {
+        format!(
+            "{function_count} callback functions are available only from inside execute_typescript. Do not call callback function names directly as tools. Use list_functions and get_function_details to inspect signatures before writing one execute_typescript call."
+        )
     }
 }
 
@@ -552,5 +633,163 @@ impl CodeModeState {
             s.hash(&mut hasher);
         }
         hasher.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_times_out_on_hung_execution() {
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            std::future::pending,
+        )
+        .await;
+
+        assert!(result.unwrap_err().contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_honors_cancellation() {
+        let token = CancellationToken::new();
+        token.cancel();
+
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_secs(60),
+            token,
+            CancellationToken::new(),
+            std::future::pending,
+        )
+        .await;
+
+        assert_eq!(result.unwrap_err(), "Execution cancelled");
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_cancels_dispatch_token_when_abandoned() {
+        // On timeout, an in-flight nested tool call (via the dispatch token)
+        // must be told to stop rather than left running in the background.
+        let dispatch_token = CancellationToken::new();
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            dispatch_token.clone(),
+            std::future::pending,
+        )
+        .await;
+        assert!(result.unwrap_err().contains("timed out"));
+        assert!(dispatch_token.is_cancelled());
+
+        // On cancellation, the child dispatch token is likewise cancelled.
+        let outer = CancellationToken::new();
+        outer.cancel();
+        let dispatch_token = outer.child_token();
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_secs(60),
+            outer,
+            dispatch_token.clone(),
+            std::future::pending,
+        )
+        .await;
+        assert_eq!(result.unwrap_err(), "Execution cancelled");
+        assert!(dispatch_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_drains_task_on_timeout() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let dispatch_token = CancellationToken::new();
+        let observed = Arc::new(AtomicBool::new(false));
+        let task_token = dispatch_token.clone();
+        let task_observed = observed.clone();
+
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            dispatch_token.clone(),
+            move || async move {
+                task_token.cancelled().await;
+                task_observed.store(true, Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+
+        assert!(
+            result.unwrap_err().contains("timed out"),
+            "should report timeout"
+        );
+        assert!(
+            observed.load(Ordering::SeqCst),
+            "task should observe dispatch token cancellation before being dropped"
+        );
+    }
+
+    /// Exercises the real Deno/V8 stack: a script whose event loop never
+    /// resolves must time out instead of wedging forever, and a normal
+    /// script must run right after, proving pctx's process-wide V8 mutex
+    /// was released (i.e. one hung execution no longer blocks other sessions).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn real_v8_hung_script_times_out_and_frees_the_runtime() {
+        let hung = CodeMode::default();
+        let hung_result = run_in_deno_runtime(
+            Duration::from_secs(2),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            move || async move {
+                hung.execute_typescript(
+                    "async function run() { await new Promise(() => {}); }",
+                    ToolDisclosure::default(),
+                    None,
+                )
+                .await
+                .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await;
+        assert!(
+            hung_result.unwrap_err().contains("timed out"),
+            "hung script should time out"
+        );
+
+        let normal = CodeMode::default();
+        let normal_result = run_in_deno_runtime(
+            Duration::from_secs(60),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            move || async move {
+                normal
+                    .execute_typescript(
+                        "async function run() { return 1 + 1; }",
+                        ToolDisclosure::default(),
+                        None,
+                    )
+                    .await
+                    .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await
+        .expect("normal script should run after a prior timeout");
+        assert!(
+            normal_result.success,
+            "normal script should succeed once the V8 mutex is released: {}",
+            normal_result.stderr
+        );
+    }
+
+    #[test]
+    fn catalog_moim_mentions_inspection_tools_without_function_names() {
+        let moim = catalog_disclosure_moim(3);
+
+        assert!(moim.contains("3 callback functions"));
+        assert!(moim.contains("list_functions"));
+        assert!(moim.contains("get_function_details"));
+        assert!(!moim.contains("extract_relations"));
+        assert!(!moim.contains("ask_heimdall"));
     }
 }
