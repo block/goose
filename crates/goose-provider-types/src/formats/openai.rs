@@ -1441,13 +1441,7 @@ pub fn create_request_with_options(
         _ => (None, None, None),
     };
 
-    let property_key = reasoning_property.or_else(|| {
-        if is_openai_model {
-            Some("reasoning_effort")
-        } else {
-            None
-        }
-    });
+    let property_key = reasoning_property.or(is_openai_model.then_some("reasoning_effort"));
 
     let reasoning_effort = if is_reasoning_model && property_key.is_some() {
         model_config
