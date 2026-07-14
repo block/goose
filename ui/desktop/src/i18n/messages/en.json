@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "From template or manual setup"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "No providers match \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Search providers..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logo"
   },
