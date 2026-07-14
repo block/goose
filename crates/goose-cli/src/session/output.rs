@@ -981,15 +981,29 @@ fn print_markdown(content: &str, theme: Theme) {
 }
 
 /// Renders markdown content using bat (no table processing)
+///
+/// The printer is cached per thread because `PrettyPrinter::new()`
+/// deserializes bat's bundled syntax/theme assets; `print()` drains the
+/// queued inputs but leaves the printer reusable.
 fn print_markdown_raw(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+    use std::cell::RefCell;
+    thread_local! {
+        static PRINTER: RefCell<bat::PrettyPrinter<'static>> =
+            RefCell::new(bat::PrettyPrinter::new());
+    }
+    PRINTER.with(|printer| {
+        printer
+            .borrow_mut()
+            .input(bat::Input::from_reader(Box::new(std::io::Cursor::new(
+                content.as_bytes().to_vec(),
+            ))))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    });
 }
 
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
