@@ -1197,7 +1197,7 @@
     "defaultMessage": "비밀 키"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Goose 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "서버의 비밀 키를 입력하세요"
