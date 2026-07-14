@@ -44,23 +44,21 @@ impl PendingResponseClaim {
     }
 }
 
+/// Routes pending elicitations between blocked tool calls and the client.
+/// Scoped per session store (owned by `SessionStorage`, reached through
+/// `SessionManager::action_required`): its keys embed session ids, which are
+/// only unique within one store.
 pub(crate) struct ActionRequiredManager {
     pending: Arc<RwLock<HashMap<String, Arc<Mutex<PendingRequest>>>>>,
     action_required_senders: Mutex<HashMap<(String, String), mpsc::Sender<Message>>>,
 }
 
 impl ActionRequiredManager {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             action_required_senders: Mutex::new(HashMap::new()),
         }
-    }
-
-    pub(crate) fn global() -> &'static Self {
-        static INSTANCE: once_cell::sync::Lazy<ActionRequiredManager> =
-            once_cell::sync::Lazy::new(ActionRequiredManager::new);
-        &INSTANCE
     }
 
     pub(crate) async fn request_and_wait(

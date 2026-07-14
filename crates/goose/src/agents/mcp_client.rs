@@ -181,15 +181,17 @@ pub struct GooseClient {
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
+    action_required: Arc<ActionRequiredManager>,
 }
 
 impl GooseClient {
-    pub fn new(
+    pub(crate) fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
@@ -199,6 +201,7 @@ impl GooseClient {
             client_name,
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
+            action_required,
         }
     }
 
@@ -498,7 +501,7 @@ impl ClientHandler for GooseClient {
             }
         };
 
-        ActionRequiredManager::global()
+        self.action_required
             .request_and_wait(
                 session_id,
                 tool_call_request_id,
@@ -560,13 +563,14 @@ pub struct McpClient {
 }
 
 impl McpClient {
-    pub async fn connect<T, E, A>(
+    pub(crate) async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -580,11 +584,13 @@ impl McpClient {
             client_name,
             capabilities,
             working_dir,
+            action_required,
         )
         .await
     }
 
-    pub async fn connect_with_container<T, E, A>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
@@ -592,6 +598,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        action_required: Arc<ActionRequiredManager>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -606,6 +613,7 @@ impl McpClient {
             client_name.clone(),
             capabilities.clone(),
             working_dir,
+            action_required,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
@@ -1014,6 +1022,7 @@ mod tests {
             platform.to_string(),
             capabilities,
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
         )
     }
 
@@ -1366,6 +1375,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1397,6 +1407,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1425,6 +1436,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            Arc::new(ActionRequiredManager::new()),
         );
 
         let info = ClientHandler::get_info(&client);

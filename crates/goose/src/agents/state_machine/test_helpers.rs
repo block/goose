@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 
 use futures::StreamExt;
 
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
 use crate::agents::state_machine;
@@ -171,6 +172,9 @@ pub struct TestExtensionClient {
     tools: Vec<(String, TestToolBehavior)>,
     notification_tx: mpsc::Sender<ServerNotification>,
     notification_rx: Mutex<Option<mpsc::Receiver<ServerNotification>>>,
+    // The session store's elicitation registry, filled in by
+    // `TestHarness::with_extension`; the `Elicit` tool blocks on it.
+    action_required: std::sync::OnceLock<Arc<ActionRequiredManager>>,
 }
 
 impl TestExtensionClient {
@@ -183,6 +187,7 @@ impl TestExtensionClient {
             tools,
             notification_tx,
             notification_rx: Mutex::new(Some(notification_rx)),
+            action_required: std::sync::OnceLock::new(),
         }
     }
 
@@ -278,7 +283,10 @@ impl McpClientTrait for TestExtensionClient {
                     .tool_call_request_id
                     .clone()
                     .expect("elicit tool needs a tool call request id");
-                let outcome = crate::action_required_manager::ActionRequiredManager::global()
+                let outcome = self
+                    .action_required
+                    .get()
+                    .expect("TestExtensionClient added outside TestHarness::with_extension")
                     .request_and_wait(
                         ctx.session_id.clone(),
                         request_id,
@@ -376,6 +384,9 @@ impl TestHarness {
     }
 
     pub async fn with_extension(self, client: TestExtensionClient) -> Self {
+        let _ = client
+            .action_required
+            .set(self.agent.config.session_manager.action_required());
         let info = client.get_info().cloned();
         self.agent
             .extension_manager

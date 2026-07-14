@@ -277,14 +277,9 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
     use crate::action_required_manager::ElicitationOutcome;
     use rmcp::model::ElicitationAction;
 
-    // The ActionRequiredManager is a process-global singleton keyed by
-    // (session_id, tool_call_id), and parallel tests all get session id
-    // "<today>_1" from their own fresh databases — so this tool call id must
-    // be globally unique or another test's dispatch hijacks the stream.
-    let call_id = format!("call_{}", uuid::Uuid::new_v4());
     let harness = TestHarness::with_steps([
         Step::ToolCall {
-            id: call_id.clone(),
+            id: "call_1".to_string(),
             name: "test__elicit".to_string(),
             args: serde_json::json!({}),
         },

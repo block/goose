@@ -410,6 +410,12 @@ impl SessionManager {
         &self.storage
     }
 
+    pub(crate) fn action_required(
+        &self,
+    ) -> Arc<crate::action_required_manager::ActionRequiredManager> {
+        self.storage.action_required.clone()
+    }
+
     pub async fn create_session(
         &self,
         working_dir: PathBuf,
@@ -652,6 +658,11 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
+    // Lives on the storage, not the SessionManager handle: handles are minted
+    // freely (`instance()` builds a new one per call) while the storage is the
+    // shared identity, and the registry's keys embed session ids that are only
+    // unique within one store.
+    action_required: Arc<crate::action_required_manager::ActionRequiredManager>,
 }
 
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
@@ -866,6 +877,7 @@ impl SessionStorage {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
+            action_required: Arc::new(crate::action_required_manager::ActionRequiredManager::new()),
         }
     }
 

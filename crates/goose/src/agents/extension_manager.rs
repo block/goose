@@ -60,6 +60,7 @@ type McpClientBox = Arc<dyn McpClientTrait>;
 
 struct ActionRequiredStream {
     inner: ReceiverStream<crate::conversation::message::Message>,
+    manager: Arc<ActionRequiredManager>,
     session_id: String,
     tool_call_request_id: String,
 }
@@ -67,11 +68,13 @@ struct ActionRequiredStream {
 impl ActionRequiredStream {
     fn new(
         receiver: tokio::sync::mpsc::Receiver<crate::conversation::message::Message>,
+        manager: Arc<ActionRequiredManager>,
         session_id: String,
         tool_call_request_id: String,
     ) -> Self {
         Self {
             inner: ReceiverStream::new(receiver),
+            manager,
             session_id,
             tool_call_request_id,
         }
@@ -88,13 +91,14 @@ impl Stream for ActionRequiredStream {
 
 impl Drop for ActionRequiredStream {
     fn drop(&mut self) {
+        let manager = self.manager.clone();
         let session_id = self.session_id.clone();
         let tool_call_request_id = self.tool_call_request_id.clone();
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
             return;
         };
         handle.spawn(async move {
-            ActionRequiredManager::global()
+            manager
                 .unregister_action_required_stream(&session_id, &tool_call_request_id)
                 .await;
         });
@@ -402,6 +406,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -410,6 +415,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    action_required: Arc<ActionRequiredManager>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -448,6 +454,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        action_required,
     )
     .await;
 
@@ -611,6 +618,7 @@ const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
 #[allow(clippy::too_many_arguments)]
 async fn connect_with_auth(
     auth_manager: rmcp::transport::AuthorizationManager,
+    action_required: Arc<ActionRequiredManager>,
     uri: &str,
     timeout: Duration,
     headers: &HashMap<String, String>,
@@ -652,6 +660,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            action_required,
         )
         .await?,
     ))
@@ -669,6 +678,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -682,6 +692,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            action_required,
         )
         .await;
     }
@@ -730,6 +741,7 @@ async fn create_streamable_http_client(
             Ok(auth_manager) => {
                 let auth_result = connect_with_auth(
                     auth_manager,
+                    action_required.clone(),
                     uri,
                     timeout_duration,
                     headers,
@@ -775,6 +787,7 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required.clone(),
     )
     .await;
 
@@ -783,6 +796,7 @@ async fn create_streamable_http_client(
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
+                    action_required,
                     uri,
                     timeout_duration,
                     headers,
@@ -812,6 +826,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    action_required: Arc<ActionRequiredManager>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -849,6 +864,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        action_required,
     )
     .await;
 
@@ -993,6 +1009,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    self.context.session_manager.action_required(),
                 )
                 .await?
             }
@@ -1050,6 +1067,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            self.context.session_manager.action_required(),
                         )
                         .await?;
                         Box::new(client)
@@ -1066,6 +1084,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                self.context.session_manager.action_required(),
                             )
                             .await?,
                         )
@@ -1127,6 +1146,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
                 )
                 .await?;
                 Box::new(client)
@@ -1159,6 +1179,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    self.context.session_manager.action_required(),
                 )
                 .await?;
 
@@ -1815,16 +1836,17 @@ impl ExtensionManager {
         let notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
+        let action_required_manager = self.context.session_manager.action_required();
         let action_required_receiver =
             if let Some(tool_call_request_id) = action_required_tool_call_request_id.clone() {
-                if ActionRequiredManager::global()
+                if action_required_manager
                     .has_action_required_stream(&session_id, &tool_call_request_id)
                     .await
                 {
                     None
                 } else {
                     let registered_tool_call_request_id = tool_call_request_id.clone();
-                    let receiver = ActionRequiredManager::global()
+                    let receiver = action_required_manager
                         .register_action_required_stream(session_id.clone(), tool_call_request_id)
                         .await;
                     Some((
@@ -1890,6 +1912,7 @@ impl ExtensionManager {
                 |(rx, session_id, tool_call_request_id)| {
                     Box::new(ActionRequiredStream::new(
                         rx,
+                        action_required_manager,
                         session_id,
                         tool_call_request_id,
                     )) as _
@@ -3085,6 +3108,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
         )
         .await;
 
@@ -3120,6 +3144,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
         )
         .await;
 
@@ -3166,6 +3191,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            Arc::new(ActionRequiredManager::new()),
         )
         .await;
 
@@ -3240,6 +3266,7 @@ mod tests {
         // only care that the outgoing request carried the custom header.
         let _ = connect_with_auth(
             auth_manager,
+            Arc::new(ActionRequiredManager::new()),
             &mock_server.uri(),
             Duration::from_secs(5),
             &headers,
