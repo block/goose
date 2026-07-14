@@ -272,6 +272,157 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn goal_nudges_once_then_clears() -> Result<()> {
+    let harness = TestHarness::with_steps([
+        Step::Text("did some work".to_string()),
+        Step::Text("goal is met".to_string()),
+    ])
+    .await;
+    harness.agent.set_goal(Some("ship it".to_string())).await;
+
+    let messages = harness.run("work on the goal", 10).await?;
+
+    // The nudge bought exactly one extra turn, then the goal was cleared.
+    assert_eq!(harness.provider.call_count(), 2, "events: {messages:#?}");
+    assert!(harness.agent.get_goal().await.is_none());
+
+    let persisted = harness.persisted_messages().await?;
+    let nudge = persisted
+        .iter()
+        .find(|m| m.as_concat_text().contains("fully met"))
+        .expect("a goal nudge message");
+    assert!(!nudge.is_user_visible());
+    assert!(nudge.is_agent_visible());
+    assert_eq!(persisted.last().unwrap().as_concat_text(), "goal is met");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn grind_is_bounded_by_max_turns() -> Result<()> {
+    // Grind nudges after every completed turn; the nudges are user-role
+    // messages, so only the max-turns budget (which ignores machine-generated
+    // user messages) can end the loop.
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("grinding")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+    harness
+        .agent
+        .set_grind(Some("never done".to_string()))
+        .await;
+
+    let messages = harness.run("go", 3).await?;
+
+    assert_eq!(harness.provider.call_count(), 3);
+    let last = messages.last().expect("at least one message");
+    assert!(
+        last.as_concat_text().contains("maximum number of actions"),
+        "last: {last:#?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_resets_conversation_until_attempts_exhausted() -> Result<()> {
+    use crate::agents::types::{RetryConfig, SuccessCheck};
+
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("attempt")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+
+    let stream = state_machine::reply(
+        &harness.agent,
+        Message::user().with_text("do the thing"),
+        SessionConfig {
+            id: harness.session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: Some(RetryConfig {
+                max_retries: 1,
+                checks: vec![SuccessCheck::Shell {
+                    command: "exit 1".to_string(),
+                }],
+                on_failure: None,
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            }),
+        },
+        None,
+    )
+    .await?;
+    tokio::pin!(stream);
+
+    let mut replaced = 0;
+    while let Some(event) = stream.next().await {
+        if matches!(event?, AgentEvent::HistoryReplaced(_)) {
+            replaced += 1;
+        }
+    }
+
+    // First failure resets the conversation and retries; the second exhausts
+    // the budget and appends the give-up message.
+    assert_eq!(replaced, 1);
+    assert_eq!(harness.provider.call_count(), 2);
+
+    let persisted = harness.persisted_messages().await?;
+    let last = persisted.last().expect("a persisted message");
+    assert!(
+        last.as_concat_text()
+            .contains("Maximum retry attempts (1) exceeded"),
+        "tail: {last:?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
+    use crate::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
+    use crate::recipe::Response;
+
+    let harness = TestHarness::with_steps([
+        // Turn 1 ends without calling the tool — the op must prod the model.
+        Step::Text("thinking about it".to_string()),
+        Step::ToolCall {
+            id: "call_1".to_string(),
+            name: "recipe__final_output".to_string(),
+            args: serde_json::json!({ "result": "42" }),
+        },
+        Step::Text("wrapped up".to_string()),
+    ])
+    .await;
+    harness
+        .agent
+        .add_final_output_tool(Response {
+            json_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": { "result": { "type": "string" } },
+                "required": ["result"]
+            })),
+        })
+        .await;
+
+    let messages = harness.run("compute the answer", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 3, "events: {messages:#?}");
+
+    let persisted = harness.persisted_messages().await?;
+    assert!(persisted
+        .iter()
+        .any(|m| m.as_concat_text() == FINAL_OUTPUT_CONTINUATION_MESSAGE));
+    // The recorded output is appended as the closing assistant message.
+    assert_eq!(
+        persisted.last().unwrap().as_concat_text(),
+        r#"{"result":"42"}"#
+    );
+
+    Ok(())
+}
+
 /// A hook plugin whose script logs each invocation to `hook.log` under its
 /// plugin root. Keep the returned env alive for the duration of the test.
 struct HookTestEnv {
@@ -770,18 +921,25 @@ async fn unknown_slash_text_falls_through_to_provider() -> Result<()> {
 
 #[tokio::test]
 async fn goal_slash_command_starts_turn_with_hidden_kickoff() -> Result<()> {
-    let harness = TestHarness::with_steps([Step::Text("working on it".to_string())]).await;
+    let harness = TestHarness::with_steps([
+        Step::Text("working on it".to_string()),
+        Step::Text("all done".to_string()),
+    ])
+    .await;
 
     let messages = harness.run("/goal finish the migration", 10).await?;
 
-    assert_eq!(harness.provider.call_count(), 1);
-    assert_eq!(messages.len(), 3, "events: {messages:#?}");
+    // The command kicks off a turn; the retry op then nudges once ("check
+    // whether the goal has been fully met") for a second turn, and clears
+    // the goal.
+    assert_eq!(harness.provider.call_count(), 2);
     assert_eq!(messages[0].role, Role::User);
     assert_eq!(messages[1].role, Role::Assistant);
     assert_eq!(messages[2].as_concat_text(), "working on it");
+    assert!(harness.agent.get_goal().await.is_none());
 
     let persisted = harness.persisted_messages().await?;
-    assert_eq!(persisted.len(), 4);
+    assert_eq!(persisted.len(), 6, "persisted: {persisted:#?}");
     assert_eq!(persisted[0].as_concat_text(), "/goal finish the migration");
     assert!(persisted[0].is_user_visible());
     assert!(!persisted[0].is_agent_visible());
@@ -793,6 +951,8 @@ async fn goal_slash_command_starts_turn_with_hidden_kickoff() -> Result<()> {
     assert!(!persisted[2].is_user_visible());
     assert!(persisted[2].is_agent_visible());
     assert_eq!(persisted[3].as_concat_text(), "working on it");
+    assert!(persisted[4].as_concat_text().contains("fully met"));
+    assert_eq!(persisted[5].as_concat_text(), "all done");
 
     Ok(())
 }

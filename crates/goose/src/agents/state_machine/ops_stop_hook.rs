@@ -2,14 +2,15 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::Role;
 
 use crate::agents::agent::{
     stop_hook_block_cap_warning, stop_hook_denial_context_message, stop_hook_denial_notification,
 };
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
+use crate::agents::state_machine::operation::{
+    ends_turn, Emitter, Operation, OperationResult, TurnEffect,
+};
 use crate::agents::{Agent, AgentEvent};
-use crate::conversation::message::MessageContent;
+use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::hooks::HookDecision;
 use crate::session::Session;
@@ -51,26 +52,17 @@ impl Operation for StopHookOperation<'_> {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        let Some(last) = conversation.last() else {
-            return Ok(OperationResult::NotApplicable(emit));
-        };
-        let turn_ended = last.role == Role::Assistant
-            && last.error_kind().is_none()
-            && !last.content.iter().any(|content| {
-                matches!(
-                    content,
-                    MessageContent::ToolRequest(_)
-                        | MessageContent::FrontendToolRequest(_)
-                        | MessageContent::ActionRequired(_)
-                )
-            });
-        if !turn_ended {
+        if !ends_turn(conversation) {
             return Ok(OperationResult::NotApplicable(emit));
         }
+        let last_assistant_text = conversation
+            .last()
+            .map(Message::as_concat_text)
+            .unwrap_or_default();
 
         match self
             .agent
-            .emit_stop_hook_blocking(&session.id, &last.as_concat_text())
+            .emit_stop_hook_blocking(&session.id, &last_assistant_text)
             .await
         {
             HookDecision::Allow => Ok(OperationResult::NotApplicable(emit)),

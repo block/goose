@@ -24,7 +24,11 @@ impl MaxTurnsOperation {
 fn turns_taken_this_request(conversation: &Conversation) -> u32 {
     let mut turns = 0u32;
     for message in conversation.messages().iter().rev() {
-        if message.role == Role::User && !message.is_tool_response() {
+        // Only a message the user actually typed starts a new request.
+        // Machine-generated user messages (goal/grind nudges, stop-hook
+        // denial context — user-invisible by construction) keep the loop
+        // going and must not reset the budget, or a grind could run forever.
+        if message.role == Role::User && !message.is_tool_response() && message.is_user_visible() {
             break;
         }
         if message.role == Role::Assistant {

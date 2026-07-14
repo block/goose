@@ -4,9 +4,27 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::AgentEvent;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::session::Session;
+
+/// True when the conversation tail is a completed assistant turn — no error,
+/// nothing pending — the state in which the loop would end. End-of-turn ops
+/// (stop hook, retry/goal/final-output) key their applicability on this.
+pub fn ends_turn(conversation: &Conversation) -> bool {
+    conversation.last().is_some_and(|last| {
+        last.role == rmcp::model::Role::Assistant
+            && last.error_kind().is_none()
+            && !last.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::ToolRequest(_)
+                        | MessageContent::FrontendToolRequest(_)
+                        | MessageContent::ActionRequired(_)
+                )
+            })
+    })
+}
 
 /// One step in the agent loop. Each op gets a chance to interpret the
 /// conversation state. It either returns the emitter untouched, or streams

@@ -14,6 +14,7 @@ use crate::agents::state_machine::ops_compaction::CompactionOperation;
 use crate::agents::state_machine::ops_exit_on_error::ExitOnErrorOperation;
 use crate::agents::state_machine::ops_llm::LlmOperation;
 use crate::agents::state_machine::ops_maxturns::MaxTurnsOperation;
+use crate::agents::state_machine::ops_retry::RetryOperation;
 use crate::agents::state_machine::ops_slash_command::SlashCommandOperation;
 use crate::agents::state_machine::ops_stop_hook::StopHookOperation;
 use crate::agents::state_machine::ops_tool_approval::ToolApprovalOperation;
@@ -56,6 +57,19 @@ pub async fn reply(
     session_manager
         .add_message(&session_config.id, &user_message)
         .await?;
+
+    // What a retry resets the conversation to: the state right after this
+    // reply's prompt landed. Only needed when the recipe configured retries.
+    let initial_messages = if session_config.retry_config.is_some() {
+        session_manager
+            .get_session(&session_id, true)
+            .await?
+            .conversation
+            .map(|conversation| conversation.messages().clone())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
 
     // Session naming is out-of-band: a detached task that overlaps the reply
     // loop, generates a title once early in a session, persists it, and pushes
@@ -114,6 +128,11 @@ pub async fn reply(
             system_prompt,
             tools,
             session_config.schedule_id.clone(),
+        )),
+        Arc::new(RetryOperation::new(
+            agent,
+            session_config.clone(),
+            initial_messages,
         )),
         Arc::new(StopHookOperation::new(agent)),
         Arc::new(ExitOnErrorOperation),
