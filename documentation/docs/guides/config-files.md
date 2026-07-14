@@ -182,6 +182,10 @@ Settings are applied in the following order of precedence:
 
 ## Security Considerations
 
+:::warning Provider API keys do not go in `config.yaml`
+goose does not read provider API keys from `config.yaml`. A key placed there is ignored, which typically surfaces as an authentication failure such as `No api key passed in`. Store the key in the system keyring (via `goose configure`), or—when using file-based secret storage—in `secrets.yaml`. It can also be supplied through the provider's environment variable (for example `OPENAI_API_KEY`), which takes precedence over stored secrets.
+:::
+
 - Avoid storing sensitive information (API keys, tokens) in the config file
 - Use the system keyring (keychain on macOS) for storing secrets. When available, this is the recommended option.
 - If goose is using file-based secret storage, secrets are stored in a separate `secrets.yaml` file (in plain text). This can happen when:
