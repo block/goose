@@ -486,40 +486,7 @@ pub fn format_messages_with_options(
         // Include reasoning_content only when non-empty. Kimi rejects empty
         // reasoning_content (""), so we must omit it entirely.
         if options.preserve_thinking_context && !reasoning_text.is_empty() {
-            let mut format_as_content = false;
-            let mut formatted_text = String::new();
-
-            if let Some(format) = &options.thinking_preservation_format {
-                match format {
-                    crate::base::ThinkingPreservationFormat::ContentPrepend => {
-                        format_as_content = true;
-                        formatted_text = format!("{}\n\n", reasoning_text);
-                    }
-                    crate::base::ThinkingPreservationFormat::ContentXml => {
-                        format_as_content = true;
-                        formatted_text = format!("<think>\n{}\n</think>\n\n", reasoning_text);
-                    }
-                    crate::base::ThinkingPreservationFormat::ReasoningContent => {}
-                }
-            }
-
-            if format_as_content {
-                if let Some(content) = converted.get_mut("content") {
-                    if content.is_string() {
-                        let s = content.as_str().unwrap();
-                        *content = json!(format!("{}{}", formatted_text, s));
-                    } else if content.is_array() {
-                        let arr = content.as_array_mut().unwrap();
-                        arr.insert(0, json!({ "type": "text", "text": formatted_text }));
-                    } else if content.is_null() {
-                        *content = json!(formatted_text.trim_end());
-                    }
-                } else {
-                    converted["content"] = json!(formatted_text.trim_end());
-                }
-            } else {
-                converted["reasoning_content"] = json!(reasoning_text);
-            }
+            converted["reasoning_content"] = json!(reasoning_text);
         }
 
         if has_message_payload {
@@ -530,6 +497,43 @@ pub fn format_messages_with_options(
     }
 
     merge_split_tool_call_messages(&mut messages_spec);
+
+    // After tool calls are merged (using reasoning_content to identify split messages),
+    // apply the requested preservation format.
+    if let Some(format) = &options.thinking_preservation_format {
+        if *format != crate::base::ThinkingPreservationFormat::ReasoningContent {
+            for msg in &mut messages_spec {
+                if let Some(reasoning) = msg.get("reasoning_content").and_then(|v| v.as_str()) {
+                    let formatted_text = match format {
+                        crate::base::ThinkingPreservationFormat::ContentPrepend => {
+                            format!("{}\n\n", reasoning)
+                        }
+                        crate::base::ThinkingPreservationFormat::ContentXml => {
+                            format!("<think>\n{}\n</think>\n\n", reasoning)
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    if let Some(content) = msg.get_mut("content") {
+                        if content.is_string() {
+                            let s = content.as_str().unwrap();
+                            *content = json!(format!("{}{}", formatted_text, s));
+                        } else if content.is_array() {
+                            let arr = content.as_array_mut().unwrap();
+                            arr.insert(0, json!({ "type": "text", "text": formatted_text }));
+                        } else if content.is_null() {
+                            *content = json!(formatted_text.trim_end());
+                        }
+                    } else {
+                        msg["content"] = json!(formatted_text.trim_end());
+                    }
+
+                    msg.as_object_mut().unwrap().remove("reasoning_content");
+                }
+            }
+        }
+    }
+
     messages_spec
 }
 
@@ -1420,7 +1424,7 @@ pub fn create_request_with_options(
     let is_reasoning_model = model_config.is_reasoning_model() || is_openai_model;
 
     let (reasoning_property, effort_mapping, extra_body) = match &model_config.reasoning {
-        Some(crate::base::Reasoning::ReasoningConfig(c)) => (
+        Some(crate::base::Reasoning::ReasoningConfig(c)) if c.enabled => (
             c.reasoning_property.as_deref(),
             c.effort_mapping.as_ref(),
             c.extra_body.as_ref(),
