@@ -453,6 +453,18 @@ impl Provider for OllamaProvider {
 
         self.fetch_models_from_api().await
     }
+
+    async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        let info = self
+            .custom_models
+            .as_ref()
+            .and_then(|models| models.iter().find(|m| m.name == model_name).cloned())
+            .unwrap_or_else(|| {
+                crate::base::model_info_for_provider_model(self.get_name(), model_name)
+            });
+
+        Ok(info)
+    }
 }
 
 /// Default per-chunk timeout for Ollama streaming responses (seconds).
@@ -754,5 +766,34 @@ mod tests {
             payload.get("stream_options").is_none(),
             "stream_options should be removed when OLLAMA_STREAM_USAGE=false"
         );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_model_info_preserves_custom_reasoning() {
+        let mut model1 = ModelInfo::new("reasoning-model", 4096);
+        model1.reasoning = Some(crate::base::Reasoning::Enabled(true));
+        let mut model2 = ModelInfo::new("non-reasoning-model", 4096);
+        model2.reasoning = Some(crate::base::Reasoning::Enabled(false));
+        let models = vec![model1, model2];
+
+        let provider = from_declarative_config(
+            ollama_config(None, models),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        let info = provider.fetch_model_info("reasoning-model").await.unwrap();
+        assert_eq!(info.reasoning, Some(crate::base::Reasoning::Enabled(true)));
+
+        let info = provider
+            .fetch_model_info("non-reasoning-model")
+            .await
+            .unwrap();
+        assert_eq!(info.reasoning, Some(crate::base::Reasoning::Enabled(false)));
+
+        let info = provider.fetch_model_info("unknown-model").await.unwrap();
+        assert_eq!(info.reasoning, Some(crate::base::Reasoning::Enabled(false)));
     }
 }
