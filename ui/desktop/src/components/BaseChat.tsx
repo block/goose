@@ -475,7 +475,6 @@ export default function BaseChat({
             chatState={chatState}
             onStop={stopStreaming}
             onSteerQueuedMessage={onSteerQueuedMessage}
-            pauseQueueOnStop={pauseQueueOnStop}
             queueProcessingBlocked={queueProcessingBlocked || acpRecovering}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
