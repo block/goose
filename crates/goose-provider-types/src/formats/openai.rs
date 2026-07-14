@@ -138,7 +138,16 @@ struct StreamingChoice {
     #[serde(default)]
     delta: Delta,
     index: Option<i32>,
+    #[serde(default, deserialize_with = "empty_finish_reason_as_none")]
     finish_reason: Option<String>,
+}
+
+fn empty_finish_reason_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.filter(|reason| !reason.is_empty()))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -2724,6 +2733,30 @@ data: [DONE]
             .all(|name| name == "developer__shell"));
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_empty_finish_reason_is_not_terminal() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"Checking."},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":"{\"command\""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":": \"ls\"}"}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120},"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_eq!(
+            result.tool_calls,
+            vec!["developer__shell"],
+            "tool call must survive intermediate empty-string finish_reason"
+        );
+        assert_usage_yielded_once(&result, 100, 20, 120);
 
         Ok(())
     }

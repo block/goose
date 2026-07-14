@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Соединение потеряно. Повторное подключение…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },

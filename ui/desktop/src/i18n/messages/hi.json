@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "घर जाओ"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "कनेक्शन टूट गया। फिर से कनेक्ट किया जा रहा है…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
   },

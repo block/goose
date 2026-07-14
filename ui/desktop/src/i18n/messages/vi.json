@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Mất kết nối. Đang kết nối lại…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
   },

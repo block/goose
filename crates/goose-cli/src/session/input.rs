@@ -150,7 +150,7 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
-    let input = match editor.readline("> ") {
+    let input = match editor.readline("› ") {
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),

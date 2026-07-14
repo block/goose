@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "连接已断开。正在重新连接…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },

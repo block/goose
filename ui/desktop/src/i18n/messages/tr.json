@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Ana sayfaya git"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Bağlantı kesildi. Yeniden bağlanılıyor…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
   },
