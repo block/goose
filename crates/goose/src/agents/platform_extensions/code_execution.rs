@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::get_tool_owner;
+use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
@@ -88,6 +88,10 @@ impl CodeExecutionClient {
 
         let mut cfgs = vec![];
         for tool in tools {
+            if get_tool_resource_uri(&tool).is_some() {
+                continue;
+            }
+
             let (name, namespace) = if let Some((prefix, tool_name)) = tool.name.split_once("__") {
                 (tool_name.to_string(), Some(prefix.to_string()))
             } else if let Some(owner) = get_tool_owner(&tool) {

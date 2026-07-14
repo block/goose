@@ -60,6 +60,11 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-5.4-mini", 400_000),
     ("gpt-5.4-nano", 400_000),
     ("gpt-5.4-pro", 1_050_000),
+    ("gpt-5.5", 1_050_000),
+    ("gpt-5.5-pro", 1_050_000),
+    ("gpt-5.6-luna", 1_050_000),
+    ("gpt-5.6-sol", 1_050_000),
+    ("gpt-5.6-terra", 1_050_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -838,6 +843,26 @@ mod tests {
     use super::*;
     use crate::api_client::AuthMethod;
     use serde_json::json;
+
+    #[test]
+    fn gpt_5_5_and_5_6_models_have_expected_context_limits() {
+        for model in [
+            "gpt-5.5",
+            "gpt-5.5-pro",
+            "gpt-5.6-luna",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+        ] {
+            assert_eq!(
+                OPEN_AI_KNOWN_MODELS
+                    .iter()
+                    .find(|(name, _)| *name == model)
+                    .map(|(_, limit)| *limit),
+                Some(1_050_000),
+                "unexpected context limit for {model}"
+            );
+        }
+    }
 
     fn make_provider(name: &str) -> OpenAiProvider {
         OpenAiProvider {

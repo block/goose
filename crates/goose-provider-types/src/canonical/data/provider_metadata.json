@@ -254,6 +254,17 @@
     "model_count": 23
   },
   {
+    "id": "crossmodel",
+    "display_name": "CrossModel",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.crossmodel.ai/v1",
+    "doc": "https://www.crossmodel.ai/docs",
+    "env": [
+      "CROSSMODEL_API_KEY"
+    ],
+    "model_count": 37
+  },
+  {
     "id": "databricks",
     "display_name": "Databricks",
     "npm": "@ai-sdk/openai-compatible",
@@ -571,7 +582,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 180
+    "model_count": 181
   },
   {
     "id": "llmtr",
@@ -627,6 +638,17 @@
       "MEGANOVA_API_KEY"
     ],
     "model_count": 19
+  },
+  {
+    "id": "meta",
+    "display_name": "Meta",
+    "npm": "@ai-sdk/openai",
+    "api": "https://api.meta.ai/v1",
+    "doc": "https://dev.meta.ai/docs",
+    "env": [
+      "META_MODEL_API_KEY"
+    ],
+    "model_count": 1
   },
   {
     "id": "meta-llama",
@@ -792,7 +814,7 @@
       "NEON_AI_GATEWAY_BASE_URL",
       "NEON_AI_GATEWAY_TOKEN"
     ],
-    "model_count": 25
+    "model_count": 36
   },
   {
     "id": "neuralwatt",
@@ -858,7 +880,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 75
+    "model_count": 76
   },
   {
     "id": "opencode-go",
@@ -986,12 +1008,12 @@
     "id": "routing-run",
     "display_name": "routing.run",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://ai.routing.sh/v1",
+    "api": "https://api.routing.run/v1",
     "doc": "https://docs.routing.run/api-reference/models",
     "env": [
       "ROUTING_RUN_API_KEY"
     ],
-    "model_count": 26
+    "model_count": 12
   },
   {
     "id": "sakana",
@@ -1267,7 +1289,7 @@
     "env": [
       "WANDB_API_KEY"
     ],
-    "model_count": 18
+    "model_count": 29
   },
   {
     "id": "xiaomi",
@@ -1354,6 +1376,17 @@
     "doc": "https://docs.zeldoc.ai",
     "env": [
       "ZELDOC_API_KEY"
+    ],
+    "model_count": 1
+  },
+  {
+    "id": "zenifra",
+    "display_name": "Zenifra",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://ai.zenifra.com/v1",
+    "doc": "https://docs.zenifra.com",
+    "env": [
+      "ZENIFRA_AI_KEY"
     ],
     "model_count": 1
   },

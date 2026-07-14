@@ -1,7 +1,7 @@
 {
   "name": "goose-ask-ai-bot",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Bot created with discraft",
   "module": "index.ts",
   "type": "module",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.10",
+    "@octokit/rest": "^22.0.1",
     "ai": "^7.0.18",
     "consola": "^3.4.2",
     "dedent": "^1.7.2",

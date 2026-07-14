@@ -9,6 +9,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner, resolveSessionInitialMessage } from './App';
 import { IntlTestWrapper } from './i18n/test-utils';
 import { FeaturesProvider } from './contexts/FeaturesContext';
+import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {
@@ -49,6 +50,11 @@ vi.mock('./sessions', () => ({
 
 vi.mock('./acp/capabilities', () => ({
   getAcpFeatureCapabilities: vi.fn().mockResolvedValue({ localInference: true }),
+}));
+
+vi.mock('./acp/acpConnection', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./acp/acpConnection')>()),
+  reconnectAcpAfterSystemResume: vi.fn(),
 }));
 
 // Mock the ACP providers module used by OnboardingGuard so it doesn't try to
@@ -299,6 +305,23 @@ describe('App Component - Brand New State', () => {
     newChatHandler?.({} as any);
 
     expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+
+  it('should reconnect ACP when the main process emits system-resume', async () => {
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
+
+    await waitFor(() => {
+      expect(mockElectron.reactReady).toHaveBeenCalled();
+    });
+
+    const systemResumeHandler = mockElectron.on.mock.calls.find(
+      ([channel]) => channel === 'system-resume'
+    )?.[1];
+    expect(systemResumeHandler).toBeDefined();
+
+    systemResumeHandler?.({} as any);
+
+    expect(reconnectAcpAfterSystemResume).toHaveBeenCalledOnce();
   });
 
   it('should seed recipe sessions with the recipe prompt when no initial message is provided', () => {

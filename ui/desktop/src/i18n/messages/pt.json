@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Ir para o início"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Conexão perdida. Reconectando…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensão atualizada"
   },

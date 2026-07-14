@@ -138,7 +138,16 @@ struct StreamingChoice {
     #[serde(default)]
     delta: Delta,
     index: Option<i32>,
+    #[serde(default, deserialize_with = "empty_finish_reason_as_none")]
     finish_reason: Option<String>,
+}
+
+fn empty_finish_reason_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.filter(|reason| !reason.is_empty()))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1535,6 +1544,8 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
             || normalized.contains("gpt-5-4")
             || normalized.contains("gpt-5.5")
             || normalized.contains("gpt-5-5")
+            || normalized.contains("gpt-5.6")
+            || normalized.contains("gpt-5-6")
         {
             &["low", "medium", "high", "xhigh"]
         } else {
@@ -2513,6 +2524,27 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_gpt56_max_effort_uses_xhigh() -> anyhow::Result<()> {
+        let model_config = test_model_config("gpt-5.6-luna")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Max);
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
+        assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_gpt5_pro_max_effort_uses_supported_level() -> anyhow::Result<()> {
         let model_config = test_model_config("gpt-5.2-pro-2025-12-11")
             .with_max_tokens(Some(1024))
@@ -2725,6 +2757,30 @@ data: [DONE]
             .all(|name| name == "developer__shell"));
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_empty_finish_reason_is_not_terminal() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"Checking."},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":"{\"command\""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":": \"ls\"}"}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120},"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_eq!(
+            result.tool_calls,
+            vec!["developer__shell"],
+            "tool call must survive intermediate empty-string finish_reason"
+        );
+        assert_usage_yielded_once(&result, 100, 20, 120);
 
         Ok(())
     }

@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Zur Startseite"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Verbindung unterbrochen. Verbindung wird wiederhergestellt…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Erweiterung aktualisiert"
   },
