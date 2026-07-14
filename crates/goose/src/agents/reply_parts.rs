@@ -198,7 +198,9 @@ impl Agent {
                         // from the standard tool list
                         if crate::agents::extension_manager::get_tool_owner(&t).is_some_and(|o| {
                             crate::agents::extension_manager::is_first_class_extension(&o)
-                        }) {
+                        }) || crate::agents::extension_manager::get_tool_resource_uri(&t)
+                            .is_some()
+                        {
                             Some(t)
                         } else {
                             None

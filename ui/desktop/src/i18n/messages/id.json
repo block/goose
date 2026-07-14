@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Ke beranda"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Koneksi terputus. Menghubungkan kembali…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Ekstensi Diperbarui"
   },

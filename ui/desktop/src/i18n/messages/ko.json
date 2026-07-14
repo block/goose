@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "홈으로 이동"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "연결이 끊어졌습니다. 다시 연결하는 중…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
   },

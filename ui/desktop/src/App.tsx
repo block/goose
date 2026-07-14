@@ -58,6 +58,7 @@ import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -394,6 +395,12 @@ export function AppInner() {
       console.error('Error sending reactReady:', error);
       setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleSystemResume = () => reconnectAcpAfterSystemResume();
+    window.electron.on('system-resume', handleSystemResume);
+    return () => window.electron.off('system-resume', handleSystemResume);
   }, []);
 
   useEffect(() => {
