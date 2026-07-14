@@ -244,8 +244,8 @@ impl PermissionManager {
     fn belongs_to_extension(principal_name: &str, extension_name: &str) -> bool {
         !extension_name.is_empty()
             && principal_name
-                .split_once("__")
-                .is_some_and(|(owner, _)| owner == extension_name)
+                .strip_prefix(extension_name)
+                .is_some_and(|suffix| suffix.starts_with("__"))
     }
 }
 
@@ -352,6 +352,7 @@ mod tests {
         manager.update_user_permission("git__tool__with__delimiter", PermissionLevel::AskBefore);
         manager.update_user_permission("github__delete_repo", PermissionLevel::NeverAllow);
         manager.update_user_permission("gitlab__deploy", PermissionLevel::AskBefore);
+        manager.update_user_permission("__cli__ent____tool", PermissionLevel::NeverAllow);
 
         manager.remove_extension("git");
 
@@ -368,6 +369,9 @@ mod tests {
             manager.get_user_permission("gitlab__deploy"),
             Some(PermissionLevel::AskBefore)
         );
+
+        manager.remove_extension("__cli__ent__");
+        assert_eq!(manager.get_user_permission("__cli__ent____tool"), None);
 
         manager.remove_extension("");
         assert_eq!(
