@@ -23,3 +23,23 @@ export function expandTilde(filePath: string): string {
   }
   return filePath;
 }
+
+export function resolveGoosePathRoot(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const expanded = expandTilde(trimmed);
+  return path.isAbsolute(expanded) ? expanded : undefined;
+}
+
+export function sanitizeGoosePathRoot(env: NodeJS.ProcessEnv): string | undefined {
+  const pathRoot = resolveGoosePathRoot(env.GOOSE_PATH_ROOT);
+  if (pathRoot) {
+    env.GOOSE_PATH_ROOT = pathRoot;
+  } else {
+    delete env.GOOSE_PATH_ROOT;
+  }
+  return pathRoot;
+}
