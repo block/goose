@@ -158672,8 +158672,8 @@
     "open_weights": false,
     "cost": {},
     "limit": {
-      "context": 2000000,
-      "output": 2000000
+      "context": 1000000,
+      "output": 30000
     }
   },
   {
@@ -158700,8 +158700,8 @@
     "open_weights": false,
     "cost": {},
     "limit": {
-      "context": 2000000,
-      "output": 2000000
+      "context": 1000000,
+      "output": 30000
     }
   },
   {
