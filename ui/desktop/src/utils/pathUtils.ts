@@ -31,7 +31,19 @@ export function resolveGoosePathRoot(value: string | undefined): string | undefi
   }
 
   const expanded = expandTilde(trimmed);
-  return path.isAbsolute(expanded) ? expanded : undefined;
+  return isAbsoluteGoosePath(expanded) ? expanded : undefined;
+}
+
+export function isAbsoluteGoosePath(
+  filePath: string,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (platform !== 'win32') {
+    return path.posix.isAbsolute(filePath);
+  }
+
+  const root = path.win32.parse(filePath).root;
+  return path.win32.isAbsolute(filePath) && root.length > 1;
 }
 
 export function sanitizeGoosePathRoot(env: NodeJS.ProcessEnv): string | undefined {
