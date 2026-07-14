@@ -8,11 +8,25 @@
   "models": [
     {
       "name": "gpt-oss-120b",
-      "context_limit": 131072
+      "context_limit": 131072,
+      "reasoning": {
+        "enabled": true,
+        "thinking_preservation_format": "content_prepend",
+        "extra_body": {
+          "reasoning_format": "parsed"
+        }
+      }
     },
     {
       "name": "zai-glm-4.7",
-      "context_limit": 131072
+      "context_limit": 131072,
+      "reasoning": {
+        "enabled": true,
+        "thinking_preservation_format": "content_xml",
+        "extra_body": {
+          "reasoning_format": "parsed"
+        }
+      }
     }
   ],
   "supports_streaming": true
