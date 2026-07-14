@@ -648,10 +648,12 @@ export default function ChatInput({
   // config model is the fallback for Hub/no-session contexts).  The session-reported
   // contextLimit is checked at the end of loadProviderDetails so it always wins,
   // regardless of whether the static lookup resolves before or after the notification.
+  // Adding tokenState?.contextLimit to the deps re-runs the lookup when the first
+  // usage_update arrives, replacing the 128k default with the real context window.
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveModel, effectiveProvider, configModel, configProvider]);
+  }, [effectiveModel, effectiveProvider, configModel, configProvider, tokenState?.contextLimit]);
 
   // Handle token usage alerts
   useEffect(() => {
