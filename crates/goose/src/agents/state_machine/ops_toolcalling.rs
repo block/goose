@@ -6,11 +6,13 @@ use futures::StreamExt;
 use rmcp::model::{CallToolResult, Content, Role};
 
 use crate::agents::agent::{tool_stream, ToolStreamItem};
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult};
 use crate::agents::state_machine::ops_tool_approval::request_executable;
 use crate::agents::tool_execution::ToolCallResult;
-use crate::agents::tool_execution::DECLINED_RESPONSE;
+use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::{Agent, AgentEvent};
+use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -134,6 +136,32 @@ impl Operation for ToolExecutionOperation<'_> {
             return Ok(OperationResult::NotApplicable(emit));
         }
 
+        if self.agent.goose_mode().await == GooseMode::Chat {
+            let mut response = Message::user().with_generated_id();
+            for (request, _) in &pending {
+                response.add_tool_response_with_metadata(
+                    request.id.clone(),
+                    Ok(CallToolResult::success(vec![Content::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )])),
+                    request.metadata.as_ref(),
+                );
+            }
+            emit.emit(AgentEvent::Message(response.clone())).await;
+            return Ok(OperationResult::Applied(vec![response.into()]));
+        }
+
+        let manage_extensions_ids: HashSet<&str> = pending
+            .iter()
+            .filter_map(|(request, _)| match &request.tool_call {
+                Ok(tool_call) if tool_call.name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE => {
+                    Some(request.id.as_str())
+                }
+                _ => None,
+            })
+            .collect();
+        let mut extension_change_failed = false;
+
         let mut tool_streams = Vec::new();
         for (request, disposition) in &pending {
             if *disposition != ToolDisposition::Execute {
@@ -193,6 +221,11 @@ impl Operation for ToolExecutionOperation<'_> {
                     let Some((request_id, item)) = item else { break };
                     match item {
                         ToolStreamItem::Result(output) => {
+                            if manage_extensions_ids.contains(request_id.as_str())
+                                && output.is_err()
+                            {
+                                extension_change_failed = true;
+                            }
                             let metadata = requests
                                 .iter()
                                 .find(|r| r.id == request_id)
@@ -243,6 +276,12 @@ impl Operation for ToolExecutionOperation<'_> {
                     )])),
                     request.metadata.as_ref(),
                 );
+            }
+        }
+
+        if !manage_extensions_ids.is_empty() && !extension_change_failed {
+            if let Err(e) = self.agent.persist_extension_state(&session.id).await {
+                tracing::warn!("Failed to save extension state after runtime changes: {e}");
             }
         }
 

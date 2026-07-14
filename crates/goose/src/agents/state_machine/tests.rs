@@ -273,6 +273,75 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
 }
 
 #[tokio::test]
+async fn chat_mode_skips_tool_execution() -> Result<()> {
+    let harness = TestHarness::with_steps([
+        Step::ToolCall {
+            id: "call_1".to_string(),
+            name: "test__echo".to_string(),
+            args: serde_json::json!({ "x": 1 }),
+        },
+        Step::Text("noted".to_string()),
+    ])
+    .await
+    .with_default_extension()
+    .await
+    .with_goose_mode(GooseMode::Chat)
+    .await;
+
+    let messages = harness.run("try the tool", 10).await?;
+
+    // No confirmation was requested and the tool never ran; the model got a
+    // skipped notice instead and finished the turn.
+    assert!(!messages.iter().any(|m| m
+        .content
+        .iter()
+        .any(|c| matches!(c, MessageContent::ActionRequired(_)))));
+    let tool_response = messages
+        .iter()
+        .find(|m| m.is_tool_response())
+        .expect("a tool response");
+    let text = tool_response_text(tool_response);
+    assert!(text.contains("chat mode"), "tool response: {text}");
+    assert!(!text.contains("\"x\":1"));
+    assert_eq!(harness.provider.call_count(), 2);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn extension_added_mid_reply_refreshes_tools() -> Result<()> {
+    // Turn 1 installs an extension; the next LLM call in the same reply must
+    // already advertise its tools.
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, tools| {
+        if tools.iter().any(|tool| tool.name == "extra__echo") {
+            vec![Message::assistant().with_text("extension ready".to_string())]
+        } else {
+            vec![Message::assistant().with_tool_request(
+                "call_1",
+                Ok(rmcp::model::CallToolRequestParams::new("test__addext")
+                    .with_arguments(serde_json::Map::new())),
+            )]
+        }
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_extension(
+            crate::agents::state_machine::test_helpers::TestExtensionClient::new(vec![(
+                "addext".to_string(),
+                crate::agents::state_machine::test_helpers::TestToolBehavior::AddExtension,
+            )]),
+        )
+        .await;
+
+    let messages = harness.run("install the extra extension", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 2, "events: {messages:#?}");
+    assert_eq!(messages.last().unwrap().as_concat_text(), "extension ready");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn goal_nudges_once_then_clears() -> Result<()> {
     let harness = TestHarness::with_steps([
         Step::Text("did some work".to_string()),

@@ -1409,6 +1409,12 @@ impl ExtensionManager {
         *self.tools_cache.lock().await = None;
     }
 
+    /// Changes whenever the extension set changes; lets callers that baked a
+    /// tools list detect that it went stale.
+    pub(crate) fn tools_version(&self) -> u64 {
+        self.tools_cache_version.load(Ordering::SeqCst)
+    }
+
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
             .extensions

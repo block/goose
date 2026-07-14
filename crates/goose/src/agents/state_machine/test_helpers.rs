@@ -163,6 +163,9 @@ pub enum TestToolBehavior {
     /// Request an elicitation and block until it is answered, then return the
     /// outcome as text.
     Elicit,
+    /// Register a new extension (named `extra`, exposing `extra__echo`) on the
+    /// harness's extension manager, like `manage_extensions` would.
+    AddExtension,
 }
 
 /// An in-process extension client for tests, injected via
@@ -172,27 +175,37 @@ pub struct TestExtensionClient {
     tools: Vec<(String, TestToolBehavior)>,
     notification_tx: mpsc::Sender<ServerNotification>,
     notification_rx: Mutex<Option<mpsc::Receiver<ServerNotification>>>,
-    // The session store's elicitation registry, filled in by
-    // `TestHarness::with_extension`; the `Elicit` tool blocks on it.
+    // The extension name, used to prefix advertised tool names and to
+    // register with the extension manager.
+    name: String,
+    // Filled in by `TestHarness::with_extension`; the `Elicit` tool blocks on
+    // the registry and `AddExtension` registers a new client on the manager.
     action_required: std::sync::OnceLock<Arc<ActionRequiredManager>>,
+    extension_manager: std::sync::OnceLock<Arc<crate::agents::extension_manager::ExtensionManager>>,
 }
 
 impl TestExtensionClient {
     pub fn new(tools: Vec<(String, TestToolBehavior)>) -> Self {
+        Self::named("test", tools)
+    }
+
+    pub fn named(name: &str, tools: Vec<(String, TestToolBehavior)>) -> Self {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("test".to_string(), "1.0.0".to_string()));
+            .with_server_info(Implementation::new(name.to_string(), "1.0.0".to_string()));
         let (notification_tx, notification_rx) = mpsc::channel(32);
         Self {
             info,
             tools,
             notification_tx,
             notification_rx: Mutex::new(Some(notification_rx)),
+            name: name.to_string(),
             action_required: std::sync::OnceLock::new(),
+            extension_manager: std::sync::OnceLock::new(),
         }
     }
 
     /// The default set covering the tool-execution op's code paths.
-    /// Tool names are unprefixed; `list_tools` advertises them as `test__<name>`.
+    /// The extension manager advertises them as `test__<name>`.
     pub fn with_default_tools() -> Self {
         Self::new(vec![
             ("echo".to_string(), TestToolBehavior::Echo),
@@ -215,12 +228,14 @@ impl McpClientTrait for TestExtensionClient {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, McpError> {
+        // Advertised unprefixed; the extension manager namespaces them as
+        // `<extension>__<name>`.
         let tools = self
             .tools
             .iter()
             .map(|(name, _)| {
                 Tool::new(
-                    format!("test__{name}"),
+                    name.clone(),
                     "test tool",
                     std::sync::Arc::new(JsonObject::new()),
                 )
@@ -305,6 +320,35 @@ impl McpClientTrait for TestExtensionClient {
                     Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
                 }
             }
+            TestToolBehavior::AddExtension => {
+                let manager = self
+                    .extension_manager
+                    .get()
+                    .expect("TestExtensionClient added outside TestHarness::with_extension");
+                let client = TestExtensionClient::named(
+                    "extra",
+                    vec![("echo".to_string(), TestToolBehavior::Echo)],
+                );
+                let info = client.get_info().cloned();
+                manager
+                    .add_client(
+                        "extra".to_string(),
+                        ExtensionConfig::Platform {
+                            name: "extra".to_string(),
+                            description: "extra extension".to_string(),
+                            display_name: None,
+                            bundled: None,
+                            available_tools: vec![],
+                        },
+                        Arc::new(client),
+                        info,
+                        None,
+                    )
+                    .await;
+                Ok(CallToolResult::success(vec![Content::text(
+                    "extension added",
+                )]))
+            }
         }
     }
 
@@ -387,13 +431,17 @@ impl TestHarness {
         let _ = client
             .action_required
             .set(self.agent.config.session_manager.action_required());
+        let _ = client
+            .extension_manager
+            .set(self.agent.extension_manager.clone());
+        let name = client.name.clone();
         let info = client.get_info().cloned();
         self.agent
             .extension_manager
             .add_client(
-                "test".to_string(),
+                name.clone(),
                 ExtensionConfig::Platform {
-                    name: "test".to_string(),
+                    name,
                     description: "test extension".to_string(),
                     display_name: None,
                     bundled: None,

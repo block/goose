@@ -16,13 +16,21 @@ use crate::session::Session;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
+/// The system prompt and tools baked at reply start, plus the extension-set
+/// version they were built against — a `manage_extensions` call mid-reply
+/// bumps the version and the next turn rebuilds both.
+struct PromptState {
+    system_prompt: String,
+    tools: Vec<Tool>,
+    tools_version: u64,
+}
+
 /// Calls the LLM when the last message in the conversation is from the user.
 pub struct LlmOperation<'a> {
     agent: &'a Agent,
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
-    system_prompt: String,
-    tools: Vec<Tool>,
+    prompt_state: tokio::sync::Mutex<PromptState>,
     schedule_id: Option<String>,
 }
 
@@ -35,14 +43,33 @@ impl<'a> LlmOperation<'a> {
         tools: Vec<Tool>,
         schedule_id: Option<String>,
     ) -> Self {
+        let tools_version = agent.extension_manager.tools_version();
         Self {
             agent,
             provider,
             model_config,
-            system_prompt,
-            tools,
+            prompt_state: tokio::sync::Mutex::new(PromptState {
+                system_prompt,
+                tools,
+                tools_version,
+            }),
             schedule_id,
         }
+    }
+
+    async fn current_prompt_and_tools(&self, session: &Session) -> Result<(String, Vec<Tool>)> {
+        let mut state = self.prompt_state.lock().await;
+        let current_version = self.agent.extension_manager.tools_version();
+        if state.tools_version != current_version {
+            let (tools, _toolshim_tools, system_prompt, _model_config) = self
+                .agent
+                .prepare_tools_and_prompt(&session.id, &session.working_dir)
+                .await?;
+            state.tools = tools;
+            state.system_prompt = system_prompt;
+            state.tools_version = current_version;
+        }
+        Ok((state.system_prompt.clone(), state.tools.clone()))
     }
 
     async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> TurnOutcome {
@@ -110,13 +137,14 @@ impl Operation for LlmOperation<'_> {
             return Ok(OperationResult::NotApplicable(emit));
         }
 
+        let (system_prompt, tools) = self.current_prompt_and_tools(session).await?;
         let stream = self
             .provider
             .stream(
                 &self.model_config,
-                &self.system_prompt,
+                &system_prompt,
                 &messages_for_provider,
-                &self.tools,
+                &tools,
             )
             .await;
 
