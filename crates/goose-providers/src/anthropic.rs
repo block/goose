@@ -313,8 +313,12 @@ impl Provider for AnthropicProvider {
             .as_ref()
             .and_then(|models| models.iter().find(|m| m.name == model_config.model_name))
         {
+            let default_info = goose_provider_types::base::model_info_for_provider_model(
+                self.get_name(),
+                &model_config.model_name,
+            );
             patched_model_config.reasoning = match patched_model_config.reasoning {
-                Some(crate::base::Reasoning::Enabled(false)) => m.reasoning.clone(),
+                Some(ref r) if Some(r.clone()) == default_info.reasoning => m.reasoning.clone(),
                 Some(r) => Some(r.with_provider_defaults(m.reasoning.as_ref())),
                 None => m.reasoning.clone(),
             };
