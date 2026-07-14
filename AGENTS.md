@@ -51,6 +51,46 @@ crates/
 ui/desktop/            # Electron app
 ```
 
+## Canonical Models Registry
+
+The canonical model catalog lives in `crates/goose-provider-types/src/canonical/data/canonical_models.json`.
+It maps provider-specific model ids (e.g. `x-ai/grok-4.5`, `openai/gpt-4o`) to shared metadata
+(reasoning, context limits, pricing, modalities). Without a canonical entry, a new model only works
+via the live provider fetch path and may not appear in the picker.
+
+### Adding a new model to the catalog
+
+```bash
+# Full regeneration from models.dev (writes canonical_models.json + provider_metadata.json)
+source bin/activate-hermit   # provides cmake needed by llama-cpp-sys-2
+cargo run --bin build_canonical_models
+```
+
+This pulls the entire models.dev API and produces a large diff (thousands of lines). For a **focused PR**
+that only needs one model family, prefer a **surgical graft**: extract just the relevant entries from the
+regenerated output and merge them into the committed file, leaving unrelated additions for a separate
+maintenance PR.
+
+```bash
+# Surgical example: add only grok-4.5 entries
+F=crates/goose-provider-types/src/canonical/data/canonical_models.json
+jq '[.[] | select(.id | test("grok-4\\.5"))]' "$F" > /tmp/entries.json   # extract
+git checkout HEAD -- "$F"                                                 # restore
+jq -s '.[0] + .[1] | sort_by(.id)' "$F" /tmp/entries.json > /tmp/merged.json
+cp /tmp/merged.json "$F"                                                  # re-merge
+```
+
+After editing the data file, verify:
+```bash
+cargo test -p goose-provider-types --lib canonical
+```
+
+### `temperature` metadata caveat
+
+The canonical entry may report `temperature: true`, but provider code can still intentionally omit
+temperature for specific reasoning models (e.g. xAI grok-4+). The code-level omission in
+`create_request_with_options` takes precedence at request time.
+
 ## Development Loop
 ```bash
 # 1. source bin/activate-hermit
