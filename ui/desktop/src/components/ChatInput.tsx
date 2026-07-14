@@ -576,6 +576,42 @@ export default function ChatInput({
     }
   }, [textAreaRef]);
 
+  // Record the session-reported contextLimit (e.g. ACP CLI providers report their
+  // model's actual context window via usage_update) together with the model/provider
+  // it was reported for.  Keyed on tokenState identity (a new object per usage_update)
+  // and deliberately NOT on effectiveModel/effectiveProvider: a model switch must not
+  // re-stamp the old limit onto the new model — it invalidates the record instead,
+  // until the new model's first usage_update arrives.
+  const [reportedLimit, setReportedLimit] = useState<{
+    limit: number;
+    model?: string | null;
+    provider?: string | null;
+  } | null>(null);
+  useEffect(() => {
+    const limit = tokenState?.contextLimit;
+    if (!limit) {
+      return;
+    }
+    setReportedLimit((prev) =>
+      prev &&
+      prev.limit === limit &&
+      prev.model === effectiveModel &&
+      prev.provider === effectiveProvider
+        ? prev
+        : { limit, model: effectiveModel, provider: effectiveProvider }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenState]);
+
+  // The reported limit is only valid while the model/provider that produced it is
+  // still selected; otherwise fall back to the static lookup chain.
+  const sessionReportedLimit =
+    reportedLimit &&
+    reportedLimit.model === effectiveModel &&
+    reportedLimit.provider === effectiveProvider
+      ? reportedLimit.limit
+      : undefined;
+
   // Load providers and get current model's token limit
   const tokenLimitLoadGeneration = useRef(0);
   const loadProviderDetails = async () => {
@@ -589,12 +625,11 @@ export default function ChatInput({
       }
     };
 
-    // Priority 0: A session-reported contextLimit (e.g. ACP CLI providers report
-    // their model's actual context window via usage_update) always wins over the
-    // static lookup chain. Checked synchronously before any await so no network
-    // timing can interfere.
-    if (tokenState?.contextLimit) {
-      applyTokenLimit(tokenState.contextLimit);
+    // Priority 0: A session-reported contextLimit for the currently selected
+    // model/provider wins over the static lookup chain. Checked synchronously
+    // before any await so no network timing can interfere.
+    if (sessionReportedLimit) {
+      applyTokenLimit(sessionReportedLimit);
       return;
     }
 
@@ -655,13 +690,13 @@ export default function ChatInput({
 
   // Initial load and refresh when model changes (effective model includes overrides,
   // config model is the fallback for Hub/no-session contexts).  Re-runs when a
-  // usage_update delivers a session-reported contextLimit, which short-circuits
-  // the static lookup chain; the generation counter in loadProviderDetails keeps
-  // any still-pending older lookup from overwriting it.
+  // usage_update delivers a session-reported contextLimit for the current model,
+  // which short-circuits the static lookup chain; the generation counter in
+  // loadProviderDetails keeps any still-pending older lookup from overwriting it.
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveModel, effectiveProvider, configModel, configProvider, tokenState?.contextLimit]);
+  }, [effectiveModel, effectiveProvider, configModel, configProvider, sessionReportedLimit]);
 
   // Handle token usage alerts
   useEffect(() => {
@@ -686,7 +721,7 @@ export default function ChatInput({
       });
     }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
