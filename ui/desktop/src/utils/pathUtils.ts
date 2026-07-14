@@ -36,7 +36,7 @@ export function resolveGoosePathRoot(value: string | undefined): string | undefi
 
 export function isAbsoluteGoosePath(
   filePath: string,
-  platform: NodeJS.Platform = process.platform
+  platform: 'win32' | 'posix' = process.platform === 'win32' ? 'win32' : 'posix'
 ): boolean {
   if (platform !== 'win32') {
     return path.posix.isAbsolute(filePath);
@@ -46,7 +46,7 @@ export function isAbsoluteGoosePath(
   return path.win32.isAbsolute(filePath) && root.length > 1;
 }
 
-export function sanitizeGoosePathRoot(env: NodeJS.ProcessEnv): string | undefined {
+export function sanitizeGoosePathRoot(env: { GOOSE_PATH_ROOT?: string }): string | undefined {
   const pathRoot = resolveGoosePathRoot(env.GOOSE_PATH_ROOT);
   if (pathRoot) {
     env.GOOSE_PATH_ROOT = pathRoot;
