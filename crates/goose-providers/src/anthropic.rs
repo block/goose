@@ -271,12 +271,13 @@ impl Provider for AnthropicProvider {
             .as_ref()
             .and_then(|models| models.iter().find(|m| m.name == model_config.model_name))
         {
-            patched_model_config.reasoning = Some(
-                patched_model_config
-                    .reasoning
-                    .unwrap_or_default()
-                    .with_provider_defaults(Some(&m.reasoning)),
-            );
+            patched_model_config.reasoning = match patched_model_config.reasoning {
+                Some(r) => Some(r.with_provider_defaults(Some(&m.reasoning))),
+                None => match &m.reasoning {
+                    goose_provider_types::base::Reasoning::Enabled(false) => None,
+                    _ => Some(m.reasoning.clone()),
+                },
+            };
         }
         let model_config = &patched_model_config;
         let mut payload = create_request(
