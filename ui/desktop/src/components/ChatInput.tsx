@@ -628,6 +628,14 @@ export default function ChatInput({
       // Priority 4: Use default if nothing else found
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
       setIsTokenLimitLoaded(true);
+
+      // Always override with session-reported contextLimit (e.g. ACP CLI providers
+      // report their model's actual context window via usage_update).  This must
+      // run *after* the static lookup so the session-reported value always wins,
+      // regardless of network / notification timing.
+      if (tokenState?.contextLimit) {
+        setTokenLimit(tokenState.contextLimit);
+      }
     } catch (err) {
       console.error('Error loading providers or token limit:', err);
       // Set default limit on error
@@ -637,19 +645,13 @@ export default function ChatInput({
   };
 
   // Initial load and refresh when model changes (effective model includes overrides,
-  // config model is the fallback for Hub/no-session contexts)
+  // config model is the fallback for Hub/no-session contexts).  The session-reported
+  // contextLimit is checked at the end of loadProviderDetails so it always wins,
+  // regardless of whether the static lookup resolves before or after the notification.
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveModel, effectiveProvider, configModel, configProvider]);
-
-  // Override static tokenLimit with session-reported contextLimit when available
-  // (e.g. ACP CLI providers report their model's actual context window via usage_update)
-  useEffect(() => {
-    if (tokenState?.contextLimit) {
-      setTokenLimit(tokenState.contextLimit);
-    }
-  }, [tokenState?.contextLimit]);
 
   // Handle token usage alerts
   useEffect(() => {
