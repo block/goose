@@ -643,31 +643,41 @@ impl Provider for OpenAiProvider {
         let mut model_infos = Vec::new();
 
         for model_name in models {
+            let default_info = goose_provider_types::base::model_info_for_provider_model(
+                self.get_name(),
+                &model_name,
+            );
+
             if let Some(custom_models) = &self.custom_models {
                 if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
-                    model_infos.push(model_info.clone());
+                    let mut info = model_info.clone();
+                    if let goose_provider_types::base::Reasoning::Enabled(false) = info.reasoning {
+                        info.reasoning = default_info.reasoning.clone();
+                    }
+                    model_infos.push(info);
                     continue;
                 }
             }
-            model_infos.push(goose_provider_types::base::model_info_for_provider_model(
-                self.get_name(),
-                &model_name,
-            ));
+            model_infos.push(default_info);
         }
 
         Ok(model_infos)
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        let default_info =
+            goose_provider_types::base::model_info_for_provider_model(self.get_name(), model_name);
+
         if let Some(custom_models) = &self.custom_models {
             if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
-                return Ok(model_info.clone());
+                let mut info = model_info.clone();
+                if let goose_provider_types::base::Reasoning::Enabled(false) = info.reasoning {
+                    info.reasoning = default_info.reasoning.clone();
+                }
+                return Ok(info);
             }
         }
-        Ok(goose_provider_types::base::model_info_for_provider_model(
-            self.get_name(),
-            model_name,
-        ))
+        Ok(default_info)
     }
 
     async fn stream(
@@ -1396,5 +1406,27 @@ mod tests {
         // Standard heuristics would default this to non-reasoning
         let info_not_found = provider.fetch_model_info("other-model").await.unwrap();
         assert!(!info_not_found.reasoning.is_enabled());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_model_info_preserves_reasoning_heuristics_for_custom_models() {
+        // o3 is a known reasoning model
+        let custom_model = ModelInfo::new("o3", 4096);
+        // Reasoning is Enabled(false) by default when unconfigured
+
+        let provider = OpenAiProviderBuilder::new(
+            crate::api_client::ApiClient::new_with_tls(
+                "http://localhost".into(),
+                crate::api_client::AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+        )
+        .custom_models(Some(vec![custom_model.clone()]))
+        .build();
+
+        // The fallback heuristic should kick in and return true for o3
+        let info = provider.fetch_model_info("o3").await.unwrap();
+        assert!(info.reasoning.is_enabled());
     }
 }
