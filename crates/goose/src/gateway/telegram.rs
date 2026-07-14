@@ -280,7 +280,7 @@ impl TelegramGateway {
             "mpeg" => "mp3".to_string(),
             "mp4" | "x-m4a" => "m4a".to_string(),
             "ogg" => "ogg".to_string(),
-            "wav" | "x-wav" => "wav".to_string(),
+            "wav" | "x-wav" | "vnd.wave" => "wav".to_string(),
             other
                 if other.len() <= 16
                     && other.bytes().enumerate().all(|(index, byte)| {
@@ -808,6 +808,7 @@ mod tests {
             (Some("audio/x-m4a"), "m4a"),
             (Some("audio/ogg; codecs=opus"), "ogg"),
             (Some("audio/x-wav"), "wav"),
+            (Some("audio/vnd.wave"), "wav"),
             (Some("audio/flac"), "flac"),
             (Some("audio/WEBM"), "webm"),
             (Some("Audio/MPEG"), "mp3"),
