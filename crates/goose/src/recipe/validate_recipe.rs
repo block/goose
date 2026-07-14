@@ -94,12 +94,15 @@ fn validate_parameters_in_template(
     let mut template_variables = template_variables.clone();
     template_variables.remove(BUILT_IN_RECIPE_DIR_PARAM);
 
-    let param_keys: HashSet<String> = recipe_parameters
-        .as_ref()
-        .unwrap_or(&vec![])
-        .iter()
-        .map(|p| p.key.clone())
-        .collect();
+    let mut param_keys = HashSet::new();
+    for parameter in recipe_parameters.as_deref().unwrap_or_default() {
+        if !param_keys.insert(parameter.key.clone()) {
+            return Err(anyhow::anyhow!(
+                "Duplicate parameter definition: {}.",
+                parameter.key
+            ));
+        }
+    }
 
     let missing_keys = template_variables
         .difference(&param_keys)
@@ -171,6 +174,57 @@ fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn recipe_with_duplicate_parameter_keys(parameters: &str) -> String {
+        format!(
+            r#"
+version: 1.0.0
+title: Duplicate parameters
+description: Duplicate parameter validation
+instructions: Test {{{{ value }}}}
+parameters:
+{parameters}
+"#
+        )
+    }
+
+    #[test]
+    fn test_rejects_string_then_file_parameter_with_same_key() {
+        let recipe_content = recipe_with_duplicate_parameter_keys(
+            r#"  - key: value
+    input_type: string
+    requirement: optional
+    default: file.txt
+    description: A string parameter
+  - key: value
+    input_type: file
+    requirement: required
+    description: A file parameter"#,
+        );
+
+        let error = validate_recipe_template_from_content(&recipe_content, None).unwrap_err();
+
+        assert_eq!(error.to_string(), "Duplicate parameter definition: value.");
+    }
+
+    #[test]
+    fn test_rejects_file_then_string_parameter_with_same_key() {
+        let recipe_content = recipe_with_duplicate_parameter_keys(
+            r#"  - key: value
+    input_type: file
+    requirement: required
+    description: A file parameter
+  - key: value
+    input_type: string
+    requirement: optional
+    default: file.txt
+    description: A string parameter"#,
+        );
+
+        let error = validate_recipe_template_from_content(&recipe_content, None).unwrap_err();
+
+        assert_eq!(error.to_string(), "Duplicate parameter definition: value.");
+    }
 
     #[test]
     fn test_validate_recipe_template_from_content_success() {
