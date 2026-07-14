@@ -91,8 +91,7 @@ const PairRouteWrapper = ({
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
-  const routeState =
-    (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
+  const routeState = (location.state as PairRouteState) ?? {};
   const [searchParams, setSearchParams] = useSearchParams();
   const isCreatingSessionRef = useRef(false);
   const navigate = useNavigate();
@@ -185,15 +184,11 @@ const SettingsRoute = () => {
   const [searchParams] = useSearchParams();
   const setView = useNavigation();
 
-  // Get viewOptions from location.state, history.state, or URL search params
-  const viewOptions =
-    (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
-
-  // If section is provided via URL search params, add it to viewOptions
   const sectionFromUrl = searchParams.get('section');
-  if (sectionFromUrl) {
-    viewOptions.section = sectionFromUrl;
-  }
+  const viewOptions: SettingsViewOptions = {
+    ...((location.state as SettingsViewOptions) ?? {}),
+    ...(sectionFromUrl ? { section: sectionFromUrl } : {}),
+  };
 
   return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
@@ -272,11 +267,7 @@ const ExtensionsRoute = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get viewOptions from location.state or history.state (for deep link extensions)
-  const viewOptions =
-    (location.state as ExtensionsViewOptions) ||
-    (window.history.state as ExtensionsViewOptions) ||
-    {};
+  const viewOptions = (location.state as ExtensionsViewOptions) ?? {};
 
   return (
     <ExtensionsView

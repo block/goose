@@ -306,6 +306,15 @@ interface BackendCertificateTrustRegistration {
 
 const trustedBackendCertificates = new Set<BackendCertificateTrust>();
 
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase();
 }
@@ -2415,16 +2424,15 @@ async function appMain() {
 
   registerUpdateIpcHandlers();
 
-  // Handle microphone permission requests
+  // 'media' covers the dictation microphone; 'clipboard-sanitized-write'
+  // covers navigator.clipboard copy buttons. Everything else is denied.
+  const allowedRendererPermissions = new Set(['media', 'clipboard-sanitized-write']);
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    console.log('Permission requested:', permission);
-    // Allow microphone and media access
-    if (permission === 'media') {
-      callback(true);
-    } else {
-      // Default behavior for other permissions
-      callback(true);
+    const allowed = allowedRendererPermissions.has(permission);
+    if (!allowed) {
+      log.warn(`Denied renderer permission request: ${permission}`);
     }
+    callback(allowed);
   });
 
   // Add CSP headers to all sessions, recomputed on every response so external
@@ -2451,9 +2459,14 @@ async function appMain() {
   // Register global shortcuts based on settings
   registerGlobalShortcuts();
 
+  // goosed validates the Origin header of incoming requests. Rewrite it for
+  // loopback (goosed) targets only; other hosts must not receive a fabricated
+  // localhost origin.
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    details.requestHeaders['Origin'] = 'http://localhost:5173';
-    callback({ cancel: false, requestHeaders: details.requestHeaders });
+    if (isLoopbackUrl(details.url)) {
+      details.requestHeaders['Origin'] = 'http://localhost:5173';
+    }
+    callback({ requestHeaders: details.requestHeaders });
   });
 
   if (settings.showMenuBarIcon) {

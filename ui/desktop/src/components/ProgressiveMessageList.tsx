@@ -299,8 +299,7 @@ export default function ProgressiveMessageList({
                   toolCallNotifications={toolCallNotifications}
                   isStreaming={
                     isStreamingMessage &&
-                    !isUser &&
-                    index === messagesToRender.length - 1 &&
+                    index === messages.length - 1 &&
                     message.role === 'assistant'
                   }
                   submitElicitationResponse={submitElicitationResponse}
