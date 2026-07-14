@@ -101,7 +101,9 @@ impl ProviderModelConfig {
             config = config.with_merged_request_params(request_params);
         }
 
-        config.reasoning = self.reasoning;
+        config.reasoning = self
+            .reasoning
+            .map(goose_providers::base::Reasoning::Enabled);
         Ok(config)
     }
 }
