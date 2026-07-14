@@ -233,14 +233,12 @@ For the shell and file tools, `matcher_context` already carries the shell comman
 
 Most events are observation-only: goose runs the hook, logs the result, and continues regardless of what the hook returns. Two events are different—**`PreToolUse` and `Stop` can block**. A hook on any other event (including `UserPromptSubmit`, `PostToolUse`, and the `Before*`/`After*` events) cannot stop anything; a block decision from those events is ignored.
 
-A `PreToolUse` hook denies the tool call in one of two ways:
+A `PreToolUse` hook denies the tool call with either of two signals:
 
-| How the hook signals a block | Exit code | Where the reason comes from |
-|---|---|---|
-| Print `{"decision":"block","reason":"..."}` to stdout | `0` | the `reason` field |
-| Exit with code `2` | `2` | stderr |
+- **Exit code `2`** — goose blocks and takes the reason from **stderr**.
+- **`{"decision":"block","reason":"..."}` on stdout** — goose blocks and takes the reason from the `reason` field. goose checks stdout whenever the exit code is not `2`, so this signal is honored regardless of whether the hook exits `0` or non-zero.
 
-For the JSON channel, stdout must start with `{` and `decision` must be exactly `"block"`; any other value allows the call. If the `reason` is empty, goose substitutes `denied by plugin hook`.
+For the stdout signal, stdout must start with `{` and `decision` must be exactly `"block"`; any other value allows the call. If the `reason` is empty, goose substitutes `denied by plugin hook`.
 
 When a `PreToolUse` hook blocks, goose does not run the tool and returns this message to the model:
 
@@ -248,7 +246,7 @@ When a `PreToolUse` hook blocks, goose does not run the tool and returns this me
 Tool call denied by policy hook `<plugin>`: <reason>. Do not retry; this is a policy denial, not a transient failure.
 ```
 
-**Blocking fails open.** Only a clean block signal stops a tool. Every other outcome—a spawn error, a timeout, a non-`{` stdout, or a non-zero exit code other than `2` (such as exit `1`)—is logged and treated as allow. A broken hook can never block goose.
+**A broken hook fails open.** goose blocks only on one of the two deny signals above. If the hook produces neither—it prints nothing or non-`{` stdout and does not exit `2`, or it fails to run at all (a spawn error or a timeout)—the call is logged and allowed. Because the stdout signal is checked independently of the exit code, a hook that prints `{"decision":"block"}` and *then* exits non-zero still blocks; do not rely on a non-zero exit to cancel a block you have already printed.
 
 A `Stop` hook that blocks forces the turn to keep going instead of ending. To prevent a misbehaving hook from looping forever, goose caps the number of consecutive `Stop` blocks; once the cap is hit, goose overrides the hook and ends the turn. Raise the cap with the `GOOSE_STOP_HOOK_BLOCK_CAP` environment variable.
 

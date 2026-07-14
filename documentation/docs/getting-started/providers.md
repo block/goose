@@ -286,7 +286,7 @@ Need to connect to multiple OpenAI-compatible endpoints? [Configure custom provi
 :::note Pointing at a LiteLLM proxy
 You can reach a [LiteLLM](https://docs.litellm.ai/) proxy in either of two ways—pick one, don't mix them:
 
-- Use the **OpenAI provider**: set `OPENAI_HOST` to your proxy's root (no trailing path) and `OPENAI_BASE_PATH` to the path it serves (usually `v1/chat/completions`). A `401` with `No api key passed in` or a `404` on `chat/completions` usually means `OPENAI_BASE_PATH` is wrong for your proxy.
+- Use the **OpenAI provider**: set `OPENAI_HOST` to your proxy's root (no trailing path) and `OPENAI_BASE_PATH` to the path it serves (usually `v1/chat/completions`). A `404` usually means `OPENAI_BASE_PATH` is wrong for your proxy. A `401` with `No api key passed in` is a different problem—the API key is not being loaded (for example, a key placed in `config.yaml`, which is ignored); see [Provider API keys and `config.yaml`](/docs/guides/config-files#security-considerations).
 - Use the dedicated **LiteLLM provider**, which is configured with its own `LITELLM_HOST`, `LITELLM_BASE_PATH`, and `LITELLM_API_KEY` variables instead of the `OPENAI_*` ones.
 :::
 
