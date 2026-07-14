@@ -94,7 +94,10 @@ pub async fn reply(
             session_config.schedule_id.clone(),
         )),
         Arc::new(ToolApprovalOperation::new(agent)),
-        Arc::new(ToolExecutionOperation::new(agent.extension_manager.clone())),
+        Arc::new(ToolExecutionOperation::new(
+            agent.extension_manager.clone(),
+            session_manager.clone(),
+        )),
         Arc::new(LlmOperation::new(
             agent,
             provider,

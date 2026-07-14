@@ -1544,12 +1544,6 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        if super::state_machine::enabled() {
-            tracing::info!("dispatching reply via experimental state machine");
-            return super::state_machine::reply(self, user_message, session_config, cancel_token)
-                .await;
-        }
-
         let session_manager = self.config.session_manager.clone();
 
         let message_text_for_trace = user_message.as_concat_text();
@@ -1590,6 +1584,15 @@ impl Agent {
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
+        }
+
+        // Dispatched after the elicitation interception above: an elicitation
+        // response resumes a tool call blocked inside an already-running reply
+        // (in either loop) and must never start a new turn.
+        if super::state_machine::enabled() {
+            tracing::info!("dispatching reply via experimental state machine");
+            return super::state_machine::reply(self, user_message, session_config, cancel_token)
+                .await;
         }
 
         let message_text = user_message.as_concat_text();

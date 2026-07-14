@@ -15,7 +15,7 @@ use crate::agents::tool_execution::{ToolCallContext, ToolCallResult};
 use crate::agents::AgentEvent;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::session::Session;
+use crate::session::{Session, SessionManager};
 
 /// Executes pending tool requests: when the last message is an assistant
 /// message carrying tool requests that have not yet been answered, dispatch
@@ -26,11 +26,18 @@ use crate::session::Session;
 /// the client), platform tools, and hooks are handled elsewhere.
 pub struct ToolExecutionOperation {
     extension_manager: Arc<ExtensionManager>,
+    session_manager: Arc<SessionManager>,
 }
 
 impl ToolExecutionOperation {
-    pub fn new(extension_manager: Arc<ExtensionManager>) -> Self {
-        Self { extension_manager }
+    pub fn new(
+        extension_manager: Arc<ExtensionManager>,
+        session_manager: Arc<SessionManager>,
+    ) -> Self {
+        Self {
+            extension_manager,
+            session_manager,
+        }
     }
 }
 
@@ -208,6 +215,17 @@ impl Operation for ToolExecutionOperation {
                         ToolStreamItem::ActionRequired(mut msg) => {
                             if msg.id.is_none() {
                                 msg = msg.with_generated_id();
+                            }
+                            // Persisted here rather than as an effect: this op
+                            // stays blocked until the elicitation is answered
+                            // (possibly much later, from another reply call
+                            // that reads the conversation), so an effect
+                            // returned at completion would record the question
+                            // only after its answer.
+                            if let Err(e) =
+                                self.session_manager.add_message(&session.id, &msg).await
+                            {
+                                tracing::warn!("Failed to persist action-required message: {e}");
                             }
                             emit.emit(AgentEvent::Message(msg)).await;
                         }

@@ -273,6 +273,128 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
 }
 
 #[tokio::test]
+async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
+    use crate::action_required_manager::ElicitationOutcome;
+    use rmcp::model::ElicitationAction;
+
+    // The ActionRequiredManager is a process-global singleton keyed by
+    // (session_id, tool_call_id), and parallel tests all get session id
+    // "<today>_1" from their own fresh databases — so this tool call id must
+    // be globally unique or another test's dispatch hijacks the stream.
+    let call_id = format!("call_{}", uuid::Uuid::new_v4());
+    let harness = TestHarness::with_steps([
+        Step::ToolCall {
+            id: call_id.clone(),
+            name: "test__elicit".to_string(),
+            args: serde_json::json!({}),
+        },
+        Step::Text("thanks".to_string()),
+    ])
+    .await
+    .with_default_extension()
+    .await;
+
+    let stream = state_machine::reply(
+        &harness.agent,
+        Message::user().with_text("ask me"),
+        SessionConfig {
+            id: harness.session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        },
+        None,
+    )
+    .await?;
+    tokio::pin!(stream);
+
+    // Drive the stream; when the blocked tool's elicitation request shows up,
+    // answer it the way Agent::reply's interception does — via the registry,
+    // with the response message persisted — and keep draining.
+    let mut messages = Vec::new();
+    let mut answered_id = None;
+    while let Some(event) = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next())
+        .await
+        .expect("stream stalled: elicitation never unblocked")
+    {
+        let event = event?;
+        if let AgentEvent::Message(message) = event {
+            let elicitation_id = message.content.iter().find_map(|content| match content {
+                MessageContent::ActionRequired(action) => match &action.data {
+                    ActionRequiredData::Elicitation { id, .. } => Some(id.clone()),
+                    _ => None,
+                },
+                _ => None,
+            });
+            if let Some(id) = elicitation_id {
+                let response_message = Message::user()
+                    .with_generated_id()
+                    .with_content(MessageContent::action_required_elicitation_response(
+                        id.clone(),
+                        serde_json::json!({ "answer": "blue" }),
+                        ElicitationAction::Accept,
+                    ))
+                    .agent_only();
+                crate::elicitation::complete_elicitation_with_message(
+                    &harness.agent.config.session_manager,
+                    &harness.session_id,
+                    &id,
+                    ElicitationOutcome::Accept(serde_json::json!({ "answer": "blue" })),
+                    &response_message,
+                )
+                .await?;
+                answered_id = Some(id);
+            }
+            messages.push(message);
+        }
+    }
+
+    assert!(
+        answered_id.is_some(),
+        "no elicitation request was emitted: {messages:#?}"
+    );
+
+    // The tool unblocked with the accepted data and the turn completed.
+    let tool_response = messages
+        .iter()
+        .find(|m| m.is_tool_response())
+        .expect("a tool response");
+    assert!(
+        tool_response_text(tool_response).contains("blue"),
+        "tool response: {tool_response:#?}"
+    );
+    assert_eq!(messages.last().unwrap().as_concat_text(), "thanks");
+    assert_eq!(harness.provider.call_count(), 2);
+
+    // The pending question and its answer are both durable conversation state.
+    let persisted = harness.persisted_messages().await?;
+    let request_position = persisted.iter().position(|m| {
+        m.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::ActionRequired(action)
+                    if matches!(action.data, ActionRequiredData::Elicitation { .. })
+            )
+        })
+    });
+    let response_position = persisted.iter().position(|m| {
+        m.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::ActionRequired(action)
+                    if matches!(action.data, ActionRequiredData::ElicitationResponse { .. })
+            )
+        })
+    });
+    assert!(
+        request_position.is_some() && request_position < response_position,
+        "persisted: {persisted:#?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
     // A crash mid-execution leaves an unanswered tool request behind. On the
     // next user prompt it must not be executed or re-approved, and the

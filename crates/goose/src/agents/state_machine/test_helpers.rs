@@ -159,6 +159,9 @@ pub enum TestToolBehavior {
     Notify { count: usize },
     /// Block until the cancellation token fires, then succeed.
     SlowUntilCancelled,
+    /// Request an elicitation and block until it is answered, then return the
+    /// outcome as text.
+    Elicit,
 }
 
 /// An in-process extension client for tests, injected via
@@ -194,6 +197,7 @@ impl TestExtensionClient {
             ),
             ("notify".to_string(), TestToolBehavior::Notify { count: 2 }),
             ("slow".to_string(), TestToolBehavior::SlowUntilCancelled),
+            ("elicit".to_string(), TestToolBehavior::Elicit),
         ])
     }
 }
@@ -226,7 +230,7 @@ impl McpClientTrait for TestExtensionClient {
 
     async fn call_tool(
         &self,
-        _ctx: &ToolCallContext,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
@@ -268,6 +272,30 @@ impl McpClientTrait for TestExtensionClient {
             TestToolBehavior::SlowUntilCancelled => {
                 cancel_token.cancelled().await;
                 Ok(CallToolResult::success(vec![Content::text("cancelled")]))
+            }
+            TestToolBehavior::Elicit => {
+                let request_id = ctx
+                    .tool_call_request_id
+                    .clone()
+                    .expect("elicit tool needs a tool call request id");
+                let outcome = crate::action_required_manager::ActionRequiredManager::global()
+                    .request_and_wait(
+                        ctx.session_id.clone(),
+                        request_id,
+                        "What should I use?".to_string(),
+                        json!({ "type": "object" }),
+                        std::time::Duration::from_secs(10),
+                    )
+                    .await;
+                match outcome {
+                    Ok(crate::action_required_manager::ElicitationOutcome::Accept(data)) => Ok(
+                        CallToolResult::success(vec![Content::text(data.to_string())]),
+                    ),
+                    Ok(_) => Ok(CallToolResult::error(vec![Content::text(
+                        "elicitation declined",
+                    )])),
+                    Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
+                }
             }
         }
     }
