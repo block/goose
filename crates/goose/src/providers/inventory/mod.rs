@@ -1105,12 +1105,14 @@ fn enriched_model(
     model_id: &str,
     fallback_context_limit: Option<usize>,
 ) -> InventoryModel {
-    let registry = CanonicalModelRegistry::bundled().ok();
-    let canonical = registry.as_ref().and_then(|registry| {
-        let canonical_id = map_to_canonical_model(provider_family, model_id, registry)?;
-        let (provider, model) = canonical_id.split_once('/')?;
-        registry.get(provider, model).cloned()
-    });
+    let registry = CanonicalModelRegistry::active();
+    let canonical = {
+        let canonical_id = map_to_canonical_model(provider_family, model_id, &registry);
+        canonical_id.and_then(|canonical_id| {
+            let (provider, model) = canonical_id.split_once('/')?;
+            registry.get(provider, model).cloned()
+        })
+    };
 
     InventoryModel {
         id: model_id.to_string(),

@@ -1,7 +1,9 @@
 pub mod catalog;
+pub mod dynamic;
 mod model;
 mod name_builder;
 mod registry;
+pub mod source;
 
 pub use model::{CanonicalModel, Limit, Modalities, Modality, Pricing, ThinkingMode};
 pub use name_builder::{
@@ -35,10 +37,7 @@ impl ModelMapping {
 /// models still listed, or locally-installed models for providers like Ollama). Consider
 /// whether to reconcile with a live API call in the background.
 pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
-    let registry = match CanonicalModelRegistry::bundled() {
-        Ok(r) => r,
-        Err(_) => return vec![],
-    };
+    let registry = CanonicalModelRegistry::active();
 
     let registry_provider = map_provider_name(provider);
     let all = registry.get_all_models_for_provider(registry_provider);
@@ -72,9 +71,9 @@ fn is_local_provider(provider: &str) -> bool {
 }
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
-    let registry = CanonicalModelRegistry::bundled().ok()?;
+    let registry = CanonicalModelRegistry::active();
 
-    let canonical_id = map_to_canonical_model(provider, model, registry)?;
+    let canonical_id = map_to_canonical_model(provider, model, &registry)?;
     let mut canonical = if let Some((canon_provider, canon_model)) = canonical_id.split_once('/') {
         registry.get(canon_provider, canon_model).cloned()?
     } else {

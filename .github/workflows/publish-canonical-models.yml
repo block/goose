@@ -1,0 +1,60 @@
+name: Publish Canonical Models
+
+# Regenerates the canonical model inventory from models.dev and publishes it as a
+# rolling GitHub Release asset. The goose runtime (with GOOSE_CANONICAL_DYNAMIC
+# enabled) fetches this asset to pick up newly released models without a code
+# change or a new goose release.
+#
+# Nothing is committed to any branch — the release asset is replaced in place via
+# `gh release upload --clobber`.
+
+on:
+  schedule:
+    # Daily at 06:00 UTC.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-canonical-models
+  cancel-in-progress: true
+
+permissions:
+  contents: write # Required to create/update the rolling release and its assets.
+
+env:
+  RELEASE_TAG: canonical-models
+  ARTIFACT: crates/goose-provider-types/src/canonical/data/canonical_models.json
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Regenerate canonical models
+        run: |
+          source ./bin/activate-hermit
+          cargo run --bin build_canonical_models
+
+      - name: Verify artifact was produced
+        run: |
+          test -s "${ARTIFACT}" || { echo "::error::${ARTIFACT} missing or empty"; exit 1; }
+          echo "Generated $(wc -l < "${ARTIFACT}") lines, $(du -h "${ARTIFACT}" | cut -f1)"
+
+      - name: Ensure rolling release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release create "${RELEASE_TAG}" \
+              --title "Canonical model inventory" \
+              --notes "Rolling canonical model inventory, refreshed daily from models.dev. Consumed by goose at runtime when GOOSE_CANONICAL_DYNAMIC is enabled." \
+              --prerelease
+          fi
+
+      - name: Publish canonical models asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${RELEASE_TAG}" "${ARTIFACT}" --clobber

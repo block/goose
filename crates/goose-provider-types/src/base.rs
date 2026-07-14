@@ -293,12 +293,14 @@ pub enum PermissionRouting {
 }
 
 pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> ModelInfo {
-    let registry = CanonicalModelRegistry::bundled().ok();
-    let canonical = registry.as_ref().and_then(|registry| {
-        let canonical_id = map_to_canonical_model(provider_name, model_name, registry)?;
-        let (provider, model) = canonical_id.split_once('/')?;
-        registry.get(provider, model)
-    });
+    let registry = CanonicalModelRegistry::active();
+    let canonical = {
+        let canonical_id = map_to_canonical_model(provider_name, model_name, &registry);
+        canonical_id.and_then(|canonical_id| {
+            let (provider, model) = canonical_id.split_once('/')?;
+            registry.get(provider, model)
+        })
+    };
 
     let reasoning = canonical
         .as_ref()
@@ -447,9 +449,7 @@ pub trait Provider: Send + Sync {
             return Ok(all_models);
         }
 
-        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
-        })?;
+        let registry = CanonicalModelRegistry::active();
 
         let provider_name = self.get_name();
 
@@ -457,7 +457,7 @@ pub trait Provider: Send + Sync {
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
             .filter_map(|model| {
-                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
+                let canonical_id = map_to_canonical_model(provider_name, model, &registry)?;
 
                 let (provider, model_name) = canonical_id.split_once('/')?;
                 let canonical_model = registry.get(provider, model_name)?;
@@ -516,14 +516,12 @@ pub trait Provider: Send + Sync {
         &self,
         provider_model: &str,
     ) -> Result<Option<String>, ProviderError> {
-        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
-        })?;
+        let registry = CanonicalModelRegistry::active();
 
         Ok(map_to_canonical_model(
             self.get_name(),
             provider_model,
-            registry,
+            &registry,
         ))
     }
 

@@ -5195,6 +5195,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "env-lock",
+ "etcetera 0.11.0",
  "futures",
  "once_cell",
  "rand 0.10.2",
@@ -5213,6 +5214,7 @@ dependencies = [
  "unicode-normalization",
  "utoipa 4.2.3",
  "uuid",
+ "wiremock",
 ]
 
 [[package]]

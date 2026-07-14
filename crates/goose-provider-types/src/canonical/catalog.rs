@@ -1091,8 +1091,7 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
 
     let api_url = metadata.api.as_ref()?.clone();
 
-    let models: Vec<ModelTemplate> = CanonicalModelRegistry::bundled()
-        .ok()
+    let models: Vec<ModelTemplate> = Some(CanonicalModelRegistry::active())
         .map(|registry| {
             registry
                 .get_all_models_for_provider(provider_id)
