@@ -944,12 +944,16 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     };
 
     {
-        let supports_thinking = match temp_provider.fetch_model_info(&model).await {
-            Ok(model_info) => model_info.reasoning,
-            Err(_) => goose_providers::base::Reasoning::Enabled(
-                goose_providers::model::ModelConfig::new(&model).is_reasoning_model(),
-            ),
-        };
+        let supports_thinking = temp_provider
+            .fetch_model_info(&model)
+            .await
+            .ok()
+            .and_then(|info| info.reasoning)
+            .unwrap_or_else(|| {
+                goose_providers::base::Reasoning::Enabled(
+                    goose_providers::model::ModelConfig::new(&model).is_reasoning_model(),
+                )
+            });
 
         if supports_thinking.is_enabled() {
             let effort: ThinkingEffort = cliclack::select("Select thinking effort:")
