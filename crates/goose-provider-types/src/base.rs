@@ -323,8 +323,8 @@ pub struct ModelInfo {
     /// Whether this model supports cache control
     pub supports_cache_control: Option<bool>,
     /// Whether this model supports reasoning/thinking controls
-    #[serde(default)]
-    pub reasoning: Reasoning,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<Reasoning>,
 }
 
 impl ModelInfo {
@@ -338,7 +338,7 @@ impl ModelInfo {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: Reasoning::default(),
+            reasoning: None,
         }
     }
 
@@ -357,7 +357,7 @@ impl ModelInfo {
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
-            reasoning: Reasoning::default(),
+            reasoning: None,
         }
     }
 }
@@ -409,7 +409,7 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         output_token_cost: None,
         currency: None,
         supports_cache_control: None,
-        reasoning,
+        reasoning: Some(reasoning),
     }
 }
 
@@ -768,7 +768,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: Reasoning::default(),
+            reasoning: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -781,7 +781,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: Reasoning::default(),
+            reasoning: None,
         };
         assert_eq!(info, info2);
 
@@ -794,7 +794,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: Reasoning::default(),
+            reasoning: None,
         };
         assert_ne!(info, info3);
     }

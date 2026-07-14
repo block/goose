@@ -608,7 +608,7 @@ impl Provider for OpenAiProvider {
             if let Some(custom_models) = &self.custom_models {
                 if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
                     let mut info = model_info.clone();
-                    if let goose_provider_types::base::Reasoning::Enabled(false) = info.reasoning {
+                    if info.reasoning.is_none() {
                         info.reasoning = default_info.reasoning.clone();
                     }
                     model_infos.push(info);
@@ -628,7 +628,7 @@ impl Provider for OpenAiProvider {
         if let Some(custom_models) = &self.custom_models {
             if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
                 let mut info = model_info.clone();
-                if let goose_provider_types::base::Reasoning::Enabled(false) = info.reasoning {
+                if info.reasoning.is_none() {
                     info.reasoning = default_info.reasoning.clone();
                 }
                 return Ok(info);
@@ -651,11 +651,8 @@ impl Provider for OpenAiProvider {
             .and_then(|models| models.iter().find(|m| m.name == model_config.model_name))
         {
             patched_model_config.reasoning = match patched_model_config.reasoning {
-                Some(r) => Some(r.with_provider_defaults(Some(&m.reasoning))),
-                None => match &m.reasoning {
-                    goose_provider_types::base::Reasoning::Enabled(false) => None,
-                    _ => Some(m.reasoning.clone()),
-                },
+                Some(r) => Some(r.with_provider_defaults(m.reasoning.as_ref())),
+                None => m.reasoning.clone(),
             };
         }
         let model_config = &patched_model_config;
@@ -1281,12 +1278,12 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_model_info_returns_custom_model_config() {
         let mut custom_model = ModelInfo::new("my-custom-model", 4096);
-        custom_model.reasoning = goose_provider_types::base::Reasoning::ReasoningConfig(
+        custom_model.reasoning = Some(goose_provider_types::base::Reasoning::ReasoningConfig(
             goose_provider_types::base::ReasoningConfig {
                 enabled: true,
                 ..Default::default()
             },
-        );
+        ));
 
         let provider = OpenAiProviderBuilder::new(
             crate::api_client::ApiClient::new_with_tls(
@@ -1301,11 +1298,11 @@ mod tests {
 
         let info = provider.fetch_model_info("my-custom-model").await.unwrap();
 
-        assert!(info.reasoning.is_enabled());
+        assert!(info.reasoning.unwrap().is_enabled());
 
         // Standard heuristics would default this to non-reasoning
         let info_not_found = provider.fetch_model_info("other-model").await.unwrap();
-        assert!(!info_not_found.reasoning.is_enabled());
+        assert!(!info_not_found.reasoning.unwrap().is_enabled());
     }
 
     #[tokio::test]
@@ -1327,6 +1324,6 @@ mod tests {
 
         // The fallback heuristic should kick in and return true for o3
         let info = provider.fetch_model_info("o3").await.unwrap();
-        assert!(info.reasoning.is_enabled());
+        assert!(info.reasoning.unwrap().is_enabled());
     }
 }
