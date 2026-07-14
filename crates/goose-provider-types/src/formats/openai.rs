@@ -1454,7 +1454,7 @@ pub fn create_request_with_options(
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
     let is_openai_model = is_openai_responses_model(&model_name);
-    let is_reasoning_model = model_config.is_reasoning_model() || is_openai_model;
+    let is_reasoning_model = model_config.is_reasoning_model();
 
     let (reasoning_property, effort_mapping, extra_body) = match &model_config.reasoning {
         Some(crate::base::Reasoning::ReasoningConfig(c)) if c.enabled => (

@@ -548,7 +548,7 @@ mod tests {
                 output_token_cost: None,
                 currency: None,
                 supports_cache_control: None,
-                reasoning: goose_providers::base::Reasoning::Enabled(false),
+                reasoning: Some(goose_providers::base::Reasoning::Enabled(false)),
             }],
             headers: None,
             timeout_seconds: None,

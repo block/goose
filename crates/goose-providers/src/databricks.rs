@@ -468,7 +468,7 @@ impl DatabricksProvider {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            reasoning: goose_provider_types::base::Reasoning::Enabled(reasoning),
+            reasoning: Some(goose_provider_types::base::Reasoning::Enabled(reasoning)),
         }
     }
 
@@ -801,7 +801,7 @@ mod tests {
             model_info.resolved_model.as_deref(),
             Some("claude-opus-4.6")
         );
-        assert!(model_info.reasoning.is_enabled());
+        assert!(model_info.reasoning.unwrap().is_enabled());
     }
 
     #[test]
