@@ -60,6 +60,12 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-5.4-mini", 400_000),
     ("gpt-5.4-nano", 400_000),
     ("gpt-5.4-pro", 1_050_000),
+    ("gpt-5.5", 1_050_000),
+    ("gpt-5.5-pro", 1_050_000),
+    ("gpt-5.6", 1_050_000),
+    ("gpt-5.6-sol", 1_050_000),
+    ("gpt-5.6-terra", 1_050_000),
+    ("gpt-5.6-luna", 1_050_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -998,6 +1004,8 @@ mod tests {
         for (model_name, base_path, expected) in [
             ("gpt-5.4", "v1/chat/completions", true),
             ("gpt-5.4-xhigh", "v1/chat/completions", true),
+            ("gpt-5.6-sol", "v1/chat/completions", true),
+            ("gpt-5.6-terra-xhigh", "v1/chat/completions", true),
             ("gpt-5.2-pro-2025-12-11", "v1/chat/completions", true),
             ("gpt-4o", "v1/chat/completions", false),
             ("gpt-5.2-codex", "openai/v1/chat/completions", false),

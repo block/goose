@@ -10,6 +10,7 @@ import {
   MenuItem,
   net,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   screen,
   session,
@@ -2417,6 +2418,14 @@ const registerGlobalShortcuts = () => {
 };
 
 async function appMain() {
+  powerMonitor.on('resume', () => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send('system-resume');
+      }
+    }
+  });
+
   await configureProxy();
 
   // Ensure Windows shims are available before any MCP processes are spawned

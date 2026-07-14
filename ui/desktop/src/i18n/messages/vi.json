@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Ứng dụng tùy chỉnh"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Các ứng dụng từ máy chủ MCP của bạn và các ứng dụng do goose tự tạo. Bạn có thể yêu cầu nó tạo ứng dụng mới thông qua giao diện trò chuyện và chúng sẽ xuất hiện ở đây."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Lỗi khi tải ứng dụng: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Nhập ứng dụng"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Mất kết nối. Đang kết nối lại…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
@@ -4010,6 +4022,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Trò chuyện"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend bên ngoài"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Bàn phím"
   },
@@ -4021,9 +4036,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Lời nhắc"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Phiên làm việc"
   },
   "settingsView.title": {
     "defaultMessage": "Cài đặt"

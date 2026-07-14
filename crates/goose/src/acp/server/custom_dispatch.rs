@@ -101,6 +101,14 @@ impl GooseAcpAgent {
         self.on_import_app(req).await
     }
 
+    #[custom_method(AppsDeleteRequest)]
+    async fn dispatch_delete_app(
+        &self,
+        req: AppsDeleteRequest,
+    ) -> Result<AppsDeleteResponse, agent_client_protocol::Error> {
+        self.on_delete_app(req).await
+    }
+
     #[custom_method(UpdateWorkingDirRequest)]
     async fn dispatch_update_working_dir(
         &self,

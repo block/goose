@@ -206,7 +206,7 @@ impl PromptManager {
             system_prompt_extras: IndexMap::new(),
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
-            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
+            current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00 %:z").to_string(),
             subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
         }
     }
@@ -216,7 +216,7 @@ impl PromptManager {
         PromptManager {
             system_prompt_override: None,
             system_prompt_extras: IndexMap::new(),
-            current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S %:z").to_string(),
             subdirectory_hint_tracker: SubdirectoryHintTracker::new(),
         }
     }
@@ -298,6 +298,17 @@ mod tests {
         assert!(!result.contains('\u{E0043}'));
         assert!(result.contains("System prompt"));
         assert!(result.contains("with hidden text"));
+    }
+
+    #[test]
+    fn test_current_date_time_includes_timezone() {
+        let mut manager =
+            PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+        manager.set_system_prompt_override("It is currently {{current_date_time}}".to_string());
+
+        let result = manager.builder().build();
+
+        assert_eq!(result, "It is currently 1970-01-01 00:00:00 +00:00");
     }
 
     #[test]

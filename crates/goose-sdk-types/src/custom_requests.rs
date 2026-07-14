@@ -157,6 +157,19 @@ pub struct AppsImportResponse {
     pub message: String,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/delete", response = AppsDeleteResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsDeleteRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsDeleteResponse {
+    pub name: String,
+    pub message: String,
+}
+
 /// Update the working directory for a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/working-dir/update", response = EmptyResponse)]

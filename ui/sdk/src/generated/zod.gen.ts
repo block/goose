@@ -330,6 +330,15 @@ export const zAppsImportResponse_unstable = z.object({
     message: z.string()
 });
 
+export const zAppsDeleteRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zAppsDeleteResponse_unstable = z.object({
+    name: z.string(),
+    message: z.string()
+});
+
 /**
  * Update the working directory for a session.
  */
@@ -2822,6 +2831,7 @@ export const zExtRequest = z.object({
             zAppsListRequest_unstable,
             zAppsExportRequest_unstable,
             zAppsImportRequest_unstable,
+            zAppsDeleteRequest_unstable,
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
@@ -2946,6 +2956,7 @@ export const zExtResponse = z.union([
                 zAppsListResponse_unstable,
                 zAppsExportResponse_unstable,
                 zAppsImportResponse_unstable,
+                zAppsDeleteResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
                 zListPromptsResponse_unstable,

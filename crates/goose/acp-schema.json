@@ -730,6 +730,36 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/import"
     },
+    "AppsDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/delete"
+    },
+    "AppsDeleteResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "message"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/delete"
+    },
     "UpdateWorkingDirRequest_unstable": {
       "type": "object",
       "properties": {
@@ -6936,6 +6966,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/AppsDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/delete",
+                  "title": "AppsDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/UpdateWorkingDirRequest_unstable"
                     }
                   ],
@@ -7953,6 +7992,14 @@
                         }
                       ],
                       "title": "AppsImportResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsDeleteResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsDeleteResponse_unstable"
                     },
                     {
                       "allOf": [

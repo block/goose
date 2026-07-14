@@ -102,7 +102,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
-        registry.register::<GeminiOAuthProvider>(true);
+        registry.register_with_inventory::<GeminiOAuthProvider>(
+            true,
+            Some(registrations::gemini_oauth_inventory()),
+        );
         registry.register::<GithubCopilotProvider>(false);
         registry.register_with_inventory::<GoogleProviderDef>(
             true,

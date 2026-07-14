@@ -60,10 +60,10 @@ impl ProviderDef for PiAcpProvider {
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
             let mode_mapping = HashMap::from([
-                (GooseMode::Auto, "auto".to_string()),
-                (GooseMode::Approve, "approve".to_string()),
-                (GooseMode::SmartApprove, "smart-approve".to_string()),
-                (GooseMode::Chat, "chat".to_string()),
+                (GooseMode::Auto, vec!["auto".to_string()]),
+                (GooseMode::Approve, vec!["approve".to_string()]),
+                (GooseMode::SmartApprove, vec!["smart-approve".to_string()]),
+                (GooseMode::Chat, vec!["chat".to_string()]),
             ]);
 
             let provider_config = AcpProviderConfig {
@@ -73,7 +73,7 @@ impl ProviderDef for PiAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
-                session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
                 session_config_options: vec![],
                 model_config_option_id: None,
                 mode_mapping,

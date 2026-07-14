@@ -29,16 +29,17 @@ It just means the change was too large for a first contribution. Start with some
 
 ### Issues
 
-If you spot a bug or have a concrete proposal for a feature, please open an issue. This shows the community and
-the maintainers the direction of your thinking.
+If you spot a bug, please open an issue. This shows the community and the maintainers the direction of your
+thinking.
 
 For bugs, describe how to reproduce the problem as clearly as possible. If the issue involves an interaction
 with an LLM, include a diagnostics report if possible.
 
 ### Discussions
 
-If you have an idea but are not yet sure how it should work, open a discussion instead. Discussions are a good
-place to explore design questions, alternatives, and whether something fits the goals of the project.
+Before opening a feature request or beginning implementation, please start with a discussion in the
+[goose-eng Discord channel](https://discord.com/channels/1287729918100246654/1514412780504088677). Discussions
+are a good place to explore design questions, alternatives, and whether something fits the goals of the project.
 
 If a change is large or touches multiple parts of the codebase, please start with a discussion before opening a PR.
 This helps us align on direction before you spend time implementing something.

@@ -316,7 +316,7 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
             .iter()
             .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
             .collect();
-        models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+        models.sort_by_key(|model| std::cmp::Reverse(model.size_bytes));
 
         // Return largest that fits in available memory
         for model in &models {

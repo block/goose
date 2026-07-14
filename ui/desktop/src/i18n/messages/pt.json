@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Aplicação personalizada"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplicações dos seus servidores MCP e aplicações criadas pelo próprio goose. Pode pedir-lhe para criar novas aplicações através da interface de chat e elas aparecerão aqui."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Erro ao carregar aplicações: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importar aplicação"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Ir para o início"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Conexão perdida. Reconectando…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensão atualizada"
@@ -4010,6 +4022,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Conversa"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externo"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Teclado"
   },
@@ -4021,9 +4036,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sessão"
   },
   "settingsView.title": {
     "defaultMessage": "Definições"

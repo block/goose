@@ -21,8 +21,6 @@ release-binary:
     @echo "Building release version..."
     cargo build --release -p goose-cli --bin goose
     @just copy-binary
-    @echo "Generating OpenAPI schema..."
-    cargo run -p goose-server --bin generate_schema
 
 # Build Windows executable on a Windows host
 [unix]
@@ -148,11 +146,6 @@ run-docs:
 run-server:
     @echo "Running external ACP backend..."
     GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
-
-# Generate OpenAPI specification without starting the UI
-generate-openapi:
-    @echo "Generating OpenAPI schema..."
-    cargo run -p goose-server --bin generate_schema
 
 # Check if generated ACP schema and TypeScript types are up-to-date
 check-acp-schema: generate-acp-types
@@ -297,7 +290,6 @@ bump-version version:
     @cd ui/desktop && npm pkg set "version={{ version }}"
     # update Cargo.lock after bumping versions in Cargo.toml
     @cargo update --workspace
-    @just set-openapi-version {{ version }}
 
 # rebuild canonical model registry and mapping report from models.dev
 build-canonical-models:
@@ -312,13 +304,9 @@ prepare-release version:
         Cargo.lock \
         ui/desktop/package.json \
         ui/pnpm-lock.yaml \
-        ui/desktop/openapi.json \
         crates/goose-provider-types/src/canonical/data/canonical_models.json \
         crates/goose-provider-types/src/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
-
-set-openapi-version version:
-    @jq '.info.version |= "{{ version }}"' ui/desktop/openapi.json > ui/desktop/openapi.json.tmp && mv ui/desktop/openapi.json.tmp ui/desktop/openapi.json
 
 # extract version from Cargo.toml
 get-tag-version:
@@ -354,7 +342,6 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 ### profile = --release or "" for debug
 ### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
 win-bld profile allparam:
-  cargo run {{profile}} -p goose-server --bin  generate_schema
   cargo build {{profile}} {{allparam}}
 
 ### Build just debug

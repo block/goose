@@ -22,6 +22,7 @@ import {
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
 import { acpSteerSession } from '../acp/prompt';
+import { isAcpRecovering } from '../acp/acpConnection';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -150,6 +151,10 @@ export function useChatSession({
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
+      if (isAcpRecovering()) {
+        return;
+      }
+
       const { msg: userMessage, images } = input;
       const currentSnapshot = getCurrentSnapshot();
 

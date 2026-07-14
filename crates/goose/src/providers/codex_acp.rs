@@ -83,12 +83,17 @@ impl ProviderDef for CodexAcpProvider {
                 ]);
             }
 
-            // Chat and Approve both map to "read-only".
             let mode_mapping = HashMap::from([
-                (GooseMode::Auto, "full-access".to_string()),
-                (GooseMode::Approve, "read-only".to_string()),
-                (GooseMode::SmartApprove, "auto".to_string()),
-                (GooseMode::Chat, "read-only".to_string()),
+                (
+                    GooseMode::Auto,
+                    vec!["full-access".to_string(), "agent-full-access".to_string()],
+                ),
+                (
+                    GooseMode::SmartApprove,
+                    vec!["auto".to_string(), "agent".to_string()],
+                ),
+                (GooseMode::Approve, vec!["read-only".to_string()]),
+                (GooseMode::Chat, vec!["read-only".to_string()]),
             ]);
 
             let provider_config = AcpProviderConfig {
@@ -98,7 +103,6 @@ impl ProviderDef for CodexAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers,
-                // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
                 session_mode_id: None,
                 session_config_options: vec![],
                 model_config_option_id: None,

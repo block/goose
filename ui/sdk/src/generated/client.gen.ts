@@ -11,6 +11,8 @@ import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddSessionExtensionRequest_unstable,
+  AppsDeleteRequest_unstable,
+  AppsDeleteResponse_unstable,
   AppsExportRequest_unstable,
   AppsExportResponse_unstable,
   AppsImportRequest_unstable,
@@ -199,6 +201,7 @@ import type {
   UpdateWorkingDirRequest_unstable,
 } from './types.gen.js';
 import {
+  zAppsDeleteResponse_unstable,
   zAppsExportResponse_unstable,
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
@@ -363,6 +366,18 @@ export class GooseExtClient {
     return zAppsImportResponse_unstable.parse(
       raw,
     ) as AppsImportResponse_unstable;
+  }
+
+  async appsDelete_unstable(
+    params: AppsDeleteRequest_unstable,
+  ): Promise<AppsDeleteResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/apps/delete",
+      params,
+    );
+    return zAppsDeleteResponse_unstable.parse(
+      raw,
+    ) as AppsDeleteResponse_unstable;
   }
 
   async sessionWorkingDirUpdate_unstable(

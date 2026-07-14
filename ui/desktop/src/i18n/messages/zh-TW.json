@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "自訂應用程式"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "來自您 MCP 伺服器的應用程式，以及由 goose 自行建立的應用程式。您可以透過聊天介面要求它建立新的應用程式，它們便會出現在這裡。"
   },
   "appsView.errorLoading": {
     "defaultMessage": "載入應用程式時發生錯誤：{error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "匯入應用程式"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首頁"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "連線已中斷。正在重新連線…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"
@@ -4010,6 +4022,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部後端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "鍵盤"
   },
@@ -4021,9 +4036,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "工作階段"
   },
   "settingsView.title": {
     "defaultMessage": "設定"

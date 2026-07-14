@@ -505,29 +505,26 @@ These variables configure the [Langfuse integration for observability](/docs/tut
 | `LANGFUSE_INIT_PROJECT_PUBLIC_KEY` | Alternative public key for Langfuse | String | None |
 | `LANGFUSE_INIT_PROJECT_SECRET_KEY` | Alternative secret key for Langfuse | String | None |
 
-## goose Server
+## goose ACP Server
 
-These variables configure the `goosed` server process. They are most often used when [running `goosed` on a remote machine](/docs/guides/remote-goose-server) and connecting goose Desktop to it, but they apply to any `goosed` invocation.
+These variables configure the `goose serve` ACP server process. They are alternatives to the equivalent `goose serve` flags, and are most often used when [running a remote goose server](/docs/guides/remote-goose-server) and connecting goose Desktop to it.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_HOST` | Interface the server binds to. Use `0.0.0.0` to accept connections from other machines; `localhost` or `127.0.0.1` restricts to the local machine. | Hostname or IP | `127.0.0.1` |
-| `GOOSE_PORT` | TCP port the server listens on | Port number | `3000` |
-| `GOOSE_TLS` | Enable TLS with a self-signed certificate. Required when connecting goose Desktop to a remote `goosed`. | `true`, `false` | `true` |
-| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests. `goosed` auto-generates one when unset; `goose serve` requires this variable unless started with `--dangerously-unauthenticated`. | Secret string | Random for `goosed`; required for `goose serve` |
+| `GOOSE_TLS` | Equivalent to `goose serve --tls`. Recommended for remote servers. | `true`, `false` | `false` |
+| `GOOSE_TLS_CERT_PATH` | Equivalent to `goose serve --tls-cert-path`. Must be used with `GOOSE_TLS_KEY_PATH`; setting it enables TLS. | File path | None |
+| `GOOSE_TLS_KEY_PATH` | Equivalent to `goose serve --tls-key-path`. Must be used with `GOOSE_TLS_CERT_PATH`; setting it enables TLS. | File path | None |
+| `GOOSE_SERVER__SECRET_KEY` | Shared secret required by the ACP endpoint unless `--dangerously-unauthenticated` is used. | Secret string | Required |
 
 **Examples**
 
 ```bash
-# Start a goosed server reachable on the local network over TLS
-export GOOSE_HOST=0.0.0.0
-export GOOSE_PORT=3000
-export GOOSE_TLS=true
-export GOOSE_SERVER__SECRET_KEY='a-long-random-secret'
-goosed agent
+# Start a goose ACP server reachable on the local network over TLS
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' \
+goose serve --platform desktop --host 0.0.0.0 --port 3000 --tls
 ```
 
-When TLS is enabled, `goosed` prints a `GOOSED_CERT_FINGERPRINT=...` line on startup. Clients (such as goose Desktop) need this fingerprint to verify the self-signed certificate. See [Running a Remote goose Server](/docs/guides/remote-goose-server) for the full setup.
+When TLS is enabled, `goose serve` prints a `GOOSED_CERT_FINGERPRINT=...` line on startup. goose Desktop can use this fingerprint to pin the server certificate. See [Running a Remote goose Server](/docs/guides/remote-goose-server) for the full setup.
 
 ## Recipe Configuration
 

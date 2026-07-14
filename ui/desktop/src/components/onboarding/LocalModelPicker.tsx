@@ -9,6 +9,7 @@ import {
 } from '../../acp/local-inference';
 import { trackOnboardingSetupFailed } from '../../utils/analytics';
 import { defineMessages, useIntl } from '../../i18n';
+import { errorMessage as formatErrorMessage } from '../../utils/conversionUtils';
 
 const i18n = defineMessages({
   checkingModels: {
@@ -83,7 +84,7 @@ const i18n = defineMessages({
 });
 
 interface LocalModelPickerProps {
-  onConfigured: (providerName: string, modelId: string) => void;
+  onConfigured: (providerName: string, modelId: string) => void | Promise<void>;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -147,8 +148,15 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
     load();
   }, [intl]);
 
-  const finishSetup = (modelId: string) => {
-    onConfigured(LOCAL_PROVIDER, modelId);
+  const finishSetup = async (modelId: string) => {
+    try {
+      await onConfigured(LOCAL_PROVIDER, modelId);
+    } catch (error) {
+      console.error('Failed to finish local model setup:', error);
+      setErrorMessage(formatErrorMessage(error));
+      trackOnboardingSetupFailed(LOCAL_PROVIDER, 'save_defaults_failed');
+      setPhase('error');
+    }
   };
 
   const startDownload = async (modelId: string) => {
@@ -187,7 +195,23 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
         setDownloadProgress(progress);
         if (progress.status === 'completed') {
           cleanup();
-          finishSetup(modelId);
+          setModels((previousModels) =>
+            previousModels.map((model) =>
+              model.id === modelId
+                ? {
+                    ...model,
+                    status: {
+                      ...model.status,
+                      state: 'Downloaded',
+                      progressPercent: 100,
+                      bytesDownloaded: model.sizeBytes,
+                      totalBytes: model.sizeBytes,
+                    },
+                  }
+                : model
+            )
+          );
+          await finishSetup(modelId);
         } else if (progress.status === 'failed') {
           cleanup();
           setErrorMessage(progress.error || 'Download failed.');
@@ -224,7 +248,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
     const model = models.find((m) => m.id === selectedModelId);
     if (!model) return;
     if (model.status.state === 'Downloaded') {
-      finishSetup(model.id);
+      await finishSetup(model.id);
     } else {
       await startDownload(model.id);
     }
