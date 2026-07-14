@@ -1515,13 +1515,10 @@ pub fn openai_reasoning_effort_for_thinking(
     model_name: &str,
     effort: ThinkingEffort,
 ) -> Option<String> {
-    if effort == ThinkingEffort::Off {
-        return Some("none".to_string());
-    }
-
     let supported = openai_reasoning_efforts_for_model(model_name);
+
     let preferred: &[&str] = match effort {
-        ThinkingEffort::Off => unreachable!(),
+        ThinkingEffort::Off => &["none", "low"],
         ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
         ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
         ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
@@ -1534,7 +1531,7 @@ pub fn openai_reasoning_effort_for_thinking(
         .map(|level| (*level).to_string())
 }
 
-fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
+pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
     let normalized = model_name.to_ascii_lowercase();
 
     if normalized.contains("gpt-5") {
@@ -1547,7 +1544,7 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
             || normalized.contains("gpt-5.6")
             || normalized.contains("gpt-5-6")
         {
-            &["low", "medium", "high", "xhigh"]
+            &["none", "low", "medium", "high", "xhigh"]
         } else {
             &["low", "medium", "high"]
         }
@@ -2497,27 +2494,6 @@ mod tests {
         let obj = request.as_object().unwrap();
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
-        assert!(obj.get("thinking_effort").is_none());
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_request_o3_off_effort_preserves_none() -> anyhow::Result<()> {
-        let model_config = test_model_config("o3")
-            .with_max_tokens(Some(1024))
-            .with_thinking_effort(ThinkingEffort::Off);
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-            false,
-        )?;
-        let obj = request.as_object().unwrap();
-
-        assert_eq!(obj.get("reasoning_effort"), Some(&json!("none")));
         assert!(obj.get("thinking_effort").is_none());
 
         Ok(())

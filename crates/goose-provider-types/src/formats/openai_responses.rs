@@ -605,11 +605,15 @@ pub fn create_responses_request(
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         if let Some(effort) = legacy_reasoning_effort.as_deref() {
-            effort
-                .parse()
-                .ok()
-                .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
-                .or(legacy_reasoning_effort)
+            if effort.eq_ignore_ascii_case("none") {
+                legacy_reasoning_effort
+            } else {
+                effort
+                    .parse()
+                    .ok()
+                    .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
+                    .or(legacy_reasoning_effort)
+            }
         } else {
             model_config
                 .thinking_effort()
@@ -638,7 +642,6 @@ pub fn create_responses_request(
             "reasoning_mode is only supported for GPT-5.6 models"
         ));
     }
-
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
@@ -1493,6 +1496,17 @@ mod tests {
 
         assert_eq!(result["model"], "o3-mini");
         assert_eq!(result["reasoning"]["effort"], "high");
+        assert_eq!(result["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
+    fn test_responses_request_supports_gpt_5_6_xhigh_effort() {
+        let model_config = ModelConfig::new("gpt-5.6-sol-xhigh");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert_eq!(result["reasoning"]["effort"], "xhigh");
         assert_eq!(result["reasoning"]["summary"], "auto");
     }
 

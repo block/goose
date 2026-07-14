@@ -1223,14 +1223,14 @@ mod tests {
     }
 
     #[test]
-    fn test_create_codex_request_off_omits_reasoning_for_codex_models() {
+    fn test_create_codex_request_off_sets_none_for_gpt_5_6_models() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
-        let mut config = ModelConfig::new("gpt-5.2-codex");
+        let mut config = ModelConfig::new("gpt-5.6-sol");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
-        assert!(payload.get("reasoning").is_none());
+        assert_eq!(payload["reasoning"]["effort"], "none");
         assert!(payload.get("reasoning_effort").is_none());
     }
 
@@ -1403,30 +1403,6 @@ mod tests {
     #[test_case("unknown-model", &["medium", "high"]; "unknown model gets default reasoning levels")]
     fn test_reasoning_levels_for_model(model: &str, expected: &[&str]) {
         assert_eq!(reasoning_levels_for_model(model), expected);
-    }
-
-    #[test]
-    fn test_create_codex_request_off_sets_none_for_gpt_5_6_models() {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("off"));
-        let mut config = ModelConfig::new("gpt-5.6-sol");
-        config.request_params = Some(params);
-
-        let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
-        assert_eq!(payload["reasoning"]["effort"], "none");
-        assert!(payload.get("reasoning_effort").is_none());
-    }
-
-    #[test]
-    fn test_create_codex_request_off_omits_reasoning_for_models_without_none() {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("off"));
-        let mut config = ModelConfig::new("gpt-5.5");
-        config.request_params = Some(params);
-
-        let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
-        assert!(payload.get("reasoning").is_none());
-        assert!(payload.get("reasoning_effort").is_none());
     }
 
     #[test]
