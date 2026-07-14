@@ -1063,6 +1063,7 @@ mod tests {
     fn test_create_request_gpt_4o() -> anyhow::Result<()> {
         // Test default medium reasoning effort for O3 model
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-4o".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1097,6 +1098,7 @@ mod tests {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1116,6 +1118,7 @@ mod tests {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "databricks-o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1136,6 +1139,7 @@ mod tests {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("max"));
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "databricks-gpt-5.2-pro".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1154,6 +1158,7 @@ mod tests {
     #[test]
     fn test_create_request_reasoning_effort_xhigh() -> anyhow::Result<()> {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "o3-xhigh".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1172,6 +1177,7 @@ mod tests {
     #[test]
     fn test_create_request_reasoning_effort_none() -> anyhow::Result<()> {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "o3-none".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1190,6 +1196,7 @@ mod tests {
     #[test]
     fn test_create_request_reasoning_effort_for_prefixed_gpt5_model() -> anyhow::Result<()> {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "databricks-gpt-5.4-high".to_string(),
             context_limit: Some(4096),
             temperature: None,
@@ -1679,6 +1686,7 @@ mod tests {
     #[test]
     fn test_create_request_claude_has_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "databricks-claude-sonnet-4".to_string(),
             context_limit: Some(200000),
             temperature: None,
@@ -1731,6 +1739,7 @@ mod tests {
     #[test]
     fn test_create_request_non_claude_no_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128000),
             temperature: None,
