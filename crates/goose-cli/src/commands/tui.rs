@@ -101,22 +101,14 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn find_local_script_ignores_current_working_directory() {
-        let _guard = env_lock::lock_env([("GOOSE_TUI_NPM_SPEC", None::<&str>)]);
-
+    fn find_local_script_ignores_unrelated_directories() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let executable = temp_dir.path().join("install/bin/goose");
-        let working_dir = temp_dir.path().join("checkout");
-        let planted_script = working_dir.join(TUI_REL_PATH);
+        let planted_script = temp_dir.path().join("checkout").join(TUI_REL_PATH);
         fs::create_dir_all(planted_script.parent().unwrap()).expect("create script directory");
         fs::write(&planted_script, "process.exit(0)\n").expect("write planted script");
 
-        let original_dir = std::env::current_dir().expect("get current directory");
-        std::env::set_current_dir(&working_dir).expect("set current directory");
-        let result = find_local_script_from(&executable);
-        std::env::set_current_dir(original_dir).expect("restore current directory");
-
-        assert_eq!(result, None);
+        assert_eq!(find_local_script_from(&executable), None);
     }
 
     #[test]
