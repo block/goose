@@ -122,6 +122,10 @@ module.exports = {
         options: {
           id: 'io.github.block.Goose', // NOTE: kept for backwards compat with existing installs
           categories: ['Development'],
+          // Register the goose:// URL scheme in the exported desktop entry, matching
+          // the deb/rpm desktopTemplate files. setAsDefaultProtocolClient can't
+          // register a handler with the host OS from inside the Flatpak sandbox.
+          mimeType: ['x-scheme-handler/goose'],
           icon: {
             scalable: 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
