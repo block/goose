@@ -637,7 +637,7 @@ mod tests {
             Self {
                 message,
                 config: ModelConfig {
-            reasoning_is_explicit: false,
+                    reasoning_is_explicit: false,
                     model_name: "test".to_string(),
                     context_limit: Some(context_limit),
                     temperature: None,

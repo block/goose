@@ -80,7 +80,7 @@ fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
     };
 
     let anthropic_config = ModelConfig {
-            reasoning_is_explicit: false,
+        reasoning_is_explicit: false,
         model_name: strip_bedrock_version_suffix(anthropic_model),
         ..model_config.clone()
     };
