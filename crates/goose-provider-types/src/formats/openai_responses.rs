@@ -1285,6 +1285,7 @@ mod tests {
     #[test]
     fn test_history_preserves_chronological_order() {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.2-codex".to_string(),
             context_limit: None,
             temperature: None,
@@ -1376,6 +1377,7 @@ mod tests {
     #[test]
     fn test_responses_tools_include_strict_false() {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.4".to_string(),
             context_limit: None,
             temperature: None,
@@ -1419,6 +1421,7 @@ mod tests {
             ("databricks-o3-none", "databricks-o3", "none"),
         ] {
             let model_config = ModelConfig {
+            reasoning_is_explicit: false,
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,
@@ -1459,6 +1462,7 @@ mod tests {
     fn test_responses_request_without_effort_suffix_omits_reasoning() {
         for model_name in ["gpt-5.4", "o3", "gpt-5-nano"] {
             let model_config = ModelConfig {
+            reasoning_is_explicit: false,
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,
@@ -1484,6 +1488,7 @@ mod tests {
     fn test_responses_request_non_reasoning_model_ignores_global_thinking_effort() {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-4o".to_string(),
             context_limit: None,
             temperature: None,
@@ -1506,6 +1511,7 @@ mod tests {
     #[test]
     fn test_request_params_override_store() {
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "o3".to_string(),
             context_limit: None,
             temperature: None,
@@ -1533,6 +1539,7 @@ mod tests {
             .with_image("aW1hZ2VkYXRh", "image/png")];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1579,6 +1586,7 @@ mod tests {
         ))];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1615,6 +1623,7 @@ mod tests {
         )];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1646,6 +1655,7 @@ mod tests {
             .with_tool_request("call_1", Ok(CallToolRequestParams::new("noop")))];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1676,6 +1686,7 @@ mod tests {
             )];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1710,6 +1721,7 @@ mod tests {
                 ))];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1746,6 +1758,7 @@ mod tests {
         ))];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1771,6 +1784,7 @@ mod tests {
         let messages = vec![Message::user().with_image("aW1n", "image/png")];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1802,6 +1816,7 @@ mod tests {
             .with_image("img2", "image/jpeg")];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1833,6 +1848,7 @@ mod tests {
         let messages = vec![Message::assistant().with_text("hello")];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -1975,6 +1991,7 @@ mod tests {
         ];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -2015,6 +2032,7 @@ mod tests {
         ];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -2052,6 +2070,7 @@ mod tests {
         )];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,
@@ -2089,6 +2108,7 @@ mod tests {
         )];
 
         let model_config = ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
             temperature: None,

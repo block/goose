@@ -35,6 +35,8 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<Reasoning>,
+    #[serde(skip)]
+    pub reasoning_is_explicit: bool,
 }
 
 impl<'de> Deserialize<'de> for ModelConfig {
@@ -57,6 +59,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
         }
 
         let raw = RawModelConfig::deserialize(deserializer)?;
+        let reasoning_is_explicit = raw.reasoning.is_some();
         let mut config = Self {
             model_name: raw.model_name,
             context_limit: raw.context_limit,
@@ -66,6 +69,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
             toolshim_model: raw.toolshim_model,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
+            reasoning_is_explicit,
         };
         config.normalize_effort_suffix();
         Ok(config)
@@ -83,9 +87,16 @@ impl ModelConfig {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            reasoning_is_explicit: false,
         };
         config.normalize_effort_suffix();
         config
+    }
+
+    pub fn with_reasoning(mut self, reasoning: Reasoning) -> Self {
+        self.reasoning = Some(reasoning);
+        self.reasoning_is_explicit = true;
+        self
     }
 
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {

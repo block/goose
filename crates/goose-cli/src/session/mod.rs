@@ -2460,6 +2460,7 @@ mod tests {
         ]);
 
         let current_model_config = goose_providers::model::ModelConfig {
+            reasoning_is_explicit: false,
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128_000),
             temperature: Some(0.25),

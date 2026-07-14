@@ -361,6 +361,7 @@ mod tests {
 
     fn model_config(model_name: &str) -> ModelConfig {
         ModelConfig {
+            reasoning_is_explicit: false,
             model_name: model_name.to_string(),
             context_limit: None,
             temperature: None,

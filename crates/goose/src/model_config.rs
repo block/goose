@@ -171,6 +171,7 @@ fn apply_openai_request_params(mut model: ModelConfig) -> ModelConfig {
 fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
     let config = Config::global();
     let mut model = ModelConfig {
+            reasoning_is_explicit: false,
         model_name: model_name.to_string(),
         context_limit: None,
         temperature: get_goose_temperature(config)?,
