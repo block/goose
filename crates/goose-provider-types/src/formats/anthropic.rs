@@ -764,7 +764,18 @@ fn apply_thinking_config(
         }
 
         if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
-            thinking.insert("clear_thinking".to_string(), json!(false));
+            // `clear_thinking` belongs to the manual `type: "enabled"` thinking
+            // shape used by OpenAI-compatible reasoning providers (e.g. Z.AI/GLM),
+            // where `false` preserves prior reasoning across turns. It is not part
+            // of the adaptive thinking interface: an adaptive request carries only
+            // `{"type": "adaptive"}` alongside `output_config.effort`. Emitting
+            // `clear_thinking` inside an adaptive object is rejected by endpoints
+            // that validate the adaptive shape strictly, so only add it when
+            // thinking is not adaptive.
+            let is_adaptive = thinking.get("type").and_then(|t| t.as_str()) == Some("adaptive");
+            if !is_adaptive {
+                thinking.insert("clear_thinking".to_string(), json!(false));
+            }
         }
     }
 }
@@ -1651,6 +1662,48 @@ mod tests {
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_adaptive_model_preserved_thinking_omits_clear_thinking() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
+        ]);
+
+        // An adaptive-mode Anthropic model with preserved thinking context must
+        // send `{"type": "adaptive"}` without `clear_thinking` — that field is
+        // only valid on the manual `enabled` shape and is rejected by endpoints
+        // that validate the adaptive interface strictly.
+        let mut config = cfg_with_effort("claude-opus-4-8", "high");
+        config.max_tokens = Some(64000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_with_options_provider(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: true,
+                thinking_disabled: false,
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert!(
+            payload["thinking"].get("clear_thinking").is_none(),
+            "adaptive thinking must not carry clear_thinking, got {}",
+            payload["thinking"]
+        );
+        assert_eq!(payload["output_config"]["effort"], "high");
 
         Ok(())
     }
