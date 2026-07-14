@@ -12,6 +12,12 @@
       "reasoning": {
         "enabled": true,
         "thinking_preservation_format": "content_prepend",
+        "reasoning_property": "reasoning_effort",
+        "effort_mapping": {
+          "low": "low",
+          "medium": "medium",
+          "high": "high"
+        },
         "extra_body": {
           "reasoning_format": "parsed"
         }
@@ -23,6 +29,12 @@
       "reasoning": {
         "enabled": true,
         "thinking_preservation_format": "content_xml",
+        "reasoning_property": "reasoning_effort",
+        "effort_mapping": {
+          "low": "low",
+          "medium": "medium",
+          "high": "high"
+        },
         "extra_body": {
           "reasoning_format": "parsed"
         }
