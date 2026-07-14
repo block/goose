@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "テンプレートまたは手動設定から"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "「{query}」に一致するプロバイダーはありません"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "プロバイダーを検索..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName}のロゴ"
   },

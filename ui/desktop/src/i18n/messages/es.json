@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Desde plantilla o configuración manual"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Ningún proveedor coincide con \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Buscar proveedores..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logotipo de {providerName}"
   },

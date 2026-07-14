@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tiada apl tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Cuba semula"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Cuba semula"
   },
   "appsView.title": {
     "defaultMessage": "Apl"
@@ -2815,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Daripada templat atau persediaan manual"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Tiada penyedia yang sepadan dengan \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cari penyedia..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"

@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nessuna app disponibile"
   },
-  "appsView.retry": {
-    "defaultMessage": "Riprova"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
   },
   "appsView.title": {
     "defaultMessage": "App"
@@ -2815,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Da modello o configurazione manuale"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Nessun provider corrisponde a \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cerca provider..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"

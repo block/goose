@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "沒有可用的應用程式"
   },
-  "appsView.retry": {
-    "defaultMessage": "重試"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "重試"
   },
   "appsView.title": {
     "defaultMessage": "應用程式"
@@ -2815,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "從範本或手動設定"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "沒有符合 \"{query}\" 的提供者"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜尋提供者..."
   },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 標誌"

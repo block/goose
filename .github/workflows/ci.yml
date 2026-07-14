@@ -75,6 +75,44 @@ jobs:
         env:
           RUST_MIN_STACK: 8388608
 
+  rust-build-and-test-tls:
+    name: Build and Test TLS Backend (${{ matrix.tls-feature }})
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        tls-feature:
+          - rustls-tls
+          - native-tls
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
+        with:
+          key: ${{ matrix.tls-feature }}
+
+      - name: Build and Test with ${{ matrix.tls-feature }}
+        run: |
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          export CARGO_INCREMENTAL=0
+          cargo test -p goose --no-default-features --features ${{ matrix.tls-feature }},code-mode
+          cargo test -p goose-providers --no-default-features --features ${{ matrix.tls-feature }}
+          cargo test -p goose-cli --no-default-features --features ${{ matrix.tls-feature }},code-mode -- --skip scenario_tests::scenarios::tests
+          cargo test -p goose-cli --no-default-features --features ${{ matrix.tls-feature }},code-mode --jobs 1 scenario_tests::scenarios::tests
+        env:
+          RUST_MIN_STACK: 8388608
+
 
   rust-build-windows:
     name: Build Rust Project on Windows
