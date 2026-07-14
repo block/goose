@@ -2,6 +2,8 @@ import { Recipe } from '../recipe';
 import type { Message } from './message';
 
 export type TokenState = {
+  /** Context window size reported by the provider (e.g. 128k, 200k, 1M). */
+  contextLimit?: number;
   accumulatedCacheReadTokens?: number;
   accumulatedCacheWriteTokens?: number;
   accumulatedCost?: number | null;

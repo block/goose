@@ -189,6 +189,7 @@ interface ChatInputProps {
   latestInference?: Message['metadata']['inference'] | null;
   nextChatExtensionDraft?: NextChatExtensionDraft;
   onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
+  tokenState?: import('../types/chat').TokenState;
 }
 
 export default function ChatInput({
@@ -224,6 +225,7 @@ export default function ChatInput({
   latestInference,
   nextChatExtensionDraft,
   onNextChatExtensionDraftChange,
+  tokenState,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -640,6 +642,14 @@ export default function ChatInput({
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveModel, effectiveProvider, configModel, configProvider]);
+
+  // Override static tokenLimit with session-reported contextLimit when available
+  // (e.g. ACP CLI providers report their model's actual context window via usage_update)
+  useEffect(() => {
+    if (tokenState?.contextLimit) {
+      setTokenLimit(tokenState.contextLimit);
+    }
+  }, [tokenState?.contextLimit]);
 
   // Handle token usage alerts
   useEffect(() => {

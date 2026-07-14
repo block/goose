@@ -164,6 +164,33 @@ describe('applyGooseSessionNotification', () => {
             accumulatedOutputTokens: 15,
             accumulatedTotalTokens: 25,
             accumulatedCost: 0.12,
+            contextLimit: 200,
+          },
+        },
+      ]);
+    });
+
+    it('forwards contextLimit when present in the notification', () => {
+      const changes = applyGooseSessionNotification(
+        makeState(),
+        gooseUpdate({
+          sessionUpdate: 'usage_update',
+          used: 42,
+          contextLimit: 1000000,
+          accumulatedInputTokens: 10,
+          accumulatedOutputTokens: 15,
+        })
+      );
+
+      expect(changes).toEqual([
+        {
+          type: 'tokenState',
+          tokenState: {
+            totalTokens: 42,
+            accumulatedInputTokens: 10,
+            accumulatedOutputTokens: 15,
+            accumulatedTotalTokens: 25,
+            contextLimit: 1000000,
           },
         },
       ]);

@@ -21,6 +21,7 @@ export function applyGooseSessionNotification(
             ...(update.accumulatedCost !== undefined
               ? { accumulatedCost: update.accumulatedCost }
               : {}),
+            ...(update.contextLimit !== undefined ? { contextLimit: update.contextLimit } : {}),
           },
         },
       ];

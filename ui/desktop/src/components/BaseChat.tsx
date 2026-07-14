@@ -528,6 +528,7 @@ export default function BaseChat({
             workingDir={session?.working_dir}
             onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
+            tokenState={tokenState}
             {...customChatInputProps}
           />
         </ChatInputCard>
