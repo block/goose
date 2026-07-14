@@ -240,11 +240,11 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
             let valid_levels = reasoning_levels_for_model(&model_config.model_name);
             let preferred_levels: &[&str] = match effort {
                 ThinkingEffort::Off => {
-                    if valid_levels.contains(&"none") {
-                        &["none"]
+                    return Some(if valid_levels.contains(&"none") {
+                        "none".to_string()
                     } else {
-                        return None;
-                    }
+                        "low".to_string()
+                    });
                 }
                 ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
                 ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
