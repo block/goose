@@ -97,9 +97,9 @@ impl ProviderModelConfig {
             config = config.with_merged_request_params(request_params);
         }
 
-        config.reasoning = self
-            .reasoning
-            .map(goose_providers::base::Reasoning::Enabled);
+        if let Some(r) = self.reasoning {
+            config = config.with_reasoning(goose_providers::base::Reasoning::Enabled(r));
+        }
         Ok(config)
     }
 }

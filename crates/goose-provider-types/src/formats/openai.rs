@@ -1441,9 +1441,15 @@ pub fn create_request_with_options(
         _ => (None, None, None),
     };
 
-    let property_key = reasoning_property.unwrap_or("reasoning_effort");
+    let property_key = reasoning_property.or_else(|| {
+        if is_openai_model {
+            Some("reasoning_effort")
+        } else {
+            None
+        }
+    });
 
-    let reasoning_effort = if is_reasoning_model {
+    let reasoning_effort = if is_reasoning_model && property_key.is_some() {
         model_config
             .thinking_effort()
             .map_or(legacy_reasoning_effort.map(|s| json!(s)), |effort| {
@@ -1478,8 +1484,8 @@ pub fn create_request_with_options(
         "messages": messages_array
     });
 
-    if let Some(effort) = reasoning_effort {
-        payload[property_key] = effort;
+    if let (Some(effort), Some(key)) = (reasoning_effort, property_key) {
+        payload[key] = effort;
     }
 
     if let Some(extra) = extra_body {
