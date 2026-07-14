@@ -272,6 +272,164 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
     Ok(())
 }
 
+/// A hook plugin whose script logs each invocation to `hook.log` under its
+/// plugin root. Keep the returned env alive for the duration of the test.
+struct HookTestEnv {
+    _temp_dir: tempfile::TempDir,
+    plugin_dir: std::path::PathBuf,
+}
+
+impl HookTestEnv {
+    fn new(event: &str, script: &str) -> Self {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("test-plugin");
+        std::fs::create_dir_all(plugin_dir.join("hooks")).unwrap();
+        std::fs::write(
+            plugin_dir.join("hooks/hooks.json"),
+            format!(
+                r#"{{"hooks": {{"{event}": [{{"hooks": [{{"type": "command", "command": "sh ${{PLUGIN_ROOT}}/hook.sh"}}]}}]}}}}"#
+            ),
+        )
+        .unwrap();
+        std::fs::write(plugin_dir.join("hook.sh"), script).unwrap();
+        Self {
+            _temp_dir: temp_dir,
+            plugin_dir,
+        }
+    }
+
+    fn hook_manager(&self) -> crate::hooks::HookManager {
+        use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
+        crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+            name: "test-plugin".into(),
+            root: self.plugin_dir.clone(),
+            scope: PluginScope::Project,
+        }])
+    }
+
+    fn invocations(&self) -> usize {
+        std::fs::read_to_string(self.plugin_dir.join("hook.log"))
+            .unwrap_or_default()
+            .lines()
+            .count()
+    }
+}
+
+const LOG_AND_ALLOW_SCRIPT: &str = "#!/bin/sh\necho ran >> \"$PLUGIN_ROOT/hook.log\"\nexit 0\n";
+const LOG_AND_BLOCK_SCRIPT: &str =
+    "#!/bin/sh\necho blocked >> \"$PLUGIN_ROOT/hook.log\"\necho \"not done yet\" >&2\nexit 2\n";
+
+#[tokio::test]
+async fn stop_hook_denial_retries_until_cap_overrides() -> Result<()> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let env = HookTestEnv::new("Stop", LOG_AND_BLOCK_SCRIPT);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_fn = calls.clone();
+    let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
+        let n = calls_for_fn.fetch_add(1, Ordering::SeqCst);
+        vec![Message::assistant().with_text(format!("response {n}"))]
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_hook_manager(env.hook_manager())
+        .with_stop_hook_block_cap(2);
+
+    let events = harness.run_events("hello", 10).await?;
+
+    // Initial turn plus two honored retries; the third block hits the cap.
+    assert_eq!(calls.load(Ordering::SeqCst), 3, "events: {events:#?}");
+    assert_eq!(env.invocations(), 3);
+
+    // Denial context is durable agent-facing state; the cap warning is a
+    // persisted user-facing notification.
+    let persisted = harness.persisted_messages().await?;
+    let denials = persisted
+        .iter()
+        .filter(|m| m.as_concat_text().contains("blocked ending this turn"))
+        .count();
+    assert_eq!(denials, 2, "persisted: {persisted:#?}");
+    let last = persisted.last().expect("a persisted message");
+    assert!(
+        last.content.iter().any(|c| matches!(
+            c,
+            MessageContent::SystemNotification(n) if n.msg.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
+        )),
+        "tail: {last:?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn stop_hook_allow_ends_turn_after_one_check() -> Result<()> {
+    let env = HookTestEnv::new("Stop", LOG_AND_ALLOW_SCRIPT);
+    let harness = TestHarness::with_steps([Step::Text("done".to_string())])
+        .await
+        .with_hook_manager(env.hook_manager());
+
+    let messages = harness.run("hello", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 1);
+    assert_eq!(env.invocations(), 1);
+    assert_eq!(messages.last().unwrap().as_concat_text(), "done");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn session_start_hook_fires_once_per_session() -> Result<()> {
+    let env = HookTestEnv::new("SessionStart", LOG_AND_ALLOW_SCRIPT);
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("ok")]
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_hook_manager(env.hook_manager());
+
+    harness.run("first", 10).await?;
+    harness.run("second", 10).await?;
+
+    assert_eq!(env.invocations(), 1);
+    assert_eq!(harness.provider.call_count(), 2);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn pre_tool_use_hook_denial_becomes_tool_error() -> Result<()> {
+    let env = HookTestEnv::new("PreToolUse", LOG_AND_BLOCK_SCRIPT);
+    let harness = TestHarness::with_steps([
+        Step::ToolCall {
+            id: "call_1".to_string(),
+            name: "test__echo".to_string(),
+            args: serde_json::json!({ "x": 1 }),
+        },
+        Step::Text("understood".to_string()),
+    ])
+    .await
+    .with_default_extension()
+    .await
+    .with_hook_manager(env.hook_manager());
+
+    let messages = harness.run("use the echo tool", 10).await?;
+
+    assert_eq!(env.invocations(), 1);
+    let tool_response = messages
+        .iter()
+        .find(|m| m.is_tool_response())
+        .expect("a tool response");
+    let text = tool_response_text(tool_response);
+    assert!(
+        text.contains("denied by policy hook"),
+        "tool response: {text}"
+    );
+    // The denied tool never ran (echo would have returned the args as JSON).
+    assert!(!text.contains("\"x\":1"));
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
     use crate::action_required_manager::ElicitationOutcome;

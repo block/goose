@@ -15,6 +15,7 @@ use crate::agents::state_machine::ops_exit_on_error::ExitOnErrorOperation;
 use crate::agents::state_machine::ops_llm::LlmOperation;
 use crate::agents::state_machine::ops_maxturns::MaxTurnsOperation;
 use crate::agents::state_machine::ops_slash_command::SlashCommandOperation;
+use crate::agents::state_machine::ops_stop_hook::StopHookOperation;
 use crate::agents::state_machine::ops_tool_approval::ToolApprovalOperation;
 use crate::agents::state_machine::ops_toolcalling::ToolExecutionOperation;
 use crate::agents::types::SessionConfig;
@@ -35,11 +36,26 @@ pub async fn reply(
     // loop body never has to branch on the `Option`.
     let cancel = cancel_token.unwrap_or_default();
 
+    let session_id = session_config.id.clone();
+
+    let entry_session = session_manager.get_session(&session_id, false).await?;
+    if entry_session.message_count == 0 {
+        agent
+            .emit_hook(crate::hooks::HookEvent::SessionStart, &session_id)
+            .await;
+    }
+    // Approval and elicitation re-entries arrive as content-only user messages
+    // with no text; they resume a turn rather than submit a prompt.
+    let prompt_text = user_message.as_concat_text();
+    if !prompt_text.is_empty() {
+        agent
+            .emit_user_prompt_submit_hook(&session_id, &prompt_text)
+            .await;
+    }
+
     session_manager
         .add_message(&session_config.id, &user_message)
         .await?;
-
-    let session_id = session_config.id.clone();
 
     // Session naming is out-of-band: a detached task that overlaps the reply
     // loop, generates a title once early in a session, persists it, and pushes
@@ -65,12 +81,8 @@ pub async fn reply(
         });
     }
 
-    let working_dir = session_manager
-        .get_session(&session_id, false)
-        .await?
-        .working_dir;
     let (tools, _toolshim_tools, system_prompt, model_config) = agent
-        .prepare_tools_and_prompt(&session_id, &working_dir)
+        .prepare_tools_and_prompt(&session_id, &entry_session.working_dir)
         .await?;
     if agent.goose_mode().await == crate::config::GooseMode::SmartApprove {
         agent.tool_inspection_manager.apply_tool_annotations(&tools);
@@ -94,10 +106,7 @@ pub async fn reply(
             session_config.schedule_id.clone(),
         )),
         Arc::new(ToolApprovalOperation::new(agent)),
-        Arc::new(ToolExecutionOperation::new(
-            agent.extension_manager.clone(),
-            session_manager.clone(),
-        )),
+        Arc::new(ToolExecutionOperation::new(agent)),
         Arc::new(LlmOperation::new(
             agent,
             provider,
@@ -106,6 +115,7 @@ pub async fn reply(
             tools,
             session_config.schedule_id.clone(),
         )),
+        Arc::new(StopHookOperation::new(agent)),
         Arc::new(ExitOnErrorOperation),
     ];
 

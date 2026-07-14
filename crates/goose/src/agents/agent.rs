@@ -102,7 +102,7 @@ fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
     None
 }
 
-fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
+pub(crate) fn stop_hook_denial_context_message(plugin: &str, reason: &str) -> Message {
     let nudge = format!(
         "Stop hook `{plugin}` blocked ending this turn:
 
@@ -115,14 +115,14 @@ Address this policy hook denial before trying to stop again."
         .with_visibility(false, true)
 }
 
-fn stop_hook_denial_notification(plugin: &str) -> Message {
+pub(crate) fn stop_hook_denial_notification(plugin: &str) -> Message {
     Message::assistant().with_system_notification(
         SystemNotificationType::InlineMessage,
         format!("Stop hook `{plugin}` blocked ending this turn."),
     )
 }
 
-fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
+pub(crate) fn stop_hook_block_cap_warning(plugin: &str, cap: u32) -> Message {
     Message::assistant().with_system_notification(
         SystemNotificationType::InlineMessage,
         format!(
@@ -424,7 +424,7 @@ impl Agent {
         self.stop_hook_block_cap_override = Some(cap);
     }
 
-    fn stop_hook_block_cap(&self) -> u32 {
+    pub(crate) fn stop_hook_block_cap(&self) -> u32 {
         #[cfg(test)]
         if let Some(cap) = self.stop_hook_block_cap_override {
             return cap;
@@ -441,6 +441,21 @@ impl Agent {
         }
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
+            .await;
+    }
+
+    pub(crate) async fn emit_user_prompt_submit_hook(&self, session_id: &str, prompt: &str) {
+        if !self
+            .hook_manager
+            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+        {
+            return;
+        }
+        let ctx =
+            crate::hooks::HookContext::new(crate::hooks::HookEvent::UserPromptSubmit, session_id)
+                .with_message(prompt.to_string());
+        self.hook_manager
+            .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
             .await;
     }
 
@@ -464,7 +479,7 @@ impl Agent {
             .await;
     }
 
-    async fn emit_stop_hook_blocking(
+    pub(crate) async fn emit_stop_hook_blocking(
         &self,
         session_id: &str,
         last_assistant_message: &str,

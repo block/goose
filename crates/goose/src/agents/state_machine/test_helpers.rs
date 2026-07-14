@@ -415,6 +415,18 @@ impl TestHarness {
         self
     }
 
+    #[cfg(test)]
+    pub fn with_hook_manager(mut self, hook_manager: crate::hooks::HookManager) -> Self {
+        self.agent.set_hook_manager_for_test(hook_manager);
+        self
+    }
+
+    #[cfg(test)]
+    pub fn with_stop_hook_block_cap(mut self, cap: u32) -> Self {
+        self.agent.set_stop_hook_block_cap_for_test(cap);
+        self
+    }
+
     /// Set the session's recorded token total, used by proactive compaction.
     pub async fn set_total_tokens(&self, tokens: i32) {
         self.agent
@@ -492,18 +504,21 @@ impl TestHarness {
     }
 }
 
-/// Extract the concatenated text from a tool-response message.
+/// Extract the concatenated text from a tool-response message, including the
+/// error message of a failed result.
 pub fn tool_response_text(message: &Message) -> String {
     use crate::conversation::message::MessageContent;
     message
         .content
         .iter()
         .filter_map(|c| match c {
-            MessageContent::ToolResponse(r) => r.tool_result.as_ref().ok().map(|res| {
-                res.content
+            MessageContent::ToolResponse(r) => Some(match r.tool_result.as_ref() {
+                Ok(res) => res
+                    .content
                     .iter()
                     .filter_map(|c| c.as_text().map(|t| t.text.clone()))
-                    .collect::<String>()
+                    .collect::<String>(),
+                Err(e) => e.message.to_string(),
             }),
             _ => None,
         })

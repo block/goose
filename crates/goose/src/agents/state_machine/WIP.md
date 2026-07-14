@@ -42,6 +42,7 @@ state_machine/
 - [x] Machine driver applies ordered `TurnEffect`s
 - [x] Usage recording — the LLM op runs each usage chunk through `update_session_metrics` (cost enrichment + session totals), emits `Usage`/`MessageUsage` events, and attaches the ledger to the assistant message; the compaction op records its summarization usage with the compaction flag, which resets the session total to the summary size (so a replace can't re-trigger on a stale count — the machine no longer clears totals itself)
 - [x] Stale orphaned tool requests (a crash mid-execution) — approval and execution only consider requests from the current request (at/after the last genuine user prompt); the LLM op strips older unanswered requests from the provider view. The transcript keeps them; nothing re-executes them.
+- [x] Hooks — `SessionStart`/`UserPromptSubmit` at machine entry; `PreToolUse`/`PostToolUse` inherited via `Agent::dispatch_tool_call`; `Stop` as `StopHookOperation` (see backlog table)
 - [x] Elicitation — a blocked tool's request flows through the existing action-required stream: the execution op persists it (mid-op, since the op stays blocked until the answer) and emits it; the response arrives via `Agent::reply`'s interception (shared with the old loop, so the state-machine dispatch sits below it) or directly from ACP, unblocking the tool through the `ActionRequiredManager` registry. The design-doc idea of yielding and re-entering doesn't fit here: the blocked tool call is a live future, so the reply stream stays open while the question is out.
 - [x] Cancellation plumbed through the machine + `Emitter`
 - [x] `SlashCommandOperation` — runs over the persisted tail message and returns ordered effects
@@ -221,7 +222,7 @@ Roughly in order of value, with the code in `agents/agent.rs` they replace:
 |---|---|---|
 | **LLM** | `stream_response_from_provider` + the main `while let Some(next) = stream.next()` arms | **Landed.** Streams the response with the real `tools` list, so the model can emit `ToolRequest`s. Persists the assistant message (requests + thinking/reasoning) as-is. Constructor: `(Arc<dyn Provider>, system_prompt, tools)`. |
 | **Tool approval** | `tool_inspection_manager.inspect_tools` + `process_inspection_results_with_permission_inspector` + `handle_approval_tool_requests` | **Landed.** Runs before execution, stores the decision in `ToolRequest.tool_meta`, emits `ActionRequired` and waits on the existing confirmation router when needed. The state lives on the request in the conversation, not in a side map. |
-| **Tool execution** | `handle_approved_and_denied_tools` + `combined.next()` `tokio::select!` loop + frontend tool sub-flow | **Landed (bare path only).** Applies when the last message is an assistant message with approved/denied tool requests. Dispatches approved requests via `dispatch_tool_call`, turns denied requests into declined `ToolResponse`s, drains streams forwarding `McpNotification`s, collects responses into one user message, `AppendMessages`. On cancel: cancels the dispatch token and synthesizes interrupted-tool responses so the committed tail is valid. Constructor: `(&Agent)`. Elicitation requests from blocked tools are persisted mid-op and emitted; the 100ms tick of the old drain loop was only a cancellation poll, covered here by `select!` on `emit.cancelled()`. **Deferred:** frontend tools, chat-mode skip, `MANAGE_EXTENSIONS`/`tools_updated`, unparseable-tool-call error path. |
+| **Tool execution** | `handle_approved_and_denied_tools` + `combined.next()` `tokio::select!` loop + frontend tool sub-flow | **Landed.** Applies when the last message is an assistant message with approved/denied tool requests. Dispatches approved requests via `Agent::dispatch_tool_call` — inheriting PreToolUse/PostToolUse hooks, platform-tool interception (`final_output`, schedule), and large-response handling — turns denied requests into declined `ToolResponse`s, drains streams forwarding `McpNotification`s, collects responses into one user message, `AppendMessages`. On cancel: cancels the dispatch token and synthesizes interrupted-tool responses so the committed tail is valid. Constructor: `(&Agent)`. Elicitation requests from blocked tools are persisted mid-op and emitted; the 100ms tick of the old drain loop was only a cancellation poll, covered here by `select!` on `emit.cancelled()`. **Dropped deliberately:** frontend tools — nothing registers them anymore; they should be deleted from the old loop too. **Deferred:** chat-mode skip, `MANAGE_EXTENSIONS`/`tools_updated`, unparseable-tool-call error path. |
 | **Compaction** | `check_if_compaction_needed` block + `ContextLengthExceeded` arm in `reply()` | **Landed (proactive + reactive).** Proactive: cheap synchronous ratio check (`session.total_tokens` vs model context limit, both captured at construction) when the last message is a pending user prompt. Reactive: when the tail is a `ContextLengthExceeded` error message (the LLM op appends one instead of bubbling), compact-and-retry up to `MAX_CONTEXT_ERROR_RETRIES` consecutive failed cycles, counted on the op and reset by a successful assistant turn (compaction erases the error messages, so the count can't come from the conversation). `run` strips the trailing error before summarizing. Records the summarization usage with the compaction flag, which resets the session total to the summary size so a replace can't re-trigger on a stale count. Constructor: `(&Agent, Arc<dyn Provider>, ModelConfig, schedule_id)`. |
 
 ### Errors as conversation state
@@ -244,9 +245,9 @@ the error and retry with a new message. This replaces the old fire-and-forget
 | **Tool-call pair compaction** | `crate::context_mgmt::maybe_summarize_tool_pairs` background task | Synchronous first cut; revisit backgrounding if it regresses latency. |
 | **Elicitation** | `drain_elicitation_messages` + `ActionRequiredManager` calls | **Landed** (in the tool-execution op, not as its own op — see Current status). |
 | **Max turns** | `if turns_taken > max_turns` block | Trivial. Counter is per-op or per-machine state (TBD when needed). |
-| **Retry / goal / grind / final-output** | `handle_retry_logic` + `goal` / `grind` / `final_output` blocks | One op when last assistant message has no tool requests. May append a nudge or `YieldToClient`. |
+| **Retry / goal / grind / final-output** | `handle_retry_logic` + `goal` / `grind` / `final_output` blocks | One op when last assistant message has no tool requests. May append a nudge or `YieldToClient`. The `final_output` *tool call* already works (agent-level dispatch intercepts it); what's missing is the end-of-turn logic that consumes the recorded output and evaluates success criteria. |
 | **Subagent sync** | `subagent_handler` + `moim::inject_moim` | When subagents have results to report: append, run another turn. |
-| **Hooks (cross-cutting)** | scattered `hook_manager.emit(...)` and `emit_blocking(...)` calls | Run alongside ops, not in the ordered list. `UserPromptSubmit` on entry, `Stop` before `YieldToClient`. Denial flows back via session state. |
+| **Hooks** | scattered `hook_manager.emit(...)` and `emit_blocking(...)` calls | **Landed.** The "cross-cutting exception" turned out unnecessary — each hook found a home at its own granularity: `SessionStart`/`UserPromptSubmit` fire at machine entry (once per reply, so not ops — a non-mutating op would re-apply forever); `PreToolUse`/`PostToolUse` and the shell/file variants ride inside `Agent::dispatch_tool_call`, per tool call; `Stop` is an ordinary `StopHookOperation` at the end of the list — it applies when the tail is a completed assistant turn, and a denial just appends the denial-context user message, which re-arms the LLM op. The consecutive-block cap is a per-reply counter on the op (the denial messages are user-role and agent-visible, so a conversation walk can't count them). **Divergence:** the old loop also consulted the blocking Stop hook on the max-turns exit (a deny could override max turns) and fired a non-blocking `Stop` on other exit paths; neither is ported. |
 | **Slash commands** | `execute_command` block in `reply()` | Landed as `SlashCommandOperation`. Follow-up: move more command internals out of `Agent`. |
 | **Refresh tools after `manage_extensions`** | `tools_updated` block | Either a tail-step of the Tool execution op or a separate op. |
 
@@ -276,14 +277,13 @@ the error and retry with a new message. This replaces the old fire-and-forget
     `AppendMessages` dissolves into "the machine collected what you emitted".
   Not now (touches machine + LLM op + tool op together); current code is
   correct, just batches tool results suboptimally.
-- **Platform tools are not handled by the toolcalling op.** The old
-  `dispatch_tool_call` intercepts `final_output` and `platform__manage_schedule`
-  before the extension manager — they're not real MCP tools. These are
-  leftovers that should move to the dedicated platform-tools class. The
-  toolcalling op deliberately doesn't special-case them: `final_output`
-  belongs with the retry/goal/grind/final-output op; schedule belongs with
-  whatever owns scheduling. Until then, calling them via the state machine
-  produces a tool-not-found error response.
+- **Platform tools ride on `Agent::dispatch_tool_call`.** The toolcalling op
+  now goes through the agent-level dispatch, so `final_output` and
+  `platform__manage_schedule` interception (plus tool hooks and
+  large-response handling) come along for free. They're still leftovers that
+  should move to the dedicated platform-tools class — `final_output` belongs
+  with the retry/goal/grind/final-output op; schedule belongs with whatever
+  owns scheduling — but that relocation is a cleanup, not a parity blocker.
 - **Where do turn counters live?** Today there are none. When the max-turns
   op lands, it needs to count turns across loop iterations. Options: pass a
   mutable counter into the op constructor (`Arc<AtomicU32>`), or reintroduce
@@ -298,9 +298,6 @@ the error and retry with a new message. This replaces the old fire-and-forget
   channel). The state-machine framing wants pull-driven (a `SubagentSync`
   op checks for queued results). Where does the buffer live? Probably on
   the agent, not the session.
-- **Hooks as "cross-cutting"** — likely the machine fires hooks at
-  well-known points (turn start, before LLM, after tool execution, before
-  yield) rather than ops doing it.
 - **First-class background operations.** Right now out-of-band work (session
   naming) is a raw `tokio::spawn` that floats free of the machine — the loop
   has no handle on it, can't cancel it, and can't wait for it. A cleaner

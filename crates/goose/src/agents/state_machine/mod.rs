@@ -14,6 +14,7 @@ mod ops_exit_on_error;
 mod ops_llm;
 mod ops_maxturns;
 mod ops_slash_command;
+mod ops_stop_hook;
 mod ops_tool_approval;
 mod ops_toolcalling;
 

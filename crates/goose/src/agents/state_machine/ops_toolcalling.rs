@@ -1,43 +1,36 @@
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
-use rmcp::model::{CallToolResult, Content, ErrorCode, ErrorData, Role};
+use rmcp::model::{CallToolResult, Content, Role};
 
 use crate::agents::agent::{tool_stream, ToolStreamItem};
-use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult};
 use crate::agents::state_machine::ops_tool_approval::request_executable;
+use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::tool_execution::DECLINED_RESPONSE;
-use crate::agents::tool_execution::{ToolCallContext, ToolCallResult};
-use crate::agents::AgentEvent;
+use crate::agents::{Agent, AgentEvent};
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::session::{Session, SessionManager};
+use crate::session::Session;
 
 /// Executes pending tool requests: when the last message is an assistant
 /// message carrying tool requests that have not yet been answered, dispatch
-/// each one through the extension manager and append a single message with the
-/// collected responses.
+/// each one through `Agent::dispatch_tool_call` — which carries the
+/// PreToolUse/PostToolUse hooks, platform-tool interception (`final_output`,
+/// schedule management), and large-response handling — and append a single
+/// message with the collected responses.
 ///
-/// Scoped to ordinary extension tools. Approval, frontend tools (which yield to
-/// the client), platform tools, and hooks are handled elsewhere.
-pub struct ToolExecutionOperation {
-    extension_manager: Arc<ExtensionManager>,
-    session_manager: Arc<SessionManager>,
+/// Approval is handled by the approval op; frontend tools are deliberately
+/// unsupported here (nothing registers them anymore).
+pub struct ToolExecutionOperation<'a> {
+    agent: &'a Agent,
 }
 
-impl ToolExecutionOperation {
-    pub fn new(
-        extension_manager: Arc<ExtensionManager>,
-        session_manager: Arc<SessionManager>,
-    ) -> Self {
-        Self {
-            extension_manager,
-            session_manager,
-        }
+impl<'a> ToolExecutionOperation<'a> {
+    pub fn new(agent: &'a Agent) -> Self {
+        Self { agent }
     }
 }
 
@@ -124,7 +117,7 @@ fn approval_denied(permission: Option<&crate::permission::Permission>) -> bool {
 }
 
 #[async_trait]
-impl Operation for ToolExecutionOperation {
+impl Operation for ToolExecutionOperation<'_> {
     fn name(&self) -> &'static str {
         "tool_execution"
     }
@@ -150,21 +143,19 @@ impl Operation for ToolExecutionOperation {
                 .tool_call
                 .clone()
                 .map_err(|e| anyhow!("tool call could not be parsed: {e}"))?;
-            let ctx = ToolCallContext::new(
-                session.id.clone(),
-                Some(session.working_dir.clone()),
-                Some(request.id.clone()),
-            );
-            let result = self
-                .extension_manager
-                .dispatch_tool_call(&ctx, tool_call, emit.cancel_token().clone())
-                .await
-                .unwrap_or_else(|e| {
-                    let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
-                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
-                    });
-                    ToolCallResult::from(Err(error_data))
-                });
+            let (_, result) = self
+                .agent
+                .dispatch_tool_call(
+                    tool_call,
+                    request.id.clone(),
+                    Some(emit.cancel_token().clone()),
+                    session,
+                )
+                .await;
+            // An Err here is a policy denial (PreToolUse hook) or a
+            // misconfigured platform tool; either way it becomes the tool's
+            // error response.
+            let result = result.unwrap_or_else(|error_data| ToolCallResult::from(Err(error_data)));
 
             let req_id = request.id.clone();
             let stream = tool_stream(
@@ -222,8 +213,12 @@ impl Operation for ToolExecutionOperation {
                             // that reads the conversation), so an effect
                             // returned at completion would record the question
                             // only after its answer.
-                            if let Err(e) =
-                                self.session_manager.add_message(&session.id, &msg).await
+                            if let Err(e) = self
+                                .agent
+                                .config
+                                .session_manager
+                                .add_message(&session.id, &msg)
+                                .await
                             {
                                 tracing::warn!("Failed to persist action-required message: {e}");
                             }
