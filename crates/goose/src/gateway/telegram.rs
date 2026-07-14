@@ -264,17 +264,19 @@ impl TelegramGateway {
     }
 
     fn voice_file_extension(mime_type: Option<&str>) -> String {
-        let subtype = mime_type
+        let media_type = mime_type
             .and_then(|mime| mime.split(';').next())
             .map(str::trim)
-            .and_then(|mime| mime.strip_prefix("audio/"))
             .map(str::to_ascii_lowercase);
+        let subtype = media_type
+            .as_deref()
+            .and_then(|mime| mime.strip_prefix("audio/"));
 
         let Some(subtype) = subtype else {
             return "ogg".to_string();
         };
 
-        match subtype.as_str() {
+        match subtype {
             "mpeg" => "mp3".to_string(),
             "mp4" | "x-m4a" => "m4a".to_string(),
             "ogg" => "ogg".to_string(),
@@ -808,6 +810,8 @@ mod tests {
             (Some("audio/x-wav"), "wav"),
             (Some("audio/flac"), "flac"),
             (Some("audio/WEBM"), "webm"),
+            (Some("Audio/MPEG"), "mp3"),
+            (Some("AUDIO/WEBM"), "webm"),
         ];
 
         for (mime_type, expected) in cases {
