@@ -33,24 +33,24 @@ pub enum GooseError {
         retry_after_ms: Option<u64>,
         retry_after_suffix: String,
     },
-    #[error("Output token limit exceeded: {message}")]
-    OutputTokenLimitExceeded { message: String },
-    #[error("Context length exceeded: {message}")]
-    ContextLengthExceeded { message: String },
-    #[error("Authentication error: {message}")]
-    Authentication { message: String },
-    #[error("Timeout: {message}")]
-    Timeout { message: String },
-    #[error("Provider unavailable: {message}")]
-    ProviderUnavailable { message: String },
-    #[error("{message}")]
-    Generic { message: String },
+    #[error("Output token limit exceeded: {details}")]
+    OutputTokenLimitExceeded { details: String },
+    #[error("Context length exceeded: {details}")]
+    ContextLengthExceeded { details: String },
+    #[error("Authentication error: {details}")]
+    Authentication { details: String },
+    #[error("Timeout: {details}")]
+    Timeout { details: String },
+    #[error("Provider unavailable: {details}")]
+    ProviderUnavailable { details: String },
+    #[error("{details}")]
+    Generic { details: String },
 }
 
 impl GooseError {
     fn generic(error: impl ToString) -> Self {
         Self::Generic {
-            message: error.to_string(),
+            details: error.to_string(),
         }
     }
 }
@@ -65,10 +65,10 @@ impl From<goose_providers::errors::ProviderError> for GooseError {
     fn from(error: goose_providers::errors::ProviderError) -> Self {
         match error {
             goose_providers::errors::ProviderError::Authentication(message) => {
-                Self::Authentication { message }
+                Self::Authentication { details: message }
             }
             goose_providers::errors::ProviderError::ContextLengthExceeded(message) => {
-                Self::ContextLengthExceeded { message }
+                Self::ContextLengthExceeded { details: message }
             }
             goose_providers::errors::ProviderError::RateLimitExceeded { retry_delay, .. } => {
                 let retry_after_ms = retry_delay.map(|delay| delay.as_millis() as u64);
@@ -84,21 +84,21 @@ impl From<goose_providers::errors::ProviderError> for GooseError {
             | goose_providers::errors::ProviderError::EndpointNotFound(message)
             | goose_providers::errors::ProviderError::CreditsExhausted {
                 details: message, ..
-            } => Self::ProviderUnavailable { message },
+            } => Self::ProviderUnavailable { details: message },
             goose_providers::errors::ProviderError::NetworkError(message)
                 if is_timeout(&message) =>
             {
-                Self::Timeout { message }
+                Self::Timeout { details: message }
             }
             goose_providers::errors::ProviderError::RequestFailed(message)
                 if is_timeout(&message) =>
             {
-                Self::Timeout { message }
+                Self::Timeout { details: message }
             }
             goose_providers::errors::ProviderError::ExecutionError(message)
                 if is_output_token_limit(&message) =>
             {
-                Self::OutputTokenLimitExceeded { message }
+                Self::OutputTokenLimitExceeded { details: message }
             }
             other => Self::generic(other),
         }
@@ -422,34 +422,34 @@ impl From<GooseError> for GooseStreamError {
                 message: format!("Rate limit exceeded{retry_after_suffix}"),
                 retry_after_ms,
             },
-            GooseError::OutputTokenLimitExceeded { message } => Self {
+            GooseError::OutputTokenLimitExceeded { details } => Self {
                 kind: GooseStreamErrorKind::OutputTokenLimitExceeded,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
-            GooseError::ContextLengthExceeded { message } => Self {
+            GooseError::ContextLengthExceeded { details } => Self {
                 kind: GooseStreamErrorKind::ContextLengthExceeded,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
-            GooseError::Authentication { message } => Self {
+            GooseError::Authentication { details } => Self {
                 kind: GooseStreamErrorKind::Authentication,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
-            GooseError::Timeout { message } => Self {
+            GooseError::Timeout { details } => Self {
                 kind: GooseStreamErrorKind::Timeout,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
-            GooseError::ProviderUnavailable { message } => Self {
+            GooseError::ProviderUnavailable { details } => Self {
                 kind: GooseStreamErrorKind::ProviderUnavailable,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
-            GooseError::Generic { message } => Self {
+            GooseError::Generic { details } => Self {
                 kind: GooseStreamErrorKind::Generic,
-                message,
+                message: details,
                 retry_after_ms: None,
             },
         }
@@ -509,7 +509,7 @@ where
     (&mut task.handle).await.map_err(|error| {
         if error.is_cancelled() {
             GooseError::Timeout {
-                message: "runtime task was cancelled".to_string(),
+                details: "runtime task was cancelled".to_string(),
             }
         } else {
             GooseError::generic(error)
@@ -593,7 +593,7 @@ where
             tokio::time::timeout(Duration::from_millis(timeout_ms), future)
                 .await
                 .map_err(|_| GooseError::Timeout {
-                    message: format!("request timed out after {timeout_ms}ms"),
+                    details: format!("request timed out after {timeout_ms}ms"),
                 })
         } else {
             Ok(future.await)
