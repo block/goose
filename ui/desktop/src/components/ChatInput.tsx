@@ -7,6 +7,7 @@ import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Close, Microphone } from './icons';
 import { ChatState } from '../types/chatState';
+import type { TokenState } from '../types/chat';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
@@ -189,7 +190,7 @@ interface ChatInputProps {
   latestInference?: Message['metadata']['inference'] | null;
   nextChatExtensionDraft?: NextChatExtensionDraft;
   onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
-  tokenState?: import('../types/chat').TokenState;
+  tokenState?: TokenState;
 }
 
 export default function ChatInput({
