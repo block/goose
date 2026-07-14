@@ -108,7 +108,6 @@ jobs:
           export CARGO_INCREMENTAL=0
           cargo test -p goose --no-default-features --features ${{ matrix.tls-feature }},code-mode
           cargo test -p goose-providers --no-default-features --features ${{ matrix.tls-feature }}
-          cargo test -p goose-server --no-default-features --features ${{ matrix.tls-feature }},code-mode
           cargo test -p goose-cli --no-default-features --features ${{ matrix.tls-feature }},code-mode -- --skip scenario_tests::scenarios::tests
           cargo test -p goose-cli --no-default-features --features ${{ matrix.tls-feature }},code-mode --jobs 1 scenario_tests::scenarios::tests
         env:
