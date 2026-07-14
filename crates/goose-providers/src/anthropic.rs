@@ -50,6 +50,12 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
+// Total-request timeout applied when a declarative provider does not set
+// `timeout_seconds`. Matches the OpenAI engine's default (`openai.rs`) and the
+// shared `ApiClient` default so behavior is unchanged for providers that leave
+// the field unset.
+const DEFAULT_ANTHROPIC_TIMEOUT_SECONDS: u64 = 600;
+
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
     #[serde(skip)]
@@ -365,7 +371,15 @@ pub fn from_declarative_config(
 
     let format_options = format_options_for_provider(config.preserves_thinking);
 
-    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?;
+    let timeout_secs = config
+        .timeout_seconds
+        .unwrap_or(DEFAULT_ANTHROPIC_TIMEOUT_SECONDS);
+    let mut api_client = ApiClient::with_timeout_and_tls(
+        config.base_url,
+        auth,
+        std::time::Duration::from_secs(timeout_secs),
+        tls_config,
+    )?;
 
     if let Some(headers) = &config.headers {
         let mut header_map = reqwest::header::HeaderMap::new();

@@ -275,6 +275,10 @@ impl ApiClient {
         &self.host
     }
 
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
     fn rebuild_client(&mut self) -> Result<()> {
         let mut client_builder = Client::builder()
             .timeout(self.timeout)
