@@ -638,6 +638,38 @@ impl Provider for OpenAiProvider {
         self.fetch_models_from_api().await
     }
 
+    async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let models = self.fetch_supported_models().await?;
+        let mut model_infos = Vec::new();
+
+        for model_name in models {
+            if let Some(custom_models) = &self.custom_models {
+                if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
+                    model_infos.push(model_info.clone());
+                    continue;
+                }
+            }
+            model_infos.push(goose_provider_types::base::model_info_for_provider_model(
+                self.get_name(),
+                &model_name,
+            ));
+        }
+
+        Ok(model_infos)
+    }
+
+    async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
+        if let Some(custom_models) = &self.custom_models {
+            if let Some(model_info) = custom_models.iter().find(|m| m.name == model_name) {
+                return Ok(model_info.clone());
+            }
+        }
+        Ok(goose_provider_types::base::model_info_for_provider_model(
+            self.get_name(),
+            model_name,
+        ))
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -1334,5 +1366,35 @@ mod tests {
     fn derive_base_path_does_not_treat_v_word_as_version() {
         let r = derive_base_path("/api/voice");
         assert_eq!(r, "api/voice/v1/chat/completions");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_model_info_returns_custom_model_config() {
+        let mut custom_model = ModelInfo::new("my-custom-model", 4096);
+        custom_model.reasoning = goose_provider_types::base::Reasoning::ReasoningConfig(
+            goose_provider_types::base::ReasoningConfig {
+                enabled: true,
+                ..Default::default()
+            },
+        );
+
+        let provider = OpenAiProviderBuilder::new(
+            crate::api_client::ApiClient::new_with_tls(
+                "http://localhost".into(),
+                crate::api_client::AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+        )
+        .custom_models(Some(vec![custom_model.clone()]))
+        .build();
+
+        let info = provider.fetch_model_info("my-custom-model").await.unwrap();
+
+        assert!(info.reasoning.is_enabled());
+
+        // Standard heuristics would default this to non-reasoning
+        let info_not_found = provider.fetch_model_info("other-model").await.unwrap();
+        assert!(!info_not_found.reasoning.is_enabled());
     }
 }
