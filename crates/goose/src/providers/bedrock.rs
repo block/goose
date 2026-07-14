@@ -761,7 +761,7 @@ impl Provider for BedrockProvider {
 
         if is_mantle_model {
             let mut normalized_config = ModelConfig {
-            reasoning_is_explicit: false,
+                reasoning_is_explicit: false,
                 model_name: base_name,
                 ..model_config.clone()
             };
@@ -934,7 +934,7 @@ mod tests {
                 mantle_base_url: None,
             },
             ModelConfig {
-            reasoning_is_explicit: false,
+                reasoning_is_explicit: false,
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,

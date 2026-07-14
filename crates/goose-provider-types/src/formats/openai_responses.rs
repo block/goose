@@ -1458,7 +1458,7 @@ mod tests {
             ("databricks-o3-none", "databricks-o3", "none"),
         ] {
             let model_config = ModelConfig {
-            reasoning_is_explicit: false,
+                reasoning_is_explicit: false,
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,
@@ -1539,7 +1539,7 @@ mod tests {
     fn test_responses_request_without_effort_suffix_omits_reasoning() {
         for model_name in ["gpt-5.4", "o3", "gpt-5-nano"] {
             let model_config = ModelConfig {
-            reasoning_is_explicit: false,
+                reasoning_is_explicit: false,
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,
