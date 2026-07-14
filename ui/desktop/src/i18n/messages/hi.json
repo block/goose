@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "टेम्प्लेट या मैन्युअल सेटअप से"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\" से मेल खाने वाला कोई प्रदाता नहीं"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "प्रदाता खोजें..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} लोगो"
   },

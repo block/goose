@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tidak ada aplikasi yang tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Coba lagi"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Coba lagi"
   },
   "appsView.title": {
     "defaultMessage": "Aplikasi"
@@ -2815,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Dari templat atau penyiapan manual"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Tidak ada penyedia yang cocok dengan \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cari penyedia..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"

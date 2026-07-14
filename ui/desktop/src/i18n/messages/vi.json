@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Không có ứng dụng nào"
   },
-  "appsView.retry": {
-    "defaultMessage": "Thử lại"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Thử lại"
   },
   "appsView.title": {
     "defaultMessage": "Ứng dụng"
@@ -2815,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Từ mẫu hoặc thiết lập thủ công"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Không có nhà cung cấp nào khớp với \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Tìm kiếm nhà cung cấp..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"

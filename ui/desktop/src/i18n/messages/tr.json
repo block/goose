@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Şablondan veya manuel kurulumdan"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\" ile eşleşen sağlayıcı yok"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Sağlayıcı ara..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logosu"
   },

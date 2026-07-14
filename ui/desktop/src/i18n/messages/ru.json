@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Из шаблона или вручную"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Нет провайдеров, соответствующих \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Поиск провайдеров..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Логотип {providerName}"
   },

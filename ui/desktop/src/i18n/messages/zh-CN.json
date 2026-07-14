@@ -2816,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "使用模板或手动设置"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "没有匹配 \"{query}\" 的提供商"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜索提供商..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 徽标"
   },
