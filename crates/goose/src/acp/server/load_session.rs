@@ -208,10 +208,10 @@ impl GooseAcpAgent {
             self.supports_goose_custom_notifications(),
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        // Historical sessions must remain loadable when stored recipe metadata no longer validates.
+        // Cached agents can retain recipe prompt/tooling from an earlier successful load.
+        // Clear first so soft-fail and MissingParams (Ok without apply) both leave no recipe context.
+        self.clear_recipe(&agent).await;
         if let Err(e) = self.apply_session_recipe(&agent, &session).await {
-            // Cached agents may still hold recipe prompt/tooling from an earlier successful load.
-            self.clear_recipe(&agent).await;
             tracing::warn!(
                 sid = %sid,
                 error = ?e,
