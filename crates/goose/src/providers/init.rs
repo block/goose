@@ -118,7 +118,18 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<KimiCodeProvider>(true);
         registry.register_with_inventory::<LiteLLMProvider>(
             false,
-            Some(registrations::refresh_only()),
+            Some(registrations::refresh_only().with_configured(|| {
+                crate::providers::inventory::default_inventory_configured(
+                    &[goose_providers::base::ConfigKey::new(
+                        "LITELLM_HOST",
+                        true,
+                        false,
+                        Some("http://localhost:4000"),
+                        true,
+                    )],
+                    crate::config::Config::global(),
+                )
+            })),
         );
         registry.register::<NanoGptProvider>(true);
         registry.register_with_inventory::<OllamaProviderDef>(
@@ -479,6 +490,19 @@ mod tests {
         assert!(
             entry.supports_inventory_refresh(),
             "litellm must support inventory refresh so the model picker calls fetch_supported_models"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_litellm_configured_without_api_key() {
+        let _guard = env_lock::lock_env([("LITELLM_API_KEY", None::<&str>)]);
+
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.inventory_configured(),
+            "litellm should be considered configured even without LITELLM_API_KEY set"
         );
     }
 }
