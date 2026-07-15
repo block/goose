@@ -467,7 +467,7 @@ impl Agent {
             .with_last_assistant_message(last_assistant_message.to_string())
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
+    pub(crate) async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }

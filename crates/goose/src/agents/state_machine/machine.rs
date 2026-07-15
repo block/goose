@@ -5,6 +5,7 @@ use async_stream::try_stream;
 use futures::stream::BoxStream;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use tracing_futures::Instrument;
 
 use crate::agents::agent::DEFAULT_MAX_TURNS;
 use crate::agents::state_machine::operation::{
@@ -112,6 +113,8 @@ pub async fn reply(
             .unwrap_or(DEFAULT_MAX_TURNS)
     });
 
+    let stop_hook_decided_exit = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
     let operations: Vec<Arc<dyn Operation + '_>> = vec![
         Arc::new(SlashCommandOperation::new(agent)),
         Arc::new(SteerOperation::new(agent)),
@@ -143,9 +146,22 @@ pub async fn reply(
             session_config.clone(),
             initial_messages,
         )),
-        Arc::new(StopHookOperation::new(agent)),
+        Arc::new(StopHookOperation::new(
+            agent,
+            stop_hook_decided_exit.clone(),
+        )),
         Arc::new(ExitOnErrorOperation),
     ];
+
+    let reply_stream_span = tracing::info_span!(
+        target: "goose::agents::agent",
+        "reply_stream",
+        trace_output = tracing::field::Empty,
+        session.id = %session_config.id,
+        session.user = %crate::session_context::session_user(),
+        session.host = %crate::session_context::session_host(),
+        session.agent_type = "goose",
+    );
 
     Ok(Box::pin(try_stream! {
         loop {
@@ -250,5 +266,26 @@ pub async fn reply(
                 break;
             }
         }
-    }))
+
+        let last_assistant_text = session_manager
+            .get_session(&session_id, true)
+            .await?
+            .conversation
+            .unwrap_or_default()
+            .messages()
+            .iter()
+            .rev()
+            .filter(|m| m.role == rmcp::model::Role::Assistant)
+            .map(Message::as_concat_text)
+            .find(|text| !text.is_empty())
+            .unwrap_or_default();
+        if !last_assistant_text.is_empty() {
+            tracing::Span::current().record("trace_output", last_assistant_text.as_str());
+        }
+        // Exits the blocking stop-hook op didn't decide — max turns, approval
+        // waits, errors, cancellation — still notify Stop hooks, without a say.
+        if !stop_hook_decided_exit.load(std::sync::atomic::Ordering::Relaxed) {
+            agent.emit_stop_hook(&session_id, &last_assistant_text).await;
+        }
+    }.instrument(reply_stream_span)))
 }

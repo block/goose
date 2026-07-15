@@ -766,6 +766,35 @@ async fn stop_hook_allow_ends_turn_after_one_check() -> Result<()> {
 }
 
 #[tokio::test]
+async fn stop_hook_is_notified_once_on_max_turns_exit() -> Result<()> {
+    // The max-turns exit never consults the blocking stop hook (it can't be
+    // overridden), but Stop hooks are still notified — exactly once, at the
+    // end of the stream, mirroring the old loop's non-blocking tail emit.
+    let env = HookTestEnv::new("Stop", LOG_AND_ALLOW_SCRIPT);
+    let calls = std::sync::atomic::AtomicUsize::new(0);
+    let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
+        let n = calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        vec![Message::assistant().with_tool_request(
+            format!("call_{n}"),
+            Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                .with_arguments(serde_json::Map::new())),
+        )]
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_default_extension()
+        .await
+        .with_hook_manager(env.hook_manager());
+
+    let messages = harness.run("keep going", 2).await?;
+
+    assert_eq!(harness.provider.call_count(), 2);
+    assert_eq!(env.invocations(), 1, "events: {messages:#?}");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn session_start_hook_fires_once_per_session() -> Result<()> {
     let env = HookTestEnv::new("SessionStart", LOG_AND_ALLOW_SCRIPT);
     let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {

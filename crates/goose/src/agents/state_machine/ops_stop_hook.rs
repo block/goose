@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -29,13 +30,19 @@ pub struct StopHookOperation<'a> {
     // messages are user-role and agent-visible, so they look like fresh
     // prompts to any walk-back.
     consecutive_blocks: AtomicU32,
+    // Set when the blocking hook decided the exit (Allow or cap override).
+    // The machine fires the non-blocking Stop hook at stream end when it
+    // didn't — max-turns, approval waits, errors, cancellation — mirroring
+    // the old loop's stop_hook_handled_for_exit.
+    decided_exit: Arc<AtomicBool>,
 }
 
 impl<'a> StopHookOperation<'a> {
-    pub fn new(agent: &'a Agent) -> Self {
+    pub fn new(agent: &'a Agent, decided_exit: Arc<AtomicBool>) -> Self {
         Self {
             agent,
             consecutive_blocks: AtomicU32::new(0),
+            decided_exit,
         }
     }
 }
@@ -65,11 +72,15 @@ impl Operation for StopHookOperation<'_> {
             .emit_stop_hook_blocking(&session.id, &last_assistant_text)
             .await
         {
-            HookDecision::Allow => Ok(OperationResult::NotApplicable(emit)),
+            HookDecision::Allow => {
+                self.decided_exit.store(true, Ordering::Relaxed);
+                Ok(OperationResult::NotApplicable(emit))
+            }
             HookDecision::Deny { reason, plugin } => {
                 let blocks = self.consecutive_blocks.fetch_add(1, Ordering::Relaxed) + 1;
                 let cap = self.agent.stop_hook_block_cap();
                 if blocks > cap {
+                    self.decided_exit.store(true, Ordering::Relaxed);
                     let warning = stop_hook_block_cap_warning(&plugin, cap);
                     emit.emit(AgentEvent::Message(warning.clone())).await;
                     Ok(OperationResult::Applied(vec![
