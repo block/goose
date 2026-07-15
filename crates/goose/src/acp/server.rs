@@ -1434,6 +1434,18 @@ impl GooseAcpAgent {
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
+            MessageContent::Image(image) => {
+                let chunk = ContentChunk::new(ContentBlock::Image(ImageContent::new(
+                    image.data.clone(),
+                    image.mime_type.clone(),
+                )))
+                .meta(message_update_meta(message_id, message_created, steer));
+                let update = match role {
+                    Role::User => SessionUpdate::UserMessageChunk(chunk),
+                    Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                };
+                cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
+            }
             MessageContent::SystemNotification(notification) => {
                 send_status_message_update(
                     cx,
