@@ -1,7 +1,5 @@
 use crate::config::Config;
-use chrono::Utc;
 use rmcp::model::{CallToolResult, Content, ErrorData};
-use std::fs::File;
 use std::io::Write;
 
 const DEFAULT_LARGE_TEXT_THRESHOLD: usize = 200_000;
@@ -68,18 +66,12 @@ pub fn process_tool_response(
 
 /// Write large text content to a temporary file
 fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
-    // Create temp directory if it doesn't exist
-    let temp_dir = std::env::temp_dir().join("goose_mcp_responses");
-    std::fs::create_dir_all(&temp_dir)?;
-
-    // Generate a unique filename with timestamp
-    let timestamp = Utc::now().format("%Y%m%d_%H%M%S%.6f");
-    let filename = format!("mcp_response_{}.txt", timestamp);
-    let file_path = temp_dir.join(&filename);
-
-    // Write content to file
-    let mut file = File::create(&file_path)?;
+    let mut file = tempfile::Builder::new()
+        .prefix("goose_mcp_response_")
+        .suffix(".txt")
+        .tempfile()?;
     file.write_all(content.as_bytes())?;
+    let (_, file_path) = file.keep()?;
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -132,19 +124,15 @@ mod tests {
             assert!(text_content.text.contains("characters"));
 
             // Extract the file path from the message
-            if let Some(file_path) = text_content.text.split("stored in the file: ").nth(1) {
-                // Verify the file exists and contains the original text
-                let path = Path::new(file_path.trim());
-                if path.exists() {
-                    // Only check content if file exists (may not exist in CI environments)
-                    if let Ok(file_content) = fs::read_to_string(path) {
-                        assert_eq!(file_content, large_text);
-                    }
-
-                    // Clean up the file
-                    let _ = fs::remove_file(path); // Ignore errors on cleanup
-                }
-            }
+            let file_path = text_content
+                .text
+                .rsplit_once(": ")
+                .expect("spill message should contain a file path")
+                .1;
+            let path = Path::new(file_path.trim());
+            assert!(path.exists());
+            assert_eq!(fs::read_to_string(path).unwrap(), large_text);
+            fs::remove_file(path).unwrap();
         } else {
             panic!("Expected text content");
         }
@@ -199,12 +187,12 @@ mod tests {
                 .contains("The response returned from the tool call was larger"));
 
             // Extract the file path and clean up
-            if let Some(file_path) = text_content.text.split("stored in the file: ").nth(1) {
-                let path = Path::new(file_path.trim());
-                if path.exists() {
-                    let _ = fs::remove_file(path); // Ignore errors on cleanup
-                }
-            }
+            let file_path = text_content
+                .text
+                .rsplit_once(": ")
+                .expect("spill message should contain a file path")
+                .1;
+            fs::remove_file(Path::new(file_path.trim())).unwrap();
         } else {
             panic!("Expected text content");
         }
@@ -240,5 +228,38 @@ mod tests {
             }
             _ => panic!("Expected execution error"),
         }
+    }
+
+    #[test]
+    fn test_large_response_files_have_unique_paths() {
+        let first_path = write_large_text_to_file("first response").unwrap();
+        let second_path = write_large_text_to_file("second response").unwrap();
+        let paths_are_distinct = first_path != second_path;
+        let first_content = fs::read_to_string(&first_path).unwrap();
+        let second_content = fs::read_to_string(&second_path).unwrap();
+
+        fs::remove_file(&first_path).unwrap();
+        if paths_are_distinct {
+            fs::remove_file(&second_path).unwrap();
+        }
+
+        assert!(paths_are_distinct);
+        assert_eq!(first_content, "first response");
+        assert_eq!(second_content, "second response");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_large_response_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let file_path = write_large_text_to_file("sensitive response").unwrap();
+        let metadata = fs::metadata(&file_path).unwrap();
+        let mode = metadata.permissions().mode();
+        let content = fs::read_to_string(&file_path).unwrap();
+        fs::remove_file(&file_path).unwrap();
+
+        assert_eq!(mode & 0o077, 0);
+        assert_eq!(content, "sensitive response");
     }
 }
