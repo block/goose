@@ -103,7 +103,7 @@ impl GooseAcpAgent {
             .delete_session(&req.session_id)
             .await
             .internal_err()?;
-        self.close_session(&req.session_id).await?;
+        self.on_close_session(&req.session_id).await?;
         Ok(EmptyResponse {})
     }
 
@@ -252,7 +252,7 @@ impl GooseAcpAgent {
             .apply()
             .await
             .internal_err()?;
-        self.close_session(&req.session_id).await?;
+        self.on_close_session(&req.session_id).await?;
         Ok(EmptyResponse {})
     }
 
