@@ -29,10 +29,7 @@
         "thinking_preservation_format": "content_xml",
         "reasoning_property": "reasoning_effort",
         "effort_mapping": {
-          "off": "none",
-          "low": "low",
-          "medium": "medium",
-          "high": "high"
+          "off": "none"
         },
         "extra_body": {
           "reasoning_format": "parsed"
