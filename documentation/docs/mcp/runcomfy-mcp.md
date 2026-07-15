@@ -53,13 +53,13 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
   <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
         name="RunComfy"
+        description="Manage RunComfy Serverless (ComfyUI) GPU deployments and run async image/video inference"
         command="npx -y mcp-remote https://mcp.runcomfy.com/mcp --header Authorization:${RUNCOMFY_AUTH}"
         timeout={300}
         envVars={[
-          { name: "RUNCOMFY_AUTH", label: "RunComfy API token as a Bearer credential, e.g. 'Bearer <YOUR_RUNCOMFY_TOKEN>'" }
+          { key: "RUNCOMFY_AUTH", value: "Bearer <YOUR_RUNCOMFY_TOKEN>" }
         ]}
-        apiKeyLink="https://www.runcomfy.com/profile"
-        apiKeyLinkText="RunComfy API token"
+        infoNote="Get your RunComfy API token from https://www.runcomfy.com/profile"
       />
   </TabItem>
 </Tabs>
