@@ -17,9 +17,10 @@ pub struct FinalOutputTool {
 
 impl FinalOutputTool {
     pub fn new(response: Response) -> Result<Self, String> {
-        let schema = response.json_schema.as_ref().ok_or_else(|| {
-            "Cannot create FinalOutputTool: json_schema is required".to_string()
-        })?;
+        let schema = response
+            .json_schema
+            .as_ref()
+            .ok_or_else(|| "Cannot create FinalOutputTool: json_schema is required".to_string())?;
 
         if let Some(obj) = schema.as_object() {
             if obj.is_empty() {
