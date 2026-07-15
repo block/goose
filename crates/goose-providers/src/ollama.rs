@@ -412,7 +412,7 @@ impl Provider for OllamaProvider {
             .and_then(|models| models.iter().find(|m| m.name == model_config.model_name))
         {
             patched_model_config.reasoning = match patched_model_config.reasoning {
-                Some(_) if !model_config.reasoning_is_explicit => m.reasoning.clone(),
+                Some(r) if !model_config.reasoning_is_explicit => m.reasoning.clone().or(Some(r)),
                 Some(r) => Some(r.with_provider_defaults(m.reasoning.as_ref())),
                 None => m.reasoning.clone(),
             };
