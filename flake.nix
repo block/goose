@@ -42,7 +42,16 @@
           version = workspaceToml.workspace.package.version;
           src = self;
 
-          cargoLock.lockFile = ./Cargo.lock;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            # Cargo.lock pins a git dependency (cudaforge). buildRustPackage
+            # refuses to fetch git deps unless we either provide an output hash
+            # per dep or opt into builtins.fetchGit. We use the latter so the
+            # flake builds without downstream consumers having to override
+            # cargoDeps / crate fetch behavior (see issue #9467). The fetch is
+            # still reproducible because Cargo.lock pins the exact rev.
+            allowBuiltinFetchGit = true;
+          };
 
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
