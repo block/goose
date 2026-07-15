@@ -811,35 +811,39 @@ impl McpClientTrait for McpClient {
     }
 
     async fn subscribe_resource(&self, session_id: &str, uri: &str) -> Result<(), Error> {
-        let peer = {
-            let client = self.client.lock().await;
-            client.service().set_session_id(session_id).await;
-            client.peer().clone()
-        };
-        tokio::time::timeout(
-            self.timeout,
-            peer.subscribe(SubscribeRequestParams::new(uri.to_string())),
-        )
-        .await
-        .map_err(|_| ServiceError::Timeout {
-            timeout: self.timeout,
-        })?
+        let result = self
+            .send_request_with_context(
+                session_id,
+                None,
+                None,
+                ClientRequest::SubscribeRequest(Request::new(SubscribeRequestParams::new(uri))),
+                CancellationToken::new(),
+            )
+            .await?;
+
+        match result {
+            ServerResult::EmptyResult(_) => Ok(()),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
     async fn unsubscribe_resource(&self, session_id: &str, uri: &str) -> Result<(), Error> {
-        let peer = {
-            let client = self.client.lock().await;
-            client.service().set_session_id(session_id).await;
-            client.peer().clone()
-        };
-        tokio::time::timeout(
-            self.timeout,
-            peer.unsubscribe(UnsubscribeRequestParams::new(uri.to_string())),
-        )
-        .await
-        .map_err(|_| ServiceError::Timeout {
-            timeout: self.timeout,
-        })?
+        let result = self
+            .send_request_with_context(
+                session_id,
+                None,
+                None,
+                ClientRequest::UnsubscribeRequest(Request::new(UnsubscribeRequestParams::new(
+                    uri,
+                ))),
+                CancellationToken::new(),
+            )
+            .await?;
+
+        match result {
+            ServerResult::EmptyResult(_) => Ok(()),
+            _ => Err(ServiceError::UnexpectedResponse),
+        }
     }
 
     async fn list_tools(
@@ -1033,6 +1037,24 @@ fn inject_session_context_into_request(
                 None,
             );
             ClientRequest::ReadResourceRequest(req)
+        }
+        ClientRequest::SubscribeRequest(mut req) => {
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
+            ClientRequest::SubscribeRequest(req)
+        }
+        ClientRequest::UnsubscribeRequest(mut req) => {
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
+            ClientRequest::UnsubscribeRequest(req)
         }
         ClientRequest::ListToolsRequest(mut req) => {
             req.extensions = inject_session_context_into_extensions(

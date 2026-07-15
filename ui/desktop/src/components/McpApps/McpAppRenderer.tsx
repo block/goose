@@ -365,7 +365,7 @@ function GooseAppFrame({
       ? new McpAppResourceSubscriptions(
           sessionId,
           extensionName,
-          crypto.randomUUID(),
+          globalThis.crypto.randomUUID(),
           (uri) => {
             void transport?.send({
               jsonrpc: '2.0',
@@ -508,7 +508,7 @@ function GooseAppFrame({
       bridge.close();
       iframe.remove();
     };
-  }, [extensionName, sandbox.permissions, sandbox.url.href, sessionId]);
+  }, [extensionName, sandbox.permissions, sandbox.url.href, sandbox.url.origin, sessionId]);
 
   useEffect(() => {
     const bridge = bridgeRef.current;
