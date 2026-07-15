@@ -31,6 +31,16 @@
       "responseType": "ReadResourceResponse_unstable"
     },
     {
+      "method": "_goose/unstable/resources/subscribe",
+      "requestType": "SubscribeResourceRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/resources/unsubscribe",
+      "requestType": "UnsubscribeResourceRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/apps/list",
       "requestType": "AppsListRequest_unstable",
       "responseType": "AppsListResponse_unstable"
@@ -570,6 +580,14 @@
     {
       "method": "_goose/unstable/session/update",
       "paramsType": "GooseSessionNotification_unstable"
+    },
+    {
+      "method": "_goose/unstable/resources/updated",
+      "paramsType": "ResourceUpdatedNotification_unstable"
+    },
+    {
+      "method": "_goose/unstable/resources/list_changed",
+      "paramsType": "ResourceListChangedNotification_unstable"
     }
   ],
   "agentRequests": [

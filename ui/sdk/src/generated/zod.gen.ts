@@ -302,6 +302,26 @@ export const zReadResourceResponse_unstable = z.object({
     result: z.unknown().optional().default(null)
 });
 
+/**
+ * Subscribe to updates for one resource from one extension.
+ */
+export const zSubscribeResourceRequest_unstable = z.object({
+    sessionId: z.string(),
+    extensionName: z.string(),
+    uri: z.string(),
+    subscriberId: z.string()
+});
+
+/**
+ * Unsubscribe from updates for one resource from one extension.
+ */
+export const zUnsubscribeResourceRequest_unstable = z.object({
+    sessionId: z.string(),
+    extensionName: z.string(),
+    uri: z.string(),
+    subscriberId: z.string()
+});
+
 export const zAppsListRequest_unstable = z.object({
     sessionId: z.union([
         z.string(),
@@ -2805,6 +2825,23 @@ export const zGooseSessionNotification_unstable = z.object({
     update: zGooseSessionUpdate
 });
 
+/**
+ * A subscribed MCP resource changed on one extension in one Goose session.
+ */
+export const zResourceUpdatedNotification_unstable = z.object({
+    sessionId: z.string(),
+    extensionName: z.string(),
+    uri: z.string()
+});
+
+/**
+ * The MCP resource list changed on one extension in one Goose session.
+ */
+export const zResourceListChangedNotification_unstable = z.object({
+    sessionId: z.string(),
+    extensionName: z.string()
+});
+
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
     parameters: z.array(zRecipeParameterDto)
@@ -2828,6 +2865,8 @@ export const zExtRequest = z.object({
             zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
+            zSubscribeResourceRequest_unstable,
+            zUnsubscribeResourceRequest_unstable,
             zAppsListRequest_unstable,
             zAppsExportRequest_unstable,
             zAppsImportRequest_unstable,
@@ -3040,7 +3079,11 @@ export const zExtResponse = z.union([
 export const zExtNotification = z.object({
     method: z.string(),
     params: z.union([
-        zGooseSessionNotification_unstable,
+        z.union([
+            zGooseSessionNotification_unstable,
+            zResourceUpdatedNotification_unstable,
+            zResourceListChangedNotification_unstable
+        ]),
         z.union([
             z.record(z.unknown()),
             z.null()

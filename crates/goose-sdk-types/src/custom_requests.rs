@@ -93,6 +93,28 @@ pub struct ReadResourceResponse {
     pub result: serde_json::Value,
 }
 
+/// Subscribe to updates for one resource from one extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/resources/subscribe", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscribeResourceRequest {
+    pub session_id: String,
+    pub extension_name: String,
+    pub uri: String,
+    pub subscriber_id: String,
+}
+
+/// Unsubscribe from updates for one resource from one extension.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/resources/unsubscribe", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct UnsubscribeResourceRequest {
+    pub session_id: String,
+    pub extension_name: String,
+    pub uri: String,
+    pub subscriber_id: String,
+}
+
 /// Call a tool from an extension.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/tools/call", response = GooseToolCallResponse)]

@@ -649,6 +649,58 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/resources/read"
     },
+    "SubscribeResourceRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "extensionName": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "subscriberId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "extensionName",
+        "uri",
+        "subscriberId"
+      ],
+      "description": "Subscribe to updates for one resource from one extension.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/resources/subscribe"
+    },
+    "UnsubscribeResourceRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "extensionName": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "subscriberId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "extensionName",
+        "uri",
+        "subscriberId"
+      ],
+      "description": "Unsubscribe from updates for one resource from one extension.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/resources/unsubscribe"
+    },
     "AppsListRequest_unstable": {
       "type": "object",
       "properties": {
@@ -6825,6 +6877,46 @@
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
     },
+    "ResourceUpdatedNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "extensionName": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "extensionName",
+        "uri"
+      ],
+      "description": "A subscribed MCP resource changed on one extension in one Goose session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/resources/updated"
+    },
+    "ResourceListChangedNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "extensionName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "extensionName"
+      ],
+      "description": "The MCP resource list changed on one extension in one Goose session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/resources/list_changed"
+    },
     "RequestRecipeParams_unstable": {
       "type": "object",
       "properties": {
@@ -6935,6 +7027,24 @@
                   ],
                   "description": "Params for _goose/unstable/resources/read",
                   "title": "ReadResourceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SubscribeResourceRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/resources/subscribe",
+                  "title": "SubscribeResourceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UnsubscribeResourceRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/resources/unsubscribe",
+                  "title": "UnsubscribeResourceRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -8592,6 +8702,24 @@
                   ],
                   "description": "Params for _goose/unstable/session/update",
                   "title": "GooseSessionNotification_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ResourceUpdatedNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/resources/updated",
+                  "title": "ResourceUpdatedNotification_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ResourceListChangedNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/resources/list_changed",
+                  "title": "ResourceListChangedNotification_unstable"
                 }
               ]
             },

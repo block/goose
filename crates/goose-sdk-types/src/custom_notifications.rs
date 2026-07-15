@@ -13,6 +13,25 @@ pub struct GooseSessionNotification {
     pub update: GooseSessionUpdate,
 }
 
+/// A subscribed MCP resource changed on one extension in one Goose session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
+#[notification(method = "_goose/unstable/resources/updated")]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceUpdatedNotification {
+    pub session_id: String,
+    pub extension_name: String,
+    pub uri: String,
+}
+
+/// The MCP resource list changed on one extension in one Goose session.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcNotification)]
+#[notification(method = "_goose/unstable/resources/list_changed")]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceListChangedNotification {
+    pub session_id: String,
+    pub extension_name: String,
+}
+
 /// Discriminated union of goose-specific session update payloads.
 /// Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
 ///
@@ -142,7 +161,11 @@ where
 /// notification, define the struct above (with `JsonRpcNotification` +
 /// `Default`) and add one line below.
 pub fn custom_notification_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMethodSchema> {
-    vec![notification_schema::<GooseSessionNotification>(generator)]
+    vec![
+        notification_schema::<GooseSessionNotification>(generator),
+        notification_schema::<ResourceUpdatedNotification>(generator),
+        notification_schema::<ResourceListChangedNotification>(generator),
+    ]
 }
 
 #[cfg(test)]

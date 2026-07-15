@@ -173,6 +173,8 @@ import type {
   RenameSessionRequest_unstable,
   RequestRecipeParams_unstable,
   ResetPromptRequest_unstable,
+  ResourceListChangedNotification_unstable,
+  ResourceUpdatedNotification_unstable,
   RunScheduleNowRequest_unstable,
   RunScheduleNowResponse_unstable,
   SavePromptRequest_unstable,
@@ -190,9 +192,11 @@ import type {
   ShareSessionNostrResponse_unstable,
   SteerSessionRequest_unstable,
   SteerSessionResponse_unstable,
+  SubscribeResourceRequest_unstable,
   TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UnpauseScheduleRequest_unstable,
+  UnsubscribeResourceRequest_unstable,
   UpdateScheduleRequest_unstable,
   UpdateScheduleResponse_unstable,
   UpdateSessionProjectRequest_unstable,
@@ -269,6 +273,8 @@ import {
   zRecipeToYamlResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
   zRequestRecipeParams_unstable,
+  zResourceListChangedNotification_unstable,
+  zResourceUpdatedNotification_unstable,
   zRunScheduleNowResponse_unstable,
   zSaveRecipeResponse_unstable,
   zScanRecipeResponse_unstable,
@@ -335,6 +341,18 @@ export class GooseExtClient {
     return zReadResourceResponse_unstable.parse(
       raw,
     ) as ReadResourceResponse_unstable;
+  }
+
+  async resourcesSubscribe_unstable(
+    params: SubscribeResourceRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/resources/subscribe", params);
+  }
+
+  async resourcesUnsubscribe_unstable(
+    params: UnsubscribeResourceRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/resources/unsubscribe", params);
   }
 
   async appsList_unstable(
@@ -1467,6 +1485,12 @@ export interface GooseExtNotifications {
   unstable_sessionUpdate?: (
     notification: GooseSessionNotification_unstable,
   ) => Promise<void>;
+  unstable_resourcesUpdated?: (
+    notification: ResourceUpdatedNotification_unstable,
+  ) => Promise<void>;
+  unstable_resourcesListChanged?: (
+    notification: ResourceListChangedNotification_unstable,
+  ) => Promise<void>;
 }
 
 export interface GooseExtAgentRequests {
@@ -1494,6 +1518,20 @@ export function installGooseExtNotificationDispatcher(
             params,
           ) as GooseSessionNotification_unstable;
           await callbacks.unstable_sessionUpdate?.(parsed);
+          return;
+        }
+        case "_goose/unstable/resources/updated": {
+          const parsed = zResourceUpdatedNotification_unstable.parse(
+            params,
+          ) as ResourceUpdatedNotification_unstable;
+          await callbacks.unstable_resourcesUpdated?.(parsed);
+          return;
+        }
+        case "_goose/unstable/resources/list_changed": {
+          const parsed = zResourceListChangedNotification_unstable.parse(
+            params,
+          ) as ResourceListChangedNotification_unstable;
+          await callbacks.unstable_resourcesListChanged?.(parsed);
           return;
         }
         default:
