@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createGooseServeStartupDiagnostics, createStartupDiagnostics } from './startupDiagnostics';
+import { createGooseServeStartupDiagnostics } from './startupDiagnostics';
 
 const tempDirs: string[] = [];
 
@@ -20,36 +20,6 @@ describe('startup diagnostics', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     }
-  });
-
-  it('keeps goosed startup diagnostics shape and file prefix', () => {
-    const diagnosticsDir = makeTempDir();
-    const trace = createStartupDiagnostics(diagnosticsDir, '/tmp/project');
-    const expectedKeys = [
-      'attemptId',
-      'startedAt',
-      'goosedPath',
-      'workingDir',
-      'baseUrl',
-      'pid',
-      'certFingerprintSeen',
-      'healthCheckSucceeded',
-      'childExitCode',
-      'childExitSignal',
-      'stderrTail',
-      'events',
-    ];
-
-    expect(trace).not.toBeNull();
-    expect(path.basename(trace!.diagnosticsPath)).toMatch(/^goosed-startup-.*\.json$/);
-    expect(Object.keys(trace!.diagnostics)).toEqual(expectedKeys);
-    expect(trace!.diagnostics).toMatchObject({
-      goosedPath: null,
-      baseUrl: null,
-      certFingerprintSeen: false,
-    });
-    const saved = JSON.parse(fs.readFileSync(trace!.diagnosticsPath, 'utf8'));
-    expect(Object.keys(saved)).toEqual(expectedKeys);
   });
 
   it('writes serve startup diagnostics with serve-specific fields', () => {

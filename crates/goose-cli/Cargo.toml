@@ -69,7 +69,12 @@ clap_complete_nushell = { version = "4", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 anstream = { version = "1", default-features = false, features = ["wincon"] }
-winapi = { workspace = true }
+winapi = { workspace = true, features = [
+    "consoleapi",
+    "processenv",
+    "winbase",
+    "wincon",
+] }
 
 [features]
 default = [

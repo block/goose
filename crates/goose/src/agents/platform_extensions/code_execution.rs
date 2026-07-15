@@ -19,6 +19,7 @@ use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
@@ -28,6 +29,117 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "code_execution";
+
+fn sanitize_schema_for_code_mode(schema: &mut Value) {
+    let Some(obj) = schema.as_object_mut() else {
+        return;
+    };
+
+    let Some(defs_key) = ["$defs", "definitions"]
+        .into_iter()
+        .find(|key| obj.get(*key).is_some_and(Value::is_object))
+    else {
+        return;
+    };
+
+    let names: Vec<String> = obj[defs_key]
+        .as_object()
+        .map(|defs| defs.keys().cloned().collect())
+        .unwrap_or_default();
+
+    let mut edges: HashMap<String, HashSet<String>> = HashMap::new();
+    if let Some(defs) = obj.get(defs_key).and_then(Value::as_object) {
+        for name in &names {
+            let mut refs = HashSet::new();
+            if let Some(def_value) = defs.get(name) {
+                collect_ref_targets(def_value, &mut refs);
+            }
+            edges.insert(name.clone(), refs);
+        }
+    }
+
+    let cuts = find_cycle_edges(&names, &edges);
+    if cuts.is_empty() {
+        return;
+    }
+
+    if let Some(defs) = obj.get_mut(defs_key).and_then(Value::as_object_mut) {
+        for (from, to) in &cuts {
+            if let Some(def_value) = defs.get_mut(from) {
+                neutralize_refs_to(def_value, to);
+            }
+        }
+    }
+}
+
+fn collect_ref_targets(value: &Value, out: &mut HashSet<String>) {
+    match value {
+        Value::Object(map) => {
+            if let Some(Value::String(r)) = map.get("$ref") {
+                if let Some(name) = r.rsplit('/').next() {
+                    out.insert(name.to_string());
+                }
+            }
+            map.values().for_each(|v| collect_ref_targets(v, out));
+        }
+        Value::Array(items) => items.iter().for_each(|v| collect_ref_targets(v, out)),
+        _ => {}
+    }
+}
+
+fn neutralize_refs_to(value: &mut Value, target: &str) {
+    let is_target_ref = matches!(
+        value.as_object().and_then(|map| map.get("$ref")),
+        Some(Value::String(r)) if r.rsplit('/').next() == Some(target)
+    );
+    if is_target_ref {
+        *value = json!({});
+        return;
+    }
+    match value {
+        Value::Object(map) => map.values_mut().for_each(|v| neutralize_refs_to(v, target)),
+        Value::Array(items) => items.iter_mut().for_each(|v| neutralize_refs_to(v, target)),
+        _ => {}
+    }
+}
+
+fn find_cycle_edges(
+    names: &[String],
+    edges: &HashMap<String, HashSet<String>>,
+) -> Vec<(String, String)> {
+    enum State {
+        InProgress,
+        Done,
+    }
+
+    fn visit<'a>(
+        node: &'a str,
+        edges: &'a HashMap<String, HashSet<String>>,
+        state: &mut HashMap<&'a str, State>,
+        cuts: &mut Vec<(String, String)>,
+    ) {
+        state.insert(node, State::InProgress);
+        if let Some(targets) = edges.get(node) {
+            for target in targets {
+                match state.get(target.as_str()) {
+                    Some(State::InProgress) => cuts.push((node.to_string(), target.clone())),
+                    Some(State::Done) => {}
+                    None => visit(target, edges, state, cuts),
+                }
+            }
+        }
+        state.insert(node, State::Done);
+    }
+
+    let mut state: HashMap<&str, State> = HashMap::new();
+    let mut cuts = Vec::new();
+    for name in names {
+        if !state.contains_key(name.as_str()) {
+            visit(name, edges, &mut state, &mut cuts);
+        }
+    }
+    cuts
+}
 
 pub struct CodeExecutionClient {
     info: InitializeResult,
@@ -100,12 +212,20 @@ impl CodeExecutionClient {
                 (tool.name.to_string(), None)
             };
 
+            let mut input_schema = json!(tool.input_schema);
+            sanitize_schema_for_code_mode(&mut input_schema);
+
+            let mut output_schema = tool.output_schema.as_ref().map(|s| json!(s));
+            if let Some(schema) = output_schema.as_mut() {
+                sanitize_schema_for_code_mode(schema);
+            }
+
             cfgs.push(CallbackConfig {
                 name,
                 namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
-                input_schema: Some(json!(tool.input_schema)),
-                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
+                input_schema: Some(input_schema),
+                output_schema,
             })
         }
         Some(cfgs)
@@ -791,5 +911,130 @@ mod tests {
         assert!(moim.contains("get_function_details"));
         assert!(!moim.contains("extract_relations"));
         assert!(!moim.contains("ask_heimdall"));
+    }
+
+    fn self_referential_any_schema() -> Value {
+        json!({
+            "$ref": "#/$defs/Any",
+            "$defs": {
+                "Any": {
+                    "anyOf": [
+                        {"type": "string"},
+                        {"type": "number"},
+                        {
+                            "type": "object",
+                            "additionalProperties": {"$ref": "#/$defs/Any"}
+                        }
+                    ]
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn collect_ref_targets_finds_nested_refs() {
+        let schema = self_referential_any_schema();
+        let mut refs = HashSet::new();
+        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
+
+        assert_eq!(refs, HashSet::from(["Any".to_string()]));
+    }
+
+    #[test]
+    fn find_cycle_edges_detects_self_loop() {
+        let mut edges = HashMap::new();
+        edges.insert("Any".to_string(), HashSet::from(["Any".to_string()]));
+        let names = vec!["Any".to_string()];
+
+        let cuts = find_cycle_edges(&names, &edges);
+
+        assert_eq!(cuts, vec![("Any".to_string(), "Any".to_string())]);
+    }
+
+    #[test]
+    fn find_cycle_edges_detects_longer_cycle_without_flagging_acyclic_refs() {
+        let mut edges = HashMap::new();
+        edges.insert("A".to_string(), HashSet::from(["B".to_string()]));
+        edges.insert("B".to_string(), HashSet::from(["C".to_string()]));
+        edges.insert("C".to_string(), HashSet::from(["A".to_string()]));
+        edges.insert("D".to_string(), HashSet::from(["A".to_string()]));
+        let names = vec![
+            "A".to_string(),
+            "B".to_string(),
+            "C".to_string(),
+            "D".to_string(),
+        ];
+
+        let cuts = find_cycle_edges(&names, &edges);
+
+        assert_eq!(cuts, vec![("C".to_string(), "A".to_string())]);
+    }
+
+    #[test]
+    fn neutralize_refs_to_replaces_matching_refs_only() {
+        let mut value = json!({
+            "anyOf": [
+                {"$ref": "#/$defs/Any"},
+                {"$ref": "#/$defs/Other"}
+            ]
+        });
+
+        neutralize_refs_to(&mut value, "Any");
+
+        assert_eq!(value["anyOf"][0], json!({}));
+        assert_eq!(value["anyOf"][1], json!({"$ref": "#/$defs/Other"}));
+    }
+
+    #[test]
+    fn sanitize_schema_for_code_mode_breaks_self_referential_defs() {
+        let mut schema = self_referential_any_schema();
+
+        sanitize_schema_for_code_mode(&mut schema);
+
+        let mut refs = HashSet::new();
+        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
+        assert!(
+            !refs.contains("Any"),
+            "cycle should be broken, got: {schema}"
+        );
+    }
+
+    #[test]
+    fn sanitize_schema_for_code_mode_leaves_acyclic_schemas_untouched() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "content": {"$ref": "#/$defs/Content"}
+            },
+            "$defs": {
+                "Content": {"type": "string"}
+            }
+        });
+        let original = schema.clone();
+
+        sanitize_schema_for_code_mode(&mut schema);
+
+        assert_eq!(schema, original);
+    }
+
+    #[test]
+    fn code_mode_accepts_previously_crashing_self_referential_schema() {
+        let mut output_schema = self_referential_any_schema();
+        sanitize_schema_for_code_mode(&mut output_schema);
+
+        let cfg = CallbackConfig {
+            name: "retain".to_string(),
+            namespace: Some("hindsight".to_string()),
+            description: Some("Store a memory".to_string()),
+            input_schema: Some(json!({
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+                "required": ["content"]
+            })),
+            output_schema: Some(output_schema),
+        };
+
+        let result = CodeMode::default().with_callback(&cfg);
+        assert!(result.is_ok(), "{:?}", result.err());
     }
 }
