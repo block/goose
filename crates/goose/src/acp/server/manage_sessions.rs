@@ -103,11 +103,7 @@ impl GooseAcpAgent {
             .delete_session(&req.session_id)
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
-        self.agent_manager
-            .remove_session_if_loaded(&req.session_id)
-            .await
-            .internal_err_ctx("Failed to remove in-memory agent")?;
+        self.close_session(&req.session_id).await?;
         Ok(EmptyResponse {})
     }
 
@@ -256,11 +252,7 @@ impl GooseAcpAgent {
             .apply()
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
-        self.agent_manager
-            .remove_session_if_loaded(&req.session_id)
-            .await
-            .internal_err_ctx("Failed to remove in-memory agent")?;
+        self.close_session(&req.session_id).await?;
         Ok(EmptyResponse {})
     }
 
