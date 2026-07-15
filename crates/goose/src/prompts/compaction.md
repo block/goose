@@ -9,14 +9,8 @@
 {{ messages }}
 
 Wrap reasoning in `<analysis>` tags:
-- Review conversation chronologically
-- For each part, log:
-  - User goals and requests
-  - Your method and solution
-  - Key decisions and designs
-  - File names, code, signatures, errors, fixes
-- Highlight user feedback and revisions
-- Confirm completeness and accuracy
+- Review conversation chronologically: user goals, your methods, key decisions, files, errors, fixes
+- Keep this brief - the analysis is discarded, so it is a checklist of what to include, not the place for detail
 
 After the closing `</analysis>` tag, output exactly one ```json code block and nothing else, matching this schema:
 
@@ -32,7 +26,7 @@ After the closing `</analysis>` tag, output exactly one ```json code block and n
     }
   ],
   "errors_and_fixes": ["bugs hit, their resolutions, and user-driven changes"],
-  "problem_solving": ["issues solved or in progress"],
+  "problem_solving": ["issues solved or in progress, and key decisions: what was chosen, what was rejected, and why"],
   "user_messages": ["all user messages, truncating long tool call arguments or results"],
   "pending_tasks": ["all unresolved user requests, most important first"],
   "current_work": "active work at summary request time: filenames, code, alignment to latest instruction",
@@ -43,7 +37,9 @@ After the closing `</analysis>` tag, output exactly one ```json code block and n
 Rules for the JSON:
 - The `<analysis>` block is a discarded scratchpad: only the JSON survives, so it must be self-contained and repeat every detail from the analysis that matters for continuing
 - Order every list from most to least important
-- This summary will only be read by you, so it is ok to make it much longer than a normal summary you would show to a human
+- Every list entry must be a plain string, not a nested object - except `files`, whose entries are objects shaped as shown above
+- Quote error messages, panic text, and failing test output verbatim in `errors_and_fixes` - exact strings including numbers, identifiers, and paths, not paraphrases
+- This summary will only be read by you, so it is ok to make it much longer than a normal summary you would show to a human: spend your entire length budget on the JSON fields, and quote liberally - full output blocks, complete code snippets, exact user wording
 - Do not exclude any information that might be important to continuing a session working with you
 - Omit a field rather than inventing content for it
 - No new ideas unless user confirmed

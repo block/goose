@@ -391,13 +391,14 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
 
     // Accumulated tokens increased by the compaction cost
     // Initial: 1000
-    // Compaction input: ~6400 (system 6000 + 4 messages ~400)
+    // Compaction input: ~6700 (system 6000 + compaction prompt + 4 messages;
+    // the mock derives input tokens from the rendered prompt length, so the
+    // band must absorb compaction.md wording changes)
     // Compaction output: 200
-    // Expected accumulated: 1000 + 6400 + 200 = 7600
     let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
     assert!(
-        (7300..=7900).contains(&accumulated),
-        "Accumulated should be ~7600 (1000 initial + 6400 input + 200 output). Got: {}",
+        (7300..=8600).contains(&accumulated),
+        "Accumulated should be ~7900 (1000 initial + ~6700 input + 200 output). Got: {}",
         accumulated
     );
 

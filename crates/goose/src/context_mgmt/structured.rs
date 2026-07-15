@@ -7,27 +7,31 @@ use serde::{Deserialize, Serialize};
 /// Every list is ordered most-important-first so downstream consumers (the
 /// summary render template, experiments that truncate sections) can cut from
 /// the tail. Fields default to empty so a response that omits a section still
-/// parses; a response whose fields have the wrong shape fails to parse
-/// entirely, in which case callers fall back to the raw response text.
+/// parses. String fields deserialize leniently (an object or number where a
+/// string was asked for is stringified, not a parse failure) because models
+/// routinely enrich the schema - e.g. emitting `errors_and_fixes` entries as
+/// `{"error": .., "fix": ..}` objects - and one such field must not discard an
+/// otherwise good summary. A document that is not an object at all still fails
+/// to parse, in which case callers fall back to the raw response text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StructuredSummary {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub user_intent: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub technical_concepts: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_file_list")]
     pub files: Vec<FileActivity>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub errors_and_fixes: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub problem_solving: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub user_messages: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_list")]
     pub pending_tasks: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_opt")]
     pub current_work: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_opt")]
     pub next_step: Option<String>,
     /// Unknown top-level fields, kept so a user-customized compaction prompt
     /// that adds fields can still reach them from a customized render
@@ -38,12 +42,92 @@ pub struct StructuredSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileActivity {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub path: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string")]
     pub summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient_string_opt")]
     pub key_code: Option<String>,
+}
+
+/// Render any JSON value as display text: strings as-is, objects as
+/// `key: value` pairs, arrays joined, null as empty (dropped by `normalize`).
+fn stringify_lenient(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| format!("{k}: {}", stringify_lenient(v)))
+            .collect::<Vec<_>>()
+            .join("; "),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(stringify_lenient)
+            .collect::<Vec<_>>()
+            .join("; "),
+        other => other.to_string(),
+    }
+}
+
+fn lenient_string_list<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Array(items) => items.iter().map(stringify_lenient).collect(),
+        serde_json::Value::Null => Vec::new(),
+        other => vec![stringify_lenient(&other)],
+    })
+}
+
+fn lenient_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(stringify_lenient(&value))
+}
+
+fn lenient_string_opt<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Null => None,
+        other => Some(stringify_lenient(&other)),
+    })
+}
+
+/// `files` entries should be objects, but a model that over-applies the
+/// "plain strings" rule may emit them as strings; render those as path-only
+/// activities rather than discarding the whole summary.
+fn lenient_file_list<'de, D>(deserializer: D) -> Result<Vec<FileActivity>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let items = match value {
+        serde_json::Value::Array(items) => items,
+        serde_json::Value::Null => return Ok(Vec::new()),
+        other => vec![other],
+    };
+    Ok(items
+        .into_iter()
+        .filter_map(|item| match item {
+            serde_json::Value::Object(_) => serde_json::from_value(item).ok(),
+            other => {
+                let path = stringify_lenient(&other);
+                (!path.trim().is_empty()).then_some(FileActivity {
+                    path,
+                    summary: String::new(),
+                    key_code: None,
+                })
+            }
+        })
+        .collect())
 }
 
 impl StructuredSummary {
@@ -253,7 +337,6 @@ in {brace handling} and patched it.
     fn rejects_unusable_or_empty_json() {
         for text in [
             "Here is a summary of the conversation. The user asked about compaction.",
-            r#"{"user_intent": "not a list", "pending_tasks": ["task"]}"#,
             "{}",
             r#"{"notes": "unknown fields alone are not a summary"}"#,
             r#"{"current_work": ""}"#,
@@ -264,6 +347,57 @@ in {brace handling} and patched it.
                 "should fall back to raw text for: {text}"
             );
         }
+    }
+
+    #[test]
+    fn lenient_shapes_are_stringified_not_rejected() {
+        let text = r#"{
+            "user_intent": "fix the flaky test",
+            "errors_and_fixes": [
+                {"error": "cursor drifted after replay batch 34", "fix": "bounded mpsc channel"},
+                "plain string entry",
+                null
+            ],
+            "pending_tasks": [42],
+            "current_work": {"task": "regression test", "status": "in progress"}
+        }"#;
+        let summary = StructuredSummary::parse(text).expect("should parse leniently");
+        assert_eq!(summary.user_intent, vec!["fix the flaky test"]);
+        assert_eq!(
+            summary.errors_and_fixes,
+            vec![
+                "error: cursor drifted after replay batch 34; fix: bounded mpsc channel",
+                "plain string entry",
+            ]
+        );
+        assert_eq!(summary.pending_tasks, vec!["42"]);
+        assert_eq!(
+            summary.current_work.as_deref(),
+            Some("task: regression test; status: in progress")
+        );
+    }
+
+    #[test]
+    fn string_file_entries_become_path_only_activities() {
+        let text = r#"{"user_intent": ["Fix the bug"], "files": ["src/parser.rs", {"path": "tests/parser.rs", "summary": "Added regression test"}, ""]}"#;
+        let summary = StructuredSummary::parse(text).expect("should parse");
+        assert_eq!(summary.files.len(), 2);
+        assert_eq!(summary.files[0].path, "src/parser.rs");
+        assert_eq!(summary.files[0].summary, "");
+        assert_eq!(summary.files[1].summary, "Added regression test");
+    }
+
+    #[test]
+    fn wrong_shaped_file_fields_are_stringified_not_dropped() {
+        let text = r#"{"files": [{"path": "src/scan.rs", "summary": 42, "key_code": ["fn a() {}", "fn b() {}"]}]}"#;
+        let summary = StructuredSummary::parse(text).expect("should parse");
+        assert_eq!(summary.files.len(), 1);
+        assert_eq!(summary.files[0].path, "src/scan.rs");
+        assert_eq!(summary.files[0].summary, "42");
+        assert_eq!(
+            summary.files[0].key_code.as_deref(),
+            Some("fn a() {}; fn b() {}")
+        );
     }
 
     #[test]
