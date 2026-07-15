@@ -251,7 +251,7 @@ pub struct ReasoningConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[serde(untagged)]
 pub enum Reasoning {
-    /// Legacy/simple boolean flag
+    /// Simple enablement flag
     Enabled(bool),
     /// Advanced reasoning configuration block
     ReasoningConfig(ReasoningConfig),
