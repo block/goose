@@ -45,15 +45,13 @@ jobs:
 
       - name: Update versions
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          # Update version in Cargo.toml
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
-          rm -f Cargo.toml.bak
-
-          # Update version in package.json
+          bash scripts/set-cargo-version.sh "$VERSION"
           source ./bin/activate-hermit
           cd ui/desktop
-          npm pkg set "version=${{ inputs.version }}"
+          npm pkg set "version=${VERSION}"
 
       - name: Debug workflow info
         env:

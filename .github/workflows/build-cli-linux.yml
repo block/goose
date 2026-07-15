@@ -60,9 +60,9 @@ jobs:
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
         shell: bash
-        run: |
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
-          rm -f Cargo.toml.bak
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bash scripts/set-cargo-version.sh "$VERSION"
 
       - name: Install Linux build dependencies (host runner)
         if: matrix.container == ''
