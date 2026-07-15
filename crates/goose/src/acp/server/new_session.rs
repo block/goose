@@ -77,7 +77,7 @@ impl GooseAcpAgent {
             .activate_acp_session(cx, &reloaded_session, HashMap::new())
             .await?;
         if let Some(recipe) = &rendered_recipe {
-            self.apply_recipe(&agent, recipe).await;
+            self.apply_recipe(&agent, recipe).await?;
         }
 
         let reloaded_session = self.reload_session(&session.id).await?;

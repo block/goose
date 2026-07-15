@@ -425,7 +425,7 @@ impl Agent {
         match recipe_slash_command::resolve_command(command, params_str) {
             Ok(None) => Ok(None),
             Ok(Some((response, prompt))) => {
-                self.apply_recipe_components(response, true).await;
+                self.apply_recipe_components(response, true).await?;
                 Ok(Some(Message::user().with_text(prompt)))
             }
             Err(text) => Ok(Some(Message::assistant().with_text(text))),

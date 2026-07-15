@@ -16,23 +16,26 @@ pub struct FinalOutputTool {
 }
 
 impl FinalOutputTool {
-    pub fn new(response: Response) -> Self {
-        if response.json_schema.is_none() {
-            panic!("Cannot create FinalOutputTool: json_schema is required");
-        }
-        let schema = response.json_schema.as_ref().unwrap();
+    pub fn new(response: Response) -> Result<Self, String> {
+        let schema = response.json_schema.as_ref().ok_or_else(|| {
+            "Cannot create FinalOutputTool: json_schema is required".to_string()
+        })?;
 
         if let Some(obj) = schema.as_object() {
             if obj.is_empty() {
-                panic!("Cannot create FinalOutputTool: empty json_schema is not allowed");
+                return Err(
+                    "Cannot create FinalOutputTool: empty json_schema is not allowed".to_string(),
+                );
             }
         }
 
-        jsonschema::meta::validate(schema).unwrap();
-        Self {
+        jsonschema::meta::validate(schema)
+            .map_err(|e| format!("Cannot create FinalOutputTool: invalid json_schema: {e}"))?;
+
+        Ok(Self {
             response,
             final_output: None,
-        }
+        })
     }
 
     pub fn tool(&self) -> Tool {
@@ -178,23 +181,26 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Cannot create FinalOutputTool: json_schema is required")]
     fn test_new_with_missing_schema() {
         let response = Response { json_schema: None };
-        FinalOutputTool::new(response);
+        match FinalOutputTool::new(response) {
+            Err(error) => assert!(error.contains("json_schema is required")),
+            Ok(_) => panic!("expected missing schema error"),
+        }
     }
 
     #[test]
-    #[should_panic(expected = "Cannot create FinalOutputTool: empty json_schema is not allowed")]
     fn test_new_with_empty_schema() {
         let response = Response {
             json_schema: Some(json!({})),
         };
-        FinalOutputTool::new(response);
+        match FinalOutputTool::new(response) {
+            Err(error) => assert!(error.contains("empty json_schema is not allowed")),
+            Ok(_) => panic!("expected empty schema error"),
+        }
     }
 
     #[test]
-    #[should_panic]
     fn test_new_with_invalid_schema() {
         let response = Response {
             json_schema: Some(json!({
@@ -206,7 +212,7 @@ mod tests {
                 }
             })),
         };
-        FinalOutputTool::new(response);
+        assert!(FinalOutputTool::new(response).is_err());
     }
 
     #[tokio::test]
@@ -226,7 +232,7 @@ mod tests {
             })),
         };
 
-        let mut tool = FinalOutputTool::new(response);
+        let mut tool = FinalOutputTool::new(response).unwrap();
         let tool_call =
             CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME).with_arguments(object!({
                 "message": "Hello"  // Missing required "count" field
@@ -246,7 +252,7 @@ mod tests {
             json_schema: Some(create_complex_test_schema()),
         };
 
-        let mut tool = FinalOutputTool::new(response);
+        let mut tool = FinalOutputTool::new(response).unwrap();
         let tool_call =
             CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME).with_arguments(object!({
                 "user": {

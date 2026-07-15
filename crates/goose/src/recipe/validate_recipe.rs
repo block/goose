@@ -46,12 +46,32 @@ pub fn validate_recipe_template_from_content(
     validate_prompt_or_instructions(&recipe)?;
     validate_retry_config(&recipe)?;
     if let Some(response) = &recipe.response {
-        if let Some(json_schema) = &response.json_schema {
-            validate_json_schema(json_schema)?;
-        }
+        validate_response_config(response)?;
     }
 
     Ok(recipe)
+}
+
+fn validate_response_config(response: &crate::recipe::Response) -> Result<()> {
+    let json_schema = response.json_schema.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("Recipe `response` requires a non-empty `json_schema` object")
+    })?;
+
+    match json_schema.as_object() {
+        Some(obj) if obj.is_empty() => {
+            return Err(anyhow::anyhow!(
+                "Recipe `response.json_schema` must be a non-empty JSON Schema object"
+            ));
+        }
+        Some(_) => validate_json_schema(json_schema)?,
+        None => {
+            return Err(anyhow::anyhow!(
+                "Recipe `response.json_schema` must be a JSON Schema object"
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_retry_config(recipe: &Recipe) -> Result<()> {
@@ -224,6 +244,39 @@ parameters:
         let error = validate_recipe_template_from_content(&recipe_content, None).unwrap_err();
 
         assert_eq!(error.to_string(), "Duplicate parameter definition: value.");
+    }
+
+    #[test]
+    fn test_rejects_response_without_json_schema() {
+        let recipe_content = r#"
+version: 1.0.0
+title: Incomplete response
+description: Missing json_schema
+instructions: Say hello
+response: {}
+"#;
+
+        let error = validate_recipe_template_from_content(recipe_content, None).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Recipe `response` requires a non-empty `json_schema` object"));
+    }
+
+    #[test]
+    fn test_rejects_response_with_empty_json_schema() {
+        let recipe_content = r#"
+version: 1.0.0
+title: Empty schema response
+description: Empty json_schema object
+instructions: Say hello
+response:
+  json_schema: {}
+"#;
+
+        let error = validate_recipe_template_from_content(recipe_content, None).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Recipe `response.json_schema` must be a non-empty JSON Schema object"));
     }
 
     #[test]

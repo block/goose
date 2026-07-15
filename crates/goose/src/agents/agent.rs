@@ -1020,25 +1020,28 @@ impl Agent {
         )
     }
 
-    pub async fn add_final_output_tool(&self, response: Response) {
+    pub async fn add_final_output_tool(&self, response: Response) -> anyhow::Result<()> {
         let mut final_output_tool = self.final_output_tool.lock().await;
-        let created_final_output_tool = FinalOutputTool::new(response);
+        let created_final_output_tool = FinalOutputTool::new(response)
+            .map_err(|error| anyhow::anyhow!(error))?;
         let final_output_system_prompt = created_final_output_tool.system_prompt();
         *final_output_tool = Some(created_final_output_tool);
         self.extend_system_prompt("final_output".to_string(), final_output_system_prompt)
             .await;
+        Ok(())
     }
 
     pub async fn apply_recipe_components(
         &self,
         response: Option<Response>,
         include_final_output: bool,
-    ) {
+    ) -> anyhow::Result<()> {
         if include_final_output {
             if let Some(response) = response {
-                self.add_final_output_tool(response).await;
+                self.add_final_output_tool(response).await?;
             }
         }
+        Ok(())
     }
 
     /// Dispatch a single tool call to the appropriate client
@@ -4063,7 +4066,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             })),
         };
 
-        agent.add_final_output_tool(response).await;
+        agent.add_final_output_tool(response).await?;
 
         let tools = agent.list_tools("test-session-id", None).await;
         let final_output_tool = tools

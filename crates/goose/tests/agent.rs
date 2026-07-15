@@ -3097,7 +3097,7 @@ mod tests {
                         "properties": { "result": { "type": "string" } }
                     })),
                 })
-                .await;
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id,

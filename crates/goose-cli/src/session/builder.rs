@@ -527,9 +527,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let recipe = session_config.recipe.as_ref();
 
-    agent
+    if let Err(error) = agent
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
-        .await;
+        .await
+    {
+        output::render_error(&format!("Failed to apply recipe response: {}", error));
+        process::exit(1);
+    }
 
     let session_id =
         resolve_session_id(&session_config, &session_manager, agent.config.goose_mode).await;
