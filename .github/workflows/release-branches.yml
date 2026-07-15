@@ -10,6 +10,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    with:
+      target: aarch64-apple-darwin
 
   comment-on-pr:
     needs: bundle-desktop

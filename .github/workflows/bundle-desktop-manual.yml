@@ -15,14 +15,16 @@ jobs:
       id-token: write
       contents: read
     with:
+      target: aarch64-apple-darwin
       signing: false
       ref: ${{ inputs.branch }}
 
   bundle-desktop-intel-unsigned:
-    uses: ./.github/workflows/bundle-desktop-intel.yml
+    uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
       contents: read
     with:
+      target: x86_64-apple-darwin
       signing: false
       ref: ${{ inputs.branch }}
