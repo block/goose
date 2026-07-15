@@ -1,5 +1,17 @@
 [
   {
+    "id": "agentcard",
+    "name": "Agentcard",
+    "description": "Prepaid virtual cards for AI agents with spend caps and human approvals",
+    "type": "streamable-http",
+    "url": "https://mcp.agentcard.sh/mcp",
+    "link": "https://agentcard.sh",
+    "installation_notes": "Streamable HTTP extension with OAuth 2.0 browser authentication to your Agentcard account.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "agentql-mcp",
     "name": "AgentQL",
     "description": "Transform unstructured web content into structured data",
