@@ -209,7 +209,7 @@ impl GooseAcpAgent {
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         // Cached agents can retain recipe prompt/tooling from an earlier successful load.
-        // Clear first so soft-fail and MissingParams (Ok without apply) both leave no recipe context.
+        // Clear before rehydrate so Err soft-fail and MissingParams (Ok without apply) leave no recipe context.
         self.clear_recipe(&agent).await;
         if let Err(e) = self.apply_session_recipe(&agent, &session).await {
             tracing::warn!(
