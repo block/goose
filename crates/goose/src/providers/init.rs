@@ -470,4 +470,15 @@ mod tests {
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }
+
+    #[tokio::test]
+    async fn test_litellm_supports_inventory_refresh() {
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.supports_inventory_refresh(),
+            "litellm must support inventory refresh so the model picker calls fetch_supported_models"
+        );
+    }
 }
