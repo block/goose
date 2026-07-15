@@ -22,6 +22,8 @@ export type McpAppResourceNotification =
   | ({ type: 'listChanged' } & ResourceListChangedNotification_unstable);
 
 const resourceNotificationListeners = new Set<(notification: McpAppResourceNotification) => void>();
+const RESOURCE_REPLAY_MAX_ATTEMPTS = 3;
+const RESOURCE_REPLAY_BASE_DELAY_MS = 250;
 
 export function handleAcpResourceUpdated(
   notification: ResourceUpdatedNotification_unstable
@@ -220,7 +222,9 @@ export class McpAppResourceSubscriptions {
     private readonly onListChanged: () => void
   ) {
     this.stopClientConnected = onAcpClientConnected((client) => {
-      if (this.disposing || this.latestClient === client) return;
+      if (this.disposing || (this.latestClient === client && this.subscriptionClient === client)) {
+        return;
+      }
       this.latestClient = client;
       void this.enqueue(() => this.replay(client));
     });
@@ -257,13 +261,9 @@ export class McpAppResourceSubscriptions {
     });
   }
 
-  private async replay(client: GooseClient): Promise<void> {
-    if (this.disposing || this.latestClient !== client || this.subscriptionClient === client) {
-      return;
-    }
-    this.subscriptionClient = client;
-    for (const uri of [...this.uris]) {
-      if (this.disposing || this.latestClient !== client) return;
+  private async replaySubscription(client: GooseClient, uri: string): Promise<boolean> {
+    for (let attempt = 0; attempt < RESOURCE_REPLAY_MAX_ATTEMPTS; attempt += 1) {
+      if (this.disposing || this.latestClient !== client || !this.uris.has(uri)) return false;
       try {
         await subscribeMcpAppResourceWithClient(
           client,
@@ -272,12 +272,34 @@ export class McpAppResourceSubscriptions {
           uri,
           this.subscriberId
         );
+        return true;
       } catch {
+        if (attempt + 1 === RESOURCE_REPLAY_MAX_ATTEMPTS) return false;
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, RESOURCE_REPLAY_BASE_DELAY_MS * 2 ** attempt);
+        });
+      }
+    }
+    return false;
+  }
+
+  private async replay(client: GooseClient): Promise<void> {
+    if (this.disposing || this.latestClient !== client || this.subscriptionClient === client) {
+      return;
+    }
+    let replayedAll = true;
+    for (const uri of [...this.uris]) {
+      if (this.disposing || this.latestClient !== client) return;
+      if (!(await this.replaySubscription(client, uri))) {
+        replayedAll = false;
         continue;
       }
       if (!this.disposing && this.latestClient === client && this.uris.has(uri)) {
         this.onUpdated(uri);
       }
+    }
+    if (!this.disposing && this.latestClient === client) {
+      this.subscriptionClient = replayedAll ? client : null;
     }
   }
 
