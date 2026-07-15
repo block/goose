@@ -833,9 +833,7 @@ impl McpClientTrait for McpClient {
                 session_id,
                 None,
                 None,
-                ClientRequest::UnsubscribeRequest(Request::new(UnsubscribeRequestParams::new(
-                    uri,
-                ))),
+                ClientRequest::UnsubscribeRequest(Request::new(UnsubscribeRequestParams::new(uri))),
                 CancellationToken::new(),
             )
             .await?;
