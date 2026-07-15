@@ -12,7 +12,7 @@ use rmcp::transport::streamable_http_client::{
 use rmcp::transport::{
     ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport, TokioChildProcess,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
@@ -49,14 +49,25 @@ use crate::oauth::{oauth_flow, GooseCredentialStore};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Meta,
-    Prompt, Resource, ResourceContents, ServerInfo, Tool,
+    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, Extensions,
+    GetPromptResult, Meta, Prompt, Resource, ResourceContents, ServerInfo, ServerNotification,
+    Tool,
 };
 use rmcp::transport::auth::{AuthClient, CredentialStore};
 use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<dyn McpClientTrait>;
+
+fn notification_session_id(extensions: &Extensions) -> Option<String> {
+    extensions
+        .get::<Meta>()?
+        .0
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(crate::session_context::SESSION_ID_HEADER))
+        .and_then(|(_, value)| value.as_str())
+        .map(ToString::to_string)
+}
 
 struct ActionRequiredStream {
     inner: ReceiverStream<crate::conversation::message::Message>,
@@ -182,6 +193,73 @@ pub struct GooseMcpAppToolAttachment {
 
 pub(crate) const TRUSTED_TOOL_UPDATE_META_KEY: &str = "__goose_tool_update_meta";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExtensionResourceNotification {
+    Updated {
+        session_id: String,
+        extension_name: String,
+        uri: String,
+    },
+    ListChanged {
+        session_id: String,
+        extension_name: String,
+    },
+}
+
+type ResourceSubscriptionKey = (String, String, String);
+type ResourceSubscriptions = Arc<Mutex<HashMap<ResourceSubscriptionKey, HashSet<String>>>>;
+type NativeResourceSubscriptions = Arc<Mutex<HashSet<ResourceSubscriptionKey>>>;
+type ResourceSubscriptionRetryTasks =
+    Arc<std::sync::Mutex<HashMap<String, (u64, tokio::task::AbortHandle)>>>;
+
+const RESOURCE_SUBSCRIPTION_RETRY_INITIAL_BACKOFF: Duration = Duration::from_millis(100);
+const RESOURCE_SUBSCRIPTION_RETRY_MAX_BACKOFF: Duration = Duration::from_secs(5);
+
+async fn take_desired_resource_subscriptions_for_extension(
+    subscriptions: &Mutex<HashMap<ResourceSubscriptionKey, HashSet<String>>>,
+    extension_name: &str,
+) -> Vec<ResourceSubscriptionKey> {
+    let mut subscriptions = subscriptions.lock().await;
+    let keys = subscriptions
+        .keys()
+        .filter(|(_, subscribed_extension, _)| subscribed_extension == extension_name)
+        .cloned()
+        .collect::<Vec<_>>();
+    for key in &keys {
+        subscriptions.remove(key);
+    }
+    keys
+}
+
+async fn desired_resource_subscriptions_for_extension(
+    subscriptions: &Mutex<HashMap<ResourceSubscriptionKey, HashSet<String>>>,
+    extension_name: &str,
+) -> Vec<ResourceSubscriptionKey> {
+    subscriptions
+        .lock()
+        .await
+        .keys()
+        .filter(|(_, subscribed_extension, _)| subscribed_extension == extension_name)
+        .cloned()
+        .collect()
+}
+
+async fn take_native_resource_subscriptions_for_extension(
+    subscriptions: &Mutex<HashSet<ResourceSubscriptionKey>>,
+    extension_name: &str,
+) -> Vec<ResourceSubscriptionKey> {
+    let mut subscriptions = subscriptions.lock().await;
+    let keys = subscriptions
+        .iter()
+        .filter(|(_, subscribed_extension, _)| subscribed_extension == extension_name)
+        .cloned()
+        .collect::<Vec<_>>();
+    for key in &keys {
+        subscriptions.remove(key);
+    }
+    keys
+}
+
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
@@ -191,6 +269,15 @@ pub struct ExtensionManager {
     tools_cache_version: AtomicU64,
     client_name: String,
     capabilities: ExtensionManagerCapabilities,
+    resource_subscriptions: ResourceSubscriptions,
+    native_resource_subscriptions: NativeResourceSubscriptions,
+    // ponytail: global serialization is enough for low-volume renderer subscriptions;
+    // move to per-key locks only if measured contention warrants it.
+    resource_subscription_operations: Arc<Mutex<()>>,
+    resource_notification_generations: Arc<Mutex<HashMap<String, u64>>>,
+    next_resource_notification_generation: AtomicU64,
+    resource_notifications: tokio::sync::broadcast::Sender<ExtensionResourceNotification>,
+    resource_subscription_retry_tasks: ResourceSubscriptionRetryTasks,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -862,6 +949,16 @@ async fn create_unix_socket_http_client(
     Ok(Box::new(client_res?))
 }
 
+impl Drop for ExtensionManager {
+    fn drop(&mut self) {
+        if let Ok(mut tasks) = self.resource_subscription_retry_tasks.lock() {
+            for (_, (_, task)) in tasks.drain() {
+                task.abort();
+            }
+        }
+    }
+}
+
 impl ExtensionManager {
     fn mcp_client_capabilities(&self) -> GooseMcpClientCapabilities {
         GooseMcpClientCapabilities {
@@ -877,6 +974,7 @@ impl ExtensionManager {
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
     ) -> Self {
+        let (resource_notifications, _) = tokio::sync::broadcast::channel(32);
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
@@ -890,6 +988,13 @@ impl ExtensionManager {
             tools_cache_version: AtomicU64::new(0),
             client_name,
             capabilities,
+            resource_subscriptions: Arc::new(Mutex::new(HashMap::new())),
+            native_resource_subscriptions: Arc::new(Mutex::new(HashSet::new())),
+            resource_subscription_operations: Arc::new(Mutex::new(())),
+            resource_notification_generations: Arc::new(Mutex::new(HashMap::new())),
+            next_resource_notification_generation: AtomicU64::new(0),
+            resource_notifications,
+            resource_subscription_retry_tasks: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -1172,19 +1277,39 @@ impl ExtensionManager {
         };
 
         let server_info = client.get_info().cloned();
+        let client: McpClientBox = Arc::from(client);
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        let old_client = self
+            .extensions
+            .lock()
+            .await
+            .get(&sanitized_name)
+            .map(Extension::get_client);
+        self.invalidate_resource_notification_forwarder(&sanitized_name)
+            .await;
+        self.release_native_resource_subscriptions_for_extension(
+            &sanitized_name,
+            old_client.as_ref(),
+        )
+        .await;
+        let generation = self
+            .forward_resource_notifications(sanitized_name.clone(), &client)
+            .await;
 
         let mut extensions = self.extensions.lock().await;
         extensions.insert(
-            sanitized_name,
+            sanitized_name.clone(),
             Extension::new(
                 config,
                 resolved_config,
-                Arc::from(client),
+                Arc::clone(&client),
                 server_info,
                 temp_dir,
             ),
         );
         drop(extensions);
+        self.replay_resource_subscriptions_for_extension(&sanitized_name, &client, generation)
+            .await;
         self.invalidate_tools_cache_and_bump_version().await;
 
         Ok(())
@@ -1199,10 +1324,32 @@ impl ExtensionManager {
         temp_dir: Option<TempDir>,
     ) {
         let normalized = name_to_key(&name);
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        let old_client = self
+            .extensions
+            .lock()
+            .await
+            .get(&normalized)
+            .map(Extension::get_client);
+        self.invalidate_resource_notification_forwarder(&normalized)
+            .await;
+        self.release_native_resource_subscriptions_for_extension(&normalized, old_client.as_ref())
+            .await;
+        let generation = self
+            .forward_resource_notifications(normalized.clone(), &client)
+            .await;
         self.extensions.lock().await.insert(
-            normalized,
-            Extension::new(config.clone(), config.clone(), client, info, temp_dir),
+            normalized.clone(),
+            Extension::new(
+                config.clone(),
+                config.clone(),
+                Arc::clone(&client),
+                info,
+                temp_dir,
+            ),
         );
+        self.replay_resource_subscriptions_for_extension(&normalized, &client, generation)
+            .await;
         self.invalidate_tools_cache_and_bump_version().await;
     }
 
@@ -1224,7 +1371,22 @@ impl ExtensionManager {
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = name_to_key(name);
-        self.extensions.lock().await.remove(&sanitized_name);
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        let client = self
+            .extensions
+            .lock()
+            .await
+            .remove(&sanitized_name)
+            .map(|extension| extension.get_client());
+        self.invalidate_resource_notification_forwarder(&sanitized_name)
+            .await;
+        take_desired_resource_subscriptions_for_extension(
+            self.resource_subscriptions.as_ref(),
+            &sanitized_name,
+        )
+        .await;
+        self.release_native_resource_subscriptions_for_extension(&sanitized_name, client.as_ref())
+            .await;
         self.invalidate_tools_cache_and_bump_version().await;
         Ok(())
     }
@@ -1551,6 +1713,449 @@ impl ExtensionManager {
                     None,
                 )
             })
+    }
+
+    pub async fn subscribe_resource(
+        &self,
+        session_id: &str,
+        extension_name: &str,
+        uri: &str,
+        subscriber_id: &str,
+    ) -> Result<(), ErrorData> {
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        let normalized_extension = name_to_key(extension_name);
+        let client = self
+            .get_server_client(&normalized_extension)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Extension {} is not valid", extension_name),
+                    None,
+                )
+            })?;
+        let key = (
+            session_id.to_string(),
+            normalized_extension,
+            uri.to_string(),
+        );
+        let inserted = {
+            let mut subscriptions = self.resource_subscriptions.lock().await;
+            let subscribers = subscriptions.entry(key.clone()).or_default();
+            subscribers.insert(subscriber_id.to_string())
+        };
+        if self
+            .native_resource_subscriptions
+            .lock()
+            .await
+            .contains(&key)
+        {
+            return Ok(());
+        }
+
+        if let Err(error) = client.subscribe_resource(session_id, uri).await {
+            if inserted {
+                let mut subscriptions = self.resource_subscriptions.lock().await;
+                if let Some(subscribers) = subscriptions.get_mut(&key) {
+                    subscribers.remove(subscriber_id);
+                    if subscribers.is_empty() {
+                        subscriptions.remove(&key);
+                    }
+                }
+            }
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                error.to_string(),
+                None,
+            ));
+        }
+        self.native_resource_subscriptions.lock().await.insert(key);
+        Ok(())
+    }
+
+    pub async fn unsubscribe_resource(
+        &self,
+        session_id: &str,
+        extension_name: &str,
+        uri: &str,
+        subscriber_id: &str,
+    ) -> Result<(), ErrorData> {
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        let normalized_extension = name_to_key(extension_name);
+        let key = (
+            session_id.to_string(),
+            normalized_extension,
+            uri.to_string(),
+        );
+        {
+            let mut subscriptions = self.resource_subscriptions.lock().await;
+            let Some(subscribers) = subscriptions.get_mut(&key) else {
+                return Ok(());
+            };
+            if !subscribers.contains(subscriber_id) {
+                return Ok(());
+            }
+            if subscribers.len() > 1 {
+                subscribers.remove(subscriber_id);
+                return Ok(());
+            }
+        }
+
+        if !self
+            .native_resource_subscriptions
+            .lock()
+            .await
+            .contains(&key)
+        {
+            self.resource_subscriptions.lock().await.remove(&key);
+            return Ok(());
+        }
+        let Some(client) = self.get_server_client(&key.1).await else {
+            self.resource_subscriptions.lock().await.remove(&key);
+            self.native_resource_subscriptions.lock().await.remove(&key);
+            return Ok(());
+        };
+        if let Err(error) = client.unsubscribe_resource(session_id, uri).await {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                error.to_string(),
+                None,
+            ));
+        }
+        self.resource_subscriptions.lock().await.remove(&key);
+        self.native_resource_subscriptions.lock().await.remove(&key);
+        Ok(())
+    }
+
+    pub async fn unsubscribe_resources_for_session(&self, session_id: &str) {
+        let _resource_subscription_operation = self.resource_subscription_operations.lock().await;
+        {
+            let mut subscriptions = self.resource_subscriptions.lock().await;
+            subscriptions.retain(|(subscribed_session, _, _), _| subscribed_session != session_id);
+        }
+        let keys = {
+            let mut subscriptions = self.native_resource_subscriptions.lock().await;
+            let keys = subscriptions
+                .iter()
+                .filter(|(subscribed_session, _, _)| subscribed_session == session_id)
+                .cloned()
+                .collect::<Vec<_>>();
+            for key in &keys {
+                subscriptions.remove(key);
+            }
+            keys
+        };
+
+        for (session_id, extension_name, uri) in keys {
+            if let Some(client) = self.get_server_client(&extension_name).await {
+                if let Err(error) = client.unsubscribe_resource(&session_id, &uri).await {
+                    warn!(%session_id, %extension_name, %uri, %error, "Failed to release resource subscription");
+                }
+            }
+        }
+    }
+
+    pub fn subscribe_resource_notifications(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<ExtensionResourceNotification> {
+        self.resource_notifications.subscribe()
+    }
+
+    pub async fn is_resource_notification_subscribed(
+        &self,
+        notification: &ExtensionResourceNotification,
+    ) -> bool {
+        match notification {
+            ExtensionResourceNotification::Updated {
+                session_id,
+                extension_name,
+                uri,
+            } => self.resource_subscriptions.lock().await.contains_key(&(
+                session_id.clone(),
+                extension_name.clone(),
+                uri.clone(),
+            )),
+            ExtensionResourceNotification::ListChanged { .. } => true,
+        }
+    }
+
+    async fn invalidate_resource_notification_forwarder(&self, extension_name: &str) {
+        self.cancel_resource_subscription_retry(extension_name);
+        self.resource_notification_generations
+            .lock()
+            .await
+            .remove(extension_name);
+    }
+
+    fn cancel_resource_subscription_retry(&self, extension_name: &str) {
+        if let Some((_, task)) = self
+            .resource_subscription_retry_tasks
+            .lock()
+            .expect("resource subscription retry task mutex poisoned")
+            .remove(extension_name)
+        {
+            task.abort();
+        }
+    }
+
+    async fn release_native_resource_subscriptions_for_extension(
+        &self,
+        extension_name: &str,
+        client: Option<&McpClientBox>,
+    ) {
+        let subscriptions = take_native_resource_subscriptions_for_extension(
+            self.native_resource_subscriptions.as_ref(),
+            extension_name,
+        )
+        .await;
+        let Some(client) = client else {
+            return;
+        };
+        for (session_id, _, uri) in subscriptions {
+            if let Err(error) = client.unsubscribe_resource(&session_id, &uri).await {
+                warn!(%session_id, %extension_name, %uri, %error, "Failed to release resource subscription");
+            }
+        }
+    }
+
+    async fn replay_resource_subscriptions_for_extension(
+        &self,
+        extension_name: &str,
+        client: &McpClientBox,
+        generation: u64,
+    ) {
+        let subscriptions = desired_resource_subscriptions_for_extension(
+            self.resource_subscriptions.as_ref(),
+            extension_name,
+        )
+        .await;
+        let mut retry = false;
+        for key in subscriptions {
+            let (session_id, _, uri) = &key;
+            match client.subscribe_resource(session_id, uri).await {
+                Ok(()) => {
+                    let event = ExtensionResourceNotification::Updated {
+                        session_id: key.0.clone(),
+                        extension_name: key.1.clone(),
+                        uri: key.2.clone(),
+                    };
+                    self.native_resource_subscriptions.lock().await.insert(key);
+                    let _ = self.resource_notifications.send(event);
+                }
+                Err(error) => {
+                    retry = true;
+                    warn!(%session_id, %extension_name, %uri, %error, "Failed to replay resource subscription");
+                }
+            }
+        }
+        if retry {
+            self.start_resource_subscription_retry(
+                extension_name.to_string(),
+                Arc::clone(client),
+                generation,
+            );
+        }
+    }
+
+    fn start_resource_subscription_retry(
+        &self,
+        extension_name: String,
+        client: McpClientBox,
+        generation: u64,
+    ) {
+        let generations = Arc::clone(&self.resource_notification_generations);
+        let desired_subscriptions = Arc::clone(&self.resource_subscriptions);
+        let native_subscriptions = Arc::clone(&self.native_resource_subscriptions);
+        let subscription_operations = Arc::clone(&self.resource_subscription_operations);
+        let sender = self.resource_notifications.clone();
+        let retry_tasks = Arc::clone(&self.resource_subscription_retry_tasks);
+        let task_extension = extension_name.clone();
+        let task_retry_tasks = Arc::clone(&retry_tasks);
+        let task = tokio::spawn(async move {
+            let mut backoff = RESOURCE_SUBSCRIPTION_RETRY_INITIAL_BACKOFF;
+            'retry: loop {
+                tokio::time::sleep(backoff).await;
+                if generations.lock().await.get(&task_extension) != Some(&generation) {
+                    break;
+                }
+
+                let desired = desired_resource_subscriptions_for_extension(
+                    desired_subscriptions.as_ref(),
+                    &task_extension,
+                )
+                .await;
+                let pending = {
+                    let native = native_subscriptions.lock().await;
+                    desired
+                        .into_iter()
+                        .filter(|key| !native.contains(key))
+                        .collect::<Vec<_>>()
+                };
+                if pending.is_empty() {
+                    break;
+                }
+
+                let mut failed = false;
+                for key in pending {
+                    if generations.lock().await.get(&task_extension) != Some(&generation) {
+                        break 'retry;
+                    }
+                    let (session_id, _, uri) = &key;
+                    match client.subscribe_resource(session_id, uri).await {
+                        Ok(()) => {
+                            let valid = {
+                                let _operation = subscription_operations.lock().await;
+                                if generations.lock().await.get(&task_extension)
+                                    != Some(&generation)
+                                    || !desired_subscriptions.lock().await.contains_key(&key)
+                                {
+                                    false
+                                } else {
+                                    let inserted =
+                                        native_subscriptions.lock().await.insert(key.clone());
+                                    if inserted {
+                                        let _ =
+                                            sender.send(ExtensionResourceNotification::Updated {
+                                                session_id: key.0.clone(),
+                                                extension_name: key.1.clone(),
+                                                uri: key.2.clone(),
+                                            });
+                                    }
+                                    true
+                                }
+                            };
+                            if !valid {
+                                let _ = client.unsubscribe_resource(session_id, uri).await;
+                                break 'retry;
+                            }
+                        }
+                        Err(error) => {
+                            failed = true;
+                            warn!(%session_id, extension_name = %task_extension, %uri, %error, "Failed to retry resource subscription replay");
+                        }
+                    }
+                }
+
+                let remaining = desired_resource_subscriptions_for_extension(
+                    desired_subscriptions.as_ref(),
+                    &task_extension,
+                )
+                .await;
+                let has_pending = {
+                    let native = native_subscriptions.lock().await;
+                    remaining.iter().any(|key| !native.contains(key))
+                };
+                if !has_pending {
+                    break;
+                }
+                if failed {
+                    backoff = std::cmp::min(backoff * 2, RESOURCE_SUBSCRIPTION_RETRY_MAX_BACKOFF);
+                }
+            }
+
+            let mut tasks = task_retry_tasks
+                .lock()
+                .expect("resource subscription retry task mutex poisoned");
+            if tasks
+                .get(&task_extension)
+                .is_some_and(|(task_generation, _)| *task_generation == generation)
+            {
+                tasks.remove(&task_extension);
+            }
+        });
+        let abort_handle = task.abort_handle();
+        drop(task);
+
+        let mut tasks = retry_tasks
+            .lock()
+            .expect("resource subscription retry task mutex poisoned");
+        if let Some((task_generation, _)) = tasks.get(&extension_name) {
+            if *task_generation == generation {
+                abort_handle.abort();
+                return;
+            }
+        }
+        if let Some((_, old_task)) = tasks.insert(extension_name, (generation, abort_handle)) {
+            old_task.abort();
+        }
+    }
+
+    async fn forward_resource_notifications(
+        &self,
+        extension_name: String,
+        client: &McpClientBox,
+    ) -> u64 {
+        let mut notifications = client.subscribe().await;
+        let sender = self.resource_notifications.clone();
+        let native_subscriptions = Arc::clone(&self.native_resource_subscriptions);
+        let subscription_operations = Arc::clone(&self.resource_subscription_operations);
+        let generations = Arc::clone(&self.resource_notification_generations);
+        let retry_tasks = Arc::clone(&self.resource_subscription_retry_tasks);
+        let generation = self
+            .next_resource_notification_generation
+            .fetch_add(1, Ordering::SeqCst);
+        generations
+            .lock()
+            .await
+            .insert(extension_name.clone(), generation);
+        tokio::spawn(async move {
+            while let Some(notification) = notifications.recv().await {
+                let generations = generations.lock().await;
+                if generations.get(&extension_name) != Some(&generation) {
+                    return;
+                }
+                let event = match notification {
+                    ServerNotification::ResourceUpdatedNotification(notification) => {
+                        notification_session_id(&notification.extensions).map(|session_id| {
+                            ExtensionResourceNotification::Updated {
+                                session_id,
+                                extension_name: extension_name.clone(),
+                                uri: notification.params.uri,
+                            }
+                        })
+                    }
+                    ServerNotification::ResourceListChangedNotification(notification) => {
+                        notification_session_id(&notification.extensions).map(|session_id| {
+                            ExtensionResourceNotification::ListChanged {
+                                session_id,
+                                extension_name: extension_name.clone(),
+                            }
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(event) = event {
+                    let _ = sender.send(event);
+                }
+            }
+            let _resource_subscription_operation = subscription_operations.lock().await;
+            let mut generations = generations.lock().await;
+            if generations.get(&extension_name) == Some(&generation) {
+                take_native_resource_subscriptions_for_extension(
+                    native_subscriptions.as_ref(),
+                    &extension_name,
+                )
+                .await;
+                generations.remove(&extension_name);
+                let retry = {
+                    let mut tasks = retry_tasks
+                        .lock()
+                        .expect("resource subscription retry task mutex poisoned");
+                    if tasks
+                        .get(&extension_name)
+                        .is_some_and(|(retry_generation, _)| *retry_generation == generation)
+                    {
+                        tasks.remove(&extension_name)
+                    } else {
+                        None
+                    }
+                };
+                if let Some((_, task)) = retry {
+                    task.abort();
+                }
+            }
+        });
+        generation
     }
 
     pub async fn get_ui_resources(

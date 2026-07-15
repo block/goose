@@ -77,6 +77,22 @@ impl GooseAcpAgent {
         self.on_read_resource(req).await
     }
 
+    #[custom_method(SubscribeResourceRequest)]
+    async fn dispatch_subscribe_resource(
+        &self,
+        req: SubscribeResourceRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_subscribe_resource(req).await
+    }
+
+    #[custom_method(UnsubscribeResourceRequest)]
+    async fn dispatch_unsubscribe_resource(
+        &self,
+        req: UnsubscribeResourceRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_unsubscribe_resource(req).await
+    }
+
     #[custom_method(AppsListRequest)]
     async fn dispatch_list_apps(
         &self,

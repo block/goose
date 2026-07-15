@@ -16,7 +16,7 @@ use rmcp::{
         InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult, Notification,
         PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams, ReadResourceResult,
         Request, RequestId, RequestOptionalParam, Role, SamplingMessage, ServerNotification,
-        ServerResult,
+        ServerResult, SubscribeRequestParams, UnsubscribeRequestParams,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -115,6 +115,14 @@ pub trait McpClientTrait: Send + Sync {
         _uri: &str,
         _cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
+        Err(Error::TransportClosed)
+    }
+
+    async fn subscribe_resource(&self, _session_id: &str, _uri: &str) -> Result<(), Error> {
+        Err(Error::TransportClosed)
+    }
+
+    async fn unsubscribe_resource(&self, _session_id: &str, _uri: &str) -> Result<(), Error> {
         Err(Error::TransportClosed)
     }
 
@@ -371,6 +379,51 @@ impl ClientHandler for GooseClient {
                 let _ =
                     handler.try_send(ServerNotification::LoggingMessageNotification(notification));
             });
+    }
+
+    async fn on_resource_updated(
+        &self,
+        params: rmcp::model::ResourceUpdatedNotificationParam,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        let mut notification = Notification::new(params);
+        notification.extensions = inject_session_context_into_extensions(
+            context.extensions,
+            self.current_session_id().await.as_deref(),
+            None,
+            None,
+        );
+        self.notification_handlers.lock().await.retain(|handler| {
+            !matches!(
+                handler.try_send(ServerNotification::ResourceUpdatedNotification(
+                    notification.clone(),
+                )),
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_))
+            )
+        });
+    }
+
+    async fn on_resource_list_changed(
+        &self,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        let notification = rmcp::model::ResourceListChangedNotification {
+            method: Default::default(),
+            extensions: inject_session_context_into_extensions(
+                context.extensions,
+                self.current_session_id().await.as_deref(),
+                None,
+                None,
+            ),
+        };
+        self.notification_handlers.lock().await.retain(|handler| {
+            !matches!(
+                handler.try_send(ServerNotification::ResourceListChangedNotification(
+                    notification.clone(),
+                )),
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_))
+            )
+        });
     }
 
     async fn create_message(
@@ -755,6 +808,38 @@ impl McpClientTrait for McpClient {
             ServerResult::ReadResourceResult(result) => Ok(result),
             _ => Err(ServiceError::UnexpectedResponse),
         }
+    }
+
+    async fn subscribe_resource(&self, session_id: &str, uri: &str) -> Result<(), Error> {
+        let peer = {
+            let client = self.client.lock().await;
+            client.service().set_session_id(session_id).await;
+            client.peer().clone()
+        };
+        tokio::time::timeout(
+            self.timeout,
+            peer.subscribe(SubscribeRequestParams::new(uri.to_string())),
+        )
+        .await
+        .map_err(|_| ServiceError::Timeout {
+            timeout: self.timeout,
+        })?
+    }
+
+    async fn unsubscribe_resource(&self, session_id: &str, uri: &str) -> Result<(), Error> {
+        let peer = {
+            let client = self.client.lock().await;
+            client.service().set_session_id(session_id).await;
+            client.peer().clone()
+        };
+        tokio::time::timeout(
+            self.timeout,
+            peer.unsubscribe(UnsubscribeRequestParams::new(uri.to_string())),
+        )
+        .await
+        .map_err(|_| ServiceError::Timeout {
+            timeout: self.timeout,
+        })?
     }
 
     async fn list_tools(

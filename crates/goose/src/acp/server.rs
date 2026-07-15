@@ -9,7 +9,9 @@ pub(super) use crate::acp::response_builder::{
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
-use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
+use crate::agents::extension_manager::{
+    ExtensionResourceNotification, TRUSTED_TOOL_UPDATE_META_KEY,
+};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
 use crate::agents::{
@@ -232,6 +234,7 @@ pub struct GooseAcpAgent {
     provider_inventory: ProviderInventoryService,
     additional_source_roots: Vec<SourceRoot>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
+    resource_notification_bridges: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
 }
 
 /// Shorten a session/thread id for perf log correlation.
@@ -970,6 +973,7 @@ impl GooseAcpAgent {
             provider_inventory,
             additional_source_roots: options.additional_source_roots,
             recipe_path_cache: Arc::new(Mutex::new(HashMap::new())),
+            resource_notification_bridges: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -3113,8 +3117,24 @@ impl GooseAcpAgent {
         }
 
         let mut sessions = self.sessions.lock().await;
-        sessions.remove(session_id);
+        let session = sessions.remove(session_id);
         drop(sessions);
+
+        if let Some(session) = session {
+            session
+                .agent
+                .extension_manager
+                .unsubscribe_resources_for_session(session_id)
+                .await;
+        }
+        if let Some(bridge) = self
+            .resource_notification_bridges
+            .lock()
+            .await
+            .remove(session_id)
+        {
+            bridge.abort();
+        }
 
         self.agent_manager
             .remove_session_if_loaded(session_id)
