@@ -1041,6 +1041,13 @@ impl Agent {
         }
     }
 
+    /// Drop recipe instructions and final-output tooling from a reused agent.
+    pub async fn clear_recipe_context(&self) {
+        self.remove_system_prompt_extra("recipe").await;
+        self.remove_system_prompt_extra("final_output").await;
+        *self.final_output_tool.lock().await = None;
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
     pub async fn dispatch_tool_call(
@@ -4085,6 +4092,38 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let final_output_tool_system_prompt =
             final_output_tool_ref.as_ref().unwrap().system_prompt();
         assert!(system_prompt.contains(&final_output_tool_system_prompt));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_clear_recipe_context_removes_stale_prompt_and_tool() -> Result<()> {
+        let agent = Agent::new();
+        agent
+            .extend_system_prompt("recipe".to_string(), "follow the recipe".to_string())
+            .await;
+        agent
+            .add_final_output_tool(Response {
+                json_schema: Some(serde_json::json!({
+                    "type": "object",
+                    "properties": { "result": {"type": "string"} }
+                })),
+            })
+            .await;
+
+        agent.clear_recipe_context().await;
+
+        assert!(agent.final_output_tool.lock().await.is_none());
+        let tools = agent.list_tools("test-session-id", None).await;
+        assert!(tools.iter().all(|tool| tool.name != FINAL_OUTPUT_TOOL_NAME));
+
+        let system_prompt = agent
+            .prompt_manager
+            .lock()
+            .await
+            .builder()
+            .with_goose_mode(GooseMode::default())
+            .build();
+        assert!(!system_prompt.contains("follow the recipe"));
         Ok(())
     }
 

@@ -322,6 +322,10 @@ impl GooseAcpAgent {
         }
     }
 
+    pub(super) async fn clear_recipe(&self, agent: &Arc<Agent>) {
+        agent.clear_recipe_context().await;
+    }
+
     pub(super) async fn apply_session_recipe(
         &self,
         agent: &Arc<Agent>,
