@@ -21,7 +21,7 @@ impl MaxTurnsOperation {
     }
 }
 
-fn turns_taken_this_request(conversation: &Conversation) -> u32 {
+pub(crate) fn turns_taken_this_request(conversation: &Conversation) -> u32 {
     let mut turns = 0u32;
     for message in conversation.messages().iter().rev() {
         // Only a message the user actually typed starts a new request.

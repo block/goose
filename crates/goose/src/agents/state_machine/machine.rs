@@ -16,6 +16,7 @@ use crate::agents::state_machine::ops_llm::LlmOperation;
 use crate::agents::state_machine::ops_maxturns::MaxTurnsOperation;
 use crate::agents::state_machine::ops_retry::RetryOperation;
 use crate::agents::state_machine::ops_slash_command::SlashCommandOperation;
+use crate::agents::state_machine::ops_steer::SteerOperation;
 use crate::agents::state_machine::ops_stop_hook::StopHookOperation;
 use crate::agents::state_machine::ops_tool_approval::ToolApprovalOperation;
 use crate::agents::state_machine::ops_tool_pair_compaction::ToolPairCompactionOperation;
@@ -96,7 +97,7 @@ pub async fn reply(
         });
     }
 
-    let (tools, _toolshim_tools, system_prompt, model_config) = agent
+    let (tools, toolshim_tools, system_prompt, model_config) = agent
         .prepare_tools_and_prompt(&session_id, &entry_session.working_dir)
         .await?;
     if agent.goose_mode().await == crate::config::GooseMode::SmartApprove {
@@ -113,6 +114,7 @@ pub async fn reply(
 
     let operations: Vec<Arc<dyn Operation + '_>> = vec![
         Arc::new(SlashCommandOperation::new(agent)),
+        Arc::new(SteerOperation::new(agent)),
         Arc::new(MaxTurnsOperation::new(max_turns)),
         Arc::new(CompactionOperation::new(
             agent,
@@ -132,7 +134,9 @@ pub async fn reply(
             model_config,
             system_prompt,
             tools,
+            toolshim_tools,
             session_config.schedule_id.clone(),
+            max_turns,
         )),
         Arc::new(RetryOperation::new(
             agent,

@@ -7,6 +7,7 @@ use rmcp::model::{Role, Tool};
 
 use crate::agents::agent::attach_turn_usage;
 use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnOutcome};
+use crate::agents::state_machine::ops_maxturns::turns_taken_this_request;
 use crate::agents::state_machine::ops_toolcalling::current_request_start;
 use crate::agents::{Agent, AgentEvent};
 use crate::conversation::message::{Message, MessageContent};
@@ -18,10 +19,12 @@ use goose_providers::model::ModelConfig;
 
 /// The system prompt and tools baked at reply start, plus the extension-set
 /// version they were built against — a `manage_extensions` call mid-reply
-/// bumps the version and the next turn rebuilds both.
+/// bumps the version (and newly discovered subdirectory hints count too), and
+/// the next turn rebuilds everything.
 struct PromptState {
     system_prompt: String,
     tools: Vec<Tool>,
+    toolshim_tools: Vec<Tool>,
     tools_version: u64,
 }
 
@@ -32,16 +35,20 @@ pub struct LlmOperation<'a> {
     model_config: ModelConfig,
     prompt_state: tokio::sync::Mutex<PromptState>,
     schedule_id: Option<String>,
+    max_turns: u32,
 }
 
 impl<'a> LlmOperation<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent: &'a Agent,
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
         system_prompt: String,
         tools: Vec<Tool>,
+        toolshim_tools: Vec<Tool>,
         schedule_id: Option<String>,
+        max_turns: u32,
     ) -> Self {
         let tools_version = agent.extension_manager.tools_version();
         Self {
@@ -51,25 +58,41 @@ impl<'a> LlmOperation<'a> {
             prompt_state: tokio::sync::Mutex::new(PromptState {
                 system_prompt,
                 tools,
+                toolshim_tools,
                 tools_version,
             }),
             schedule_id,
+            max_turns,
         }
     }
 
-    async fn current_prompt_and_tools(&self, session: &Session) -> Result<(String, Vec<Tool>)> {
+    async fn current_prompt_and_tools(
+        &self,
+        session: &Session,
+    ) -> Result<(String, Vec<Tool>, Vec<Tool>)> {
         let mut state = self.prompt_state.lock().await;
         let current_version = self.agent.extension_manager.tools_version();
-        if state.tools_version != current_version {
-            let (tools, _toolshim_tools, system_prompt, _model_config) = self
+        let has_new_hints = self
+            .agent
+            .prompt_manager
+            .lock()
+            .await
+            .load_subdirectory_hints(&session.working_dir);
+        if state.tools_version != current_version || has_new_hints {
+            let (tools, toolshim_tools, system_prompt, _model_config) = self
                 .agent
                 .prepare_tools_and_prompt(&session.id, &session.working_dir)
                 .await?;
             state.tools = tools;
+            state.toolshim_tools = toolshim_tools;
             state.system_prompt = system_prompt;
             state.tools_version = current_version;
         }
-        Ok((state.system_prompt.clone(), state.tools.clone()))
+        Ok((
+            state.system_prompt.clone(),
+            state.tools.clone(),
+            state.toolshim_tools.clone(),
+        ))
     }
 
     async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> TurnOutcome {
@@ -137,16 +160,33 @@ impl Operation for LlmOperation<'_> {
             return Ok(OperationResult::NotApplicable(emit));
         }
 
-        let (system_prompt, tools) = self.current_prompt_and_tools(session).await?;
-        let stream = self
-            .provider
-            .stream(
-                &self.model_config,
-                &system_prompt,
-                &messages_for_provider,
-                &tools,
-            )
-            .await;
+        let (system_prompt, tools, toolshim_tools) = self.current_prompt_and_tools(session).await?;
+
+        // The ephemeral turn-context block (time, working dir, turn budget);
+        // injected into the provider view only, never persisted.
+        let turns_taken = turns_taken_this_request(conversation);
+        let conversation_for_provider = crate::agents::moim::inject_moim(
+            &session.id,
+            Conversation::new_unvalidated(messages_for_provider),
+            &self.agent.extension_manager,
+            turns_taken,
+            self.max_turns,
+        )
+        .await;
+
+        // The shared wrapper adds what a bare `provider.stream` lacks:
+        // toolshim conversion, session-context scoping, the thinking-effort
+        // default, and error enhancement.
+        let stream = Agent::stream_response_from_provider(
+            self.provider.clone(),
+            self.model_config.clone(),
+            &session.id,
+            &system_prompt,
+            conversation_for_provider.messages(),
+            &tools,
+            &toolshim_tools,
+        )
+        .await;
 
         let mut stream = match stream {
             Ok(stream) => stream,

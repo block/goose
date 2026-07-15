@@ -505,7 +505,7 @@ impl Agent {
         self.pending_steers.lock().await.remove(session_id);
     }
 
-    async fn has_pending_steers(&self, session_id: &str) -> bool {
+    pub(crate) async fn has_pending_steers(&self, session_id: &str) -> bool {
         self.pending_steers
             .lock()
             .await
@@ -513,7 +513,7 @@ impl Agent {
             .is_some_and(|messages| !messages.is_empty())
     }
 
-    async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
+    pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
         self.pending_steers
             .lock()
             .await

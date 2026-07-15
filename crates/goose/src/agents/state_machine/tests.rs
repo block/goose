@@ -273,6 +273,112 @@ async fn denied_tool_confirmation_becomes_tool_response() -> Result<()> {
 }
 
 #[tokio::test]
+async fn queued_steer_is_injected_between_turns() -> Result<()> {
+    let provider = Arc::new(ScriptedProvider::from_fn(|messages, _tools| {
+        let saw_steer = messages
+            .iter()
+            .any(|m| m.as_concat_text().contains("actually, use blue"));
+        vec![Message::assistant().with_text(if saw_steer {
+            "switched to blue"
+        } else {
+            "starting"
+        })]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+    harness
+        .agent
+        .steer(
+            &harness.session_id,
+            Message::user().with_text("actually, use blue"),
+        )
+        .await;
+
+    let messages = harness.run("paint it", 10).await?;
+
+    // Turn one, then the steer injects and buys a second turn that sees it.
+    assert_eq!(harness.provider.call_count(), 2, "events: {messages:#?}");
+    assert_eq!(
+        messages.last().unwrap().as_concat_text(),
+        "switched to blue"
+    );
+
+    let persisted = harness.persisted_messages().await?;
+    let steer = persisted
+        .iter()
+        .find(|m| m.as_concat_text() == "actually, use blue")
+        .expect("persisted steer message");
+    assert!(steer.metadata.steer);
+    assert!(!harness.agent.has_pending_steers(&harness.session_id).await);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn unparseable_tool_call_gets_parse_error_response() -> Result<()> {
+    use rmcp::model::{ErrorCode, ErrorData};
+
+    let harness = TestHarness::with_steps([
+        Step::Messages(vec![Message::assistant().with_tool_request(
+            "bad_call",
+            Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "unbalanced braces in arguments",
+                None,
+            )),
+        )]),
+        Step::Text("let me fix that".to_string()),
+    ])
+    .await
+    .with_default_extension()
+    .await;
+
+    let messages = harness.run("do it", 10).await?;
+
+    let tool_response = messages
+        .iter()
+        .find(|m| m.is_tool_response())
+        .expect("a tool response");
+    let text = tool_response_text(tool_response);
+    assert!(text.contains("could not be parsed"), "response: {text}");
+    assert!(text.contains("unbalanced braces"), "response: {text}");
+    // The model got the error and could take another turn.
+    assert_eq!(harness.provider.call_count(), 2);
+    assert_eq!(messages.last().unwrap().as_concat_text(), "let me fix that");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn turn_context_is_injected_into_provider_view() -> Result<()> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let saw_turn_context = Arc::new(AtomicBool::new(false));
+    let saw = saw_turn_context.clone();
+    let provider = Arc::new(ScriptedProvider::from_fn(move |messages, _tools| {
+        if messages
+            .iter()
+            .any(|m| m.as_concat_text().contains("<turn-context>"))
+        {
+            saw.store(true, Ordering::Relaxed);
+        }
+        vec![Message::assistant().with_text("ok")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+
+    harness.run("hello", 10).await?;
+
+    assert!(saw_turn_context.load(Ordering::Relaxed));
+
+    // The turn-context block is ephemeral: it never lands in the transcript.
+    let persisted = harness.persisted_messages().await?;
+    assert!(!persisted
+        .iter()
+        .any(|m| m.as_concat_text().contains("<turn-context>")));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn old_tool_pairs_are_summarized_away() -> Result<()> {
     // Default cutoff for the test model is 15 and the batch size is 10, so 26
     // answered pairs put exactly one batch over the threshold.

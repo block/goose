@@ -15,6 +15,7 @@ mod ops_llm;
 mod ops_maxturns;
 mod ops_retry;
 mod ops_slash_command;
+mod ops_steer;
 mod ops_stop_hook;
 mod ops_tool_approval;
 mod ops_tool_pair_compaction;

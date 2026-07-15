@@ -79,9 +79,15 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
         .filter(|message| message.role == Role::Assistant)
         .flat_map(|message| {
             message.content.iter().filter_map(|c| match c {
-                MessageContent::ToolRequest(req)
-                    if req.tool_call.is_ok() && !answered.contains(&req.id) =>
-                {
+                MessageContent::ToolRequest(req) if !answered.contains(&req.id) => {
+                    if let Err(parse_error) = &req.tool_call {
+                        // The model gets the parse error as the tool's result
+                        // so it can correct the call instead of stalling.
+                        return Some((
+                            req.clone(),
+                            ToolDisposition::ParseError(parse_error.to_string()),
+                        ));
+                    }
                     match request_executable(req).unwrap_or(true) {
                         true => Some((req.clone(), ToolDisposition::Execute)),
                         false => {
@@ -101,10 +107,11 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
         .collect()
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 enum ToolDisposition {
     Execute,
     Decline,
+    ParseError(String),
 }
 
 fn approval_denied(permission: Option<&crate::permission::Permission>) -> bool {
@@ -138,12 +145,22 @@ impl Operation for ToolExecutionOperation<'_> {
 
         if self.agent.goose_mode().await == GooseMode::Chat {
             let mut response = Message::user().with_generated_id();
-            for (request, _) in &pending {
+            for (request, disposition) in &pending {
+                // Parse errors surface even in chat mode — a malformed call
+                // skipped as "OK" would leave the model unable to correct it.
+                let result = match disposition {
+                    ToolDisposition::ParseError(parse_error) => {
+                        CallToolResult::error(vec![Content::text(format!(
+                            "The tool call could not be parsed: {parse_error}."
+                        ))])
+                    }
+                    _ => CallToolResult::success(vec![Content::text(
+                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+                    )]),
+                };
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult::success(vec![Content::text(
-                        CHAT_MODE_TOOL_SKIPPED_RESPONSE,
-                    )])),
+                    Ok(result),
                     request.metadata.as_ref(),
                 );
             }
@@ -202,14 +219,27 @@ impl Operation for ToolExecutionOperation<'_> {
         let mut combined = futures::stream::select_all(tool_streams);
         let mut response = Message::user().with_generated_id();
         for (request, disposition) in &pending {
-            if *disposition == ToolDisposition::Decline {
-                response.add_tool_response_with_metadata(
-                    request.id.clone(),
-                    Ok(CallToolResult::error(vec![Content::text(
-                        DECLINED_RESPONSE,
-                    )])),
-                    request.metadata.as_ref(),
-                );
+            match disposition {
+                ToolDisposition::Execute => {}
+                ToolDisposition::Decline => {
+                    response.add_tool_response_with_metadata(
+                        request.id.clone(),
+                        Ok(CallToolResult::error(vec![Content::text(
+                            DECLINED_RESPONSE,
+                        )])),
+                        request.metadata.as_ref(),
+                    );
+                }
+                ToolDisposition::ParseError(parse_error) => {
+                    response.add_tool_response_with_metadata(
+                        request.id.clone(),
+                        Ok(CallToolResult::error(vec![Content::text(format!(
+                            "The tool call could not be parsed: {parse_error}. \
+                             Correct the arguments and try again."
+                        ))])),
+                        request.metadata.as_ref(),
+                    );
+                }
             }
         }
 
