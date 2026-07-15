@@ -1457,11 +1457,17 @@ pub fn create_request_with_options(
     let is_reasoning_model = model_config.is_reasoning_model();
 
     let (reasoning_property, effort_mapping, extra_body) = match &model_config.reasoning {
-        Some(crate::base::Reasoning::ReasoningConfig(c)) if c.enabled => (
-            c.reasoning_property.as_deref(),
-            c.effort_mapping.as_ref(),
-            c.extra_body.as_ref(),
-        ),
+        Some(crate::base::Reasoning::ReasoningConfig(c))
+            if c.enabled
+                && (is_openai_model
+                    || model_config.thinking_effort() != Some(ThinkingEffort::Off)) =>
+        {
+            (
+                c.reasoning_property.as_deref(),
+                c.effort_mapping.as_ref(),
+                c.extra_body.as_ref(),
+            )
+        }
         _ => (None, None, None),
     };
 
