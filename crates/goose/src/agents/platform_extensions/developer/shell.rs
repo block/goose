@@ -668,6 +668,7 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.arg(format!("--env=PATH={}", path));
             }
+            apply_flatpak_session_environment(&mut command, session_id);
             command
                 .arg(&shell)
                 .args(unix_shell_command_args(command_line));
@@ -681,10 +682,12 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.env("PATH", path);
             }
+            apply_session_environment(&mut command, session_id);
             command
         }
     };
 
+    #[cfg(windows)]
     apply_session_environment(&mut command, session_id);
     command.set_no_window();
     command
@@ -695,6 +698,18 @@ fn apply_session_environment(command: &mut tokio::process::Command, session_id: 
         command.env("AGENT_SESSION_ID", session_id);
     } else {
         command.env_remove("AGENT_SESSION_ID");
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_flatpak_session_environment(
+    command: &mut tokio::process::Command,
+    session_id: Option<&str>,
+) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.arg(format!("--env=AGENT_SESSION_ID={session_id}"));
+    } else {
+        command.arg("--unset-env=AGENT_SESSION_ID");
     }
 }
 
@@ -923,6 +938,40 @@ mod tests {
                 .get_envs()
                 .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
             Some(None)
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn flatpak_session_environment_is_forwarded_to_host() {
+        let mut command = tokio::process::Command::new("flatpak-spawn");
+
+        apply_flatpak_session_environment(&mut command, Some("session-123"));
+
+        assert_eq!(
+            command
+                .as_std()
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            vec!["--env=AGENT_SESSION_ID=session-123"]
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn flatpak_session_environment_removes_stale_id_without_context() {
+        let mut command = tokio::process::Command::new("flatpak-spawn");
+
+        apply_flatpak_session_environment(&mut command, None);
+
+        assert_eq!(
+            command
+                .as_std()
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            vec!["--unset-env=AGENT_SESSION_ID"]
         );
     }
 
