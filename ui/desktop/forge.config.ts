@@ -35,10 +35,10 @@ let cfg = {
       },
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
-    NSCalendarsUsageDescription:
-      'Goose needs access to your calendars to help manage and query calendar events.',
-    NSRemindersUsageDescription:
-      'Goose needs access to your reminders to help manage and query reminders.',
+    NSMicrophoneUsageDescription:
+      'Goose needs access to your microphone for voice dictation.',
+    NSAppleEventsUsageDescription:
+      'Goose needs access to send Apple Events to control other apps on your behalf.',
   },
 };
 
