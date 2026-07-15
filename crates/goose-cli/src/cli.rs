@@ -39,14 +39,51 @@ use tracing::warn;
 
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
-/// Emit OSC 0 escape sequence to set the terminal window/tab title.
+/// Push the current terminal title onto the OSC title stack and set a new title.
 /// Most modern terminals (WezTerm, iTerm2, Ghostty, Windows Terminal,
-/// GNOME Terminal, Alacritty, Kitty) respect this for pane identification.
-fn set_terminal_title(title: &str) {
-    // OSC 0: ESC ] 0 ; title BEL
-    // Sets both window title and terminal tab title on most terminals.
+/// GNOME Terminal, Alacritty, Kitty) support the OSC 22/23 stack.
+fn push_terminal_title(title: &str) {
+    // Push current title onto stack (OSC 22)
+    print!("\x1b]22;\x07");
+    // Set new title (OSC 0)
     print!("\x1b]0;{}\x07", title);
     std::io::stdout().flush().ok();
+}
+
+/// Pop the previous terminal title from the OSC title stack.
+fn pop_terminal_title() {
+    print!("\x1b]23;\x07");
+    std::io::stdout().flush().ok();
+}
+
+/// RAII guard that pushes a terminal title on construction
+/// and pops (restores) it on drop.
+struct TerminalTitleGuard;
+
+impl TerminalTitleGuard {
+    fn new(title: &str) -> Self {
+        push_terminal_title(title);
+        TerminalTitleGuard
+    }
+}
+
+impl Drop for TerminalTitleGuard {
+    fn drop(&mut self) {
+        pop_terminal_title();
+    }
+}
+
+/// Derive a meaningful terminal tab title from config and model override.
+fn goose_terminal_title(model_override: Option<&str>) -> String {
+    let model = model_override
+        .map(|s| s.to_string())
+        .or_else(|| Config::global().get_goose_model().ok())
+        .unwrap_or_default();
+    if model.is_empty() {
+        "goose".to_string()
+    } else {
+        format!("goose · {}", model)
+    }
 }
 
 fn generate_serve_secret_key() -> String {
@@ -1224,7 +1261,11 @@ async fn handle_interactive_session(
         configure_telemetry_consent_dialog()?;
     }
 
-    set_terminal_title("goose");
+    let _title_guard = if std::io::stdout().is_terminal() {
+        Some(TerminalTitleGuard::new(&goose_terminal_title(None)))
+    } else {
+        None
+    };
 
     let session_start = std::time::Instant::now();
     let session_type = if fork {
@@ -1477,7 +1518,12 @@ async fn handle_run_command(
     )
     .await?;
 
-    set_terminal_title("goose");
+    let model_name = model_opts.model.clone();
+    let _title_guard = if run_behavior.interactive && std::io::stdout().is_terminal() {
+        Some(TerminalTitleGuard::new(&goose_terminal_title(model_name.as_deref())))
+    } else {
+        None
+    };
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
@@ -1778,7 +1824,11 @@ async fn handle_default_session() -> Result<()> {
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let session_id = get_or_create_session_id(None, false, false, goose_mode).await?;
 
-    set_terminal_title("goose");
+    let _title_guard = if std::io::stdout().is_terminal() {
+        Some(TerminalTitleGuard::new(&goose_terminal_title(None)))
+    } else {
+        None
+    };
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
