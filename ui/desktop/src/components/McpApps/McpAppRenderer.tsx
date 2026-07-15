@@ -30,10 +30,20 @@ import type {
   McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult, JSONRPCRequest, Tool } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  CallToolResult,
+  JSONRPCMessage,
+  JSONRPCRequest,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
+import {
+  callMcpAppTool,
+  McpAppResourceSubscriptions,
+  onMcpAppResourceNotification,
+  readMcpAppResource,
+} from '../../acp/mcp-apps';
 import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
 import { getCachedTools } from './toolsCache';
 import { AppEvents } from '../../constants/events';
@@ -257,6 +267,8 @@ interface GooseAppFrameProps {
   toolInputPartial?: Record<string, unknown>;
   toolResult?: CallToolResult;
   toolCancelled?: boolean;
+  sessionId?: string | null;
+  extensionName: string;
   onMessage: (params: {
     content: Array<{ type: string; text?: string }>;
   }) => Promise<Record<string, unknown>>;
@@ -290,6 +302,8 @@ function GooseAppFrame({
   toolInputPartial,
   toolResult,
   toolCancelled,
+  sessionId,
+  extensionName,
   onMessage,
   onOpenLink,
   onCallTool,
@@ -346,20 +360,59 @@ function GooseAppFrame({
     const bridge = new AppBridge(null, { name: 'MCP-UI Host', version: '1.0.0' }, capabilities, {
       hostContext: hostContextRef.current,
     });
+    let transport: PostMessageTransport | null = null;
+    const subscriptions = sessionId
+      ? new McpAppResourceSubscriptions(
+          sessionId,
+          extensionName,
+          crypto.randomUUID(),
+          (uri) => {
+            void transport?.send({
+              jsonrpc: '2.0',
+              method: 'notifications/resources/updated',
+              params: { uri },
+            } as JSONRPCMessage);
+          },
+          () => void bridge.sendResourceListChanged()
+        )
+      : null;
+    const stopResourceNotifications = subscriptions
+      ? onMcpAppResourceNotification((notification) => subscriptions.notify(notification))
+      : () => {};
     bridge.onmessage = (params) => onMessageRef.current(params);
     bridge.onopenlink = (params) => onOpenLinkRef.current(params);
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
     bridge.oncalltool = (params) => onCallToolRef.current(params);
     bridge.onreadresource = (params) => onReadResourceRef.current(params);
-    (bridge as FallbackRequestHandler).fallbackRequestHandler = (request, extra) =>
-      onFallbackRequestRef.current(request, extra);
+    (bridge as FallbackRequestHandler).fallbackRequestHandler = async (request, extra) => {
+      if (request.method === 'resources/subscribe' || request.method === 'resources/unsubscribe') {
+        const uri =
+          request.params &&
+          typeof request.params === 'object' &&
+          'uri' in request.params &&
+          typeof request.params.uri === 'string'
+            ? request.params.uri
+            : null;
+        if (!subscriptions || !uri) {
+          throw new Error('Session and resource URI are required for resource subscriptions');
+        }
+        if (request.method === 'resources/subscribe') await subscriptions.subscribe(uri);
+        else await subscriptions.unsubscribe(uri);
+        return {};
+      }
+      return onFallbackRequestRef.current(request, extra);
+    };
 
     const iframe = document.createElement('iframe');
     iframe.style.width = '100%';
     iframe.style.height = '600px';
     iframe.style.border = 'none';
     iframe.style.backgroundColor = 'transparent';
-    iframe.setAttribute('sandbox', sandbox.permissions || DEFAULT_SANDBOX_PERMISSIONS);
+    const sandboxPermissions = sandbox.permissions || DEFAULT_SANDBOX_PERMISSIONS;
+    const expectedOrigin = sandboxPermissions.split(/\s+/).includes('allow-same-origin')
+      ? sandbox.url.origin
+      : 'null';
+    iframe.setAttribute('sandbox', sandboxPermissions);
 
     let active = true;
     let settled = false;
@@ -384,8 +437,14 @@ function GooseAppFrame({
     };
     function handleReadyMessage(event: MessageEvent) {
       if (event.source !== iframe.contentWindow) return;
+      if (event.origin !== expectedOrigin) return;
       if (event.data?.method === SANDBOX_PROXY_READY_METHOD) {
         ready();
+      }
+    }
+    function blockUnexpectedFrameOrigin(event: MessageEvent) {
+      if (event.source === iframe.contentWindow && event.origin !== expectedOrigin) {
+        event.stopImmediatePropagation();
       }
     }
     function handleFrameError() {
@@ -414,7 +473,8 @@ function GooseAppFrame({
             appCapabilities: bridge.getAppCapabilities(),
           });
         };
-        await bridge.connect(new PostMessageTransport(iframe.contentWindow, iframe.contentWindow));
+        transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow);
+        await bridge.connect(transport);
         if (!active) return;
         bridgeRef.current = bridge;
         setConnected(true);
@@ -424,6 +484,7 @@ function GooseAppFrame({
       }
     };
 
+    window.addEventListener('message', blockUnexpectedFrameOrigin, true);
     window.addEventListener('message', handleReadyMessage);
     iframe.addEventListener('error', handleFrameError);
     container.replaceChildren(iframe);
@@ -433,6 +494,11 @@ function GooseAppFrame({
     return () => {
       active = false;
       cleanupReadyListener();
+      window.removeEventListener('message', blockUnexpectedFrameOrigin, true);
+      stopResourceNotifications();
+      void subscriptions?.dispose().catch((error) => {
+        console.error('[McpAppRenderer] Failed to unsubscribe resources during cleanup:', error);
+      });
       if (iframeRef.current === iframe) {
         iframeRef.current = null;
       }
@@ -442,7 +508,7 @@ function GooseAppFrame({
       bridge.close();
       iframe.remove();
     };
-  }, [sandbox.permissions, sandbox.url.href]);
+  }, [extensionName, sandbox.permissions, sandbox.url.href, sessionId]);
 
   useEffect(() => {
     const bridge = bridgeRef.current;
@@ -1051,6 +1117,8 @@ export default function McpAppRenderer({
         toolInputPartial={toolInputPartial?.arguments}
         toolResult={toolResult}
         toolCancelled={!!toolCancelled}
+        sessionId={sessionId}
+        extensionName={extensionName}
         onMessage={handleMessage}
         onOpenLink={handleOpenLink}
         onCallTool={handleCallTool}

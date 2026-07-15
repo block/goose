@@ -14,6 +14,7 @@ import { createWebSocketStream } from './createWebSocketStream';
 import { requestAcpElicitation } from './elicitationRequests';
 import { requestAcpPermission } from './permissionRequests';
 import { requestAcpRecipeParams } from './recipeParamRequests';
+import { handleAcpResourceListChanged, handleAcpResourceUpdated } from './mcp-apps';
 
 type AcpConnection = {
   client: GooseClient;
@@ -32,9 +33,15 @@ let pendingConnection: Promise<AcpConnection> | null = null;
 let connectionGeneration = 0;
 let recovering = false;
 const recoveryListeners = new Set<AcpRecoveryListener>();
+const clientConnectedListeners = new Set<(client: GooseClient) => void>();
 
 export async function getAcpClient(): Promise<GooseClient> {
   return (await getConnection()).client;
+}
+
+export function onAcpClientConnected(listener: (client: GooseClient) => void): () => void {
+  clientConnectedListeners.add(listener);
+  return () => clientConnectedListeners.delete(listener);
 }
 
 export async function getAcpInitializeResponse(): Promise<InitializeResponse> {
@@ -164,6 +171,7 @@ async function openConnection(generation: number): Promise<AcpConnection> {
 
     const connection = { client, stream, initializeResponse };
     currentConnection = connection;
+    clientConnectedListeners.forEach((listener) => listener(client));
     const handleClose = () => {
       if (currentConnection === connection) {
         recoverConnection(false);
@@ -216,6 +224,8 @@ function createClientCallbacks(): () => GooseClientCallbacks {
     unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
+    unstable_resourcesUpdated: handleAcpResourceUpdated,
+    unstable_resourcesListChanged: handleAcpResourceListChanged,
   });
 }
 
