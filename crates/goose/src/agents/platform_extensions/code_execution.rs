@@ -528,6 +528,13 @@ fn create_tool_callback(
                 }
             });
 
+            struct AbortOnDrop(tokio::task::AbortHandle);
+            impl Drop for AbortOnDrop {
+                fn drop(&mut self) {
+                    self.0.abort();
+                }
+            }
+            let _guard = AbortOnDrop(handle.abort_handle());
             handle
                 .await
                 .unwrap_or_else(|e| Err(format!("Callback task failed: {e}")))
