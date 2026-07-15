@@ -208,7 +208,14 @@ impl GooseAcpAgent {
             self.supports_goose_custom_notifications(),
         )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        self.apply_session_recipe(&agent, &session).await?;
+        // Historical sessions must remain loadable when stored recipe metadata no longer validates.
+        if let Err(e) = self.apply_session_recipe(&agent, &session).await {
+            tracing::warn!(
+                sid = %sid,
+                error = ?e,
+                "recipe hydration failed during load_session; loading the session without recipe context"
+            );
+        }
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 
