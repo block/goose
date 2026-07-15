@@ -587,7 +587,6 @@ impl Agent {
             MessageUsage::from_provider_usage(&enriched, post_compaction_context_tokens.is_some());
 
         let current_usage = match post_compaction_context_tokens {
-            // After compaction: the retained summary becomes the new input context
             Some(retained) => Usage::new(Some(retained), None, Some(retained)),
             None => usage.usage,
         };

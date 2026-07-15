@@ -4,15 +4,12 @@ use serde::{Deserialize, Serialize};
 
 /// Structured output of the compaction LLM call.
 ///
-/// Every list is ordered most-important-first so downstream consumers (the
-/// summary render template, experiments that truncate sections) can cut from
-/// the tail. Fields default to empty so a response that omits a section still
-/// parses. String fields deserialize leniently (an object or number where a
-/// string was asked for is stringified, not a parse failure) because models
-/// routinely enrich the schema - e.g. emitting `errors_and_fixes` entries as
-/// `{"error": .., "fix": ..}` objects - and one such field must not discard an
-/// otherwise good summary. A document that is not an object at all still fails
-/// to parse, in which case callers fall back to the raw response text.
+/// Every list is ordered most-important-first so consumers (the render
+/// template, experiments that truncate sections) can cut from the tail.
+/// Fields deserialize leniently - omitted fields default to empty, and an
+/// object or number where a string was asked for is stringified rather than
+/// failing - because models routinely enrich the schema (e.g. `{"error": ..,
+/// "fix": ..}` entries) and one such field must not discard a good summary.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StructuredSummary {
     #[serde(default, deserialize_with = "lenient_string_list")]
@@ -50,8 +47,6 @@ pub struct FileActivity {
     pub key_code: Option<String>,
 }
 
-/// Render any JSON value as display text: strings as-is, objects as
-/// `key: value` pairs, arrays joined, null as empty (dropped by `normalize`).
 fn stringify_lenient(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::String(s) => s.clone(),
@@ -131,8 +126,6 @@ where
 }
 
 impl StructuredSummary {
-    /// Parse the compaction model's response text into a structured summary.
-    ///
     /// Returns `None` when no usable JSON document is found so the caller can
     /// keep the raw response text - the lossless fallback.
     pub fn parse(response_text: &str) -> Option<Self> {
@@ -144,15 +137,12 @@ impl StructuredSummary {
         })
     }
 
-    /// Render the summary into the markdown that becomes the agent-visible
-    /// context after compaction, via the user-overridable template.
     pub fn render(&self) -> Result<String, minijinja::Error> {
         render_template("compaction_summary.md", self)
     }
 
-    /// Drop entries with no visible content, so a response of blank strings
-    /// counts as empty (falling back to the raw text) rather than replacing
-    /// the conversation with a summary that renders nothing.
+    /// Drops blank entries so a response of blank strings counts as empty
+    /// (raw-text fallback) rather than rendering a summary of nothing.
     fn normalize(&mut self) {
         fn blank(s: &str) -> bool {
             s.trim().is_empty()
@@ -195,17 +185,18 @@ impl StructuredSummary {
     }
 }
 
-/// Locate candidate JSON documents within the model's response text, tried in
-/// order until one parses.
+/// Candidate JSON documents in the model's response, tried in order until one
+/// parses: after each post-analysis ```json fence (last first), after
+/// `</analysis>`, then at the start of the whole text.
 ///
-/// Preference order: a brace-balanced object after the last ```json fence
-/// (the prompt asks for exactly one, after an `<analysis>` scratchpad), then
-/// one after the analysis block, then one anywhere in the text. Extraction is
-/// brace-balanced rather than fence-delimited because JSON string values may
-/// legally contain ``` (pasted snippets, diffs of markdown). An unterminated
-/// object (output cut off mid-JSON) yields no candidate: repairing truncated
-/// JSON would silently drop the late, continuation-critical sections while
-/// the raw-text fallback preserves them via the analysis scratchpad.
+/// Every candidate must sit directly at its marker and brace-balance to a
+/// close. Anything looser erodes the lossless fallback: JSON merely quoted in
+/// a prose response, or a fenced example inside the discarded scratchpad,
+/// would silently replace the raw text. Extraction is brace-balanced rather
+/// than fence-delimited because string values may legally contain ```, and an
+/// unterminated object (output cut off mid-JSON) is not repaired - repair
+/// would drop the late, continuation-critical sections that the raw-text
+/// fallback preserves.
 #[allow(clippy::string_slice)] // All markers are ASCII; indices are byte offsets of ASCII matches.
 fn json_candidates(text: &str) -> Vec<&str> {
     let after_analysis = text
@@ -213,34 +204,41 @@ fn json_candidates(text: &str) -> Vec<&str> {
         .map(|idx| &text[idx + "</analysis>".len()..])
         .unwrap_or(text);
 
-    let mut candidates: Vec<&str> = [
-        last_fenced_json_block(text),
-        balanced_object(after_analysis),
-        balanced_object(text),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let mut candidates: Vec<&str> = fenced_json_blocks(after_analysis)
+        .chain(
+            [leading_object(after_analysis), leading_object(text)]
+                .into_iter()
+                .flatten(),
+        )
+        .collect();
     candidates.dedup();
     candidates
 }
 
-#[allow(clippy::string_slice)] // All markers are ASCII; indices are byte offsets of ASCII matches.
-fn last_fenced_json_block(text: &str) -> Option<&str> {
-    let start = text.rfind("```json")? + "```json".len();
-    balanced_object(&text[start..])
+/// Every fence is tried, last first, because a string value may itself quote
+/// a fenced JSON snippet, and such an embedded fence must not shadow the real
+/// one.
+#[allow(clippy::string_slice)] // The marker is ASCII; indices are byte offsets of ASCII matches.
+fn fenced_json_blocks(text: &str) -> impl Iterator<Item = &str> {
+    text.match_indices("```json")
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .filter_map(|(idx, marker)| leading_object(&text[idx + marker.len()..]))
 }
 
-#[allow(clippy::string_slice)] // Indices come from find()/char_indices(); slicing is safe.
-fn balanced_object(text: &str) -> Option<&str> {
-    let start = text.find('{')?;
-    let body = &text[start..];
+#[allow(clippy::string_slice)] // Indices come from char_indices(); slicing is safe.
+fn leading_object(text: &str) -> Option<&str> {
+    let text = text.trim_start();
+    if !text.starts_with('{') {
+        return None;
+    }
 
     let mut depth = 0usize;
     let mut in_string = false;
     let mut escaped = false;
 
-    for (idx, ch) in body.char_indices() {
+    for (idx, ch) in text.char_indices() {
         if in_string {
             if escaped {
                 escaped = false;
@@ -257,7 +255,7 @@ fn balanced_object(text: &str) -> Option<&str> {
             '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    return Some(&body[..=idx]);
+                    return Some(&text[..=idx]);
                 }
             }
             _ => {}
@@ -308,22 +306,47 @@ in {brace handling} and patched it.
     }
 
     #[test]
-    fn truncated_json_falls_back_to_raw() {
-        let text = r#"```json
-{"user_intent": ["Fix the bug"], "pending_tasks": ["Write tests", "Update docs"#;
-        assert!(StructuredSummary::parse(text).is_none());
+    fn unusable_responses_fall_back_to_raw_text() {
+        for text in [
+            // freeform prose, no JSON document
+            "Here is a summary of the conversation. The user asked about compaction.",
+            // no visible content
+            "{}",
+            r#"{"notes": "unknown fields alone are not a summary"}"#,
+            r#"{"current_work": ""}"#,
+            r#"{"files": [{}], "user_intent": [" "]}"#,
+            // output cut off mid-JSON: never repaired
+            "```json\n{\"user_intent\": [\"Fix the bug\"], \"pending_tasks\": [\"Write tests\", \"Update docs",
+            // JSON quoted inside prose is not anchored at a marker
+            r#"The session focused on the parser migration. The tracker entry {"current_work": "migrate parser"} is unchanged, and tests still need porting."#,
+            "<analysis>reviewing</analysis>\nA prose recap: the config was set to {\"user_intent\": [\"quoted example\"]} per the docs, then the run passed.",
+            // a fenced example inside the scratchpad is not the summary
+            "<analysis>\nThe target shape is:\n```json\n{\"user_intent\": [\"example only\"]}\n```\nNow let me review the conversation.\n</analysis>\nSorry, I ran out of room and could not produce the summary document.",
+        ] {
+            assert!(
+                StructuredSummary::parse(text).is_none(),
+                "should fall back to raw text for: {text}"
+            );
+        }
     }
 
     #[test]
-    fn embedded_fences_in_string_values_do_not_truncate() {
-        let text = "```json\n{\"user_intent\": [\"Document the build\"], \"files\": [{\"path\": \"README.md\", \"summary\": \"Added build docs\", \"key_code\": \"```bash\\ncargo build\\n```\"}], \"pending_tasks\": [\"Publish the docs\"], \"current_work\": \"Writing docs\"}\n```";
+    fn embedded_fences_in_string_values_do_not_break_extraction() {
+        let text = "```json\n{\"user_intent\": [\"Document the build\"], \"files\": [{\"path\": \"README.md\", \"summary\": \"Added build docs\", \"key_code\": \"```bash\\ncargo build\\n```\"}], \"pending_tasks\": [\"Publish the docs\"]}\n```";
         let summary = StructuredSummary::parse(text).expect("should parse");
         assert_eq!(
             summary.files[0].key_code.as_deref(),
             Some("```bash\ncargo build\n```")
         );
         assert_eq!(summary.pending_tasks, vec!["Publish the docs"]);
-        assert_eq!(summary.current_work.as_deref(), Some("Writing docs"));
+
+        let quoted_json_fence = "```json\n{\"user_intent\": [\"Document the config\"], \"files\": [{\"path\": \"docs/config.md\", \"summary\": \"Added config examples\", \"key_code\": \"```json\\n{\\\"retries\\\": 3}\\n```\"}]}\n```";
+        let summary =
+            StructuredSummary::parse(quoted_json_fence).expect("should parse via the outer fence");
+        assert_eq!(
+            summary.files[0].key_code.as_deref(),
+            Some("```json\n{\"retries\": 3}\n```")
+        );
     }
 
     #[test]
@@ -331,22 +354,6 @@ in {brace handling} and patched it.
         let text = "<analysis>the model was told to emit ```json with {braces</analysis>\n{\"user_intent\": [\"Real goal\"]}";
         let summary = StructuredSummary::parse(text).expect("should parse");
         assert_eq!(summary.user_intent, vec!["Real goal"]);
-    }
-
-    #[test]
-    fn rejects_unusable_or_empty_json() {
-        for text in [
-            "Here is a summary of the conversation. The user asked about compaction.",
-            "{}",
-            r#"{"notes": "unknown fields alone are not a summary"}"#,
-            r#"{"current_work": ""}"#,
-            r#"{"files": [{}], "user_intent": [" "]}"#,
-        ] {
-            assert!(
-                StructuredSummary::parse(text).is_none(),
-                "should fall back to raw text for: {text}"
-            );
-        }
     }
 
     #[test]
@@ -378,24 +385,21 @@ in {brace handling} and patched it.
     }
 
     #[test]
-    fn string_file_entries_become_path_only_activities() {
-        let text = r#"{"user_intent": ["Fix the bug"], "files": ["src/parser.rs", {"path": "tests/parser.rs", "summary": "Added regression test"}, ""]}"#;
+    fn file_entries_parse_leniently() {
+        let text = r#"{"files": [
+            "src/parser.rs",
+            {"path": "tests/parser.rs", "summary": "Added regression test"},
+            {"path": "src/scan.rs", "summary": 42, "key_code": ["fn a() {}", "fn b() {}"]},
+            ""
+        ]}"#;
         let summary = StructuredSummary::parse(text).expect("should parse");
-        assert_eq!(summary.files.len(), 2);
+        assert_eq!(summary.files.len(), 3);
         assert_eq!(summary.files[0].path, "src/parser.rs");
         assert_eq!(summary.files[0].summary, "");
         assert_eq!(summary.files[1].summary, "Added regression test");
-    }
-
-    #[test]
-    fn wrong_shaped_file_fields_are_stringified_not_dropped() {
-        let text = r#"{"files": [{"path": "src/scan.rs", "summary": 42, "key_code": ["fn a() {}", "fn b() {}"]}]}"#;
-        let summary = StructuredSummary::parse(text).expect("should parse");
-        assert_eq!(summary.files.len(), 1);
-        assert_eq!(summary.files[0].path, "src/scan.rs");
-        assert_eq!(summary.files[0].summary, "42");
+        assert_eq!(summary.files[2].summary, "42");
         assert_eq!(
-            summary.files[0].key_code.as_deref(),
+            summary.files[2].key_code.as_deref(),
             Some("fn a() {}; fn b() {}")
         );
     }

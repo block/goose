@@ -57,9 +57,8 @@ pub struct CompactionResult {
     /// output even when it is rewritten to the rendered structured summary.
     pub usage: ProviderUsage,
     /// Estimated tokens of the agent-visible context retained after
-    /// compaction: the summary, the continuation messages, and any preserved
-    /// user message. Smaller than the billable output when the raw response
-    /// was rewritten to the rendered structured summary.
+    /// compaction. Smaller than the billable output when the raw response was
+    /// rewritten to the rendered structured summary.
     pub retained_context_tokens: i32,
 }
 
@@ -414,10 +413,9 @@ async fn do_compact(
     ))
 }
 
-/// Replace the compaction response's text with the rendered structured
-/// summary when the model followed the structured output format. When it
-/// didn't (models that ignore the schema, user-customized prompts), the raw
-/// response text is kept unchanged as the summary.
+/// When the model didn't follow the structured output format (schema-ignoring
+/// models, user-customized prompts), the raw response text is kept unchanged
+/// as the summary.
 fn apply_structured_summary(response: &mut Message) {
     let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
         return;

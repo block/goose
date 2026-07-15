@@ -1,7 +1,4 @@
 {#
-  Renders the structured compaction output (StructuredSummary) into the
-  markdown that replaces the conversation as agent-visible context.
-
   This template is user-overridable: place a modified copy at
   ~/.config/goose/prompts/compaction_summary.md to experiment with what the
   post-compaction context contains (e.g. `user_intent[:3]` to keep only the
