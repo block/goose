@@ -177,11 +177,12 @@ impl ToolInspector for PermissionInspector {
                             InspectionAction::RequireApproval(Some(
                                 "Extension management requires approval for security".to_string(),
                             ))
-                        // 4. Defer to LLM detection (SmartApprove, not yet cached)
+                        // 4. Defer to LLM detection (SmartApprove, uncached or legacy cached allow)
                         } else if goose_mode == GooseMode::SmartApprove
-                            && permission_manager
-                                .get_smart_approve_permission(tool_name)
-                                .is_none()
+                            && matches!(
+                                permission_manager.get_smart_approve_permission(tool_name),
+                                None | Some(PermissionLevel::AlwaysAllow)
+                            )
                         {
                             llm_detect_candidates.push(request);
                             continue;
@@ -275,6 +276,44 @@ mod tests {
     use test_case::test_case;
     use tokio::sync::Mutex;
 
+    async fn inspect_tool(
+        mode: GooseMode,
+        smart_approved: bool,
+        user_permission: Option<PermissionLevel>,
+        smart_approve_cache: Option<PermissionLevel>,
+    ) -> (InspectionAction, Option<PermissionLevel>) {
+        let pm = Arc::new(PermissionManager::new(tempfile::tempdir().unwrap().keep()));
+        if let Some(level) = user_permission {
+            pm.update_user_permission("tool", level);
+        }
+        if let Some(level) = smart_approve_cache {
+            pm.update_smart_approve_permission("tool", level);
+        }
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            tempfile::tempdir().unwrap().keep(),
+        ));
+        let inspector =
+            PermissionInspector::new(Arc::clone(&pm), Arc::new(Mutex::new(None)), session_manager);
+        if smart_approved {
+            *inspector.readonly_tools.write().unwrap() = ["tool".to_string()].into_iter().collect();
+        }
+        let req = ToolRequest {
+            id: "req".into(),
+            tool_call: Ok(CallToolRequestParams::new("tool").with_arguments(object!({}))),
+            metadata: None,
+            tool_meta: None,
+        };
+        let mut results = inspector
+            .inspect(goose_test_support::TEST_SESSION_ID, &[req], &[], mode)
+            .await
+            .unwrap();
+
+        (
+            results.remove(0).action,
+            pm.get_smart_approve_permission("tool"),
+        )
+    }
+
     #[test_case(GooseMode::Auto, false, None, InspectionAction::Allow; "auto_allows")]
     #[test_case(GooseMode::SmartApprove, true, None, InspectionAction::Allow; "smart_approve_annotation_allows")]
     #[test_case(GooseMode::SmartApprove, false, Some(PermissionLevel::AlwaysAllow), InspectionAction::RequireApproval(None); "smart_approve_ignores_legacy_cached_allow")]
@@ -289,28 +328,42 @@ mod tests {
         cache: Option<PermissionLevel>,
         expected: InspectionAction,
     ) {
-        let pm = Arc::new(PermissionManager::new(tempfile::tempdir().unwrap().keep()));
-        if let Some(level) = cache {
-            pm.update_smart_approve_permission("tool", level);
-        }
-        let session_manager = Arc::new(crate::session::SessionManager::new(
-            tempfile::tempdir().unwrap().keep(),
-        ));
-        let inspector = PermissionInspector::new(pm, Arc::new(Mutex::new(None)), session_manager);
-        if smart_approved {
-            *inspector.readonly_tools.write().unwrap() = ["tool".to_string()].into_iter().collect();
-        }
-        let req = ToolRequest {
-            id: "req".into(),
-            tool_call: Ok(CallToolRequestParams::new("tool").with_arguments(object!({}))),
-            metadata: None,
-            tool_meta: None,
-        };
-        let results = inspector
-            .inspect(goose_test_support::TEST_SESSION_ID, &[req], &[], mode)
-            .await
-            .unwrap();
-        assert_eq!(results[0].action, expected);
+        let (action, _) = inspect_tool(mode, smart_approved, None, cache).await;
+        assert_eq!(action, expected);
+    }
+
+    #[test_case(PermissionLevel::AlwaysAllow, InspectionAction::Allow; "explicit_allow")]
+    #[test_case(PermissionLevel::AskBefore, InspectionAction::RequireApproval(None); "explicit_ask")]
+    #[test_case(PermissionLevel::NeverAllow, InspectionAction::Deny; "explicit_deny")]
+    #[tokio::test]
+    async fn smart_approve_preserves_user_permission_over_legacy_cache(
+        user_permission: PermissionLevel,
+        expected: InspectionAction,
+    ) {
+        let (action, cache) = inspect_tool(
+            GooseMode::SmartApprove,
+            false,
+            Some(user_permission),
+            Some(PermissionLevel::AlwaysAllow),
+        )
+        .await;
+
+        assert_eq!(action, expected);
+        assert_eq!(cache, Some(PermissionLevel::AlwaysAllow));
+    }
+
+    #[tokio::test]
+    async fn smart_approve_rejudges_legacy_cached_allow() {
+        let (action, cache) = inspect_tool(
+            GooseMode::SmartApprove,
+            false,
+            None,
+            Some(PermissionLevel::AlwaysAllow),
+        )
+        .await;
+
+        assert_eq!(action, InspectionAction::RequireApproval(None));
+        assert_eq!(cache, Some(PermissionLevel::AskBefore));
     }
 
     #[test]
