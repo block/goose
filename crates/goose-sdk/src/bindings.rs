@@ -483,7 +483,11 @@ fn runtime() -> Result<&'static tokio::runtime::Runtime, GooseError> {
         .build()
         .map_err(GooseError::generic)?;
 
-    let _ = RUNTIME.set(runtime);
+    if let Err(unused) = RUNTIME.set(runtime) {
+        // Lost the init race; dropping a runtime inside an async context
+        // panics, so shut it down without blocking.
+        unused.shutdown_background();
+    }
     Ok(RUNTIME.get().expect("runtime was initialized"))
 }
 
