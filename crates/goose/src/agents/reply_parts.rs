@@ -23,7 +23,7 @@ use crate::providers::toolshim::{
 };
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
-use rmcp::model::Tool;
+use rmcp::model::{Role, Tool};
 use tracing::warn;
 
 async fn enhance_model_error(
@@ -526,7 +526,9 @@ impl Agent {
                 MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
                     if should_suppress_replayed_thinking => {}
                 _ => {
-                    filtered_content.push(content.clone());
+                    if let Some(content) = user_visible_provider_content(content) {
+                        filtered_content.push(content);
+                    }
                 }
             }
         }
@@ -621,6 +623,15 @@ impl Agent {
     }
 }
 
+fn user_visible_provider_content(content: &MessageContent) -> Option<MessageContent> {
+    match content {
+        MessageContent::Text(_) | MessageContent::Image(_) | MessageContent::ToolResponse(_) => {
+            content.filter_for_audience(Role::User)
+        }
+        _ => Some(content.clone()),
+    }
+}
+
 /// Check whether a tool should be callable by an app based on MCP Apps visibility metadata.
 ///
 /// Per the MCP Apps spec (2026-01-26), if `_meta.ui.visibility` is present and does not
@@ -673,6 +684,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
+    use rmcp::model::{AnnotateAble, RawTextContent};
     use rmcp::object;
     use std::time::{Duration, Instant};
 
@@ -848,6 +860,31 @@ mod tests {
             filtered_message.content[0],
             MessageContent::ToolRequest(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_excludes_assistant_only_text_from_user_events() {
+        let agent = crate::agents::Agent::new();
+        let assistant_only = RawTextContent {
+            text: "assistant-only".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let response = Message::assistant()
+            .with_content(MessageContent::Text(assistant_only))
+            .with_text("user-visible")
+            .with_thinking("visible reasoning", "");
+
+        let (_frontend_requests, _other_requests, filtered_message) =
+            agent.categorize_tool_requests(&response, &[], false).await;
+
+        assert_eq!(response.as_concat_text(), "assistant-only\nuser-visible");
+        assert_eq!(filtered_message.as_concat_text(), "user-visible");
+        assert!(filtered_message
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Thinking(_))));
     }
 
     #[tokio::test]
