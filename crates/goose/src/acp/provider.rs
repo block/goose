@@ -486,8 +486,17 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
+        let current_prompt_blocks = messages_to_prompt(messages, false);
+        if current_prompt_blocks.is_empty() {
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = messages_to_prompt(messages, claim.include_context);
+        let prompt_blocks = if claim.include_context {
+            messages_to_prompt(messages, true)
+        } else {
+            current_prompt_blocks
+        };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
@@ -1353,26 +1362,19 @@ fn filter_supported_servers(
 }
 
 fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
-    let mut content_blocks = Vec::new();
-
     let Some(last_user_index) = last_user_message_index(messages) else {
-        return content_blocks;
+        return Vec::new();
     };
 
-    if include_handoff_context {
-        if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-            content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-        }
-    }
-
     let message = messages[last_user_index].agent_visible_content();
+    let mut current_prompt_blocks = Vec::new();
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
-                content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+                current_prompt_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
             }
             MessageContent::Image(image) => {
-                content_blocks.push(ContentBlock::Image(ImageContent::new(
+                current_prompt_blocks.push(ContentBlock::Image(ImageContent::new(
                     &image.data,
                     &image.mime_type,
                 )));
@@ -1381,6 +1383,15 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
+    if current_prompt_blocks.is_empty() || !include_handoff_context {
+        return current_prompt_blocks;
+    }
+
+    let mut content_blocks = Vec::new();
+    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
+        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+    }
+    content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
 
@@ -1793,6 +1804,53 @@ mod tests {
         assert!(rendered.contains("visible current"));
         assert!(!rendered.contains("SECRET_PRIOR"));
         assert!(!rendered.contains("SECRET_CURRENT"));
+    }
+
+    #[test]
+    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+        use rmcp::model::RawTextContent;
+
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        assert!(messages_to_prompt(&messages, true).is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
+        use futures::StreamExt;
+        use rmcp::model::RawTextContent;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        assert!(stream.next().await.is_none());
+        assert!(rx.try_recv().is_err());
+        assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
     }
 
     #[test]
