@@ -34,11 +34,29 @@ use std::io::{IsTerminal, Write};
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 const MAX_PROVIDER_ROWS: usize = 10;
-const SEARCH_PROVIDERS_KEY: &str = "__search_providers__";
-const SEARCH_PROVIDERS_AGAIN_KEY: &str = "__search_providers_again__";
 const SHOW_CURSOR: &[u8] = b"\x1b[?25h";
 
 type ProviderItem = (String, String, String);
+
+#[derive(Clone, PartialEq, Eq)]
+enum ProviderChoice {
+    Provider(String),
+    Search,
+    SearchAgain,
+}
+
+fn provider_choice_items(items: &[ProviderItem]) -> Vec<(ProviderChoice, String, String)> {
+    items
+        .iter()
+        .map(|(name, label, hint)| {
+            (
+                ProviderChoice::Provider(name.clone()),
+                label.clone(),
+                hint.clone(),
+            )
+        })
+        .collect()
+}
 
 fn move_selected_item_into_view<T>(
     items: &mut Vec<T>,
@@ -87,28 +105,30 @@ fn search_provider_dialog(provider_items: &[ProviderItem]) -> anyhow::Result<Str
             .interact()?;
         query = input.trim().to_string();
 
-        let mut filtered_items = fuzzy_filter_provider_items(provider_items, &query);
+        let filtered_items = fuzzy_filter_provider_items(provider_items, &query);
         if filtered_items.is_empty() {
             cliclack::log::warning("No matching providers. Try a different search term.")?;
             continue;
         }
 
-        filtered_items.push((
-            SEARCH_PROVIDERS_AGAIN_KEY.to_string(),
+        let mut items = provider_choice_items(&filtered_items);
+        items.push((
+            ProviderChoice::SearchAgain,
             "Search again...".to_string(),
             "Enter a different search term".to_string(),
         ));
 
-        let provider_name = cliclack::select("Which model provider should we use?")
-            .items(&filtered_items)
+        match cliclack::select("Which model provider should we use?")
+            .items(&items)
             .max_rows(MAX_PROVIDER_ROWS)
-            .interact()?;
-
-        if provider_name == SEARCH_PROVIDERS_AGAIN_KEY {
-            continue;
+            .interact()?
+        {
+            ProviderChoice::SearchAgain => continue,
+            ProviderChoice::Provider(name) => return Ok(name),
+            ProviderChoice::Search => {
+                unreachable!("Search entry is not added to the results list")
+            }
         }
-
-        return Ok(provider_name);
     }
 }
 
@@ -830,26 +850,27 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // cliclack 0.5.5 does not reset its private list offset when filtering a
     // paginated select, so use a separate fuzzy-search step for long lists.
     let provider_name = if provider_items.len() > MAX_PROVIDER_ROWS {
-        let mut paginated_items = provider_items.clone();
+        let mut paginated_items = provider_choice_items(&provider_items);
         paginated_items.insert(
             MAX_PROVIDER_ROWS - 1,
             (
-                SEARCH_PROVIDERS_KEY.to_string(),
+                ProviderChoice::Search,
                 "Search all providers...".to_string(),
                 "Filter the complete provider list".to_string(),
             ),
         );
 
-        let selected = cliclack::select("Which model provider should we use?")
-            .initial_value(default_provider.clone())
+        match cliclack::select("Which model provider should we use?")
+            .initial_value(ProviderChoice::Provider(default_provider.clone()))
             .items(&paginated_items)
             .max_rows(MAX_PROVIDER_ROWS)
-            .interact()?;
-
-        if selected == SEARCH_PROVIDERS_KEY {
-            search_provider_dialog(&provider_items)?
-        } else {
-            selected
+            .interact()?
+        {
+            ProviderChoice::Search => search_provider_dialog(&provider_items)?,
+            ProviderChoice::Provider(name) => name,
+            ProviderChoice::SearchAgain => {
+                unreachable!("SearchAgain entry is not added to the paginated list")
+            }
         }
     } else {
         cliclack::select("Which model provider should we use?")
