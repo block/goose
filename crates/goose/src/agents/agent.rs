@@ -1860,7 +1860,7 @@ impl Agent {
             tool_call_cut_off,
             goose_mode,
             initial_messages,
-            model_config,
+            mut model_config,
         } = context;
 
         if let Some(project_addendum) = self.load_project_instructions(&session).await {
@@ -1872,10 +1872,16 @@ impl Agent {
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
         let requested_model = model_config.model_name.clone();
-        let inference = provider
-            .fetch_model_info(&requested_model)
-            .await
-            .ok()
+
+        let model_info_opt = provider.fetch_model_info(&requested_model).await.ok();
+
+        if let Some(info) = &model_info_opt {
+            if model_config.reasoning.is_none() {
+                model_config.reasoning = info.reasoning.clone();
+            }
+        }
+
+        let inference = model_info_opt
             .and_then(|model_info| model_info.resolved_model)
             .map(|resolved_model| InferenceMetadata {
                 provider: provider_name,
