@@ -672,7 +672,7 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
 }
 
 fn is_single_file_name(name: &str) -> bool {
-    if name.contains('\\') || has_windows_drive_prefix(name) {
+    if name.contains(['/', '\\']) || has_windows_drive_prefix(name) {
         return false;
     }
 
@@ -755,6 +755,8 @@ mod tests {
         vec![
             "../outside".to_string(),
             "nested/outside".to_string(),
+            "nested/".to_string(),
+            "nested/.".to_string(),
             r"nested\outside".to_string(),
             temp_dir.join("absolute").to_string_lossy().into_owned(),
             "C:outside".to_string(),
