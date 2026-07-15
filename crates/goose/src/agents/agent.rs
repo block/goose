@@ -454,7 +454,12 @@ impl Agent {
             .with_working_dir(working_dir.to_string())
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str, working_dir: &str) {
+    async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+    ) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }
