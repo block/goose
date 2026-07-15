@@ -10,7 +10,7 @@ on:
 
 jobs:
   bundle-desktop-unsigned:
-    uses: ./.github/workflows/bundle-desktop.yml
+    uses: ./.github/workflows/bundle-macos.yml
     permissions:
       id-token: write
       contents: read
@@ -20,7 +20,7 @@ jobs:
       ref: ${{ inputs.branch }}
 
   bundle-desktop-intel-unsigned:
-    uses: ./.github/workflows/bundle-desktop.yml
+    uses: ./.github/workflows/bundle-macos.yml
     permissions:
       id-token: write
       contents: read

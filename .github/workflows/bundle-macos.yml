@@ -28,11 +28,11 @@ on:
         type: string
         default: ''
 
-name: Reusable workflow to build macOS artifacts
+name: "Bundle CLI and Desktop (macOS)"
 
 jobs:
   build-goose:
-    name: Build goose for macOS
+    name: Build Goose (macOS)
     runs-on: macos-latest
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
@@ -125,7 +125,7 @@ jobs:
           overwrite: true
 
   package-cli:
-    name: Package CLI for macOS
+    name: Package CLI (macOS)
     if: ${{ inputs.package_cli }}
     needs: build-goose
     runs-on: ubuntu-latest
@@ -157,7 +157,7 @@ jobs:
           overwrite: true
 
   package-desktop:
-    name: Bundle Desktop App on macOS
+    name: Package Desktop (macOS)
     needs: build-goose
     runs-on: macos-latest
     environment: ${{ inputs.signing && 'signing' || null }}

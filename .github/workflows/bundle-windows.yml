@@ -1,4 +1,4 @@
-name: "Bundle Desktop (Windows)"
+name: "Bundle CLI and Desktop (Windows)"
 
 on:
   workflow_dispatch:
@@ -86,7 +86,7 @@ jobs:
         with:
           cuda: '12.9.1'
           method: 'local'
-          log-file-suffix: 'bundle-desktop-windows-cuda.txt'
+          log-file-suffix: 'bundle-windows-cuda.txt'
 
       - name: Set up MSVC developer environment
         if: ${{ inputs.windows_variant == 'cuda' }}
