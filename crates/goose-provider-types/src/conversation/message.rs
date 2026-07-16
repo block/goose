@@ -850,11 +850,21 @@ impl Message {
     }
 
     pub fn user_visible_content(&self) -> Message {
-        let filtered_content = self
+        let mut filtered_content: Vec<MessageContent> = Vec::new();
+        for content in self
             .content
             .iter()
             .filter_map(MessageContent::user_visible_content)
-            .collect();
+        {
+            match (filtered_content.last_mut(), content) {
+                (Some(MessageContent::Text(last_text)), MessageContent::Text(new_text))
+                    if last_text.audience() == new_text.audience() =>
+                {
+                    last_text.text.push_str(&new_text.text);
+                }
+                (_, content) => filtered_content.push(content),
+            }
+        }
 
         Message {
             content: filtered_content,
@@ -1428,6 +1438,35 @@ mod tests {
             result.content[0].as_text().unwrap().text,
             "user tool result"
         );
+    }
+
+    #[test]
+    fn test_user_visible_content_rejoins_text_across_hidden_blocks() {
+        let user_text = |text: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        };
+        let assistant_text = RawTextContent {
+            text: "provider state".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let message = Message::assistant()
+            .with_content(user_text("Hello"))
+            .with_content(MessageContent::Text(assistant_text))
+            .with_content(user_text(" world"));
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.content.len(), 1);
+        assert_eq!(projected.as_concat_text(), "Hello world");
     }
 
     #[test]
