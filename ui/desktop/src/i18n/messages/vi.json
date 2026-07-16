@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Ứng dụng tùy chỉnh"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Các ứng dụng từ máy chủ MCP của bạn và các ứng dụng do goose tự tạo. Bạn có thể yêu cầu nó tạo ứng dụng mới thông qua giao diện trò chuyện và chúng sẽ xuất hiện ở đây."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Lỗi khi tải ứng dụng: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Nhập ứng dụng"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Không có ứng dụng nào"
   },
-  "appsView.retry": {
-    "defaultMessage": "Thử lại"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Thử lại"
   },
   "appsView.title": {
     "defaultMessage": "Ứng dụng"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Mất kết nối. Đang kết nối lại…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Khóa bí mật"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Nhập khóa bí mật của máy chủ"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Đang tải xuống"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Mô hình nổi bật"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Đăng nhập để tăng giới hạn tốc độ khi tìm kiếm và tải xuống mô hình, và để truy cập các kho lưu trữ Hugging Face riêng tư hoặc bị giới hạn."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Cài đặt mô hình"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "đang chờ"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% đầu vào)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "đọc cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "ghi cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Nén"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Chi phí"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(ước tính)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token đầu tiên"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Đầu vào"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Đầu ra"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(được báo cáo)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Tốc độ"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Tổng"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tổng thời gian"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Chọn micrô nào để sử dụng cho việc đọc chính tả"
@@ -2752,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Từ mẫu hoặc thiết lập thủ công"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Không có nhà cung cấp nào khớp với \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Tìm kiếm nhà cung cấp..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
@@ -3989,6 +4058,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Trò chuyện"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend bên ngoài"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Bàn phím"
   },
@@ -4000,9 +4072,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Lời nhắc"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Phiên làm việc"
   },
   "settingsView.title": {
     "defaultMessage": "Cài đặt"

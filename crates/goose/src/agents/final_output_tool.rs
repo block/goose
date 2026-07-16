@@ -102,7 +102,7 @@ impl FinalOutputTool {
 
         let validation_errors: Vec<String> = compiled_schema
             .iter_errors(output)
-            .map(|error| format!("- {}: {}", error.instance_path, error))
+            .map(|error| format!("- {}: {}", error.instance_path(), error))
             .collect();
 
         if validation_errors.is_empty() {

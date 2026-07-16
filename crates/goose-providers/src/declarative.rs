@@ -27,6 +27,7 @@ pub(crate) mod declarative_providers {
         inception,
         llama_swap,
         lmstudio,
+        meta,
         minimax,
         mistral,
         moonshot,
@@ -358,14 +359,11 @@ mod tests {
     }
 
     #[test]
-    fn existing_json_files_still_deserialize_without_new_fields() {
+    fn groq_json_disables_thinking_preservation() {
         let config =
             deserialize_provider_config(crate::groq::JSON).expect("groq.json should parse");
-        assert!(config.env_vars.is_none());
-        assert!(config.dynamic_models.is_none());
-        assert!(config.model_doc_link.is_none());
-        assert!(config.setup_steps.is_empty());
-        assert!(config.preserves_thinking);
+
+        assert!(!config.preserves_thinking);
     }
 
     fn placeholder_var_names(template: &str) -> Vec<String> {

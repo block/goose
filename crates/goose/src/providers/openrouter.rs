@@ -326,6 +326,7 @@ impl Provider for OpenRouterProvider {
 
         if let Some(obj) = payload.as_object_mut() {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
+            obj.insert("usage".to_string(), json!({ "include": true }));
         }
 
         let mut log = start_log(model_config, &payload)?;

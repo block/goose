@@ -1,4 +1,4 @@
-export interface ExternalGoosedConfig {
+export interface ExternalBackendConfig {
   enabled: boolean;
   url: string;
   secret: string;
@@ -36,7 +36,8 @@ export interface Settings {
   enableWakelock: boolean;
   enableNotifications: boolean;
   spellcheckEnabled: boolean;
-  externalGoosed: ExternalGoosedConfig;
+  // Key is kept as `externalGoosed` for backward compat with persisted user settings.
+  externalGoosed: ExternalBackendConfig;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
 

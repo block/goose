@@ -1,0 +1,173 @@
+name: Maven SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish gdk to Maven Central after building"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-native:
+    name: Build native library (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: darwin-aarch64
+            os: macos-14
+            resource-prefix: darwin-aarch64
+          - name: linux-x86-64
+            os: ubuntu-latest
+            container: quay.io/pypa/manylinux_2_28_x86_64@sha256:441c35fdc6ee809ff9260894f8468ab4fea8c15dc880f8700a3f81b7922c1cda
+            resource-prefix: linux-x86-64
+          - name: win32-x86-64
+            os: windows-latest
+            resource-prefix: win32-x86-64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Build native library
+        shell: bash
+        run: cargo build -p goose-sdk --features uniffi --release
+
+      - name: Stage native library
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux) lib="target/release/libgoose_sdk.so" ;;
+            macOS) lib="target/release/libgoose_sdk.dylib" ;;
+            Windows) lib="target/release/goose_sdk.dll" ;;
+            *) echo "unsupported runner OS: ${{ runner.os }}" >&2; exit 1 ;;
+          esac
+          mkdir -p "maven-native/${{ matrix.resource-prefix }}"
+          cp "$lib" "maven-native/${{ matrix.resource-prefix }}/"
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: goose-sdk-native-${{ matrix.name }}
+          path: maven-native/**
+          if-no-files-found: error
+
+  package:
+    name: Package Maven artifact
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - name: Set up Java
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Download native library artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: goose-sdk-native-*
+          path: native-artifacts
+          merge-multiple: true
+
+      - name: Generate Kotlin bindings
+        shell: bash
+        run: |
+          cargo build -p goose-sdk --features uniffi --release
+          crates/goose-sdk/scripts/prepare-maven-package.sh \
+            target/release/libgoose_sdk.so \
+            linux-x86-64
+
+      - name: Restore downloaded native libraries
+        shell: bash
+        run: cp -R native-artifacts/* crates/goose-sdk/maven/src/main/resources/
+
+      - name: Build Maven publication
+        working-directory: crates/goose-sdk/maven
+        run: gradle --no-daemon publishToMavenLocal
+
+      - name: Stage Maven local artifacts
+        shell: bash
+        run: |
+          version=$(grep -m1 '^version =' crates/goose-sdk/Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+          mkdir -p maven-artifacts
+          cp -R "$HOME/.m2/repository/io/github/aaif-goose/gdk/$version" maven-artifacts/
+
+      - name: Upload Maven artifact bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: goose-sdk-maven
+          path: maven-artifacts/**
+          if-no-files-found: error
+
+  publish:
+    name: Publish to Maven Central
+    needs: package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    environment: maven-central
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - name: Set up Java
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Download native library artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: goose-sdk-native-*
+          path: native-artifacts
+          merge-multiple: true
+
+      - name: Generate Kotlin bindings
+        shell: bash
+        run: |
+          cargo build -p goose-sdk --features uniffi --release
+          crates/goose-sdk/scripts/prepare-maven-package.sh \
+            target/release/libgoose_sdk.so \
+            linux-x86-64
+
+      - name: Restore downloaded native libraries
+        shell: bash
+        run: cp -R native-artifacts/* crates/goose-sdk/maven/src/main/resources/
+
+      - name: Publish to Maven Central
+        working-directory: crates/goose-sdk/maven
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_TOKEN_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_TOKEN_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+        run: gradle --no-daemon publishAndReleaseToMavenCentral

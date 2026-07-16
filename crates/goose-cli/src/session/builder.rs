@@ -333,7 +333,10 @@ async fn resolve_session_id(
                 }
             }
         } else {
-            match session_manager.list_sessions().await {
+            match session_manager
+                .list_sessions_by_types(&[SessionType::User])
+                .await
+            {
                 Ok(sessions) if !sessions.is_empty() => sessions[0].id.clone(),
                 _ => {
                     output::render_error("Cannot resume - no previous sessions found");
@@ -695,6 +698,8 @@ fn is_provider_unavailable_error(e: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::session::SessionManager;
+    use tempfile::TempDir;
 
     #[test]
     fn test_session_builder_config_creation() {
@@ -756,6 +761,44 @@ mod tests {
         assert!(!config.interactive);
         assert!(!config.quiet);
         assert!(!config.fork);
+    }
+
+    #[tokio::test]
+    async fn test_implicit_resume_ignores_newer_scheduled_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
+        let goose_mode = GooseMode::default();
+
+        let user_session = session_manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "User session".to_string(),
+                SessionType::User,
+                goose_mode,
+            )
+            .await
+            .unwrap();
+        session_manager
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Scheduled job: test".to_string(),
+                SessionType::Scheduled,
+                goose_mode,
+            )
+            .await
+            .unwrap();
+
+        let resolved = resolve_session_id(
+            &SessionBuilderConfig {
+                resume: true,
+                ..SessionBuilderConfig::default()
+            },
+            &session_manager,
+            goose_mode,
+        )
+        .await;
+
+        assert_eq!(resolved, user_session.id);
     }
 
     #[test]

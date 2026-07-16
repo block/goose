@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+mod paste;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -53,7 +54,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -1326,6 +1327,7 @@ impl CliSession {
                         Some(Ok(AgentEvent::Usage(usage))) => {
                             last_usage = Some(usage);
                         }
+                        Some(Ok(AgentEvent::MessageUsage { .. })) => {}
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
                             handle_mcp_notification(
                                 &extension_id,
@@ -1768,25 +1770,54 @@ fn print_run_stats(
     usage: Option<&ProviderUsage>,
 ) {
     let elapsed = run_started.elapsed();
+    let stats = usage.and_then(|usage| usage.stats.as_ref());
+    let generation_elapsed = stats
+        .and_then(|stats| stats.elapsed_ms)
+        .map(Duration::from_millis);
     let output_tokens = usage
         .and_then(|usage| usage.usage.output_tokens)
         .and_then(|tokens| usize::try_from(tokens).ok())
-        .or_else(|| usage.and_then(|usage| usage.stats.as_ref()?.output_tokens));
+        .or_else(|| stats.and_then(|stats| stats.output_tokens));
     let tokens_per_second = output_tokens.map(|tokens| {
-        if elapsed.as_secs_f64() > 0.0 {
-            tokens as f64 / elapsed.as_secs_f64()
+        let rate_elapsed = generation_elapsed.unwrap_or(elapsed);
+        if rate_elapsed.as_secs_f64() > 0.0 {
+            tokens as f64 / rate_elapsed.as_secs_f64()
         } else {
             0.0
         }
     });
+    let model_load_ms = stats.and_then(|stats| stats.model_load_ms);
+    let generation_time_to_first_token_ms = stats.and_then(|stats| stats.time_to_first_token_ms);
 
     eprintln!("\nStats:");
-    match first_token_at {
-        Some(first) => eprintln!(
-            "  Time to first token: {:.2}s",
-            first.duration_since(run_started).as_secs_f64()
-        ),
-        None => eprintln!("  Time to first token: unavailable"),
+    if let Some(ms) = model_load_ms {
+        eprintln!("  Model load: {:.2}s", ms as f64 / 1000.0);
+    }
+    if model_load_ms.is_some() {
+        match generation_time_to_first_token_ms {
+            Some(ms) => eprintln!(
+                "  Generation time to first token: {:.2}s",
+                ms as f64 / 1000.0
+            ),
+            None => eprintln!("  Generation time to first token: unavailable"),
+        }
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  End-to-end time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  End-to-end time to first token: unavailable"),
+        }
+    } else if let Some(ms) = generation_time_to_first_token_ms {
+        eprintln!("  Time to first token: {:.2}s", ms as f64 / 1000.0);
+    } else {
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  Time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  Time to first token: unavailable"),
+        }
     }
     match tokens_per_second {
         Some(rate) => eprintln!("  Tokens/sec: {:.2}", rate),
@@ -1796,10 +1827,7 @@ fn print_run_stats(
         eprintln!("  Output tokens: {tokens}");
     }
 
-    if let Some(draft) = usage
-        .and_then(|usage| usage.stats.as_ref())
-        .and_then(|stats| stats.draft.as_ref())
-    {
+    if let Some(draft) = stats.and_then(|stats| stats.draft.as_ref()) {
         eprintln!("  Draft accept rate: {:.1}%", draft.accept_rate * 100.0);
         eprintln!(
             "  Draft tokens: {} accepted: {} target verified: {} rounds: {}",

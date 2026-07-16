@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Apl tersuai"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplikasi daripada pelayan MCP anda dan Apl yang dibina oleh goose sendiri. Anda boleh memintanya mencipta apl baharu melalui antara muka sembang dan ia akan muncul di sini."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Ralat memuatkan apl: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import Apl"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tiada apl tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Cuba semula"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Cuba semula"
   },
   "appsView.title": {
     "defaultMessage": "Apl"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Pergi ke laman utama"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Sambungan terputus. Menyambung semula…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Sambungan Dikemas Kini"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Kunci Rahsia"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Kunci rahsia yang dikonfigurasikan pada pelayan goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Kunci rahsia yang dikonfigurasikan pada pelayan Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Masukkan kunci rahsia pelayan"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Memuat turun"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Pilihan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Log masuk untuk meningkatkan had kadar semasa mencari dan memuat turun model, dan untuk mengakses repositori Hugging Face peribadi atau berpagar."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Tetapan Model"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% daripada input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Kos"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(anggaran)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kelajuan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Jumlah"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Jumlah masa"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon yang hendak digunakan untuk imlak"
@@ -2752,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Daripada templat atau persediaan manual"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Tiada penyedia yang sepadan dengan \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cari penyedia..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
@@ -3989,6 +4058,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Sembang"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Luaran"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Papan Kekunci"
   },
@@ -4000,9 +4072,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Gesaan"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
   },
   "settingsView.title": {
     "defaultMessage": "Tetapan"

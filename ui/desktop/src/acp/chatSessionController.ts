@@ -5,11 +5,7 @@ import { ChatState } from '../types/chatState';
 import type { Session } from '../types/session';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import {
-  createUserMessage,
-  getPendingToolConfirmationIds,
-  type Message,
-} from '../types/message';
+import { createUserMessage, getPendingToolConfirmationIds, type Message } from '../types/message';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -48,6 +44,7 @@ export interface AcpChatSessionController {
     recipe?: AcpRecipeOptions
   ): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
+  restoreSession(sessionId: string): Promise<void>;
   submitMessage(
     sessionId: string,
     userMessage: Message,
@@ -131,6 +128,17 @@ async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {
     return;
   }
 
+  await loadSessionFromServer(sessionId, options);
+}
+
+async function restoreSession(sessionId: string): Promise<void> {
+  await loadSessionFromServer(sessionId);
+}
+
+async function loadSessionFromServer(
+  sessionId: string,
+  options: AcpLoadSessionOptions = {}
+): Promise<void> {
   if (!isAcpSessionLoadInFlight(sessionId)) {
     acpChatSessionActions.startSessionLoad(sessionId);
   }
@@ -316,6 +324,7 @@ async function updateMessage(
 export const acpChatSessionController: AcpChatSessionController = {
   createSession,
   loadSession,
+  restoreSession,
   submitMessage,
   stop,
   updateMessage,

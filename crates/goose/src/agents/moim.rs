@@ -142,7 +142,7 @@ fn compose_moim(
     max_turns: u32,
     extension_parts: Vec<String>,
 ) -> String {
-    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00 %:z");
     let mut lines = vec![
         open_tag(TURN_CONTEXT_TAG),
         tag(CURRENT_TIME_TAG, &timestamp.to_string()),
@@ -436,6 +436,22 @@ mod tests {
                 "a block whose first field after current-time is not working-directory must not \
                  match: the detector's shape checks are what discriminate the injected block"
             );
+        }
+
+        #[test]
+        fn current_time_is_timezone_aware() {
+            let block = moim(None, None, 0, 0, vec![]);
+            let time_line = block
+                .lines()
+                .find(|line| line.starts_with(&format!("<{CURRENT_TIME_TAG}>")))
+                .expect("turn-context block should contain a current-time line");
+
+            let value = time_line
+                .trim_start_matches(&format!("<{CURRENT_TIME_TAG}>"))
+                .trim_end_matches(&format!("</{CURRENT_TIME_TAG}>"));
+
+            chrono::DateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S %:z")
+                .expect("current-time should include a numeric UTC offset");
         }
     }
 }
