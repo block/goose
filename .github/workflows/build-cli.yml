@@ -34,7 +34,6 @@ jobs:
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
       contents: read
-      actions: read
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
@@ -53,7 +52,6 @@ jobs:
     uses: ./.github/workflows/bundle-windows.yml
     permissions:
       contents: read
-      actions: read
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}
@@ -66,7 +64,6 @@ jobs:
     uses: ./.github/workflows/build-cli-linux.yml
     permissions:
       contents: read
-      actions: read
     with:
       version: ${{ inputs.version }}
       ref: ${{ inputs.ref }}

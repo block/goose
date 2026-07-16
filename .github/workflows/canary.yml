@@ -19,7 +19,6 @@ concurrency:
 permissions:
   id-token: write      # Required for Sigstore OIDC signing and AWS OIDC codesigning
   contents: write      # Required for creating releases and by actions/checkout
-  actions: read        # Required by bundle-windows.yml reusable workflow
   attestations: write  # Required for SLSA build provenance attestations
 
 jobs:

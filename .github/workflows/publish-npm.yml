@@ -7,7 +7,6 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  actions: read
   contents: write
   pull-requests: write
   id-token: write  # Required for npm trusted publishing (OIDC)

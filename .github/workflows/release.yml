@@ -13,7 +13,6 @@ name: Release
 permissions:
   id-token: write   # Required for Sigstore OIDC signing and AWS OIDC (Windows signing)
   contents: write   # Required for creating releases and by actions/checkout
-  actions: read     # May be needed for some workflows
   pull-requests: write  # Required for npm publish workflow
   attestations: write  # Required for SLSA build provenance attestations
 
@@ -90,7 +89,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-      actions: read
     with:
       package_cli: true
       package_desktop: true
@@ -102,7 +100,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-      actions: read
     with:
       package_cli: true
       package_desktop: true
