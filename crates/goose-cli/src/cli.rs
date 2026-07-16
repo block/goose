@@ -1203,11 +1203,31 @@ enum LocalModelsCommand {
     #[command(about = "Search HuggingFace for local GGUF and MLX models")]
     Search {
         /// Search query
-        query: String,
+        query: Option<String>,
 
         /// Maximum number of results
         #[arg(short, long, default_value = "10")]
         limit: usize,
+
+        /// Only include repos whose id starts with this prefix
+        #[arg(long)]
+        repo_prefix: Option<String>,
+
+        /// Only include repos whose id ends with this suffix
+        #[arg(long)]
+        repo_suffix: Option<String>,
+
+        /// Only include variants whose quantization contains this text
+        #[arg(long)]
+        quant: Option<String>,
+
+        /// Override available memory used for recommendations, in GB
+        #[arg(long)]
+        ram_gb: Option<f64>,
+
+        /// Print results as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Download a model from HuggingFace
@@ -2060,6 +2080,179 @@ fn print_download_progress(manager: &goose::download_manager::DownloadManager) {
 }
 
 #[cfg(feature = "local-inference")]
+#[derive(serde::Serialize)]
+struct LocalModelSearchResult {
+    repo_id: String,
+    author: String,
+    model_name: String,
+    downloads: u64,
+    recommended_variant: Option<LocalModelVariant>,
+    variants: Vec<LocalModelVariant>,
+}
+
+#[cfg(feature = "local-inference")]
+#[derive(Clone, serde::Serialize)]
+struct LocalModelVariant {
+    variant_id: String,
+    label: String,
+    backend_id: String,
+    format: String,
+    model_id: String,
+    download_id: String,
+    size_bytes: u64,
+    filename: Option<String>,
+    download_url: Option<String>,
+    description: String,
+    quality_rank: u8,
+    sharded: bool,
+    supported: bool,
+    unsupported_reason: Option<String>,
+}
+
+#[cfg(feature = "local-inference")]
+fn gb_to_bytes(gb: f64) -> Result<u64> {
+    if !gb.is_finite() || gb <= 0.0 {
+        anyhow::bail!("--ram-gb must be a positive number");
+    }
+    Ok((gb * 1024.0 * 1024.0 * 1024.0) as u64)
+}
+
+#[cfg(feature = "local-inference")]
+fn format_size(bytes: u64) -> String {
+    if bytes == 0 {
+        "unknown".to_string()
+    } else {
+        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+#[cfg(feature = "local-inference")]
+fn search_result_with_recommendation(
+    model: goose::providers::local_inference::hf_models::HfModelInfo,
+    available_memory: u64,
+) -> LocalModelSearchResult {
+    use goose::providers::local_inference::hf_models::{recommend_variant, HfQuantVariant};
+
+    let gguf_variants = model
+        .variants
+        .iter()
+        .filter(|variant| variant.backend_id == "llamacpp" && variant.supported)
+        .map(|variant| HfQuantVariant {
+            quantization: variant.variant_id.clone(),
+            size_bytes: variant.size_bytes,
+            filename: variant.filename.clone().unwrap_or_default(),
+            download_url: variant.download_url.clone().unwrap_or_default(),
+            description: "",
+            quality_rank: variant.quality_rank,
+            sharded: variant.sharded,
+        })
+        .collect::<Vec<_>>();
+    let recommended_quant = recommend_variant(&gguf_variants, available_memory)
+        .map(|index| gguf_variants[index].quantization.clone());
+
+    let variants = model
+        .variants
+        .into_iter()
+        .map(|variant| LocalModelVariant {
+            variant_id: variant.variant_id,
+            label: variant.label,
+            backend_id: variant.backend_id,
+            format: variant.format,
+            model_id: variant.model_id,
+            download_id: variant.download_id,
+            size_bytes: variant.size_bytes,
+            filename: variant.filename,
+            download_url: variant.download_url,
+            description: variant.description,
+            quality_rank: variant.quality_rank,
+            sharded: variant.sharded,
+            supported: variant.supported,
+            unsupported_reason: variant.unsupported_reason,
+        })
+        .collect::<Vec<_>>();
+    let recommended_variant = recommended_quant
+        .and_then(|quant| variants.iter().find(|variant| variant.variant_id == quant))
+        .cloned();
+
+    LocalModelSearchResult {
+        repo_id: model.repo_id,
+        author: model.author,
+        model_name: model.model_name,
+        downloads: model.downloads,
+        recommended_variant,
+        variants,
+    }
+}
+
+#[cfg(feature = "local-inference")]
+async fn search_local_models_for_cli(
+    query: &str,
+    limit: usize,
+    repo_prefix: Option<&str>,
+    repo_suffix: Option<&str>,
+    quant: Option<&str>,
+    four_bit_only: bool,
+) -> Result<Vec<goose::providers::local_inference::hf_models::HfModelInfo>> {
+    use goose::providers::local_inference::hf_models;
+
+    let fetch_limit = limit.saturating_mul(5).max(limit);
+    if !query.is_empty() {
+        let mut models = hf_models::search_local_models(query, fetch_limit).await?;
+        filter_local_model_results(&mut models, repo_prefix, repo_suffix, quant, four_bit_only);
+        models.truncate(limit);
+        return Ok(models);
+    }
+
+    let search_query = repo_prefix
+        .and_then(|prefix| prefix.strip_suffix('/'))
+        .unwrap_or(query);
+    let mut models = hf_models::search_gguf_models(search_query, fetch_limit).await?;
+    for model in &mut models {
+        let variants = hf_models::get_repo_gguf_variants(&model.repo_id)
+            .await
+            .unwrap_or_default();
+        model.variants = variants
+            .iter()
+            .map(|variant| variant.to_model_variant(&model.repo_id))
+            .collect();
+    }
+    filter_local_model_results(&mut models, repo_prefix, repo_suffix, quant, four_bit_only);
+    models.truncate(limit);
+    Ok(models)
+}
+
+#[cfg(feature = "local-inference")]
+fn filter_local_model_results(
+    models: &mut Vec<goose::providers::local_inference::hf_models::HfModelInfo>,
+    repo_prefix: Option<&str>,
+    repo_suffix: Option<&str>,
+    quant: Option<&str>,
+    four_bit_only: bool,
+) {
+    let quant = quant.map(str::to_lowercase);
+    models.retain_mut(|model| {
+        if repo_prefix.is_some_and(|prefix| !model.repo_id.starts_with(prefix)) {
+            return false;
+        }
+        if repo_suffix.is_some_and(|suffix| !model.repo_id.ends_with(suffix)) {
+            return false;
+        }
+
+        model.variants.retain(|variant| {
+            if let Some(quant) = &quant {
+                return variant.variant_id.to_lowercase().contains(quant);
+            }
+            if four_bit_only {
+                return (40..50).contains(&variant.quality_rank);
+            }
+            true
+        });
+
+        !model.variants.is_empty()
+    });
+}
+
+#[cfg(feature = "local-inference")]
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::get_registry;
@@ -2067,12 +2260,64 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
     goose::providers::local_inference::configure_huggingface_auth();
 
     match command {
-        LocalModelsCommand::Search { query, limit } => {
-            println!("Searching HuggingFace for '{}'...", query);
-            let results = hf_models::search_local_models(&query, limit).await?;
+        LocalModelsCommand::Search {
+            query,
+            limit,
+            repo_prefix,
+            repo_suffix,
+            quant,
+            ram_gb,
+            json,
+        } => {
+            let query = query.unwrap_or_default();
+            let default_popular_search = query.is_empty()
+                && repo_prefix.is_none()
+                && repo_suffix.is_none()
+                && quant.is_none();
+            let repo_prefix =
+                repo_prefix.or_else(|| default_popular_search.then(|| "unsloth/".to_string()));
+            let four_bit_only = default_popular_search;
+            if !json {
+                if query.is_empty() {
+                    println!("Searching HuggingFace for popular local models...");
+                } else {
+                    println!("Searching HuggingFace for '{}'...", query);
+                }
+            }
+            let results = search_local_models_for_cli(
+                &query,
+                limit,
+                repo_prefix.as_deref(),
+                repo_suffix.as_deref(),
+                quant.as_deref(),
+                four_bit_only,
+            )
+            .await?;
 
             if results.is_empty() {
-                println!("No compatible local models found.");
+                if json {
+                    println!("[]");
+                } else {
+                    println!("No compatible local models found.");
+                }
+                return Ok(());
+            }
+
+            let available_memory = if let Some(gb) = ram_gb {
+                gb_to_bytes(gb)?
+            } else {
+                let runtime = goose::providers::local_inference::InferenceRuntime::get_or_init()?;
+                goose::providers::local_inference::available_inference_memory_bytes(
+                    runtime.as_ref(),
+                )
+            };
+            let results = results
+                .into_iter()
+                .map(|model| search_result_with_recommendation(model, available_memory))
+                .collect::<Vec<_>>();
+
+            if json {
+                println!("{}", serde_json::to_string_pretty(&results)?);
                 return Ok(());
             }
 
@@ -2081,15 +2326,23 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     "\n{} (by {}) — {} downloads",
                     model.model_name, model.author, model.downloads
                 );
+                if let Some(variant) = &model.recommended_variant {
+                    println!(
+                        "  Recommended: {} — {}",
+                        variant.label,
+                        format_size(variant.size_bytes)
+                    );
+                    println!(
+                        "    Download: goose local-models download '{}'",
+                        variant.download_id
+                    );
+                } else {
+                    println!(
+                        "  Recommended: none fits in {}",
+                        format_size(available_memory)
+                    );
+                }
                 for variant in &model.variants {
-                    let size = if variant.size_bytes > 0 {
-                        format!(
-                            "{:.1}GB",
-                            variant.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
-                        )
-                    } else {
-                        "unknown".to_string()
-                    };
                     let support = if variant.supported {
                         String::new()
                     } else {
@@ -2103,7 +2356,11 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     };
                     println!(
                         "  [{}] {} — {} — {}{}",
-                        variant.format, variant.label, size, variant.description, support
+                        variant.format,
+                        variant.label,
+                        format_size(variant.size_bytes),
+                        variant.description,
+                        support
                     );
                     if variant.supported {
                         println!(

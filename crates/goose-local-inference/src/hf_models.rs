@@ -603,7 +603,7 @@ pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModel
     let client = reqwest::Client::new();
     let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!(
-        "{}?search={}&filter=gguf&sort=downloads&direction=-1&limit={}",
+        "{}?search={}&filter=gguf&pipeline_tag=text-generation&sort=downloads&direction=-1&limit={}",
         HF_API_BASE, query, limit
     );
 
