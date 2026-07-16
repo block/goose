@@ -245,6 +245,10 @@ impl ModelConfig {
 
     pub fn supports_reasoning_mode(&self) -> bool {
         let normalized = self.model_name.to_ascii_lowercase();
+        let normalized = normalized
+            .strip_prefix("openai.")
+            .or_else(|| normalized.strip_prefix("databricks-"))
+            .unwrap_or(&normalized);
         normalized == "gpt-5.6"
             || normalized.starts_with("gpt-5.6-")
             || normalized == "gpt-5-6"
@@ -564,10 +568,17 @@ mod tests {
 
         #[test]
         fn supports_only_gpt_5_6_model_names() {
-            for model in ["gpt-5.6", "gpt-5.6-sol", "gpt-5-6", "gpt-5-6-sol-xhigh"] {
+            for model in [
+                "gpt-5.6",
+                "gpt-5.6-sol",
+                "gpt-5-6",
+                "gpt-5-6-sol-xhigh",
+                "openai.gpt-5.6-terra",
+                "databricks-gpt-5.6-luna",
+            ] {
                 assert!(ModelConfig::new(model).supports_reasoning_mode(), "{model}");
             }
-            for model in ["gpt-5.5", "gpt-5.60", "gpt-4o"] {
+            for model in ["gpt-5.5", "gpt-5.60", "gpt-4o", "my-openai.gpt-5.6"] {
                 assert!(
                     !ModelConfig::new(model).supports_reasoning_mode(),
                     "{model}"

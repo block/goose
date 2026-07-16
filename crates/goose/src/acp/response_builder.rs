@@ -845,6 +845,14 @@ mod tests {
                 &model_config
             ));
         }
+        assert!(supports_reasoning_mode_for_provider(
+            "aws_bedrock",
+            &ModelConfig::new("openai.gpt-5.6-sol")
+        ));
+        assert!(supports_reasoning_mode_for_provider(
+            "databricks",
+            &ModelConfig::new("databricks-gpt-5.6-terra")
+        ));
         assert!(!supports_reasoning_mode_for_provider(
             "chatgpt_codex",
             &model_config

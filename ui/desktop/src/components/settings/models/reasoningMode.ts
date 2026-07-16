@@ -12,7 +12,12 @@ export function supportsReasoningMode(
   providerName: string | null | undefined,
   modelName: string | null | undefined
 ): boolean {
-  const normalized = modelName?.toLowerCase();
+  const lower = modelName?.toLowerCase();
+  const normalized = lower?.startsWith('openai.')
+    ? lower.slice('openai.'.length)
+    : lower?.startsWith('databricks-')
+      ? lower.slice('databricks-'.length)
+      : lower;
   return Boolean(
     providerName &&
     REASONING_MODE_PROVIDERS.has(providerName) &&
