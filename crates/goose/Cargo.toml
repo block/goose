@@ -240,6 +240,8 @@ keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["sync-secret-service"], optional = true }
+
+[target."cfg(unix)".dependencies]
 libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
