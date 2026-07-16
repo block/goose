@@ -24,6 +24,9 @@ on:
 
 name: "Bundle Desktop (Linux)"
 
+permissions:
+  contents: read
+
 jobs:
   build-desktop-linux:
     name: Build Desktop (Linux, ${{ matrix.variant }})

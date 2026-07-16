@@ -13,6 +13,9 @@ on:
 
 name: "Reusable workflow to build CLI for Linux"
 
+permissions:
+  contents: read
+
 jobs:
   build-cli-linux:
     name: Build CLI
