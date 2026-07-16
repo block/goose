@@ -2777,6 +2777,15 @@ export const zMessageUsageUpdate = z.object({
 });
 
 /**
+ * Signals that the agent compacted history. The client should discard any
+ * messages whose IDs are not in `retained_message_ids` and that were
+ * sourced from the agent (i.e. `agentVisible: true`).
+ */
+export const zHistoryReplacedUpdate = z.object({
+    retainedMessageIds: z.array(z.string())
+});
+
+/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
@@ -2793,7 +2802,10 @@ export const zGooseSessionUpdate = z.union([
     }).and(zStatusMessageUpdate),
     z.object({
         sessionUpdate: z.literal('message_usage')
-    }).and(zMessageUsageUpdate)
+    }).and(zMessageUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('history_replaced')
+    }).and(zHistoryReplacedUpdate)
 ]);
 
 /**

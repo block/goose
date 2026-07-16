@@ -28,6 +28,13 @@ export function applyGooseSessionNotification(
       return applyStatusMessage(state, notification.sessionId, update);
     case 'message_usage':
       return applyMessageUsage(state, update);
+    case 'history_replaced': {
+      const retained = new Set(update.retainedMessageIds);
+      state.messages = state.messages.filter(
+        (m) => m.metadata?.agentVisible === false || (m.id != null && retained.has(m.id))
+      );
+      return messagesChange(state);
+    }
     default:
       return [];
   }

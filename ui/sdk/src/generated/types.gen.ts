@@ -2549,7 +2549,9 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'status_message';
 } & StatusMessageUpdate) | ({
     sessionUpdate: 'message_usage';
-} & MessageUsageUpdate);
+} & MessageUsageUpdate) | ({
+    sessionUpdate: 'history_replaced';
+} & HistoryReplacedUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2613,6 +2615,15 @@ export type CostSourceData = 'provider_reported' | 'estimated';
 export type MessageUsageUpdate = {
     messageId?: string | null;
     usage: MessageUsageData;
+};
+
+/**
+ * Signals that the agent compacted history. The client should discard any
+ * messages whose IDs are not in `retained_message_ids` and that were
+ * sourced from the agent (i.e. `agentVisible: true`).
+ */
+export type HistoryReplacedUpdate = {
+    retainedMessageIds: Array<string>;
 };
 
 export type RequestRecipeParams_unstable = {

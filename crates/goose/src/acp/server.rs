@@ -2763,6 +2763,21 @@ impl GooseAcpAgent {
                         })?;
                     }
                 }
+                Ok(crate::agents::AgentEvent::HistoryReplaced(conversation)) => {
+                    if self.supports_goose_custom_notifications() {
+                        let retained_message_ids = conversation
+                            .messages()
+                            .iter()
+                            .filter_map(|m| m.id.clone())
+                            .collect();
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.clone(),
+                            update: GooseSessionUpdate::HistoryReplaced(HistoryReplacedUpdate {
+                                retained_message_ids,
+                            }),
+                        })?;
+                    }
+                }
                 Ok(_) => {}
                 Err(e) => {
                     stream_error = Some(

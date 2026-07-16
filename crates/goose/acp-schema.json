@@ -6624,6 +6624,19 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/HistoryReplacedUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "history_replaced"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6632,7 +6645,8 @@
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
           "status_message": "#/$defs/StatusMessageUpdate",
-          "message_usage": "#/$defs/MessageUsageUpdate"
+          "message_usage": "#/$defs/MessageUsageUpdate",
+          "history_replaced": "#/$defs/HistoryReplacedUpdate"
         }
       }
     },
@@ -6824,6 +6838,21 @@
         "usage"
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
+    },
+    "HistoryReplacedUpdate": {
+      "type": "object",
+      "properties": {
+        "retainedMessageIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "retainedMessageIds"
+      ],
+      "description": "Signals that the agent compacted history. The client should discard any\nmessages whose IDs are not in `retained_message_ids` and that were\nsourced from the agent (i.e. `agentVisible: true`)."
     },
     "RequestRecipeParams_unstable": {
       "type": "object",

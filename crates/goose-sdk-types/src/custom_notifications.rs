@@ -26,13 +26,15 @@ pub struct GooseSessionNotification {
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
         "status_message": "#/$defs/StatusMessageUpdate",
-        "message_usage": "#/$defs/MessageUsageUpdate"
+        "message_usage": "#/$defs/MessageUsageUpdate",
+        "history_replaced": "#/$defs/HistoryReplacedUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
     MessageUsage(MessageUsageUpdate),
+    HistoryReplaced(HistoryReplacedUpdate),
 }
 
 impl Default for GooseSessionUpdate {
@@ -100,6 +102,15 @@ pub enum CostSourceData {
     ProviderReported,
     /// Cost computed from the canonical pricing table.
     Estimated,
+}
+
+/// Signals that the agent compacted history. The client should discard any
+/// messages whose IDs are not in `retained_message_ids` and that were
+/// sourced from the agent (i.e. `agentVisible: true`).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryReplacedUpdate {
+    pub retained_message_ids: Vec<String>,
 }
 
 /// Live UI/session status. This is not conversation transcript content, and
@@ -219,6 +230,29 @@ mod tests {
                         "timeToFirstTokenMs": 840,
                         "isCompaction": false
                     }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn history_replaced_serializes_to_expected_wire_shape() {
+        let notification = GooseSessionNotification {
+            session_id: "s1".to_string(),
+            update: GooseSessionUpdate::HistoryReplaced(HistoryReplacedUpdate {
+                retained_message_ids: vec!["m1".to_string(), "m2".to_string()],
+            }),
+        };
+
+        let value = serde_json::to_value(notification).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "sessionId": "s1",
+                "update": {
+                    "sessionUpdate": "history_replaced",
+                    "retainedMessageIds": ["m1", "m2"]
                 }
             })
         );
