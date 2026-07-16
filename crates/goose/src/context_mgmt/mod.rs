@@ -472,16 +472,9 @@ pub fn tool_ids_to_summarize(
         .collect()
 }
 
-pub async fn summarize_tool_call(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
-    conversation: &Conversation,
-    tool_id: &str,
-) -> Result<Message> {
-    let messages = conversation.messages();
-
-    let matching_messages: Vec<&Message> = messages
+fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result<Vec<Message>> {
+    let matching_messages = conversation
+        .messages()
         .iter()
         .filter(|m| {
             m.content.iter().any(|c| match c {
@@ -490,14 +483,38 @@ pub async fn summarize_tool_call(
                 _ => false,
             })
         })
-        .collect();
+        .cloned()
+        .collect::<Vec<_>>();
+    let matching_messages =
+        Conversation::new_unvalidated(matching_messages).agent_visible_messages();
 
-    if matching_messages.is_empty() {
+    let has_request = matching_messages.iter().any(|message| {
+        message.content.iter().any(
+            |content| matches!(content, MessageContent::ToolRequest(request) if request.id == tool_id),
+        )
+    });
+    let has_response = matching_messages.iter().any(|message| {
+        message.content.iter().any(
+            |content| matches!(content, MessageContent::ToolResponse(response) if response.id == tool_id),
+        )
+    });
+    if !has_request || !has_response {
         return Err(anyhow::anyhow!(
-            "No messages found for tool id: {}",
+            "No agent-visible tool pair found for tool id: {}",
             tool_id
         ));
     }
+    Ok(matching_messages)
+}
+
+pub async fn summarize_tool_call(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    conversation: &Conversation,
+    tool_id: &str,
+) -> Result<Message> {
+    let matching_messages = agent_visible_tool_pair(conversation, tool_id)?;
 
     let formatted = matching_messages
         .iter()
@@ -773,6 +790,93 @@ mod tests {
             .join("\n");
         assert!(user_text.contains("user-only secret"));
         assert!(!user_text.contains("assistant-only preprompt"));
+    }
+
+    #[tokio::test]
+    async fn tool_pair_summary_projects_nested_audiences_before_provider_input() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user().with_tool_response(
+                "tool_0",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("visible result").no_annotation(),
+                    RawContent::text("user-only secret")
+                        .no_annotation()
+                        .with_audience(vec![Role::User]),
+                ])),
+            ),
+        ]);
+
+        let projected = agent_visible_tool_pair(&conversation, "tool_0").unwrap();
+        let formatted = projected
+            .iter()
+            .map(format_message_for_compacting)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(formatted.contains("visible result"));
+        assert!(!formatted.contains("user-only secret"));
+
+        let user_only_conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("user-only secret")
+                        .no_annotation()
+                        .with_audience(vec![Role::User]),
+                ])),
+            ),
+        ]);
+        let user_only_formatted = agent_visible_tool_pair(&user_only_conversation, "tool_1")
+            .unwrap()
+            .iter()
+            .map(format_message_for_compacting)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!user_only_formatted.contains("user-only secret"));
+
+        summarize_tool_call(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            "tool_0",
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn tool_pair_summary_rejects_agent_hidden_response() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user()
+                .with_tool_response(
+                    "tool_0",
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        RawContent::text("user-only secret").no_annotation(),
+                    ])),
+                )
+                .with_metadata(MessageMetadata::user_only()),
+        ]);
+
+        let error = summarize_tool_call(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            "tool_0",
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("No agent-visible tool pair"));
     }
 
     #[tokio::test]
