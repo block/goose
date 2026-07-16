@@ -23,6 +23,7 @@ impl MaxTurnsOperation {
 
 pub(crate) fn turns_taken_this_request(conversation: &Conversation) -> u32 {
     let mut turns = 0u32;
+    let mut in_assistant_block = false;
     for message in conversation.messages().iter().rev() {
         // Only a message the user actually typed starts a new request.
         // Machine-generated user messages (goal/grind nudges, stop-hook
@@ -31,8 +32,17 @@ pub(crate) fn turns_taken_this_request(conversation: &Conversation) -> u32 {
         if message.role == Role::User && !message.is_tool_response() && message.is_user_visible() {
             break;
         }
+        // A turn is one LLM call, which can persist several assistant
+        // messages (thinking, text, and tool-call chunks arrive as separate
+        // messages). Count contiguous assistant blocks, not messages, or the
+        // budget depletes at a multiple of the real turn rate.
         if message.role == Role::Assistant {
-            turns += 1;
+            if !in_assistant_block {
+                turns += 1;
+                in_assistant_block = true;
+            }
+        } else {
+            in_assistant_block = false;
         }
     }
     turns

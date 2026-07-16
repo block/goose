@@ -97,6 +97,42 @@ async fn stops_at_max_turns() -> Result<()> {
 }
 
 #[tokio::test]
+async fn max_turns_counts_llm_calls_not_assistant_messages() -> Result<()> {
+    // One LLM call can persist several assistant messages (thinking/text and
+    // tool-call chunks arrive separately). The budget must count calls: three
+    // two-message turns fit in max_turns=3; counting messages would stop the
+    // loop after two calls. This is how self-test delegates burned a 25-turn
+    // budget on a write-one-file task.
+    let calls = std::sync::atomic::AtomicUsize::new(0);
+    let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
+        let n = calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        vec![
+            Message::assistant().with_text(format!("thinking about step {n}")),
+            Message::assistant().with_tool_request(
+                format!("call_{n}"),
+                Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                    .with_arguments(serde_json::Map::new())),
+            ),
+        ]
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_default_extension()
+        .await;
+
+    let messages = harness.run("keep going", 3).await?;
+
+    assert_eq!(harness.provider.call_count(), 3, "events: {messages:#?}");
+    assert!(messages
+        .last()
+        .unwrap()
+        .as_concat_text()
+        .contains("maximum number of actions"));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn approve_mode_waits_for_tool_confirmation_before_execution() -> Result<()> {
     let harness = TestHarness::with_steps([
         Step::ToolCall {
