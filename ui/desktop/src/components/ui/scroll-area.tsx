@@ -192,7 +192,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       if (!viewport || !content || typeof ResizeObserver === 'undefined') return;
 
       const observer = new ResizeObserver(() => {
-        if (isFollowing && !userScrolledUpRef.current) {
+        // Mirror the [children] effect's guards, including isActivelyScrolling, so
+        // the re-pin doesn't fight a user scrolling up while content is still growing.
+        if (isFollowing && !userScrolledUpRef.current && !isActivelyScrollingRef.current) {
           viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' });
         }
       });
