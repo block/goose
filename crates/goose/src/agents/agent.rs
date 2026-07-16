@@ -289,9 +289,10 @@ fn attach_turn_usage(
         .iter_mut()
         .rev()
         .find(|m| m.role == rmcp::model::Role::Assistant)?;
+    let has_user_visible_content = !message.user_visible_content().content.is_empty();
     let message_usage = MessageUsage::from_provider_usage(usage, false);
     message.metadata.usage = Some(Box::new(message_usage.clone()));
-    Some((message.id.clone(), message_usage))
+    has_user_visible_content.then(|| (message.id.clone(), message_usage))
 }
 
 impl Default for Agent {
@@ -4358,5 +4359,37 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             conversation.messages()[0].metadata.usage.is_none(),
             "user message must stay untouched"
         );
+    }
+
+    #[test]
+    fn attach_turn_usage_suppresses_notification_for_assistant_only_message() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let assistant_only = RawTextContent {
+            text: "provider-only state".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_text("hi"),
+            Message::assistant()
+                .with_id("hidden")
+                .with_content(MessageContent::Text(assistant_only)),
+        ]);
+
+        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+
+        let stored = conversation.messages()[1]
+            .metadata
+            .usage
+            .as_deref()
+            .expect("usage must remain stored on the hidden assistant message");
+        assert_eq!(stored.input_tokens, Some(1200));
+        assert_eq!(stored.output_tokens, Some(340));
     }
 }
