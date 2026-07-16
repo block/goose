@@ -1596,6 +1596,15 @@ impl Agent {
                 .await;
         }
 
+        if !user_message.is_agent_visible()
+            || user_message.agent_visible_content().content.is_empty()
+        {
+            session_manager
+                .add_message(&session_config.id, &user_message)
+                .await?;
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
         if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
@@ -3953,6 +3962,67 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         assert_eq!(env.hook_invocations(), 1);
         assert_eq!(provider.call_count(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn skipped_user_message_does_not_enter_empty_response_retry_loop() -> Result<()> {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let user_only_content = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+
+        let mut stream = agent
+            .reply(
+                Message::user().with_content(user_only_content),
+                session_config,
+                None,
+            )
+            .await?;
+
+        assert!(stream.next().await.is_none());
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        assert_eq!(session.conversation.unwrap().messages().len(), 1);
+
+        let visible_session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut visible_stream = agent
+            .reply(
+                Message::user().with_text("agent-visible"),
+                visible_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = visible_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 1);
         Ok(())
     }
 
