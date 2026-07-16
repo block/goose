@@ -8,7 +8,6 @@ jobs:
     if: startsWith(github.head_ref, 'release/')
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       target: aarch64-apple-darwin

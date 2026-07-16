@@ -15,11 +15,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Permissions for SLSA attestation, AWS OIDC codesigning, and release creation
 permissions:
-  id-token: write      # Required for Sigstore OIDC signing and AWS OIDC codesigning
-  contents: write      # Required for creating releases and by actions/checkout
-  attestations: write  # Required for SLSA build provenance attestations
+  contents: read
 
 jobs:
   # ------------------------------------
@@ -71,7 +68,6 @@ jobs:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}
@@ -87,7 +83,6 @@ jobs:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       version: ${{ needs.prepare-version.outputs.version }}

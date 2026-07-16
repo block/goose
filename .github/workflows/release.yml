@@ -11,10 +11,7 @@ on:
 name: Release
 
 permissions:
-  id-token: write   # Required for Sigstore OIDC signing and AWS OIDC (Windows signing)
-  contents: write   # Required for creating releases and by actions/checkout
-  pull-requests: write  # Required for npm publish workflow
-  attestations: write  # Required for SLSA build provenance attestations
+  contents: read
 
 env:
   # Set this repository Actions variable to "true" in GitHub Settings > Secrets and variables
@@ -51,7 +48,6 @@ jobs:
   bundle-macos-arm64:
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       target: aarch64-apple-darwin
@@ -66,7 +62,6 @@ jobs:
   bundle-macos-x64:
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       target: x86_64-apple-darwin

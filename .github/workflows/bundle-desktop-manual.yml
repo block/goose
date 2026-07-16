@@ -12,7 +12,6 @@ jobs:
   bundle-desktop-unsigned:
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       target: aarch64-apple-darwin
@@ -24,7 +23,6 @@ jobs:
   bundle-desktop-intel-unsigned:
     uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
       target: x86_64-apple-darwin
