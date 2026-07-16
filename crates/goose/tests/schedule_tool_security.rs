@@ -13,12 +13,14 @@ use tempfile::TempDir;
 
 struct MockScheduler {
     jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
+    validated_recipes: tokio::sync::Mutex<Vec<Vec<u8>>>,
 }
 
 impl MockScheduler {
     fn new() -> Self {
         Self {
             jobs: tokio::sync::Mutex::new(Vec::new()),
+            validated_recipes: tokio::sync::Mutex::new(Vec::new()),
         }
     }
 }
@@ -31,6 +33,16 @@ impl SchedulerTrait for MockScheduler {
         _copy: bool,
     ) -> Result<(), SchedulerError> {
         self.jobs.lock().await.push(job);
+        Ok(())
+    }
+
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        validated_recipe: Vec<u8>,
+    ) -> Result<(), SchedulerError> {
+        self.jobs.lock().await.push(job);
+        self.validated_recipes.lock().await.push(validated_recipe);
         Ok(())
     }
 
@@ -176,13 +188,14 @@ async fn accepts_valid_regular_recipe() {
     let scheduler = Arc::new(MockScheduler::new());
     let agent = agent_with_scheduler(&temp_dir, scheduler.clone());
     let path = temp_dir.path().join("valid.yaml");
-    std::fs::write(
-        &path,
-        "title: Valid recipe\ndescription: A small recipe\nprompt: Run safely\n",
-    )
-    .unwrap();
+    let recipe = b"title: Valid recipe\ndescription: A small recipe\nprompt: Run safely\n";
+    std::fs::write(&path, recipe).unwrap();
 
     create_schedule(&agent, &path).await.unwrap();
 
     assert_eq!(scheduler.jobs.lock().await.len(), 1);
+    assert_eq!(
+        scheduler.validated_recipes.lock().await.as_slice(),
+        &[recipe.to_vec()]
+    );
 }

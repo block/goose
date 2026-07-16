@@ -184,7 +184,10 @@ impl Agent {
             recipe_base_dir: None,
         };
 
-        match scheduler.add_scheduled_job(job, true).await {
+        match scheduler
+            .add_scheduled_job_with_recipe(job, content.into_bytes())
+            .await
+        {
             Ok(()) => Ok(vec![Content::text(format!(
                 "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}' in {} mode",
                 job_id, recipe_path, cron_expression, execution_mode

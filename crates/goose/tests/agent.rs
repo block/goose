@@ -49,6 +49,14 @@ mod tests {
                 Ok(())
             }
 
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                _job: ScheduledJob,
+                _validated_recipe: Vec<u8>,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
             async fn schedule_recipe(
                 &self,
                 _recipe_path: PathBuf,
@@ -123,6 +131,16 @@ mod tests {
                 &self,
                 job: ScheduledJob,
                 _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                let mut jobs = self.jobs.lock().await;
+                jobs.push(job);
+                Ok(())
+            }
+
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                job: ScheduledJob,
+                _validated_recipe: Vec<u8>,
             ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 jobs.push(job);

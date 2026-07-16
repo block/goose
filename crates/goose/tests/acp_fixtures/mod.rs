@@ -78,6 +78,14 @@ impl SchedulerTrait for FixtureScheduler {
         Ok(())
     }
 
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        _validated_recipe: Vec<u8>,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job(job, false).await
+    }
+
     async fn schedule_recipe(
         &self,
         recipe_path: PathBuf,

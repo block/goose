@@ -63,7 +63,17 @@ fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(),
         )));
     }
 
-    let result = File::create(destination).and_then(|mut file| file.write_all(&bytes));
+    write_schedule_recipe_bytes(destination, &bytes)
+}
+
+fn write_schedule_recipe_bytes(destination: &Path, bytes: &[u8]) -> Result<(), SchedulerError> {
+    if bytes.len() as u64 > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(SchedulerError::RecipeLoadError(format!(
+            "Recipe file exceeds the {MAX_SCHEDULE_RECIPE_BYTES} byte limit"
+        )));
+    }
+
+    let result = File::create(destination).and_then(|mut file| file.write_all(bytes));
     if let Err(error) = result {
         let _ = fs::remove_file(destination);
         return Err(SchedulerError::StorageError(error));
@@ -342,6 +352,25 @@ impl Scheduler {
         original_job_spec: ScheduledJob,
         make_copy: bool,
     ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job_inner(original_job_spec, make_copy, None)
+            .await
+    }
+
+    pub async fn add_scheduled_job_with_recipe(
+        &self,
+        original_job_spec: ScheduledJob,
+        validated_recipe: Vec<u8>,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job_inner(original_job_spec, true, Some(validated_recipe))
+            .await
+    }
+
+    async fn add_scheduled_job_inner(
+        &self,
+        original_job_spec: ScheduledJob,
+        make_copy: bool,
+        validated_recipe: Option<Vec<u8>>,
+    ) -> Result<(), SchedulerError> {
         {
             let jobs_guard = self.jobs.lock().await;
             if jobs_guard.contains_key(&original_job_spec.id) {
@@ -374,7 +403,11 @@ impl Scheduler {
             let destination_filename = format!("{}.{}", stored_job.id, original_extension);
             let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
 
-            copy_bounded_schedule_recipe(&original_recipe_path, &destination_recipe_path)?;
+            if let Some(recipe) = validated_recipe.as_deref() {
+                write_schedule_recipe_bytes(&destination_recipe_path, recipe)?;
+            } else {
+                copy_bounded_schedule_recipe(&original_recipe_path, &destination_recipe_path)?;
+            }
             stored_job.recipe_base_dir = original_recipe_path
                 .parent()
                 .map(|p| p.to_string_lossy().into_owned());
@@ -1127,6 +1160,15 @@ impl SchedulerTrait for Scheduler {
         self.add_scheduled_job(job, make_copy).await
     }
 
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        validated_recipe: Vec<u8>,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job_with_recipe(job, validated_recipe)
+            .await
+    }
+
     async fn schedule_recipe(
         &self,
         recipe_path: PathBuf,
@@ -1219,6 +1261,62 @@ mod tests {
             .unwrap();
 
         let error = copy_bounded_schedule_recipe(&source, &destination).unwrap_err();
+
+        assert!(error.to_string().contains("exceeds the 1048576 byte limit"));
+        assert!(!destination.exists());
+    }
+
+    #[tokio::test]
+    async fn validated_recipe_bytes_are_persisted_after_source_replacement() {
+        let temp_dir = tempdir().unwrap();
+        let _guard =
+            env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_dir.path().to_str().unwrap()))]);
+        let source = temp_dir.path().join("source.yaml");
+        let validated =
+            b"title: Validated\ndescription: Original recipe\nprompt: Run safely\n".to_vec();
+        let replacement =
+            b"title: Replacement\ndescription: Swapped recipe\nprompt: Run something else\n";
+        fs::write(&source, &validated).unwrap();
+        serde_yaml::from_slice::<Recipe>(&validated).unwrap();
+        fs::write(&source, replacement).unwrap();
+
+        let storage_path = temp_dir.path().join("schedule.json");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+        let job = ScheduledJob {
+            id: "validated_recipe_copy".to_string(),
+            source: source.to_string_lossy().into_owned(),
+            cron: "0 0 0 1 1 *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+            parameters: vec![],
+            recipe_base_dir: None,
+        };
+
+        scheduler
+            .add_scheduled_job_with_recipe(job, validated.clone())
+            .await
+            .unwrap();
+
+        let jobs = scheduler.list_scheduled_jobs().await;
+        let stored = jobs
+            .iter()
+            .find(|job| job.id == "validated_recipe_copy")
+            .unwrap();
+        assert_eq!(fs::read(&stored.source).unwrap(), validated);
+        assert_ne!(fs::read(&stored.source).unwrap(), replacement);
+    }
+
+    #[test]
+    fn validated_recipe_copy_rejects_oversized_bytes_without_destination() {
+        let temp_dir = tempdir().unwrap();
+        let destination = temp_dir.path().join("destination.yaml");
+        let oversized = vec![0; (MAX_SCHEDULE_RECIPE_BYTES + 1) as usize];
+
+        let error = write_schedule_recipe_bytes(&destination, &oversized).unwrap_err();
 
         assert!(error.to_string().contains("exceeds the 1048576 byte limit"));
         assert!(!destination.exists());

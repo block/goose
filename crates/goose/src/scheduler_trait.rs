@@ -12,6 +12,11 @@ pub trait SchedulerTrait: Send + Sync {
         job: ScheduledJob,
         copy_recipe: bool,
     ) -> Result<(), SchedulerError>;
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        validated_recipe: Vec<u8>,
+    ) -> Result<(), SchedulerError>;
     async fn schedule_recipe(
         &self,
         recipe_path: PathBuf,
