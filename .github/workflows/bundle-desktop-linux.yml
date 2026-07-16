@@ -5,11 +5,6 @@
 #  - pr-comment-bundle-desktop.yml (when added)
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch name to bundle app from'
-        required: true
-        type: string
   workflow_call:
     inputs:
       version:
@@ -44,7 +39,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
-          ref: ${{ inputs.ref || inputs.branch }}
+          ref: ${{ inputs.ref }}
 
       - name: Update versions
         if: ${{ inputs.version != '' }}
