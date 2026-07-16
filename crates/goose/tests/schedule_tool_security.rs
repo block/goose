@@ -168,6 +168,68 @@ async fn rejects_non_regular_recipe_path() {
     assert!(scheduler.jobs.lock().await.is_empty());
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn rejects_fifo_without_blocking() {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().unwrap();
+    let scheduler = Arc::new(MockScheduler::new());
+    let agent = agent_with_scheduler(&temp_dir, scheduler.clone());
+    let path = temp_dir.path().join("recipe.yaml");
+    let fifo_path = CString::new(path.as_os_str().as_bytes()).unwrap();
+    // SAFETY: fifo_path is a valid, NUL-terminated path and mode contains only permission bits.
+    assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+
+    let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+    let watchdog_path = path.clone();
+    let watchdog = std::thread::spawn(move || {
+        let timed_out = finished_rx.recv_timeout(Duration::from_secs(2)).is_err();
+        if timed_out {
+            let _ = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(watchdog_path);
+        }
+        timed_out
+    });
+
+    let message = create_schedule(&agent, &path).await.unwrap_err();
+    let _ = finished_tx.send(());
+
+    assert!(!watchdog.join().unwrap(), "FIFO validation blocked on open");
+    assert_eq!(message, "Recipe path must reference a regular file");
+    assert!(scheduler.jobs.lock().await.is_empty());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn accepts_symlink_to_regular_recipe_with_canonical_provenance() {
+    let temp_dir = TempDir::new().unwrap();
+    let scheduler = Arc::new(MockScheduler::new());
+    let agent = agent_with_scheduler(&temp_dir, scheduler.clone());
+    let target = temp_dir.path().join("target.yaml");
+    let link = temp_dir.path().join("recipe-link.yaml");
+    std::fs::write(
+        &target,
+        b"title: Valid recipe\ndescription: A small recipe\nprompt: Run safely\n",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    create_schedule(&agent, &link).await.unwrap();
+
+    let canonical_target = target.canonicalize().unwrap();
+    let jobs = scheduler.jobs.lock().await;
+    assert_eq!(jobs[0].source, canonical_target.to_string_lossy());
+    assert_eq!(
+        jobs[0].recipe_base_dir.as_deref(),
+        canonical_target.parent().and_then(Path::to_str)
+    );
+}
+
 #[tokio::test]
 async fn rejects_oversized_recipe() {
     let temp_dir = TempDir::new().unwrap();

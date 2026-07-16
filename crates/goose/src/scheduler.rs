@@ -47,8 +47,34 @@ impl ValidatedScheduleRecipe {
     }
 }
 
+pub(crate) fn open_regular_schedule_recipe(path: &Path) -> io::Result<File> {
+    let metadata = fs::metadata(path)?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Recipe path must reference a regular file",
+        ));
+    }
+
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    }
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Recipe path must reference a regular file",
+        ));
+    }
+    Ok(file)
+}
+
 fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(), SchedulerError> {
-    let source = File::open(source).map_err(|error| {
+    let source = open_regular_schedule_recipe(source).map_err(|error| {
         SchedulerError::RecipeLoadError(format!("Cannot read recipe file: {error}"))
     })?;
     let metadata = source.metadata().map_err(|error| {

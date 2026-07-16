@@ -3,7 +3,6 @@
 //! This module contains all the handlers for the schedule management platform tool,
 //! including job creation, execution, monitoring, and session management.
 
-use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -14,7 +13,9 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use super::Agent;
 use crate::recipe::Recipe;
-use crate::scheduler::{ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES};
+use crate::scheduler::{
+    open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
+};
 use crate::scheduler_trait::SchedulerTrait;
 
 fn recipe_file_error(message: &str) -> ErrorData {
@@ -25,8 +26,13 @@ fn read_schedule_recipe(path: &Path) -> Result<(String, PathBuf), ErrorData> {
     let canonical_path = path
         .canonicalize()
         .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
-    let file =
-        File::open(&canonical_path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    let file = open_regular_schedule_recipe(&canonical_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidInput {
+            recipe_file_error("Recipe path must reference a regular file")
+        } else {
+            recipe_file_error("Cannot read recipe file")
+        }
+    })?;
     let opened_metadata = file
         .metadata()
         .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
