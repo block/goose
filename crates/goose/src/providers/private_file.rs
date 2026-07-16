@@ -2,8 +2,76 @@ use std::io::{self, Write};
 use std::path::Path;
 
 #[cfg(windows)]
-fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
+fn to_windows_api_path(path: &Path) -> io::Result<Vec<u16>> {
     use std::os::windows::ffi::OsStrExt;
+
+    const LEGACY_MAX_PATH: usize = 248;
+    const SEP: u16 = b'\\' as u16;
+    const ALT_SEP: u16 = b'/' as u16;
+    const QUERY: u16 = b'?' as u16;
+    const COLON: u16 = b':' as u16;
+    const DOT: u16 = b'.' as u16;
+    const VERBATIM_PREFIX: &[u16] = &[SEP, SEP, QUERY, SEP];
+    const NT_PREFIX: &[u16] = &[SEP, QUERY, QUERY, SEP];
+    const UNC_PREFIX: &[u16] = &[
+        SEP,
+        SEP,
+        QUERY,
+        SEP,
+        b'U' as u16,
+        b'N' as u16,
+        b'C' as u16,
+        SEP,
+    ];
+
+    let encode = |path: &Path| -> io::Result<Vec<u16>> {
+        let mut encoded: Vec<u16> = path.as_os_str().encode_wide().collect();
+        if encoded.contains(&0) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Windows paths cannot contain null characters",
+            ));
+        }
+        encoded.push(0);
+        Ok(encoded)
+    };
+
+    let encoded = encode(path)?;
+    if encoded.starts_with(VERBATIM_PREFIX)
+        || encoded.starts_with(NT_PREFIX)
+        || encoded.as_slice() == [0]
+    {
+        return Ok(encoded);
+    }
+    if encoded.len() < LEGACY_MAX_PATH {
+        match encoded.as_slice() {
+            [drive, COLON, 0] | [drive, COLON, SEP | ALT_SEP, ..]
+                if *drive != SEP && *drive != ALT_SEP =>
+            {
+                return Ok(encoded);
+            }
+            [SEP | ALT_SEP, SEP | ALT_SEP, ..] => return Ok(encoded),
+            _ => {}
+        }
+    }
+
+    let absolute = std::path::absolute(path)?;
+    let encoded = encode(&absolute)?;
+    let (prefix, suffix) = match encoded.as_slice() {
+        [_, COLON, SEP, ..] => (VERBATIM_PREFIX, encoded.as_slice()),
+        [SEP, SEP, DOT, SEP, rest @ ..] => (VERBATIM_PREFIX, rest),
+        [SEP, SEP, QUERY, SEP, ..] | [SEP, QUERY, QUERY, SEP, ..] => (&[][..], encoded.as_slice()),
+        [SEP, SEP, rest @ ..] => (UNC_PREFIX, rest),
+        _ => (&[][..], encoded.as_slice()),
+    };
+    let mut normalized = Vec::with_capacity(prefix.len() + suffix.len());
+    normalized.extend_from_slice(prefix);
+    normalized.extend_from_slice(suffix);
+    Ok(normalized)
+}
+
+#[cfg(windows)]
+fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
     use std::os::windows::io::{FromRawHandle, RawHandle};
     use std::ptr;
     use winapi::shared::minwindef::HLOCAL;
@@ -39,7 +107,7 @@ fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
         lpSecurityDescriptor: descriptor,
         bInheritHandle: 0,
     };
-    let path: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let path = to_windows_api_path(path)?;
     let handle = unsafe {
         CreateFileW(
             path.as_ptr(),
@@ -210,6 +278,17 @@ mod windows_tests {
         let temporary = create_private_temporary_file(directory.path()).unwrap();
 
         assert_owner_only_protected_dacl(temporary.as_file());
+    }
+
+    #[test]
+    fn normalizes_long_windows_paths_to_verbatim_form() {
+        let path = std::path::PathBuf::from(format!(r"C:\{}", "a".repeat(250)));
+
+        let encoded = to_windows_api_path(&path).unwrap();
+
+        let prefix: Vec<u16> = r"\\?\C:\".encode_utf16().collect();
+        assert!(encoded.starts_with(&prefix));
+        assert_eq!(encoded.last(), Some(&0));
     }
 
     #[test]
