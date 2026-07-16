@@ -518,7 +518,7 @@ pub async fn summarize_tool_call(
 
     let formatted = matching_messages
         .iter()
-        .map(|msg| format_message_for_compacting(msg))
+        .map(format_message_for_compacting)
         .collect::<Vec<_>>()
         .join("\n");
 

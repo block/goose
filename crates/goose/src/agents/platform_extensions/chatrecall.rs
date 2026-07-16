@@ -275,6 +275,48 @@ impl ChatRecallClient {
     }
 }
 
+#[async_trait]
+impl McpClientTrait for ChatRecallClient {
+    async fn list_tools(
+        &self,
+        _session_id: &str,
+        _next_cursor: Option<String>,
+        _cancellation_token: CancellationToken,
+    ) -> Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            tools: Self::get_tools(),
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        ctx: &ToolCallContext,
+        name: &str,
+        arguments: Option<JsonObject>,
+        _cancellation_token: CancellationToken,
+    ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
+        let content = match name {
+            "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
+            _ => Err(format!("Unknown tool: {}", name)),
+        };
+
+        match content {
+            Ok(content) => Ok(CallToolResult::success(content)),
+            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: {}",
+                error
+            ))])),
+        }
+    }
+
+    fn get_info(&self) -> Option<&InitializeResult> {
+        Some(&self.info)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,47 +369,5 @@ mod tests {
             .join("\n");
         assert!(canonical_user_text.contains("user-only first secret"));
         assert!(canonical_user_text.contains("user-only last secret"));
-    }
-}
-
-#[async_trait]
-impl McpClientTrait for ChatRecallClient {
-    async fn list_tools(
-        &self,
-        _session_id: &str,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListToolsResult, Error> {
-        Ok(ListToolsResult {
-            tools: Self::get_tools(),
-            next_cursor: None,
-            meta: None,
-        })
-    }
-
-    async fn call_tool(
-        &self,
-        ctx: &ToolCallContext,
-        name: &str,
-        arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<CallToolResult, Error> {
-        let session_id = &ctx.session_id;
-        let content = match name {
-            "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
-            _ => Err(format!("Unknown tool: {}", name)),
-        };
-
-        match content {
-            Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: {}",
-                error
-            ))])),
-        }
-    }
-
-    fn get_info(&self) -> Option<&InitializeResult> {
-        Some(&self.info)
     }
 }
