@@ -772,6 +772,26 @@ mod tests {
         .await
         .unwrap();
 
+        let preserved_copies = compacted
+            .messages()
+            .iter()
+            .filter(|message| message.as_concat_text().contains("visible current request"))
+            .collect::<Vec<_>>();
+        assert_eq!(preserved_copies.len(), 2);
+        let archived = preserved_copies
+            .iter()
+            .find(|message| message.is_user_visible())
+            .unwrap();
+        assert!(!archived.is_agent_visible());
+        assert!(archived.as_concat_text().contains("user-only secret"));
+        let replay = preserved_copies
+            .iter()
+            .find(|message| message.is_agent_visible())
+            .unwrap();
+        assert!(!replay.is_user_visible());
+        assert!(replay.as_concat_text().contains("assistant-only preprompt"));
+        assert!(!replay.as_concat_text().contains("user-only secret"));
+
         let agent_text = compacted
             .agent_visible_messages()
             .iter()
