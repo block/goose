@@ -291,11 +291,8 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = model_config.clone();
 
-        let filtered_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .map(|m| m.agent_visible_content())
-            .collect();
+        let filtered_messages =
+            Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
@@ -681,6 +678,7 @@ mod tests {
     use goose_providers::model::ModelConfig;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use rmcp::object;
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     #[derive(Clone)]
@@ -703,6 +701,66 @@ mod tests {
             let usage = ProviderUsage::new("mock".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
+    }
+
+    #[derive(Clone)]
+    struct CapturingProvider {
+        messages: Arc<Mutex<Vec<Message>>>,
+    }
+
+    #[async_trait]
+    impl Provider for CapturingProvider {
+        fn get_name(&self) -> &str {
+            "capturing"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            *self.messages.lock().unwrap() = messages.to_vec();
+            let message = Message::assistant().with_text("ok");
+            let usage = ProviderUsage::new("capturing".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_input_drops_rows_empty_after_agent_projection() {
+        let user_only = RawTextContent {
+            text: "user-only ACP output".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::Text(user_only)),
+            Message::user().with_text("current request"),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].role, Role::User);
+        assert_eq!(captured[0].as_concat_text(), "current request");
     }
 
     #[tokio::test]

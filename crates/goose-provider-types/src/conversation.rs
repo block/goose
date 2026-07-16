@@ -1047,6 +1047,22 @@ mod tests {
                     vec!["second"]
                 }
             );
+            assert_eq!(
+                message
+                    .agent_visible_content()
+                    .content
+                    .iter()
+                    .filter_map(|content| match content {
+                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                if first == Role::Assistant {
+                    vec!["first"]
+                } else {
+                    vec!["second"]
+                }
+            );
         }
     }
 

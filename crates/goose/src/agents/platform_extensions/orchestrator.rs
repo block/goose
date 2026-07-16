@@ -5,6 +5,7 @@ use crate::agents::{AgentEvent, SessionConfig};
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
 use crate::execution::manager::AgentManager;
 use crate::providers;
 use crate::providers::base::Provider;
@@ -335,9 +336,9 @@ impl OrchestratorClient {
     ) -> Result<String, String> {
         let provider = self.get_provider().await?;
 
-        let conversation_text = messages
+        let conversation_text = Conversation::new_unvalidated(messages.iter().cloned())
+            .agent_visible_messages()
             .iter()
-            .filter(|m| m.is_agent_visible())
             .map(format_message_for_compacting)
             .collect::<Vec<_>>()
             .join("\n");

@@ -295,11 +295,8 @@ async fn do_compact(
     session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-    let agent_visible_messages: Vec<Message> = messages
-        .iter()
-        .filter(|msg| msg.is_agent_visible())
-        .map(|msg| msg.agent_visible_content())
-        .collect();
+    let agent_visible_messages =
+        Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];

@@ -36,6 +36,7 @@ use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
@@ -1410,11 +1411,12 @@ fn has_handoff_context(messages: &[Message]) -> bool {
 }
 
 fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> = prior_messages
-        .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(|message| format_message_for_compacting(&message.agent_visible_content()))
-        .collect();
+    let formatted_messages: Vec<String> =
+        Conversation::new_unvalidated(prior_messages.iter().cloned())
+            .agent_visible_messages()
+            .iter()
+            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
+            .collect();
 
     if formatted_messages.is_empty() {
         return None;
@@ -1742,6 +1744,26 @@ mod tests {
         assert!(memo.contains("tool_response: file contents"));
         assert!(memo.contains("Current user request follows."));
         assert_eq!(prompt_text(&blocks[1]), "continue from there");
+    }
+
+    #[test]
+    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
+        let messages = vec![
+            Message::user().with_text("visible prior"),
+            acp_text_update_message(user_only, "acp-message".to_string(), 123),
+            Message::user().with_text("current request"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        let memo = prompt_text(&blocks[0]);
+        assert!(memo.contains("visible prior"));
+        assert!(!memo.contains("SECRET_USER_ONLY"));
+        assert!(!memo.contains("<empty message>"));
+        assert_eq!(prompt_text(&blocks[1]), "current request");
     }
 
     #[test]
