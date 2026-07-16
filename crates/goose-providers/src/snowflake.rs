@@ -91,10 +91,16 @@ impl SnowflakeProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        model_config: &ModelConfig,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("api/v2/cortex/inference:complete", payload)
+            .request("api/v2/cortex/inference:complete")
+            .model_headers(model_config)?
+            .response_post(payload)
             .await?;
 
         let status = response.status();
@@ -317,7 +323,7 @@ impl Provider for SnowflakeProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(model_config, &payload_clone).await
             })
             .await?;
 

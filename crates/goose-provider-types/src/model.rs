@@ -33,6 +33,10 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    /// Per-request HTTP headers attached to outgoing provider calls.
+    /// Never serialized into request bodies.
+    #[serde(skip)]
+    pub request_headers: Option<HashMap<String, String>>,
 }
 
 impl<'de> Deserialize<'de> for ModelConfig {
@@ -64,6 +68,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
             toolshim_model: raw.toolshim_model,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
+            request_headers: None,
         };
         config.normalize_effort_suffix();
         Ok(config)
@@ -81,6 +86,7 @@ impl ModelConfig {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         config.normalize_effort_suffix();
         config
@@ -159,6 +165,11 @@ impl ModelConfig {
 
     pub fn with_toolshim_model(mut self, model: Option<String>) -> Self {
         self.toolshim_model = model;
+        self
+    }
+
+    pub fn with_request_headers(mut self, headers: Option<HashMap<String, String>>) -> Self {
+        self.request_headers = headers;
         self
     }
 
@@ -299,6 +310,25 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn request_headers_never_serialize_into_bodies() {
+        let config = ModelConfig::new("test-model").with_request_headers(Some(HashMap::from([(
+            "queue_threshold".to_string(),
+            "500".to_string(),
+        )])));
+
+        let serialized = serde_json::to_value(&config).unwrap();
+        assert!(serialized.get("request_headers").is_none());
+        assert_eq!(
+            config
+                .request_headers
+                .as_ref()
+                .unwrap()
+                .get("queue_threshold"),
+            Some(&"500".to_string())
+        );
+    }
 
     mod thinking_effort_tests {
         use super::*;

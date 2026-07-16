@@ -4,7 +4,7 @@
 //! on declarative providers: consumers can construct a provider from JSON and
 //! stream completions from it.
 
-use std::{future::Future, sync::Arc, sync::OnceLock};
+use std::{collections::HashMap, future::Future, sync::Arc, sync::OnceLock};
 
 use futures::StreamExt;
 use goose_providers::{
@@ -85,6 +85,10 @@ pub struct ProviderModelConfig {
     pub request_params_json: Option<String>,
     #[uniffi(default = None)]
     pub reasoning: Option<bool>,
+    /// Per-request HTTP headers attached to the outgoing provider call.
+    /// These override any static headers configured on the provider.
+    #[uniffi(default = None)]
+    pub request_headers: Option<HashMap<String, String>>,
 }
 
 impl ProviderModelConfig {
@@ -101,6 +105,7 @@ impl ProviderModelConfig {
             config = config.with_merged_request_params(request_params);
         }
 
+        config = config.with_request_headers(self.request_headers.clone());
         config.reasoning = self.reasoning;
         Ok(config)
     }

@@ -656,14 +656,13 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post(
-                            &Self::map_base_path(
-                                &self.base_path,
-                                "responses",
-                                OPEN_AI_DEFAULT_RESPONSES_PATH,
-                            ),
-                            &payload_clone,
-                        )
+                        .request(&Self::map_base_path(
+                            &self.base_path,
+                            "responses",
+                            OPEN_AI_DEFAULT_RESPONSES_PATH,
+                        ))
+                        .model_headers(model_config)?
+                        .response_post(&payload_clone)
                         .await?;
                     handle_status(resp).await
                 })
@@ -721,7 +720,9 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(&self.base_path, &payload)
+                        .request(&self.base_path)
+                        .model_headers(model_config)?
+                        .response_post(&payload)
                         .await?;
                     handle_status(resp).await
                 })
