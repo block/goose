@@ -141,6 +141,51 @@ fn create_private_temporary_file(parent: &Path) -> io::Result<tempfile::NamedTem
     tempfile::NamedTempFile::new_in(parent)
 }
 
+#[cfg(windows)]
+fn persist_private_temporary_file(
+    temporary: tempfile::NamedTempFile,
+    path: &Path,
+) -> io::Result<()> {
+    use winapi::um::fileapi::SetFileAttributesW;
+    use winapi::um::winbase::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
+    use winapi::um::winnt::{FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_TEMPORARY};
+
+    let temporary_path = to_windows_api_path(temporary.path())?;
+    let destination_path = to_windows_api_path(path)?;
+    if unsafe { SetFileAttributesW(temporary_path.as_ptr(), FILE_ATTRIBUTE_NORMAL) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe {
+        MoveFileExW(
+            temporary_path.as_ptr(),
+            destination_path.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    } == 0
+    {
+        let error = io::Error::last_os_error();
+        unsafe {
+            SetFileAttributesW(temporary_path.as_ptr(), FILE_ATTRIBUTE_TEMPORARY);
+        }
+        return Err(error);
+    }
+
+    let (_file, mut temporary_path) = temporary.into_parts();
+    temporary_path.disable_cleanup(true);
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn persist_private_temporary_file(
+    temporary: tempfile::NamedTempFile,
+    path: &Path,
+) -> io::Result<()> {
+    temporary
+        .persist(path)
+        .map(|_| ())
+        .map_err(|error| error.error)
+}
+
 pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
     let parent = path.parent().ok_or_else(|| {
         io::Error::new(
@@ -160,7 +205,7 @@ pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> 
     }
     temporary.write_all(contents.as_bytes())?;
     temporary.as_file().sync_all()?;
-    temporary.persist(path).map_err(|error| error.error)?;
+    persist_private_temporary_file(temporary, path)?;
     Ok(())
 }
 
@@ -295,6 +340,22 @@ mod windows_tests {
     fn writes_owner_only_protected_dacl() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("token.json");
+
+        write_private_file(&path, "new-secret").unwrap();
+
+        let file = File::open(&path).unwrap();
+        assert_owner_only_protected_dacl(&file);
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn writes_owner_only_file_beyond_legacy_path_limit() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory
+            .path()
+            .join("a".repeat(120))
+            .join("b".repeat(120))
+            .join("token.json");
 
         write_private_file(&path, "new-secret").unwrap();
 
