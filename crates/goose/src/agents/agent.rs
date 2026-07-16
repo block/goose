@@ -58,7 +58,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
     GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -847,9 +847,9 @@ impl Agent {
             if let Some(response) = request_to_response_map.get_mut(&request.id) {
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
-                        DECLINED_RESPONSE,
-                    )])),
+                    Ok(CallToolResult::error(vec![
+                        rmcp::model::ContentBlock::text(DECLINED_RESPONSE),
+                    ])),
                     request.metadata.as_ref(),
                 );
             }
@@ -1563,6 +1563,7 @@ impl Agent {
                         ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
                         ElicitationAction::Decline => ElicitationOutcome::Decline,
                         ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                        _ => ElicitationOutcome::Cancel,
                     };
                     crate::elicitation::complete_elicitation_with_message(
                         &session_manager,
@@ -2148,7 +2149,7 @@ impl Agent {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
                                             response.add_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
+                                                Ok(CallToolResult::success(vec![ContentBlock::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }

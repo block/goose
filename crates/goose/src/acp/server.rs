@@ -21,8 +21,8 @@ use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContentBlock,
+    SystemNotificationType, ToolRequest,
 };
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
 use crate::mcp_utils::ToolResult;
@@ -66,7 +66,8 @@ use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
 use rmcp::model::{
-    AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
+    CallToolResult, ContentBlock as RmcpContentBlock, ResourceContents, Role,
+    TextContent as RmcpTextContent,
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -537,7 +538,7 @@ fn extract_tool_locations(
 
             if let Ok(result) = &tool_response.tool_result {
                 for content in &result.content {
-                    if let RawContent::Text(text_content) = &content.raw {
+                    if let RmcpContentBlock::Text(text_content) = content {
                         let text = &text_content.text;
 
                         match command {
@@ -1295,23 +1296,18 @@ impl GooseAcpAgent {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let raw = RawTextContent {
-                            text: sanitize_unicode_tags(&text.text),
-                            meta: None,
-                        };
+                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
                         if audience.is_empty() {
-                            raw.no_annotation()
+                            raw
                         } else {
-                            raw.no_annotation().with_audience(audience)
+                            raw.with_annotations(
+                                rmcp::model::Annotations::default().with_audience(audience),
+                            )
                         }
                     } else {
                         // No annotations — regular user text.
                         let sanitized = sanitize_unicode_tags(&text.text);
-                        RawTextContent {
-                            text: sanitized,
-                            meta: None,
-                        }
-                        .no_annotation()
+                        RmcpTextContent::new(sanitized)
                     };
                     message = message.with_content(MessageContent::Text(annotated));
                 }
@@ -2031,7 +2027,7 @@ fn prompt_error_from_message_content(
 }
 
 fn credits_exhausted_prompt_error(
-    notification: &SystemNotificationContent,
+    notification: &SystemNotificationContentBlock,
 ) -> agent_client_protocol::Error {
     let mut data = serde_json::Map::new();
     data.insert(
@@ -2059,7 +2055,7 @@ fn send_status_message_update(
     cx: &ConnectionTo<Client>,
     supports_goose_custom_notifications: bool,
     session_id: &str,
-    notification: &SystemNotificationContent,
+    notification: &SystemNotificationContentBlock,
 ) -> Result<(), agent_client_protocol::Error> {
     if let Some(status) = status_message_from_system_notification(notification) {
         if supports_goose_custom_notifications {
@@ -2090,7 +2086,7 @@ fn send_progress_message_update(
 }
 
 fn status_message_from_system_notification(
-    notification: &SystemNotificationContent,
+    notification: &SystemNotificationContentBlock,
 ) -> Option<StatusMessage> {
     match notification.notification_type {
         SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
@@ -2206,14 +2202,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
         Ok(result) => result
             .content
             .iter()
-            .filter_map(|content| match &content.raw {
-                RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
+            .filter_map(|content| match content {
+                RmcpContentBlock::Text(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Text(TextContent::new(val.text.clone())),
                 ))),
-                RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
+                RmcpContentBlock::Image(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
                 ))),
-                RawContent::Resource(val) => {
+                RmcpContentBlock::Resource(val) => {
                     let resource = match &val.resource {
                         ResourceContents::TextResourceContents {
                             mime_type,
@@ -2233,12 +2229,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                             BlobResourceContents::new(blob.clone(), uri.clone())
                                 .mime_type(mime_type.clone()),
                         ),
+                        _ => return None,
                     };
                     Some(ToolCallContent::Content(Content::new(
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
                     )))
                 }
-                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
+                RmcpContentBlock::Audio(_) | RmcpContentBlock::ResourceLink(_) => None,
+                _ => None,
             })
             .collect(),
         Err(_) => Vec::new(),
@@ -3214,7 +3212,7 @@ mod tests {
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
-    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
+    use rmcp::model::{CallToolRequestParams, ContentBlock as RmcpContent};
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
@@ -3874,7 +3872,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_credits_exhausted_system_notification_maps_to_prompt_error() {
-        let content = MessageContent::SystemNotification(SystemNotificationContent {
+        let content = MessageContent::SystemNotification(SystemNotificationContentBlock {
             notification_type: SystemNotificationType::CreditsExhausted,
             msg: "Please add credits to your account, then resend your message to continue."
                 .to_string(),
@@ -3901,7 +3899,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_non_credit_system_notification_does_not_map_to_prompt_error() {
-        let content = MessageContent::SystemNotification(SystemNotificationContent {
+        let content = MessageContent::SystemNotification(SystemNotificationContentBlock {
             notification_type: SystemNotificationType::InlineMessage,
             msg: "Compaction complete".to_string(),
             data: None,

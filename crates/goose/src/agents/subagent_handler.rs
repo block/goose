@@ -90,8 +90,8 @@ fn extract_response_text(messages: &Conversation, return_last_only: bool) -> Str
                                 .content
                                 .iter()
                                 .filter_map(|content| {
-                                    if let rmcp::model::RawContent::Text(raw_text_content) =
-                                        &content.raw
+                                    if let rmcp::model::ContentBlock::Text(raw_text_content) =
+                                        content
                                     {
                                         Some(raw_text_content.text.clone())
                                     } else {

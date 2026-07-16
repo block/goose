@@ -12,7 +12,7 @@ use edit::{EditTools, FileEditParams, FileWriteParams};
 use image::{ImageReadParams, ImageTool};
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
@@ -205,39 +205,34 @@ impl McpClientTrait for DeveloperClient {
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                ))])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                ))])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
                 Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                ))])),
             },
             "read_image" => match Self::parse_args::<ImageReadParams>(arguments) {
                 Ok(params) => Ok(self
                     .image_tool
                     .image_read_with_cwd(params, working_dir)
                     .await),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                ))])),
             },
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: Unknown tool: {name}"
-            ))
-            .with_priority(0.0)])),
+            ))])),
         }
     }
 
@@ -250,7 +245,7 @@ impl McpClientTrait for DeveloperClient {
 mod tests {
     use super::*;
     use crate::session::SessionManager;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
     use rmcp::object;
     use std::fs;
 
@@ -286,8 +281,8 @@ mod tests {
     }
 
     fn first_text(result: &CallToolResult) -> &str {
-        match &result.content[0].raw {
-            RawContent::Text(text) => &text.text,
+        match &result.content[0] {
+            ContentBlock::Text(text) => &text.text,
             _ => panic!("expected text content"),
         }
     }

@@ -378,8 +378,10 @@ mod tests {
 
             let text = result
                 .into_iter()
-                .filter_map(|content| match &content.raw {
-                    rmcp::model::RawContent::Text(text_content) => Some(text_content.text.clone()),
+                .filter_map(|content| match content {
+                    rmcp::model::ContentBlock::Text(text_content) => {
+                        Some(text_content.text.clone())
+                    }
                     _ => None,
                 })
                 .collect::<String>();
@@ -825,7 +827,7 @@ mod tests {
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
-        use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
+        use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
@@ -955,11 +957,10 @@ mod tests {
                 let mut resp_msg = Message::user()
                     .with_tool_response(
                         &call_id,
-                        Ok(CallToolResult::success(vec![RawContent::text(format!(
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                             "content of file {}",
                             i
-                        ))
-                        .no_annotation()])),
+                        ))])),
                     )
                     .with_generated_id();
                 resp_msg.created = base_ts + i as i64 + 1;

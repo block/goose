@@ -7,7 +7,7 @@ use std::pin::Pin;
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
     conversation::{
-        message::{Message, MessageContent},
+        message::{Message, MessageContentBlock},
         token_usage::{ProviderUsage, Usage},
     },
     errors::ProviderError,
@@ -337,8 +337,8 @@ pub async fn collect_stream(
                         match (&mut prev.content.last_mut(), &new_content) {
                             // Coalesce consecutive text blocks
                             (
-                                Some(MessageContent::Text(last_text)),
-                                MessageContent::Text(new_text),
+                                Some(MessageContentBlock::Text(last_text)),
+                                MessageContentBlock::Text(new_text),
                             ) => {
                                 last_text.text.push_str(&new_text.text);
                             }
@@ -579,17 +579,17 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    fn content_from_str(s: String) -> MessageContent {
+    fn content_from_str(s: String) -> MessageContentBlock {
         if let Some(img_data) = s.strip_prefix("*img:") {
-            MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
+            MessageContentBlock::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
             let tool_call = Ok(
                 rmcp::model::CallToolRequestParams::new(tool_name.to_string())
                     .with_arguments(serde_json::Map::new()),
             );
-            MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
+            MessageContentBlock::tool_request(format!("tool_{}", tool_name), tool_call)
         } else {
-            MessageContent::text(s)
+            MessageContentBlock::text(s)
         }
     }
 
@@ -612,9 +612,9 @@ mod tests {
         msg.content
             .iter()
             .map(|c| match c {
-                MessageContent::Text(t) => t.text.clone(),
-                MessageContent::Image(_) => "*img".to_string(),
-                MessageContent::ToolRequest(tr) => {
+                MessageContentBlock::Text(t) => t.text.clone(),
+                MessageContentBlock::Image(_) => "*img".to_string(),
+                MessageContentBlock::ToolRequest(tr) => {
                     if let Ok(call) = &tr.tool_call {
                         format!("*tool:{}", call.name)
                     } else {

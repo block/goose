@@ -1275,6 +1275,7 @@ impl CliSession {
                                                 output::render_text("Information request cancelled.", Some(Color::Yellow), true);
                                             }
                                             ElicitationAction::Accept => {}
+                                            _ => {}
                                         }
 
                                         let should_cancel = input.action == ElicitationAction::Cancel;

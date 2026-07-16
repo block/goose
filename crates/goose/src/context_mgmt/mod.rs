@@ -600,7 +600,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::Usage;
-    use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
+    use rmcp::model::{CallToolRequestParams, ContentBlock, Tool};
 
     fn create_tool_pair(
         call_id: &str,
@@ -619,7 +619,7 @@ mod tests {
                 .with_tool_response(
                     call_id,
                     Ok(rmcp::model::CallToolResult::success(vec![
-                        RawContent::text(response_text).no_annotation(),
+                        ContentBlock::text(response_text),
                     ])),
                 )
                 .with_id(response_id),
@@ -712,7 +712,7 @@ mod tests {
             Message::user().with_tool_response(
                 "tool_0",
                 Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text("hello, world").no_annotation(),
+                    ContentBlock::text("hello, world"),
                 ])),
             ),
         ];
@@ -751,7 +751,7 @@ mod tests {
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
                 Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text(format!("response{}", i)).no_annotation(),
+                    ContentBlock::text(format!("response{}", i)),
                 ])),
             ));
         }

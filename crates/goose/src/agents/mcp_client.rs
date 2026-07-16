@@ -443,11 +443,10 @@ impl ClientHandler for GooseClient {
                             SamplingMessageContent::text(&text.text)
                         }
                         crate::conversation::message::MessageContent::Image(img) => {
-                            SamplingMessageContent::Image(rmcp::model::RawImageContent {
-                                data: img.data.clone(),
-                                mime_type: img.mime_type.clone(),
-                                meta: None,
-                            })
+                            SamplingMessageContent::Image(rmcp::model::ImageContent::new(
+                                img.data.clone(),
+                                img.mime_type.clone(),
+                            ))
                         }
                         _ => SamplingMessageContent::text(""),
                     }
@@ -496,6 +495,7 @@ impl ClientHandler for GooseClient {
             CreateElicitationRequestParams::UrlElicitationParams { message, url, .. } => {
                 (message.clone(), serde_json::json!({ "url": url }))
             }
+            _ => (String::new(), serde_json::json!({})),
         };
 
         ActionRequiredManager::global()
@@ -698,7 +698,7 @@ async fn send_cancel_message(
     reason: Option<String>,
 ) -> Result<(), ServiceError> {
     peer.send_notification(
-        Notification::new(CancelledNotificationParam { request_id, reason }).into(),
+        Notification::new(CancelledNotificationParam::new(Some(request_id), reason)).into(),
     )
     .await
 }

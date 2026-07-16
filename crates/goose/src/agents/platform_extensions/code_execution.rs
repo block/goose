@@ -12,8 +12,8 @@ use pctx_code_mode::{
     CodeMode,
 };
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
+    CallToolRequestParams, CallToolResult, ContentBlock, Implementation, InitializeResult,
+    JsonObject, ListToolsResult, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -304,11 +304,11 @@ impl CodeExecutionClient {
     }
 
     /// Handle the list_functions tool call
-    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<Content>, String> {
+    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<ContentBlock>, String> {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.list_functions();
 
-        Ok(vec![Content::text(output.code)])
+        Ok(vec![ContentBlock::text(output.code)])
     }
 
     /// Handle the get_function_details tool call
@@ -316,7 +316,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let input: GetFunctionDetailsInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -326,7 +326,7 @@ impl CodeExecutionClient {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.get_function_details(input);
 
-        Ok(vec![Content::text(output.code)])
+        Ok(vec![ContentBlock::text(output.code)])
     }
 
     /// Handle the execute bash tool call
@@ -335,7 +335,7 @@ impl CodeExecutionClient {
         session_id: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let input: ExecuteBashInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -358,7 +358,7 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![Content::text(output.markdown())])
+        Ok(vec![ContentBlock::text(output.markdown())])
     }
 
     /// Handle the execute typescript tool call
@@ -367,7 +367,7 @@ impl CodeExecutionClient {
         ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let args: ExecuteWithToolGraph = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -394,7 +394,7 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![Content::text(output.markdown())])
+        Ok(vec![ContentBlock::text(output.markdown())])
     }
 }
 
@@ -503,12 +503,30 @@ fn create_tool_callback(
                                 .content
                                 .iter()
                                 .filter(|c| {
-                                    c.audience().is_none_or(|audiences| {
+                                    let audience = match c {
+                                        ContentBlock::Text(t) => {
+                                            t.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        }
+                                        ContentBlock::Image(i) => {
+                                            i.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        }
+                                        ContentBlock::Audio(a) => {
+                                            a.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        }
+                                        ContentBlock::Resource(r) => {
+                                            r.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        }
+                                        ContentBlock::ResourceLink(r) => {
+                                            r.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        }
+                                        _ => None,
+                                    };
+                                    audience.is_none_or(|audiences| {
                                         audiences.is_empty() || audiences.contains(&Role::Assistant)
                                     })
                                 })
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
+                                .filter_map(|c| match c {
+                                    ContentBlock::Text(t) => Some(t.text.clone()),
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>()
@@ -667,7 +685,7 @@ impl McpClientTrait for CodeExecutionClient {
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {error}"
             ))])),
         }

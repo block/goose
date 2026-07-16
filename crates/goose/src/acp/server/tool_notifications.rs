@@ -138,10 +138,10 @@ mod tests {
     #[test]
     fn ignores_non_tool_live_notification_variants() {
         let notification = ServerNotification::CancelledNotification(Notification::new(
-            CancelledNotificationParam {
-                request_id: NumberOrString::String(Arc::from("request_1")),
-                reason: None,
-            },
+            CancelledNotificationParam::new(
+                Some(NumberOrString::String(Arc::from("request_1"))),
+                None,
+            ),
         ));
 
         assert!(tool_notification_update("tool_1", notification).is_none());

@@ -15,7 +15,7 @@ use agent_client_protocol::{Client, ConnectionTo};
 use agent_client_protocol_schema::v1::TerminalId;
 use async_trait::async_trait;
 use fs_err as fs;
-use rmcp::model::{CallToolResult, Content as RmcpContent, Tool, ToolAnnotations};
+use rmcp::model::{CallToolResult, ContentBlock as RmcpContent, Tool, ToolAnnotations};
 use schemars::schema_for;
 use std::path::Path;
 use std::sync::Arc;
@@ -70,7 +70,7 @@ pub(crate) struct AcpTools {
 }
 
 fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
-    CallToolResult::error(vec![RmcpContent::text(msg.to_string()).with_priority(0.0)])
+    CallToolResult::error(vec![RmcpContent::text(msg.to_string())])
 }
 
 fn fail(action: &str, path: &str, err: impl std::fmt::Display) -> CallToolResult {
@@ -140,9 +140,7 @@ impl AcpTools {
         );
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
-            Ok(content) => Ok(CallToolResult::success(vec![
-                RmcpContent::text(content).with_priority(0.0)
-            ])),
+            Ok(content) => Ok(CallToolResult::success(vec![RmcpContent::text(content)])),
             Err(e) => Ok(fail("read", &params.path, e)),
         }
     }
@@ -177,8 +175,7 @@ impl AcpTools {
                 Ok(CallToolResult::success(vec![RmcpContent::text(format!(
                     "{action} {} ({line_count} lines)",
                     params.path
-                ))
-                .with_priority(0.0)]))
+                ))]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }
@@ -230,8 +227,7 @@ impl AcpTools {
                 Ok(CallToolResult::success(vec![RmcpContent::text(format!(
                     "Edited {} ({old_lines} lines -> {new_lines} lines)",
                     params.path
-                ))
-                .with_priority(0.0)]))
+                ))]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }
@@ -296,8 +292,8 @@ impl AcpTools {
             .unwrap_or_default();
 
         let content = vec![
-            RmcpContent::text(format!("exit code: {exit_code}")).with_priority(0.0),
-            RmcpContent::text(output_res.output).with_priority(0.0),
+            RmcpContent::text(format!("exit code: {exit_code}")),
+            RmcpContent::text(output_res.output),
         ];
 
         if exit_code != 0 {

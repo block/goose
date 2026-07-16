@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -48,13 +48,12 @@ impl EditTools {
         match fs::read_to_string(&path) {
             Ok(content) => {
                 let content = apply_line_limit(&content, params.line, params.limit);
-                CallToolResult::success(vec![Content::text(content).with_priority(0.0)])
+                CallToolResult::success(vec![ContentBlock::text(content)])
             }
-            Err(error) => CallToolResult::error(vec![Content::text(format!(
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to read {}: {}",
                 params.path, error
-            ))
-            .with_priority(0.0)]),
+            ))]),
         }
     }
 
@@ -72,12 +71,11 @@ impl EditTools {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
                 if let Err(error) = fs::create_dir_all(parent) {
-                    return CallToolResult::error(vec![Content::text(format!(
+                    return CallToolResult::error(vec![ContentBlock::text(format!(
                         "Failed to create directory {}: {}",
                         parent.display(),
                         error
-                    ))
-                    .with_priority(0.0)]);
+                    ))]);
                 }
             }
         }
@@ -88,17 +86,15 @@ impl EditTools {
             Ok(()) => {
                 let line_count = params.content.lines().count();
                 let action = if is_new { "Created" } else { "Wrote" };
-                CallToolResult::success(vec![Content::text(format!(
+                CallToolResult::success(vec![ContentBlock::text(format!(
                     "{} {} ({} lines)",
                     action, params.path, line_count
-                ))
-                .with_priority(0.0)])
+                ))])
             }
-            Err(error) => CallToolResult::error(vec![Content::text(format!(
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to write {}: {}",
                 params.path, error
-            ))
-            .with_priority(0.0)]),
+            ))]),
         }
     }
 
@@ -116,35 +112,32 @@ impl EditTools {
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(error) => {
-                return CallToolResult::error(vec![Content::text(format!(
+                return CallToolResult::error(vec![ContentBlock::text(format!(
                     "Failed to read {}: {}",
                     params.path, error
-                ))
-                .with_priority(0.0)]);
+                ))]);
             }
         };
 
         let new_content = match string_replace(&content, &params.before, &params.after) {
             Ok(c) => c,
             Err(msg) => {
-                return CallToolResult::error(vec![Content::text(msg).with_priority(0.0)]);
+                return CallToolResult::error(vec![ContentBlock::text(msg)]);
             }
         };
         match fs::write(&path, &new_content) {
             Ok(()) => {
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
-                CallToolResult::success(vec![Content::text(format!(
+                CallToolResult::success(vec![ContentBlock::text(format!(
                     "Edited {} ({} lines -> {} lines)",
                     params.path, old_lines, new_lines
-                ))
-                .with_priority(0.0)])
+                ))])
             }
-            Err(error) => CallToolResult::error(vec![Content::text(format!(
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to write {}: {}",
                 params.path, error
-            ))
-            .with_priority(0.0)]),
+            ))]),
         }
     }
 }
@@ -281,7 +274,7 @@ fn build_file_preview(content: &str, max_lines: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
     use std::fs;
     use tempfile::TempDir;
     use test_case::test_case;
@@ -291,8 +284,8 @@ mod tests {
     }
 
     fn extract_text(result: &CallToolResult) -> &str {
-        match &result.content[0].raw {
-            RawContent::Text(text) => &text.text,
+        match &result.content[0] {
+            ContentBlock::Text(text) => &text.text,
             _ => panic!("expected text"),
         }
     }

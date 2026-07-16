@@ -3,8 +3,8 @@ use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
 use goose::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest, ToolResponse,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContentBlock,
+    SystemNotificationType, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -374,7 +374,7 @@ pub fn render_message_streaming(
     let _ = std::io::stdout().flush();
 }
 
-fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
+fn render_credits_exhausted_notification(notification: &SystemNotificationContentBlock) {
     hide_thinking();
     println!("\n{} {}", warning("warning:").bold(), &notification.msg);
 
@@ -512,7 +512,15 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
     match &resp.tool_result {
         Ok(result) => {
             for content in &result.content {
-                if let Some(audience) = content.audience() {
+                let annotations = match content {
+                    rmcp::model::ContentBlock::Text(t) => t.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Image(i) => i.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Audio(a) => a.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Resource(r) => r.annotations.as_ref(),
+                    rmcp::model::ContentBlock::ResourceLink(r) => r.annotations.as_ref(),
+                    _ => None,
+                };
+                if let Some(audience) = annotations.and_then(|a| a.audience.as_ref()) {
                     if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
@@ -523,10 +531,9 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     .ok()
                     .unwrap_or(DEFAULT_MIN_PRIORITY);
 
-                if content
-                    .priority()
-                    .is_some_and(|priority| priority < min_priority)
-                    || (content.priority().is_none() && !debug)
+                let priority = annotations.and_then(|a| a.priority);
+                if priority.is_some_and(|priority| priority < min_priority)
+                    || (priority.is_none() && !debug)
                 {
                     continue;
                 }

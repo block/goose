@@ -20,7 +20,7 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 use serde_json::{json, Map, Value};
 
 use crate::conversation::message::Message;
@@ -179,7 +179,7 @@ pub fn convert(content: &str) -> Result<String> {
                 msg.created = created;
                 msg = msg.with_tool_response(
                     call_id,
-                    Ok(CallToolResult::success(vec![Content::text(output)])),
+                    Ok(CallToolResult::success(vec![ContentBlock::text(output)])),
                 );
                 messages.push(msg);
             }
@@ -216,7 +216,7 @@ pub fn convert(content: &str) -> Result<String> {
                 resp.created = created;
                 resp = resp.with_tool_response(
                     id,
-                    Ok(CallToolResult::success(vec![Content::text(format!(
+                    Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                         "[web_search {}]",
                         status
                     ))])),

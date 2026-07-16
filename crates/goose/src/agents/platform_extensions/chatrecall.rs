@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
@@ -71,7 +71,7 @@ impl ChatRecallClient {
         &self,
         current_session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let arguments = arguments.ok_or("Missing arguments")?;
 
         let target_session_id = arguments
@@ -86,7 +86,7 @@ impl ChatRecallClient {
                     let conversation = loaded_session.conversation.as_ref();
 
                     if conversation.is_none() {
-                        return Ok(vec![Content::text(format!(
+                        return Ok(vec![ContentBlock::text(format!(
                             "Session {} has no conversation.",
                             sid
                         ))]);
@@ -96,7 +96,7 @@ impl ChatRecallClient {
                     let total = msgs.len();
 
                     if total == 0 {
-                        return Ok(vec![Content::text(format!(
+                        return Ok(vec![ContentBlock::text(format!(
                             "Session {} has no messages.",
                             sid
                         ))]);
@@ -143,7 +143,7 @@ impl ChatRecallClient {
                         }
                     }
 
-                    Ok(vec![Content::text(output)])
+                    Ok(vec![ContentBlock::text(output)])
                 }
                 Err(e) => Err(format!("Failed to load session: {}", e)),
             }
@@ -228,7 +228,7 @@ impl ChatRecallClient {
                         }
                         output
                     };
-                    Ok(vec![Content::text(formatted_results)])
+                    Ok(vec![ContentBlock::text(formatted_results)])
                 }
                 Err(e) => Err(format!("Chat recall failed: {}", e)),
             }
@@ -296,7 +296,7 @@ impl McpClientTrait for ChatRecallClient {
 
         match content {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 error
             ))])),

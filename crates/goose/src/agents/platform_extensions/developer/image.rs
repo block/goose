@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use base64::Engine;
 use image::GenericImageView;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -50,8 +50,8 @@ impl ImageTool {
         match load_image(&params, working_dir).await {
             Ok(loaded) => {
                 let mut result = CallToolResult::success(vec![
-                    Content::text(loaded.summary(&params.source)).with_priority(0.0),
-                    Content::image(loaded.data, loaded.mime_type.clone()).with_priority(0.0),
+                    ContentBlock::text(loaded.summary(&params.source)),
+                    ContentBlock::image(loaded.data, loaded.mime_type.clone()),
                 ]);
                 result.structured_content = Some(json!({
                     "source": params.source,
@@ -65,9 +65,9 @@ impl ImageTool {
                 }));
                 result
             }
-            Err(error) => CallToolResult::error(vec![
-                Content::text(format!("Error: {error}")).with_priority(0.0)
-            ]),
+            Err(error) => {
+                CallToolResult::error(vec![ContentBlock::text(format!("Error: {error}"))])
+            }
         }
     }
 }

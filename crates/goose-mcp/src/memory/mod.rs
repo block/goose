@@ -3,7 +3,7 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult, Meta,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult, Meta,
         ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
@@ -363,7 +363,7 @@ impl MemoryServer {
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Stored memory in category: {}",
             params.category
         ))]))
@@ -389,7 +389,7 @@ impl MemoryServer {
         }
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Retrieved memories: {:?}",
             memories
         ))]))
@@ -421,7 +421,7 @@ impl MemoryServer {
             format!("Cleared memories in category: {}", params.category)
         };
 
-        Ok(CallToolResult::success(vec![Content::text(message)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(message)]))
     }
 
     /// Removes a specific memory within a specified category
@@ -445,7 +445,7 @@ impl MemoryServer {
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Removed specific memory from category: {}",
             params.category
         ))]))
