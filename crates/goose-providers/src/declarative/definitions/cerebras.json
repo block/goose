@@ -35,6 +35,21 @@
           "reasoning_format": "parsed"
         }
       }
+    },
+    {
+      "name": "gemma-4-31b",
+      "context_limit": 131072,
+      "reasoning": {
+        "enabled": true,
+        "thinking_preservation_format": "content_prepend",
+        "reasoning_property": "reasoning_effort",
+        "effort_mapping": {
+          "off": "none"
+        },
+        "extra_body": {
+          "reasoning_format": "parsed"
+        }
+      }
     }
   ],
   "supports_streaming": true
