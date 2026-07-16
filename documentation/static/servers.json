@@ -879,6 +879,16 @@
       "required": false
     }
   ]
-}
-
+},
+  {
+    "id": "flopsindex",
+    "name": "FLOPS Index",
+    "description": "Key-free GPU compute rental reference prices (H100/A100/H200; spot, on-demand, DePIN). Every value carries a verify URL for citation.",
+    "command": "uvx flopsindex-mcp",
+    "link": "https://github.com/zeroatflops/flopsindex",
+    "installation_notes": "No API key required. Run via uvx (uv): 'uvx flopsindex-mcp'. A hosted key-free server is also available at https://app.flopsindex.com/mcp (streamable HTTP). Five tools: list_indices, search_indices, get_price, get_index, verify.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 ]
