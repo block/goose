@@ -17,6 +17,21 @@ use strum::{EnumMessage, VariantNames};
 
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
 
+const REASONING_MODE_PROVIDERS: &[&str] = &[
+    "openai",
+    "databricks",
+    "databricks_v2",
+    "aws_bedrock",
+    "github_copilot",
+];
+
+pub(super) fn supports_reasoning_mode_for_provider(
+    provider_name: &str,
+    model_config: &ModelConfig,
+) -> bool {
+    model_config.supports_reasoning_mode() && REASONING_MODE_PROVIDERS.contains(&provider_name)
+}
+
 pub(super) fn session_provider_selection(session: &Session) -> &str {
     session
         .provider_name
@@ -321,7 +336,7 @@ pub(super) fn build_config_options(
         .description("Controls reasoning effort for models that support extended thinking.")
         .category(SessionConfigOptionCategory::ThoughtLevel),
     ];
-    if model_config.supports_reasoning_mode() {
+    if supports_reasoning_mode_for_provider(provider_selection, model_config) {
         let current_reasoning_mode = model_config
             .reasoning_mode()
             .ok()
@@ -796,5 +811,43 @@ mod tests {
         assert!(!options
             .iter()
             .any(|option| option.id.0.as_ref() == "reasoning_mode"));
+    }
+
+    #[test]
+    fn test_build_config_options_omits_reasoning_mode_for_unsupported_provider() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = model_selection("gpt-5.6", &["gpt-5.6"]);
+        let model_config = ModelConfig::new("gpt-5.6");
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "chatgpt_codex",
+            vec![SessionConfigSelectOption::new(
+                "chatgpt_codex",
+                "chatgpt_codex",
+            )],
+        );
+
+        assert!(!options
+            .iter()
+            .any(|option| option.id.0.as_ref() == "reasoning_mode"));
+    }
+
+    #[test]
+    fn test_reasoning_mode_provider_capabilities_match_responses_builders() {
+        let model_config = ModelConfig::new("gpt-5.6");
+
+        for provider in REASONING_MODE_PROVIDERS {
+            assert!(supports_reasoning_mode_for_provider(
+                provider,
+                &model_config
+            ));
+        }
+        assert!(!supports_reasoning_mode_for_provider(
+            "chatgpt_codex",
+            &model_config
+        ));
     }
 }

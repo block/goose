@@ -345,7 +345,10 @@ export const SwitchModelModal = ({
   const modelReasoning = selectedModelReasoning ?? selectedPredefinedModel?.reasoning;
   const showThinkingControl = modelReasoning === true;
   const selectedModelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
-  const showReasoningModeControl = Boolean(sessionId && supportsReasoningMode(selectedModelName));
+  const selectedProviderName = usePredefinedModels ? selectedPredefinedModel?.provider : provider;
+  const showReasoningModeControl = Boolean(
+    sessionId && supportsReasoningMode(selectedProviderName, selectedModelName)
+  );
   const resolveSelectedModelReasoning = useCallback(
     (providerName: string, modelName: string, fallback?: boolean) => {
       const requestId = ++reasoningRequestId.current;

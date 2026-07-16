@@ -5,6 +5,7 @@ pub(super) use crate::acp::response_builder::{
     build_config_options, build_mode_state, build_model_state, build_provider_options,
     build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
     session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
+    supports_reasoning_mode_for_provider,
 };
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -3036,9 +3037,16 @@ impl GooseAcpAgent {
             .model_config_for_session(session_id)
             .await
             .internal_err_ctx("Failed to resolve model config")?;
-        if !model_config.supports_reasoning_mode() {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data("reasoning_mode is only supported for GPT-5.6 models"));
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to resolve provider")?;
+        if !supports_reasoning_mode_for_provider(provider.get_name(), &model_config) {
+            return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                "reasoning_mode is not supported for provider '{}' and model '{}'",
+                provider.get_name(),
+                model_config.model_name
+            )));
         }
         agent
             .update_reasoning_mode(session_id, mode)

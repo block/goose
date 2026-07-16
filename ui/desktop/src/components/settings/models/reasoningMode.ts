@@ -1,8 +1,21 @@
 import type { ReasoningMode } from '../../../types/providers';
 
-export function supportsReasoningMode(modelName: string | null | undefined): boolean {
+const REASONING_MODE_PROVIDERS = new Set([
+  'openai',
+  'databricks',
+  'databricks_v2',
+  'aws_bedrock',
+  'github_copilot',
+]);
+
+export function supportsReasoningMode(
+  providerName: string | null | undefined,
+  modelName: string | null | undefined
+): boolean {
   const normalized = modelName?.toLowerCase();
   return Boolean(
+    providerName &&
+    REASONING_MODE_PROVIDERS.has(providerName) &&
     normalized &&
     (normalized === 'gpt-5.6' ||
       normalized.startsWith('gpt-5.6-') ||
