@@ -31,7 +31,10 @@ export function applyGooseSessionNotification(
     case 'history_replaced': {
       const retained = new Set(update.retainedMessageIds);
       state.messages = state.messages.filter(
-        (m) => m.metadata?.agentVisible === false || (m.id != null && retained.has(m.id))
+        (m) =>
+          m.role === 'user' ||
+          m.metadata?.agentVisible === false ||
+          (m.id != null && retained.has(m.id))
       );
       return messagesChange(state);
     }

@@ -140,16 +140,31 @@ describe('applyGooseSessionNotification', () => {
   });
 
   describe('history_replaced', () => {
-    it('removes agent-visible messages not in the retained set', () => {
-      const state = makeState(); // u1, a1, a2 — all agentVisible: true
+    it('removes assistant messages not in the retained set', () => {
+      const state = makeState(); // u1(user), a1(assistant), a2(assistant)
 
       const changes = applyGooseSessionNotification(
         state,
-        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: ['u1', 'a2'] })
+        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: ['a2'] })
       );
 
       const messages = expectOnlyMessagesChange(changes);
+      // u1 kept (user messages are always preserved regardless of retained set)
+      // a1 removed (not retained)
+      // a2 kept (retained)
       expect(messages.map((m) => m.id)).toEqual(['u1', 'a2']);
+    });
+
+    it('always keeps user messages even when their client ID is not in the retained set', () => {
+      const state = makeState(); // u1 has a client-generated ID that won't match any server ID
+
+      const changes = applyGooseSessionNotification(
+        state,
+        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: ['a1'] })
+      );
+
+      const messages = expectOnlyMessagesChange(changes);
+      expect(messages.map((m) => m.id)).toEqual(['u1', 'a1']);
     });
 
     it('always keeps client-generated messages (agentVisible: false)', () => {
@@ -170,10 +185,11 @@ describe('applyGooseSessionNotification', () => {
       );
 
       const messages = expectOnlyMessagesChange(changes);
-      expect(messages.map((m) => m.id)).toEqual(['a2', `acp_status_${SESSION_ID}_123`]);
+      // u1(user) kept, a1 removed, a2 kept, status message kept
+      expect(messages.map((m) => m.id)).toEqual(['u1', 'a2', `acp_status_${SESSION_ID}_123`]);
     });
 
-    it('handles empty retained set by keeping only client-generated messages', () => {
+    it('removes all assistant messages when retained set is empty', () => {
       const state = makeState();
 
       const changes = applyGooseSessionNotification(
@@ -182,7 +198,8 @@ describe('applyGooseSessionNotification', () => {
       );
 
       const messages = expectOnlyMessagesChange(changes);
-      expect(messages).toHaveLength(0);
+      // only the user message survives
+      expect(messages.map((m) => m.id)).toEqual(['u1']);
     });
   });
 
