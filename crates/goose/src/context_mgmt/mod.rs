@@ -89,37 +89,29 @@ pub async fn compact_messages(
         has_text && !has_tool_content
     };
 
-    let extract_text = |msg: &Message| -> Option<String> {
-        let text_parts: Vec<String> = msg
-            .content
-            .iter()
-            .filter_map(|c| {
-                if let MessageContent::Text(text) = c {
-                    Some(text.text.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if text_parts.is_empty() {
-            None
-        } else {
-            Some(text_parts.join("\n"))
-        }
-    };
-
     // Find and preserve the most recent user message for non-manual compacts
     let (preserved_user_message, is_most_recent) = if !manual_compact {
-        let found_msg = messages.iter().enumerate().rev().find(|(_, msg)| {
-            msg.is_agent_visible()
-                && matches!(msg.role, rmcp::model::Role::User)
-                && has_text_only(msg)
+        let found_msg = messages.iter().enumerate().rev().find_map(|(idx, msg)| {
+            if !msg.is_agent_visible() || !matches!(msg.role, rmcp::model::Role::User) {
+                return None;
+            }
+
+            let projected = msg.agent_visible_content();
+            if !has_text_only(&projected) {
+                return None;
+            }
+
+            let preserved = projected
+                .content
+                .into_iter()
+                .filter(|content| matches!(content, MessageContent::Text(_)))
+                .fold(Message::user(), Message::with_content);
+            Some((idx, preserved))
         });
 
         if let Some((idx, msg)) = found_msg {
             let is_last = idx == messages.len() - 1;
-            (Some(msg.clone()), is_last)
+            (Some(msg), is_last)
         } else {
             (None, false)
         }
@@ -173,9 +165,7 @@ pub async fn compact_messages(
     final_messages.extend(merged_continuation);
 
     if let Some(user_msg) = preserved_user_message {
-        if let Some(text) = extract_text(&user_msg) {
-            final_messages.push(Message::user().with_text(&text));
-        }
+        final_messages.push(user_msg);
     }
 
     Ok((
@@ -730,6 +720,64 @@ mod tests {
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    #[tokio::test]
+    async fn preserved_user_message_keeps_audience_projection_after_compaction() {
+        use rmcp::model::{RawTextContent, Role};
+
+        let annotated_text = |text: &str, audience| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(audience),
+            )
+        };
+        let current_request = Message::user()
+            .with_text("visible current request")
+            .with_content(annotated_text("user-only secret", vec![Role::User]))
+            .with_content(annotated_text(
+                "assistant-only preprompt",
+                vec![Role::Assistant],
+            ));
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("earlier request"),
+            Message::assistant().with_text("earlier response"),
+            current_request,
+        ]);
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+
+        let (compacted, _) = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let agent_text = compacted
+            .agent_visible_messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(agent_text.contains("visible current request"));
+        assert!(agent_text.contains("assistant-only preprompt"));
+        assert!(!agent_text.contains("user-only secret"));
+
+        let user_text = compacted
+            .user_visible_messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(user_text.contains("user-only secret"));
+        assert!(!user_text.contains("assistant-only preprompt"));
     }
 
     #[tokio::test]

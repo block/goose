@@ -13,7 +13,7 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{fix_conversation, Conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
@@ -60,6 +60,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+
+fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
+    let projected_messages = plan_messages.agent_visible_messages();
+    fix_conversation(Conversation::new_unvalidated(projected_messages)).0
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
@@ -1067,11 +1072,16 @@ impl CliSession {
         model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
-        let provider_messages = plan_messages.agent_visible_messages();
+        let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
         let (plan_response, _usage) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
-            reasoner.complete(&model_config, &plan_prompt, &provider_messages, &[]),
+            reasoner.complete(
+                &model_config,
+                &plan_prompt,
+                provider_messages.messages(),
+                &[],
+            ),
         )
         .await?;
         let classifier_text = planner_classification_text(&plan_response);
@@ -2374,6 +2384,37 @@ mod tests {
             &Message::assistant().with_content(MessageContent::Text(user_only))
         )
         .is_err());
+    }
+
+    #[test]
+    fn planner_history_is_fixed_after_audience_projection() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let hidden_separator = MessageContent::Text(
+            RawTextContent {
+                text: "hidden separator".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(hidden_separator),
+            Message::user().with_text("second request"),
+        ]);
+
+        let provider_messages = planner_provider_messages(&history).agent_visible_messages();
+
+        assert_eq!(provider_messages.len(), 1);
+        assert_eq!(provider_messages[0].role, Role::User);
+        assert_eq!(
+            provider_messages[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!provider_messages[0]
+            .as_concat_text()
+            .contains("hidden separator"));
     }
 
     #[test]
