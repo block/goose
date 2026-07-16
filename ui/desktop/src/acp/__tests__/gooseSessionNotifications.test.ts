@@ -139,6 +139,53 @@ describe('applyGooseSessionNotification', () => {
     });
   });
 
+  describe('history_replaced', () => {
+    it('removes agent-visible messages not in the retained set', () => {
+      const state = makeState(); // u1, a1, a2 — all agentVisible: true
+
+      const changes = applyGooseSessionNotification(
+        state,
+        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: ['u1', 'a2'] })
+      );
+
+      const messages = expectOnlyMessagesChange(changes);
+      expect(messages.map((m) => m.id)).toEqual(['u1', 'a2']);
+    });
+
+    it('always keeps client-generated messages (agentVisible: false)', () => {
+      const state = makeState();
+      state.messages.push({
+        id: `acp_status_${SESSION_ID}_123`,
+        role: 'assistant',
+        created: 1700000002,
+        content: [
+          { type: 'systemNotification', notificationType: 'inlineMessage', msg: 'Compaction complete' },
+        ],
+        metadata: { userVisible: true, agentVisible: false },
+      });
+
+      const changes = applyGooseSessionNotification(
+        state,
+        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: ['a2'] })
+      );
+
+      const messages = expectOnlyMessagesChange(changes);
+      expect(messages.map((m) => m.id)).toEqual(['a2', `acp_status_${SESSION_ID}_123`]);
+    });
+
+    it('handles empty retained set by keeping only client-generated messages', () => {
+      const state = makeState();
+
+      const changes = applyGooseSessionNotification(
+        state,
+        gooseUpdate({ sessionUpdate: 'history_replaced', retainedMessageIds: [] })
+      );
+
+      const messages = expectOnlyMessagesChange(changes);
+      expect(messages).toHaveLength(0);
+    });
+  });
+
   describe('usage_update', () => {
     it('still maps usage updates into token state', () => {
       const changes = applyGooseSessionNotification(
