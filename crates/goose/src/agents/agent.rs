@@ -280,6 +280,10 @@ fn project_message_for_user_event(message: &Message) -> Message {
     message.user_visible_content()
 }
 
+fn agent_visible_message_text(message: &Message) -> String {
+    message.agent_visible_content().as_concat_text()
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -1546,7 +1550,7 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
 
-        let message_text_for_trace = user_message.as_concat_text();
+        let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
 
@@ -1586,7 +1590,7 @@ impl Agent {
             }
         }
 
-        let message_text = user_message.as_concat_text();
+        let message_text = message_text_for_trace;
 
         let session = session_manager
             .get_session(&session_config.id, true)
@@ -1943,7 +1947,7 @@ impl Agent {
 
                 if can_drain_pending_steers {
                     for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = message.as_concat_text();
+                        let message_text = agent_visible_message_text(&message);
                         if self
                             .hook_manager
                             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
@@ -3537,6 +3541,26 @@ mod tests {
             .as_ref()
             .expect("successful hidden tool result");
         assert!(result.content.is_empty());
+    }
+
+    #[test]
+    fn agent_visible_message_text_excludes_user_only_blocks() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let user_only = RawTextContent {
+            text: "SECRET_USER_ONLY".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let message = Message::user()
+            .with_text("/goal visible objective")
+            .with_content(MessageContent::Text(user_only));
+
+        assert_eq!(
+            agent_visible_message_text(&message),
+            "/goal visible objective"
+        );
     }
 
     struct ActionRequiredProvider {
