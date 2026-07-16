@@ -11,10 +11,8 @@ use rmcp::model::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(ToSchema)]
 pub enum ToolCallResult<T> {
     Success { value: T },
     Error { error: String },
@@ -79,17 +77,13 @@ pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
-    #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParams>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
     #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub tool_meta: Option<serde_json::Value>,
 }
 
@@ -174,20 +168,16 @@ pub const TOOL_META_CHAIN_SUMMARY_KEY: &str = "goose.toolChain.summary";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde::call_tool_result")]
-    #[schema(value_type = Object)]
     pub tool_result: ToolResult<CallToolResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
@@ -195,7 +185,7 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "actionType", rename_all = "camelCase")]
 pub enum ActionRequiredData {
     #[serde(rename_all = "camelCase")]
@@ -214,7 +204,6 @@ pub enum ActionRequiredData {
         id: String,
         user_data: serde_json::Value,
         #[serde(default = "default_elicitation_action")]
-        #[schema(value_type = String)]
         action: ElicitationAction,
     },
 }
@@ -223,33 +212,32 @@ fn default_elicitation_action() -> ElicitationAction {
     ElicitationAction::Accept
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionRequired {
     pub data: ActionRequiredData,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
-    #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParams>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SystemNotificationType {
     ThinkingMessage,
@@ -258,7 +246,7 @@ pub enum SystemNotificationType {
     CreditsExhausted,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
@@ -267,7 +255,7 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -659,7 +647,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InferenceMetadata {
     pub provider: String,
@@ -668,7 +656,7 @@ pub struct InferenceMetadata {
     pub resolved_model: Option<String>,
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -711,7 +699,7 @@ impl MessageUsage {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility and model inference details
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -813,7 +801,7 @@ impl MessageMetadata {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -1130,7 +1118,7 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenState {
     pub input_tokens: i32,

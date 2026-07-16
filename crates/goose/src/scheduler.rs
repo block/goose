@@ -102,7 +102,7 @@ impl From<anyhow::Error> for SchedulerError {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, utoipa::ToSchema)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ScheduledJob {
     pub id: String,
     pub source: String,

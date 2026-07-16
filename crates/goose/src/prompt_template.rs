@@ -50,7 +50,7 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
 ];
 
 /// Information about a template including its content and customization status
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Template {
     pub name: String,
     pub description: String,

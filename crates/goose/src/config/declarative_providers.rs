@@ -15,7 +15,6 @@ use std::str::FromStr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use utoipa::ToSchema;
 
 pub use goose_providers::declarative::*;
 
@@ -57,7 +56,7 @@ pub fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<Stri
     Ok(result)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedProvider {
     pub config: DeclarativeProviderConfig,
     pub is_editable: bool,

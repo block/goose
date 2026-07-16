@@ -139,7 +139,6 @@ goose-providers = { path = "../goose-providers", default-features = false }
 goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
-utoipa = { workspace = true, features = ["chrono"] }
 tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }

@@ -4,7 +4,6 @@ use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
@@ -21,7 +20,7 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
     "preserve_unsigned_thinking",
 ];
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
