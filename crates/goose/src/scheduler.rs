@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -29,6 +29,48 @@ use crate::session::{Session, SessionManager};
 
 type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
+
+pub(crate) const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
+
+fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(), SchedulerError> {
+    let source = File::open(source).map_err(|error| {
+        SchedulerError::RecipeLoadError(format!("Cannot read recipe file: {error}"))
+    })?;
+    let metadata = source.metadata().map_err(|error| {
+        SchedulerError::RecipeLoadError(format!("Cannot inspect recipe file: {error}"))
+    })?;
+    if !metadata.is_file() {
+        return Err(SchedulerError::RecipeLoadError(
+            "Recipe path must reference a regular file".to_string(),
+        ));
+    }
+    if metadata.len() > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(SchedulerError::RecipeLoadError(format!(
+            "Recipe file exceeds the {MAX_SCHEDULE_RECIPE_BYTES} byte limit"
+        )));
+    }
+
+    let mut bytes = Vec::new();
+    source
+        .take(MAX_SCHEDULE_RECIPE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            SchedulerError::RecipeLoadError(format!("Cannot read recipe file: {error}"))
+        })?;
+    if bytes.len() as u64 > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(SchedulerError::RecipeLoadError(format!(
+            "Recipe file exceeds the {MAX_SCHEDULE_RECIPE_BYTES} byte limit"
+        )));
+    }
+
+    let result = File::create(destination).and_then(|mut file| file.write_all(&bytes));
+    if let Err(error) = result {
+        let _ = fs::remove_file(destination);
+        return Err(SchedulerError::StorageError(error));
+    }
+
+    Ok(())
+}
 
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
@@ -332,7 +374,7 @@ impl Scheduler {
             let destination_filename = format!("{}.{}", stored_job.id, original_extension);
             let destination_recipe_path = scheduled_recipes_dir.join(destination_filename);
 
-            fs::copy(&original_recipe_path, &destination_recipe_path)?;
+            copy_bounded_schedule_recipe(&original_recipe_path, &destination_recipe_path)?;
             stored_job.recipe_base_dir = original_recipe_path
                 .parent()
                 .map(|p| p.to_string_lossy().into_owned());
@@ -1155,6 +1197,31 @@ mod tests {
         let recipe_path = dir.join(format!("{}.yaml", name));
         fs::write(&recipe_path, "prompt: test\n").unwrap();
         recipe_path
+    }
+
+    #[test]
+    fn bounded_recipe_copy_rejects_source_that_grew_after_validation() {
+        let temp_dir = tempdir().unwrap();
+        let source = temp_dir.path().join("source.yaml");
+        let destination = temp_dir.path().join("destination.yaml");
+        fs::write(
+            &source,
+            "title: Valid\ndescription: Initially valid\nprompt: Run safely\n",
+        )
+        .unwrap();
+        let validated = fs::read_to_string(&source).unwrap();
+        serde_yaml::from_str::<Recipe>(&validated).unwrap();
+        File::options()
+            .write(true)
+            .open(&source)
+            .unwrap()
+            .set_len(MAX_SCHEDULE_RECIPE_BYTES + 1)
+            .unwrap();
+
+        let error = copy_bounded_schedule_recipe(&source, &destination).unwrap_err();
+
+        assert!(error.to_string().contains("exceeds the 1048576 byte limit"));
+        assert!(!destination.exists());
     }
 
     #[tokio::test]

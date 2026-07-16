@@ -14,9 +14,8 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use super::Agent;
 use crate::recipe::Recipe;
+use crate::scheduler::MAX_SCHEDULE_RECIPE_BYTES;
 use crate::scheduler_trait::SchedulerTrait;
-
-const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
 
 fn recipe_file_error(message: &str) -> ErrorData {
     ErrorData::new(ErrorCode::INTERNAL_ERROR, message.to_string(), None)
