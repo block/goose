@@ -2,27 +2,26 @@ use std::io::{self, Write};
 use std::path::Path;
 
 #[cfg(windows)]
-fn restrict_to_owner(file: &std::fs::File) -> io::Result<()> {
-    use std::os::windows::io::AsRawHandle;
+fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::{FromRawHandle, RawHandle};
     use std::ptr;
     use winapi::shared::minwindef::HLOCAL;
     use winapi::shared::sddl::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
-    use winapi::shared::winerror::ERROR_SUCCESS;
-    use winapi::um::accctrl::SE_FILE_OBJECT;
-    use winapi::um::aclapi::SetSecurityInfo;
-    use winapi::um::securitybaseapi::GetSecurityDescriptorDacl;
+    use winapi::um::fileapi::{CREATE_NEW, CreateFileW};
+    use winapi::um::handleapi::INVALID_HANDLE_VALUE;
+    use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
     use winapi::um::winbase::LocalFree;
     use winapi::um::winnt::{
-        DACL_SECURITY_INFORMATION, PACL, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+        FILE_ATTRIBUTE_TEMPORARY, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        GENERIC_READ, GENERIC_WRITE, PSECURITY_DESCRIPTOR,
     };
 
     let sddl: Vec<u16> = "D:P(A;;FA;;;OW)\0".encode_utf16().collect();
     let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
 
-    // The descriptor grants full access only to the file owner and protects the
-    // DACL from inheriting broader permissions from a shared parent directory.
     if unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
             sddl.as_ptr(),
@@ -35,49 +34,43 @@ fn restrict_to_owner(file: &std::fs::File) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
 
-    let result = (|| -> io::Result<()> {
-        let mut dacl_present = 0;
-        let mut dacl: PACL = ptr::null_mut();
-        let mut dacl_defaulted = 0;
-        if unsafe {
-            GetSecurityDescriptorDacl(
-                descriptor,
-                &mut dacl_present,
-                &mut dacl,
-                &mut dacl_defaulted,
-            )
-        } == 0
-        {
-            return Err(io::Error::last_os_error());
-        }
-        if dacl_present == 0 || dacl.is_null() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "owner-only security descriptor has no DACL",
-            ));
-        }
-
-        let status = unsafe {
-            SetSecurityInfo(
-                file.as_raw_handle(),
-                SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                dacl,
-                ptr::null_mut(),
-            )
-        };
-        if status != ERROR_SUCCESS {
-            return Err(io::Error::from_raw_os_error(status as i32));
-        }
-        Ok(())
-    })();
+    let mut security_attributes = SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor,
+        bInheritHandle: 0,
+    };
+    let path: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let handle = unsafe {
+        CreateFileW(
+            path.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            &mut security_attributes,
+            CREATE_NEW,
+            FILE_ATTRIBUTE_TEMPORARY,
+            ptr::null_mut(),
+        )
+    };
+    let error = (handle == INVALID_HANDLE_VALUE).then(io::Error::last_os_error);
 
     unsafe {
         LocalFree(descriptor as HLOCAL);
     }
-    result
+    if let Some(error) = error {
+        Err(error)
+    } else {
+        Ok(unsafe { std::fs::File::from_raw_handle(handle as RawHandle) })
+    }
+}
+
+#[cfg(windows)]
+fn create_private_temporary_file(parent: &Path) -> io::Result<tempfile::NamedTempFile> {
+    tempfile::Builder::new().make_in(parent, create_owner_only_file)
+}
+
+#[cfg(not(windows))]
+fn create_private_temporary_file(parent: &Path) -> io::Result<tempfile::NamedTempFile> {
+    tempfile::NamedTempFile::new_in(parent)
 }
 
 pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
@@ -89,7 +82,7 @@ pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> 
     })?;
     std::fs::create_dir_all(parent)?;
 
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    let mut temporary = create_private_temporary_file(parent)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -97,8 +90,6 @@ pub(crate) fn write_private_file(path: &Path, contents: &str) -> io::Result<()> 
             .as_file()
             .set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
-    #[cfg(windows)]
-    restrict_to_owner(temporary.as_file())?;
     temporary.write_all(contents.as_bytes())?;
     temporary.as_file().sync_all()?;
     temporary.persist(path).map_err(|error| error.error)?;
@@ -140,21 +131,17 @@ mod windows_tests {
     use winapi::shared::winerror::ERROR_SUCCESS;
     use winapi::um::accctrl::SE_FILE_OBJECT;
     use winapi::um::aclapi::GetSecurityInfo;
-    use winapi::um::securitybaseapi::{GetAce, GetSecurityDescriptorControl};
+    use winapi::um::securitybaseapi::{
+        CreateWellKnownSid, EqualSid, GetAce, GetSecurityDescriptorControl,
+    };
     use winapi::um::winbase::LocalFree;
     use winapi::um::winnt::{
         ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE, DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS,
         OWNER_SECURITY_INFORMATION, PACL, PSECURITY_DESCRIPTOR, PSID, SE_DACL_PROTECTED,
+        SECURITY_MAX_SID_SIZE, WinCreatorOwnerRightsSid,
     };
 
-    #[test]
-    fn writes_owner_only_protected_dacl() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("token.json");
-
-        write_private_file(&path, "new-secret").unwrap();
-
-        let file = File::open(&path).unwrap();
+    fn assert_owner_only_protected_dacl(file: &File) {
         let mut owner: PSID = ptr::null_mut();
         let mut dacl: PACL = ptr::null_mut();
         let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
@@ -193,10 +180,47 @@ mod windows_tests {
             unsafe { (*allowed).Mask } & FILE_ALL_ACCESS,
             FILE_ALL_ACCESS
         );
-        assert_eq!(std::fs::read_to_string(path).unwrap(), "new-secret");
 
+        let mut expected_sid = [0u8; SECURITY_MAX_SID_SIZE];
+        let mut expected_sid_size = expected_sid.len() as u32;
+        assert_ne!(
+            unsafe {
+                CreateWellKnownSid(
+                    WinCreatorOwnerRightsSid,
+                    ptr::null_mut(),
+                    expected_sid.as_mut_ptr().cast(),
+                    &mut expected_sid_size,
+                )
+            },
+            0
+        );
+        let actual_sid = unsafe { &mut (*allowed).SidStart as *mut u32 as PSID };
+        assert_ne!(
+            unsafe { EqualSid(actual_sid, expected_sid.as_mut_ptr().cast()) },
+            0
+        );
         unsafe {
             LocalFree(descriptor as HLOCAL);
         }
+    }
+
+    #[test]
+    fn creates_temporary_file_with_owner_only_protected_dacl() {
+        let directory = tempfile::tempdir().unwrap();
+        let temporary = create_private_temporary_file(directory.path()).unwrap();
+
+        assert_owner_only_protected_dacl(temporary.as_file());
+    }
+
+    #[test]
+    fn writes_owner_only_protected_dacl() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("token.json");
+
+        write_private_file(&path, "new-secret").unwrap();
+
+        let file = File::open(&path).unwrap();
+        assert_owner_only_protected_dacl(&file);
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "new-secret");
     }
 }
