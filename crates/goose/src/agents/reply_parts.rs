@@ -666,10 +666,11 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::GooseMode;
+    use crate::agents::{AgentConfig, GoosePlatform};
+    use crate::config::{GooseMode, PermissionManager};
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
-    use crate::session::session_manager::SessionType;
+    use crate::session::{SessionManager, SessionType};
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
@@ -700,11 +701,19 @@ mod tests {
 
     #[tokio::test]
     async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
-        let agent = crate::agents::Agent::new();
+        let data_dir = tempfile::tempdir()?;
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = std::sync::Arc::new(SessionManager::new(data_path.clone()));
+        let agent = Agent::with_config(AgentConfig::new(
+            std::sync::Arc::clone(&session_manager),
+            std::sync::Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
 
-        let session = agent
-            .config
-            .session_manager
+        let session = session_manager
             .create_session(
                 std::env::current_dir().unwrap(),
                 "test-prepare-tools".to_string(),
