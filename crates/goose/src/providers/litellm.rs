@@ -264,6 +264,10 @@ impl Provider for LiteLLMProvider {
         ))
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())

@@ -4,7 +4,6 @@ use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
@@ -21,7 +20,7 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
     "preserve_unsigned_thinking",
 ];
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
@@ -623,6 +622,20 @@ mod tests {
             // "gpt-5.4-xhigh" should resolve via "gpt-5.4"
             let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(1_050_000));
+
+            // "gpt-5.6-sol-xhigh" should resolve via "gpt-5.6-sol"
+            let config = ModelConfig::new("gpt-5.6-sol-xhigh").with_canonical_limits("openai");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
+            let canonical = crate::canonical::maybe_get_canonical_model("openai", "gpt-5.6-sol")
+                .expect("gpt-5.6-sol should have canonical metadata");
+            assert_eq!(canonical.temperature, Some(false));
+
+            let config = ModelConfig::new("gpt-5.6-sol").with_canonical_limits("chatgpt_codex");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
 
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
             let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");

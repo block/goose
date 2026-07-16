@@ -11,7 +11,7 @@ import { Tornado } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/on_p-LeIrak" />
 
-The Developer extension allows goose to automate developer-centric tasks such as file editing, shell command execution, and project setup. It also provides tools for [enhanced code editing](/docs/guides/enhanced-code-editing) and [codebase analysis](/docs/guides/codebase-analysis).
+The Developer extension allows goose to automate developer-centric tasks such as file editing, shell command execution, and project setup. It also provides tools for [codebase analysis](/docs/guides/codebase-analysis).
 
 This tutorial will cover enabling and using the Developer MCP Server, which is a built-in goose extension. 
 
@@ -204,8 +204,6 @@ You can layer multiple controls to match your risk tolerance and workflow:
 
 - **[Tool Permissions](/docs/guides/managing-tools/tool-permissions)** let you set `Always allow`, `Ask before`, and `Never allow` permissions for individual extension tools when in Manual Approval or Smart Approval modes
 
-- **[.gooseignore files](/docs/guides/context-engineering/using-gooseignore)** restrict which files and directories goose can access (`.gitignore` files are fallback)
-
 :::tip Changing Modes In-Session
 You can change goose permission modes during a session without restarting:
 - **CLI**: Use the `/mode` command (e.g. `/mode approve`)
@@ -224,16 +222,7 @@ Here's an example configuration that enables oversight:
    GOOSE_MODE: smart_approve  # or approve
    ```
 
-2. **Create a [`.gooseignore` file](/docs/guides/context-engineering/using-gooseignore)** in your project to protect sensitive files:
-   ```
-   .env*
-   secrets.*
-   *.key
-   *.pem
-   .git/
-   ```
-
-3. **Configure [tool permissions](/docs/guides/managing-tools/tool-permissions)** based on your needs
+2. **Configure [tool permissions](/docs/guides/managing-tools/tool-permissions)** based on your needs
 
 As you become more comfortable with goose's behavior, you can adjust these settings to reduce friction while maintaining appropriate safeguards for your environment.
 
@@ -247,12 +236,6 @@ import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
 
 <ContentCardCarousel
   items={[
-    {
-      type: 'topic',
-      title: 'Enhanced Code Editing with AI Models',
-      description: 'Use AI models to intelligently apply code changes',
-      linkUrl: '/docs/guides/enhanced-code-editing'
-    },
     {
       type: 'topic',
       title: 'Codebase Analysis',

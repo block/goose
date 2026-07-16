@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Соединение потеряно. Повторное подключение…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -1194,7 +1197,7 @@
     "defaultMessage": "Секретный ключ"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Секретный ключ, настроенный на сервере goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Секретный ключ, настроенный на сервере Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Введите секретный ключ сервера"
@@ -2812,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Из шаблона или вручную"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Нет провайдеров, соответствующих \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Поиск провайдеров..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Логотип {providerName}"

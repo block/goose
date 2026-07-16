@@ -4,7 +4,7 @@ use agent_client_protocol::schema::v1::{
     McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionNotification, SessionUpdate,
+    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
     TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
@@ -58,7 +58,7 @@ pub struct AcpProviderConfig {
     /// provider re-applies this option from the per-completion `ModelConfig`
     /// whenever the active session model changes.
     pub model_config_option_id: Option<String>,
-    pub mode_mapping: HashMap<GooseMode, String>,
+    pub mode_mapping: HashMap<GooseMode, Vec<String>>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
 
@@ -142,7 +142,7 @@ struct HandoffContextClaim {
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
-    mode_mapping: HashMap<GooseMode, String>,
+    mode_mapping: HashMap<GooseMode, Vec<String>>,
 
     session: AcpSession,
 
@@ -419,20 +419,27 @@ impl Provider for AcpProvider {
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        let mode_str = self
-            .mode_mapping
-            .get(&mode)
-            .cloned()
-            .unwrap_or_else(|| format!("{mode:?}"));
-
-        if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
-            self.send_set_config_option(session_id, "mode".into(), mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
-        } else {
-            self.send_set_mode(session_id, mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
+        if let Some(candidates) = self.mode_mapping.get(&mode) {
+            let mode_str = select_mode_id(candidates, self.session.response.modes.as_ref())
+                .ok_or_else(|| {
+                    ProviderError::RequestFailed(format!(
+                        "None of the mode ids [{}] are offered by the agent",
+                        candidates.join(", ")
+                    ))
+                })?;
+            if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
+                self.send_set_config_option(session_id, "mode".into(), mode_str)
+                    .await
+                    .map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to set mode: {e}"))
+                    })?;
+            } else {
+                self.send_set_mode(session_id, mode_str)
+                    .await
+                    .map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to set mode: {e}"))
+                    })?;
+            }
         }
 
         if let Ok(mut guard) = self.goose_mode.lock() {
@@ -1210,42 +1217,66 @@ async fn apply_session_mode(
     session: NewSessionResponse,
 ) -> Result<NewSessionResponse> {
     let current_mode = goose_mode.lock().ok().map(|mode| *mode);
-    let requested_mode_id = current_mode
-        .and_then(|mode| config.mode_mapping.get(&mode).cloned())
-        .or_else(|| config.session_mode_id.clone());
+    let candidates = initial_mode_candidates(config, current_mode);
 
-    if let (Some(mode_id), Some(modes)) = (requested_mode_id, session.modes.as_ref()) {
-        if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
-            let available: Vec<String> = modes
-                .available_modes
-                .iter()
-                .map(|mode| mode.id.0.to_string())
-                .collect();
-
-            if !available.iter().any(|id| id == &mode_id) {
+    if let Some(modes) = session.modes.as_ref() {
+        if !candidates.is_empty() {
+            let Some(mode_id) = select_mode_id(&candidates, Some(modes)) else {
+                let available: Vec<String> = modes
+                    .available_modes
+                    .iter()
+                    .map(|mode| mode.id.0.to_string())
+                    .collect();
                 return Err(anyhow::anyhow!(
-                    "Requested mode '{}' not offered by agent. Available modes: {}",
-                    mode_id,
+                    "Requested mode(s) [{}] not offered by agent. Available modes: {}",
+                    candidates.join(", "),
                     available.join(", ")
                 ));
+            };
+            if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
+                let _: SetSessionModeResponse = cx
+                    .send_request(SetSessionModeRequest::new(
+                        session.session_id.clone(),
+                        mode_id,
+                    ))
+                    .block_task()
+                    .await
+                    .map_err(|err| {
+                        anyhow::anyhow!(
+                            "ACP agent rejected {}: {err}",
+                            AGENT_METHOD_NAMES.session_set_mode
+                        )
+                    })?;
             }
-            let _: SetSessionModeResponse = cx
-                .send_request(SetSessionModeRequest::new(
-                    session.session_id.clone(),
-                    mode_id,
-                ))
-                .block_task()
-                .await
-                .map_err(|err| {
-                    anyhow::anyhow!(
-                        "ACP agent rejected {}: {err}",
-                        AGENT_METHOD_NAMES.session_set_mode
-                    )
-                })?;
         }
     }
 
     Ok(session)
+}
+
+fn initial_mode_candidates(
+    config: &AcpProviderConfig,
+    current_mode: Option<GooseMode>,
+) -> Vec<String> {
+    current_mode
+        .and_then(|mode| config.mode_mapping.get(&mode).cloned())
+        .or_else(|| config.session_mode_id.clone().map(|id| vec![id]))
+        .unwrap_or_default()
+}
+
+fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Option<String> {
+    match modes {
+        Some(state) => candidates
+            .iter()
+            .find(|candidate| {
+                state
+                    .available_modes
+                    .iter()
+                    .any(|mode| mode.id.0.as_ref() == candidate.as_str())
+            })
+            .cloned(),
+        None => candidates.first().cloned(),
+    }
 }
 
 pub fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
@@ -1537,11 +1568,13 @@ fn resolve_model_info(
 }
 
 fn reverse_mode_mapping(
-    mode_mapping: &HashMap<GooseMode, String>,
+    mode_mapping: &HashMap<GooseMode, Vec<String>>,
 ) -> HashMap<String, Vec<GooseMode>> {
     let mut reverse: HashMap<String, Vec<GooseMode>> = HashMap::new();
-    for (mode, id) in mode_mapping {
-        reverse.entry(id.clone()).or_default().push(*mode);
+    for (mode, ids) in mode_mapping {
+        for id in ids {
+            reverse.entry(id.clone()).or_default().push(*mode);
+        }
     }
     reverse
 }
@@ -1575,7 +1608,9 @@ fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDeci
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::v1::SessionConfigSelectOption;
+    use agent_client_protocol::schema::v1::{
+        SessionConfigSelectOption, SessionMode, SessionModeId,
+    };
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -1811,6 +1846,195 @@ mod tests {
         assert!(rx.try_recv().is_err());
     }
 
+    fn test_acp_config(
+        mode_mapping: HashMap<GooseMode, Vec<String>>,
+        session_mode_id: Option<String>,
+    ) -> AcpProviderConfig {
+        AcpProviderConfig {
+            command: PathBuf::new(),
+            args: vec![],
+            env: vec![],
+            env_remove: vec![],
+            work_dir: PathBuf::new(),
+            mcp_servers: vec![],
+            session_mode_id,
+            session_config_options: vec![],
+            model_config_option_id: None,
+            mode_mapping,
+            notification_callback: None,
+        }
+    }
+
+    #[test_case(GooseMode::Auto)]
+    #[test_case(GooseMode::Approve)]
+    #[test_case(GooseMode::SmartApprove)]
+    #[test_case(GooseMode::Chat)]
+    fn initial_mode_candidates_empty_when_mode_negotiation_disabled(mode: GooseMode) {
+        let config = test_acp_config(HashMap::new(), None);
+        assert!(initial_mode_candidates(&config, Some(mode)).is_empty());
+    }
+
+    #[test]
+    fn initial_mode_candidates_prefer_mapping_then_fallback() {
+        let mapping = HashMap::from([(GooseMode::Auto, vec!["bypassPermissions".to_string()])]);
+        let config = test_acp_config(mapping, Some("default".to_string()));
+
+        assert_eq!(
+            initial_mode_candidates(&config, Some(GooseMode::Auto)),
+            vec!["bypassPermissions".to_string()]
+        );
+        assert_eq!(
+            initial_mode_candidates(&config, Some(GooseMode::Chat)),
+            vec!["default".to_string()]
+        );
+    }
+
+    fn mode_state(current: &str, available: &[&str]) -> SessionModeState {
+        SessionModeState::new(
+            SessionModeId::new(current),
+            available
+                .iter()
+                .map(|id| SessionMode::new(SessionModeId::new(*id), *id))
+                .collect(),
+        )
+    }
+
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["read-only", "auto", "full-access"],
+        Some("full-access")
+        ; "zed era ids"
+    )]
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["read-only", "agent", "agent-full-access"],
+        Some("agent-full-access")
+        ; "agentclientprotocol era ids"
+    )]
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["something-else"],
+        None
+        ; "no candidate offered"
+    )]
+    fn select_mode_id_picks_first_offered_candidate(
+        candidates: &[&str],
+        available: &[&str],
+        expected: Option<&str>,
+    ) {
+        let candidates: Vec<String> = candidates.iter().map(|s| s.to_string()).collect();
+        let modes = mode_state(available[0], available);
+        assert_eq!(
+            select_mode_id(&candidates, Some(&modes)),
+            expected.map(|s| s.to_string())
+        );
+    }
+
+    #[test]
+    fn select_mode_id_first_candidate_when_agent_has_no_modes() {
+        let candidates = vec!["full-access".to_string(), "agent-full-access".to_string()];
+        assert_eq!(
+            select_mode_id(&candidates, None),
+            Some("full-access".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn update_mode_without_mapping_skips_acp_request_but_tracks_mode() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        provider
+            .update_mode("session", GooseMode::Chat)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Chat);
+    }
+
+    #[tokio::test]
+    async fn update_mode_with_mapping_sends_set_mode() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["plan".to_string()])]);
+
+        let handle = tokio::spawn(async move {
+            provider
+                .update_mode("session", GooseMode::Chat)
+                .await
+                .unwrap();
+            provider
+        });
+
+        match rx.recv().await.expect("expected a SetMode request") {
+            ClientRequest::SetMode {
+                mode_id,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(mode_id, "plan");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        let provider = handle.await.unwrap();
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Chat);
+    }
+
+    #[tokio::test]
+    async fn update_mode_sends_candidate_offered_by_agent() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(
+            GooseMode::Auto,
+            vec!["full-access".to_string(), "agent-full-access".to_string()],
+        )]);
+        provider.session.response = NewSessionResponse::new("test-session").modes(mode_state(
+            "read-only",
+            &["read-only", "agent", "agent-full-access"],
+        ));
+
+        let handle = tokio::spawn(async move {
+            provider
+                .update_mode("session", GooseMode::Auto)
+                .await
+                .unwrap();
+            provider
+        });
+
+        match rx.recv().await.expect("expected a SetMode request") {
+            ClientRequest::SetMode {
+                mode_id,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(mode_id, "agent-full-access");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        let provider = handle.await.unwrap();
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
+    }
+
+    #[tokio::test]
+    async fn update_mode_errors_when_no_candidate_offered() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["read-only".to_string()])]);
+        provider.session.response = NewSessionResponse::new("test-session")
+            .modes(mode_state("agent", &["agent", "agent-full-access"]));
+
+        let result = provider.update_mode("session", GooseMode::Chat).await;
+
+        assert!(result.is_err());
+        assert!(rx.try_recv().is_err());
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
+    }
+
     #[test]
     fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
@@ -1935,10 +2159,10 @@ mod tests {
 
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "yolo".to_string()),
-            (GooseMode::Approve, "default".to_string()),
-            (GooseMode::SmartApprove, "auto_edit".to_string()),
-            (GooseMode::Chat, "plan".to_string()),
+            (GooseMode::Auto, vec!["yolo".to_string()]),
+            (GooseMode::Approve, vec!["default".to_string()]),
+            (GooseMode::SmartApprove, vec!["auto_edit".to_string()]),
+            (GooseMode::Chat, vec!["plan".to_string()]),
         ]),
         HashMap::from([
             ("yolo".to_string(), vec![GooseMode::Auto]),
@@ -1950,10 +2174,10 @@ mod tests {
     )]
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "bypassPermissions".to_string()),
-            (GooseMode::Approve, "default".to_string()),
-            (GooseMode::SmartApprove, "acceptEdits".to_string()),
-            (GooseMode::Chat, "plan".to_string()),
+            (GooseMode::Auto, vec!["bypassPermissions".to_string()]),
+            (GooseMode::Approve, vec!["default".to_string()]),
+            (GooseMode::SmartApprove, vec!["acceptEdits".to_string()]),
+            (GooseMode::Chat, vec!["plan".to_string()]),
         ]),
         HashMap::from([
             ("bypassPermissions".to_string(), vec![GooseMode::Auto]),
@@ -1965,20 +2189,22 @@ mod tests {
     )]
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "full-access".to_string()),
-            (GooseMode::Approve, "read-only".to_string()),
-            (GooseMode::SmartApprove, "auto".to_string()),
-            (GooseMode::Chat, "read-only".to_string()),
+            (GooseMode::Auto, vec!["full-access".to_string(), "agent-full-access".to_string()]),
+            (GooseMode::Approve, vec!["read-only".to_string()]),
+            (GooseMode::SmartApprove, vec!["auto".to_string(), "agent".to_string()]),
+            (GooseMode::Chat, vec!["read-only".to_string()]),
         ]),
         HashMap::from([
             ("full-access".to_string(), vec![GooseMode::Auto]),
+            ("agent-full-access".to_string(), vec![GooseMode::Auto]),
             ("read-only".to_string(), vec![GooseMode::Approve, GooseMode::Chat]),
             ("auto".to_string(), vec![GooseMode::SmartApprove]),
+            ("agent".to_string(), vec![GooseMode::SmartApprove]),
         ])
-        ; "codex duplicate read-only"
+        ; "codex candidates for both bridge generations"
     )]
     fn test_reverse_mode_mapping(
-        forward: HashMap<GooseMode, String>,
+        forward: HashMap<GooseMode, Vec<String>>,
         expected: HashMap<String, Vec<GooseMode>>,
     ) {
         let result = reverse_mode_mapping(&forward);
@@ -2035,7 +2261,7 @@ mod tests {
         resolve_model_info("test", &response)
     }
 
-    fn codex_reverse_modes() -> HashMap<String, Vec<GooseMode>> {
+    fn duplicate_read_only_reverse_modes() -> HashMap<String, Vec<GooseMode>> {
         HashMap::from([
             ("full-access".to_string(), vec![GooseMode::Auto]),
             (
@@ -2067,7 +2293,7 @@ mod tests {
         ; "unknown mode id returns None"
     )]
     fn test_resolve_mode(mode_id: &str, current: GooseMode, expected: Option<GooseMode>) {
-        let reverse_modes = codex_reverse_modes();
+        let reverse_modes = duplicate_read_only_reverse_modes();
         let current = Arc::new(Mutex::new(current));
         let result = resolve_mode(&reverse_modes, mode_id, &current);
         if mode_id == "read-only" && expected == Some(GooseMode::Approve) {

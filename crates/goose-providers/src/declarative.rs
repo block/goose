@@ -6,7 +6,6 @@ use std::{collections::HashMap, path::Path, str::FromStr};
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Deserializer, Serialize};
-use utoipa::ToSchema;
 
 pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
 
@@ -27,6 +26,7 @@ pub(crate) mod declarative_providers {
         inception,
         llama_swap,
         lmstudio,
+        meta,
         minimax,
         mistral,
         moonshot,
@@ -67,7 +67,7 @@ pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
     declarative_providers::fixed_provider_config_entries()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvVarConfig {
     pub name: String,
     #[serde(default)]
@@ -81,7 +81,7 @@ pub struct EnvVarConfig {
     pub default: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderEngine {
     #[serde(alias = "openai_compatible")]
@@ -105,7 +105,7 @@ impl FromStr for ProviderEngine {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeclarativeProviderConfig {
     pub name: String,
     pub engine: ProviderEngine,

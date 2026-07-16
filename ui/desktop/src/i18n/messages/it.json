@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nessuna app disponibile"
   },
-  "appsView.retry": {
-    "defaultMessage": "Riprova"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
   },
   "appsView.title": {
     "defaultMessage": "App"
@@ -130,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Vai alla home"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connessione persa. Riconnessione…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Estensione aggiornata"
@@ -1194,7 +1197,7 @@
     "defaultMessage": "Chiave segreta"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La chiave segreta configurata sul server goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La chiave segreta configurata sul server Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Inserisci la chiave segreta del server"
@@ -2812,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Da modello o configurazione manuale"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Nessun provider corrisponde a \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cerca provider..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"

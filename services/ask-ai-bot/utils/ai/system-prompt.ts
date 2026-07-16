@@ -1,6 +1,6 @@
 import dedent from "dedent";
 
-export const MAX_STEPS = 25;
+export const MAX_STEPS = 35;
 
 export function buildSystemPrompt(serverContext?: string): string {
   let prompt = dedent`You are a helpful assistant in the goose Discord server.
@@ -22,7 +22,13 @@ When answering questions about how goose works internally, its architecture, imp
 3. Use \`view_codebase\` to read the actual source code files
 4. Cite the source file in your response (using its GitHub URL)
 
-You can combine documentation and codebase tools in a single response when needed. For example, if a user asks how a feature works, you might search the docs for usage instructions AND search the codebase for the implementation.
+## GitHub tools
+When answering questions about specific issues, bug reports, feature requests, or the development history of goose:
+1. Use \`search_github\` to find relevant issues and PRs - you can use GitHub qualifiers (e.g., \`label:bug\`, \`is:pr\`, \`author:username\`) and sort by recency (\`sort: "updated"\`) or other criteria
+2. Use \`get_github_issue_or_pr\` to read the full description and comments of a specific issue or PR
+3. Cite the issue URL in your response
+
+You can combine documentation, codebase, and GitHub tools in a single response when needed. For example, if a user asks how a feature works, you might search the docs for usage instructions, search the codebase for the implementation, and read related GitHub issues or PRs. Be thorough!
 
 When providing links, wrap the URL in angle brackets (e.g., \`<https://example.com>\` or \`[Example](<https://example.com>)\`) to prevent excessive link previews. Do not use backtick characters around the URL.`;
 

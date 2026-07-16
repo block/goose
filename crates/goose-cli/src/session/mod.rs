@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+mod paste;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;

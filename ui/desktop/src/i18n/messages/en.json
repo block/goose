@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "Go home"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connection lost. Reconnecting…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -2812,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "From template or manual setup"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "No providers match \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Search providers..."
   },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logo"

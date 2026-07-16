@@ -4908,7 +4908,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -5034,7 +5034,6 @@ dependencies = [
  "unicode-normalization",
  "url",
  "urlencoding",
- "utoipa 4.2.3",
  "uuid",
  "v_htmlescape",
  "webbrowser",
@@ -5045,7 +5044,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "quote",
  "syn 2.0.118",
@@ -5053,7 +5052,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -5091,6 +5090,7 @@ dependencies = [
  "sha2 0.11.0",
  "shlex 2.0.1",
  "sigstore-verify",
+ "strsim",
  "strum 0.28.0",
  "tar",
  "tempfile",
@@ -5116,7 +5116,6 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
- "utoipa 4.2.3",
 ]
 
 [[package]]
@@ -5151,13 +5150,12 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "utoipa 4.2.3",
  "uuid",
 ]
 
 [[package]]
 name = "goose-mcp"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5211,7 +5209,6 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "unicode-normalization",
- "utoipa 4.2.3",
  "uuid",
 ]
 
@@ -5244,7 +5241,6 @@ dependencies = [
  "tracing",
  "url",
  "urlencoding",
- "utoipa 4.2.3",
  "wiremock",
 ]
 
@@ -5278,7 +5274,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5286,7 +5282,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.42.0"
+version = "1.43.0"
 dependencies = [
  "axum",
  "env-lock",
@@ -7882,7 +7878,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "utoipa 5.5.0",
+ "utoipa",
 ]
 
 [[package]]
@@ -8379,7 +8375,6 @@ dependencies = [
  "proc-macro-error-attr",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
  "version_check",
 ]
 
@@ -10309,9 +10304,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.9.8"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 dependencies = [
  "lock_api",
 ]
@@ -12807,18 +12802,6 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "utoipa"
-version = "4.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5afb1a60e207dca502682537fefcfd9921e71d0b83e9576060f09abc6efab23"
-dependencies = [
- "indexmap 2.14.0",
- "serde",
- "serde_json",
- "utoipa-gen 4.3.1",
-]
-
-[[package]]
-name = "utoipa"
 version = "5.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bde15df68e80b16c7d16b9616e80770ad158988daa56a27dccd1e55558b0160"
@@ -12826,19 +12809,7 @@ dependencies = [
  "indexmap 2.14.0",
  "serde",
  "serde_json",
- "utoipa-gen 5.5.0",
-]
-
-[[package]]
-name = "utoipa-gen"
-version = "4.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20c24e8ab68ff9ee746aad22d39b5535601e6416d1b0feeabf78be986a5c4392"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.118",
+ "utoipa-gen",
 ]
 
 [[package]]

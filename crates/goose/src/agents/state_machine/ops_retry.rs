@@ -5,9 +5,7 @@ use async_trait::async_trait;
 
 use crate::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
 use crate::agents::retry::RetryResult;
-use crate::agents::state_machine::operation::{
-    ends_turn, Emitter, Operation, OperationResult, TurnEffect,
-};
+use crate::agents::state_machine::operation::{ends_turn, Emitter, Operation, OperationResult};
 use crate::agents::types::SessionConfig;
 use crate::agents::{Agent, AgentEvent};
 use crate::conversation::message::{Message, SystemNotificationType};
@@ -152,15 +150,10 @@ impl Operation for RetryOperation<'_> {
                 // state; replacing it re-arms the LLM op on the user prompt.
                 Ok(OperationResult::Applied(vec![working.into()]))
             }
-            Ok(RetryResult::MaxAttemptsReached) => {
+            Ok(RetryResult::MaxAttemptsReached(message)) => {
                 self.finished.store(true, Ordering::Relaxed);
-                // The retry manager appended its give-up message to `working`.
-                let mut effects: Vec<TurnEffect> = Vec::new();
-                for message in &working.messages()[conversation.messages().len()..] {
-                    emit.emit(AgentEvent::Message(message.clone())).await;
-                    effects.push(message.clone().into());
-                }
-                Ok(OperationResult::Applied(effects))
+                emit.emit(AgentEvent::Message(message.clone())).await;
+                Ok(OperationResult::Applied(vec![message.into()]))
             }
             Ok(RetryResult::Skipped | RetryResult::SuccessChecksPassed) => {
                 Ok(OperationResult::NotApplicable(emit))
