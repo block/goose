@@ -34,7 +34,7 @@ import type {
   ThinkingEffort,
 } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
-import { supportsReasoningMode } from '../reasoningMode';
+import { reasoningModeForSelection, supportsReasoningMode } from '../reasoningMode';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -525,10 +525,21 @@ export const SwitchModelModal = ({
     if (initialProvider && initialProvider !== currentProvider) return;
     if (currentModel && currentProvider) {
       if (!provider) setProvider(currentProvider);
-      if (!model) setModel(currentModel);
+      if (!model) {
+        setModel(currentModel);
+        setReasoningMode(sessionReasoningMode ?? 'standard');
+      }
       manualSyncDone.current = true;
     }
-  }, [currentModel, currentProvider, usePredefinedModels, provider, model, initialProvider]);
+  }, [
+    currentModel,
+    currentProvider,
+    usePredefinedModels,
+    provider,
+    model,
+    initialProvider,
+    sessionReasoningMode,
+  ]);
 
   useEffect(() => {
     if (usePredefinedModels) {
@@ -664,6 +675,15 @@ export const SwitchModelModal = ({
     const providerInfo = activeProvidersList.find((p) => p.name === provider);
     if (providerInfo?.saved_model) {
       setModel(providerInfo.saved_model);
+      setReasoningMode(
+        reasoningModeForSelection(
+          provider,
+          providerInfo.saved_model,
+          currentProvider,
+          currentModel,
+          sessionReasoningMode
+        )
+      );
       return;
     }
 
@@ -675,6 +695,15 @@ export const SwitchModelModal = ({
       const preferredModel = findPreferredModel(providerModels);
       if (preferredModel) {
         setModel(preferredModel);
+        setReasoningMode(
+          reasoningModeForSelection(
+            provider,
+            preferredModel,
+            currentProvider,
+            currentModel,
+            sessionReasoningMode
+          )
+        );
       }
     }
   }, [
@@ -685,16 +714,22 @@ export const SwitchModelModal = ({
     isCustomModel,
     userClearedModel,
     activeProvidersList,
+    currentProvider,
+    currentModel,
+    sessionReasoningMode,
   ]);
 
   const handlePredefinedModelChange = (model: Model) => {
     setSelectedPredefinedModel(model);
     setReasoningMode(
       model.request_params?.reasoning_mode ??
-        (model.name === currentModel && model.provider === currentProvider
-          ? sessionReasoningMode
-          : null) ??
-        'standard'
+        reasoningModeForSelection(
+          model.provider,
+          model.name,
+          currentProvider,
+          currentModel,
+          sessionReasoningMode
+        )
     );
     resolveSelectedModelReasoning(model.provider, model.name, model.reasoning);
   };
@@ -712,21 +747,27 @@ export const SwitchModelModal = ({
       setModel('');
       setProvider(selectedOption.provider);
       setSelectedModelReasoning(null);
+      setReasoningMode('standard');
       setUserClearedModel(false);
     } else if (selectedOption === null) {
       // User cleared the selection
       setIsCustomModel(false);
       setModel('');
       setSelectedModelReasoning(null);
+      setReasoningMode('standard');
       setUserClearedModel(true);
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
       setProvider(selectedOption?.provider || '');
       setReasoningMode(
-        selectedOption?.value === currentModel && selectedOption?.provider === currentProvider
-          ? (sessionReasoningMode ?? 'standard')
-          : 'standard'
+        reasoningModeForSelection(
+          selectedOption?.provider,
+          selectedOption?.value,
+          currentProvider,
+          currentModel,
+          sessionReasoningMode
+        )
       );
       if (selectedOption?.provider && selectedOption.value) {
         resolveSelectedModelReasoning(
@@ -916,6 +957,7 @@ export const SwitchModelModal = ({
                       setModel('');
                       setIsCustomModel(false);
                       setUserClearedModel(false);
+                      setReasoningMode('standard');
                     }
                   }}
                   placeholder={intl.formatMessage(i18n.providerPlaceholder)}

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseReasoningMode, supportsReasoningMode } from './reasoningMode';
+import {
+  parseReasoningMode,
+  reasoningModeForSelection,
+  supportsReasoningMode,
+} from './reasoningMode';
 
 describe('GPT-5.6 reasoning mode', () => {
   it.each([
@@ -54,5 +58,17 @@ describe('GPT-5.6 reasoning mode', () => {
     expect(parseReasoningMode('standard')).toBe('standard');
     expect(parseReasoningMode('pro')).toBe('pro');
     expect(parseReasoningMode('turbo')).toBeNull();
+  });
+
+  it('preserves the session mode only for the current provider and model', () => {
+    expect(reasoningModeForSelection('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')).toBe(
+      'pro'
+    );
+    expect(
+      reasoningModeForSelection('databricks', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')
+    ).toBe('standard');
+    expect(
+      reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro')
+    ).toBe('standard');
   });
 });

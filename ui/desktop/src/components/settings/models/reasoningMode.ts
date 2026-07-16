@@ -47,3 +47,15 @@ export function supportsReasoningMode(
 export function parseReasoningMode(value: unknown): ReasoningMode | null {
   return value === 'standard' || value === 'pro' ? value : null;
 }
+
+export function reasoningModeForSelection(
+  providerName: string | null | undefined,
+  modelName: string | null | undefined,
+  currentProvider: string | null | undefined,
+  currentModel: string | null | undefined,
+  sessionReasoningMode: ReasoningMode | null | undefined
+): ReasoningMode {
+  return providerName && modelName && providerName === currentProvider && modelName === currentModel
+    ? (sessionReasoningMode ?? 'standard')
+    : 'standard';
+}
