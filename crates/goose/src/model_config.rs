@@ -98,6 +98,7 @@ pub async fn get_fast_model(
     match fast_model_name {
         Some(name) if name != model_config.model_name => {
             model_config_from_user_config(provider_name, name)
+                .map(|config| config.with_request_headers(model_config.request_headers.clone()))
         }
         _ => Ok(model_config.clone()),
     }

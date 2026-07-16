@@ -262,6 +262,7 @@ impl GithubCopilotProvider {
 
     async fn post(
         &self,
+        model_config: &ModelConfig,
         path: &str,
         is_user_initiated: bool,
         payload: &mut Value,
@@ -280,7 +281,9 @@ impl GithubCopilotProvider {
             .with_headers(headers)?;
 
         api_client
-            .response_post(path, payload)
+            .request(path)
+            .model_headers(model_config)?
+            .response_post(payload)
             .await
             .map_err(|e| e.into())
     }
@@ -414,6 +417,7 @@ impl GithubCopilotProvider {
                 let mut payload_clone = payload.clone();
                 let resp = self
                     .post(
+                        model_config,
                         "responses",
                         is_user_initiated,
                         &mut payload_clone,
@@ -460,6 +464,7 @@ impl GithubCopilotProvider {
                     let mut payload_clone = payload.clone();
                     let resp = self
                         .post(
+                            model_config,
                             "chat/completions",
                             is_user_initiated,
                             &mut payload_clone,
@@ -489,6 +494,7 @@ impl GithubCopilotProvider {
                 .with_retry(|| async {
                     let mut payload_clone = payload.clone();
                     self.post(
+                        model_config,
                         "chat/completions",
                         is_user_initiated,
                         &mut payload_clone,
