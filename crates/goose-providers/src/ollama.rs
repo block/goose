@@ -430,12 +430,14 @@ impl Provider for OllamaProvider {
             true,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
-                thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| match r {
-                    goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
-                        c.thinking_preservation_format
-                    }
-                    _ => None,
-                }),
+                thinking_preservation_format: model_config.reasoning.as_ref().and_then(
+                    |r| match r {
+                        goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
+                            c.thinking_preservation_format
+                        }
+                        _ => None,
+                    },
+                ),
             },
         )?;
         apply_ollama_options(&mut payload, &self.options, model_config);

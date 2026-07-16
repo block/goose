@@ -41,6 +41,7 @@
       "context_limit": 131072,
       "reasoning": {
         "enabled": true,
+        "thinking_preservation_format": "content_prepend",
         "reasoning_property": "reasoning_effort",
         "effort_mapping": {
           "off": "none"
