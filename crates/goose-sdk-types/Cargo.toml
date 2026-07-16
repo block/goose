@@ -1,6 +1,6 @@
 [package]
 name = "goose-sdk-types"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
