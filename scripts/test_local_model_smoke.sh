@@ -26,9 +26,9 @@ OUTPUT_DIR="./local-model-smoke-results"
 MODEL_LIST=""
 RAM_GB=""
 INSTRUCTION="Say hello in one short sentence. Do not use tools."
-REPO_PREFIX=""
+REPO_PREFIX="unsloth/"
 REPO_SUFFIX=""
-QUANT=""
+QUANT="Q4"
 KEEP_DOWNLOADS=false
 
 while [[ $# -gt 0 ]]; do
@@ -126,7 +126,8 @@ else
   if [[ "$SEARCH_LIMIT" -lt 50 ]]; then
     SEARCH_LIMIT=50
   fi
-  SEARCH_ARGS=(lm search --limit "$SEARCH_LIMIT" --json)
+  search_query="${REPO_PREFIX%/}"
+  SEARCH_ARGS=(lm search "$search_query" --limit "$SEARCH_LIMIT" --json)
   if [[ -n "$RAM_GB" ]]; then
     SEARCH_ARGS+=(--ram-gb "$RAM_GB")
   fi

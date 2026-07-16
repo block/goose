@@ -2080,36 +2080,6 @@ fn print_download_progress(manager: &goose::download_manager::DownloadManager) {
 }
 
 #[cfg(feature = "local-inference")]
-#[derive(serde::Serialize)]
-struct LocalModelSearchResult {
-    repo_id: String,
-    author: String,
-    model_name: String,
-    downloads: u64,
-    recommended_variant: Option<LocalModelVariant>,
-    variants: Vec<LocalModelVariant>,
-}
-
-#[cfg(feature = "local-inference")]
-#[derive(Clone, serde::Serialize)]
-struct LocalModelVariant {
-    variant_id: String,
-    label: String,
-    backend_id: String,
-    format: String,
-    model_id: String,
-    download_id: String,
-    size_bytes: u64,
-    filename: Option<String>,
-    download_url: Option<String>,
-    description: String,
-    quality_rank: u8,
-    sharded: bool,
-    supported: bool,
-    unsupported_reason: Option<String>,
-}
-
-#[cfg(feature = "local-inference")]
 fn gb_to_bytes(gb: f64) -> Result<u64> {
     if !gb.is_finite() || gb <= 0.0 {
         anyhow::bail!("--ram-gb must be a positive number");
@@ -2127,17 +2097,20 @@ fn format_size(bytes: u64) -> String {
 }
 
 #[cfg(feature = "local-inference")]
-fn search_result_with_recommendation(
-    model: goose::providers::local_inference::hf_models::HfModelInfo,
+fn recommended_variant(
+    model: &goose::providers::local_inference::hf_models::HfModelInfo,
     available_memory: u64,
-) -> LocalModelSearchResult {
+) -> Option<&goose::providers::local_inference::hf_models::HfModelVariant> {
     use goose::providers::local_inference::hf_models::{recommend_variant, HfQuantVariant};
 
-    let gguf_variants = model
-        .variants
-        .iter()
-        .filter(|variant| variant.backend_id == "llamacpp" && variant.supported)
-        .map(|variant| HfQuantVariant {
+    let mut variant_indexes = Vec::new();
+    let mut gguf_variants = Vec::new();
+    for (index, variant) in model.variants.iter().enumerate() {
+        if variant.backend_id != "llamacpp" || !variant.supported {
+            continue;
+        }
+        variant_indexes.push(index);
+        gguf_variants.push(HfQuantVariant {
             quantization: variant.variant_id.clone(),
             size_bytes: variant.size_bytes,
             filename: variant.filename.clone().unwrap_or_default(),
@@ -2145,111 +2118,11 @@ fn search_result_with_recommendation(
             description: "",
             quality_rank: variant.quality_rank,
             sharded: variant.sharded,
-        })
-        .collect::<Vec<_>>();
-    let recommended_quant = recommend_variant(&gguf_variants, available_memory)
-        .map(|index| gguf_variants[index].quantization.clone());
-
-    let variants = model
-        .variants
-        .into_iter()
-        .map(|variant| LocalModelVariant {
-            variant_id: variant.variant_id,
-            label: variant.label,
-            backend_id: variant.backend_id,
-            format: variant.format,
-            model_id: variant.model_id,
-            download_id: variant.download_id,
-            size_bytes: variant.size_bytes,
-            filename: variant.filename,
-            download_url: variant.download_url,
-            description: variant.description,
-            quality_rank: variant.quality_rank,
-            sharded: variant.sharded,
-            supported: variant.supported,
-            unsupported_reason: variant.unsupported_reason,
-        })
-        .collect::<Vec<_>>();
-    let recommended_variant = recommended_quant
-        .and_then(|quant| variants.iter().find(|variant| variant.variant_id == quant))
-        .cloned();
-
-    LocalModelSearchResult {
-        repo_id: model.repo_id,
-        author: model.author,
-        model_name: model.model_name,
-        downloads: model.downloads,
-        recommended_variant,
-        variants,
-    }
-}
-
-#[cfg(feature = "local-inference")]
-async fn search_local_models_for_cli(
-    query: &str,
-    limit: usize,
-    repo_prefix: Option<&str>,
-    repo_suffix: Option<&str>,
-    quant: Option<&str>,
-    four_bit_only: bool,
-) -> Result<Vec<goose::providers::local_inference::hf_models::HfModelInfo>> {
-    use goose::providers::local_inference::hf_models;
-
-    let fetch_limit = limit.saturating_mul(5).max(limit);
-    if !query.is_empty() {
-        let mut models = hf_models::search_local_models(query, fetch_limit).await?;
-        filter_local_model_results(&mut models, repo_prefix, repo_suffix, quant, four_bit_only);
-        models.truncate(limit);
-        return Ok(models);
-    }
-
-    let search_query = repo_prefix
-        .and_then(|prefix| prefix.strip_suffix('/'))
-        .unwrap_or(query);
-    let mut models = hf_models::search_gguf_models(search_query, fetch_limit).await?;
-    for model in &mut models {
-        let variants = hf_models::get_repo_gguf_variants(&model.repo_id)
-            .await
-            .unwrap_or_default();
-        model.variants = variants
-            .iter()
-            .map(|variant| variant.to_model_variant(&model.repo_id))
-            .collect();
-    }
-    filter_local_model_results(&mut models, repo_prefix, repo_suffix, quant, four_bit_only);
-    models.truncate(limit);
-    Ok(models)
-}
-
-#[cfg(feature = "local-inference")]
-fn filter_local_model_results(
-    models: &mut Vec<goose::providers::local_inference::hf_models::HfModelInfo>,
-    repo_prefix: Option<&str>,
-    repo_suffix: Option<&str>,
-    quant: Option<&str>,
-    four_bit_only: bool,
-) {
-    let quant = quant.map(str::to_lowercase);
-    models.retain_mut(|model| {
-        if repo_prefix.is_some_and(|prefix| !model.repo_id.starts_with(prefix)) {
-            return false;
-        }
-        if repo_suffix.is_some_and(|suffix| !model.repo_id.ends_with(suffix)) {
-            return false;
-        }
-
-        model.variants.retain(|variant| {
-            if let Some(quant) = &quant {
-                return variant.variant_id.to_lowercase().contains(quant);
-            }
-            if four_bit_only {
-                return (40..50).contains(&variant.quality_rank);
-            }
-            true
         });
+    }
 
-        !model.variants.is_empty()
-    });
+    recommend_variant(&gguf_variants, available_memory)
+        .map(|index| &model.variants[variant_indexes[index]])
 }
 
 #[cfg(feature = "local-inference")]
@@ -2270,29 +2143,39 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             json,
         } => {
             let query = query.unwrap_or_default();
-            let default_popular_search = query.is_empty()
-                && repo_prefix.is_none()
-                && repo_suffix.is_none()
-                && quant.is_none();
-            let repo_prefix =
-                repo_prefix.or_else(|| default_popular_search.then(|| "unsloth/".to_string()));
-            let four_bit_only = default_popular_search;
             if !json {
                 if query.is_empty() {
-                    println!("Searching HuggingFace for popular local models...");
+                    println!("Searching HuggingFace for local models...");
                 } else {
                     println!("Searching HuggingFace for '{}'...", query);
                 }
             }
-            let results = search_local_models_for_cli(
-                &query,
-                limit,
-                repo_prefix.as_deref(),
-                repo_suffix.as_deref(),
-                quant.as_deref(),
-                four_bit_only,
-            )
-            .await?;
+            let fetch_limit = limit.saturating_mul(5).max(limit);
+            let mut results = hf_models::search_local_models(&query, fetch_limit).await?;
+            let quant = quant.map(|value| value.to_lowercase());
+            results.retain_mut(|model| {
+                if repo_prefix
+                    .as_deref()
+                    .is_some_and(|prefix| !model.repo_id.starts_with(prefix))
+                {
+                    return false;
+                }
+                if repo_suffix
+                    .as_deref()
+                    .is_some_and(|suffix| !model.repo_id.ends_with(suffix))
+                {
+                    return false;
+                }
+
+                if let Some(quant) = &quant {
+                    model
+                        .variants
+                        .retain(|variant| variant.variant_id.to_lowercase().contains(quant));
+                }
+
+                !model.variants.is_empty()
+            });
+            results.truncate(limit);
 
             if results.is_empty() {
                 if json {
@@ -2311,13 +2194,30 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     runtime.as_ref(),
                 )
             };
-            let results = results
-                .into_iter()
-                .map(|model| search_result_with_recommendation(model, available_memory))
-                .collect::<Vec<_>>();
 
             if json {
-                println!("{}", serde_json::to_string_pretty(&results)?);
+                let output = results
+                    .iter()
+                    .map(|model| {
+                        let recommended_variant =
+                            recommended_variant(model, available_memory).map(|variant| {
+                                serde_json::json!({
+                                    "model_id": variant.model_id,
+                                    "download_id": variant.download_id,
+                                    "label": variant.label,
+                                    "size_bytes": variant.size_bytes,
+                                })
+                            });
+                        serde_json::json!({
+                            "repo_id": model.repo_id,
+                            "author": model.author,
+                            "model_name": model.model_name,
+                            "downloads": model.downloads,
+                            "recommended_variant": recommended_variant,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                println!("{}", serde_json::to_string_pretty(&output)?);
                 return Ok(());
             }
 
@@ -2326,7 +2226,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     "\n{} (by {}) — {} downloads",
                     model.model_name, model.author, model.downloads
                 );
-                if let Some(variant) = &model.recommended_variant {
+                if let Some(variant) = recommended_variant(model, available_memory) {
                     println!(
                         "  Recommended: {} — {}",
                         variant.label,
