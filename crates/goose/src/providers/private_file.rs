@@ -10,7 +10,7 @@ fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
     use winapi::shared::sddl::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
-    use winapi::um::fileapi::{CREATE_NEW, CreateFileW};
+    use winapi::um::fileapi::{CreateFileW, CREATE_NEW};
     use winapi::um::handleapi::INVALID_HANDLE_VALUE;
     use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
     use winapi::um::winbase::LocalFree;
@@ -136,9 +136,9 @@ mod windows_tests {
     };
     use winapi::um::winbase::LocalFree;
     use winapi::um::winnt::{
-        ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE, DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS,
-        OWNER_SECURITY_INFORMATION, PACL, PSECURITY_DESCRIPTOR, PSID, SE_DACL_PROTECTED,
-        SECURITY_MAX_SID_SIZE, WinCreatorOwnerRightsSid,
+        WinCreatorOwnerRightsSid, ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE,
+        DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS, OWNER_SECURITY_INFORMATION, PACL,
+        PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE, SE_DACL_PROTECTED,
     };
 
     fn assert_owner_only_protected_dacl(file: &File) {
