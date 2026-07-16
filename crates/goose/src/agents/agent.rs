@@ -1599,6 +1599,8 @@ impl Agent {
         if !user_message.is_agent_visible()
             || user_message.agent_visible_content().content.is_empty()
         {
+            let user_visibility = user_message.is_user_visible();
+            let user_message = user_message.with_visibility(user_visibility, false);
             session_manager
                 .add_message(&session_config.id, &user_message)
                 .await?;
@@ -4027,7 +4029,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .session_manager
             .get_session(&session_id, true)
             .await?;
-        assert_eq!(session.conversation.unwrap().messages().len(), 1);
+        let conversation = session.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert!(!conversation.messages()[0].is_agent_visible());
 
         let visible_session_config = SessionConfig {
             id: session_id,
