@@ -17,7 +17,9 @@ export function supportsReasoningMode(
     ? lower.slice('openai.'.length)
     : lower?.startsWith('databricks-')
       ? lower.slice('databricks-'.length)
-      : lower;
+      : lower?.startsWith('goose-')
+        ? lower.slice('goose-'.length)
+        : lower;
   return Boolean(
     providerName &&
     REASONING_MODE_PROVIDERS.has(providerName) &&

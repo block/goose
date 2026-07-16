@@ -9,6 +9,7 @@ describe('GPT-5.6 reasoning mode', () => {
     'gpt-5-6-sol-xhigh',
     'openai.gpt-5.6-terra',
     'databricks-gpt-5.6-luna',
+    'goose-gpt-5-6-sol',
   ])('supports %s', (model) => {
     expect(supportsReasoningMode('openai', model)).toBe(true);
   });
@@ -31,6 +32,7 @@ describe('GPT-5.6 reasoning mode', () => {
   it('supports provider-prefixed catalog IDs', () => {
     expect(supportsReasoningMode('aws_bedrock', 'openai.gpt-5.6-sol')).toBe(true);
     expect(supportsReasoningMode('databricks', 'databricks-gpt-5.6-terra')).toBe(true);
+    expect(supportsReasoningMode('databricks_v2', 'goose-gpt-5-6-sol')).toBe(true);
   });
 
   it('does not expose the mode for providers that ignore it', () => {

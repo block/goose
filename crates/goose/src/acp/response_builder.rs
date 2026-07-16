@@ -853,6 +853,10 @@ mod tests {
             "databricks",
             &ModelConfig::new("databricks-gpt-5.6-terra")
         ));
+        assert!(supports_reasoning_mode_for_provider(
+            "databricks_v2",
+            &ModelConfig::new("goose-gpt-5-6-sol")
+        ));
         assert!(!supports_reasoning_mode_for_provider(
             "chatgpt_codex",
             &model_config

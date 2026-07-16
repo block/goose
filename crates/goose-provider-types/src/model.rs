@@ -248,6 +248,7 @@ impl ModelConfig {
         let normalized = normalized
             .strip_prefix("openai.")
             .or_else(|| normalized.strip_prefix("databricks-"))
+            .or_else(|| normalized.strip_prefix("goose-"))
             .unwrap_or(&normalized);
         normalized == "gpt-5.6"
             || normalized.starts_with("gpt-5.6-")
@@ -575,6 +576,7 @@ mod tests {
                 "gpt-5-6-sol-xhigh",
                 "openai.gpt-5.6-terra",
                 "databricks-gpt-5.6-luna",
+                "goose-gpt-5-6-sol",
             ] {
                 assert!(ModelConfig::new(model).supports_reasoning_mode(), "{model}");
             }
