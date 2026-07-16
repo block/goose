@@ -12,6 +12,7 @@ export default interface Model {
   subtext?: string; // goes below model name if not the provider
   context_limit?: number; // optional context limit override
   reasoning?: boolean; // optional reasoning/thinking support metadata
+  supports_reasoning_mode?: boolean | null; // provider-route capability for GPT-5.6 modes
   request_params?: Record<string, unknown> & {
     thinking_effort?: ThinkingEffort;
     reasoning_mode?: ReasoningMode;
@@ -75,6 +76,7 @@ export async function fetchModelsForProviders(
             provider: p.name,
             context_limit: m.contextLimit ?? undefined,
             reasoning: m.reasoning ?? undefined,
+            supports_reasoning_mode: m.supportsReasoningMode ?? null,
           }) as Model
       );
       return { provider: p, models, error: null, warning: null };

@@ -548,6 +548,7 @@ mod tests {
                 output_token_cost: None,
                 currency: None,
                 supports_cache_control: None,
+                supports_reasoning_mode: None,
                 reasoning: false,
             }],
             headers: None,

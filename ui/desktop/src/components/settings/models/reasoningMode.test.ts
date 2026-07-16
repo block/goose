@@ -33,6 +33,8 @@ describe('GPT-5.6 reasoning mode', () => {
     expect(supportsReasoningMode('aws_bedrock', 'openai.gpt-5.6-sol')).toBe(true);
     expect(supportsReasoningMode('databricks', 'databricks-gpt-5.6-terra')).toBe(true);
     expect(supportsReasoningMode('databricks_v2', 'goose-gpt-5-6-sol')).toBe(true);
+    expect(supportsReasoningMode('databricks', 'team-prod', true)).toBe(true);
+    expect(supportsReasoningMode('databricks', 'team-prod', false)).toBe(false);
   });
 
   it('does not expose the mode for providers that ignore it', () => {

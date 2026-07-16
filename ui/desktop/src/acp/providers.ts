@@ -61,6 +61,7 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
         name: model.id,
         context_limit: model.contextLimit ?? 0,
         reasoning: model.reasoning ?? undefined,
+        supports_reasoning_mode: model.supportsReasoningMode ?? null,
       })),
       setup_steps: entry.setupSteps,
     },

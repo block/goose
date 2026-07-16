@@ -216,7 +216,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         .await
                                         {
                                             Ok(()) => match AssertUnwindSafe(
-                                                provider.fetch_recommended_models(
+                                                provider.fetch_recommended_model_info(
                                                     crate::model_config::global_toolshim(),
                                                 ),
                                             )
@@ -240,7 +240,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 match fetch_result {
                                     Ok(models) => match agent_bg
                                         .provider_inventory
-                                        .store_refreshed_models_for_identity(
+                                        .store_refreshed_model_info_for_identity(
                                             &refresh_identity,
                                             &models,
                                         )

@@ -10,8 +10,13 @@ const REASONING_MODE_PROVIDERS = new Set([
 
 export function supportsReasoningMode(
   providerName: string | null | undefined,
-  modelName: string | null | undefined
+  modelName: string | null | undefined,
+  providerCapability?: boolean | null
 ): boolean {
+  if (providerName === 'databricks' && providerCapability != null) {
+    return providerCapability;
+  }
+
   const lower = modelName?.toLowerCase();
   const normalized = lower?.startsWith('openai.')
     ? lower.slice('openai.'.length)

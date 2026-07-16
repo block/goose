@@ -952,6 +952,10 @@ export type ProviderInventoryModelDto = {
      */
     name: string;
     /**
+     * Whether the active provider route supports the GPT-5.6 reasoning mode control.
+     */
+    supportsReasoningMode?: boolean | null;
+    /**
      * Model family for grouping in UI.
      */
     family?: string | null;

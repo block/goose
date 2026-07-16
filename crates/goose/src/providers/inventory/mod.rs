@@ -66,6 +66,8 @@ pub struct InventoryModel {
     pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub supports_reasoning_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_limit: Option<usize>,
@@ -450,6 +452,25 @@ impl ProviderInventoryService {
         model_ids: &[String],
     ) -> Result<()> {
         let models = enrich_model_ids_with_canonical(&identity.provider_family, model_ids);
+        self.store_inventory_models_for_identity(identity, &models)
+            .await
+    }
+
+    pub(crate) async fn store_refreshed_model_info_for_identity(
+        &self,
+        identity: &InventoryIdentity,
+        model_info: &[ModelInfo],
+    ) -> Result<()> {
+        let models = enrich_model_info_with_canonical(&identity.provider_family, model_info);
+        self.store_inventory_models_for_identity(identity, &models)
+            .await
+    }
+
+    async fn store_inventory_models_for_identity(
+        &self,
+        identity: &InventoryIdentity,
+        models: &[InventoryModel],
+    ) -> Result<()> {
         let now = Utc::now();
         let pool = self.storage.pool().await?;
         let mut tx = pool.begin().await?;
@@ -495,17 +516,19 @@ impl ProviderInventoryService {
                     ordinal,
                     model_id,
                     name,
+                    supports_reasoning_mode,
                     family,
                     context_limit,
                     reasoning,
                     recommended
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
             .bind(&identity.inventory_key)
             .bind(i64::try_from(ordinal)?)
             .bind(&model.id)
             .bind(&model.name)
+            .bind(model.supports_reasoning_mode)
             .bind(&model.family)
             .bind(model.context_limit.map(i64::try_from).transpose()?)
             .bind(model.reasoning)
@@ -612,12 +635,12 @@ impl ProviderInventoryService {
                     .find(|job| job.provider_id == provider_id);
                 if let Some(refresh_job) = refresh_job {
                     let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
-                    let fetch_result: Result<Vec<String>> =
+                    let fetch_result: Result<Vec<_>> =
                         match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
                             .await
                         {
                             Ok(()) => {
-                                match AssertUnwindSafe(provider.fetch_recommended_models(
+                                match AssertUnwindSafe(provider.fetch_recommended_model_info(
                                     crate::model_config::global_toolshim(),
                                 ))
                                 .catch_unwind()
@@ -635,7 +658,10 @@ impl ProviderInventoryService {
                     match fetch_result {
                         Ok(models) => {
                             if let Err(error) = self
-                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .store_refreshed_model_info_for_identity(
+                                    &refresh_job.identity,
+                                    &models,
+                                )
                                 .await
                             {
                                 warn!(
@@ -793,7 +819,7 @@ impl ProviderInventoryService {
 
         let rows = sqlx::query(
             r#"
-            SELECT model_id, name, family, context_limit, reasoning, recommended
+            SELECT model_id, name, supports_reasoning_mode, family, context_limit, reasoning, recommended
             FROM provider_inventory_models
             WHERE inventory_key = ?
             ORDER BY ordinal
@@ -809,6 +835,7 @@ impl ProviderInventoryService {
                 Ok(InventoryModel {
                     id: row.try_get("model_id")?,
                     name: row.try_get("name")?,
+                    supports_reasoning_mode: row.try_get("supports_reasoning_mode")?,
                     family: row.try_get("family")?,
                     context_limit: row
                         .try_get::<Option<i64>, _>("context_limit")?
@@ -1019,6 +1046,7 @@ fn enrich_model_ids_with_canonical(
             .map(|id| InventoryModel {
                 id: id.clone(),
                 name: id.clone(),
+                supports_reasoning_mode: None,
                 family: None,
                 context_limit: None,
                 reasoning: None,
@@ -1074,31 +1102,32 @@ fn enrich_model_ids_with_canonical(
     models
 }
 
+fn enrich_model_info_with_canonical(
+    provider_family: &str,
+    model_info: &[ModelInfo],
+) -> Vec<InventoryModel> {
+    let model_ids = model_info
+        .iter()
+        .map(|model| model.name.clone())
+        .collect::<Vec<_>>();
+    let mut models = enrich_model_ids_with_canonical(provider_family, &model_ids);
+
+    for model in &mut models {
+        if let Some(info) = model_info.iter().find(|info| info.name == model.id) {
+            model.supports_reasoning_mode = info.supports_reasoning_mode;
+            model.context_limit = model.context_limit.or(Some(info.context_limit));
+            model.reasoning = model.reasoning.or(Some(info.reasoning));
+        }
+    }
+
+    models
+}
+
 fn configured_models_to_inventory(
     provider_family: &str,
     models: &[ModelInfo],
 ) -> Vec<InventoryModel> {
-    let mut result: Vec<InventoryModel> = Vec::new();
-    let mut seen_names: HashSet<String> = HashSet::new();
-    for model in models {
-        let enriched = enriched_model(provider_family, &model.name, Some(model.context_limit));
-        if seen_names.insert(enriched.name.clone()) {
-            result.push(enriched);
-        }
-    }
-
-    let mut seen_recommended_families: HashSet<String> = HashSet::new();
-    for model in &mut result {
-        if let Some(family) = &model.family {
-            if RECOMMENDED_FAMILIES.contains(&family.as_str())
-                && seen_recommended_families.insert(family.clone())
-            {
-                model.recommended = true;
-            }
-        }
-    }
-
-    result
+    enrich_model_info_with_canonical(provider_family, models)
 }
 
 fn inventory_models_from_snapshot(
@@ -1132,6 +1161,7 @@ fn enriched_model(
             .as_ref()
             .map(|model| model.name.clone())
             .unwrap_or_else(|| model_id.to_string()),
+        supports_reasoning_mode: None,
         family: canonical.as_ref().and_then(|model| model.family.clone()),
         context_limit: canonical
             .as_ref()
@@ -1167,6 +1197,7 @@ pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<()> {
             ordinal INTEGER NOT NULL,
             model_id TEXT NOT NULL,
             name TEXT NOT NULL,
+            supports_reasoning_mode BOOLEAN,
             family TEXT,
             context_limit INTEGER,
             reasoning BOOLEAN,
@@ -1177,6 +1208,18 @@ pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<()> {
     )
     .execute(pool)
     .await?;
+
+    let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
+        .fetch_all(pool)
+        .await?;
+    if !columns
+        .iter()
+        .any(|column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode"))
+    {
+        sqlx::query("ALTER TABLE provider_inventory_models ADD COLUMN supports_reasoning_mode BOOLEAN")
+            .execute(pool)
+            .await?;
+    }
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
@@ -1212,6 +1255,7 @@ pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()>
             ordinal INTEGER NOT NULL,
             model_id TEXT NOT NULL,
             name TEXT NOT NULL,
+            supports_reasoning_mode BOOLEAN,
             family TEXT,
             context_limit INTEGER,
             reasoning BOOLEAN,
@@ -1222,6 +1266,18 @@ pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()>
     )
     .execute(&mut **tx)
     .await?;
+
+    let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
+        .fetch_all(&mut **tx)
+        .await?;
+    if !columns
+        .iter()
+        .any(|column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode"))
+    {
+        sqlx::query("ALTER TABLE provider_inventory_models ADD COLUMN supports_reasoning_mode BOOLEAN")
+            .execute(&mut **tx)
+            .await?;
+    }
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
@@ -1308,6 +1364,66 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn reasoning_mode_capability_survives_inventory_persistence() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let service = ProviderInventoryService::new(Arc::new(SessionStorage::new(
+            temp_dir.path().to_path_buf(),
+        )));
+        let identity = test_identity("databricks", "databricks-key");
+        let mut model_info = ModelInfo::new("team-prod", 128_000);
+        model_info.supports_reasoning_mode = Some(true);
+        model_info.reasoning = true;
+
+        service
+            .store_refreshed_model_info_for_identity(&identity, &[model_info])
+            .await
+            .unwrap();
+
+        let snapshot = service.read_snapshot(&identity).await.unwrap().unwrap();
+        assert_eq!(snapshot.models.len(), 1);
+        assert_eq!(snapshot.models[0].id, "team-prod");
+        assert_eq!(snapshot.models[0].supports_reasoning_mode, Some(true));
+        assert_eq!(snapshot.models[0].reasoning, Some(true));
+    }
+
+    #[tokio::test]
+    async fn create_tables_migrates_existing_inventory_model_table() {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::query(
+            r#"
+            CREATE TABLE provider_inventory_models (
+                inventory_key TEXT NOT NULL,
+                ordinal INTEGER NOT NULL,
+                model_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                family TEXT,
+                context_limit INTEGER,
+                reasoning BOOLEAN,
+                recommended BOOLEAN,
+                PRIMARY KEY (inventory_key, ordinal)
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        create_tables(&pool).await.unwrap();
+
+        let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        assert!(columns.iter().any(
+            |column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode")
+        ));
     }
 
     #[test]

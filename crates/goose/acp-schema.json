@@ -1827,6 +1827,13 @@
           "type": "string",
           "description": "Human-readable display name."
         },
+        "supportsReasoningMode": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Whether the active provider route supports the GPT-5.6 reasoning mode control."
+        },
         "family": {
           "type": [
             "string",

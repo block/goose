@@ -311,6 +311,7 @@ export const SwitchModelModal = ({
     provider: string;
     isDisabled?: boolean;
     reasoning?: boolean;
+    supportsReasoningMode?: boolean | null;
   };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(
@@ -346,8 +347,17 @@ export const SwitchModelModal = ({
   const showThinkingControl = modelReasoning === true;
   const selectedModelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const selectedProviderName = usePredefinedModels ? selectedPredefinedModel?.provider : provider;
+  const selectedModelOption = modelOptions
+    .flatMap((group) => group.options)
+    .find(
+      (option) => option.provider === selectedProviderName && option.value === selectedModelName
+    );
+  const selectedProviderCapability = usePredefinedModels
+    ? selectedPredefinedModel?.supports_reasoning_mode
+    : selectedModelOption?.supportsReasoningMode;
   const showReasoningModeControl = Boolean(
-    sessionId && supportsReasoningMode(selectedProviderName, selectedModelName)
+    sessionId &&
+      supportsReasoningMode(selectedProviderName, selectedModelName, selectedProviderCapability)
   );
   const resolveSelectedModelReasoning = useCallback(
     (providerName: string, modelName: string, fallback?: boolean) => {
@@ -589,12 +599,14 @@ export const SwitchModelModal = ({
             provider: string;
             providerType: ProviderType;
             reasoning?: boolean;
+            supportsReasoningMode?: boolean | null;
           }[] = modelList.map((m) => ({
             value: m.name,
             label: m.name,
             provider: p.name,
             providerType: p.provider_type,
             reasoning: m.reasoning,
+            supportsReasoningMode: m.supports_reasoning_mode,
           }));
 
           if (p.provider_type !== 'Custom') {

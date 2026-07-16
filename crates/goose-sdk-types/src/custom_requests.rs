@@ -1726,6 +1726,9 @@ pub struct ProviderInventoryModelDto {
     pub id: String,
     /// Human-readable display name.
     pub name: String,
+    /// Whether the active provider route supports the GPT-5.6 reasoning mode control.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supports_reasoning_mode: Option<bool>,
     /// Model family for grouping in UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,

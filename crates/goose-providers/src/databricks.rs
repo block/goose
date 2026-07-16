@@ -473,6 +473,8 @@ impl DatabricksProvider {
         let reasoning = info
             .reasoning
             .unwrap_or_else(|| ModelConfig::new(context_model).is_reasoning_model());
+        let supports_reasoning_mode = info.supports_responses_api
+            && ModelConfig::new(context_model).supports_reasoning_mode();
 
         ModelInfo {
             name: info.name,
@@ -482,6 +484,7 @@ impl DatabricksProvider {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning_mode: Some(supports_reasoning_mode),
             reasoning,
         }
     }
@@ -530,11 +533,10 @@ impl Provider for DatabricksProvider {
     }
 
     async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
-        if !model_config.supports_reasoning_mode() {
-            return false;
-        }
+        let (_, effective_model_name, uses_responses_api) =
+            self.resolve_request_route(&model_config.model_name).await;
 
-        self.resolve_request_route(&model_config.model_name).await.2
+        uses_responses_api && ModelConfig::new(effective_model_name).supports_reasoning_mode()
     }
 
     fn retry_config(&self) -> RetryConfig {
@@ -1011,20 +1013,26 @@ mod tests {
             None,
         )
         .unwrap();
-        let model_config = ModelConfig::new("goose-gpt-5-6-sol");
+        let model_config = ModelConfig::new("team-prod");
         let cache_key = format!("{host}:{}", model_config.model_name);
 
         for supports_responses_api in [false, true] {
+            let endpoint_info = DatabricksEndpointInfo {
+                name: model_config.model_name.clone(),
+                upstream_model_name: Some("gpt-5.6-sol".to_string()),
+                upstream_model_provider: Some("openai".to_string()),
+                reasoning: Some(true),
+                supports_responses_api,
+            };
+            assert_eq!(
+                DatabricksProvider::model_info_from_endpoint(endpoint_info.clone())
+                    .supports_reasoning_mode,
+                Some(supports_responses_api)
+            );
             DATABRICKS_ENDPOINT_INFO_CACHE.lock().unwrap().insert(
                 cache_key.clone(),
                 CachedDatabricksEndpointInfo {
-                    info: DatabricksEndpointInfo {
-                        name: model_config.model_name.clone(),
-                        upstream_model_name: Some("gpt-5.6-sol".to_string()),
-                        upstream_model_provider: Some("openai".to_string()),
-                        reasoning: Some(true),
-                        supports_responses_api,
-                    },
+                    info: endpoint_info,
                     fetched_at: Instant::now(),
                 },
             );
