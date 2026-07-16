@@ -3,6 +3,9 @@
 //! This module contains all the handlers for the schedule management platform tool,
 //! including job creation, execution, monitoring, and session management.
 
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::mcp_utils::ToolResult;
@@ -12,6 +15,54 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 use super::Agent;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
+
+const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
+
+fn recipe_file_error(message: &str) -> ErrorData {
+    ErrorData::new(ErrorCode::INTERNAL_ERROR, message.to_string(), None)
+}
+
+fn read_schedule_recipe(path: &Path) -> Result<String, ErrorData> {
+    let metadata =
+        std::fs::metadata(path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    if !metadata.is_file() {
+        return Err(recipe_file_error(
+            "Recipe path must reference a regular file",
+        ));
+    }
+    if metadata.len() > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(recipe_file_error(
+            "Recipe file exceeds the 1048576 byte limit",
+        ));
+    }
+
+    let file = File::open(path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    let opened_metadata = file
+        .metadata()
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    if !opened_metadata.is_file() {
+        return Err(recipe_file_error(
+            "Recipe path must reference a regular file",
+        ));
+    }
+    if opened_metadata.len() > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(recipe_file_error(
+            "Recipe file exceeds the 1048576 byte limit",
+        ));
+    }
+
+    let mut bytes = Vec::new();
+    file.take(MAX_SCHEDULE_RECIPE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    if bytes.len() as u64 > MAX_SCHEDULE_RECIPE_BYTES {
+        return Err(recipe_file_error(
+            "Recipe file exceeds the 1048576 byte limit",
+        ));
+    }
+
+    String::from_utf8(bytes).map_err(|_| recipe_file_error("Recipe file must be valid UTF-8"))
+}
 
 impl Agent {
     /// Handle schedule management tool calls
@@ -109,42 +160,13 @@ impl Agent {
             .and_then(|v| v.as_str())
             .unwrap_or("background");
 
-        if !std::path::Path::new(recipe_path).exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Recipe file not found: {}", recipe_path),
-                None,
-            ));
-        }
-
-        // Validate it's a valid recipe by trying to parse it
-        match std::fs::read_to_string(recipe_path) {
-            Ok(content) => {
-                if recipe_path.ends_with(".json") {
-                    serde_json::from_str::<Recipe>(&content).map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Invalid JSON recipe: {}", e),
-                            None,
-                        )
-                    })?;
-                } else {
-                    serde_yaml::from_str::<Recipe>(&content).map_err(|e| {
-                        ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            format!("Invalid YAML recipe: {}", e),
-                            None,
-                        )
-                    })?;
-                }
-            }
-            Err(e) => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Cannot read recipe file: {}", e),
-                    None,
-                ))
-            }
+        let content = read_schedule_recipe(Path::new(recipe_path))?;
+        if recipe_path.ends_with(".json") {
+            serde_json::from_str::<Recipe>(&content)
+                .map_err(|_| recipe_file_error("Invalid JSON recipe"))?;
+        } else {
+            serde_yaml::from_str::<Recipe>(&content)
+                .map_err(|_| recipe_file_error("Invalid YAML recipe"))?;
         }
 
         // Generate unique job ID
