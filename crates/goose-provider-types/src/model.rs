@@ -34,7 +34,7 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<Reasoning>,
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reasoning_is_explicit: bool,
 }
 
@@ -55,10 +55,14 @@ impl<'de> Deserialize<'de> for ModelConfig {
             request_params: Option<HashMap<String, Value>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             reasoning: Option<Reasoning>,
+            #[serde(default)]
+            reasoning_is_explicit: Option<bool>,
         }
 
         let raw = RawModelConfig::deserialize(deserializer)?;
-        let reasoning_is_explicit = raw.reasoning.is_some();
+        let reasoning_is_explicit = raw
+            .reasoning_is_explicit
+            .unwrap_or_else(|| raw.reasoning.is_some());
         let mut config = Self {
             model_name: raw.model_name,
             context_limit: raw.context_limit,

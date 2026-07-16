@@ -218,7 +218,7 @@ impl ConfigKey {
 
 /// Controls how reasoning/thinking content is preserved and formatted when returned to a provider.
 /// Providers like Cerebras may crash if `reasoning_content` is passed back in the message history.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ThinkingPreservationFormat {
     /// Prepend the reasoning content to the normal content response as plain text.
@@ -230,7 +230,7 @@ pub enum ThinkingPreservationFormat {
 }
 
 /// Configuration block for models that require advanced reasoning parameters
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ReasoningConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -248,7 +248,7 @@ pub struct ReasoningConfig {
 }
 
 /// Reasoning support configuration
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum Reasoning {
     /// Simple enablement flag
