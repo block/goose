@@ -276,6 +276,10 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
+fn project_message_for_user_event(message: &Message) -> Message {
+    message.user_visible_content()
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -1586,15 +1590,16 @@ impl Agent {
         let session = session_manager
             .get_session(&session_config.id, true)
             .await?;
-        let is_first_turn = session
+        let is_first_agent_turn = session
             .conversation
             .as_ref()
-            .map(|conversation| conversation.messages().is_empty())
+            .map(|conversation| {
+                conversation.messages().iter().all(|message| {
+                    !message.is_agent_visible()
+                        || message.agent_visible_content().content.is_empty()
+                })
+            })
             .unwrap_or(true);
-        if is_first_turn {
-            self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
-                .await;
-        }
 
         if !user_message.is_agent_visible()
             || user_message.agent_visible_content().content.is_empty()
@@ -1605,6 +1610,11 @@ impl Agent {
                 .add_message(&session_config.id, &user_message)
                 .await?;
             return Ok(Box::pin(futures::stream::empty()));
+        }
+
+        if is_first_agent_turn {
+            self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
+                .await;
         }
 
         if self
@@ -2499,7 +2509,7 @@ impl Agent {
                                         request_msg.created = final_response.created;
                                     }
                                     messages_to_add.push(request_msg);
-                                    yield AgentEvent::Message(final_response.clone());
+                                    yield AgentEvent::Message(project_message_for_user_event(&final_response));
                                     messages_to_add.push(final_response);
                                 }
 
@@ -3506,6 +3516,28 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn user_event_projection_preserves_hidden_tool_response_wrapper() {
+        use rmcp::model::{Content, Role};
+
+        let hidden_only = Message::user().with_tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::text(
+                "provider-only",
+            )
+            .with_audience(vec![Role::Assistant])])),
+        );
+
+        let projected = project_message_for_user_event(&hidden_only);
+        let result = projected.content[0]
+            .as_tool_response()
+            .expect("hidden tool response wrapper")
+            .tool_result
+            .as_ref()
+            .expect("successful hidden tool result");
+        assert!(result.content.is_empty());
+    }
+
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
     }
@@ -3994,11 +4026,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     async fn skipped_user_message_does_not_enter_empty_response_retry_loop() -> Result<()> {
         use rmcp::model::{AnnotateAble, RawTextContent, Role};
 
-        let temp_dir = tempfile::tempdir()?;
+        let env = SessionStartHookTestEnv::new()?;
         let provider = Arc::new(CountingTextProvider::new());
-        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let hook_manager = env.hook_manager();
         let (agent, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+            create_test_agent(env.data_dir(), hook_manager, provider.clone()).await?;
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
@@ -4024,6 +4056,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         assert!(stream.next().await.is_none());
         assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(env.hook_invocations(), 0);
         let session = agent
             .config
             .session_manager
@@ -4034,7 +4067,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(!conversation.messages()[0].is_agent_visible());
 
         let visible_session_config = SessionConfig {
-            id: session_id,
+            id: session_id.clone(),
             schedule_id: None,
             max_turns: Some(10),
             retry_config: None,
@@ -4050,6 +4083,26 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             event?;
         }
         assert_eq!(provider.call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(env.hook_invocations(), 1);
+
+        let final_session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut final_stream = agent
+            .reply(
+                Message::user().with_text("second-agent-visible"),
+                final_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = final_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+        assert_eq!(env.hook_invocations(), 1);
         Ok(())
     }
 

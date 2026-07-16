@@ -2783,6 +2783,163 @@ mod tests {
         }
     }
 
+    mod audience_tool_result_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
+        use goose::session::{SessionManager, SessionType};
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use goose_test_support::{IgnoreSessionId, McpFixture};
+        use rmcp::model::{CallToolRequestParams, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct AudienceToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        fn tool_response_texts(messages: &[Message], id: &str) -> Option<Vec<String>> {
+            messages.iter().find_map(|message| {
+                message.content.iter().find_map(|content| {
+                    let MessageContent::ToolResponse(response) = content else {
+                        return None;
+                    };
+                    if response.id != id {
+                        return None;
+                    }
+                    let result = response.tool_result.as_ref().ok()?;
+                    Some(
+                        result
+                            .content
+                            .iter()
+                            .filter_map(|content| content.as_text().map(|text| text.text.clone()))
+                            .collect(),
+                    )
+                })
+            })
+        }
+
+        #[async_trait]
+        impl Provider for AudienceToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let message = match call {
+                    0 => Message::assistant().with_tool_request(
+                        "call-1",
+                        Ok(CallToolRequestParams::new(
+                            "mcp-fixture__get_audience_content",
+                        )),
+                    ),
+                    1 => {
+                        assert_eq!(
+                            tool_response_texts(messages, "call-1"),
+                            Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                            "provider history must retain canonical tool content"
+                        );
+                        Message::assistant().with_text("done")
+                    }
+                    _ => panic!("unexpected provider call {call}"),
+                };
+                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "audience-tool-mock"
+            }
+        }
+
+        #[tokio::test]
+        async fn live_tool_result_projects_user_content_but_persists_canonical_result() -> Result<()>
+        {
+            let mcp = McpFixture::new(Arc::new(IgnoreSessionId)).await;
+            let extension =
+                ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let permission_manager =
+                Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                permission_manager,
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
+            let provider = Arc::new(AudienceToolProvider {
+                call_count: AtomicUsize::new(0),
+            });
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "audience-tool-result".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::Auto,
+                )
+                .await?;
+            let session_id = session.id.clone();
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session_id,
+                )
+                .await?;
+            agent.add_extension(extension, &session_id).await?;
+
+            let stream = agent
+                .reply(
+                    Message::user().with_text("use the audience tool"),
+                    SessionConfig {
+                        id: session_id.clone(),
+                        schedule_id: None,
+                        max_turns: Some(3),
+                        retry_config: None,
+                    },
+                    None,
+                )
+                .await?;
+            tokio::pin!(stream);
+            let mut live_messages = Vec::new();
+            while let Some(event) = stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    live_messages.push(message);
+                }
+            }
+
+            assert_eq!(
+                tool_response_texts(&live_messages, "call-1"),
+                Some(vec!["visible".to_string()]),
+                "live events must project out provider-only tool content"
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+
+            let persisted = session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .expect("persisted conversation");
+            assert_eq!(
+                tool_response_texts(persisted.messages(), "call-1"),
+                Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                "persisted provider history must remain canonical"
+            );
+            Ok(())
+        }
+    }
+
     mod empty_turn_tests {
         use super::*;
         use async_trait::async_trait;
