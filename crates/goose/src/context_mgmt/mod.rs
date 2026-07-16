@@ -105,7 +105,10 @@ pub async fn compact_messages(
                 .content
                 .into_iter()
                 .filter(|content| matches!(content, MessageContent::Text(_)))
-                .fold(Message::user(), Message::with_content);
+                .fold(
+                    Message::user().with_metadata(MessageMetadata::agent_only()),
+                    Message::with_content,
+                );
             Some((idx, preserved))
         });
 
@@ -130,16 +133,8 @@ pub async fn compact_messages(
     // 3. Assistant messages to continue the conversation are also agent_visible but not user_visible
     let mut final_messages = Vec::new();
 
-    for (idx, msg) in messages_to_compact.iter().enumerate() {
-        let updated_metadata = if is_most_recent
-            && idx == messages_to_compact.len() - 1
-            && preserved_user_message.is_some()
-        {
-            // This is the most recent message and we're preserving it by adding a fresh copy
-            MessageMetadata::invisible()
-        } else {
-            msg.metadata.clone().with_agent_invisible()
-        };
+    for msg in messages_to_compact {
+        let updated_metadata = msg.metadata.clone().with_agent_invisible();
         let updated_msg = msg.clone().with_metadata(updated_metadata);
         final_messages.push(updated_msg);
     }
