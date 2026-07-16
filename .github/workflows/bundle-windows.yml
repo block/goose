@@ -21,7 +21,10 @@ on:
       windows_variant:
         description: 'Windows artifact variant: standard or cuda'
         required: false
-        type: string
+        type: choice
+        options:
+          - standard
+          - cuda
         default: 'standard'
   workflow_call:
     inputs:
