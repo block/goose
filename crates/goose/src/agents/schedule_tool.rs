@@ -5,7 +5,7 @@
 
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::mcp_utils::ToolResult;
@@ -14,28 +14,19 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 
 use super::Agent;
 use crate::recipe::Recipe;
-use crate::scheduler::MAX_SCHEDULE_RECIPE_BYTES;
+use crate::scheduler::{ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES};
 use crate::scheduler_trait::SchedulerTrait;
 
 fn recipe_file_error(message: &str) -> ErrorData {
     ErrorData::new(ErrorCode::INTERNAL_ERROR, message.to_string(), None)
 }
 
-fn read_schedule_recipe(path: &Path) -> Result<String, ErrorData> {
-    let metadata =
-        std::fs::metadata(path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
-    if !metadata.is_file() {
-        return Err(recipe_file_error(
-            "Recipe path must reference a regular file",
-        ));
-    }
-    if metadata.len() > MAX_SCHEDULE_RECIPE_BYTES {
-        return Err(recipe_file_error(
-            "Recipe file exceeds the 1048576 byte limit",
-        ));
-    }
-
-    let file = File::open(path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+fn read_schedule_recipe(path: &Path) -> Result<(String, PathBuf), ErrorData> {
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
+    let file =
+        File::open(&canonical_path).map_err(|_| recipe_file_error("Cannot read recipe file"))?;
     let opened_metadata = file
         .metadata()
         .map_err(|_| recipe_file_error("Cannot read recipe file"))?;
@@ -60,7 +51,9 @@ fn read_schedule_recipe(path: &Path) -> Result<String, ErrorData> {
         ));
     }
 
-    String::from_utf8(bytes).map_err(|_| recipe_file_error("Recipe file must be valid UTF-8"))
+    let content = String::from_utf8(bytes)
+        .map_err(|_| recipe_file_error("Recipe file must be valid UTF-8"))?;
+    Ok((content, canonical_path))
 }
 
 impl Agent {
@@ -159,7 +152,7 @@ impl Agent {
             .and_then(|v| v.as_str())
             .unwrap_or("background");
 
-        let content = read_schedule_recipe(Path::new(recipe_path))?;
+        let (content, canonical_recipe_path) = read_schedule_recipe(Path::new(recipe_path))?;
         if recipe_path.ends_with(".json") {
             serde_json::from_str::<Recipe>(&content)
                 .map_err(|_| recipe_file_error("Invalid JSON recipe"))?;
@@ -171,9 +164,12 @@ impl Agent {
         // Generate unique job ID
         let job_id = format!("agent_created_{}", Utc::now().timestamp());
 
+        let recipe_base_dir = canonical_recipe_path
+            .parent()
+            .map(|path| path.to_string_lossy().into_owned());
         let job = crate::scheduler::ScheduledJob {
             id: job_id.clone(),
-            source: recipe_path.to_string(),
+            source: canonical_recipe_path.to_string_lossy().into_owned(),
             cron: cron_expression.to_string(),
             last_run: None,
             currently_running: false,
@@ -181,11 +177,14 @@ impl Agent {
             current_session_id: None,
             process_start_time: None,
             parameters: vec![],
-            recipe_base_dir: None,
+            recipe_base_dir,
         };
 
         match scheduler
-            .add_scheduled_job_with_recipe(job, content.into_bytes())
+            .add_scheduled_job_with_recipe(
+                job,
+                ValidatedScheduleRecipe::new(content.into_bytes(), canonical_recipe_path),
+            )
             .await
         {
             Ok(()) => Ok(vec![Content::text(format!(

@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use goose::agents::{Agent, AgentConfig, GoosePlatform};
 use goose::config::permission::PermissionManager;
 use goose::config::GooseMode;
-use goose::scheduler::{ScheduledJob, SchedulerError};
+use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::{Session, SessionManager};
 use tempfile::TempDir;
@@ -39,10 +39,13 @@ impl SchedulerTrait for MockScheduler {
     async fn add_scheduled_job_with_recipe(
         &self,
         job: ScheduledJob,
-        validated_recipe: Vec<u8>,
+        validated_recipe: ValidatedScheduleRecipe,
     ) -> Result<(), SchedulerError> {
         self.jobs.lock().await.push(job);
-        self.validated_recipes.lock().await.push(validated_recipe);
+        self.validated_recipes
+            .lock()
+            .await
+            .push(validated_recipe.bytes().to_vec());
         Ok(())
     }
 
@@ -197,5 +200,12 @@ async fn accepts_valid_regular_recipe() {
     assert_eq!(
         scheduler.validated_recipes.lock().await.as_slice(),
         &[recipe.to_vec()]
+    );
+    let canonical_path = path.canonicalize().unwrap();
+    let jobs = scheduler.jobs.lock().await;
+    assert_eq!(jobs[0].source, canonical_path.to_string_lossy());
+    assert_eq!(
+        jobs[0].recipe_base_dir.as_deref(),
+        canonical_path.parent().and_then(Path::to_str)
     );
 }

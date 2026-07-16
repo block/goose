@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -31,6 +31,21 @@ type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
 pub(crate) const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
+
+pub struct ValidatedScheduleRecipe {
+    bytes: Vec<u8>,
+    source: PathBuf,
+}
+
+impl ValidatedScheduleRecipe {
+    pub(crate) fn new(bytes: Vec<u8>, source: PathBuf) -> Self {
+        Self { bytes, source }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
 
 fn copy_bounded_schedule_recipe(source: &Path, destination: &Path) -> Result<(), SchedulerError> {
     let source = File::open(source).map_err(|error| {
@@ -73,7 +88,24 @@ fn write_schedule_recipe_bytes(destination: &Path, bytes: &[u8]) -> Result<(), S
         )));
     }
 
-    let result = File::create(destination).and_then(|mut file| file.write_all(bytes));
+    let result = (|| {
+        let mut options = OpenOptions::new();
+        options.write(true).create(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut file = options.open(destination)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            file.set_permissions(fs::Permissions::from_mode(0o600))?;
+        }
+        file.set_len(0)?;
+        file.write_all(bytes)
+    })();
     if let Err(error) = result {
         let _ = fs::remove_file(destination);
         return Err(SchedulerError::StorageError(error));
@@ -359,7 +391,7 @@ impl Scheduler {
     pub async fn add_scheduled_job_with_recipe(
         &self,
         original_job_spec: ScheduledJob,
-        validated_recipe: Vec<u8>,
+        validated_recipe: ValidatedScheduleRecipe,
     ) -> Result<(), SchedulerError> {
         self.add_scheduled_job_inner(original_job_spec, true, Some(validated_recipe))
             .await
@@ -369,7 +401,7 @@ impl Scheduler {
         &self,
         original_job_spec: ScheduledJob,
         make_copy: bool,
-        validated_recipe: Option<Vec<u8>>,
+        validated_recipe: Option<ValidatedScheduleRecipe>,
     ) -> Result<(), SchedulerError> {
         {
             let jobs_guard = self.jobs.lock().await;
@@ -380,19 +412,25 @@ impl Scheduler {
 
         let mut stored_job = original_job_spec;
         if make_copy {
-            let original_recipe_path =
-                Path::new(&stored_job.source).canonicalize().map_err(|e| {
-                    SchedulerError::RecipeLoadError(format!(
-                        "Recipe file not found: {}: {}",
-                        stored_job.source, e
-                    ))
-                })?;
-            if !original_recipe_path.is_file() {
-                return Err(SchedulerError::RecipeLoadError(format!(
-                    "Recipe file not found: {}",
-                    stored_job.source
-                )));
-            }
+            let (original_recipe_path, validated_recipe) =
+                if let Some(validated_recipe) = validated_recipe {
+                    (validated_recipe.source, Some(validated_recipe.bytes))
+                } else {
+                    let original_recipe_path =
+                        Path::new(&stored_job.source).canonicalize().map_err(|e| {
+                            SchedulerError::RecipeLoadError(format!(
+                                "Recipe file not found: {}: {}",
+                                stored_job.source, e
+                            ))
+                        })?;
+                    if !original_recipe_path.is_file() {
+                        return Err(SchedulerError::RecipeLoadError(format!(
+                            "Recipe file not found: {}",
+                            stored_job.source
+                        )));
+                    }
+                    (original_recipe_path, None)
+                };
 
             let scheduled_recipes_dir = get_default_scheduled_recipes_dir()?;
             let original_extension = original_recipe_path
@@ -1163,7 +1201,7 @@ impl SchedulerTrait for Scheduler {
     async fn add_scheduled_job_with_recipe(
         &self,
         job: ScheduledJob,
-        validated_recipe: Vec<u8>,
+        validated_recipe: ValidatedScheduleRecipe,
     ) -> Result<(), SchedulerError> {
         self.add_scheduled_job_with_recipe(job, validated_recipe)
             .await
@@ -1267,25 +1305,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validated_recipe_bytes_are_persisted_after_source_replacement() {
+    async fn validated_recipe_bytes_and_base_are_persisted_after_source_replacement() {
         let temp_dir = tempdir().unwrap();
         let _guard =
             env_lock::lock_env([("GOOSE_PATH_ROOT", Some(temp_dir.path().to_str().unwrap()))]);
-        let source = temp_dir.path().join("source.yaml");
+        let trusted_dir = temp_dir.path().join("trusted");
+        let replacement_dir = temp_dir.path().join("replacement");
+        fs::create_dir_all(&trusted_dir).unwrap();
+        fs::create_dir_all(&replacement_dir).unwrap();
+        let trusted_source = trusted_dir.join("source.yaml");
+        let replacement_source = replacement_dir.join("source.yaml");
         let validated =
             b"title: Validated\ndescription: Original recipe\nprompt: Run safely\n".to_vec();
         let replacement =
             b"title: Replacement\ndescription: Swapped recipe\nprompt: Run something else\n";
-        fs::write(&source, &validated).unwrap();
+        fs::write(&trusted_source, &validated).unwrap();
         serde_yaml::from_slice::<Recipe>(&validated).unwrap();
-        fs::write(&source, replacement).unwrap();
+        fs::write(&replacement_source, replacement).unwrap();
 
         let storage_path = temp_dir.path().join("schedule.json");
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
         let job = ScheduledJob {
             id: "validated_recipe_copy".to_string(),
-            source: source.to_string_lossy().into_owned(),
+            source: replacement_source.to_string_lossy().into_owned(),
             cron: "0 0 0 1 1 *".to_string(),
             last_run: None,
             currently_running: false,
@@ -1297,7 +1340,10 @@ mod tests {
         };
 
         scheduler
-            .add_scheduled_job_with_recipe(job, validated.clone())
+            .add_scheduled_job_with_recipe(
+                job,
+                ValidatedScheduleRecipe::new(validated.clone(), trusted_source.clone()),
+            )
             .await
             .unwrap();
 
@@ -1307,7 +1353,11 @@ mod tests {
             .find(|job| job.id == "validated_recipe_copy")
             .unwrap();
         assert_eq!(fs::read(&stored.source).unwrap(), validated);
-        assert_ne!(fs::read(&stored.source).unwrap(), replacement);
+        assert_eq!(stored.recipe_base_dir.as_deref(), trusted_dir.to_str());
+        assert_ne!(
+            stored.recipe_base_dir.as_deref(),
+            replacement_source.parent().and_then(Path::to_str)
+        );
     }
 
     #[test]
@@ -1320,6 +1370,25 @@ mod tests {
 
         assert!(error.to_string().contains("exceeds the 1048576 byte limit"));
         assert!(!destination.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validated_recipe_copy_makes_existing_destination_owner_private() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = tempdir().unwrap();
+        let destination = temp_dir.path().join("destination.yaml");
+        fs::write(&destination, b"old contents").unwrap();
+        fs::set_permissions(&destination, fs::Permissions::from_mode(0o644)).unwrap();
+
+        write_schedule_recipe_bytes(&destination, b"private recipe").unwrap();
+
+        assert_eq!(fs::read(&destination).unwrap(), b"private recipe");
+        assert_eq!(
+            fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     #[tokio::test]
