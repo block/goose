@@ -1,5 +1,7 @@
 use super::api_client::ApiClient;
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
+use super::base::{
+    model_info_for_provider_model, ConfigKey, ModelInfo, Provider, ProviderMetadata,
+};
 use super::retry::ProviderRetry;
 use crate::api_client::{AuthMethod, TlsConfig};
 use crate::conversation::message::Message;
@@ -428,6 +430,11 @@ impl OpenAiProvider {
         Self::should_use_responses_api(model_name, &self.base_path)
     }
 
+    fn supports_reasoning_mode_for_model(&self, model_name: &str) -> bool {
+        ModelConfig::new(model_name).supports_reasoning_mode()
+            && self.should_use_responses_api_for_provider(model_name)
+    }
+
     fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
         let normalized = Self::normalize_base_path(base_path);
         if normalized.ends_with(target) || normalized.contains(&format!("/{target}")) {
@@ -576,8 +583,24 @@ impl Provider for OpenAiProvider {
     }
 
     async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
-        model_config.supports_reasoning_mode()
-            && self.should_use_responses_api_for_provider(&model_config.model_name)
+        self.supports_reasoning_mode_for_model(&model_config.model_name)
+    }
+
+    async fn fetch_recommended_model_info(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
+        Ok(self
+            .fetch_recommended_models(toolshim)
+            .await?
+            .iter()
+            .map(|model_name| {
+                let mut info = model_info_for_provider_model(self.get_name(), model_name);
+                info.supports_reasoning_mode =
+                    Some(self.supports_reasoning_mode_for_model(model_name));
+                info
+            })
+            .collect())
     }
 
     fn skip_canonical_filtering(&self) -> bool {
@@ -1157,6 +1180,20 @@ mod tests {
                 .supports_reasoning_mode(&ModelConfig::new("gpt-5.5"))
                 .await
         );
+    }
+
+    #[tokio::test]
+    async fn model_inventory_reports_route_specific_reasoning_mode_support() {
+        let mut provider = make_provider("openai");
+        provider.custom_models = Some(vec!["gpt-5.6-sol".to_string()]);
+        provider.dynamic_models = Some(false);
+
+        let default_route = provider.fetch_recommended_model_info(false).await.unwrap();
+        assert_eq!(default_route[0].supports_reasoning_mode, Some(true));
+
+        provider.base_path = "openai/v1/chat/completions".to_string();
+        let custom_chat_route = provider.fetch_recommended_model_info(false).await.unwrap();
+        assert_eq!(custom_chat_route[0].supports_reasoning_mode, Some(false));
     }
 
     #[test]

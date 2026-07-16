@@ -1,8 +1,6 @@
 import type { ReasoningMode } from '../../../types/providers';
 
-const REASONING_MODE_PROVIDERS = new Set([
-  'openai',
-  'databricks',
+const MODEL_ROUTED_REASONING_MODE_PROVIDERS = new Set([
   'databricks_v2',
   'aws_bedrock',
   'github_copilot',
@@ -13,8 +11,19 @@ export function supportsReasoningMode(
   modelName: string | null | undefined,
   providerCapability?: boolean | null
 ): boolean {
-  if (providerName === 'databricks' && providerCapability != null) {
+  if (!providerName) {
+    return false;
+  }
+
+  if (providerCapability != null) {
     return providerCapability;
+  }
+
+  // These providers resolve aliases or request routes at runtime. Without an
+  // explicit inventory capability, showing the control can create a silent
+  // no-op when the effective route does not consume reasoning_mode.
+  if (providerName === 'openai' || providerName === 'databricks') {
+    return false;
   }
 
   const lower = modelName?.toLowerCase();
@@ -26,8 +35,7 @@ export function supportsReasoningMode(
         ? lower.slice('goose-'.length)
         : lower;
   return Boolean(
-    providerName &&
-    REASONING_MODE_PROVIDERS.has(providerName) &&
+    MODEL_ROUTED_REASONING_MODE_PROVIDERS.has(providerName) &&
     normalized &&
     (normalized === 'gpt-5.6' ||
       normalized.startsWith('gpt-5.6-') ||
