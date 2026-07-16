@@ -88,7 +88,7 @@ jobs:
 
       - name: Install CUDA toolkit
         if: ${{ inputs.windows_variant == 'cuda' }}
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@3d45d157f327c09c04b50ee6ccdea2d9d017ec76  # v0.2.35
         with:
           cuda: '12.9.1'
           method: 'local'

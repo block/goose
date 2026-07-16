@@ -83,7 +83,7 @@ jobs:
 
       - name: Run command action
         if: steps.security_check.outputs.authorized == 'true' && github.event_name == 'issue_comment'
-        uses: github/command@v2.0.3
+        uses: github/command@3442f3fa1efe01bdb024b157083c337902d17372  # v2.0.3
         id: command
         with:
           command: ".build-cli"
@@ -130,7 +130,7 @@ jobs:
           merge-multiple: true
 
       - name: Comment on PR with CLI download links
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5.0.0
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
