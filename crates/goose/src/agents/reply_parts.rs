@@ -13,7 +13,7 @@ use super::super::agents::Agent;
 use crate::agents::platform_extensions::code_execution;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
-use crate::conversation::Conversation;
+use crate::conversation::{fix_conversation, Conversation};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
@@ -291,14 +291,16 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = model_config.clone();
 
-        let filtered_messages =
+        let projected_messages =
             Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
+        let (filtered_messages, _) =
+            fix_conversation(Conversation::new_unvalidated(projected_messages));
 
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(&filtered_messages)
+            convert_tool_messages_to_text(filtered_messages.messages())
         } else {
-            Conversation::new_unvalidated(filtered_messages)
+            filtered_messages
         };
 
         // Clone owned data to move into the async stream
@@ -761,6 +763,101 @@ mod tests {
         assert_eq!(captured.len(), 1);
         assert_eq!(captured[0].role, Role::User);
         assert_eq!(captured[0].as_concat_text(), "current request");
+    }
+
+    #[tokio::test]
+    async fn provider_input_refixes_roles_after_agent_projection() {
+        let user_only = RawTextContent {
+            text: "hidden separator".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let messages = vec![
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(MessageContent::Text(user_only)),
+            Message::user().with_text("second request"),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].role, Role::User);
+        assert_eq!(
+            captured[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!captured[0].as_concat_text().contains("hidden separator"));
+    }
+
+    #[tokio::test]
+    async fn provider_input_refixes_tool_result_emptied_by_agent_projection() {
+        let user_only_result =
+            rmcp::model::Content::text("hidden result").with_audience(vec![Role::User]);
+        let messages = vec![
+            Message::user().with_text("run the tool"),
+            Message::assistant().with_tool_request(
+                "tool-1",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+            ),
+            Message::user().with_tool_response(
+                "tool-1",
+                Ok(rmcp::model::CallToolResult::success(vec![user_only_result])),
+            ),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        let tool_response = captured
+            .iter()
+            .flat_map(|message| &message.content)
+            .find_map(|content| match content {
+                MessageContent::ToolResponse(response) => Some(response),
+                _ => None,
+            })
+            .expect("projected tool response should remain paired");
+        let result = tool_response
+            .tool_result
+            .as_ref()
+            .expect("tool response should remain successful");
+        assert_eq!(result.content.len(), 1);
+        assert_eq!(
+            result.content[0]
+                .as_text()
+                .expect("placeholder should be text")
+                .text,
+            "(empty result)"
+        );
     }
 
     #[tokio::test]
