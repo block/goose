@@ -45,6 +45,7 @@ pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "us.anthropic.claude-opus-4-1-20250805-v1:0",
     "openai.gpt-5.5",
     "openai.gpt-5.4",
+    "xai.grok-4.3",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
@@ -750,22 +751,35 @@ impl Provider for BedrockProvider {
             Some(session_id.as_str())
         };
 
-        let without_prefix = model_config
-            .model_name
-            .strip_prefix("openai.")
+        // Mantle (the OpenAI-compatible Responses endpoint) serves vendor-prefixed
+        // third-party models — OpenAI GPT-5.x and xAI Grok. anthropic.* still routes
+        // through Converse, so only these vendor prefixes are mantle candidates.
+        const MANTLE_VENDOR_PREFIXES: &[&str] = &["openai.", "xai."];
+        let mantle_prefix = MANTLE_VENDOR_PREFIXES
+            .iter()
+            .copied()
+            .find(|p| model_config.model_name.starts_with(p));
+
+        // Strip the vendor prefix so the reasoning-effort regex can normalize the
+        // bare name (e.g. `grok-4.3-high` -> `grok-4.3`), then reattach it for the
+        // known-model lookup and the outbound payload.
+        let without_prefix = mantle_prefix
+            .and_then(|p| model_config.model_name.strip_prefix(p))
             .unwrap_or(&model_config.model_name);
         let (base_name, effort) = extract_reasoning_effort(without_prefix);
-        let bedrock_model_id = format!("openai.{}", base_name);
+        let bedrock_model_id = format!("{}{}", mantle_prefix.unwrap_or(""), base_name);
 
-        let is_mantle_model = BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
+        let is_mantle_model =
+            mantle_prefix.is_some() && BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
 
         if is_mantle_model {
             let mut normalized_config = ModelConfig {
                 model_name: base_name,
                 ..model_config.clone()
             };
-            // `ModelConfig::new` cannot normalize the effort suffix for `openai.gpt-*` names
-            // because the `openai.` prefix breaks the reasoning-model regex. Inject it here.
+            // `ModelConfig::new` cannot normalize the effort suffix for prefixed mantle
+            // names (`openai.gpt-*`, `xai.grok-*`) because the vendor prefix breaks the
+            // reasoning-model regex. Inject it here.
             if let Some(e) = effort {
                 let params = normalized_config
                     .request_params
@@ -1129,6 +1143,70 @@ mod tests {
         assert_eq!(received.len(), 1);
         let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
         assert_eq!(body["model"].as_str().unwrap(), "openai.gpt-5.5");
+    }
+
+    #[tokio::test]
+    async fn test_mantle_stream_returns_text_message_grok() {
+        use futures::StreamExt;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        let sse_body = [
+            r#"data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#,
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#,
+            "data: [DONE]",
+        ]
+        .join("\n");
+
+        Mock::given(method("POST"))
+            .and(path("/openai/v1/responses"))
+            .and(header("authorization", "Bearer test-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(sse_body, "text/event-stream"))
+            .mount(&server)
+            .await;
+
+        let sdk_config = aws_config::SdkConfig::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new("us-east-1"))
+            .build();
+
+        let model = ModelConfig::new("xai.grok-4.3");
+        let provider = BedrockProvider {
+            client: Client::new(&sdk_config),
+            retry_config: RetryConfig::default(),
+            name: "aws_bedrock".to_string(),
+            region: Some("us-east-1".to_string()),
+            bearer_token: Some("test-token".to_string()),
+            http_client: reqwest::Client::new(),
+            mantle_base_url: Some(format!("{}/openai/v1/responses", server.uri())),
+        };
+
+        let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
+        let mut stream = provider
+            .stream(&model.clone(), "", &messages, &[])
+            .await
+            .unwrap();
+
+        let mut text = String::new();
+        while let Some(item) = stream.next().await {
+            let (msg, _usage) = item.unwrap();
+            if let Some(m) = msg {
+                for c in m.content {
+                    if let MessageContent::Text(t) = c {
+                        text.push_str(&t.text);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(text, "Hello world");
+
+        let received = server.received_requests().await.unwrap();
+        assert_eq!(received.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+        assert_eq!(body["model"].as_str().unwrap(), "xai.grok-4.3");
     }
 
     // ── ConverseStream event processing ──────────────────────────────────

@@ -1504,10 +1504,15 @@ pub fn extract_reasoning_effort(model_name: &str) -> (String, Option<String>) {
 /// routes here. The matcher intentionally scans the full model identifier so
 /// hosted aliases like `databricks-gpt-5.4`, `goose-o3-mini`, or
 /// `headless-goose-o3-mini` work without provider-specific normalization.
+///
+/// xAI Grok is also matched: Bedrock Mantle serves it through the same
+/// OpenAI-compatible Responses API, so it shares this routing and reasoning-
+/// effort forwarding path identically.
 pub fn is_openai_responses_model(model_name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re =
-        RE.get_or_init(|| Regex::new(r"(?i)(?:^|[-/])(?:o\d+(?:$|-)|gpt-5(?:$|[-.]))").unwrap());
+    let re = RE.get_or_init(|| {
+        Regex::new(r"(?i)(?:^|[-/])(?:o\d+(?:$|-)|gpt-5(?:$|[-.])|grok(?:$|[-.]))").unwrap()
+    });
     re.is_match(model_name)
 }
 
@@ -1533,6 +1538,11 @@ pub fn openai_reasoning_effort_for_thinking(
 
 pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
     let normalized = model_name.to_ascii_lowercase();
+
+    // Grok 4.3 on Bedrock Mantle accepts none/low/medium/high (no xhigh).
+    if normalized.contains("grok") {
+        return &["none", "low", "medium", "high"];
+    }
 
     if normalized.contains("gpt-5") {
         if normalized.contains("-pro") || normalized.contains("/pro") {
@@ -4047,6 +4057,9 @@ data: [DONE]"#;
             "databricks-gpt-5.4",
             "goose-gpt-5.4-high",
             "headless-goose-o3-mini",
+            "grok-4.3",
+            "grok-4.3-high",
+            "xai.grok-4.3",
         ] {
             assert!(is_openai_responses_model(model), "{model} should match");
         }
@@ -4081,6 +4094,8 @@ data: [DONE]"#;
             ),
             ("databricks-o3-low", "databricks-o3", Some("low")),
             ("goose-gpt-5-high", "goose-gpt-5", Some("high")),
+            ("grok-4.3-high", "grok-4.3", Some("high")),
+            ("grok-4.3", "grok-4.3", None),
             ("gpt-4o", "gpt-4o", None),
         ] {
             let (name, effort) = extract_reasoning_effort(model);

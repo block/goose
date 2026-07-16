@@ -1504,6 +1504,19 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_request_supports_grok_effort_suffix() {
+        // Grok 4.3 rides the Responses API on Bedrock Mantle; an explicit effort
+        // suffix must surface as reasoning.effort just like the gpt-5 family.
+        let model_config = ModelConfig::new("grok-4.3-high");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "grok-4.3");
+        assert_eq!(result["reasoning"]["effort"], "high");
+        assert_eq!(result["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
     fn test_responses_request_supports_gpt_5_6_reasoning_mode() {
         let model_config = ModelConfig::new("gpt-5.6-sol").with_merged_request_params(
             std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
