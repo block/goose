@@ -54,7 +54,6 @@ jobs:
       package_cli: true
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-    secrets: inherit
 
   # ------------------------------------------------------------
   # 4) Bundle CLI and Desktop (macOS x64)
@@ -68,7 +67,6 @@ jobs:
       package_cli: true
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-    secrets: inherit
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)
@@ -88,7 +86,6 @@ jobs:
       package_cli: true
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-    secrets: inherit
 
   bundle-windows-cuda:
     uses: ./.github/workflows/bundle-windows.yml
@@ -100,7 +97,6 @@ jobs:
       package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
       windows_variant: cuda
-    secrets: inherit
 
   # ------------------------------------
   # 7) Create/Update GitHub Release
