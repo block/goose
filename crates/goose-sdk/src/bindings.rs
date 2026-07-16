@@ -4,7 +4,7 @@
 //! Goose providers and mirrors the provider message/tool/streaming model closely
 //! enough for Kotlin agent frameworks to avoid JSON-only shims for common paths.
 
-use std::{future::Future, sync::Arc, sync::OnceLock, time::Duration};
+use std::{collections::HashMap, future::Future, sync::Arc, sync::OnceLock, time::Duration};
 
 use base64::Engine as _;
 use futures::StreamExt;
@@ -313,6 +313,10 @@ pub struct ProviderModelConfig {
     pub reasoning: Option<bool>,
     #[uniffi(default = None)]
     pub timeout_ms: Option<u64>,
+    /// Per-request HTTP headers attached to the outgoing provider call.
+    /// These override any static headers configured on the provider.
+    #[uniffi(default = None)]
+    pub request_headers: Option<HashMap<String, String>>,
 }
 
 impl ProviderModelConfig {
@@ -331,6 +335,7 @@ impl ProviderModelConfig {
             config = config.with_merged_request_params(request_params.into_iter().collect());
         }
 
+        config = config.with_request_headers(self.request_headers.clone());
         config.reasoning = self.reasoning;
         Ok(config)
     }

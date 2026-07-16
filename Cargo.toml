@@ -69,7 +69,6 @@ tracing-appender = { version = "0.2.1", default-features = false }
 tracing-futures = { version = "0.2.4", default-features = false, features = ["futures-03", "std", "std-future"] }
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std"] }
 urlencoding = { version = "2.1", default-features = false }
-utoipa = { version = "4.2", default-features = false }
 uuid = { version = "1.23", default-features = false, features = ["v4", "std"] }
 webbrowser = { version = "1", default-features = false }
 which = { version = "8", default-features = false, features = ["real-sys"] }

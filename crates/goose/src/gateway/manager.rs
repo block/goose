@@ -4,7 +4,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use utoipa::ToSchema;
 
 use crate::config::Config;
 use crate::execution::manager::AgentManager;
@@ -34,7 +33,7 @@ pub struct GatewayInstance {
     pub handle: tokio::task::JoinHandle<()>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PairedUserInfo {
     pub platform: String,
     pub user_id: String,
@@ -43,7 +42,7 @@ pub struct PairedUserInfo {
     pub paired_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayStatus {
     pub gateway_type: String,
     pub running: bool,

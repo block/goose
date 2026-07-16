@@ -3,7 +3,6 @@ use futures::Stream;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
-use utoipa::ToSchema;
 
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
@@ -19,7 +18,7 @@ use crate::{
 };
 
 /// Metadata about a provider's configuration requirements and capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderMetadata {
     /// The unique identifier for this provider
     pub name: String,
@@ -129,7 +128,7 @@ impl ProviderMetadata {
 }
 
 /// Configuration key metadata for provider setup
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigKey {
     /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
@@ -218,7 +217,7 @@ impl ConfigKey {
 }
 
 /// Information about a model's capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelInfo {
     /// The name of the model
     pub name: String,

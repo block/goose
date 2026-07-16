@@ -18,4 +18,3 @@ reqwest = { workspace = true, features = ["stream"] }
 serde = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-util", "time"] }
 tracing = { workspace = true }
-utoipa = { workspace = true }

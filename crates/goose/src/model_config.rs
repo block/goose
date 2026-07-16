@@ -179,6 +179,7 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
         toolshim_model: get_goose_toolshim_model(config)?,
         request_params: None,
         reasoning: None,
+        request_headers: None,
     };
     model.normalize_effort_suffix();
     Ok(model)

@@ -3,11 +3,10 @@ use rmcp::model::ErrorData;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
-use utoipa::ToSchema;
 
 use super::resource::McpAppResource;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowProps {
     pub width: u32,
@@ -15,7 +14,7 @@ pub struct WindowProps {
     pub resizable: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseApp {
     #[serde(flatten)]

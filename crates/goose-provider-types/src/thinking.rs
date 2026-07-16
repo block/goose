@@ -2,7 +2,6 @@ use std::{fmt, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 pub const GEMINI_THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
 
@@ -273,7 +272,7 @@ fn contains_unquoted_gt(text: &str) -> bool {
     false
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThinkingEffort {
     Off,

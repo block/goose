@@ -283,12 +283,20 @@ The built-in OpenAI provider can connect to OpenAI's official API (`api.openai.c
 Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, as well as custom naming and shareable configurations.
 :::
 
+:::note Pointing at a LiteLLM proxy
+You can reach a [LiteLLM](https://docs.litellm.ai/) proxy in either of two ways—pick one, don't mix them:
+
+- Use the **OpenAI provider**: set `OPENAI_HOST` to your proxy's root (no trailing path) and `OPENAI_BASE_PATH` to the path it serves (usually `v1/chat/completions`). A `404` usually means `OPENAI_BASE_PATH` is wrong for your proxy. A `401` with `No api key passed in` is a different problem—the API key is not being loaded (for example, a key placed in `config.yaml`, which is ignored); see [Provider API keys and `config.yaml`](/docs/guides/config-files#security-considerations).
+- Use the dedicated **LiteLLM provider**, which is configured with its own `LITELLM_HOST`, `LITELLM_BASE_PATH`, and `LITELLM_API_KEY` variables instead of the `OPENAI_*` ones.
+:::
+
 #### Configuration Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | Authentication key for the API |
 | `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com) |
+| `OPENAI_BASE_PATH` | No | Request path appended to the host (defaults to `v1/chat/completions`). Set this when your endpoint serves the chat completions API at a different path—most proxies expect `v1/chat/completions`, but some are mounted at `chat/completions` (no `v1`). |
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
 | `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
