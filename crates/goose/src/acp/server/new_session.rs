@@ -81,8 +81,12 @@ impl GooseAcpAgent {
         }
 
         let reloaded_session = self.reload_session(&session.id).await?;
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider")?;
         let response = self
-            .build_new_session_response(&reloaded_session, &extension_results)
+            .build_new_session_response(&reloaded_session, &extension_results, provider.as_ref())
             .await?;
         self.notify_session_setup(cx, &reloaded_session).await?;
         Ok(response)
@@ -231,9 +235,10 @@ impl GooseAcpAgent {
         &self,
         session: &Session,
         extension_results: &[ExtensionLoadResult],
+        provider: &dyn goose_providers::base::Provider,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let (mode_state, config_options) =
-            super::build_session_setup_config(&self.provider_inventory, session).await?;
+            super::build_session_setup_config(&self.provider_inventory, session, provider).await?;
 
         let mut response =
             NewSessionResponse::new(SessionId::new(session.id.clone())).modes(mode_state);

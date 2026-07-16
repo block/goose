@@ -728,6 +728,18 @@ impl Provider for BedrockProvider {
         &self.name
     }
 
+    async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
+        let without_prefix = model_config
+            .model_name
+            .strip_prefix("openai.")
+            .unwrap_or(&model_config.model_name);
+        let (base_name, _) = extract_reasoning_effort(without_prefix);
+        let bedrock_model_id = format!("openai.{base_name}");
+
+        model_config.supports_reasoning_mode()
+            && BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str())
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }

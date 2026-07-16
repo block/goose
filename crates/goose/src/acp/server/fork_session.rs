@@ -53,7 +53,7 @@ impl GooseAcpAgent {
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
         self.apply_session_recipe(&agent, &goose_session).await?;
-        self.register_acp_session(goose_session.id.clone(), agent, HashMap::new())
+        self.register_acp_session(goose_session.id.clone(), agent.clone(), HashMap::new())
             .await;
 
         let acp_session_id = SessionId::new(new_session_id.clone());
@@ -62,8 +62,13 @@ impl GooseAcpAgent {
             meta.insert("extensionResults".to_string(), v);
         }
 
+        let provider = agent
+            .provider()
+            .await
+            .internal_err_ctx("Failed to get provider")?;
         let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &goose_session).await?;
+            build_session_setup_config(&self.provider_inventory, &goose_session, provider.as_ref())
+                .await?;
 
         let mut response = ForkSessionResponse::new(acp_session_id.clone())
             .modes(mode_state)

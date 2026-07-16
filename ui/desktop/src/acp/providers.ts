@@ -259,6 +259,15 @@ function selectCurrentValue(kind: unknown): unknown {
   return undefined;
 }
 
+function hasConfigOption(configOptions: unknown, configId: string): boolean {
+  return (
+    Array.isArray(configOptions) &&
+    configOptions.some(
+      (option) => option && typeof option === 'object' && 'id' in option && option.id === configId
+    )
+  );
+}
+
 /**
  * Switch the provider (and model) for an active session via ACP config options.
  *
@@ -292,7 +301,7 @@ export async function acpSetSessionProviderModel(
       value: thinkingEffort,
     });
   }
-  if (reasoningMode != null) {
+  if (reasoningMode != null && hasConfigOption(response.configOptions, 'reasoning_mode')) {
     response = await client.setSessionConfigOption({
       sessionId,
       configId: 'reasoning_mode',

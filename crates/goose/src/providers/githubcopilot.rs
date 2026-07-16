@@ -553,6 +553,11 @@ impl Provider for GithubCopilotProvider {
         &self.name
     }
 
+    async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
+        model_config.supports_reasoning_mode()
+            && is_openai_responses_model(&model_config.model_name)
+    }
+
     async fn complete(
         &self,
         model_config: &ModelConfig,

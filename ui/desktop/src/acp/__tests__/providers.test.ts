@@ -137,4 +137,35 @@ describe('ACP providers', () => {
       reasoningMode: 'pro',
     });
   });
+
+  it('does not set reasoning mode when the active request route omits the option', async () => {
+    const routeConfigOptions = [
+      selectConfigOption('provider', 'openai'),
+      selectConfigOption('model', 'gpt-5.6'),
+    ];
+    const client = {
+      setSessionConfigOption: vi
+        .fn()
+        .mockResolvedValueOnce({ configOptions: routeConfigOptions })
+        .mockResolvedValueOnce({ configOptions: routeConfigOptions }),
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    const applied = await acpSetSessionProviderModel(
+      'session-1',
+      'openai',
+      'gpt-5.6',
+      null,
+      'pro'
+    );
+
+    expect(client.setSessionConfigOption).toHaveBeenCalledTimes(2);
+    expect(applied).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-5.6',
+      reasoningMode: null,
+    });
+  });
 });

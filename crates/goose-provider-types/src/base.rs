@@ -381,6 +381,12 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
+    /// Whether this provider instance will route the model through a request
+    /// format that consumes `reasoning_mode`.
+    async fn supports_reasoning_mode(&self, _model_config: &ModelConfig) -> bool {
+        false
+    }
+
     /// Primary streaming method that all providers must implement.
     async fn stream(
         &self,

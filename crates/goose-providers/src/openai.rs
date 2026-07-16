@@ -575,6 +575,11 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
+    async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
+        model_config.supports_reasoning_mode()
+            && self.should_use_responses_api_for_provider(&model_config.model_name)
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
@@ -1133,6 +1138,25 @@ mod tests {
                 "unexpected routing for {model_name} via {base_path}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn reasoning_mode_follows_the_effective_request_route() {
+        let mut provider = make_provider("openai");
+        let model_config = ModelConfig::new("gpt-5.6-sol");
+
+        assert!(provider.supports_reasoning_mode(&model_config).await);
+
+        provider.base_path = "openai/v1/chat/completions".to_string();
+        assert!(!provider.supports_reasoning_mode(&model_config).await);
+
+        provider.base_path = "openai/v1/responses".to_string();
+        assert!(provider.supports_reasoning_mode(&model_config).await);
+        assert!(
+            !provider
+                .supports_reasoning_mode(&ModelConfig::new("gpt-5.5"))
+                .await
+        );
     }
 
     #[test]

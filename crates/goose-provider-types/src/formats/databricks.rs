@@ -717,7 +717,7 @@ pub fn create_request_for_provider(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key == "thinking_effort" {
+                if key == "thinking_effort" || key == "reasoning_mode" {
                     continue;
                 }
                 obj.insert(key.clone(), value.clone());
@@ -1267,6 +1267,21 @@ mod tests {
         assert_eq!(request["max_completion_tokens"], 4096);
         assert!(request.get("max_tokens").is_none());
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_omits_responses_only_reasoning_mode() -> anyhow::Result<()> {
+        let mut model_config = ModelConfig::new("goose-gpt-5-6-sol");
+        model_config.request_params = Some(std::collections::HashMap::from([
+            ("reasoning_mode".to_string(), serde_json::json!("pro")),
+            ("provider_custom".to_string(), serde_json::json!("allowed")),
+        ]));
+
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+
+        assert!(request.get("reasoning_mode").is_none());
+        assert_eq!(request["provider_custom"], "allowed");
         Ok(())
     }
 

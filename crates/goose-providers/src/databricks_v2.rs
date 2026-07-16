@@ -325,6 +325,11 @@ impl Provider for DatabricksV2Provider {
         &self.name
     }
 
+    async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
+        model_config.supports_reasoning_mode()
+            && Self::route_for_model(&model_config.model_name) == DatabricksV2Route::OpenAiResponses
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }

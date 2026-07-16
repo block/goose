@@ -5,7 +5,6 @@ pub(super) use crate::acp::response_builder::{
     build_config_options, build_mode_state, build_model_state, build_provider_options,
     build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
     session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
-    supports_reasoning_mode_for_provider,
 };
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -2966,12 +2965,16 @@ impl GooseAcpAgent {
         let model_state = build_model_state(current_model.as_str(), &inventory);
         let mode_state = build_mode_state(goose_mode)?;
         let provider_options = build_provider_options(Some(&provider_name)).await;
+        let supports_reasoning_mode = provider
+            .supports_reasoning_mode(&current_model_config)
+            .await;
         let config_options = build_config_options(
             &mode_state,
             &model_state,
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
+            supports_reasoning_mode,
         );
         let notification = SessionNotification::new(
             session_id.clone(),
@@ -3041,7 +3044,7 @@ impl GooseAcpAgent {
             .provider()
             .await
             .internal_err_ctx("Failed to resolve provider")?;
-        if !supports_reasoning_mode_for_provider(provider.get_name(), &model_config) {
+        if !provider.supports_reasoning_mode(&model_config).await {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
                 "reasoning_mode is not supported for provider '{}' and model '{}'",
                 provider.get_name(),

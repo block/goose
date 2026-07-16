@@ -1457,7 +1457,10 @@ pub fn create_request_with_options(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key != "thinking_effort" && !is_reserved_request_param_key(key) {
+                if key != "thinking_effort"
+                    && key != "reasoning_mode"
+                    && !is_reserved_request_param_key(key)
+                {
                     obj.insert(key.clone(), value.clone());
                 }
             }
@@ -2411,6 +2414,7 @@ mod tests {
             ("messages".to_string(), json!([])),
             ("max_tokens".to_string(), json!(1)),
             ("temperature".to_string(), json!(2.0)),
+            ("reasoning_mode".to_string(), json!("pro")),
             ("provider_custom".to_string(), json!("allowed")),
         ]);
         let model_config = test_model_config("glm-4.7")
@@ -2439,6 +2443,7 @@ mod tests {
         assert_eq!(request["messages"][0]["role"], "system");
         assert_eq!(request["max_tokens"], 1);
         assert_eq!(request["temperature"], 2.0);
+        assert!(request.get("reasoning_mode").is_none());
         assert_eq!(request["provider_custom"], "allowed");
 
         Ok(())

@@ -193,6 +193,20 @@ impl DatabricksProvider {
         }
     }
 
+    async fn resolve_request_route(&self, model_name: &str) -> (String, String, bool) {
+        let (endpoint_name, _) = extract_reasoning_effort(model_name);
+        let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
+        let effective_model_name = endpoint_info
+            .as_ref()
+            .and_then(|info| info.upstream_model_name.as_deref())
+            .unwrap_or(model_name)
+            .to_string();
+        let uses_responses_api =
+            Self::uses_responses_api(endpoint_info.as_ref(), &[model_name, &effective_model_name]);
+
+        (endpoint_name, effective_model_name, uses_responses_api)
+    }
+
     fn endpoint_model_candidates(value: &Value) -> Vec<DatabricksUpstreamModel> {
         let mut candidates: Vec<DatabricksUpstreamModel> = Vec::new();
 
@@ -515,6 +529,14 @@ impl Provider for DatabricksProvider {
         &self.name
     }
 
+    async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
+        if !model_config.supports_reasoning_mode() {
+            return false;
+        }
+
+        self.resolve_request_route(&model_config.model_name).await.2
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -540,16 +562,8 @@ impl Provider for DatabricksProvider {
             .as_ref()
             .and_then(|provider| provider())
             .unwrap_or_default();
-        let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
-        let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
-        let effective_model_name = endpoint_info
-            .as_ref()
-            .and_then(|info| info.upstream_model_name.as_deref())
-            .unwrap_or(&model_config.model_name);
-        let is_responses_model = Self::uses_responses_api(
-            endpoint_info.as_ref(),
-            &[&model_config.model_name, effective_model_name],
-        );
+        let (endpoint_name, effective_model_name, is_responses_model) =
+            self.resolve_request_route(&model_config.model_name).await;
         let path = if is_responses_model {
             "serving-endpoints/responses".to_string()
         } else {
@@ -574,7 +588,7 @@ impl Provider for DatabricksProvider {
             payload["model"] = Value::String(endpoint_name.clone());
             if payload.get("reasoning").is_none() {
                 if let Some(effort) = model_config.thinking_effort().and_then(|effort| {
-                    openai_reasoning_effort_for_thinking(effective_model_name, effort)
+                    openai_reasoning_effort_for_thinking(&effective_model_name, effort)
                 }) {
                     payload.as_object_mut().unwrap().insert(
                         "reasoning".to_string(),
@@ -606,7 +620,7 @@ impl Provider for DatabricksProvider {
             stream_responses_compat(response, log)
         } else {
             let format_model_config;
-            let request_model_config = if Self::is_claude_model(effective_model_name)
+            let request_model_config = if Self::is_claude_model(&effective_model_name)
                 && !Self::is_claude_model(&model_config.model_name)
             {
                 format_model_config = {
@@ -979,5 +993,51 @@ mod tests {
             None,
             &["databricks-claude-sonnet-4"]
         ));
+    }
+
+    #[tokio::test]
+    async fn reasoning_mode_follows_endpoint_responses_capability() {
+        let host = "http://reasoning-mode-route.test";
+        let provider = DatabricksProvider::new(
+            host.to_string(),
+            DatabricksAuth::token("test-token".to_string()),
+            RetryConfig::default(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let model_config = ModelConfig::new("goose-gpt-5-6-sol");
+        let cache_key = format!("{host}:{}", model_config.model_name);
+
+        for supports_responses_api in [false, true] {
+            DATABRICKS_ENDPOINT_INFO_CACHE.lock().unwrap().insert(
+                cache_key.clone(),
+                CachedDatabricksEndpointInfo {
+                    info: DatabricksEndpointInfo {
+                        name: model_config.model_name.clone(),
+                        upstream_model_name: Some("gpt-5.6-sol".to_string()),
+                        upstream_model_provider: Some("openai".to_string()),
+                        reasoning: Some(true),
+                        supports_responses_api,
+                    },
+                    fetched_at: Instant::now(),
+                },
+            );
+
+            assert_eq!(
+                provider.supports_reasoning_mode(&model_config).await,
+                supports_responses_api
+            );
+        }
+
+        DATABRICKS_ENDPOINT_INFO_CACHE
+            .lock()
+            .unwrap()
+            .remove(&cache_key);
     }
 }

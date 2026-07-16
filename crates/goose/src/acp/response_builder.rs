@@ -10,27 +10,13 @@ use agent_client_protocol::schema::v1::{
     SessionModeId, SessionModeState, SessionNotification, SessionUpdate, UnstructuredCommandInput,
 };
 use agent_client_protocol::{Client, ConnectionTo};
+use goose_providers::base::Provider;
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::{ReasoningMode, ThinkingEffort};
 use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
-
-const REASONING_MODE_PROVIDERS: &[&str] = &[
-    "openai",
-    "databricks",
-    "databricks_v2",
-    "aws_bedrock",
-    "github_copilot",
-];
-
-pub(super) fn supports_reasoning_mode_for_provider(
-    provider_name: &str,
-    model_config: &ModelConfig,
-) -> bool {
-    model_config.supports_reasoning_mode() && REASONING_MODE_PROVIDERS.contains(&provider_name)
-}
 
 pub(super) fn session_provider_selection(session: &Session) -> &str {
     session
@@ -250,6 +236,7 @@ pub(super) fn build_mode_state(
 pub(super) async fn build_session_setup_config(
     provider_inventory: &ProviderInventoryService,
     session: &Session,
+    provider: &dyn Provider,
 ) -> Result<(SessionModeState, Option<Vec<SessionConfigOption>>), agent_client_protocol::Error> {
     let mode_state = build_mode_state(session.goose_mode)?;
 
@@ -268,12 +255,14 @@ pub(super) async fn build_session_setup_config(
     let model_state = build_model_state(model_config.model_name.as_str(), &inventory);
     let provider_selection = session_provider_selection(session);
     let provider_options = build_provider_options(Some(provider_name)).await;
+    let supports_reasoning_mode = provider.supports_reasoning_mode(model_config).await;
     let config_options = build_config_options(
         &mode_state,
         &model_state,
         model_config,
         provider_selection,
         provider_options,
+        supports_reasoning_mode,
     );
     Ok((mode_state, Some(config_options)))
 }
@@ -284,6 +273,7 @@ pub(super) fn build_config_options(
     model_config: &ModelConfig,
     provider_selection: &str,
     provider_options: Vec<SessionConfigSelectOption>,
+    supports_reasoning_mode: bool,
 ) -> Vec<SessionConfigOption> {
     let mode_options: Vec<SessionConfigSelectOption> = mode_state
         .available_modes
@@ -336,7 +326,7 @@ pub(super) fn build_config_options(
         .description("Controls reasoning effort for models that support extended thinking.")
         .category(SessionConfigOptionCategory::ThoughtLevel),
     ];
-    if supports_reasoning_mode_for_provider(provider_selection, model_config) {
+    if supports_reasoning_mode {
         let current_reasoning_mode = model_config
             .reasoning_mode()
             .ok()
@@ -694,6 +684,7 @@ mod tests {
             &model_config,
             provider_name,
             provider_options,
+            false,
         )
     }
 
@@ -714,6 +705,7 @@ mod tests {
             &model_config,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
+            false,
         );
         let option = options
             .iter()
@@ -743,6 +735,7 @@ mod tests {
             &model_config,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
+            false,
         );
         let option = options
             .iter()
@@ -774,6 +767,7 @@ mod tests {
             &model_config,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
+            true,
         );
         let option = options
             .iter()
@@ -806,6 +800,7 @@ mod tests {
             &model_config,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
+            false,
         );
 
         assert!(!options
@@ -828,38 +823,11 @@ mod tests {
                 "chatgpt_codex",
                 "chatgpt_codex",
             )],
+            false,
         );
 
         assert!(!options
             .iter()
             .any(|option| option.id.0.as_ref() == "reasoning_mode"));
-    }
-
-    #[test]
-    fn test_reasoning_mode_provider_capabilities_match_responses_builders() {
-        let model_config = ModelConfig::new("gpt-5.6");
-
-        for provider in REASONING_MODE_PROVIDERS {
-            assert!(supports_reasoning_mode_for_provider(
-                provider,
-                &model_config
-            ));
-        }
-        assert!(supports_reasoning_mode_for_provider(
-            "aws_bedrock",
-            &ModelConfig::new("openai.gpt-5.6-sol")
-        ));
-        assert!(supports_reasoning_mode_for_provider(
-            "databricks",
-            &ModelConfig::new("databricks-gpt-5.6-terra")
-        ));
-        assert!(supports_reasoning_mode_for_provider(
-            "databricks_v2",
-            &ModelConfig::new("goose-gpt-5-6-sol")
-        ));
-        assert!(!supports_reasoning_mode_for_provider(
-            "chatgpt_codex",
-            &model_config
-        ));
     }
 }
