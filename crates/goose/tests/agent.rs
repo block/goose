@@ -2789,6 +2789,7 @@ mod tests {
         use goose::agents::{AgentEvent, SessionConfig};
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
+        use goose::conversation::Conversation;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
@@ -3105,6 +3106,11 @@ mod tests {
                 message.role == rmcp::model::Role::Assistant
                     && message.as_concat_text() == "provider-private-state"
             }));
+            let restored = Conversation::new_unvalidated(persisted.clone()).user_visible_messages();
+            assert!(
+                !concat_text(&restored).contains("provider-private-state"),
+                "restored user history must project out assistant-only content: {restored:?}"
+            );
             Ok(())
         }
 

@@ -246,6 +246,15 @@ pub async fn classify_planner_response(
     }
 }
 
+fn planner_classification_text(response: &Message) -> Result<String> {
+    let text = response.agent_visible_content().as_concat_text();
+    anyhow::ensure!(
+        !text.trim().is_empty(),
+        "Planner returned no agent-visible text to classify"
+    );
+    Ok(text)
+}
+
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -523,6 +532,7 @@ impl CliSession {
 
             let conversation_strings: Vec<String> = self
                 .messages
+                .user_visible_messages()
                 .iter()
                 .map(|msg| {
                     let role = match msg.role {
@@ -1057,17 +1067,25 @@ impl CliSession {
         model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let provider_messages = plan_messages.agent_visible_messages();
         output::show_thinking();
         let (plan_response, _usage) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
-            reasoner.complete(&model_config, &plan_prompt, plan_messages.messages(), &[]),
+            reasoner.complete(&model_config, &plan_prompt, &provider_messages, &[]),
         )
         .await?;
+        let classifier_text = planner_classification_text(&plan_response);
+        let plan_response = plan_response.user_visible_content();
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let classifier_text = classifier_text?;
+        anyhow::ensure!(
+            !plan_response.content.is_empty(),
+            "Planner returned no user-visible content"
+        );
         let planner_response_type = classify_planner_response(
             &self.session_id,
-            plan_response.as_concat_text(),
+            classifier_text,
             self.agent.provider().await?,
             self.agent
                 .model_config_for_session(&self.session_id)
@@ -1406,7 +1424,7 @@ impl CliSession {
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: self.messages.user_visible_messages(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
@@ -1562,18 +1580,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let messages = self.messages.user_visible_messages();
+        if messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in &messages {
             output::render_message(message, self.debug);
         }
 
@@ -2326,6 +2345,36 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn planner_classification_excludes_user_only_content() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let user_only = RawTextContent {
+            text: "user-only plan".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let assistant_only = RawTextContent {
+            text: "agent classification text".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let mixed = Message::assistant()
+            .with_content(MessageContent::Text(user_only.clone()))
+            .with_content(MessageContent::Text(assistant_only));
+
+        assert_eq!(
+            planner_classification_text(&mixed).unwrap(),
+            "agent classification text"
+        );
+        assert!(planner_classification_text(
+            &Message::assistant().with_content(MessageContent::Text(user_only))
+        )
+        .is_err());
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {

@@ -23,7 +23,7 @@ use crate::providers::toolshim::{
 };
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
-use rmcp::model::{Role, Tool};
+use rmcp::model::Tool;
 use tracing::warn;
 
 async fn enhance_model_error(
@@ -364,7 +364,7 @@ impl Agent {
                                         (
                                             Some(MessageContent::Text(last_text)),
                                             MessageContent::Text(new_text),
-                                        ) => {
+                                        ) if last_text.audience() == new_text.audience() => {
                                             last_text.text.push_str(&new_text.text);
                                         }
                                         _ => {
@@ -624,12 +624,7 @@ impl Agent {
 }
 
 fn user_visible_provider_content(content: &MessageContent) -> Option<MessageContent> {
-    match content {
-        MessageContent::Text(_) | MessageContent::Image(_) | MessageContent::ToolResponse(_) => {
-            content.filter_for_audience(Role::User)
-        }
-        _ => Some(content.clone()),
-    }
+    content.user_visible_content()
 }
 
 /// Check whether a tool should be callable by an app based on MCP Apps visibility metadata.
@@ -684,7 +679,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{AnnotateAble, RawTextContent};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role};
     use rmcp::object;
     use std::time::{Duration, Instant};
 

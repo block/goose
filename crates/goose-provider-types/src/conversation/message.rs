@@ -386,6 +386,15 @@ impl MessageContent {
         }
     }
 
+    pub fn user_visible_content(&self) -> Option<MessageContent> {
+        match self {
+            MessageContent::Text(_)
+            | MessageContent::Image(_)
+            | MessageContent::ToolResponse(_) => self.filter_for_audience(Role::User),
+            _ => Some(self.clone()),
+        }
+    }
+
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
         MessageContent::Image(
             RawImageContent {
@@ -840,6 +849,19 @@ impl Message {
         }
     }
 
+    pub fn user_visible_content(&self) -> Message {
+        let filtered_content = self
+            .content
+            .iter()
+            .filter_map(MessageContent::user_visible_content)
+            .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
@@ -1145,8 +1167,8 @@ mod tests {
     };
     use crate::conversation::*;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParams, PromptMessage, PromptMessageContent,
-        PromptMessageRole, RawEmbeddedResource, RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParams, CallToolResult, PromptMessage, PromptMessageContent,
+        PromptMessageRole, RawEmbeddedResource, RawImageContent, RawTextContent, ResourceContents,
     };
     use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1345,6 +1367,67 @@ mod tests {
             provider_message.content[1],
             MessageContent::RedactedThinking(_)
         ));
+    }
+
+    #[test]
+    fn test_user_visible_content_filters_audience_without_dropping_thinking() {
+        let assistant_text = RawTextContent {
+            text: "assistant text".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let assistant_image = RawImageContent {
+            data: "assistant image".to_string(),
+            mime_type: "image/png".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let assistant_tool_content =
+            Content::text("assistant tool result").with_audience(vec![Role::Assistant]);
+        let user_tool_content = Content::text("user tool result").with_audience(vec![Role::User]);
+        let message = Message::assistant()
+            .with_content(MessageContent::Text(assistant_text))
+            .with_text("shared text")
+            .with_content(MessageContent::Image(assistant_image))
+            .with_tool_response(
+                "tool-1",
+                Ok(CallToolResult::success(vec![
+                    assistant_tool_content,
+                    user_tool_content,
+                ])),
+            )
+            .with_thinking("visible reasoning", "sig");
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.as_concat_text(), "shared text");
+        assert!(projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Thinking(_))));
+        assert!(!projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
+        let tool_response = projected
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::ToolResponse(response) => Some(response),
+                _ => None,
+            })
+            .expect("tool response should be preserved");
+        let result = tool_response
+            .tool_result
+            .as_ref()
+            .expect("tool result should be valid");
+        assert_eq!(result.content.len(), 1);
+        assert_eq!(
+            result.content[0].as_text().unwrap().text,
+            "user tool result"
+        );
     }
 
     #[test]
