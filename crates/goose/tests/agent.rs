@@ -2812,6 +2812,65 @@ mod tests {
         struct EmptyThenTextProvider {
             call_count: AtomicUsize,
             empty_count: usize,
+            wrap_empty_text: bool,
+        }
+
+        struct AssistantOnlyProvider;
+
+        impl goose::providers::base::ProviderDescriptor for AssistantOnlyProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "assistant-only-mock".to_string(),
+                    display_name: "Assistant Only Mock".to_string(),
+                    description: "Mock provider for audience-filtered response tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for AssistantOnlyProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for AssistantOnlyProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+                let assistant_only = RawTextContent {
+                    text: "provider-private-state".to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::Assistant]);
+                Ok(stream_from_single_message(
+                    Message::assistant().with_content(MessageContent::Text(assistant_only)),
+                    usage(),
+                ))
+            }
+
+            fn get_name(&self) -> &str {
+                "assistant-only-mock"
+            }
         }
 
         impl EmptyThenTextProvider {
@@ -2819,6 +2878,15 @@ mod tests {
                 Self {
                     call_count: AtomicUsize::new(0),
                     empty_count,
+                    wrap_empty_text: false,
+                }
+            }
+
+            fn with_wrapped_empty_text(empty_count: usize) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    empty_count,
+                    wrap_empty_text: true,
                 }
             }
         }
@@ -2863,7 +2931,12 @@ mod tests {
                 let call = self.call_count.fetch_add(1, Ordering::SeqCst);
                 if call < self.empty_count {
                     // Empty assistant turn: no text, no tool calls.
-                    Ok(stream_from_single_message(Message::assistant(), usage()))
+                    let message = if self.wrap_empty_text {
+                        Message::assistant().with_text("")
+                    } else {
+                        Message::assistant()
+                    };
+                    Ok(stream_from_single_message(message, usage()))
                 } else {
                     Ok(stream_from_single_message(
                         Message::assistant().with_text("All done."),
@@ -2969,6 +3042,19 @@ mod tests {
             Ok(())
         }
 
+        #[tokio::test]
+        async fn test_wrapped_empty_text_retries_then_recovers() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::with_wrapped_empty_text(1));
+            let (messages, persisted) = run_reply(provider, "wrapped-empty-retry").await?;
+
+            assert!(concat_text(&messages).contains("All done."));
+            assert!(!persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && matches!(message.content.as_slice(), [MessageContent::Text(text)] if text.text.is_empty())
+            }));
+            Ok(())
+        }
+
         /// A provider that only ever returns empty responses must not hang
         /// silently — after the retry budget it surfaces a visible message.
         #[tokio::test]
@@ -2992,6 +3078,33 @@ mod tests {
                 !persisted.iter().any(is_empty_assistant),
                 "empty assistant turn must not be persisted alongside the fallback: {persisted:?}"
             );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_assistant_only_response_is_persisted_without_empty_turn_retry() -> Result<()>
+        {
+            let provider = Arc::new(AssistantOnlyProvider);
+            let (messages, persisted) = run_reply(provider, "assistant-only-response").await?;
+
+            assert!(
+                messages.iter().all(|message| !is_empty_assistant(message)),
+                "audience filtering must not emit an empty user-visible message: {messages:?}"
+            );
+            assert!(
+                messages
+                    .iter()
+                    .all(|message| !message.as_concat_text().contains("provider-private-state")),
+                "assistant-only content must not be emitted to the user: {messages:?}"
+            );
+            assert!(
+                !concat_text(&messages).contains("empty response"),
+                "assistant-only content must not trigger the empty-turn fallback: {messages:?}"
+            );
+            assert!(persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.as_concat_text() == "provider-private-state"
+            }));
             Ok(())
         }
 

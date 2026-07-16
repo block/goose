@@ -2045,6 +2045,7 @@ impl Agent {
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
                 let mut provider_errored = false;
+                let mut provider_produced_content = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
 
@@ -2080,6 +2081,24 @@ impl Agent {
                                     continue;
                                 }
 
+                                provider_produced_content |= response.content.iter().any(|content| {
+                                    match content {
+                                        MessageContent::Text(text) => !text.text.is_empty(),
+                                        MessageContent::Image(image) => !image.data.is_empty(),
+                                        MessageContent::Thinking(thinking) => {
+                                            !thinking.thinking.is_empty()
+                                                || !thinking.signature.is_empty()
+                                        }
+                                        MessageContent::RedactedThinking(thinking) => {
+                                            !thinking.data.is_empty()
+                                        }
+                                        MessageContent::SystemNotification(notification) => {
+                                            !notification.msg.is_empty()
+                                        }
+                                        _ => true,
+                                    }
+                                });
+
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -2113,8 +2132,10 @@ impl Agent {
                                     },
                                 );
 
-                                yield AgentEvent::Message(filtered_response.clone());
-                                tokio::task::yield_now().await;
+                                if !filtered_response.content.is_empty() {
+                                    yield AgentEvent::Message(filtered_response.clone());
+                                    tokio::task::yield_now().await;
+                                }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
@@ -2642,6 +2663,7 @@ impl Agent {
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
+                    && !provider_produced_content
                     && last_assistant_text.is_empty();
 
                 if empty_response {
