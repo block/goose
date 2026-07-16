@@ -24,7 +24,8 @@ use std::borrow::Cow;
 use uuid::Uuid;
 
 pub use crate::formats::openai::{
-    create_request, format_messages, format_tools, get_usage, validate_tool_schemas,
+    create_request, create_request_with_options, format_messages, format_tools, get_usage,
+    validate_tool_schemas, OpenAiFormatOptions,
 };
 
 /// Parse XML-style tool calls from content (Ollama/Qwen3-coder fallback format).

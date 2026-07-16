@@ -7,7 +7,9 @@ use crate::base::ProviderDescriptor;
 use crate::conversation::message::Message;
 use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
-use crate::formats::ollama::{create_request, response_to_streaming_message_ollama};
+use crate::formats::ollama::{
+    create_request_with_options, response_to_streaming_message_ollama, OpenAiFormatOptions,
+};
 use crate::images::ImageFormat;
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
@@ -419,13 +421,22 @@ impl Provider for OllamaProvider {
         }
         let model_config = &patched_model_config;
 
-        let mut payload = create_request(
+        let mut payload = create_request_with_options(
             model_config,
             system,
             messages,
             tools,
             &ImageFormat::OpenAi,
             true,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| match r {
+                    goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
+                        c.thinking_preservation_format
+                    }
+                    _ => None,
+                }),
+            },
         )?;
         apply_ollama_options(&mut payload, &self.options, model_config);
         let mut log = start_log(model_config, &payload)?;
