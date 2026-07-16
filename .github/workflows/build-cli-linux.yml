@@ -1,5 +1,5 @@
-# This reusable workflow builds and packages the CLI for Linux.
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       version:
@@ -11,7 +11,7 @@ on:
         required: false
         default: ""
 
-name: "Reusable workflow to build CLI for Linux"
+name: "Build CLI for Linux"
 
 permissions:
   contents: read

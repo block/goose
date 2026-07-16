@@ -1,6 +1,29 @@
-# This reusable workflow builds macOS CLI and desktop artifacts.
-# It doesn't get triggered on its own.
 on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'macOS Rust target'
+        required: true
+        type: choice
+        default: aarch64-apple-darwin
+        options:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+      signing:
+        description: 'Whether to perform signing and notarization'
+        required: false
+        default: false
+        type: boolean
+      package_cli:
+        description: 'Whether to package and upload the CLI artifact'
+        required: false
+        default: false
+        type: boolean
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       version:
