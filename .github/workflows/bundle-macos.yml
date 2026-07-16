@@ -22,6 +22,11 @@ on:
         required: false
         default: false
         type: boolean
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
+        required: false
+        default: false
+        type: boolean
       ref:
         description: 'Git ref to checkout (branch, tag, or SHA). Defaults to main branch if not specified.'
         required: false
@@ -33,7 +38,7 @@ name: "Bundle CLI and Desktop (macOS)"
 jobs:
   build-goose:
     name: Build Goose (macOS)
-    runs-on: macos-latest
+    runs-on: ${{ inputs.target == 'x86_64-apple-darwin' && 'macos-15-intel' || 'macos-latest' }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
@@ -50,6 +55,7 @@ jobs:
           INPUT_TARGET: ${{ inputs.target }}
           INPUT_SIGNING: ${{ inputs.signing }}
           INPUT_PACKAGE_CLI: ${{ inputs.package_cli }}
+          INPUT_PACKAGE_DESKTOP: ${{ inputs.package_desktop }}
         run: |
           echo "=== Workflow Information ==="
           echo "Workflow: ${WORKFLOW_NAME}"
@@ -63,6 +69,7 @@ jobs:
           echo "Target: ${INPUT_TARGET}"
           echo "Signing: ${INPUT_SIGNING:-false}"
           echo "Package CLI: ${INPUT_PACKAGE_CLI:-false}"
+          echo "Package Desktop: ${INPUT_PACKAGE_DESKTOP:-false}"
 
       - name: Check initial disk space
         run: df -h
@@ -156,8 +163,9 @@ jobs:
 
   package-desktop:
     name: Package Desktop (macOS)
+    if: ${{ inputs.package_desktop }}
     needs: build-goose
-    runs-on: macos-latest
+    runs-on: ${{ inputs.target == 'x86_64-apple-darwin' && 'macos-15-intel' || 'macos-latest' }}
     environment: ${{ inputs.signing && 'signing' || null }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"

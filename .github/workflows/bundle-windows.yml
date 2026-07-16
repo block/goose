@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
+        required: false
+        type: boolean
+        default: false
       windows_variant:
         description: 'Windows artifact variant: standard or cuda'
         required: false
@@ -31,6 +36,11 @@ on:
         default: false
       package_cli:
         description: 'Whether to package and upload the CLI artifact'
+        required: false
+        type: boolean
+        default: false
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
         required: false
         type: boolean
         default: false
@@ -165,6 +175,7 @@ jobs:
 
   build-desktop-windows:
     name: Build Desktop (Windows)
+    if: ${{ inputs.package_desktop }}
     needs: build-goose-windows
     runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
     steps:
@@ -270,7 +281,7 @@ jobs:
   sign-desktop-windows:
     name: Sign Desktop (Windows)
     needs: build-desktop-windows
-    if: inputs.signing
+    if: ${{ inputs.package_desktop && inputs.signing }}
     runs-on: windows-latest
     environment: ${{ inputs.signing && 'signing' || null }}
     steps:
@@ -328,7 +339,7 @@ jobs:
   package-desktop-windows:
     name: Package Desktop (Windows)
     needs: build-desktop-windows
-    if: ${{ !inputs.signing }}
+    if: ${{ inputs.package_desktop && !inputs.signing }}
     runs-on: windows-latest
     steps:
       - name: Download unsigned distribution

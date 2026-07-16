@@ -15,6 +15,8 @@ on:
 
 # permissions needed for reacting to IssueOps commands on PRs
 permissions:
+  actions: read
+  contents: read
   pull-requests: write
   checks: read
 

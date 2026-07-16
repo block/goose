@@ -57,6 +57,7 @@ jobs:
     with:
       target: aarch64-apple-darwin
       package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
@@ -71,6 +72,7 @@ jobs:
     with:
       target: x86_64-apple-darwin
       package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
@@ -91,6 +93,7 @@ jobs:
       actions: read
     with:
       package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
@@ -102,6 +105,7 @@ jobs:
       actions: read
     with:
       package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
       windows_variant: cuda
     secrets: inherit

@@ -78,6 +78,7 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
       target: aarch64-apple-darwin
       package_cli: true
+      package_desktop: true
       signing: false
 
   # ------------------------------------------------------------
@@ -93,6 +94,7 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
       target: x86_64-apple-darwin
       package_cli: true
+      package_desktop: true
       signing: false
 
   # ------------------------------------------------------------
@@ -113,6 +115,7 @@ jobs:
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       package_cli: true
+      package_desktop: true
       signing: false
 
   bundle-windows-cuda:
@@ -121,6 +124,7 @@ jobs:
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       package_cli: true
+      package_desktop: true
       signing: false
       windows_variant: cuda
 

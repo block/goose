@@ -7,6 +7,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
   id-token: write  # Required for npm trusted publishing (OIDC)
@@ -39,6 +40,7 @@ jobs:
       - name: Download freshly-built goose CLI binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          pattern: goose-*
           path: /tmp/cli-artifacts
 
       - name: Place binaries into goose-binary packages
