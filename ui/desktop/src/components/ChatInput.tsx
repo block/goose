@@ -38,6 +38,7 @@ import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
+import type { ReasoningMode } from '../types/providers';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -184,6 +185,7 @@ interface ChatInputProps {
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
+  sessionReasoningMode?: ReasoningMode | null;
   sessionLoaded?: boolean;
   workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
@@ -219,6 +221,7 @@ export default function ChatInput({
   inputRef,
   sessionModel,
   sessionProvider,
+  sessionReasoningMode,
   sessionLoaded,
   workingDir,
   latestInference,
@@ -1661,6 +1664,7 @@ export default function ChatInput({
               setView={setView}
               sessionModel={effectiveModel}
               sessionProvider={effectiveProvider}
+              sessionReasoningMode={sessionReasoningMode}
               latestInference={latestInference}
               onModelChanged={setModelOverride}
               sessionLoaded={sessionLoaded}

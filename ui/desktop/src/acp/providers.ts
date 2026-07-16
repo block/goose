@@ -6,7 +6,12 @@ import type {
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
+import type {
+  ProviderDetails,
+  ReasoningMode,
+  ThinkingEffort,
+  UpdateCustomProviderRequest,
+} from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
@@ -201,6 +206,7 @@ export async function acpSaveThinkingEffort(effort: ThinkingEffort): Promise<voi
 export type AppliedSessionProviderModel = {
   providerId?: string;
   modelId?: string;
+  reasoningMode?: ReasoningMode | null;
 };
 
 function extractAppliedSessionProviderModel(configOptions: unknown): AppliedSessionProviderModel {
@@ -216,7 +222,7 @@ function extractAppliedSessionProviderModel(configOptions: unknown): AppliedSess
     }
 
     const id = 'id' in option ? option.id : undefined;
-    if (id !== 'provider' && id !== 'model') {
+    if (id !== 'provider' && id !== 'model' && id !== 'reasoning_mode') {
       continue;
     }
 
@@ -227,9 +233,15 @@ function extractAppliedSessionProviderModel(configOptions: unknown): AppliedSess
 
     if (id === 'provider') {
       applied.providerId = currentValue;
-    } else {
+    } else if (id === 'model') {
       applied.modelId = currentValue;
+    } else if (currentValue === 'standard' || currentValue === 'pro') {
+      applied.reasoningMode = currentValue;
     }
+  }
+
+  if (applied.modelId && applied.reasoningMode === undefined) {
+    applied.reasoningMode = null;
   }
 
   return applied;
@@ -257,7 +269,8 @@ export async function acpSetSessionProviderModel(
   sessionId: string,
   providerId: string,
   modelId?: string | null,
-  thinkingEffort?: ThinkingEffort | null
+  thinkingEffort?: ThinkingEffort | null,
+  reasoningMode?: ReasoningMode | null
 ): Promise<AppliedSessionProviderModel> {
   const client = await getAcpClient();
   let response = await client.setSessionConfigOption({
@@ -277,6 +290,13 @@ export async function acpSetSessionProviderModel(
       sessionId,
       configId: 'thinking_effort',
       value: thinkingEffort,
+    });
+  }
+  if (reasoningMode != null) {
+    response = await client.setSessionConfigOption({
+      sessionId,
+      configId: 'reasoning_mode',
+      value: reasoningMode,
     });
   }
 

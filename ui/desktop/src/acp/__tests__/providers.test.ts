@@ -75,6 +75,66 @@ describe('ACP providers', () => {
     expect(applied).toEqual({
       providerId: 'anthropic',
       modelId: 'claude-sonnet-4-5',
+      reasoningMode: null,
+    });
+  });
+
+  it('sets GPT-5.6 reasoning mode after provider, model, and thinking effort', async () => {
+    const client = {
+      setSessionConfigOption: vi
+        .fn()
+        .mockResolvedValueOnce({
+          configOptions: [
+            selectConfigOption('provider', 'openai'),
+            selectConfigOption('model', 'provider-default-model'),
+          ],
+        })
+        .mockResolvedValueOnce({
+          configOptions: [
+            selectConfigOption('provider', 'openai'),
+            selectConfigOption('model', 'gpt-5.6'),
+            selectConfigOption('reasoning_mode', 'standard'),
+          ],
+        })
+        .mockResolvedValueOnce({
+          configOptions: [
+            selectConfigOption('provider', 'openai'),
+            selectConfigOption('model', 'gpt-5.6'),
+            selectConfigOption('thinking_effort', 'high'),
+            selectConfigOption('reasoning_mode', 'standard'),
+          ],
+        })
+        .mockResolvedValueOnce({
+          configOptions: [
+            selectConfigOption('provider', 'openai'),
+            selectConfigOption('model', 'gpt-5.6'),
+            selectConfigOption('thinking_effort', 'high'),
+            selectConfigOption('reasoning_mode', 'pro'),
+          ],
+        }),
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    const applied = await acpSetSessionProviderModel(
+      'session-1',
+      'openai',
+      'gpt-5.6',
+      'high',
+      'pro'
+    );
+
+    expect(client.setSessionConfigOption).toHaveBeenCalledTimes(4);
+    expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(4, {
+      sessionId: 'session-1',
+      configId: 'reasoning_mode',
+      value: 'pro',
+    });
+    expect(applied).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-5.6',
+      reasoningMode: 'pro',
     });
   });
 });

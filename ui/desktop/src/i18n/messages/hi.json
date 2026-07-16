@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "त्वरित आरंभ मार्गदर्शिका"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "तर्क मोड" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "प्रो" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "मानक" },
   "switchModelModal.recommended": {
     "defaultMessage": "अनुशंसित"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "कृपया एक प्रदाता चुनें"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "तर्क मोड चुनें"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "सोच स्तर का चयन करें"

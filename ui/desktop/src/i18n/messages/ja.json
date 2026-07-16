@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "クイックスタートガイド"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "推論モード" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "プロ" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "標準" },
   "switchModelModal.recommended": {
     "defaultMessage": "推奨"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "プロバイダーを選択してください"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "推論モードを選択"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "思考レベルを選択"

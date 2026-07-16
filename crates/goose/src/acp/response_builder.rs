@@ -11,7 +11,7 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
-use goose_providers::thinking::ThinkingEffort;
+use goose_providers::thinking::{ReasoningMode, ThinkingEffort};
 use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
@@ -291,7 +291,7 @@ pub(super) fn build_config_options(
         })
         .collect::<Vec<_>>();
     let current_thinking_effort = current_thinking_effort_value(model_config);
-    vec![
+    let mut config_options = vec![
         SessionConfigOption::select(
             "provider",
             "Provider",
@@ -320,7 +320,31 @@ pub(super) fn build_config_options(
         )
         .description("Controls reasoning effort for models that support extended thinking.")
         .category(SessionConfigOptionCategory::ThoughtLevel),
-    ]
+    ];
+    if model_config.supports_reasoning_mode() {
+        let current_reasoning_mode = model_config
+            .reasoning_mode()
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        config_options.push(
+            SessionConfigOption::select(
+                "reasoning_mode",
+                "Reasoning mode",
+                current_reasoning_mode.to_string(),
+                [ReasoningMode::Standard, ReasoningMode::Pro]
+                    .into_iter()
+                    .map(|mode| {
+                        let mode = mode.to_string();
+                        SessionConfigSelectOption::new(mode.clone(), mode)
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .description("Selects standard or pro reasoning for GPT-5.6 models.")
+            .category(SessionConfigOptionCategory::ThoughtLevel),
+        );
+    }
+    config_options
 }
 
 fn thinking_effort_values(model_config: &ModelConfig) -> &'static [ThinkingEffort] {
@@ -721,5 +745,56 @@ mod tests {
                 SessionConfigSelectOption::new("off", "off")
             ])
         );
+    }
+
+    #[test]
+    fn test_build_config_options_exposes_gpt_5_6_reasoning_mode() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = model_selection("gpt-5.6", &["gpt-5.6"]);
+        let model_config = ModelConfig::new("gpt-5.6").with_reasoning_mode(ReasoningMode::Pro);
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "openai",
+            vec![SessionConfigSelectOption::new("openai", "openai")],
+        );
+        let option = options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "reasoning_mode")
+            .expect("reasoning_mode option");
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("reasoning_mode should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "pro");
+        assert_eq!(
+            select.options,
+            agent_client_protocol::schema::v1::SessionConfigSelectOptions::Ungrouped(vec![
+                SessionConfigSelectOption::new("standard", "standard"),
+                SessionConfigSelectOption::new("pro", "pro"),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_build_config_options_omits_reasoning_mode_for_other_models() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = model_selection("gpt-5.5", &["gpt-5.5"]);
+        let model_config = ModelConfig::new("gpt-5.5");
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "openai",
+            vec![SessionConfigSelectOption::new("openai", "openai")],
+        );
+
+        assert!(!options
+            .iter()
+            .any(|option| option.id.0.as_ref() == "reasoning_mode"));
     }
 }

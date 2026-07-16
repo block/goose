@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Panduan mulai cepat"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Mode penalaran" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Pro" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Standar" },
   "switchModelModal.recommended": {
     "defaultMessage": "Direkomendasikan"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Silakan pilih penyedia"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Pilih mode penalaran"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Pilih tingkat pemikiran"

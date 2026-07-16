@@ -55,7 +55,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
-use goose_providers::thinking::ThinkingEffort;
+use goose_providers::thinking::{ReasoningMode, ThinkingEffort};
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
@@ -3001,6 +3001,18 @@ impl Agent {
             .model_config_for_session(session_id)
             .await?
             .with_thinking_effort(effort);
+
+        self.recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
+    }
+
+    pub async fn update_reasoning_mode(&self, session_id: &str, mode: ReasoningMode) -> Result<()> {
+        let current_provider = self.provider().await?;
+        let provider_name = current_provider.get_name().to_string();
+        let model_config = self
+            .model_config_for_session(session_id)
+            .await?
+            .with_reasoning_mode(mode);
 
         self.recreate_provider_for_session(session_id, &provider_name, model_config)
             .await

@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Guia de introdução rápida"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Modo de raciocínio" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Pro" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Padrão" },
   "switchModelModal.recommended": {
     "defaultMessage": "Recomendado"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Selecione um fornecedor"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Selecione o modo de raciocínio"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Selecione o nível de raciocínio"

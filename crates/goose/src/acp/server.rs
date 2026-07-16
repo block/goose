@@ -3020,6 +3020,34 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    async fn on_set_reasoning_mode(
+        &self,
+        session_id: &str,
+        mode_id: &str,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let mode = mode_id
+            .parse::<goose_providers::thinking::ReasoningMode>()
+            .map_err(|_| {
+                agent_client_protocol::Error::invalid_params()
+                    .data(format!("Invalid reasoning mode: {}", mode_id))
+            })?;
+        let agent = self.get_session_agent(session_id).await?;
+        let model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
+        if !model_config.supports_reasoning_mode() {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("reasoning_mode is only supported for GPT-5.6 models"));
+        }
+        agent
+            .update_reasoning_mode(session_id, mode)
+            .await
+            .internal_err_ctx("Failed to update reasoning mode")?;
+
+        Ok(())
+    }
+
     async fn update_provider(
         &self,
         session_id: &str,

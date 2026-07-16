@@ -30,6 +30,7 @@ import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
+import { parseReasoningMode } from './settings/models/reasoningMode';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -204,6 +205,9 @@ export default function BaseChat({
 
   const sessionModel = session?.model_config?.model_name ?? null;
   const sessionProvider = session?.provider_name ?? null;
+  const sessionReasoningMode = parseReasoningMode(
+    session?.model_config?.request_params?.reasoning_mode
+  );
   const sessionLoaded = session !== undefined;
   const latestInference = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -524,6 +528,7 @@ export default function BaseChat({
             initialPrompt={initialPrompt}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
+            sessionReasoningMode={sessionReasoningMode}
             sessionLoaded={sessionLoaded}
             workingDir={session?.working_dir}
             onWorkingDirChange={handleWorkingDirChange}

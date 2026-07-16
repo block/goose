@@ -4310,6 +4310,15 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Quick start guide"
   },
+  "switchModelModal.reasoningMode": {
+    "defaultMessage": "Reasoning Mode"
+  },
+  "switchModelModal.reasoningModePro": {
+    "defaultMessage": "Pro"
+  },
+  "switchModelModal.reasoningModeStandard": {
+    "defaultMessage": "Standard"
+  },
   "switchModelModal.recommended": {
     "defaultMessage": "Recommended"
   },
@@ -4330,6 +4339,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Please select a provider"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Select reasoning mode"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Select thinking level"

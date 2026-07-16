@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "快速入門指南"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "推理模式" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "專業" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "標準" },
   "switchModelModal.recommended": {
     "defaultMessage": "建議"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "請選擇提供者"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "選擇推理模式"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "選擇思考層級"

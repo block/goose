@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Hướng dẫn bắt đầu nhanh"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Chế độ suy luận" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Pro" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Tiêu chuẩn" },
   "switchModelModal.recommended": {
     "defaultMessage": "Được đề xuất"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Vui lòng chọn một nhà cung cấp"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Chọn chế độ suy luận"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Chọn mức độ suy nghĩ"

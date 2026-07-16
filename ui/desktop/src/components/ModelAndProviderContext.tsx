@@ -65,12 +65,19 @@ export { i18n as modelAndProviderMessages };
 
 function patchAcpSessionProviderModel(
   sessionId: string,
-  { providerId, modelId }: AppliedSessionProviderModel
+  { providerId, modelId, reasoningMode }: AppliedSessionProviderModel
 ) {
   if (!providerId && !modelId) return;
 
   const currentSession = acpChatSessionStore.getSnapshot(sessionId)?.session;
   if (!currentSession) return;
+
+  const requestParams = { ...currentSession.model_config?.request_params };
+  if (reasoningMode) {
+    requestParams.reasoning_mode = reasoningMode;
+  } else if (reasoningMode === null) {
+    delete requestParams.reasoning_mode;
+  }
 
   acpChatSessionActions.setSessionMetadata(sessionId, {
     ...currentSession,
@@ -79,6 +86,7 @@ function patchAcpSessionProviderModel(
       ? {
           ...(currentSession.model_config ?? { toolshim: false }),
           model_name: modelId,
+          request_params: requestParams,
         }
       : currentSession.model_config,
   });
@@ -101,7 +109,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             sessionId,
             providerName,
             modelName,
-            model.request_params?.thinking_effort ?? null
+            model.request_params?.thinking_effort ?? null,
+            model.request_params?.reasoning_mode ?? null
           );
           patchAcpSessionProviderModel(sessionId, applied);
         }

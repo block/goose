@@ -526,6 +526,53 @@ fn test_config_option_thinking_effort_set() {
 }
 
 #[test]
+fn test_config_option_reasoning_mode_set() {
+    run_test(async {
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                current_model: "gpt-5.6".to_string(),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+        let data = conn.new_session().await.unwrap();
+
+        let response = conn
+            .cx()
+            .send_request(SetSessionConfigOptionRequest::new(
+                data.session.session_id().clone(),
+                "reasoning_mode".to_string(),
+                SessionConfigOptionValue::value_id("pro".to_string()),
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        let option = response
+            .config_options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "reasoning_mode")
+            .expect("reasoning_mode option");
+        assert_eq!(
+            option.category,
+            Some(SessionConfigOptionCategory::ThoughtLevel)
+        );
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("reasoning_mode should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "pro");
+    });
+}
+
+#[test]
 fn test_delete_session() {
     run_test(async { run_delete_session::<AcpServerConnection>().await });
 }

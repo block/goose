@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Hızlı başlangıç kılavuzu"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Akıl yürütme modu" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Pro" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Standart" },
   "switchModelModal.recommended": {
     "defaultMessage": "Önerilen"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Lütfen bir sağlayıcı seçin"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Akıl yürütme modunu seçin"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Düşünme düzeyini seçin"

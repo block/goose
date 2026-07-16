@@ -1,5 +1,5 @@
 use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
-use crate::thinking::ThinkingEffort;
+use crate::thinking::{ReasoningMode, ThinkingEffort};
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -185,6 +185,14 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_reasoning_mode(mut self, mode: ReasoningMode) -> Self {
+        self.request_params.get_or_insert_with(HashMap::new).insert(
+            "reasoning_mode".to_string(),
+            serde_json::json!(mode.to_string()),
+        );
+        self
+    }
+
     pub fn with_default_thinking_effort(mut self, effort: Option<ThinkingEffort>) -> Self {
         if self.thinking_effort().is_none() {
             if let Some(effort) = effort {
@@ -235,6 +243,14 @@ impl ModelConfig {
             || Self::is_gemini3_reasoning_model_name(&self.model_name)
     }
 
+    pub fn supports_reasoning_mode(&self) -> bool {
+        let normalized = self.model_name.to_ascii_lowercase();
+        normalized == "gpt-5.6"
+            || normalized.starts_with("gpt-5.6-")
+            || normalized == "gpt-5-6"
+            || normalized.starts_with("gpt-5-6-")
+    }
+
     fn is_gemini3_reasoning_model_name(model_name: &str) -> bool {
         let lower = model_name.to_lowercase();
         lower.starts_with("gemini-3") || lower.contains("/gemini-3") || lower.contains("-gemini-3")
@@ -283,6 +299,12 @@ impl ModelConfig {
     pub fn thinking_effort(&self) -> Option<ThinkingEffort> {
         self.request_param::<String>("thinking_effort")
             .and_then(|s| s.parse::<ThinkingEffort>().ok())
+    }
+
+    pub fn reasoning_mode(&self) -> Result<Option<ReasoningMode>, String> {
+        self.request_param::<String>("reasoning_mode")
+            .map(|mode| mode.parse::<ReasoningMode>())
+            .transpose()
     }
 
     pub fn request_param<T: for<'de> serde::Deserialize<'de>>(
@@ -416,6 +438,18 @@ mod tests {
         }
 
         #[test]
+        fn does_not_inherit_model_specific_reasoning_mode() {
+            let previous = config_with_params(
+                "gpt-5.6",
+                HashMap::from([("reasoning_mode".to_string(), serde_json::json!("pro"))]),
+            );
+            let config = ModelConfig::new("gpt-5.5")
+                .with_inherited_session_settings_from(Some(&previous), None);
+
+            assert_eq!(config.reasoning_mode().unwrap(), None);
+        }
+
+        #[test]
         fn effort_suffix_stripped_from_model_name() {
             let _guard = env_lock::lock_env([
                 ("GOOSE_THINKING_EFFORT", None::<&str>),
@@ -522,6 +556,43 @@ mod tests {
             assert_eq!("max".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Max));
             assert_eq!("xhigh".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Max));
             assert!("invalid".parse::<ThinkingEffort>().is_err());
+        }
+    }
+
+    mod reasoning_mode_tests {
+        use super::*;
+
+        #[test]
+        fn supports_only_gpt_5_6_model_names() {
+            for model in ["gpt-5.6", "gpt-5.6-sol", "gpt-5-6", "gpt-5-6-sol-xhigh"] {
+                assert!(ModelConfig::new(model).supports_reasoning_mode(), "{model}");
+            }
+            for model in ["gpt-5.5", "gpt-5.60", "gpt-4o"] {
+                assert!(
+                    !ModelConfig::new(model).supports_reasoning_mode(),
+                    "{model}"
+                );
+            }
+        }
+
+        #[test]
+        fn reads_and_writes_reasoning_mode() {
+            let config = ModelConfig::new("gpt-5.6").with_reasoning_mode(ReasoningMode::Pro);
+
+            assert_eq!(config.reasoning_mode().unwrap(), Some(ReasoningMode::Pro));
+        }
+
+        #[test]
+        fn rejects_unknown_reasoning_mode() {
+            let config = ModelConfig::new("gpt-5.6").with_merged_request_params(HashMap::from([(
+                "reasoning_mode".to_string(),
+                serde_json::json!("turbo"),
+            )]));
+
+            assert_eq!(
+                config.reasoning_mode().unwrap_err(),
+                "unknown reasoning mode: 'turbo'"
+            );
         }
     }
 

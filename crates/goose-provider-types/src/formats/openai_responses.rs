@@ -563,14 +563,6 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
     }
 }
 
-fn is_gpt_5_6_model(model_name: &str) -> bool {
-    let normalized = model_name.to_ascii_lowercase();
-    normalized == "gpt-5.6"
-        || normalized.starts_with("gpt-5.6-")
-        || normalized == "gpt-5-6"
-        || normalized.starts_with("gpt-5-6-")
-}
-
 pub fn create_responses_request(
     model_config: &ModelConfig,
     system: &str,
@@ -617,20 +609,8 @@ pub fn create_responses_request(
     };
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
-    let reasoning_mode = model_config
-        .request_param::<String>("reasoning_mode")
-        .map(|mode| {
-            let normalized = mode.to_ascii_lowercase();
-            match normalized.as_str() {
-                "standard" | "pro" => Ok(normalized),
-                _ => Err(anyhow!(
-                    "Invalid reasoning_mode '{}'. Supported values are: standard, pro",
-                    mode
-                )),
-            }
-        })
-        .transpose()?;
-    if reasoning_mode.is_some() && !is_gpt_5_6_model(&model_name) {
+    let reasoning_mode = model_config.reasoning_mode().map_err(anyhow::Error::msg)?;
+    if reasoning_mode.is_some() && !model_config.supports_reasoning_mode() {
         return Err(anyhow!(
             "reasoning_mode is only supported for GPT-5.6 models"
         ));
@@ -648,7 +628,7 @@ pub fn create_responses_request(
             reasoning.insert("summary".to_string(), json!("auto"));
         }
         if let Some(mode) = reasoning_mode {
-            reasoning.insert("mode".to_string(), json!(mode));
+            reasoning.insert("mode".to_string(), json!(mode.to_string()));
         }
         payload
             .as_object_mut()

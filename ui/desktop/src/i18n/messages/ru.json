@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Краткое руководство"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Режим рассуждений" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Профессиональный" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Стандартный" },
   "switchModelModal.recommended": {
     "defaultMessage": "Рекомендуется"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Выберите провайдера"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Выберите режим рассуждений"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Выберите уровень размышления"

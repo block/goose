@@ -4310,6 +4310,9 @@
   "switchModelModal.quickStartGuide": {
     "defaultMessage": "Schnellstartanleitung"
   },
+  "switchModelModal.reasoningMode": { "defaultMessage": "Schlussfolgerungsmodus" },
+  "switchModelModal.reasoningModePro": { "defaultMessage": "Pro" },
+  "switchModelModal.reasoningModeStandard": { "defaultMessage": "Standard" },
   "switchModelModal.recommended": {
     "defaultMessage": "Empfohlen"
   },
@@ -4330,6 +4333,9 @@
   },
   "switchModelModal.selectProvider": {
     "defaultMessage": "Bitte wählen Sie einen Anbieter aus"
+  },
+  "switchModelModal.selectReasoningMode": {
+    "defaultMessage": "Schlussfolgerungsmodus auswählen"
   },
   "switchModelModal.selectThinkingLevel": {
     "defaultMessage": "Denkstufe auswählen"

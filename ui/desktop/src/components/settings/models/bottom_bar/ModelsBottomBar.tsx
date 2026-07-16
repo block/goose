@@ -16,6 +16,7 @@ import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
 import { defineMessages, useIntl } from '../../../../i18n';
 import type { Message } from '../../../../types/message';
+import type { ReasoningMode } from '../../../../types/providers';
 
 const i18n = defineMessages({
   selectModel: {
@@ -54,6 +55,7 @@ interface ModelsBottomBarProps {
   setView: (view: View) => void;
   sessionModel?: string | null;
   sessionProvider?: string | null;
+  sessionReasoningMode?: ReasoningMode | null;
   latestInference?: Message['metadata']['inference'] | null;
   onModelChanged: (override: { model: string; provider: string }) => void;
   sessionLoaded?: boolean;
@@ -65,6 +67,7 @@ export default function ModelsBottomBar({
   setView,
   sessionModel,
   sessionProvider,
+  sessionReasoningMode,
   latestInference,
   onModelChanged,
   sessionLoaded,
@@ -199,6 +202,7 @@ export default function ModelsBottomBar({
           onClose={() => setIsAddModelModalOpen(false)}
           sessionModel={currentModel}
           sessionProvider={currentProvider}
+          sessionReasoningMode={sessionReasoningMode}
           onModelSelected={(model, provider) => handleModelSelected(model, provider)}
         />
       ) : null}

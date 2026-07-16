@@ -27,8 +27,14 @@ import Model, {
   getProviderMetadata,
 } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import type { ProviderDetails, ProviderType, ThinkingEffort } from '../../../../types/providers';
+import type {
+  ProviderDetails,
+  ProviderType,
+  ReasoningMode,
+  ThinkingEffort,
+} from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
+import { supportsReasoningMode } from '../reasoningMode';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -164,6 +170,22 @@ const i18n = defineMessages({
     id: 'switchModelModal.selectEffortLevel',
     defaultMessage: 'Select effort level',
   },
+  reasoningMode: {
+    id: 'switchModelModal.reasoningMode',
+    defaultMessage: 'Reasoning Mode',
+  },
+  reasoningModeStandard: {
+    id: 'switchModelModal.reasoningModeStandard',
+    defaultMessage: 'Standard',
+  },
+  reasoningModePro: {
+    id: 'switchModelModal.reasoningModePro',
+    defaultMessage: 'Pro',
+  },
+  selectReasoningMode: {
+    id: 'switchModelModal.selectReasoningMode',
+    defaultMessage: 'Select reasoning mode',
+  },
   thinkingBudget: {
     id: 'switchModelModal.thinkingBudget',
     defaultMessage: 'Thinking Budget (tokens)',
@@ -247,6 +269,7 @@ type SwitchModelModalProps = {
   titleOverride?: string;
   sessionModel?: string | null;
   sessionProvider?: string | null;
+  sessionReasoningMode?: ReasoningMode | null;
 };
 export const SwitchModelModal = ({
   sessionId,
@@ -257,6 +280,7 @@ export const SwitchModelModal = ({
   titleOverride,
   sessionModel,
   sessionProvider,
+  sessionReasoningMode,
 }: SwitchModelModalProps) => {
   const intl = useIntl();
 
@@ -266,6 +290,10 @@ export const SwitchModelModal = ({
     { value: 'medium', label: intl.formatMessage(i18n.claudeEffortMedium) },
     { value: 'high', label: intl.formatMessage(i18n.claudeEffortHigh) },
     { value: 'max', label: intl.formatMessage(i18n.claudeEffortMax) },
+  ];
+  const REASONING_MODE_OPTIONS: { value: ReasoningMode; label: string }[] = [
+    { value: 'standard', label: intl.formatMessage(i18n.reasoningModeStandard) },
+    { value: 'pro', label: intl.formatMessage(i18n.reasoningModePro) },
   ];
 
   const {
@@ -309,10 +337,15 @@ export const SwitchModelModal = ({
   const fetchedProviders = useRef<Set<string>>(new Set());
   const reasoningRequestId = useRef(0);
   const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort | null>(null);
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>(
+    sessionReasoningMode ?? 'standard'
+  );
   const [selectedModelReasoning, setSelectedModelReasoning] = useState<boolean | null>(null);
 
   const modelReasoning = selectedModelReasoning ?? selectedPredefinedModel?.reasoning;
   const showThinkingControl = modelReasoning === true;
+  const selectedModelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
+  const showReasoningModeControl = Boolean(sessionId && supportsReasoningMode(selectedModelName));
   const resolveSelectedModelReasoning = useCallback(
     (providerName: string, modelName: string, fallback?: boolean) => {
       const requestId = ++reasoningRequestId.current;
@@ -422,6 +455,16 @@ export const SwitchModelModal = ({
         };
         acpSaveThinkingEffort(effort).catch(console.warn);
       }
+      if (showReasoningModeControl) {
+        modelObj = {
+          ...modelObj,
+          request_params: { ...modelObj.request_params, reasoning_mode: reasoningMode },
+        };
+      } else if (modelObj.request_params?.reasoning_mode) {
+        const requestParams = { ...modelObj.request_params };
+        delete requestParams.reasoning_mode;
+        modelObj = { ...modelObj, request_params: requestParams };
+      }
 
       const success = await changeModel(sessionId, modelObj);
       if (success) {
@@ -448,13 +491,16 @@ export const SwitchModelModal = ({
     const matchingModel = models.find((m) => m.name === currentModel);
     if (matchingModel) {
       setSelectedPredefinedModel(matchingModel);
+      setReasoningMode(
+        matchingModel.request_params?.reasoning_mode ?? sessionReasoningMode ?? 'standard'
+      );
       resolveSelectedModelReasoning(
         matchingModel.provider,
         matchingModel.name,
         matchingModel.reasoning
       );
     }
-  }, [usePredefinedModels, currentModel, resolveSelectedModelReasoning]);
+  }, [usePredefinedModels, currentModel, resolveSelectedModelReasoning, sessionReasoningMode]);
 
   // For manual mode: one-time sync of provider/model when session data
   // arrives after the modal has already mounted. Uses a ref so it only
@@ -628,6 +674,13 @@ export const SwitchModelModal = ({
 
   const handlePredefinedModelChange = (model: Model) => {
     setSelectedPredefinedModel(model);
+    setReasoningMode(
+      model.request_params?.reasoning_mode ??
+        (model.name === currentModel && model.provider === currentProvider
+          ? sessionReasoningMode
+          : null) ??
+        'standard'
+    );
     resolveSelectedModelReasoning(model.provider, model.name, model.reasoning);
   };
 
@@ -655,6 +708,11 @@ export const SwitchModelModal = ({
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
       setProvider(selectedOption?.provider || '');
+      setReasoningMode(
+        selectedOption?.value === currentModel && selectedOption?.provider === currentProvider
+          ? (sessionReasoningMode ?? 'standard')
+          : 'standard'
+      );
       if (selectedOption?.provider && selectedOption.value) {
         resolveSelectedModelReasoning(
           selectedOption.provider,
@@ -727,6 +785,23 @@ export const SwitchModelModal = ({
           setThinkingEffort(option?.value || 'off');
         }}
         placeholder={intl.formatMessage(i18n.selectEffortLevel)}
+      />
+    </div>
+  );
+
+  const reasoningModeControl = showReasoningModeControl && (
+    <div className="mt-2" data-testid="reasoning-mode-control">
+      <label className="text-sm text-textSubtle mb-1 block">
+        {intl.formatMessage(i18n.reasoningMode)}
+      </label>
+      <Select
+        options={REASONING_MODE_OPTIONS}
+        value={REASONING_MODE_OPTIONS.find((option) => option.value === reasoningMode)}
+        onChange={(newValue: unknown) => {
+          const option = newValue as { value: ReasoningMode; label: string } | null;
+          setReasoningMode(option?.value ?? 'standard');
+        }}
+        placeholder={intl.formatMessage(i18n.selectReasoningMode)}
       />
     </div>
   );
@@ -806,6 +881,7 @@ export const SwitchModelModal = ({
               )}
 
               {thinkingEffortControl}
+              {reasoningModeControl}
             </div>
           ) : (
             /* Manual Provider/Model Selection */
@@ -961,6 +1037,7 @@ export const SwitchModelModal = ({
                   )}
 
                   {thinkingEffortControl}
+                  {reasoningModeControl}
                 </>
               )}
             </div>

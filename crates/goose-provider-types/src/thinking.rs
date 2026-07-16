@@ -282,6 +282,35 @@ pub enum ThinkingEffort {
     Max,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningMode {
+    #[default]
+    Standard,
+    Pro,
+}
+
+impl FromStr for ReasoningMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "standard" => Ok(Self::Standard),
+            "pro" => Ok(Self::Pro),
+            other => Err(format!("unknown reasoning mode: '{other}'")),
+        }
+    }
+}
+
+impl fmt::Display for ReasoningMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Standard => write!(f, "standard"),
+            Self::Pro => write!(f, "pro"),
+        }
+    }
+}
+
 impl FromStr for ThinkingEffort {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
