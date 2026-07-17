@@ -6,6 +6,8 @@ pub mod plugin;
 pub mod project;
 pub mod recipe;
 pub mod review;
+#[cfg(feature = "roaming")]
+pub mod roam;
 pub mod schedule;
 pub mod session;
 pub mod skills;

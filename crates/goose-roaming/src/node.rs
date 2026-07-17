@@ -282,7 +282,10 @@ impl ProtocolHandler for RoamingAcpHandler {
                 {
                     tracing::warn!("roaming: ACP session ended with error: {e}");
                 }
-                self.node.directory.record_disconnect(client, now_ms()).await;
+                self.node
+                    .directory
+                    .record_disconnect(client, now_ms())
+                    .await;
             }
             Err(reason) => {
                 let ack = HostAck::Rejected {

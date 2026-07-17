@@ -22,6 +22,7 @@
 //! implements by calling goose's generic `acp::server::serve`. This keeps the
 //! heavy iroh dependency out of the `goose` core crate entirely.
 
+mod bridge;
 mod directory;
 mod error;
 mod frame;
@@ -32,7 +33,16 @@ mod node;
 mod relay;
 mod trust;
 
+pub use bridge::GooseAcpBridge;
 pub use directory::{Direction, Directory, PeerEntry};
+#[doc(inline)]
+pub use iroh::EndpointId;
+
+/// Parse an [`EndpointId`] (a peer's public key) from its string form.
+pub fn parse_endpoint_id(s: &str) -> Result<EndpointId, RoamingError> {
+    s.parse()
+        .map_err(|e| RoamingError::Identity(format!("invalid endpoint id `{s}`: {e}")))
+}
 pub use error::{RejectReason, RoamingError};
 pub use handshake::{ClientHello, HostAck};
 pub use identity::{default_key_path, RoamingIdentity};

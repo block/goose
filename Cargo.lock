@@ -5321,6 +5321,7 @@ dependencies = [
  "goose",
  "goose-mcp",
  "goose-providers",
+ "goose-roaming",
  "indicatif",
  "open",
  "rand 0.10.2",

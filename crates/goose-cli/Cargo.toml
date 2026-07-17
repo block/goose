@@ -24,6 +24,7 @@ clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
+goose-roaming = { path = "../goose-roaming", optional = true }
 rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = { version = "0.5", default-features = false }
@@ -89,7 +90,9 @@ default = [
     "rustls-tls",
     "system-keyring",
     "update",
+    "roaming",
 ]
+roaming = ["dep:goose-roaming"]
 code-mode = ["goose/code-mode"]
 local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
