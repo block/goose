@@ -48,18 +48,25 @@ impl AcpStreamServer for EchoServer {
     }
 }
 
+/// Bind to an ephemeral loopback IPv4 port so relay-disabled tests use a single
+/// local path (avoids iroh's dual-stack MultipathNotNegotiated stall).
+fn loopback() -> std::net::SocketAddr {
+    "127.0.0.1:0".parse().unwrap()
+}
+
 async fn bind_node(trust: TrustBook) -> Arc<RoamingNode> {
     RoamingNode::bind(RoamingConfig {
         identity: RoamingIdentity::generate(),
         relay: RelaySettings::Disabled,
         trust,
         directory: Directory::new(),
+        bind_addr: Some(loopback()),
     })
     .await
     .expect("bind node")
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn bearer_invite_connects_and_streams() {
     let host_identity = RoamingIdentity::generate();
     let host = RoamingNode::bind(RoamingConfig {
@@ -67,6 +74,7 @@ async fn bearer_invite_connects_and_streams() {
         relay: RelaySettings::Disabled,
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
+        bind_addr: Some(loopback()),
     })
     .await
     .expect("bind host");
@@ -107,7 +115,7 @@ async fn bearer_invite_connects_and_streams() {
     host.shutdown().await.unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn allowlist_rejects_unknown_client() {
     let host_identity = RoamingIdentity::generate();
     let host = RoamingNode::bind(RoamingConfig {
@@ -116,6 +124,7 @@ async fn allowlist_rejects_unknown_client() {
         // Allowlist policy with an empty allowlist: nobody is authorized.
         trust: TrustBook::new(TrustPolicy::Allowlist),
         directory: Directory::new(),
+        bind_addr: Some(loopback()),
     })
     .await
     .expect("bind host");

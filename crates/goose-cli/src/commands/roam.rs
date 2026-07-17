@@ -14,9 +14,11 @@ use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
 use goose_roaming::{
-    default_key_path, parse_endpoint_id, Directory, GooseAcpBridge, RelaySettings, RoamingConfig,
-    RoamingIdentity, RoamingNode, Scope, TrustBook, TrustPolicy,
+    default_key_path, parse_endpoint_id, Directory, RelaySettings, RoamingConfig, RoamingIdentity,
+    RoamingNode, Scope, TrustBook, TrustPolicy,
 };
+
+use crate::commands::roam_bridge::GooseAcpBridge;
 
 fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
@@ -176,6 +178,7 @@ async fn handle_share(
         relay: relay.clone(),
         trust,
         directory: Directory::persistent(directory_path()),
+        bind_addr: None,
     })
     .await?;
 
@@ -239,6 +242,7 @@ async fn handle_connect(token: String, label: Option<String>) -> Result<()> {
         relay: RelaySettings::N0Default,
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
+        bind_addr: None,
     })
     .await?;
 

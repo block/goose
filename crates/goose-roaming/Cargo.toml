@@ -9,10 +9,8 @@ repository.workspace = true
 description = "Peer-to-peer roaming transport for goose agents (iroh-based)"
 
 [dependencies]
-goose = { path = "../goose", default-features = false }
 anyhow = { workspace = true }
 base64 = { workspace = true }
-chrono = { workspace = true }
 dirs = { workspace = true }
 futures = { workspace = true }
 iroh = { workspace = true, features = ["tls-aws-lc-rs"] }

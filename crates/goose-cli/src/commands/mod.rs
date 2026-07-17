@@ -8,6 +8,8 @@ pub mod recipe;
 pub mod review;
 #[cfg(feature = "roaming")]
 pub mod roam;
+#[cfg(feature = "roaming")]
+pub mod roam_bridge;
 pub mod schedule;
 pub mod session;
 pub mod skills;

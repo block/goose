@@ -52,6 +52,12 @@ pub struct RoamingConfig {
     /// directory; pass [`Directory::persistent`] to make `roam list` work from
     /// a separate process.
     pub directory: Directory,
+    /// Optional explicit socket address to bind the QUIC endpoint to. When set
+    /// with relays disabled, the default IP transports are cleared first so a
+    /// single-family local path is used — iroh's multipath negotiation
+    /// otherwise stalls (`MultipathNotNegotiated`) when both the specified IPv4
+    /// and a default `[::]` IPv6 socket are candidates with no relay fallback.
+    pub bind_addr: Option<std::net::SocketAddr>,
 }
 
 /// A bound roaming node.
@@ -67,9 +73,19 @@ impl RoamingNode {
     /// (or a manual router) is set up.
     pub async fn bind(config: RoamingConfig) -> Result<Arc<Self>, RoamingError> {
         let relay_mode = config.relay.to_relay_mode()?;
-        let endpoint = Endpoint::builder(iroh::endpoint::presets::Minimal)
+        let relays_disabled = matches!(config.relay, RelaySettings::Disabled);
+        let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
             .secret_key(config.identity.secret_key().clone())
-            .relay_mode(relay_mode)
+            .relay_mode(relay_mode);
+        if let Some(addr) = config.bind_addr {
+            if relays_disabled && addr.is_ipv4() {
+                builder = builder.clear_ip_transports();
+            }
+            builder = builder
+                .bind_addr(addr)
+                .map_err(|e| RoamingError::Transport(format!("invalid bind address: {e}")))?;
+        }
+        let endpoint = builder
             .bind()
             .await
             .map_err(|e| RoamingError::Transport(format!("failed to bind endpoint: {e}")))?;
@@ -389,7 +405,10 @@ async fn send_ack(
 }
 
 fn now_ms() -> u64 {
-    chrono::Utc::now().timestamp_millis().max(0) as u64
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 fn random_token_id() -> String {
