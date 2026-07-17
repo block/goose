@@ -884,15 +884,17 @@
     "id": "runcomfy",
     "name": "RunComfy",
     "description": "Manage RunComfy Serverless (ComfyUI) GPU deployments and run async image/video inference",
-    "command": "npx -y mcp-remote https://mcp.runcomfy.com/mcp --header Authorization:${RUNCOMFY_AUTH}",
+    "type": "streamable-http",
+    "url": "https://mcp.runcomfy.com/mcp",
     "link": "https://www.runcomfy.com",
-    "installation_notes": "Requires Node.js. Source: https://github.com/runcomfy-com/runcomfy-mcp . Get your API token from https://www.runcomfy.com/profile and set RUNCOMFY_AUTH to 'Bearer <YOUR_RUNCOMFY_TOKEN>'.",
+    "installation_notes": "Remote Streamable HTTP extension \u2014 no local Node required. Requires a RunComfy API token as a Request Header, e.g. Authorization: Bearer <YOUR_RUNCOMFY_TOKEN>. Get it from https://www.runcomfy.com/profile . Source: https://github.com/runcomfy-com/runcomfy-mcp",
     "is_builtin": false,
     "endorsed": false,
-    "environmentVariables": [
+    "environmentVariables": [],
+    "headers": [
       {
-        "name": "RUNCOMFY_AUTH",
-        "description": "RunComfy API token as a Bearer credential, e.g. 'Bearer <YOUR_RUNCOMFY_TOKEN>' (from https://www.runcomfy.com/profile)",
+        "name": "Authorization",
+        "description": "Bearer <YOUR_RUNCOMFY_TOKEN>",
         "required": true
       }
     ]
