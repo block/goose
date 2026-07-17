@@ -320,6 +320,141 @@ has no live session to observe yet.
 
 ---
 
+## 10. Peer registry & model tool surface (research)
+
+Third expert review, on two threads the user raised: richer peer tracking
+(both directions) and letting the *agent loop* reach other agents. Guiding
+principle: **crisp, minimal surfaces over completeness.**
+
+### Thread A — peer registry commands
+
+Three logical stores, kept separate (do not fold together):
+
+| Store | Owns | Backs |
+|---|---|---|
+| `PeerBook` | user-managed **outbound** contacts + their saved credential | `peers` |
+| `TrustBook` / `GrantBook` | **inbound** authorization: allowed client keys + issued-invite metadata | `grants` |
+| `Directory` | **observed** connection facts only (already built) | `connections` |
+
+A saved-but-never-connected peer has no `Directory` entry, so it can't live
+there — hence a dedicated `PeerBook`.
+
+Command surface:
+
+```text
+goose roam peers                       # list saved remotes I can connect to
+goose roam peers save <name> <invite>  # add or refresh a contact's credential
+goose roam peers remove <name>
+goose roam peers rename <name> <new>
+
+goose roam connect <name-or-invite>    # connect by nickname OR raw token
+
+goose roam grants                      # invites I've issued + allowed client keys
+goose roam grants revoke <grant-id>    # accepts invite:7da2… or key:ab91…
+
+goose roam connections                 # live/observed connections (was: list)
+```
+
+- `roam list` stays as a compatibility alias for `connections`.
+- `save` (not `add`) — naturally adds *or* refreshes an expired credential.
+- Minting stays part of `share`; no separate `grants create`.
+- Grant IDs are typed: `invite:<id>` / `key:<fingerprint>`; `revoke` takes either.
+
+Storage rules:
+- `PeerBook` stores the **complete invite** (it's the outbound credential).
+- The issuer stores invite **metadata only** (token-id, scope, expiry, allowed
+  keys, redeemed/revoked) — *not* the printable token.
+- All: atomic replace, `0600` files, `0700` dirs, lock if multi-process.
+
+Credential security:
+- `0600` is fine for v1 (≈ ssh key / API token). Keychain later.
+- **Client-key-bound** credentials are the normal saved form.
+- Saving a **bearer** credential must warn + require `--allow-bearer`.
+- `peers` always shows scope + expiry. A long-lived bearer `control` credential
+  is effectively remote-shell access.
+
+Naming: **peer** = saved remote contact; **agent** = the remote agent reached
+after connecting; **endpoint id** = security fingerprint; **node** =
+implementation/diagnostics only. Avoid "contact".
+
+### Thread B — model tool surface (agent-to-agent)
+
+Runtime-injected `roam` platform extension with exactly **two stable tools** —
+**not** a tool/skill per peer:
+
+```text
+roam__list_peers()          # lazy: names, descriptions, scope, expiry,
+                            # connected/last-seen, endpoint fingerprint
+roam__delegate(peer, task)  # resolve name -> open ACP -> fresh remote session
+                            # -> one prompt -> await final response -> close
+```
+
+- The "named like skills" idea is preserved: peers are **named capability
+  records discovered lazily** via `list_peers`, then addressed by name via
+  `delegate`. No per-peer schema churn, naming collisions, or prompt bloat.
+- `list_peers` must **not** claim reachability — a saved address is not
+  presence; only dialing proves it.
+- `delegate` (better name than send/ask): one-shot request/response covering
+  both questions and sub-tasks; maps onto the ACP `session/prompt` we already
+  have. Durable conversations/steering deferred.
+- **Rejected** alternatives: dynamic per-peer skills (confuse instructions with
+  capabilities, go stale); surfacing the remote's *tools* as an MCP extension
+  (transitive tool federation — obscures which machine executes, bypasses the
+  remote agent's policy boundary — a separate future feature).
+
+Injection architecture (matches §4 / earlier advice):
+- Add a **per-agent runtime platform-extension registry** whose factory is
+  `Arc<dyn Fn(...)>`, threaded through `AgentConfig` / `AcpServerFactoryConfig`
+  — *not* a global mutable registry, not a core `PeerMessenger` trait.
+  (`platform_extensions/mod.rs:271` currently uses static strings + a
+  non-capturing fn pointer.)
+- CLI registers a `RoamExtensionClient` capturing `Arc<RoamingConnector>`. The
+  adapter lives in `goose-cli`; core only sees its existing MCP/platform-client
+  abstraction and never imports iroh.
+
+Permission & loop safety:
+- Caller: `list_peers` read-only; `delegate` is open-world + **approval-required
+  like shell** (approval shows resolved peer name, authenticated endpoint id,
+  scope, task preview).
+- Permissions are keyed by **tool name** (`permission.rs:145`), so
+  "Always Allow `roam__delegate`" would cover peers added later. Until the
+  principal can be `roam__delegate:<endpoint-id>`, keep delegate **Ask-only**
+  outside global Auto mode.
+- Callee: add a distinct **`Delegate` scope** (not ordinary `Control`); stamp
+  the session as driven by an authenticated *remote agent*, not a human; never
+  let the calling model approve the callee's permission prompts; host-owned
+  delegated-session policy (read-only or explicit allowlist as safe default).
+- **v1 loop prevention (cleanest): do NOT inject the `roam` extension into
+  remotely-delegated sessions** — recursion becomes impossible. Plus: fresh
+  session per delegation, hard deadline (~5 min), hard turn cap (~8), one
+  active delegation per peer + small global concurrency cap, propagate
+  cancellation, attach a trace/delegation id. Hop-counts only needed if
+  recursive delegation is later added intentionally.
+
+### Prerequisite this surfaced
+
+`roam connect` currently generates a **fresh ephemeral identity per
+connection** (`roam.rs`). That makes durable key-bound grants and pairing
+impossible across reconnects. Before Thread A/B land, outbound connections need
+a **stable client identity** (use the persisted roaming key, or a single
+identity-owning broker/daemon does all dials). Pairing should then be:
+redeem single-use invite → pin client key → host returns a fresh reusable
+client-bound credential → save it in `PeerBook`.
+
+### Smallest genuinely useful v1 (combined roadmap)
+
+1. **Stable outbound identity** + reusable client-bound credentials (prereq).
+2. `PeerBook` + `peers save/remove/rename`; `connect <name>`.
+3. Rename `list` → `connections` (alias kept).
+4. `serve_with_policy` + scope enforcement (§9) — prereq for safe delegation.
+5. Runtime-injected `roam__list_peers` + `roam__delegate` (one-shot ACP).
+6. Dedicated `Delegate` scope; no recursive roaming; bounded execution.
+
+Defer: durable conversations, steering, presence probing, dynamic tools,
+remote MCP federation, multi-hop delegation, `grants` UI polish.
+
+---
+
 ## Appendix: key file references (continued)
 
 **mesh-llm (../deez, reference implementation)**
