@@ -630,8 +630,10 @@ impl Config {
             let loaded = match &self.secrets {
                 #[cfg(feature = "system-keyring")]
                 SecretStorage::Keyring { service } => {
-                    let result =
-                        self.handle_keyring_operation(|entry| entry.get_password(), service, None);
+                    let result = match Self::read_keyring_password_with_timeout(service) {
+                        Ok(content) => Ok(content),
+                        Err(keyring_err) => self.handle_keyring_fallback_error(&keyring_err, None),
+                    };
 
                     match result {
                         Ok(content) => {
@@ -1049,6 +1051,37 @@ impl Config {
     #[cfg(feature = "system-keyring")]
     fn get_keyring_entry(service: &str) -> Result<keyring::Entry, keyring::Error> {
         Entry::new(service, KEYRING_USERNAME)
+    }
+
+    /// Read the keyring password on a dedicated thread with a timeout.
+    ///
+    /// A synchronous keychain read can block indefinitely — e.g. an unsigned
+    /// binary triggers a macOS keychain ACL prompt that can't be answered when
+    /// running headless or over piped stdio (as with `goose acp`). Because this
+    /// read sits on the `session/new` critical path, a block there hangs the
+    /// whole async runtime. Bounding it lets callers fall back to file storage.
+    #[cfg(feature = "system-keyring")]
+    fn read_keyring_password_with_timeout(service: &str) -> Result<String, keyring::Error> {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let service = service.to_string();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = Self::get_keyring_entry(&service).and_then(|entry| entry.get_password());
+            let _ = tx.send(result);
+        });
+
+        match rx.recv_timeout(Duration::from_secs(3)) {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(
+                    "keyring read timed out after 3s; falling back to file storage \
+                     (set GOOSE_DISABLE_KEYRING=1 to skip the keyring entirely)"
+                );
+                Err(keyring::Error::NoEntry)
+            }
+        }
     }
 
     /// Handle keyring errors with automatic fallback to file storage

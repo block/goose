@@ -247,16 +247,22 @@ There is no narrower "skip inventory refresh" env var
 `GOOSE_DISABLE_KEYRING` is the correct knob. The roaming host should set/document
 it until core follow-up #1 (below) moves the secret reads off the hot path.
 
-### Follow-ups this surfaced (core, separate from roaming)
+### FIXED (core, benefits every ACP client)
 
-1. The inventory-identity secret reads on the `session/new` critical path should
-   be non-blocking / off the hot path (spawn_blocking or cache), or the refresh
-   should be fire-and-forget so a slow/blocked keychain can't stall session
-   creation.
-2. There are **no start/end log markers** around provider-restore, bulk
+The keychain read is now **bounded by a 3s timeout on a dedicated thread**
+(`config/base.rs read_keyring_password_with_timeout`), falling back to the
+existing file storage on timeout. One place, fixes all callers; `get_secret`
+stays sync (no ripple). The provider-inventory refresh was also made
+fire-and-forget off the `session/new` path (`acp/server.rs
+spawn_provider_inventory_refresh`) as defence-in-depth. Verified: the official
+`acp_client` example AND `roam connect` both complete with the keyring **enabled**
+(no `GOOSE_DISABLE_KEYRING`), remote agent replying correctly over the n0 relay.
+
+### Remaining follow-ups (core, separate from roaming)
+1. There are **no start/end log markers** around provider-restore, bulk
    extension load, or inventory refresh — add them; verbosity alone couldn't
    localize this.
-3. Expert also flagged (not the cause here, but real): MCP stdio `initialize`
+2. Expert also flagged (not the cause here, but real): MCP stdio `initialize`
    is an unbounded `client.serve(transport).await` — the configured extension
    timeout only guards later requests, so an MCP server that starts but never
    answers `initialize` can hang session setup too.
