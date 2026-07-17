@@ -183,7 +183,7 @@ async fn backoff_or_cancelled(delay: Duration, cancel_token: &Option<Cancellatio
     {
         return false;
     }
-    info!("Backing off for {:?} before provider retry", delay);
+    debug!("Backing off for {:?} before provider retry", delay);
     match cancel_token {
         Some(token) => tokio::select! {
             _ = tokio::time::sleep(delay) => false,
@@ -2145,10 +2145,6 @@ impl Agent {
                 // thinking so a later tool-call chunk can suppress replayed
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
-                // Whether any visible assistant content (text, reasoning,
-                // images, …) has been streamed to the client this turn, so a
-                // later transient error surfaces instead of retrying and showing
-                // a duplicate response.
                 let mut visible_content_streamed = false;
 
                 while let Some(next) = stream.next().await {
@@ -4370,10 +4366,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_no_retry_after_visible_content_streamed() -> Result<()> {
-        // A transient error arriving mid-stream, after the provider has already
-        // streamed visible assistant text, must not be retried: the client has
-        // already seen the partial answer, so resending would produce a
-        // duplicate/incoherent response. The error should surface instead.
+        // Mid-stream text already shown to the client — retrying would show a duplicate.
         let temp_dir = tempfile::tempdir()?;
         let provider = Arc::new(MockProvider::fails_after_content(
             "partial answer already streamed to the client",
@@ -4411,11 +4404,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_no_retry_after_streamed_reasoning() -> Result<()> {
-        // The text-only guard isn't enough: reasoning (Thinking/RedactedThinking)
-        // is also streamed to the client before any text or tool call. A
-        // transient error after surfaced reasoning must surface rather than
-        // retry and leave the client with abandoned reasoning plus a second
-        // attempt.
+        // Reasoning is streamed before text — same duplicate-response concern.
         let temp_dir = tempfile::tempdir()?;
         let provider = Arc::new(MockProvider::fails_after_thinking(
             "let me reason about this",
@@ -4449,9 +4438,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_no_retry_after_streamed_image() -> Result<()> {
-        // Image content is also visible to the client before any text or tool
-        // call, so a mid-stream transient error after an image must surface
-        // rather than retry and show a duplicate/incoherent response.
+        // Image content is streamed before text — same duplicate-response concern.
         let temp_dir = tempfile::tempdir()?;
         let provider = Arc::new(MockProvider::fails_after_image(
             ProviderError::NetworkError("Stream decode error: mid-stream".into()),
