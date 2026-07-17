@@ -175,7 +175,7 @@ fn provider_error_message(error: &ProviderError) -> Message {
 }
 
 /// Waits for `delay` before a provider retry, returning `true` if the
-/// cancellation token fires first. `GOOSE_PROVIDER_SKIP_BACKOFF=1` skips the wait.
+/// cancellation token fires first. `GOOSE_PROVIDER_SKIP_BACKOFF=true` skips the wait.
 async fn backoff_or_cancelled(delay: Duration, cancel_token: &Option<CancellationToken>) -> bool {
     if std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
         .unwrap_or_default()

@@ -60,6 +60,30 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
+### Provider Retry Configuration
+
+These variables control automatic retry of transient provider errors (network errors, server errors, and rate limits) at the agent layer. When a transient error occurs and no tools have been called yet in the current turn, goose waits with exponential backoff and retries the request.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PROVIDER_RETRY_ENABLED` | Enables or disables automatic retry of transient provider errors | `true`, `false` | `true` |
+| `GOOSE_PROVIDER_RETRY_MAX_ATTEMPTS` | Maximum number of retry attempts before surfacing the error to the user | Positive integer (e.g., 3, 5) | `3` |
+| `GOOSE_PROVIDER_RETRY_INITIAL_DELAY_MS` | Initial delay (in milliseconds) before the first retry; subsequent retries use exponential backoff | Positive integer (e.g., 1000) | `1000` |
+| `GOOSE_PROVIDER_SKIP_BACKOFF` | Skips the backoff delay between retries (useful for tests) | `true`, `false` | `false` |
+
+**Examples**
+
+```bash
+# Disable provider retry entirely
+export GOOSE_PROVIDER_RETRY_ENABLED=false
+
+# Allow up to 5 retry attempts
+export GOOSE_PROVIDER_RETRY_MAX_ATTEMPTS=5
+
+# Start with a 2-second initial delay
+export GOOSE_PROVIDER_RETRY_INITIAL_DELAY_MS=2000
+```
+
 ### Claude Thinking Configuration
 
 These variables control Claude's reasoning behavior. Supported on Anthropic and Databricks providers.
