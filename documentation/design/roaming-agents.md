@@ -204,6 +204,55 @@ Theoretical use cases this unlocks:
 
 ---
 
+## 11. Live `roam connect` VERIFIED + core ACP keyring hang (root-caused)
+
+`roam connect` is now a working thin ACP client UI onto the host's agent and was
+verified end to end: two processes over the real n0 relay, `initialize` →
+`session/new` → prompt "7×6" → **remote agent replied `42`** → rendered locally.
+
+### The hang that blocked it (NOT a roaming bug)
+
+Initial testing hung at `session/new`. Root-caused via staged instrumentation +
+expert review to a **goose-core** issue on the ACP session-init path that
+`goose run` never exercises (so it's unrelated to roaming, and reproduces with
+goose's own `crates/goose-sdk/examples/acp_client.rs` over plain stdio):
+
+```
+handle_new_session
+  -> prepare_acp_session_agent
+     -> maybe_refresh_provider_inventory_with_agent   (server.rs)
+        -> find_entry_for_provider -> describe_provider
+           -> inventory_identity()  (providers/inventory/registrations.rs)
+              -> config.get_secret("ANTHROPIC_CUSTOM_HEADERS")   <-- BLOCKS
+```
+
+The anthropic inventory-identity closure does a **synchronous keychain read**
+for `ANTHROPIC_CUSTOM_HEADERS`. On an unsigned dev binary spawned with piped
+stdio, the macOS keychain ACL prompt can't be answered, so the read blocks
+forever and `session/new` never returns.
+
+Confirmed: `GOOSE_DISABLE_KEYRING=1` (reads `secrets.yaml` instead) → session
+completes instantly. That is the current **workaround** for dev testing.
+
+### Follow-ups this surfaced (core, separate from roaming)
+
+1. The inventory-identity secret reads on the `session/new` critical path should
+   be non-blocking / off the hot path (spawn_blocking or cache), or the refresh
+   should be fire-and-forget so a slow/blocked keychain can't stall session
+   creation.
+2. There are **no start/end log markers** around provider-restore, bulk
+   extension load, or inventory refresh — add them; verbosity alone couldn't
+   localize this.
+3. Expert also flagged (not the cause here, but real): MCP stdio `initialize`
+   is an unbounded `client.serve(transport).await` — the configured extension
+   timeout only guards later requests, so an MCP server that starts but never
+   answers `initialize` can hang session setup too.
+
+### Next roaming steps unchanged
+`serve_with_policy` + scope enforcement (§9), then `roam__list_peers` +
+`roam__delegate` (§10). Consider defaulting the roaming host to tolerate the
+keychain issue (or documenting `GOOSE_DISABLE_KEYRING`) until follow-up #1 lands.
+
 ## Appendix: key file references
 
 **goose (this repo)**
