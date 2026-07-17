@@ -655,8 +655,8 @@ describe('createAcpSessionNotificationAdapter', () => {
         acpUpdate({
           sessionUpdate: 'config_option_update',
           configOptions: [
-            { id: 'model', type: 'select', currentValue: 'gpt-4o', options: [] },
-            { id: 'mode', type: 'select', currentValue: 'smart_approve', options: [] },
+            { id: 'model', name: 'Model', type: 'select', currentValue: 'gpt-4o', options: [] },
+            { id: 'mode', name: 'Mode', type: 'select', currentValue: 'smart_approve', options: [] },
           ],
         })
       );
@@ -669,7 +669,7 @@ describe('createAcpSessionNotificationAdapter', () => {
       const changes = adapter.apply(
         acpUpdate({
           sessionUpdate: 'config_option_update',
-          configOptions: [{ id: 'model', type: 'select', currentValue: 'gpt-4o', options: [] }],
+          configOptions: [{ id: 'model', name: 'Model', type: 'select', currentValue: 'gpt-4o', options: [] }],
         })
       );
 
