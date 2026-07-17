@@ -60,6 +60,23 @@ Exposed via `goose roam` (in `goose-cli`, feature `roaming`):
 | `roam connections` | Live/observed connections (no gossip) |
 | `roam id` | This machine's host + client endpoint ids |
 
+## Testing across two disconnected machines
+
+Build both with the roaming feature (`cargo build -p goose-cli --features roaming`,
+or `just` equivalent) — no shared network, VPN, or port-forwarding needed; the
+public n0 relays bridge them. On **machine A** (the host), run `goose roam share`
+and copy the printed `goose+roam://…` invite token (it embeds A's endpoint id + a
+live relay URL; default TTL 1h). Get that token to **machine B** out of band
+(paste it in chat, etc.). On **machine B**, either drive A interactively with
+`goose roam connect '<token>'` (you'll get a prompt that runs on A's agent — its
+tools, files, shell) or hand it a one-shot task with
+`goose roam delegate '<token>' "what is 2+2?"` and read the reply. Verify it's
+truly A doing the work by asking something machine-specific (e.g. "what's your
+hostname and cwd?"). On the host, `goose roam connections` shows who connected;
+optionally save the peer on B with `goose roam peers save boxA '<token>'` and
+thereafter use the nickname (`goose roam connect boxA`). If session creation
+hangs on macOS, prefix with `GOOSE_DISABLE_KEYRING=1` (see PR #10549 for the fix).
+
 ## Design decisions & rationale
 
 **`connect` is a thin ACP client UI onto the host's agent — not a provider
