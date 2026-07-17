@@ -701,6 +701,10 @@ impl Provider for XaiOAuthProvider {
         self.inner.get_name()
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        self.inner.supports_stream_start_retry(model_config)
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,

@@ -558,6 +558,10 @@ impl Provider for GithubCopilotProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     async fn complete(
         &self,
         model_config: &ModelConfig,

@@ -961,6 +961,10 @@ impl Provider for GeminiOAuthProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         self.token_provider
             .get_valid_setup()

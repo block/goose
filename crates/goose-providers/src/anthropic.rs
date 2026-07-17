@@ -232,6 +232,10 @@ impl Provider for AnthropicProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }

@@ -75,6 +75,10 @@ impl Provider for OpenAiCompatibleProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client

@@ -233,6 +233,10 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self

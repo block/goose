@@ -599,6 +599,10 @@ impl Provider for GcpVertexAIProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
+    }
+
     /// Completes a model interaction by sending a request and processing the response.
     ///
     /// # Arguments

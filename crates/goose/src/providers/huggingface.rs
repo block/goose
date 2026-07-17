@@ -133,6 +133,10 @@ impl Provider for HuggingFaceProvider {
         self.inner.get_name()
     }
 
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        self.inner.supports_stream_start_retry(model_config)
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {

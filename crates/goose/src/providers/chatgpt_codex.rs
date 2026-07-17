@@ -980,6 +980,10 @@ impl Provider for ChatGptCodexProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self, _model_config: &ModelConfig) -> bool {
+        true
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
