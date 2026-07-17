@@ -12,6 +12,7 @@ use iroh::{
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+use crate::directory::{Direction, Directory};
 use crate::error::RoamingError;
 use crate::frame::{read_frame, write_frame};
 use crate::handshake::{ClientHello, HostAck};
@@ -54,6 +55,7 @@ pub struct RoamingNode {
     endpoint: Endpoint,
     router: Mutex<Option<Router>>,
     trust: Arc<Mutex<TrustBook>>,
+    directory: Directory,
 }
 
 impl RoamingNode {
@@ -72,6 +74,7 @@ impl RoamingNode {
             endpoint,
             router: Mutex::new(None),
             trust: Arc::new(Mutex::new(config.trust)),
+            directory: Directory::new(),
         }))
     }
 
@@ -88,6 +91,12 @@ impl RoamingNode {
     /// Shared trust book (for CLI commands to inspect/mutate).
     pub fn trust(&self) -> Arc<Mutex<TrustBook>> {
         self.trust.clone()
+    }
+
+    /// The connected-peers directory, built out of band from observed
+    /// connections (no gossip).
+    pub fn directory(&self) -> &Directory {
+        &self.directory
     }
 
     /// Start accepting inbound ACP connections, serving each authorized stream
@@ -190,13 +199,25 @@ impl RoamingNode {
             .map_err(|e| RoamingError::Transport(format!("decode ack: {e}")))?;
 
         match ack {
-            HostAck::Accepted { scope, agent_id } => Ok(RoamingClientStream {
-                scope,
-                agent_id,
-                conn,
-                send,
-                recv,
-            }),
+            HostAck::Accepted { scope, agent_id } => {
+                self.directory
+                    .record_connect(
+                        conn.remote_id(),
+                        None,
+                        Direction::Outbound,
+                        scope,
+                        Some(agent_id.clone()),
+                        now_ms(),
+                    )
+                    .await;
+                Ok(RoamingClientStream {
+                    scope,
+                    agent_id,
+                    conn,
+                    send,
+                    recv,
+                })
+            }
             HostAck::Rejected { code } => Err(RoamingError::Rejected(code)),
         }
     }
@@ -231,15 +252,27 @@ impl ProtocolHandler for RoamingAcpHandler {
 
         let decision = self.authorize(client, &mut recv).await;
         match decision {
-            Ok(scope) => {
+            Ok((scope, label)) => {
+                let agent_id = self.server.agent_id();
                 let ack = HostAck::Accepted {
                     scope,
-                    agent_id: self.server.agent_id(),
+                    agent_id: agent_id.clone(),
                 };
                 if let Err(e) = send_ack(&mut send, &ack).await {
                     tracing::warn!("roaming: failed to send accept ack: {e}");
                     return Ok(());
                 }
+                self.node
+                    .directory
+                    .record_connect(
+                        client,
+                        label,
+                        Direction::Inbound,
+                        scope,
+                        Some(agent_id),
+                        now_ms(),
+                    )
+                    .await;
                 let recv_box: Box<dyn AsyncRead + Send + Unpin> = Box::new(recv.compat());
                 let send_box: Box<dyn AsyncWrite + Send + Unpin> = Box::new(send.compat_write());
                 if let Err(e) = self
@@ -249,6 +282,7 @@ impl ProtocolHandler for RoamingAcpHandler {
                 {
                     tracing::warn!("roaming: ACP session ended with error: {e}");
                 }
+                self.node.directory.record_disconnect(client, now_ms()).await;
             }
             Err(reason) => {
                 let ack = HostAck::Rejected {
@@ -267,7 +301,7 @@ impl RoamingAcpHandler {
         &self,
         client: EndpointId,
         recv: &mut iroh::endpoint::RecvStream,
-    ) -> Result<Scope, String> {
+    ) -> Result<(Scope, Option<String>), String> {
         let hello_bytes = read_frame(recv).await.map_err(|e| e.to_string())?;
         let hello: ClientHello =
             serde_json::from_slice(&hello_bytes).map_err(|e| format!("bad hello: {e}"))?;
@@ -301,7 +335,7 @@ impl RoamingAcpHandler {
             return Err("not_allowlisted".to_string());
         }
 
-        Ok(hello.invite.claims.scope)
+        Ok((hello.invite.claims.scope, hello.label))
     }
 }
 

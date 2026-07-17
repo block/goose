@@ -22,6 +22,7 @@
 //! implements by calling goose's generic `acp::server::serve`. This keeps the
 //! heavy iroh dependency out of the `goose` core crate entirely.
 
+mod directory;
 mod error;
 mod frame;
 mod handshake;
@@ -31,6 +32,7 @@ mod node;
 mod relay;
 mod trust;
 
+pub use directory::{Direction, Directory, PeerEntry};
 pub use error::{RejectReason, RoamingError};
 pub use handshake::{ClientHello, HostAck};
 pub use identity::{default_key_path, RoamingIdentity};
