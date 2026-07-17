@@ -109,7 +109,6 @@ pub async fn compact_messages(
         }
     };
 
-    // Find and preserve the most recent user message for non-manual compacts
     let (preserved_user_message, is_most_recent) = if !manual_compact {
         let found_msg = messages.iter().enumerate().rev().find(|(_, msg)| {
             msg.is_agent_visible()
@@ -143,7 +142,6 @@ pub async fn compact_messages(
             && idx == messages_to_compact.len() - 1
             && preserved_user_message.is_some()
         {
-            // This is the most recent message and we're preserving it by adding a fresh copy
             MessageMetadata::invisible()
         } else {
             msg.metadata.clone().with_agent_invisible()

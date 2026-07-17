@@ -31,19 +31,14 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage as Provide
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
-/// What a [`ScriptedProvider`] emits for one `stream()` call.
 pub enum Step {
-    /// A single assistant text message.
     Text(String),
-    /// An assistant message requesting one tool call.
     ToolCall {
         id: String,
         name: String,
         args: serde_json::Value,
     },
-    /// Arbitrary pre-built messages emitted as one stream.
     Messages(Vec<Message>),
-    /// The provider fails this call with the given error.
     Error(ProviderError),
 }
 
@@ -64,22 +59,13 @@ impl Step {
 
 type ScriptFn = dyn Fn(&[Message], &[Tool]) -> Result<Vec<Message>, ProviderError> + Send + Sync;
 
-/// A reusable provider whose responses are scripted as data or via a callback,
-/// replacing per-test bespoke `impl Provider` mocks.
 pub struct ScriptedProvider {
     script: Box<ScriptFn>,
     calls: AtomicUsize,
 }
 
 impl ScriptedProvider {
-    /// Build from a fixed sequence of steps, one consumed per `stream()` call.
     pub fn from_steps(steps: impl IntoIterator<Item = Step>) -> Self {
-        // Steps become messages lazily, at the call, so their `created` stamps
-        // follow the conversation. Messages pre-built here would all carry the
-        // construction time, and the persisted conversation is ordered by
-        // `created_timestamp` (second resolution) — once a test crosses a
-        // second boundary, a pre-built reply sorts before the tool response it
-        // answers and the loop reruns the LLM op on a user-tailed conversation.
         let queue: Mutex<VecDeque<Step>> = Mutex::new(steps.into_iter().collect());
         Self::from_fn_result(move |_messages, _tools| {
             queue
@@ -95,14 +81,12 @@ impl ScriptedProvider {
         })
     }
 
-    /// Build from a callback that sees the conversation and tools each call.
     pub fn from_fn(
         script: impl Fn(&[Message], &[Tool]) -> Vec<Message> + Send + Sync + 'static,
     ) -> Self {
         Self::from_fn_result(move |messages, tools| Ok(script(messages, tools)))
     }
 
-    /// Build from a callback that may also fail the call with a `ProviderError`.
     pub fn from_fn_result(
         script: impl Fn(&[Message], &[Tool]) -> Result<Vec<Message>, ProviderError>
             + Send
@@ -115,7 +99,6 @@ impl ScriptedProvider {
         }
     }
 
-    /// Number of times `stream()` has been called.
     pub fn call_count(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
@@ -150,36 +133,21 @@ impl Provider for ScriptedProvider {
     }
 }
 
-/// Behavior for one tool exposed by [`TestExtensionClient`].
 pub enum TestToolBehavior {
-    /// Echo the call arguments back as JSON text.
     Echo,
-    /// Return a tool error with the given message.
     Error(String),
-    /// Emit `count` log notifications, then succeed.
     Notify { count: usize },
-    /// Block until the cancellation token fires, then succeed.
     SlowUntilCancelled,
-    /// Request an elicitation and block until it is answered, then return the
-    /// outcome as text.
     Elicit,
-    /// Register a new extension (named `extra`, exposing `extra__echo`) on the
-    /// harness's extension manager, like `manage_extensions` would.
     AddExtension,
 }
 
-/// An in-process extension client for tests, injected via
-/// `ExtensionManager::add_client` — a real `McpClientTrait`, not a transport mock.
 pub struct TestExtensionClient {
     info: InitializeResult,
     tools: Vec<(String, TestToolBehavior)>,
     notification_tx: mpsc::Sender<ServerNotification>,
     notification_rx: Mutex<Option<mpsc::Receiver<ServerNotification>>>,
-    // The extension name, used to prefix advertised tool names and to
-    // register with the extension manager.
     name: String,
-    // Filled in by `TestHarness::with_extension`; the `Elicit` tool blocks on
-    // the registry and `AddExtension` registers a new client on the manager.
     action_required: std::sync::OnceLock<Arc<ActionRequiredManager>>,
     extension_manager: std::sync::OnceLock<Arc<crate::agents::extension_manager::ExtensionManager>>,
 }
@@ -204,8 +172,6 @@ impl TestExtensionClient {
         }
     }
 
-    /// The default set covering the tool-execution op's code paths.
-    /// The extension manager advertises them as `test__<name>`.
     pub fn with_default_tools() -> Self {
         Self::new(vec![
             ("echo".to_string(), TestToolBehavior::Echo),
@@ -228,8 +194,6 @@ impl McpClientTrait for TestExtensionClient {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, McpError> {
-        // Advertised unprefixed; the extension manager namespaces them as
-        // `<extension>__<name>`.
         let tools = self
             .tools
             .iter()
@@ -365,10 +329,6 @@ impl McpClientTrait for TestExtensionClient {
     }
 }
 
-/// Drives the state-machine `reply` against a real `Agent` wired to a
-/// [`ScriptedProvider`] and an optional [`TestExtensionClient`]. Owns the
-/// session-manager temp dir and the agent setup so tests only express the
-/// scenario.
 pub struct TestHarness {
     pub agent: Agent,
     pub session_id: String,
@@ -377,7 +337,6 @@ pub struct TestHarness {
 }
 
 impl TestHarness {
-    /// Build a harness whose provider replays the given fixed steps.
     pub async fn with_steps(steps: impl IntoIterator<Item = Step>) -> Self {
         Self::with_provider(Arc::new(ScriptedProvider::from_steps(steps))).await
     }
@@ -420,8 +379,6 @@ impl TestHarness {
         }
     }
 
-    /// Inject the default in-process test extension (`test__echo`, `test__error`,
-    /// `test__notify`, `test__slow`).
     pub async fn with_default_extension(self) -> Self {
         self.with_extension(TestExtensionClient::with_default_tools())
             .await
@@ -475,7 +432,6 @@ impl TestHarness {
         self
     }
 
-    /// Set the session's recorded token total, used by proactive compaction.
     pub async fn set_total_tokens(&self, tokens: i32) {
         self.agent
             .config
@@ -496,7 +452,6 @@ impl TestHarness {
         }
     }
 
-    /// Run `reply` to completion and collect the emitted `Message` events.
     pub async fn run(&self, prompt: &str, max_turns: u32) -> anyhow::Result<Vec<Message>> {
         Ok(self
             .run_events(prompt, max_turns)
@@ -509,7 +464,6 @@ impl TestHarness {
             .collect())
     }
 
-    /// Run `reply` to completion and collect every emitted event.
     pub async fn run_events(
         &self,
         prompt: &str,
@@ -531,7 +485,6 @@ impl TestHarness {
         Ok(events)
     }
 
-    /// Reload the persisted session from disk.
     pub async fn reload(&self) -> anyhow::Result<Session> {
         self.agent
             .config
@@ -540,7 +493,6 @@ impl TestHarness {
             .await
     }
 
-    /// The persisted conversation messages.
     pub async fn persisted_messages(&self) -> anyhow::Result<Vec<Message>> {
         Ok(self
             .reload()
@@ -552,8 +504,6 @@ impl TestHarness {
     }
 }
 
-/// Extract the concatenated text from a tool-response message, including the
-/// error message of a failed result.
 pub fn tool_response_text(message: &Message) -> String {
     use crate::conversation::message::MessageContent;
     message

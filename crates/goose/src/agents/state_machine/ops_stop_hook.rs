@@ -16,24 +16,9 @@ use crate::conversation::Conversation;
 use crate::hooks::HookDecision;
 use crate::session::Session;
 
-/// Gives user-defined `Stop` hooks the last word on ending a turn. Applies
-/// when the tail is a completed assistant turn — nothing pending, no error —
-/// which is exactly the state where every earlier op passes and the loop would
-/// end. On `Deny` it appends the denial-context user message, which re-arms
-/// the LLM op on the next iteration; no special control flow needed. On
-/// `Allow` (or with no hooks configured) it stays out of the way and the loop
-/// ends naturally.
 pub struct StopHookOperation<'a> {
     agent: &'a Agent,
-    // Denials since this reply started. Like the compaction retry budget,
-    // this can't be derived from the conversation: the denial-context
-    // messages are user-role and agent-visible, so they look like fresh
-    // prompts to any walk-back.
     consecutive_blocks: AtomicU32,
-    // Set when the blocking hook decided the exit (Allow or cap override).
-    // The machine fires the non-blocking Stop hook at stream end when it
-    // didn't — max-turns, approval waits, errors, cancellation — mirroring
-    // the old loop's stop_hook_handled_for_exit.
     decided_exit: Arc<AtomicBool>,
 }
 

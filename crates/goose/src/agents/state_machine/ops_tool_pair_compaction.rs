@@ -16,14 +16,6 @@ use crate::providers::base::Provider;
 use crate::session::Session;
 use goose_providers::model::ModelConfig;
 
-/// Replaces old tool call/response pairs with one-line summaries once enough
-/// accumulate: the pair is marked agent-invisible (the transcript keeps it)
-/// and an agent-only summary takes its place — the summary carries the pair's
-/// created timestamp, so it sorts into position on read. The most recent
-/// span of tool activity is protected, mirroring the old loop's
-/// current-turn protection. The old loop ran this in the background and
-/// joined at the end of the iteration; this is the design notes' synchronous
-/// first cut — revisit if the summarization calls visibly delay turns.
 pub struct ToolPairCompactionOperation {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
@@ -51,8 +43,6 @@ impl ToolPairCompactionOperation {
     }
 }
 
-/// Tool requests in the trailing span of tool activity — requests that may
-/// still be in flight or whose results the model is actively working from.
 fn trailing_tool_requests(conversation: &Conversation) -> usize {
     let mut count = 0;
     for message in conversation.messages().iter().rev() {

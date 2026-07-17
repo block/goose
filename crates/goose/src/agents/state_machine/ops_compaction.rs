@@ -16,19 +16,8 @@ use goose_providers::model::ModelConfig;
 
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
-/// How many times we'll compact-and-retry after a `ContextLengthExceeded`
-/// before giving up and letting `ExitOnError` hand control to the client.
 const MAX_CONTEXT_ERROR_RETRIES: usize = 2;
 
-/// Proactively summarizes the conversation once its token usage crosses the
-/// auto-compact threshold, before handing off to the LLM. Replaces the
-/// `check_if_compaction_needed` / `compact_messages` block in `Agent::reply`.
-///
-/// The op does the cheap synchronous ratio check using the session's recorded
-/// token total against the model's context limit (both known at construction).
-/// When the token total is unknown the op stays out of the way —
-/// proactive compaction is best-effort, and the reactive `ContextLengthExceeded`
-/// path remains the backstop.
 pub struct CompactionOperation<'a> {
     agent: &'a Agent,
     provider: Arc<dyn Provider>,
@@ -37,13 +26,6 @@ pub struct CompactionOperation<'a> {
     context_limit: usize,
     threshold: f64,
     manages_own_context: bool,
-    // Consecutive failed compact-retry cycles. The count lives on the op
-    // rather than being derived from the conversation: compaction erases the
-    // very error messages it recovers from (and appends a fresh user message),
-    // so a conversation-derived count resets to one on every cycle and the cap
-    // would never trip. Reset on a successful assistant turn — the retry
-    // working, not the compaction working, is what proves recovery — so a long
-    // run that keeps recovering never exhausts the budget.
     failed_compact_retries: AtomicUsize,
 }
 
@@ -107,16 +89,12 @@ impl Operation for CompactionOperation<'_> {
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
-        // Reactive: the LLM op just appended a ContextLengthExceeded error.
-        // Compact and retry, up to a cap, before letting ExitOnError take it.
         if reactive_context_error {
             if self.failed_compact_retries.load(Ordering::Relaxed) >= MAX_CONTEXT_ERROR_RETRIES {
                 return Ok(OperationResult::NotApplicable(emit));
             }
             self.failed_compact_retries.fetch_add(1, Ordering::Relaxed);
         } else {
-            // Proactive: a pending user turn whose recorded token total is over the
-            // threshold. We compact before the doomed LLM call rather than after.
             let last_is_user = conversation
                 .last()
                 .map(|m| m.role == rmcp::model::Role::User && !m.is_tool_response())
@@ -130,8 +108,6 @@ impl Operation for CompactionOperation<'_> {
             }
         }
 
-        // In the reactive case the conversation ends in an error message that we
-        // must not feed into the summary; compact everything before it.
         let trimmed;
         let conversation = if reactive_context_error {
             let mut messages = conversation.messages().to_vec();
@@ -171,9 +147,6 @@ impl Operation for CompactionOperation<'_> {
         .await
         {
             Ok((compacted, usage)) => {
-                // Recorded with the compaction flag: the summary's output size
-                // becomes the session's new context total, which is also what
-                // keeps the proactive check from re-triggering on the old count.
                 self.agent
                     .update_session_metrics(&session.id, self.schedule_id.clone(), &usage, true)
                     .await?;

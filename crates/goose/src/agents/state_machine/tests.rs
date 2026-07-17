@@ -29,7 +29,6 @@ async fn llm_requests_tool_then_replies() -> Result<()> {
 
     let messages = harness.run("use the echo tool", 10).await?;
 
-    // emitted: assistant(tool req) + user(tool resp) + assistant(text)
     assert_eq!(messages.len(), 3, "events: {messages:#?}");
     assert_eq!(messages[0].role, Role::Assistant);
     assert!(messages[0].is_tool_call());
@@ -37,14 +36,11 @@ async fn llm_requests_tool_then_replies() -> Result<()> {
     assert!(messages[1].is_tool_response());
     assert_eq!(messages[2].role, Role::Assistant);
 
-    // tool actually ran: echo returned the args as JSON text
     let resp_text = tool_response_text(&messages[1]);
     assert!(resp_text.contains("\"x\":1"), "tool response: {resp_text}");
 
-    // provider was called twice (tool turn + final text turn)
     assert_eq!(harness.provider.call_count(), 2);
 
-    // persisted conversation matches what was emitted (prompt + 3 above)
     let persisted = harness.persisted_messages().await?;
     assert_eq!(persisted.len(), 4);
     assert_eq!(persisted[0].role, Role::User);
@@ -54,8 +50,6 @@ async fn llm_requests_tool_then_replies() -> Result<()> {
 
 #[tokio::test]
 async fn stops_at_max_turns() -> Result<()> {
-    // The provider never stops on its own — every turn calls a tool, whose
-    // response re-triggers the LLM. Only the max-turns op can halt the loop.
     let calls = std::sync::atomic::AtomicUsize::new(0);
     let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
         let n = calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -72,7 +66,6 @@ async fn stops_at_max_turns() -> Result<()> {
 
     let messages = harness.run("keep going", 3).await?;
 
-    // 3 LLM turns, then the max-turns op halts before a 4th.
     assert_eq!(harness.provider.call_count(), 3);
 
     let limit = messages.last().expect("at least one message");
@@ -82,8 +75,6 @@ async fn stops_at_max_turns() -> Result<()> {
         "last message: {limit:#?}"
     );
 
-    // The 3 tool-calling turns and the limit message are persisted, so a
-    // reloaded transcript shows why the agent stopped.
     let persisted = harness.persisted_messages().await?;
     let tool_call_turns = persisted.iter().filter(|m| m.is_tool_call()).count();
     assert_eq!(tool_call_turns, 3);
@@ -98,11 +89,6 @@ async fn stops_at_max_turns() -> Result<()> {
 
 #[tokio::test]
 async fn max_turns_counts_llm_calls_not_assistant_messages() -> Result<()> {
-    // One LLM call can persist several assistant messages (thinking/text and
-    // tool-call chunks arrive separately). The budget must count calls: three
-    // two-message turns fit in max_turns=3; counting messages would stop the
-    // loop after two calls. This is how self-test delegates burned a 25-turn
-    // budget on a write-one-file task.
     let calls = std::sync::atomic::AtomicUsize::new(0);
     let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
         let n = calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -331,7 +317,6 @@ async fn queued_steer_is_injected_between_turns() -> Result<()> {
 
     let messages = harness.run("paint it", 10).await?;
 
-    // Turn one, then the steer injects and buys a second turn that sees it.
     assert_eq!(harness.provider.call_count(), 2, "events: {messages:#?}");
     assert_eq!(
         messages.last().unwrap().as_concat_text(),
@@ -377,7 +362,6 @@ async fn unparseable_tool_call_gets_parse_error_response() -> Result<()> {
     let text = tool_response_text(tool_response);
     assert!(text.contains("could not be parsed"), "response: {text}");
     assert!(text.contains("unbalanced braces"), "response: {text}");
-    // The model got the error and could take another turn.
     assert_eq!(harness.provider.call_count(), 2);
     assert_eq!(messages.last().unwrap().as_concat_text(), "let me fix that");
 
@@ -405,7 +389,6 @@ async fn turn_context_is_injected_into_provider_view() -> Result<()> {
 
     assert!(saw_turn_context.load(Ordering::Relaxed));
 
-    // The turn-context block is ephemeral: it never lands in the transcript.
     let persisted = harness.persisted_messages().await?;
     assert!(!persisted
         .iter()
@@ -416,8 +399,6 @@ async fn turn_context_is_injected_into_provider_view() -> Result<()> {
 
 #[tokio::test]
 async fn old_tool_pairs_are_summarized_away() -> Result<()> {
-    // Default cutoff for the test model is 15 and the batch size is 10, so 26
-    // answered pairs put exactly one batch over the threshold.
     let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
         vec![Message::assistant().with_text("summary of the pair")]
     }));
@@ -454,7 +435,6 @@ async fn old_tool_pairs_are_summarized_away() -> Result<()> {
 
     harness.run("carry on", 10).await?;
 
-    // One batch of 10 summaries plus the actual turn.
     assert_eq!(harness.provider.call_count(), 11);
 
     let persisted = harness.persisted_messages().await?;
@@ -494,8 +474,6 @@ async fn chat_mode_skips_tool_execution() -> Result<()> {
 
     let messages = harness.run("try the tool", 10).await?;
 
-    // No confirmation was requested and the tool never ran; the model got a
-    // skipped notice instead and finished the turn.
     assert!(!messages.iter().any(|m| m
         .content
         .iter()
@@ -514,8 +492,6 @@ async fn chat_mode_skips_tool_execution() -> Result<()> {
 
 #[tokio::test]
 async fn extension_added_mid_reply_refreshes_tools() -> Result<()> {
-    // Turn 1 installs an extension; the next LLM call in the same reply must
-    // already advertise its tools.
     let provider = Arc::new(ScriptedProvider::from_fn(|_messages, tools| {
         if tools.iter().any(|tool| tool.name == "extra__echo") {
             vec![Message::assistant().with_text("extension ready".to_string())]
@@ -556,7 +532,6 @@ async fn goal_nudges_once_then_clears() -> Result<()> {
 
     let messages = harness.run("work on the goal", 10).await?;
 
-    // The nudge bought exactly one extra turn, then the goal was cleared.
     assert_eq!(harness.provider.call_count(), 2, "events: {messages:#?}");
     assert!(harness.agent.get_goal().await.is_none());
 
@@ -574,9 +549,6 @@ async fn goal_nudges_once_then_clears() -> Result<()> {
 
 #[tokio::test]
 async fn grind_is_bounded_by_max_turns() -> Result<()> {
-    // Grind nudges after every completed turn; the nudges are user-role
-    // messages, so only the max-turns budget (which ignores machine-generated
-    // user messages) can end the loop.
     let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
         vec![Message::assistant().with_text("grinding")]
     }));
@@ -636,8 +608,6 @@ async fn retry_resets_conversation_until_attempts_exhausted() -> Result<()> {
         }
     }
 
-    // First failure resets the conversation and retries; the second exhausts
-    // the budget and appends the give-up message.
     assert_eq!(replaced, 1);
     assert_eq!(harness.provider.call_count(), 2);
 
@@ -658,7 +628,6 @@ async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
     use crate::recipe::Response;
 
     let harness = TestHarness::with_steps([
-        // Turn 1 ends without calling the tool — the op must prod the model.
         Step::Text("thinking about it".to_string()),
         Step::ToolCall {
             id: "call_1".to_string(),
@@ -687,7 +656,6 @@ async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
     assert!(persisted
         .iter()
         .any(|m| m.as_concat_text() == FINAL_OUTPUT_CONTINUATION_MESSAGE));
-    // The recorded output is appended as the closing assistant message.
     assert_eq!(
         persisted.last().unwrap().as_concat_text(),
         r#"{"result":"42"}"#
@@ -696,8 +664,6 @@ async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
     Ok(())
 }
 
-/// A hook plugin whose script logs each invocation to `hook.log` under its
-/// plugin root. Keep the returned env alive for the duration of the test.
 struct HookTestEnv {
     _temp_dir: tempfile::TempDir,
     plugin_dir: std::path::PathBuf,
@@ -761,12 +727,9 @@ async fn stop_hook_denial_retries_until_cap_overrides() -> Result<()> {
 
     let events = harness.run_events("hello", 10).await?;
 
-    // Initial turn plus two honored retries; the third block hits the cap.
     assert_eq!(calls.load(Ordering::SeqCst), 3, "events: {events:#?}");
     assert_eq!(env.invocations(), 3);
 
-    // Denial context is durable agent-facing state; the cap warning is a
-    // persisted user-facing notification.
     let persisted = harness.persisted_messages().await?;
     let denials = persisted
         .iter()
@@ -803,9 +766,6 @@ async fn stop_hook_allow_ends_turn_after_one_check() -> Result<()> {
 
 #[tokio::test]
 async fn stop_hook_is_notified_once_on_max_turns_exit() -> Result<()> {
-    // The max-turns exit never consults the blocking stop hook (it can't be
-    // overridden), but Stop hooks are still notified — exactly once, at the
-    // end of the stream, mirroring the old loop's non-blocking tail emit.
     let env = HookTestEnv::new("Stop", LOG_AND_ALLOW_SCRIPT);
     let calls = std::sync::atomic::AtomicUsize::new(0);
     let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
@@ -877,7 +837,6 @@ async fn pre_tool_use_hook_denial_becomes_tool_error() -> Result<()> {
         text.contains("denied by policy hook"),
         "tool response: {text}"
     );
-    // The denied tool never ran (echo would have returned the args as JSON).
     assert!(!text.contains("\"x\":1"));
 
     Ok(())
@@ -914,9 +873,6 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
     .await?;
     tokio::pin!(stream);
 
-    // Drive the stream; when the blocked tool's elicitation request shows up,
-    // answer it the way Agent::reply's interception does — via the registry,
-    // with the response message persisted — and keep draining.
     let mut messages = Vec::new();
     let mut answered_id = None;
     while let Some(event) = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next())
@@ -960,7 +916,6 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
         "no elicitation request was emitted: {messages:#?}"
     );
 
-    // The tool unblocked with the accepted data and the turn completed.
     let tool_response = messages
         .iter()
         .find(|m| m.is_tool_response())
@@ -972,7 +927,6 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
     assert_eq!(messages.last().unwrap().as_concat_text(), "thanks");
     assert_eq!(harness.provider.call_count(), 2);
 
-    // The pending question and its answer are both durable conversation state.
     let persisted = harness.persisted_messages().await?;
     let request_position = persisted.iter().position(|m| {
         m.content.iter().any(|c| {
@@ -1002,10 +956,6 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
 
 #[tokio::test]
 async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
-    // A crash mid-execution leaves an unanswered tool request behind. On the
-    // next user prompt it must not be executed or re-approved, and the
-    // provider must not see it (an unanswered tool call is a protocol error).
-    // It stays in the transcript as history.
     let provider = Arc::new(ScriptedProvider::from_fn(|messages, _tools| {
         assert!(
             messages.iter().all(|m| m
@@ -1058,26 +1008,21 @@ async fn stale_orphaned_tool_request_is_not_executed() -> Result<()> {
 
 #[tokio::test]
 async fn compacts_when_over_token_threshold() -> Result<()> {
-    // Every provider call (the compaction summary and the post-compaction LLM
-    // turn) returns plain text, so the loop ends after one real turn.
     let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
         vec![Message::assistant().with_text("ok")]
     }));
     let harness = TestHarness::with_provider(provider).await;
 
-    // 128k context * 0.8 threshold = 102_400; push well past it.
     harness.set_total_tokens(120_000).await;
 
     let events = harness.run_events("hello", 10).await?;
 
-    // Compaction replaced the conversation exactly once.
     let replaced = events
         .iter()
         .filter(|e| matches!(e, AgentEvent::HistoryReplaced(_)))
         .count();
     assert_eq!(replaced, 1, "events: {events:#?}");
 
-    // The "Performing auto-compaction" notice was emitted.
     use crate::conversation::message::MessageContent;
     let saw_notice = events.iter().any(|e| {
         match e {
@@ -1089,12 +1034,8 @@ async fn compacts_when_over_token_threshold() -> Result<()> {
     });
     assert!(saw_notice, "events: {events:#?}");
 
-    // Provider was called for the summary and then the post-compaction turn.
     assert_eq!(harness.provider.call_count(), 2);
 
-    // The stale 120k total was replaced by real usage — first the compaction's
-    // summary size, then the post-compaction turn's total (the scripted
-    // provider reports 15) — so compaction doesn't re-trigger.
     let reloaded = harness.reload().await?;
     assert_eq!(reloaded.usage.total_tokens, Some(15));
 
@@ -1107,7 +1048,6 @@ async fn llm_turn_records_usage_on_session_and_message() -> Result<()> {
 
     let events = harness.run_events("hello", 10).await?;
 
-    // The scripted provider reports (10 in, 5 out, 15 total) per call.
     let reloaded = harness.reload().await?;
     assert_eq!(reloaded.usage.total_tokens, Some(15));
     assert_eq!(reloaded.usage.input_tokens, Some(10));
@@ -1126,7 +1066,6 @@ async fn llm_turn_records_usage_on_session_and_message() -> Result<()> {
         "events: {events:#?}"
     );
 
-    // The usage ledger is attached to the persisted assistant message.
     let persisted = harness.persisted_messages().await?;
     let assistant = persisted
         .iter()
@@ -1150,7 +1089,6 @@ async fn provider_error_is_persisted_and_yields() -> Result<()> {
 
     let events = harness.run_events("hello", 10).await?;
 
-    // The error surfaced as a message event (replacing the old notification).
     let saw_error_event = events.iter().any(|e| {
         matches!(
             e,
@@ -1159,7 +1097,6 @@ async fn provider_error_is_persisted_and_yields() -> Result<()> {
     });
     assert!(saw_error_event, "events: {events:#?}");
 
-    // It is durable conversation state, tagged, user-visible, agent-invisible.
     let persisted = harness.persisted_messages().await?;
     let error = persisted
         .iter()
@@ -1168,7 +1105,6 @@ async fn provider_error_is_persisted_and_yields() -> Result<()> {
     assert!(error.is_user_visible());
     assert!(!error.is_agent_visible());
 
-    // The provider was called exactly once: ExitOnError yielded, no retry.
     assert_eq!(harness.provider.call_count(), 1);
 
     Ok(())
@@ -1231,9 +1167,6 @@ async fn goal_slash_command_starts_turn_with_hidden_kickoff() -> Result<()> {
 
     let messages = harness.run("/goal finish the migration", 10).await?;
 
-    // The command kicks off a turn; the retry op then nudges once ("check
-    // whether the goal has been fully met") for a second turn, and clears
-    // the goal.
     assert_eq!(harness.provider.call_count(), 2);
     assert_eq!(messages[0].role, Role::User);
     assert_eq!(messages[1].role, Role::Assistant);
@@ -1301,9 +1234,6 @@ async fn repeated_context_length_errors_stop_after_capped_retries() -> Result<()
     use goose_providers::errors::ProviderError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    // Turns (even calls) always blow the context; compaction summaries (odd
-    // calls) succeed but never help. Without a working retry cap this cycles
-    // compact/retry forever.
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_fn = calls.clone();
     let provider = Arc::new(ScriptedProvider::from_fn_result(
@@ -1321,8 +1251,6 @@ async fn repeated_context_length_errors_stop_after_capped_retries() -> Result<()
     .await
     .expect("retry cap did not stop the compact/retry cycle")?;
 
-    // Failing turn, then two capped compact-and-retry cycles, then ExitOnError
-    // yields: turn, summary, retry, summary, retry.
     assert_eq!(harness.provider.call_count(), 5, "events: {events:#?}");
 
     let persisted = harness.persisted_messages().await?;
@@ -1341,10 +1269,6 @@ async fn successful_turns_reset_the_compact_retry_budget() -> Result<()> {
     use goose_providers::errors::ProviderError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    // Three context errors in one reply, but each compaction is followed by a
-    // successful turn (a tool call that keeps the loop going). The failure
-    // budget resets on success, so the third compaction must still happen —
-    // the cap only stops *consecutive* failed compact-retry cycles.
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_fn = calls.clone();
     let provider = Arc::new(ScriptedProvider::from_fn_result(
@@ -1375,7 +1299,6 @@ async fn successful_turns_reset_the_compact_retry_budget() -> Result<()> {
         .count();
     assert_eq!(replaced, 3, "events: {events:#?}");
 
-    // (error, summary, retry) three times, ending in "done": 9 calls.
     assert_eq!(harness.provider.call_count(), 9);
 
     let persisted = harness.persisted_messages().await?;
@@ -1391,38 +1314,28 @@ async fn context_length_error_triggers_compaction_recovery() -> Result<()> {
     use goose_providers::errors::ProviderError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    // First LLM call blows the context; after compaction replaces the
-    // conversation, the retried call succeeds with plain text.
     let calls = Arc::new(AtomicUsize::new(0));
     let calls_for_fn = calls.clone();
     let provider = Arc::new(ScriptedProvider::from_fn_result(
-        move |_messages, _tools| {
-            match calls_for_fn.fetch_add(1, Ordering::SeqCst) {
-                // call 0: the failing turn
-                0 => Err(ProviderError::ContextLengthExceeded("too long".to_string())),
-                // call 1: the compaction summary
-                // call 2: the retried turn
-                _ => Ok(vec![Message::assistant().with_text("recovered")]),
-            }
+        move |_messages, _tools| match calls_for_fn.fetch_add(1, Ordering::SeqCst) {
+            0 => Err(ProviderError::ContextLengthExceeded("too long".to_string())),
+            _ => Ok(vec![Message::assistant().with_text("recovered")]),
         },
     ));
     let harness = TestHarness::with_provider(provider).await;
 
     let events = harness.run_events("hello", 10).await?;
 
-    // Compaction replaced the conversation as part of recovery.
     let replaced = events
         .iter()
         .filter(|e| matches!(e, AgentEvent::HistoryReplaced(_)))
         .count();
     assert_eq!(replaced, 1, "events: {events:#?}");
 
-    // The turn ultimately succeeded; no error message lingers on the tail.
     let persisted = harness.persisted_messages().await?;
     let last = persisted.last().expect("a persisted message");
     assert!(last.error_kind().is_none(), "tail still an error: {last:?}");
 
-    // Failing turn + compaction summary + retried turn = three provider calls.
     assert_eq!(calls.load(Ordering::SeqCst), 3);
 
     Ok(())

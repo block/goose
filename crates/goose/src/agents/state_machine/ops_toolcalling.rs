@@ -17,15 +17,6 @@ use crate::conversation::message::{ActionRequiredData, Message, MessageContent, 
 use crate::conversation::Conversation;
 use crate::session::Session;
 
-/// Executes pending tool requests: when the last message is an assistant
-/// message carrying tool requests that have not yet been answered, dispatch
-/// each one through `Agent::dispatch_tool_call` — which carries the
-/// PreToolUse/PostToolUse hooks, platform-tool interception (`final_output`,
-/// schedule management), and large-response handling — and append a single
-/// message with the collected responses.
-///
-/// Approval is handled by the approval op; frontend tools are deliberately
-/// unsupported here (nothing registers them anymore).
 pub struct ToolExecutionOperation<'a> {
     agent: &'a Agent,
 }
@@ -36,12 +27,6 @@ impl<'a> ToolExecutionOperation<'a> {
     }
 }
 
-/// Index of the last genuine user prompt — the message that started the
-/// current request. Tool requests before it are stale leftovers (e.g. from a
-/// crash mid-execution): they are not executed or re-approved, and the LLM op
-/// hides them from the provider. Approval-flow re-entry messages
-/// (`ToolConfirmationResponse`, agent-invisible) don't move the boundary, so
-/// requests awaiting approval stay current.
 pub(crate) fn current_request_start(messages: &[Message]) -> usize {
     messages
         .iter()
@@ -81,8 +66,6 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
             message.content.iter().filter_map(|c| match c {
                 MessageContent::ToolRequest(req) if !answered.contains(&req.id) => {
                     if let Err(parse_error) = &req.tool_call {
-                        // The model gets the parse error as the tool's result
-                        // so it can correct the call instead of stalling.
                         return Some((
                             req.clone(),
                             ToolDisposition::ParseError(parse_error.to_string()),
@@ -146,8 +129,6 @@ impl Operation for ToolExecutionOperation<'_> {
         if self.agent.goose_mode().await == GooseMode::Chat {
             let mut response = Message::user().with_generated_id();
             for (request, disposition) in &pending {
-                // Parse errors surface even in chat mode — a malformed call
-                // skipped as "OK" would leave the model unable to correct it.
                 let result = match disposition {
                     ToolDisposition::ParseError(parse_error) => {
                         CallToolResult::error(vec![Content::text(format!(
@@ -197,9 +178,6 @@ impl Operation for ToolExecutionOperation<'_> {
                     session,
                 )
                 .await;
-            // An Err here is a policy denial (PreToolUse hook) or a
-            // misconfigured platform tool; either way it becomes the tool's
-            // error response.
             let result = result.unwrap_or_else(|error_data| ToolCallResult::from(Err(error_data)));
 
             let req_id = request.id.clone();
@@ -270,12 +248,6 @@ impl Operation for ToolExecutionOperation<'_> {
                             if msg.id.is_none() {
                                 msg = msg.with_generated_id();
                             }
-                            // Persisted here rather than as an effect: this op
-                            // stays blocked until the elicitation is answered
-                            // (possibly much later, from another reply call
-                            // that reads the conversation), so an effect
-                            // returned at completion would record the question
-                            // only after its answer.
                             if let Err(e) = self
                                 .agent
                                 .config

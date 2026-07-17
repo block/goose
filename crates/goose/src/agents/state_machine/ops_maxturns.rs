@@ -8,9 +8,6 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
 
-/// Stops the loop once the agent has taken `max_turns` LLM turns in response to
-/// a single user prompt. A "turn" is one assistant message; the current request
-/// starts at the last genuine user message (a prompt, not a tool response).
 pub struct MaxTurnsOperation {
     max_turns: u32,
 }
@@ -25,17 +22,9 @@ pub(crate) fn turns_taken_this_request(conversation: &Conversation) -> u32 {
     let mut turns = 0u32;
     let mut in_assistant_block = false;
     for message in conversation.messages().iter().rev() {
-        // Only a message the user actually typed starts a new request.
-        // Machine-generated user messages (goal/grind nudges, stop-hook
-        // denial context — user-invisible by construction) keep the loop
-        // going and must not reset the budget, or a grind could run forever.
         if message.role == Role::User && !message.is_tool_response() && message.is_user_visible() {
             break;
         }
-        // A turn is one LLM call, which can persist several assistant
-        // messages (thinking, text, and tool-call chunks arrive as separate
-        // messages). Count contiguous assistant blocks, not messages, or the
-        // budget depletes at a multiple of the real turn rate.
         if message.role == Role::Assistant {
             if !in_assistant_block {
                 turns += 1;

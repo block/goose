@@ -12,22 +12,10 @@ use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::session::Session;
 
-/// Decides what a completed turn means for the request: consume the recipe's
-/// recorded `final_output` (or nudge the model to call the tool), nudge toward
-/// an unmet goal or grind, and run the recipe's retry logic — reset the
-/// conversation and try again while the success checks fail and the budget
-/// lasts. When none of that applies the turn genuinely ends and later ops
-/// (stop hook) take over.
 pub struct RetryOperation<'a> {
     agent: &'a Agent,
     session_config: SessionConfig,
-    // The conversation as this reply started (including the user prompt);
-    // what a retry resets to. Captured only when a retry config exists.
     initial_messages: Vec<Message>,
-    // Both mirror per-reply locals of the old loop: the goal nudge fires once
-    // per reply, and once the request is finished (final output consumed,
-    // retry budget exhausted) this op stays out of the way so a stop-hook
-    // denial can't restart it.
     goal_nudged: AtomicBool,
     finished: AtomicBool,
 }
@@ -69,8 +57,6 @@ impl Operation for RetryOperation<'_> {
             guard.as_mut().map(|tool| tool.final_output.take())
         };
         match final_output {
-            // A final-output schema is configured but the model ended the turn
-            // without calling the tool: prod it and run another turn.
             Some(None) => {
                 let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                 emit.emit(AgentEvent::Message(message.clone())).await;
@@ -145,11 +131,7 @@ impl Operation for RetryOperation<'_> {
             )
             .await
         {
-            Ok(RetryResult::Retried) => {
-                // The retry manager reset the conversation to its initial
-                // state; replacing it re-arms the LLM op on the user prompt.
-                Ok(OperationResult::Applied(vec![working.into()]))
-            }
+            Ok(RetryResult::Retried) => Ok(OperationResult::Applied(vec![working.into()])),
             Ok(RetryResult::MaxAttemptsReached(message)) => {
                 self.finished.store(true, Ordering::Relaxed);
                 emit.emit(AgentEvent::Message(message.clone())).await;

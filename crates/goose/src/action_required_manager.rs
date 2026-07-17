@@ -44,10 +44,6 @@ impl PendingResponseClaim {
     }
 }
 
-/// Routes pending elicitations between blocked tool calls and the client.
-/// Scoped per session store (owned by `SessionStorage`, reached through
-/// `SessionManager::action_required`): its keys embed session ids, which are
-/// only unique within one store.
 pub(crate) struct ActionRequiredManager {
     pending: Arc<RwLock<HashMap<String, Arc<Mutex<PendingRequest>>>>>,
     action_required_senders: Mutex<HashMap<(String, String), mpsc::Sender<Message>>>,

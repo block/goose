@@ -117,7 +117,6 @@ impl Agent {
             ));
         }
 
-        // Validate it's a valid recipe by trying to parse it
         match std::fs::read_to_string(recipe_path) {
             Ok(content) => {
                 if recipe_path.ends_with(".json") {

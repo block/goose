@@ -27,7 +27,6 @@ use crate::agents::{Agent, AgentEvent};
 use crate::config::Config;
 use crate::conversation::message::Message;
 
-/// State-machine replacement for `Agent::reply`.
 pub async fn reply(
     agent: &Agent,
     user_message: Message,
@@ -36,8 +35,6 @@ pub async fn reply(
 ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
     let session_manager = agent.config.session_manager.clone();
 
-    // A never-cancelled token stands in for the un-cancellable caller so the
-    // loop body never has to branch on the `Option`.
     let cancel = cancel_token.unwrap_or_default();
 
     let session_id = session_config.id.clone();
@@ -48,8 +45,6 @@ pub async fn reply(
             .emit_hook(crate::hooks::HookEvent::SessionStart, &session_id)
             .await;
     }
-    // Approval and elicitation re-entries arrive as content-only user messages
-    // with no text; they resume a turn rather than submit a prompt.
     let prompt_text = user_message.as_concat_text();
     if !prompt_text.is_empty() {
         agent
@@ -61,8 +56,6 @@ pub async fn reply(
         .add_message(&session_config.id, &user_message)
         .await?;
 
-    // What a retry resets the conversation to: the state right after this
-    // reply's prompt landed. Only needed when the recipe configured retries.
     let initial_messages = if session_config.retry_config.is_some() {
         session_manager
             .get_session(&session_id, true)
@@ -74,10 +67,6 @@ pub async fn reply(
         Vec::new()
     };
 
-    // Session naming is out-of-band: a detached task that overlaps the reply
-    // loop, generates a title once early in a session, persists it, and pushes
-    // it to the UI. It never reads or mutates the conversation, so it is not an
-    // operation — see WIP.md "Two kinds of work".
     if !agent.config.disable_session_naming {
         let provider = agent.provider().await?;
         let manager = session_manager.clone();
@@ -212,7 +201,6 @@ pub async fn reply(
                 break;
             };
 
-            // Op returned; its Emitter dropped; channel closed. Drain leftovers.
             while let Some(event) = rx.recv().await {
                 yield event;
             }
@@ -282,8 +270,6 @@ pub async fn reply(
         if !last_assistant_text.is_empty() {
             tracing::Span::current().record("trace_output", last_assistant_text.as_str());
         }
-        // Exits the blocking stop-hook op didn't decide — max turns, approval
-        // waits, errors, cancellation — still notify Stop hooks, without a say.
         if !stop_hook_decided_exit.load(std::sync::atomic::Ordering::Relaxed) {
             agent.emit_stop_hook(&session_id, &last_assistant_text).await;
         }

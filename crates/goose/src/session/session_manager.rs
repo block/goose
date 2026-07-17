@@ -655,10 +655,6 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
-    // Lives on the storage, not the SessionManager handle: handles are minted
-    // freely (`instance()` builds a new one per call) while the storage is the
-    // shared identity, and the registry's keys embed session ids that are only
-    // unique within one store.
     action_required: Arc<crate::action_required_manager::ActionRequiredManager>,
 }
 

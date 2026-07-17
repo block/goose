@@ -259,9 +259,6 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
-/// The category of an error that occurred during a turn, in the conversation's
-/// own vocabulary. Mirrors the recoverability distinctions the transcript cares
-/// about rather than every provider-internal variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MessageErrorKind {
@@ -283,9 +280,6 @@ impl From<&crate::errors::ProviderError> for MessageErrorKind {
     }
 }
 
-/// An error that occurred during a turn, recorded as durable conversation state
-/// (shown to the user, hidden from the model) rather than a transient
-/// out-of-band notification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorContent {
@@ -1143,9 +1137,6 @@ impl Message {
             .with_metadata(MessageMetadata::user_only())
     }
 
-    /// Build a user-facing error message from a provider error: shown to the
-    /// user, hidden from the model, tagged with a [`MessageErrorKind`] so
-    /// recovery logic can dispatch on it.
     pub fn from_provider_error(err: &crate::errors::ProviderError) -> Self {
         use crate::errors::ProviderError;
         let text = match err {
@@ -1163,7 +1154,6 @@ impl Message {
         Message::assistant().with_error(MessageErrorKind::from(err), text)
     }
 
-    /// The [`MessageErrorKind`] of this message, if it carries an error.
     pub fn error_kind(&self) -> Option<MessageErrorKind> {
         self.content
             .iter()

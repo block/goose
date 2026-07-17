@@ -36,8 +36,6 @@ impl Operation for ToolApprovalOperation<'_> {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        // Chat mode never executes tools, so there is nothing to approve —
-        // the execution op answers every request with a skipped notice.
         if self.agent.goose_mode().await == crate::config::GooseMode::Chat {
             return Ok(OperationResult::NotApplicable(emit));
         }

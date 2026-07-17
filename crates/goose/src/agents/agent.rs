@@ -1596,9 +1596,6 @@ impl Agent {
             }
         }
 
-        // Dispatched after the elicitation interception above: an elicitation
-        // response resumes a tool call blocked inside an already-running reply
-        // (in either loop) and must never start a new turn.
         if super::state_machine::enabled() {
             tracing::info!("dispatching reply via experimental state machine");
             return super::state_machine::reply(self, user_message, session_config, cancel_token)

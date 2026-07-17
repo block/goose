@@ -310,8 +310,6 @@ fn assert_conversation_compacted(conversation: &Conversation) {
         }
     }
 
-    // Any messages AFTER the continuation (e.g., preserved recent user message)
-    // should be fully visible to both agent and user
     let continuation_end = summary_index + 2;
     for (idx, msg) in messages.iter().enumerate() {
         if idx >= continuation_end {

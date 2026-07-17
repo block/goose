@@ -17,10 +17,6 @@ use crate::session::Session;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
-/// The system prompt and tools baked at reply start, plus the extension-set
-/// version they were built against — a `manage_extensions` call mid-reply
-/// bumps the version (and newly discovered subdirectory hints count too), and
-/// the next turn rebuilds everything.
 struct PromptState {
     system_prompt: String,
     tools: Vec<Tool>,
@@ -28,7 +24,6 @@ struct PromptState {
     tools_version: u64,
 }
 
-/// Calls the LLM when the last message in the conversation is from the user.
 pub struct LlmOperation<'a> {
     agent: &'a Agent,
     provider: Arc<dyn Provider>,
@@ -127,11 +122,6 @@ impl Operation for LlmOperation<'_> {
             .flat_map(|m| m.get_tool_response_ids())
             .collect();
 
-        // Unanswered tool requests from before the current request are stale
-        // leftovers (a crash mid-execution). They stay in the transcript but
-        // must not reach the provider, which rejects a tool call without a
-        // matching result. Requests from the current request are kept — an
-        // approval may still be pending on them.
         let start = current_request_start(conversation.messages());
         let messages_for_provider: Vec<_> = conversation
             .messages()
@@ -162,8 +152,6 @@ impl Operation for LlmOperation<'_> {
 
         let (system_prompt, tools, toolshim_tools) = self.current_prompt_and_tools(session).await?;
 
-        // The ephemeral turn-context block (time, working dir, turn budget);
-        // injected into the provider view only, never persisted.
         let turns_taken = turns_taken_this_request(conversation);
         let conversation_for_provider = crate::agents::moim::inject_moim(
             &session.id,
@@ -174,9 +162,6 @@ impl Operation for LlmOperation<'_> {
         )
         .await;
 
-        // The shared wrapper adds what a bare `provider.stream` lacks:
-        // toolshim conversion, session-context scoping, the thinking-effort
-        // default, and error enhancement.
         let stream = Agent::stream_response_from_provider(
             self.provider.clone(),
             self.model_config.clone(),
@@ -197,9 +182,6 @@ impl Operation for LlmOperation<'_> {
             }
         };
 
-        // Conversation::push handles merge logic — coalescing text, merging
-        // thinking blocks by signature, deduping by message id, forwarding
-        // inference metadata to the right prior message.
         let mut accumulator = Conversation::empty();
         let mut turn_usage: Option<ProviderUsage> = None;
         loop {
@@ -210,10 +192,6 @@ impl Operation for LlmOperation<'_> {
                     let Some(result) = next else { break };
                     let (msg_opt, usage_opt) = match result {
                         Ok(chunk) => chunk,
-                        // A mid-stream provider error: discard the partial
-                        // assistant turn and append a tagged error message so a
-                        // recovery op (or ExitOnError) handles it on the next
-                        // iteration. The conversation never keeps a half-turn.
                         Err(err) => return Ok(OperationResult::Applied(self.error_outcome(&err, &emit).await)),
                     };
                     if let Some(usage) = usage_opt {

@@ -497,8 +497,6 @@ fn create_tool_callback(
                         if let Some(sc) = &result.structured_content {
                             Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
                         } else {
-                            // Filter to assistant-audience or no-audience content,
-                            // skipping user-only content to avoid duplicated output
                             let text: String = result
                                 .content
                                 .iter()
@@ -513,7 +511,6 @@ fn create_tool_callback(
                                 })
                                 .collect::<Vec<_>>()
                                 .join("\n");
-                            // Try to parse as JSON, otherwise return as string
                             Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
                         }
                     }

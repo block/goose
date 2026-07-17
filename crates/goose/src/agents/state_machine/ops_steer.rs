@@ -6,13 +6,6 @@ use crate::agents::{Agent, AgentEvent};
 use crate::conversation::Conversation;
 use crate::session::Session;
 
-/// Injects messages the user sent while the reply was running (via
-/// `Agent::steer`). Applies between turns — after a completed assistant turn
-/// or a finished tool exchange — never while tool requests are unanswered,
-/// so the injected user message can't split a tool call from its result in
-/// the provider view. A fresh user-prompt tail is also excluded: the steer
-/// would ride the same provider request anyway, and the old loop likewise
-/// only drained from the second iteration on.
 pub struct SteerOperation<'a> {
     agent: &'a Agent,
 }
