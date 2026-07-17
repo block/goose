@@ -174,6 +174,29 @@ fn provider_error_message(error: &ProviderError) -> Message {
     Message::assistant().with_text(text)
 }
 
+/// Waits for `delay` before a provider retry, returning `true` if the
+/// cancellation token fires first. `GOOSE_PROVIDER_SKIP_BACKOFF=1` skips the wait.
+async fn backoff_or_cancelled(delay: Duration, cancel_token: &Option<CancellationToken>) -> bool {
+    if std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
+        .unwrap_or_default()
+        .parse::<bool>()
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    info!("Backing off for {:?} before provider retry", delay);
+    match cancel_token {
+        Some(token) => tokio::select! {
+            _ = tokio::time::sleep(delay) => false,
+            _ = token.cancelled() => true,
+        },
+        None => {
+            tokio::time::sleep(delay).await;
+            false
+        }
+    }
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -2662,52 +2685,36 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            let retry_delay =
-                                if no_tools_called && !is_token_cancelled(&cancel_token) {
-                                    next_retry_delay(
-                                        provider_err,
-                                        transient_retry_attempts,
-                                        &retry_config,
-                                    )
-                                } else {
-                                    None
-                                };
-
-                            if let Some(delay) = retry_delay {
-                                transient_retry_attempts += 1;
-                                yield AgentEvent::Message(provider_retry_notification(
+                            let retry_delay = if no_tools_called
+                                && !is_token_cancelled(&cancel_token)
+                            {
+                                next_retry_delay(
                                     provider_err,
                                     transient_retry_attempts,
-                                    retry_config.max_retries,
-                                    delay,
-                                ));
-                                let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
-                                    .unwrap_or_default()
-                                    .parse::<bool>()
-                                    .unwrap_or(false);
-                                if !skip_backoff {
-                                    info!("Backing off for {:?} before provider retry", delay);
-                                    let cancelled_during_backoff = match &cancel_token {
-                                        Some(token) => {
-                                            tokio::select! {
-                                                _ = tokio::time::sleep(delay) => false,
-                                                _ = token.cancelled() => true,
-                                            }
-                                        }
-                                        None => {
-                                            tokio::time::sleep(delay).await;
-                                            false
-                                        }
-                                    };
-                                    if cancelled_during_backoff {
+                                    &retry_config,
+                                )
+                            } else {
+                                None
+                            };
+
+                            match retry_delay {
+                                Some(delay) => {
+                                    transient_retry_attempts += 1;
+                                    yield AgentEvent::Message(provider_retry_notification(
+                                        provider_err,
+                                        transient_retry_attempts,
+                                        retry_config.max_retries,
+                                        delay,
+                                    ));
+                                    if backoff_or_cancelled(delay, &cancel_token).await {
                                         break;
                                     }
+                                    pending_provider_retry = true;
                                 }
-                                pending_provider_retry = true;
-                                break;
+                                None => {
+                                    yield AgentEvent::Message(provider_error_message(provider_err));
+                                }
                             }
-
-                            yield AgentEvent::Message(provider_error_message(provider_err));
                             break;
                         }
                     }
@@ -3969,112 +3976,35 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         Ok(())
     }
 
-    // --- Provider retry test infrastructure ---
-
-    struct FlakyNetworkProvider {
+    struct MockProvider {
         call_count: AtomicUsize,
-        fail_times: usize,
-    }
-
-    impl FlakyNetworkProvider {
-        fn new(fail_times: usize) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                fail_times,
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl crate::providers::base::Provider for FlakyNetworkProvider {
-        async fn stream(
-            &self,
-            _model_config: &goose_providers::model::ModelConfig,
-            _system_prompt: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<MessageStream, ProviderError> {
-            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
-            if call < self.fail_times {
-                Ok(Box::pin(futures::stream::once(async {
-                    Err(ProviderError::NetworkError(
-                        "Stream decode error: test".into(),
-                    ))
-                })))
-            } else {
-                let message = Message::assistant().with_text("success after retries");
-                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
-                Ok(stream_from_single_message(message, usage))
-            }
-        }
-
-        fn get_name(&self) -> &str {
-            "flaky-network"
-        }
-    }
-
-    struct FlakyRateLimitProvider {
-        call_count: AtomicUsize,
-        fail_times: usize,
-        retry_delay: Duration,
-    }
-
-    impl FlakyRateLimitProvider {
-        fn new(fail_times: usize, retry_delay: Duration) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                fail_times,
-                retry_delay,
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl crate::providers::base::Provider for FlakyRateLimitProvider {
-        async fn stream(
-            &self,
-            _model_config: &goose_providers::model::ModelConfig,
-            _system_prompt: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<MessageStream, ProviderError> {
-            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
-            if call < self.fail_times {
-                let retry_delay = self.retry_delay;
-                Ok(Box::pin(futures::stream::once(async move {
-                    Err(ProviderError::RateLimitExceeded {
-                        details: "too many requests".into(),
-                        retry_delay: Some(retry_delay),
-                    })
-                })))
-            } else {
-                let message = Message::assistant().with_text("success after rate limit retry");
-                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
-                Ok(stream_from_single_message(message, usage))
-            }
-        }
-
-        fn get_name(&self) -> &str {
-            "flaky-rate-limit"
-        }
-    }
-
-    struct AlwaysErrorProvider {
         error: ProviderError,
-        call_count: AtomicUsize,
+        fail_times: Option<usize>,
+        success_text: &'static str,
     }
 
-    impl AlwaysErrorProvider {
-        fn new(error: ProviderError) -> Self {
+    impl MockProvider {
+        fn failing(error: ProviderError) -> Self {
             Self {
-                error,
                 call_count: AtomicUsize::new(0),
+                error,
+                fail_times: None,
+                success_text: "",
+            }
+        }
+
+        fn flaky(fail_times: usize, error: ProviderError, success_text: &'static str) -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+                error,
+                fail_times: Some(fail_times),
+                success_text,
             }
         }
     }
 
     #[async_trait::async_trait]
-    impl crate::providers::base::Provider for AlwaysErrorProvider {
+    impl crate::providers::base::Provider for MockProvider {
         async fn stream(
             &self,
             _model_config: &goose_providers::model::ModelConfig,
@@ -4082,13 +4012,20 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
-            self.call_count.fetch_add(1, Ordering::SeqCst);
-            let error = self.error.clone();
-            Ok(Box::pin(futures::stream::once(async move { Err(error) })))
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            let should_fail = self.fail_times.map_or(true, |n| call < n);
+            if should_fail {
+                let error = self.error.clone();
+                Ok(Box::pin(futures::stream::once(async move { Err(error) })))
+            } else {
+                let message = Message::assistant().with_text(self.success_text);
+                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                Ok(stream_from_single_message(message, usage))
+            }
         }
 
         fn get_name(&self) -> &str {
-            "always-error"
+            "mock-provider"
         }
     }
 
@@ -4131,11 +4068,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .iter()
             .flat_map(|m| m.content.iter())
             .filter(|c| {
-                if let MessageContent::SystemNotification(sn) = c {
-                    sn.notification_type == SystemNotificationType::ProviderRetry
-                } else {
-                    false
-                }
+                matches!(
+                    c,
+                    MessageContent::SystemNotification(sn)
+                        if sn.notification_type == SystemNotificationType::ProviderRetry
+                )
             })
             .count()
     }
@@ -4144,13 +4081,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         messages
             .iter()
             .flat_map(|m| m.content.iter())
-            .filter_map(|c| {
-                if let MessageContent::SystemNotification(sn) = c {
-                    if sn.notification_type == SystemNotificationType::ProviderRetry {
-                        return sn.data.clone();
-                    }
+            .filter_map(|c| match c {
+                MessageContent::SystemNotification(sn)
+                    if sn.notification_type == SystemNotificationType::ProviderRetry =>
+                {
+                    sn.data.clone()
                 }
-                None
+                _ => None,
             })
             .collect()
     }
@@ -4158,7 +4095,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn test_transient_network_error_retried_then_succeeds() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(FlakyNetworkProvider::new(2));
+        let provider = Arc::new(MockProvider::flaky(
+            2,
+            ProviderError::NetworkError("Stream decode error: test".into()),
+            "success after retries",
+        ));
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let (mut agent, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
@@ -4183,7 +4124,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn test_transient_error_exhausted_surfaces_message() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(AlwaysErrorProvider::new(ProviderError::NetworkError(
+        let provider = Arc::new(MockProvider::failing(ProviderError::NetworkError(
             "boom".into(),
         )));
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
@@ -4210,7 +4151,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn test_non_transient_not_retried() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(AlwaysErrorProvider::new(ProviderError::Authentication(
+        let provider = Arc::new(MockProvider::failing(ProviderError::Authentication(
             "bad key".into(),
         )));
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
@@ -4236,7 +4177,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn test_retry_disabled_via_config() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(FlakyNetworkProvider::new(1));
+        let provider = Arc::new(MockProvider::flaky(
+            1,
+            ProviderError::NetworkError("Stream decode error: test".into()),
+            "success after retries",
+        ));
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let (mut agent, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
@@ -4257,7 +4202,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     #[tokio::test]
     async fn test_rate_limit_honors_retry_delay() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(FlakyRateLimitProvider::new(1, Duration::from_millis(10)));
+        let provider = Arc::new(MockProvider::flaky(
+            1,
+            ProviderError::RateLimitExceeded {
+                details: "too many requests".into(),
+                retry_delay: Some(Duration::from_millis(10)),
+            },
+            "success after rate limit retry",
+        ));
         let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
         let (mut agent, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
