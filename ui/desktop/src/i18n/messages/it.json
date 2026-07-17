@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "App personalizzata"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applicazioni dai tuoi server MCP e app create da goose stesso. Puoi chiedere di creare nuove app tramite l'interfaccia di chat e appariranno qui."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Errore durante il caricamento delle app: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importa app"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nessuna app disponibile"
   },
-  "appsView.retry": {
-    "defaultMessage": "Riprova"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
   },
   "appsView.title": {
     "defaultMessage": "App"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Vai alla home"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connessione persa. Riconnessione…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Estensione aggiornata"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Chiave segreta"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La chiave segreta configurata sul server goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La chiave segreta configurata sul server Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Inserisci la chiave segreta del server"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Download in corso"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelli in evidenza"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Accedi per aumentare i limiti di frequenza durante la ricerca e il download dei modelli e per accedere ai repository Hugging Face privati o ad accesso limitato."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Impostazioni modello"
@@ -2797,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Da modello o configurazione manuale"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Nessun provider corrisponde a \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cerca provider..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
@@ -4040,6 +4064,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend esterno"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"
   },
@@ -4051,9 +4078,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sessione"
   },
   "settingsView.title": {
     "defaultMessage": "Impostazioni"

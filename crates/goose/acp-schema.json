@@ -730,6 +730,36 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/apps/import"
     },
+    "AppsDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/delete"
+    },
+    "AppsDeleteResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "message"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/delete"
+    },
     "UpdateWorkingDirRequest_unstable": {
       "type": "object",
       "properties": {
@@ -5734,6 +5764,9 @@
         "recommended": {
           "type": "boolean"
         },
+        "isLoaded": {
+          "type": "boolean"
+        },
         "settings": {
           "$ref": "#/$defs/LocalInferenceModelSettingsDto"
         },
@@ -5759,6 +5792,7 @@
         "sizeBytes",
         "status",
         "recommended",
+        "isLoaded",
         "settings",
         "visionCapable"
       ]
@@ -6216,6 +6250,19 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/local-inference/models/delete"
+    },
+    "LocalInferenceModelEvictRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/evict"
     },
     "LocalInferenceModelSettingsReadRequest_unstable": {
       "type": "object",
@@ -6915,6 +6962,15 @@
                   ],
                   "description": "Params for _goose/unstable/apps/import",
                   "title": "AppsImportRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/delete",
+                  "title": "AppsDeleteRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -7792,6 +7848,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/LocalInferenceModelEvictRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/evict",
+                  "title": "LocalInferenceModelEvictRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/LocalInferenceModelSettingsReadRequest_unstable"
                     }
                   ],
@@ -7927,6 +7992,14 @@
                         }
                       ],
                       "title": "AppsImportResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsDeleteResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsDeleteResponse_unstable"
                     },
                     {
                       "allOf": [

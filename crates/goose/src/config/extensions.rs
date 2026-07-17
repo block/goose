@@ -5,7 +5,6 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
 use tracing::{info, warn};
-use utoipa::ToSchema;
 
 pub const DEFAULT_EXTENSION: &str = "developer";
 pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
@@ -13,7 +12,7 @@ pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
 pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExtensionEntry {
     pub enabled: bool,
     #[serde(flatten)]

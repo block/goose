@@ -37,8 +37,8 @@ impl GooseCompleter {
         // Create completion candidates that match the prefix
         let candidates: Vec<Pair> = cache
             .prompts
-            .iter()
-            .flat_map(|(_, names)| names)
+            .values()
+            .flatten()
             .filter(|name| name.starts_with(prefix.trim()))
             .map(|name| Pair {
                 display: name.clone(),
@@ -455,7 +455,7 @@ impl Hinter for GooseCompleter {
             }
             HintStatus::Default => {
                 let newline_key = super::input::get_newline_key().to_ascii_uppercase();
-                Some(format!("Enter to send · Ctrl+{} newline", newline_key))
+                Some(format!("Enter to send · Ctrl+{newline_key} newline"))
             }
         }
     }

@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Custom app"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applications from your MCP servers and Apps built by goose itself. You can ask it to create new apps through the chat interface and they will appear here."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Error loading apps: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import App"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Go home"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connection lost. Reconnecting…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Downloading"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Featured Models"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Sign in to increase rate limits when searching and downloading models, and to access private or gated Hugging Face repositories."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Model Settings"
@@ -2797,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "From template or manual setup"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "No providers match \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Search providers..."
   },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logo"
@@ -4040,6 +4064,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "External Backend"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -4051,9 +4078,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"

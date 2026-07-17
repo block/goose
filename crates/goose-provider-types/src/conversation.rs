@@ -4,13 +4,12 @@ use rmcp::model::{Content, Role};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
-use utoipa::ToSchema;
 
 pub mod message;
 pub mod token_usage;
 mod tool_result_serde;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Conversation(Vec<Message>);
 
 #[derive(Error, Debug)]
@@ -70,7 +69,7 @@ impl Conversation {
             }
             match (last.content.last_mut(), message.content.last()) {
                 (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
-                    if message.content.len() == 1 =>
+                    if message.content.len() == 1 && last.audience() == new.audience() =>
                 {
                     last.text.push_str(&new.text);
                 }
@@ -135,6 +134,10 @@ impl Conversation {
         self.0.pop()
     }
 
+    pub fn remove(&mut self, index: usize) -> Message {
+        self.0.remove(index)
+    }
+
     pub fn truncate(&mut self, len: usize) {
         self.0.truncate(len);
     }
@@ -155,11 +158,21 @@ impl Conversation {
     }
 
     pub fn agent_visible_messages(&self) -> Vec<Message> {
-        self.filtered_messages(|meta| meta.agent_visible)
+        self.0
+            .iter()
+            .filter(|message| message.metadata.agent_visible)
+            .map(Message::agent_visible_content)
+            .filter(|message| !message.content.is_empty())
+            .collect()
     }
 
     pub fn user_visible_messages(&self) -> Vec<Message> {
-        self.filtered_messages(|meta| meta.user_visible)
+        self.0
+            .iter()
+            .filter(|message| message.metadata.user_visible)
+            .map(Message::user_visible_content)
+            .filter(|message| !message.content.is_empty())
+            .collect()
     }
 
     fn validate(self) -> Result<Self, InvalidConversation> {
@@ -247,6 +260,7 @@ fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         fix_empty_tool_results,
         fix_tool_calling,
         merge_consecutive_messages,
+        dedupe_signed_thinking,
         fix_lead_trail,
         populate_if_empty,
     ]
@@ -270,13 +284,12 @@ fn merge_text_content_in_message(mut msg: Message) -> Message {
         .into_iter()
         .fold(Vec::new(), |mut content, item| {
             match item {
-                MessageContent::Text(text) => {
-                    if let Some(MessageContent::Text(ref mut last)) = content.last_mut() {
+                MessageContent::Text(text) => match content.last_mut() {
+                    Some(MessageContent::Text(last)) if last.audience() == text.audience() => {
                         last.text.push_str(&text.text);
-                    } else {
-                        content.push(MessageContent::Text(text));
                     }
-                }
+                    _ => content.push(MessageContent::Text(text)),
+                },
                 other => content.push(other),
             }
             content
@@ -502,6 +515,71 @@ pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<
     (merged_messages, issues)
 }
 
+/// Signed thinking carries a signature; redacted thinking is always signed.
+/// Signed blocks must be replayed exactly; unsigned reasoning summaries need not.
+fn is_signed_thinking(content: &MessageContent) -> bool {
+    match content {
+        MessageContent::Thinking(t) => !t.signature.is_empty(),
+        MessageContent::RedactedThinking(_) => true,
+        _ => false,
+    }
+}
+
+/// Drops duplicate signed thinking blocks, keeping the first occurrence. Some
+/// signed-replay APIs (like Anthropic) reject a request that repeats the same
+/// signed block more than once.
+///
+/// Duplicates arise two ways, both handled here:
+///   - Within one assistant message, when a standalone thinking message is
+///     merged with a tool-call message that re-embedded the same thinking.
+///   - Across assistant messages, when the agent splits one provider turn into
+///     several tool-call messages (interleaved with tool results) that each
+///     carry a copy of the turn's signed thinking.
+///
+/// The `seen` set spans the whole conversation. A signed block carries a
+/// cryptographic signature unique to its generation, so an exact (text +
+/// signature) match can only be the same turn's thinking copied onto split
+/// messages — never two genuinely distinct thoughts. Unsigned reasoning
+/// summaries are left untouched, since providers like Kimi/DeepSeek require
+/// them echoed on every tool-call message.
+///
+/// This runs before any provider formatter, so it covers every Claude transport
+/// (direct Anthropic, Bedrock, Databricks, Vertex) in one place.
+fn dedupe_signed_thinking(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    let mut issues = Vec::new();
+    let mut seen: Vec<MessageContent> = Vec::new();
+
+    let fixed_messages = messages
+        .into_iter()
+        .map(|mut message| {
+            if message.role != Role::Assistant {
+                return message;
+            }
+
+            let original_len = message.content.len();
+            let mut deduped: Vec<MessageContent> = Vec::with_capacity(original_len);
+            for content in &message.content {
+                let is_signed = is_signed_thinking(content);
+                if is_signed && seen.contains(content) {
+                    continue;
+                }
+                if is_signed {
+                    seen.push(content.clone());
+                }
+                deduped.push(content.clone());
+            }
+
+            if deduped.len() != original_len {
+                issues.push("Removed duplicate signed thinking block".to_string());
+                message.content = deduped;
+            }
+            message
+        })
+        .collect();
+
+    (fixed_messages, issues)
+}
+
 fn has_tool_response(message: &Message) -> bool {
     message
         .content
@@ -596,7 +674,7 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
@@ -921,6 +999,129 @@ mod tests {
         } else {
             panic!("Expected second item to be an image");
         }
+    }
+
+    #[test]
+    fn test_streamed_text_with_different_audiences_is_not_merged() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let text = |value: &str, audience| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![audience]),
+            )
+        };
+
+        for (first, second) in [(Role::User, Role::Assistant), (Role::Assistant, Role::User)] {
+            let mut conversation = Conversation::empty();
+            conversation.push(
+                Message::assistant()
+                    .with_id("stream-1")
+                    .with_content(text("first", first.clone())),
+            );
+            conversation.push(
+                Message::assistant()
+                    .with_id("stream-1")
+                    .with_content(text("second", second)),
+            );
+
+            let message = conversation.last().unwrap();
+            assert_eq!(message.content.len(), 2);
+            assert_eq!(
+                message
+                    .user_visible_content()
+                    .content
+                    .iter()
+                    .filter_map(|content| match content {
+                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                if first == Role::User {
+                    vec!["first"]
+                } else {
+                    vec!["second"]
+                }
+            );
+            assert_eq!(
+                message
+                    .agent_visible_content()
+                    .content
+                    .iter()
+                    .filter_map(|content| match content {
+                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                if first == Role::Assistant {
+                    vec!["first"]
+                } else {
+                    vec!["second"]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_user_visible_messages_projects_content_and_drops_hidden_rows() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let assistant_only = |value: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::Assistant]),
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_content(assistant_only("content hidden by audience"))
+                .agent_only(),
+            Message::assistant()
+                .with_content(assistant_only("private"))
+                .with_text("public"),
+        ]);
+
+        let projected = conversation.user_visible_messages();
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].as_concat_text(), "public");
+    }
+
+    #[test]
+    fn test_agent_visible_messages_projects_content_and_drops_hidden_rows() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let user_only = |value: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_content(user_only("content hidden from agent"))
+                .user_only(),
+            Message::assistant()
+                .with_content(user_only("private from agent"))
+                .with_text("shared with agent"),
+        ]);
+
+        let projected = conversation.agent_visible_messages();
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].as_concat_text(), "shared with agent");
     }
 
     #[test]
@@ -1302,6 +1503,237 @@ mod tests {
 
         assert_eq!(fixed_messages[5].as_concat_text(), "Non-vis C");
         assert!(!fixed_messages[5].metadata.agent_visible);
+    }
+
+    #[test]
+    fn test_dedupes_duplicate_signed_thinking_around_tool_call() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::Content;
+
+        // Reproduces the Anthropic 400 scenario: a standalone signed thinking
+        // message immediately followed by an assistant message that repeats the
+        // same signed thinking plus a tool_use. After merging consecutive
+        // assistant messages these become two adjacent identical thinking blocks.
+        let messages = vec![
+            Message::user().with_text("Do the thing"),
+            Message::assistant().with_thinking("Let me think about this", "sig-1"),
+            Message::assistant()
+                .with_thinking("Let me think about this", "sig-1")
+                .with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("do_thing").with_arguments(object!({"x": 1}))),
+                ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "done",
+                )])),
+            ),
+            Message::user().with_text("Now continue"),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        assert!(
+            issues
+                .iter()
+                .any(|i| i == "Removed duplicate signed thinking block"),
+            "expected dedupe issue, got: {:?}",
+            issues
+        );
+
+        let fixed_messages = fixed.messages();
+        let assistant = fixed_messages
+            .iter()
+            .find(|m| {
+                m.role == Role::Assistant
+                    && m.content
+                        .iter()
+                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+            })
+            .expect("assistant tool-call message should exist");
+
+        let thinking_count = assistant
+            .content
+            .iter()
+            .filter(|c| {
+                matches!(
+                    c,
+                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                )
+            })
+            .count();
+        assert_eq!(
+            thinking_count, 1,
+            "duplicate signed thinking should be collapsed to one block"
+        );
+    }
+
+    #[test]
+    fn test_keeps_distinct_signed_thinking_blocks_in_assistant_message() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::Content;
+
+        // Distinct signed thinking blocks (different signatures) must be preserved.
+        let messages = vec![
+            Message::user().with_text("Do the thing"),
+            Message::assistant()
+                .with_thinking("First thought", "sig-A")
+                .with_thinking("Second thought", "sig-B")
+                .with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("do_thing").with_arguments(object!({"x": 1}))),
+                ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "done",
+                )])),
+            ),
+            Message::user().with_text("Now continue"),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i == "Removed duplicate signed thinking block"),
+            "should not dedupe distinct thinking blocks, got: {:?}",
+            issues
+        );
+
+        let fixed_messages = fixed.messages();
+        let thinking_count = fixed_messages[1]
+            .content
+            .iter()
+            .filter(|c| {
+                matches!(
+                    c,
+                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                )
+            })
+            .count();
+        assert_eq!(thinking_count, 2, "distinct thinking blocks must be kept");
+    }
+
+    #[test]
+    fn test_keeps_duplicate_unsigned_thinking_blocks() {
+        use crate::conversation::message::MessageContent;
+
+        // Unsigned thinking (reasoning summaries from non-Anthropic providers)
+        // can legitimately repeat and must not be dropped, since only signed
+        // blocks trigger the Anthropic exact-replay 400.
+        let messages = vec![
+            Message::user().with_text("Do the thing"),
+            Message::assistant()
+                .with_thinking("same reasoning", "")
+                .with_thinking("same reasoning", ""),
+            Message::user().with_text("Now continue"),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i == "Removed duplicate signed thinking block"),
+            "unsigned thinking must not be deduped, got: {:?}",
+            issues
+        );
+
+        let fixed_messages = fixed.messages();
+        let thinking_count = fixed_messages
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| matches!(c, MessageContent::Thinking(_)))
+            .count();
+        assert_eq!(
+            thinking_count, 2,
+            "duplicate unsigned thinking blocks must be kept"
+        );
+    }
+
+    #[test]
+    fn test_dedupes_signed_thinking_across_split_tool_messages() {
+        use crate::conversation::message::MessageContent;
+        use rmcp::model::Content;
+
+        // The agent splits one provider turn with multiple tool calls into one
+        // assistant message per call (interleaved with tool results), each
+        // carrying the same signed thinking. merge_consecutive_messages cannot
+        // merge them because tool results sit between, so the dedupe must span
+        // messages and keep the signed block only on the first.
+        let messages = vec![
+            Message::user().with_text("Use both tools"),
+            Message::assistant()
+                .with_thinking("multi-tool reasoning", "sig-1")
+                .with_tool_request(
+                    "call_1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({"p": 1}))),
+                ),
+            Message::user().with_tool_response(
+                "call_1",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "ok",
+                )])),
+            ),
+            Message::assistant()
+                .with_thinking("multi-tool reasoning", "sig-1")
+                .with_tool_request(
+                    "call_2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({"p": 2}))),
+                ),
+            Message::user().with_tool_response(
+                "call_2",
+                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
+                    "ok",
+                )])),
+            ),
+            Message::user().with_text("Now continue"),
+        ];
+
+        let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
+
+        assert!(
+            issues
+                .iter()
+                .any(|i| i == "Removed duplicate signed thinking block"),
+            "expected cross-message dedupe issue, got: {:?}",
+            issues
+        );
+
+        let fixed_messages = fixed.messages();
+        let total_thinking = fixed_messages
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| {
+                matches!(
+                    c,
+                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                )
+            })
+            .count();
+        assert_eq!(
+            total_thinking, 1,
+            "the repeated signed block must survive only once across the turn"
+        );
+
+        let total_tool_requests = fixed_messages
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .count();
+        assert_eq!(total_tool_requests, 2, "both tool calls must be preserved");
+
+        // The first split message keeps the thinking; the second loses it.
+        assert!(
+            fixed_messages[1]
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Thinking(_))),
+            "first split message keeps signed thinking"
+        );
     }
 
     #[test]

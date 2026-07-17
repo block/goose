@@ -234,10 +234,6 @@ const config: Config = {
             to: "/docs/guides/context-engineering/creating-plans",
           },
           {
-            from: "/docs/guides/using-gooseignore",
-            to: "/docs/guides/context-engineering/using-gooseignore",
-          },
-          {
             from: "/docs/guides/config-file",
             to: "/docs/guides/config-files",
           },

@@ -108,6 +108,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
       accumulatedTotalTokens: 0,
     },
     notifications: [],
+    progressMessage: undefined,
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId,
@@ -161,6 +162,23 @@ describe('acpChatSessionController.loadSession', () => {
     await acpChatSessionController.loadSession(SESSION_ID);
 
     expect(acpChatSessionActions.startSessionLoad).not.toHaveBeenCalled();
+    expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
+      SESSION_ID,
+      loadedSession()
+    );
+  });
+
+  it('restores a cached session from the server', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      session: loadedSession(),
+    });
+    vi.mocked(isAcpSessionLoadInFlight).mockReturnValue(false);
+
+    await acpChatSessionController.restoreSession(SESSION_ID);
+
+    expect(acpChatSessionActions.startSessionLoad).toHaveBeenCalledWith(SESSION_ID);
     expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
     expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
       SESSION_ID,
@@ -352,7 +370,10 @@ describe('acpChatSessionController.updateMessage', () => {
     resolvePromptCancellation!();
     await updatePromise;
 
-    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(SESSION_ID, existingMessage.created);
+    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
+      SESSION_ID,
+      existingMessage.created
+    );
     expect(acpPromptSession).toHaveBeenCalled();
     expect(acpChatSessionActions.clearPromptCancellation).not.toHaveBeenCalledWith(
       SESSION_ID,

@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+mod paste;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -12,14 +13,14 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{fix_conversation, Conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use self::export::message_to_markdown;
+pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
@@ -53,12 +54,17 @@ use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+
+fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
+    let projected_messages = plan_messages.agent_visible_messages();
+    fix_conversation(Conversation::new_unvalidated(projected_messages)).0
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
@@ -243,6 +249,15 @@ pub async fn classify_planner_response(
     } else {
         Ok(PlannerResponseType::ClarifyingQuestions)
     }
+}
+
+fn planner_classification_text(response: &Message) -> Result<String> {
+    let text = response.agent_visible_content().as_concat_text();
+    anyhow::ensure!(
+        !text.trim().is_empty(),
+        "Planner returned no agent-visible text to classify"
+    );
+    Ok(text)
 }
 
 impl CliSession {
@@ -522,6 +537,7 @@ impl CliSession {
 
             let conversation_strings: Vec<String> = self
                 .messages
+                .user_visible_messages()
                 .iter()
                 .map(|msg| {
                     let role = match msg.role {
@@ -1056,17 +1072,30 @@ impl CliSession {
         model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
         let (plan_response, _usage) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
-            reasoner.complete(&model_config, &plan_prompt, plan_messages.messages(), &[]),
+            reasoner.complete(
+                &model_config,
+                &plan_prompt,
+                provider_messages.messages(),
+                &[],
+            ),
         )
         .await?;
+        let classifier_text = planner_classification_text(&plan_response);
+        let plan_response = plan_response.user_visible_content();
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let classifier_text = classifier_text?;
+        anyhow::ensure!(
+            !plan_response.content.is_empty(),
+            "Planner returned no user-visible content"
+        );
         let planner_response_type = classify_planner_response(
             &self.session_id,
-            plan_response.as_concat_text(),
+            classifier_text,
             self.agent.provider().await?,
             self.agent
                 .model_config_for_session(&self.session_id)
@@ -1405,7 +1434,7 @@ impl CliSession {
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: self.messages.user_visible_messages(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
@@ -1561,18 +1590,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let messages = self.messages.user_visible_messages();
+        if messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in &messages {
             output::render_message(message, self.debug);
         }
 
@@ -1769,25 +1799,54 @@ fn print_run_stats(
     usage: Option<&ProviderUsage>,
 ) {
     let elapsed = run_started.elapsed();
+    let stats = usage.and_then(|usage| usage.stats.as_ref());
+    let generation_elapsed = stats
+        .and_then(|stats| stats.elapsed_ms)
+        .map(Duration::from_millis);
     let output_tokens = usage
         .and_then(|usage| usage.usage.output_tokens)
         .and_then(|tokens| usize::try_from(tokens).ok())
-        .or_else(|| usage.and_then(|usage| usage.stats.as_ref()?.output_tokens));
+        .or_else(|| stats.and_then(|stats| stats.output_tokens));
     let tokens_per_second = output_tokens.map(|tokens| {
-        if elapsed.as_secs_f64() > 0.0 {
-            tokens as f64 / elapsed.as_secs_f64()
+        let rate_elapsed = generation_elapsed.unwrap_or(elapsed);
+        if rate_elapsed.as_secs_f64() > 0.0 {
+            tokens as f64 / rate_elapsed.as_secs_f64()
         } else {
             0.0
         }
     });
+    let model_load_ms = stats.and_then(|stats| stats.model_load_ms);
+    let generation_time_to_first_token_ms = stats.and_then(|stats| stats.time_to_first_token_ms);
 
     eprintln!("\nStats:");
-    match first_token_at {
-        Some(first) => eprintln!(
-            "  Time to first token: {:.2}s",
-            first.duration_since(run_started).as_secs_f64()
-        ),
-        None => eprintln!("  Time to first token: unavailable"),
+    if let Some(ms) = model_load_ms {
+        eprintln!("  Model load: {:.2}s", ms as f64 / 1000.0);
+    }
+    if model_load_ms.is_some() {
+        match generation_time_to_first_token_ms {
+            Some(ms) => eprintln!(
+                "  Generation time to first token: {:.2}s",
+                ms as f64 / 1000.0
+            ),
+            None => eprintln!("  Generation time to first token: unavailable"),
+        }
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  End-to-end time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  End-to-end time to first token: unavailable"),
+        }
+    } else if let Some(ms) = generation_time_to_first_token_ms {
+        eprintln!("  Time to first token: {:.2}s", ms as f64 / 1000.0);
+    } else {
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  Time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  Time to first token: unavailable"),
+        }
     }
     match tokens_per_second {
         Some(rate) => eprintln!("  Tokens/sec: {:.2}", rate),
@@ -1797,10 +1856,7 @@ fn print_run_stats(
         eprintln!("  Output tokens: {tokens}");
     }
 
-    if let Some(draft) = usage
-        .and_then(|usage| usage.stats.as_ref())
-        .and_then(|stats| stats.draft.as_ref())
-    {
+    if let Some(draft) = stats.and_then(|stats| stats.draft.as_ref()) {
         eprintln!("  Draft accept rate: {:.1}%", draft.accept_rate * 100.0);
         eprintln!(
             "  Draft tokens: {} accepted: {} target verified: {} rounds: {}",
@@ -2299,6 +2355,67 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn planner_classification_excludes_user_only_content() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let user_only = RawTextContent {
+            text: "user-only plan".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let assistant_only = RawTextContent {
+            text: "agent classification text".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let mixed = Message::assistant()
+            .with_content(MessageContent::Text(user_only.clone()))
+            .with_content(MessageContent::Text(assistant_only));
+
+        assert_eq!(
+            planner_classification_text(&mixed).unwrap(),
+            "agent classification text"
+        );
+        assert!(planner_classification_text(
+            &Message::assistant().with_content(MessageContent::Text(user_only))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn planner_history_is_fixed_after_audience_projection() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let hidden_separator = MessageContent::Text(
+            RawTextContent {
+                text: "hidden separator".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(hidden_separator),
+            Message::user().with_text("second request"),
+        ]);
+
+        let provider_messages = planner_provider_messages(&history).agent_visible_messages();
+
+        assert_eq!(provider_messages.len(), 1);
+        assert_eq!(provider_messages[0].role, Role::User);
+        assert_eq!(
+            provider_messages[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!provider_messages[0]
+            .as_concat_text()
+            .contains("hidden separator"));
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {

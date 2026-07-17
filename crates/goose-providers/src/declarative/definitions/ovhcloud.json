@@ -14,6 +14,13 @@
       "currency": "USD"
     },
     {
+      "name": "Qwen3.6-27B",
+      "context_limit": 262144,
+      "input_token_cost": 0.00000047,
+      "output_token_cost": 0.00000319,
+      "currency": "USD"
+    },
+    {
       "name": "Qwen2.5-VL-72B-Instruct",
       "context_limit": 32768,
       "input_token_cost": 0.00000101,

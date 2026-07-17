@@ -15,6 +15,9 @@ gen_dir := "./crates/goose-sdk/generated"
 examples_dir := "./crates/goose-sdk/examples/uniffi"
 python_dir := "./crates/goose-sdk/python"
 python_package_dir := python_dir / "src/goose"
+maven_dir := "./crates/goose-sdk/maven"
+maven_resources_dir := maven_dir / "src/main/resources"
+maven_kotlin_dir := maven_dir / "src/main/kotlin"
 
 _default:
     @just --list --justfile {{justfile()}}
@@ -34,18 +37,8 @@ python: (_generate "python")
     DYLD_LIBRARY_PATH={{debug_lib_dir}} LD_LIBRARY_PATH={{debug_lib_dir}} \
         python3 {{examples_dir}}/provider.py
 
-kotlin: (_generate "kotlin")
-    @if [ ! -f {{examples_dir}}/jna.jar ]; then \
-        curl -sSL -o {{examples_dir}}/jna.jar \
-            https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar; \
-    fi
-    kotlinc -cp {{examples_dir}}/jna.jar -nowarn \
-        {{gen_dir}}/io/aaif/goose/goose.kt \
-        {{examples_dir}}/Provider.kt \
-        -include-runtime -d {{examples_dir}}/provider.jar 2>/dev/null
-    java -Djna.library.path={{debug_lib_dir}} \
-        --enable-native-access=ALL-UNNAMED \
-        -cp {{examples_dir}}/provider.jar:{{examples_dir}}/jna.jar aaif.example.ProviderKt
+kotlin: maven-package
+    cd {{examples_dir}}/kotlin && gradle --no-daemon run
 
 python-bindings profile="debug":
     @case "{{profile}}" in \
@@ -75,6 +68,20 @@ python-publish repository="pypi": python-wheel
     else \
         UV_NO_CONFIG=1 PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple uvx --default-index https://pypi.org/simple twine upload --repository {{repository}} {{python_dir}}/dist/*.whl; \
     fi
+
+maven-bindings profile="release":
+    @case "{{profile}}" in \
+        debug) cargo build -p goose-sdk --features uniffi -q; lib_path={{debug_lib_path}} ;; \
+        release) cargo build -p goose-sdk --features uniffi --release -q; lib_path={{release_lib_path}} ;; \
+        *) echo 'profile must be debug or release' >&2; exit 1 ;; \
+    esac; \
+    crates/goose-sdk/scripts/prepare-maven-package.sh "$lib_path"
+
+maven-package: (maven-bindings "release")
+    cd {{maven_dir}} && ./gradlew --no-daemon publishToMavenLocal
+
+maven-publish: (maven-bindings "release")
+    cd {{maven_dir}} && ./gradlew --no-daemon publishAndReleaseToMavenCentral
 
 crates-publish dry_run="true":
     @set -euo pipefail; \
@@ -153,5 +160,6 @@ bump-version rust_version:
 
     print(f"Rust crates: {rust_version}")
     print(f"Python package: {python_version}")
+    print(f"Maven artifact: {rust_version}")
     PY
     cargo fmt --all
