@@ -1868,6 +1868,38 @@
       ],
       "description": "A single model in provider inventory."
     },
+    "ProviderModelCapabilitiesRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerId",
+        "modelId"
+      ],
+      "description": "Resolve route-aware capabilities for a provider and model pair.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/model-capabilities/get"
+    },
+    "ProviderModelCapabilitiesResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "supportsReasoningMode": {
+          "type": "boolean",
+          "description": "Whether the configured provider route consumes GPT-5.6 reasoning mode."
+        }
+      },
+      "required": [
+        "supportsReasoningMode"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/model-capabilities/get"
+    },
     "ProviderSupportedModelsListRequest_unstable": {
       "type": "object",
       "properties": {
@@ -7126,6 +7158,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderModelCapabilitiesRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/model-capabilities/get",
+                  "title": "ProviderModelCapabilitiesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/ProviderSupportedModelsListRequest_unstable"
                     }
                   ],
@@ -8079,6 +8120,14 @@
                         }
                       ],
                       "title": "ListProvidersResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ProviderModelCapabilitiesResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderModelCapabilitiesResponse_unstable"
                     },
                     {
                       "allOf": [

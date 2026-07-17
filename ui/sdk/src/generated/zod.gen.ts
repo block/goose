@@ -814,6 +814,18 @@ export const zListProvidersResponse_unstable = z.object({
 });
 
 /**
+ * Resolve route-aware capabilities for a provider and model pair.
+ */
+export const zProviderModelCapabilitiesRequest_unstable = z.object({
+    providerId: z.string(),
+    modelId: z.string()
+});
+
+export const zProviderModelCapabilitiesResponse_unstable = z.object({
+    supportsReasoningMode: z.boolean()
+});
+
+/**
  * List the raw model identifiers returned by a provider's live supported-models API.
  */
 export const zProviderSupportedModelsListRequest_unstable = z.object({
@@ -2852,6 +2864,7 @@ export const zExtRequest = z.object({
             zSetConfigExtensionEnabledRequest_unstable,
             zGetSessionExtensionsRequest_unstable,
             zListProvidersRequest_unstable,
+            zProviderModelCapabilitiesRequest_unstable,
             zProviderSupportedModelsListRequest_unstable,
             zProviderCatalogListRequest_unstable,
             zProviderSetupCatalogListRequest_unstable,
@@ -2970,6 +2983,7 @@ export const zExtResponse = z.union([
                 zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
                 zListProvidersResponse_unstable,
+                zProviderModelCapabilitiesResponse_unstable,
                 zProviderSupportedModelsListResponse_unstable,
                 zProviderCatalogListResponse_unstable,
                 zProviderSetupCatalogListResponse_unstable,

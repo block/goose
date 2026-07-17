@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { acpListProviderModels } from '../../../acp/providers';
+import { acpGetProviderModelCapabilities, acpListProviderModels } from '../../../acp/providers';
 import type { ProviderDetails } from '../../../types/providers';
 import { fetchModelCapabilities, fetchModelsForProviders } from './modelInterface';
 
 vi.mock('../../../acp/providers', () => ({
   acpListProviderDetails: vi.fn(),
   acpListProviderModels: vi.fn(),
+  acpGetProviderModelCapabilities: vi.fn(),
 }));
 
 vi.mock('../../../acp/local-inference', () => ({
@@ -33,8 +34,11 @@ describe('fetchModelCapabilities', () => {
     });
   });
 
-  it('uses predefined model metadata when inventory has no matching model', async () => {
+  it('resolves the configured provider route when inventory has no matching model', async () => {
     vi.mocked(acpListProviderModels).mockResolvedValue([]);
+    vi.mocked(acpGetProviderModelCapabilities).mockResolvedValue({
+      supportsReasoningMode: true,
+    });
 
     await expect(
       fetchModelCapabilities('openai', 'gpt-5.6-sol', {
@@ -44,6 +48,39 @@ describe('fetchModelCapabilities', () => {
     ).resolves.toEqual({
       reasoning: false,
       supportsReasoningMode: true,
+    });
+  });
+
+  it('lets an explicit custom chat route override model-name fallback', async () => {
+    vi.mocked(acpListProviderModels).mockResolvedValue([]);
+    vi.mocked(acpGetProviderModelCapabilities).mockResolvedValue({
+      supportsReasoningMode: false,
+    });
+
+    await expect(
+      fetchModelCapabilities('openai', 'gpt-5.6-custom', { supportsReasoningMode: true })
+    ).resolves.toEqual({
+      reasoning: null,
+      supportsReasoningMode: false,
+    });
+  });
+
+  it('resolves the route when matching inventory metadata is unknown', async () => {
+    vi.mocked(acpListProviderModels).mockResolvedValue([
+      {
+        id: 'gpt-5.6-custom',
+        name: 'GPT-5.6 Custom',
+        reasoning: true,
+        supportsReasoningMode: null,
+      },
+    ]);
+    vi.mocked(acpGetProviderModelCapabilities).mockResolvedValue({
+      supportsReasoningMode: false,
+    });
+
+    await expect(fetchModelCapabilities('openai', 'gpt-5.6-custom')).resolves.toEqual({
+      reasoning: true,
+      supportsReasoningMode: false,
     });
   });
 });

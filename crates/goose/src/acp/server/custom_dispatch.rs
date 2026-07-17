@@ -235,6 +235,14 @@ impl GooseAcpAgent {
         self.on_list_providers(req).await
     }
 
+    #[custom_method(ProviderModelCapabilitiesRequest)]
+    async fn dispatch_get_provider_model_capabilities(
+        &self,
+        req: ProviderModelCapabilitiesRequest,
+    ) -> Result<ProviderModelCapabilitiesResponse, agent_client_protocol::Error> {
+        self.on_get_provider_model_capabilities(req).await
+    }
+
     #[custom_method(ProviderSupportedModelsListRequest)]
     async fn dispatch_list_provider_supported_models(
         &self,

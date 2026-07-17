@@ -154,6 +154,8 @@ import type {
   ProviderConfigSaveRequest_unstable,
   ProviderConfigStatusRequest_unstable,
   ProviderConfigStatusResponse_unstable,
+  ProviderModelCapabilitiesRequest_unstable,
+  ProviderModelCapabilitiesResponse_unstable,
   ProviderSecretDeleteRequest_unstable,
   ProviderSecretsListRequest_unstable,
   ProviderSecretsListResponse_unstable,
@@ -262,6 +264,7 @@ import {
   zProviderConfigChangeResponse_unstable,
   zProviderConfigReadResponse_unstable,
   zProviderConfigStatusResponse_unstable,
+  zProviderModelCapabilitiesResponse_unstable,
   zProviderSecretsListResponse_unstable,
   zProviderSetupCatalogListResponse_unstable,
   zProviderSupportedModelsListResponse_unstable,
@@ -542,6 +545,18 @@ export class GooseExtClient {
     return zListProvidersResponse_unstable.parse(
       raw,
     ) as ListProvidersResponse_unstable;
+  }
+
+  async providersModelCapabilitiesGet_unstable(
+    params: ProviderModelCapabilitiesRequest_unstable,
+  ): Promise<ProviderModelCapabilitiesResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/providers/model-capabilities/get",
+      params,
+    );
+    return zProviderModelCapabilitiesResponse_unstable.parse(
+      raw,
+    ) as ProviderModelCapabilitiesResponse_unstable;
   }
 
   async providersSupportedModelsList_unstable(

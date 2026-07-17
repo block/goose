@@ -471,6 +471,34 @@ impl GooseAcpAgent {
         })
     }
 
+    pub(super) async fn on_get_provider_model_capabilities(
+        &self,
+        req: ProviderModelCapabilitiesRequest,
+    ) -> Result<ProviderModelCapabilitiesResponse, agent_client_protocol::Error> {
+        let inventory_capability = self
+            .provider_inventory
+            .find_entry_for_provider(&req.provider_id)
+            .await
+            .and_then(|inventory| inventory.reasoning_mode_capability(&req.model_id));
+        let supports_reasoning_mode = match inventory_capability {
+            Some(supports_reasoning_mode) => supports_reasoning_mode,
+            None => {
+                let provider = self
+                    .create_provider(&req.provider_id, Vec::new(), None)
+                    .await
+                    .internal_err_ctx("Failed to initialize provider")?;
+                provider
+                    .supports_reasoning_mode(&goose_providers::model::ModelConfig::new(
+                        &req.model_id,
+                    ))
+                    .await
+            }
+        };
+        Ok(ProviderModelCapabilitiesResponse {
+            supports_reasoning_mode,
+        })
+    }
+
     pub(super) async fn on_list_provider_supported_models(
         &self,
         req: ProviderSupportedModelsListRequest,

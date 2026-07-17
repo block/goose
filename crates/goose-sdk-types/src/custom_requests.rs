@@ -1659,6 +1659,25 @@ pub struct ListProvidersResponse {
     pub entries: Vec<ProviderInventoryEntryDto>,
 }
 
+/// Resolve route-aware capabilities for a provider and model pair.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/model-capabilities/get",
+    response = ProviderModelCapabilitiesResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelCapabilitiesRequest {
+    pub provider_id: String,
+    pub model_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelCapabilitiesResponse {
+    /// Whether the configured provider route consumes GPT-5.6 reasoning mode.
+    pub supports_reasoning_mode: bool,
+}
+
 /// List the raw model identifiers returned by a provider's live supported-models API.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(

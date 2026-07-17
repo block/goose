@@ -1,5 +1,9 @@
 import { listLocalModels } from '../../../acp/local-inference';
-import { acpListProviderDetails, acpListProviderModels } from '../../../acp/providers';
+import {
+  acpGetProviderModelCapabilities,
+  acpListProviderDetails,
+  acpListProviderModels,
+} from '../../../acp/providers';
 import type { ProviderDetails, ReasoningMode, ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
@@ -128,17 +132,29 @@ export async function fetchModelCapabilities(
   model: string,
   fallback?: Partial<ModelCapabilities>
 ): Promise<ModelCapabilities> {
+  let match: Awaited<ReturnType<typeof acpListProviderModels>>[number] | undefined;
   try {
     const models = await acpListProviderModels(provider);
-    const match = models.find((m) => m.id === model);
+    match = models.find((m) => m.id === model);
+  } catch {
+    // Resolve the configured route below even when inventory is unavailable.
+  }
+  const reasoning = match?.reasoning ?? fallback?.reasoning ?? null;
+  if (match?.supportsReasoningMode != null) {
     return {
-      reasoning: match?.reasoning ?? fallback?.reasoning ?? null,
-      supportsReasoningMode:
-        match?.supportsReasoningMode ?? fallback?.supportsReasoningMode ?? null,
+      reasoning,
+      supportsReasoningMode: match.supportsReasoningMode,
+    };
+  }
+  try {
+    const capabilities = await acpGetProviderModelCapabilities(provider, model);
+    return {
+      reasoning,
+      supportsReasoningMode: capabilities.supportsReasoningMode,
     };
   } catch {
     return {
-      reasoning: fallback?.reasoning ?? null,
+      reasoning,
       supportsReasoningMode: fallback?.supportsReasoningMode ?? null,
     };
   }
