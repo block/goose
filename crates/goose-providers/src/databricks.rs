@@ -473,8 +473,17 @@ impl DatabricksProvider {
         let reasoning = info
             .reasoning
             .unwrap_or_else(|| ModelConfig::new(context_model).is_reasoning_model());
-        let supports_reasoning_mode = info.supports_responses_api
-            && ModelConfig::new(context_model).supports_reasoning_mode();
+        let supports_reasoning_mode =
+            if info.upstream_model_provider.as_deref() == Some("databricks-model-serving") {
+                // The first hop does not reveal the effective model. Leave this
+                // unknown so route-aware capability resolution follows the chain.
+                None
+            } else {
+                Some(
+                    info.supports_responses_api
+                        && ModelConfig::new(context_model).supports_reasoning_mode(),
+                )
+            };
 
         ModelInfo {
             name: info.name,
@@ -484,7 +493,7 @@ impl DatabricksProvider {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
-            supports_reasoning_mode: Some(supports_reasoning_mode),
+            supports_reasoning_mode,
             reasoning,
         }
     }
@@ -847,6 +856,10 @@ mod tests {
             Some("databricks-model-serving")
         );
         assert_eq!(info.reasoning, Some(true));
+        assert_eq!(
+            DatabricksProvider::model_info_from_endpoint(info).supports_reasoning_mode,
+            None
+        );
     }
 
     #[test]

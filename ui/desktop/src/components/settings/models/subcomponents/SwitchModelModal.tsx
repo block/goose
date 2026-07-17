@@ -526,16 +526,18 @@ export const SwitchModelModal = ({
     const matchingModel = models.find((m) => m.name === currentModel);
     if (matchingModel) {
       setSelectedPredefinedModel(matchingModel);
-      setReasoningMode(
-        reasoningModeForSelection(
-          matchingModel.provider,
-          matchingModel.name,
-          currentProvider,
-          currentModel,
-          sessionReasoningMode,
-          matchingModel.request_params?.reasoning_mode
-        )
-      );
+      if (!reasoningModeEdited.current) {
+        setReasoningMode(
+          reasoningModeForSelection(
+            matchingModel.provider,
+            matchingModel.name,
+            currentProvider,
+            currentModel,
+            sessionReasoningMode,
+            matchingModel.request_params?.reasoning_mode
+          )
+        );
+      }
       resolveSelectedModelCapabilities(matchingModel.provider, matchingModel.name, {
         reasoning: matchingModel.reasoning,
         supportsReasoningMode: matchingModel.supports_reasoning_mode,
