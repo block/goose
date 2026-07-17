@@ -603,6 +603,10 @@ impl Provider for GcpVertexAIProvider {
         !model_config.request_param::<bool>("store").unwrap_or(false)
     }
 
+    fn retry_config(&self) -> RetryConfig {
+        self.retry_config.clone()
+    }
+
     /// Completes a model interaction by sending a request and processing the response.
     ///
     /// # Arguments
