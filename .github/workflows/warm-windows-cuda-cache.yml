@@ -1,0 +1,21 @@
+name: Warm Windows CUDA cache
+
+on:
+  schedule:
+    - cron: "17 10,19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm-windows-cuda:
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/bundle-windows.yml
+    with:
+      windows_variant: cuda
+      package_cli: false
+      package_desktop: false
+      signing: false
