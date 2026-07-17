@@ -532,14 +532,11 @@ export default function SessionActionsHeader({
     return null;
   }
 
-  const isDialogOpen = isRenameOpen || isJsonOpen || fullTextSelection !== null;
-
   return (
     <>
       <div
         className={cn(
-          'no-drag absolute top-[14px] left-1/2 max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
-          isDialogOpen ? 'z-30' : 'z-[60]',
+          'no-drag absolute top-[14px] left-1/2 z-50 max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
           className
         )}
       >
