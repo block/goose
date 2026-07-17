@@ -62,9 +62,6 @@ jobs:
         if: runner.os != 'Linux'
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
 
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-
       - name: Build wheel
         shell: bash
         run: just --justfile crates/goose-sdk/justfile python-wheel

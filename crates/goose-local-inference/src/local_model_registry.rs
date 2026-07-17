@@ -4,9 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
-use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SamplingConfig {
     Greedy,
@@ -36,7 +35,7 @@ impl Default for SamplingConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolCallingMode {
     #[default]
@@ -45,7 +44,7 @@ pub enum ToolCallingMode {
     ForceEmulated,
 }
 
-#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatTemplate {
     #[serde(alias = "auto")]
@@ -59,7 +58,7 @@ pub enum ChatTemplate {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSettings {
     /// Backend implementation to use for this model. Defaults to llama.cpp.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -274,7 +273,7 @@ pub fn get_registry() -> &'static Mutex<LocalModelRegistry> {
     })
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LocalModelStorage {
     #[default]

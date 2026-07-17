@@ -116,7 +116,18 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::huggingface_inventory()),
         );
         registry.register::<KimiCodeProvider>(true);
-        registry.register::<LiteLLMProvider>(false);
+        registry.register_with_inventory::<LiteLLMProvider>(
+            false,
+            Some(registrations::refresh_only().with_configured(|| {
+                let config = crate::config::Config::global();
+                config
+                    .get_param::<serde_json::Value>("LITELLM_HOST")
+                    .is_ok()
+                    || config
+                        .get_secret::<serde_json::Value>("LITELLM_API_KEY")
+                        .is_ok()
+            })),
+        );
         registry.register::<NanoGptProvider>(true);
         registry.register_with_inventory::<OllamaProviderDef>(
             true,
@@ -466,5 +477,48 @@ mod tests {
         assert_eq!(inf_config.context_limit(), 1_000_000);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
+    async fn test_litellm_supports_inventory_refresh() {
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.supports_inventory_refresh(),
+            "litellm must support inventory refresh so the model picker calls fetch_supported_models"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_litellm_configured_without_api_key() {
+        let _guard = env_lock::lock_env([
+            ("LITELLM_API_KEY", None::<&str>),
+            ("LITELLM_HOST", Some("http://localhost:4000")),
+        ]);
+
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.inventory_configured(),
+            "litellm should be considered configured when LITELLM_HOST is set without an API key"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_litellm_not_configured_without_any_settings() {
+        let _guard = env_lock::lock_env([
+            ("LITELLM_API_KEY", None::<&str>),
+            ("LITELLM_HOST", None::<&str>),
+        ]);
+
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            !entry.inventory_configured(),
+            "litellm should not be considered configured when no settings are present"
+        );
     }
 }

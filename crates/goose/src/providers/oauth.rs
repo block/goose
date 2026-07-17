@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::providers::private_file::write_private_file;
 use crate::utils::bytes_to_hex;
 use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
@@ -88,11 +89,8 @@ impl TokenCache {
     }
 
     fn save_token(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
         let contents = serde_json::to_string(token_data)?;
-        fs::write(&self.cache_path, contents)?;
+        write_private_file(&self.cache_path, &contents)?;
         Ok(())
     }
 }
@@ -544,6 +542,31 @@ mod tests {
         assert!(loaded_token.expires_at.is_none());
 
         Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn token_cache_replaces_loose_file_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("token.json");
+        fs::write(&cache_path, "{}").unwrap();
+        fs::set_permissions(&cache_path, fs::Permissions::from_mode(0o644)).unwrap();
+        let cache = TokenCache {
+            cache_path: cache_path.clone(),
+        };
+
+        cache
+            .save_token(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: Some("refresh".to_string()),
+                expires_at: None,
+            })
+            .unwrap();
+
+        let mode = fs::metadata(cache_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 
     #[test]

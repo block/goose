@@ -14,6 +14,10 @@ enum TuiSource {
 
 fn find_local_script() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
+    find_local_script_from(&exe)
+}
+
+fn find_local_script_from(exe: &Path) -> Option<PathBuf> {
     let exe_dir = exe.parent().unwrap_or_else(|| Path::new("."));
 
     let mut dir = Some(exe_dir.to_path_buf());
@@ -24,13 +28,6 @@ fn find_local_script() -> Option<PathBuf> {
                 return Some(candidate);
             }
             dir = d.parent().map(Path::to_path_buf);
-        }
-    }
-
-    if let Ok(cwd) = std::env::current_dir() {
-        let candidate = cwd.join(TUI_REL_PATH);
-        if candidate.is_file() {
-            return Some(candidate);
         }
     }
 
@@ -95,5 +92,36 @@ pub fn handle_tui(args: Vec<String>) -> Result<()> {
             std::process::exit(status.code().unwrap_or(1));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn find_local_script_ignores_unrelated_directories() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let executable = temp_dir.path().join("install/bin/goose");
+        let planted_script = temp_dir.path().join("checkout").join(TUI_REL_PATH);
+        fs::create_dir_all(planted_script.parent().unwrap()).expect("create script directory");
+        fs::write(&planted_script, "process.exit(0)\n").expect("write planted script");
+
+        assert_eq!(find_local_script_from(&executable), None);
+    }
+
+    #[test]
+    fn find_local_script_accepts_executable_ancestor() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let executable = temp_dir.path().join("target/debug/goose");
+        let bundled_script = temp_dir.path().join(TUI_REL_PATH);
+        fs::create_dir_all(bundled_script.parent().unwrap()).expect("create script directory");
+        fs::write(&bundled_script, "process.exit(0)\n").expect("write bundled script");
+
+        assert_eq!(
+            find_local_script_from(&executable).as_deref(),
+            Some(bundled_script.as_path())
+        );
     }
 }

@@ -1013,6 +1013,20 @@ fn enrich_model_ids_with_canonical(
     provider_family: &str,
     model_ids: &[String],
 ) -> Vec<InventoryModel> {
+    if provider_family == "litellm" {
+        return model_ids
+            .iter()
+            .map(|id| InventoryModel {
+                id: id.clone(),
+                name: id.clone(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            })
+            .collect();
+    }
+
     let mut models: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 

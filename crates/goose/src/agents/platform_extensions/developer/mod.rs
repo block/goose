@@ -163,10 +163,10 @@ impl DeveloperClient {
             )
             .annotate(ToolAnnotations::from_raw(
                 Some("Read Image".to_string()),
-                Some(true),
+                Some(false),
                 Some(false),
                 Some(true),
-                Some(false),
+                Some(true),
             )),
         ]
     }
@@ -262,6 +262,18 @@ mod tests {
             .collect();
 
         assert_eq!(names, vec!["write", "edit", "shell", "tree", "read_image"]);
+    }
+
+    #[test]
+    fn read_image_annotations_reflect_network_access() {
+        let read_image = DeveloperClient::get_tools()
+            .into_iter()
+            .find(|tool| tool.name == "read_image")
+            .unwrap();
+        let annotations = read_image.annotations.unwrap();
+
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {

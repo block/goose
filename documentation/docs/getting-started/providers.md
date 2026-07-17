@@ -41,6 +41,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [iFlytek Astron MaaS](https://maas.xfyun.cn/)                               | iFlytek Astron MaaS (讯飞星辰) hosting Spark X2, DeepSeek, GLM, Kimi, MiniMax, Qwen, and Astron coding models via an OpenAI-compatible API. Set `ASTRON_BASE_URL` to switch between the Token Plan and Coding Plan endpoints. | `ASTRON_API_KEY`, `ASTRON_BASE_URL` (optional) |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
 | [LM Studio](https://lmstudio.ai/)                                          | Run local models with LM Studio's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).**                                                           | None required. Connects to local server at `localhost:1234` by default.                                                                                                             |
+| [Meta](https://dev.meta.ai/)                                                | Meta's Model API, home of the Muse Spark models.                                                                                                                                | `META_MODEL_API_KEY`                                                                                                                                                                |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [NEAR AI Cloud](https://cloud.near.ai/)                                     | TEE-backed private inference through an OpenAI-compatible API with dynamic model discovery.                                                                                                                   | `NEARAI_API_KEY`                                                                                                                                                                  |
 | [Novita AI](https://novita.ai/)                                             | 90+ open-source models with OpenAI-compatible API and competitive pricing. Supports Kimi K2.5, DeepSeek, GLM, MiniMax, Qwen, and more.                                                                       | `NOVITA_API_KEY`                                                                                                  |
@@ -91,11 +92,11 @@ To configure your chosen provider, see available options, or select a model, vis
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   **First-time users:**
-  
+
   On the welcome screen the first time you open goose, you have these options:
-  
+
   <OnboardingProviderSetup />
-  
+
   <Tabs groupId="setup">
     <TabItem value="apikey" label="Quick Setup" default>
     1. Choose `Quick Setup with API Key`.
@@ -111,34 +112,34 @@ To configure your chosen provider, see available options, or select a model, vis
     4. When you return to goose Desktop, you're ready to begin your first session.
     </TabItem>
     <TabItem value="tetrate" label="Agent Router">
-    We recommend new users start with Agent Router by Tetrate. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
+    We recommend new users start with Agent Router by Tetrate. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover.
 
     :::info Free Credits Offer
     You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
     :::
-    1. Choose `Agent Router by Tetrate`. 
+    1. Choose `Agent Router by Tetrate`.
     2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
     3. When you return to goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="openrouter" label="OpenRouter">
-    1. Choose `Automatic setup with OpenRouter`. 
+    1. Choose `Automatic setup with OpenRouter`.
     2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
     3. When you return to the goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="others" label="Other Providers">
-    1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`. 
-    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window to [configure a custom provider](#configure-custom-provider). 
+    1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`.
+    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window to [configure a custom provider](#configure-custom-provider).
     3. Depending on your provider, you'll need to input your API Key, API Host, or other optional [parameters](#available-providers). Click the `Submit` button to authenticate and begin your first session.
 
     :::info Ollama Model Detection
     For Ollama users, all locally installed models display automatically in the model selection dropdown.
     :::
-    
+
     </TabItem>
   </Tabs>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
   2. Click the `Settings` button on the sidebar
   3. Click the `Models` tab
@@ -166,7 +167,7 @@ To configure your chosen provider, see available options, or select a model, vis
   4. Click `Reset Provider and Model` to clear your current settings and return to the welcome screen
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. In your terminal, run the following command: 
+    1. In your terminal, run the following command:
 
        ```sh
        goose configure
@@ -175,59 +176,59 @@ To configure your chosen provider, see available options, or select a model, vis
     2. Select `Configure Providers` from the menu and press `Enter`.
 
        ```
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◆  What would you like to configure?
        // highlight-start
        │  ● Configure Providers (Change provider or update credentials)
        // highlight-end
-       │  ○ Custom Providers 
-       │  ○ Add Extension 
-       │  ○ Toggle Extensions 
-       │  ○ Remove Extension 
-       │  ○ goose Settings 
-       └  
+       │  ○ Custom Providers
+       │  ○ Add Extension
+       │  ○ Toggle Extensions
+       │  ○ Remove Extension
+       │  ○ goose Settings
+       └
        ```
     3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◇  What would you like to configure?
-       │  Configure Providers 
+       │  Configure Providers
        │
        ◆  Which model provider should we use?
-       │  ○ Amazon Bedrock 
-       │  ○ Amazon SageMaker TGI 
+       │  ○ Amazon Bedrock
+       │  ○ Amazon SageMaker TGI
        // highlight-start
        │  ● Anthropic (Claude and other models from Anthropic)
        // highlight-end
-       │  ○ Azure OpenAI 
+       │  ○ Azure OpenAI
        │  ○ Claude Code CLI
        │  ○ ...
-       └  
+       └
        ```
     4. Enter your API key (and any other configuration details) when prompted.
 
        ```
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◇  What would you like to configure?
-       │  Configure Providers 
+       │  Configure Providers
        │
        ◇  Which model provider should we use?
-       │  Anthropic 
+       │  Anthropic
        │
        ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
        // highlight-start
        │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
        // highlight-end
-       └  
+       └
        ```
-       
+
        If you're just changing models, skip any prompts to update the provider configuration.
 
-    5. Enter your desired `ANTHROPIC_HOST` or press `Enter` to use the default. 
+    5. Enter your desired `ANTHROPIC_HOST` or press `Enter` to use the default.
 
        ```
        ◆  Provider Anthropic requires ANTHROPIC_HOST, please enter a value
@@ -239,7 +240,7 @@ To configure your chosen provider, see available options, or select a model, vis
        - Select the model from a list
        - Search for the model by name
        - Enter the model name directly
-       
+
        ```
        │
        ◇  Model fetch complete
@@ -252,7 +253,7 @@ To configure your chosen provider, see available options, or select a model, vis
        ◒  Checking your configuration...
        └  Configuration saved successfully
        ```
-  
+
        This change takes effect the next time you start a session.
 
   :::note
@@ -282,12 +283,20 @@ The built-in OpenAI provider can connect to OpenAI's official API (`api.openai.c
 Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, as well as custom naming and shareable configurations.
 :::
 
+:::note Pointing at a LiteLLM proxy
+You can reach a [LiteLLM](https://docs.litellm.ai/) proxy in either of two ways—pick one, don't mix them:
+
+- Use the **OpenAI provider**: set `OPENAI_HOST` to your proxy's root (no trailing path) and `OPENAI_BASE_PATH` to the path it serves (usually `v1/chat/completions`). A `404` usually means `OPENAI_BASE_PATH` is wrong for your proxy. A `401` with `No api key passed in` is a different problem—the API key is not being loaded (for example, a key placed in `config.yaml`, which is ignored); see [Provider API keys and `config.yaml`](/docs/guides/config-files#security-considerations).
+- Use the dedicated **LiteLLM provider**, which is configured with its own `LITELLM_HOST`, `LITELLM_BASE_PATH`, and `LITELLM_API_KEY` variables instead of the `OPENAI_*` ones.
+:::
+
 #### Configuration Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | Authentication key for the API |
 | `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com) |
+| `OPENAI_BASE_PATH` | No | Request path appended to the host (defaults to `v1/chat/completions`). Set this when your endpoint serves the chat completions API at a different path—most proxies expect `v1/chat/completions`, but some are mounted at `chat/completions` (no `v1`). |
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
 | `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
@@ -385,7 +394,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     4. Click `Configure providers`
     5. Click `Add Custom Provider` at the bottom of the window
     6. Fill in the provider details:
-       - **Provider Type**: 
+       - **Provider Type**:
          - `OpenAI Compatible` (most common)
          - `Anthropic Compatible`
          - `Ollama Compatible`
@@ -404,7 +413,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. In your terminal, run the following command: 
+    1. In your terminal, run the following command:
 
        ```sh
        goose configure
@@ -413,38 +422,38 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     2. Select `Custom Providers`. Use the arrow keys (↑/↓) to move through the options.
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◆  What would you like to configure?
        │  ○ Configure Providers
        // highlight-start
        │  ● Custom Providers (Add custom provider with compatible API)
        // highlight-end
-       │  ○ Add Extension 
-       │  ○ Toggle Extensions 
-       │  ○ Remove Extension 
-       │  ○ goose Settings 
-       └  
+       │  ○ Add Extension
+       │  ○ Toggle Extensions
+       │  ○ Remove Extension
+       │  ○ goose Settings
+       └
        ```
 
     3. Select `Add A Custom Provider`
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◇  What would you like to configure?
-       │  Custom Providers 
+       │  Custom Providers
        │
        ◆  What would you like to do?
        // highlight-start
        │  ● Add A Custom Provider (Add a new OpenAI/Anthropic/Ollama compatible Provider)
        // highlight-end
        │  ○ Remove Custom Provider
-       └  
+       └
        ```
 
     4. Follow the prompts to enter the provider details:
-       - **API Type**: 
+       - **API Type**:
          - `OpenAI Compatible` (most common)
          - `Anthropic Compatible`
          - `Ollama Compatible`
@@ -523,8 +532,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    
-    1. In your terminal, run the following command: 
+
+    1. In your terminal, run the following command:
 
        ```sh
        goose configure
@@ -533,40 +542,40 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     2. Select `Configure Providers` from the menu and press `Enter`.
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◆  What would you like to configure?
        // highlight-start
        │  ● Configure Providers (Change provider or update credentials)
        // highlight-end
-       │  ○ Custom Providers 
-       │  ○ Add Extension 
-       │  ○ Toggle Extensions 
-       │  ○ Remove Extension 
-       │  ○ goose Settings 
-       └  
+       │  ○ Custom Providers
+       │  ○ Add Extension
+       │  ○ Toggle Extensions
+       │  ○ Remove Extension
+       │  ○ goose Settings
+       └
        ```
 
     3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◇  What would you like to configure?
-       │  Configure Providers 
+       │  Configure Providers
        │
        ◆  Which model provider should we use?
-       │  ○ Amazon Bedrock 
-       │  ○ Amazon SageMaker TGI 
+       │  ○ Amazon Bedrock
+       │  ○ Amazon SageMaker TGI
        │  ○ Anthropic
-       │  ○ Azure OpenAI 
-       │  ○ Claude Code CLI 
+       │  ○ Azure OpenAI
+       │  ○ Claude Code CLI
        // highlight-start
        │  ● Corporate API (Custom Corporate API provider)
        // highlight-end
-       │  ○ Cursor Agent 
+       │  ○ Cursor Agent
        │  ○ ...
-       └  
+       └
        ```
 
     4. Follow the prompts to update the fields.
@@ -598,8 +607,8 @@ Your changes are available in your next goose session.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    
-    1. In your terminal, run the following command: 
+
+    1. In your terminal, run the following command:
 
        ```sh
        goose configure
@@ -608,34 +617,34 @@ Your changes are available in your next goose session.
     2. Select `Custom Providers`. Use the arrow keys (↑/↓) to move through the options.
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◆  What would you like to configure?
        │  ○ Configure Providers
        // highlight-start
        │  ● Custom Providers (Add custom provider with compatible API)
        // highlight-end
-       │  ○ Add Extension 
-       │  ○ Toggle Extensions 
-       │  ○ Remove Extension 
-       │  ○ goose Settings 
-       └  
+       │  ○ Add Extension
+       │  ○ Toggle Extensions
+       │  ○ Remove Extension
+       │  ○ goose Settings
+       └
        ```
 
     3. Select `Remove Custom Provider`.
 
        ```sh
-       ┌   goose-configure 
+       ┌   goose-configure
        │
        ◇  What would you like to configure?
-       │  Custom Providers 
+       │  Custom Providers
        │
        ◆  What would you like to do?
-       │  ○ Add A Custom Provider 
+       │  ○ Add A Custom Provider
        // highlight-start
        │  ● Remove Custom Provider (Remove an existing custom provider)
        // highlight-end
-       └  
+       └
        ```
 
     4. Select the custom provider you want to remove.
@@ -658,7 +667,7 @@ Your changes are available in your next goose session.
 
 ## Using goose for Free
 
-goose is a free and open source AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 
+goose is a free and open source AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier.
 
 Below, we outline a couple of free options and how to get started with them.
 
@@ -672,7 +681,7 @@ Groq provides free access to open source (open weight) models with high-speed in
 
 Groq offers several open source models that support tool calling, including:
 - **moonshotai/kimi-k2-instruct-0905** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
-- **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities  
+- **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities
 - **llama-3.3-70b-versatile** - Meta's Llama 3.3 model for versatile applications
 - **llama-3.1-8b-instant** - Meta's Llama 3.1 model for fast inference
 
@@ -682,7 +691,7 @@ To set up Groq with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
@@ -694,7 +703,7 @@ To set up Groq with goose, follow these steps:
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
+    1. Run:
     ```sh
     goose configure
     ```
@@ -723,7 +732,7 @@ To set up EmpirioLabs with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
@@ -735,7 +744,7 @@ To set up EmpirioLabs with goose, follow these steps:
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
+    1. Run:
     ```sh
     goose configure
     ```
@@ -762,7 +771,7 @@ To set up FuturMix with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
@@ -774,7 +783,7 @@ To set up FuturMix with goose, follow these steps:
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
+    1. Run:
     ```sh
     goose configure
     ```
@@ -801,7 +810,7 @@ To set up Novita AI with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
@@ -813,7 +822,7 @@ To set up Novita AI with goose, follow these steps:
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
+    1. Run:
     ```sh
     goose configure
     ```
@@ -868,7 +877,7 @@ To set up Google Gemini with goose, follow these steps:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  **To update your LLM provider and API key:** 
+  **To update your LLM provider and API key:**
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
@@ -879,7 +888,7 @@ To set up Google Gemini with goose, follow these steps:
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-    1. Run: 
+    1. Run:
     ```sh
     goose configure
     ```
@@ -899,7 +908,7 @@ To set up Google Gemini with goose, follow these steps:
     │
     ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
     │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │    
+    │
     ◇ Enter a model from that provider:
     │ gemini-2.0-flash-exp
     │
@@ -1022,14 +1031,14 @@ Here are some local providers we support:
 
       </TabItem>
       <TabItem value="deepseek" label="DeepSeek-R1">
-        The native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with goose. 
+        The native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with goose.
 
         :::warning
         Note that this is a 70B model size and requires a powerful device to run smoothly.
         :::
 
 
-        1. [Download Ollama](https://ollama.com/download). 
+        1. [Download Ollama](https://ollama.com/download).
         2. In a terminal window, run the following command to install the custom DeepSeek-r1 model:
 
         ```sh
@@ -1045,44 +1054,44 @@ Here are some local providers we support:
         4. Choose to `Configure Providers`
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◆  What would you like to configure?
         │  ● Configure Providers (Change provider or update credentials)
-        │  ○ Toggle Extensions 
-        │  ○ Add Extension 
-        └  
+        │  ○ Toggle Extensions
+        │  ○ Add Extension
+        └
         ```
 
         5. Choose `Ollama` as the model provider
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◆  Which model provider should we use?
-        │  ○ Anthropic 
-        │  ○ Databricks 
-        │  ○ Google Gemini 
-        │  ○ Groq 
+        │  ○ Anthropic
+        │  ○ Databricks
+        │  ○ Google Gemini
+        │  ○ Groq
         │  ● Ollama (Local open source models)
-        │  ○ OpenAI 
-        │  ○ OpenRouter 
-        └  
+        │  ○ OpenAI
+        │  ○ OpenRouter
+        └
         ```
 
         6. Enter the host where your model is running
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◇  Which model provider should we use?
-        │  Ollama 
+        │  Ollama
         │
         ◆  Provider Ollama requires OLLAMA_HOST, please enter a value
         │  http://localhost:11434
@@ -1092,17 +1101,17 @@ Here are some local providers we support:
         7. Enter the installed model from above
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◇  Which model provider should we use?
-        │  Ollama 
+        │  Ollama
         │
         ◇   Provider Ollama requires OLLAMA_HOST, please enter a value
-        │  http://localhost:11434  
-        │    
+        │  http://localhost:11434
+        │
         ◇  Enter a model from that provider:
         │  michaelneale/deepseek-r1-goose
         │
@@ -1112,7 +1121,7 @@ Here are some local providers we support:
         ```
       </TabItem>
       <TabItem value="others" label="Other Models" default>
-        1. [Download Ollama](https://ollama.com/download). 
+        1. [Download Ollama](https://ollama.com/download).
         2. In a terminal, run any [model supporting tool-calling](https://ollama.com/search?c=tools)
 
           Example:
@@ -1130,32 +1139,32 @@ Here are some local providers we support:
         4. Choose to `Configure Providers`
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◆  What would you like to configure?
         │  ● Configure Providers (Change provider or update credentials)
-        │  ○ Toggle Extensions 
-        │  ○ Add Extension 
-        └  
+        │  ○ Toggle Extensions
+        │  ○ Add Extension
+        └
         ```
 
         5. Choose `Ollama` as the model provider
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◆  Which model provider should we use?
-        │  ○ Anthropic 
-        │  ○ Databricks 
-        │  ○ Google Gemini 
-        │  ○ Groq 
+        │  ○ Anthropic
+        │  ○ Databricks
+        │  ○ Google Gemini
+        │  ○ Groq
         │  ● Ollama (Local open source models)
-        │  ○ OpenAI 
-        │  ○ OpenRouter 
-        └  
+        │  ○ OpenAI
+        │  ○ OpenRouter
+        └
         ```
 
         6. Enter the host where your model is running
@@ -1168,13 +1177,13 @@ Here are some local providers we support:
         :::
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◇  Which model provider should we use?
-        │  Ollama 
+        │  Ollama
         │
         ◆  Provider Ollama requires OLLAMA_HOST, please enter a value
         │  http://localhost:11434
@@ -1185,13 +1194,13 @@ Here are some local providers we support:
         7. Enter the model you have running
 
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Configure Providers 
+        │  Configure Providers
         │
         ◇  Which model provider should we use?
-        │  Ollama 
+        │  Ollama
         │
         ◇  Provider Ollama requires OLLAMA_HOST, please enter a value
         │  http://localhost:11434
@@ -1207,7 +1216,7 @@ Here are some local providers we support:
         :::tip Context Length
         If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/context-engineering/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size).
         :::
-        
+
       </TabItem>
     </Tabs>
   </TabItem>
@@ -1320,7 +1329,7 @@ Here are some local providers we support:
     docker model pull hf.co/unsloth/gemma-3n-e4b-it-gguf:q6_k
     ```
 
-    4. Configure goose to use Docker Model Runner, using the OpenAI API compatible endpoint: 
+    4. Configure goose to use Docker Model Runner, using the OpenAI API compatible endpoint:
 
     ```sh
     goose configure
@@ -1329,16 +1338,16 @@ Here are some local providers we support:
     5. Choose to `Configure Providers`
 
     ```
-    ┌   goose-configure 
+    ┌   goose-configure
     │
     ◆  What would you like to configure?
     │  ● Configure Providers (Change provider or update credentials)
-    │  ○ Toggle Extensions 
-    │  ○ Add Extension 
-    └  
+    │  ○ Toggle Extensions
+    │  ○ Add Extension
+    └
     ```
 
-    6. Choose `OpenAI` as the model provider: 
+    6. Choose `OpenAI` as the model provider:
 
     ```
     ┌   goose-configure
@@ -1354,7 +1363,7 @@ Here are some local providers we support:
     │  ○ OpenRouter
     ```
 
-    7. Configure Docker Model Runner endpoint as the `OPENAI_HOST`: 
+    7. Configure Docker Model Runner endpoint as the `OPENAI_HOST`:
 
     ```
     ┌   goose-configure
@@ -1370,10 +1379,10 @@ Here are some local providers we support:
     └
     ```
 
-    The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be: 
-    `http://localhost:12434`. 
+    The default value for the host-side port Docker Model Runner is 12434, so the `OPENAI_HOST` value could be:
+    `http://localhost:12434`.
 
-    8. Configure the base path: 
+    8. Configure the base path:
 
     ```
     ◆  Provider OpenAI requires OPENAI_BASE_PATH, please enter a value
@@ -1390,7 +1399,7 @@ Here are some local providers we support:
     ◇  Enter a model from that provider:
     │  gpt-4o
     │
-    ◒  Checking your configuration...                                                                                                            
+    ◒  Checking your configuration...
     └  Configuration saved successfully
     ```
   </TabItem>
@@ -1455,6 +1464,39 @@ Beyond single-model setups, goose supports [multi-model configurations](/docs/gu
 - **Planning Mode** - Use a dedicated planner model to create detailed project breakdowns before execution
 - **Subagents** - Delegate scoped tasks to isolated sessions to keep your primary workflow focused and efficient
 
+## Meta Muse Spark Reasoning Effort
+
+Meta's Muse Spark models support a configurable reasoning effort that maps to Meta's `reasoning_effort` request parameter:
+- **Low** - Faster responses, lighter reasoning
+- **Medium** - Balanced reasoning depth and latency
+- **High** - Deeper reasoning, higher latency
+- **Max** - Sent as `xhigh`, the deepest reasoning level Meta supports
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    When selecting a Muse Spark model, a "Thinking Effort" dropdown appears automatically. Select your preference and the setting persists across sessions.
+  </TabItem>
+
+  <TabItem value="cli" label="goose CLI">
+    When you run `goose configure` and select a Muse Spark model, you'll be prompted to choose a thinking effort:
+
+    ```
+    ◆  Select thinking effort:
+    │  ● Off - No extended thinking
+    │  ○ Low - Better latency, lighter reasoning
+    │  ○ Medium - Moderate thinking
+    │  ○ High - Deep reasoning
+    │  ○ Max - No constraints on thinking depth
+    ```
+
+    You can also set this globally with the `GOOSE_THINKING_EFFORT` environment variable (`off`, `low`, `medium`, `high`, or `max`).
+  </TabItem>
+</Tabs>
+
+:::note
+Muse Spark always reasons and has no way to disable it, so choosing `off` is clamped to `low` (the lightest level Meta supports) rather than omitting the `reasoning_effort` parameter.
+:::
+
 ## Gemini 3 Thinking Levels
 
 Gemini 3 models support configurable thinking levels to balance response latency and reasoning depth:
@@ -1469,12 +1511,12 @@ When thinking is enabled, you can view the model's reasoning process. See [Viewi
   <TabItem value="ui" label="goose Desktop" default>
     When selecting a Gemini 3 model, a "Thinking Level" dropdown appears automatically. Select your preference and the setting persists across sessions.
   </TabItem>
-  
+
   <TabItem value="cli" label="goose CLI">
     **Interactive configuration:**
-    
+
     When you run `goose configure` and select a Gemini 3 model, you'll be prompted to choose a thinking level:
-    
+
     ```
     ◆  Select thinking level for Gemini 3:
     │  ● Low - Better latency, lighter reasoning
@@ -1505,16 +1547,16 @@ Some models expose their internal reasoning or "chain of thought" as part of the
   <TabItem value="ui" label="goose Desktop" default>
     Reasoning output appears automatically in a collapsible **"Show reasoning"** toggle above the model's response. Click it to expand and view the model's thought process.
   </TabItem>
-  
+
   <TabItem value="cli" label="goose CLI">
     Reasoning output is **hidden by default** in the CLI. To display it, set the `GOOSE_CLI_SHOW_THINKING` environment variable:
-    
+
     ```bash
     export GOOSE_CLI_SHOW_THINKING=1
     ```
-    
+
     When enabled, reasoning appears under a "Thinking:" header in dimmed text before the model's main response.
-    
+
     :::note
     This requires stdout to be a terminal (reasoning output won't appear when piping output to a file or another command).
     :::

@@ -22,7 +22,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
-use utoipa::ToSchema;
 
 pub const CURRENT_SCHEMA_VERSION: i32 = 15;
 pub const SESSIONS_FOLDER: &str = "sessions";
@@ -35,7 +34,6 @@ const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
     Copy,
     Serialize,
     Deserialize,
-    ToSchema,
     PartialEq,
     Eq,
     Default,
@@ -58,10 +56,9 @@ pub enum SessionType {
 static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =
     LazyLock::new(|| Arc::new(SessionStorage::new(Paths::data_dir())));
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
-    #[schema(value_type = String)]
     pub working_dir: PathBuf,
     #[serde(alias = "description")]
     pub name: String,
@@ -170,7 +167,7 @@ pub struct SessionUpdateBuilder<'a> {
     parent_session_id: Option<Option<String>>,
 }
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
     pub total_sessions: usize,
@@ -2829,6 +2826,12 @@ mod tests {
                 SessionType::User,
                 GooseMode::default(),
             )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
             .await
             .unwrap();
 
