@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use clap::{Subcommand, ValueEnum};
+use clap::Subcommand;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
@@ -26,31 +26,16 @@ fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum ShareScope {
-    /// Full ACP control (effectively remote shell access). Trusted peers only.
-    Control,
-    /// Observe session activity without approving tool permissions.
-    Observe,
-}
-
-impl From<ShareScope> for Scope {
-    fn from(s: ShareScope) -> Self {
-        match s {
-            ShareScope::Control => Scope::Control,
-            ShareScope::Observe => Scope::Observe,
-        }
-    }
-}
-
 #[derive(Debug, Subcommand)]
 pub enum RoamCommand {
     /// Host this machine's agent and print an invite token.
+    ///
+    /// A shared agent grants full control (the connecting peer can drive the
+    /// agent and approve its tool use — effectively remote shell access), so
+    /// only ever share with peers you trust. Narrower capabilities (observe /
+    /// attach) are deferred until they can be enforced host-side; see the
+    /// roaming design doc.
     Share {
-        /// Capability granted to the connecting client.
-        #[arg(long, value_enum, default_value_t = ShareScope::Control)]
-        scope: ShareScope,
-
         /// Invite lifetime in seconds.
         #[arg(long, default_value_t = 3600)]
         ttl: u64,
@@ -121,12 +106,11 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             Ok(())
         }
         RoamCommand::Share {
-            scope,
             ttl,
             allow_keys,
             pair,
             builtins,
-        } => handle_share(scope.into(), ttl, allow_keys, pair, builtins).await,
+        } => handle_share(Scope::Control, ttl, allow_keys, pair, builtins).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
         RoamCommand::Connections => handle_list().await,

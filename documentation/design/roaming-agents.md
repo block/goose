@@ -333,7 +333,26 @@ working dir, its shell — across the wire").
   (`server.rs:1162`). The host must impose the `share` cwd and preserve it on
   resume.
 
-### Scope enforcement (the security gap)
+### Scope: don't advertise what isn't enforced (decision)
+
+A later review corrected the framing here: a shared agent is given to a
+**trusted, authenticated** peer, and a `Control` invite is *intentionally*
+SSH-equivalent — the peer driving the agent and approving its tool use is the
+feature, not a gap. There is nothing to defend against for `Control`.
+
+The only real risk is **false security**: advertising `Observe`/`Attach` as if
+they were enforced when they are not. So the near-term surface is simplified to
+**`Control` only** — the CLI `--scope` flag is removed and `roam share` always
+grants full control with a clear warning. The richer `Scope` enum stays in the
+library for when a session coordinator can actually enforce observe/attach
+(§9 roadmap steps 3–4). The `serve_with_policy` workstream is therefore dropped
+from the near-term plan; it only mattered for enforcing lesser scopes.
+
+For **delegation** (§10) the thing that still matters is not authz (the peer is
+trusted) but **loop/cost safety** — that guardrail is independent of scopes and
+is retained.
+
+### (Deferred) Scope enforcement — only if lesser scopes are ever shipped
 
 - Pass the handshake's granted scope into **host-side** ACP enforcement.
   Client-side cancellation is only defense-in-depth.
