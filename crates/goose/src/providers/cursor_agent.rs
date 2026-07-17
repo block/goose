@@ -208,7 +208,10 @@ impl CursorAgentProvider {
 
         cmd.arg("--model").arg(&model.model_name);
 
-        cmd.arg("--output-format").arg("json").arg("--force");
+        cmd.arg("--print")
+            .arg("--output-format")
+            .arg("json")
+            .arg("--force");
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -438,6 +441,7 @@ printf '%s\n' '{"type":"result","result":"ok"}'
         assert!(stdin.contains(SENTINEL));
         assert!(!args.lines().any(|arg| arg == "-p"));
         assert!(args.contains("--model\nauto"));
+        assert!(args.lines().any(|arg| arg == "--print"));
         assert!(args.contains("--output-format\njson"));
         assert!(args.contains("--force"));
     }
