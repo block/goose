@@ -86,10 +86,15 @@ since there's no human to answer.
 **Secrets never hang the runtime.** Reading the node key or config secrets must
 not block; see the keychain-read timeout in goose core's config layer.
 
-## What's deferred
+## Surfacing delegation to the model
 
-- Surfacing `list_peers` / `delegate` to the model as tools (likely a small MCP
-  server, keeping iroh out of core).
+The agent can reach other agents with **no new code**: a builtin skill
+(`roam-delegate`) documents how to call `goose roam delegate <peer> "<task>"`
+via the shell. The skill ships in core but is inert unless the `roaming` CLI
+feature is built in. This keeps iroh out of core and adds nothing to maintain;
+a richer tool (e.g. a small MCP server) can come later if warranted.
+
+## What's deferred
 - Durable / attachable sessions and a session coordinator (needed before
   observe/attach scopes and "spawn a subagent that outlives the caller").
 - Self-hosted relays (public n0 relays are rate-limited).
