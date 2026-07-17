@@ -575,8 +575,8 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
-    fn supports_stream_start_retry(&self) -> bool {
-        true
+    fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
+        !model_config.request_param::<bool>("store").unwrap_or(false)
     }
 
     fn skip_canonical_filtering(&self) -> bool {
@@ -912,6 +912,21 @@ mod tests {
             preserve_thinking_context: false,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    #[test]
+    fn stream_start_retry_is_enabled_by_default() {
+        let provider = make_provider(OPEN_AI_PROVIDER_NAME);
+        assert!(provider.supports_stream_start_retry(&ModelConfig::new("gpt-5.4")));
+    }
+
+    #[test]
+    fn stream_start_retry_is_disabled_when_responses_are_stored() {
+        let provider = make_provider(OPEN_AI_PROVIDER_NAME);
+        let model_config = ModelConfig::new("gpt-5.4")
+            .with_merged_request_params(HashMap::from([("store".to_string(), json!(true))]));
+
+        assert!(!provider.supports_stream_start_retry(&model_config));
     }
 
     #[test]

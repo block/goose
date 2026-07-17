@@ -55,7 +55,7 @@ async fn open_provider_stream(
                 }));
             }
             Some(Err(error))
-                if provider.supports_stream_start_retry()
+                if provider.supports_stream_start_retry(model_config)
                     && should_retry(&error, &retry_config)
                     && attempts < retry_config.max_retries() =>
             {
@@ -773,7 +773,7 @@ mod tests {
             RetryConfig::new(2, 1, 1.0, 1)
         }
 
-        fn supports_stream_start_retry(&self) -> bool {
+        fn supports_stream_start_retry(&self, _model_config: &ModelConfig) -> bool {
             self.supports_stream_start_retry
         }
 

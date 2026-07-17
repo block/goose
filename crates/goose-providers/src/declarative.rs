@@ -541,6 +541,38 @@ mod tests {
         assert_eq!(provider.get_name(), "test-provider");
     }
 
+    #[test]
+    fn bundled_sakana_provider_supports_safe_stream_start_retry() {
+        #[derive(Debug)]
+        struct TestKeyResolverError;
+
+        impl std::fmt::Display for TestKeyResolverError {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("test key resolver failed")
+            }
+        }
+
+        impl std::error::Error for TestKeyResolverError {}
+
+        struct TestKeyResolver;
+
+        impl KeyResolver for TestKeyResolver {
+            type Error = TestKeyResolverError;
+
+            fn resolve_key(&self, _key: &str) -> std::result::Result<String, Self::Error> {
+                Ok("test-key".to_string())
+            }
+        }
+
+        let json = declarative_providers::fixed_provider_config_entries()
+            .into_iter()
+            .find_map(|(name, json)| (name == "sakana.json").then_some(json))
+            .expect("bundled Sakana provider should exist");
+        let provider = from_json(json, None, TestKeyResolver).unwrap();
+
+        assert!(provider.supports_stream_start_retry(&crate::model::ModelConfig::new("fugu")));
+    }
+
     #[tokio::test]
     async fn from_json_ollama_returns_static_models_when_dynamic_models_false() {
         let json = json!({
