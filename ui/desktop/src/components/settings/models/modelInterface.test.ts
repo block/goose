@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { acpListProviderModels } from '../../../acp/providers';
-import { fetchModelCapabilities } from './modelInterface';
+import type { ProviderDetails } from '../../../types/providers';
+import { fetchModelCapabilities, fetchModelsForProviders } from './modelInterface';
 
 vi.mock('../../../acp/providers', () => ({
   acpListProviderDetails: vi.fn(),
@@ -44,5 +45,48 @@ describe('fetchModelCapabilities', () => {
       reasoning: false,
       supportsReasoningMode: true,
     });
+  });
+});
+
+describe('fetchModelsForProviders', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('preserves reasoning mode support in the custom provider fallback', async () => {
+    vi.mocked(acpListProviderModels).mockRejectedValue(new Error('provider unavailable'));
+    const provider = {
+      name: 'custom-openai',
+      provider_type: 'Custom',
+      is_configured: true,
+      metadata: {
+        name: 'custom-openai',
+        display_name: 'Custom OpenAI',
+        description: '',
+        default_model: 'team-prod',
+        model_doc_link: '',
+        config_keys: [],
+        known_models: [
+          {
+            name: 'team-prod',
+            context_limit: 128_000,
+            reasoning: true,
+            supports_reasoning_mode: true,
+          },
+        ],
+      },
+    } satisfies ProviderDetails;
+
+    const [result] = await fetchModelsForProviders([provider]);
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        name: 'team-prod',
+        reasoning: true,
+        supports_reasoning_mode: true,
+      }),
+    ]);
+    expect(result.error).toBeNull();
+    expect(result.warning).toContain('showing configured models');
   });
 });

@@ -22,6 +22,7 @@ export type ModelInfo = {
   reasoning?: boolean;
   resolved_model?: string | null;
   supports_cache_control?: boolean | null;
+  supports_reasoning_mode?: boolean | null;
 };
 
 export type ProviderMetadata = {

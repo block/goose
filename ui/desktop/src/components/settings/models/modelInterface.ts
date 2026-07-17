@@ -90,6 +90,7 @@ export async function fetchModelsForProviders(
               provider: p.name,
               context_limit: m.context_limit,
               reasoning: m.reasoning ?? undefined,
+              supports_reasoning_mode: m.supports_reasoning_mode ?? null,
             }) as Model
         );
         if (fallbackModels.length > 0) {
