@@ -701,9 +701,13 @@ Start goose as an Agent Client Protocol (ACP) server over HTTP and WebSocket.
 - **`--host <HOST>`**: Host to bind to. Defaults to `127.0.0.1`
 - **`--port <PORT>`**: Port to listen on. Defaults to `3284`
 - **`--with-builtin <NAME>`**: Enable built-in extensions by name. Can be passed multiple times or as a comma-separated list. Defaults to `developer` when omitted.
+- **`--dangerously-unauthenticated`**: Run without ACP authentication. Use only for local trusted clients.
 
 **Usage:**
 ```bash
+# Set a secret before starting the server
+export GOOSE_SERVER__SECRET_KEY=$(openssl rand -hex 32)
+
 # Start the ACP server on localhost:3284
 goose serve
 
@@ -715,7 +719,7 @@ goose serve --with-builtin developer,memory
 ```
 
 :::warning
-Set `GOOSE_SERVER__SECRET_KEY` before exposing `goose serve` beyond local trusted clients. If this environment variable is not set, the ACP endpoint accepts unauthenticated connections.
+`goose serve` requires `GOOSE_SERVER__SECRET_KEY` unless you pass `--dangerously-unauthenticated`. Only use `--dangerously-unauthenticated` with local trusted clients.
 :::
 
 ---
