@@ -58,6 +58,7 @@ fn flatpak_spawn_process() -> std::process::Command {
 enum UnixShellFlavor {
     Posix,
     Nushell,
+    Other,
 }
 
 #[cfg(not(windows))]
@@ -69,8 +70,9 @@ fn unix_shell_flavor(shell: &str) -> UnixShellFlavor {
         .to_ascii_lowercase();
 
     match name.as_str() {
+        "bash" | "dash" | "ksh" | "mksh" | "sh" | "zsh" => UnixShellFlavor::Posix,
         "nu" | "nushell" => UnixShellFlavor::Nushell,
-        _ => UnixShellFlavor::Posix,
+        _ => UnixShellFlavor::Other,
     }
 }
 
@@ -78,7 +80,7 @@ fn unix_shell_flavor(shell: &str) -> UnixShellFlavor {
 fn unix_login_shell_command_args(shell: &str) -> [&'static str; 4] {
     let probe = match unix_shell_flavor(shell) {
         UnixShellFlavor::Nushell => "print ($env.PATH | str join (char esep))",
-        UnixShellFlavor::Posix => "echo $PATH",
+        UnixShellFlavor::Posix | UnixShellFlavor::Other => "echo $PATH",
     };
 
     ["-l", "-i", "-c", probe]
@@ -1246,6 +1248,8 @@ mod tests {
             UnixShellFlavor::Nushell
         );
         assert_eq!(unix_shell_flavor("/bin/bash"), UnixShellFlavor::Posix);
+        assert_eq!(unix_shell_flavor("fish"), UnixShellFlavor::Other);
+        assert_eq!(unix_shell_flavor("/bin/csh"), UnixShellFlavor::Other);
     }
 
     #[cfg(not(windows))]
