@@ -38,6 +38,7 @@ interface StoreEntry extends AcpChatSessionSnapshot {
   } | null;
   pendingUserInputRequestIds: Set<string>;
   pendingLocalSteerMessageIds: Set<string>;
+  preConfirmedSteerMessageIds: Set<string>;
 }
 
 const initialTokenState: TokenState = {
@@ -165,6 +166,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       promptCancellationRestoreState: null,
       pendingUserInputRequestIds: new Set(),
       pendingLocalSteerMessageIds: new Set(),
+      preConfirmedSteerMessageIds: new Set(),
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -235,7 +237,9 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     }
 
     entry.messages = [...entry.messages, cloneMessage(message)];
-    entry.pendingLocalSteerMessageIds.add(message.id);
+    if (!entry.preConfirmedSteerMessageIds.delete(message.id)) {
+      entry.pendingLocalSteerMessageIds.add(message.id);
+    }
     entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
@@ -606,7 +610,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         }
         break;
       case 'localSteerConfirmed':
-        entry.pendingLocalSteerMessageIds.delete(change.messageId);
+        if (!entry.pendingLocalSteerMessageIds.delete(change.messageId)) {
+          entry.preConfirmedSteerMessageIds.add(change.messageId);
+        }
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
@@ -636,6 +642,7 @@ function resetReplayState(entry: StoreEntry): void {
   entry.promptCancellationRestoreState = null;
   entry.pendingUserInputRequestIds.clear();
   entry.pendingLocalSteerMessageIds.clear();
+  entry.preConfirmedSteerMessageIds.clear();
   entry.adapter = createAcpSessionNotificationAdapter();
 }
 
