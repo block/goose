@@ -186,10 +186,28 @@ impl DeveloperClient {
             .unwrap_or_default()
     }
 
-    async fn save_env_overlay(&self, session_id: &str, env_overlay: EnvOverlay) -> Result<()> {
+    async fn save_env_overlay(
+        &self,
+        session_id: &str,
+        previous_overlay: &EnvOverlay,
+        next_overlay: EnvOverlay,
+    ) -> Result<()> {
         let manager = &self.context.session_manager;
         let mut session = manager.get_session(session_id, false).await?;
-        DeveloperState::new(env_overlay).to_extension_data(&mut session.extension_data)?;
+        let mut latest_overlay = DeveloperState::from_extension_data(&session.extension_data)
+            .map(|state| state.env_overlay)
+            .unwrap_or_default();
+        for key in previous_overlay.keys() {
+            if !next_overlay.contains_key(key) {
+                latest_overlay.remove(key);
+            }
+        }
+        for (key, value) in next_overlay {
+            if previous_overlay.get(&key) != Some(&value) {
+                latest_overlay.insert(key, value);
+            }
+        }
+        DeveloperState::new(latest_overlay).to_extension_data(&mut session.extension_data)?;
         manager
             .update(session_id)
             .extension_data(session.extension_data)
@@ -225,14 +243,15 @@ impl McpClientTrait for DeveloperClient {
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => {
-                    let env_overlay = self.load_env_overlay(&ctx.session_id).await;
+                    let previous_overlay = self.load_env_overlay(&ctx.session_id).await;
                     let execution = self
                         .shell_tool
-                        .shell_with_cwd(params, working_dir, &env_overlay, cancel_token)
+                        .shell_with_cwd(params, working_dir, &previous_overlay, cancel_token)
                         .await;
-                    if let Some(env_overlay) = execution.env_overlay {
-                        if let Err(error) =
-                            self.save_env_overlay(&ctx.session_id, env_overlay).await
+                    if let Some(next_overlay) = execution.env_overlay {
+                        if let Err(error) = self
+                            .save_env_overlay(&ctx.session_id, &previous_overlay, next_overlay)
+                            .await
                         {
                             tracing::warn!("failed to save developer shell environment: {error}");
                         }
@@ -287,7 +306,9 @@ impl McpClientTrait for DeveloperClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::GooseMode;
     use crate::session::SessionManager;
+    use crate::session::SessionType;
     use rmcp::model::RawContent;
     use rmcp::object;
     use std::fs;
@@ -400,5 +421,44 @@ mod tests {
         let observed = std::fs::canonicalize(first_text(&result)).unwrap();
         let expected = std::fs::canonicalize(&cwd).unwrap();
         assert_eq!(observed, expected);
+    }
+
+    #[tokio::test]
+    async fn shell_env_overlay_saves_merge_parallel_updates() {
+        let temp = tempfile::tempdir().unwrap();
+        let context = test_context(temp.path().join("sessions"));
+        let session = context
+            .session_manager
+            .create_session(
+                temp.path().join("workspace"),
+                "test".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let client = DeveloperClient::new(context).unwrap();
+        let previous = EnvOverlay::new();
+
+        client
+            .save_env_overlay(
+                &session.id,
+                &previous,
+                EnvOverlay::from([("A".to_string(), Some("1".to_string()))]),
+            )
+            .await
+            .unwrap();
+        client
+            .save_env_overlay(
+                &session.id,
+                &previous,
+                EnvOverlay::from([("B".to_string(), Some("2".to_string()))]),
+            )
+            .await
+            .unwrap();
+
+        let saved = client.load_env_overlay(&session.id).await;
+        assert_eq!(saved.get("A"), Some(&Some("1".to_string())));
+        assert_eq!(saved.get("B"), Some(&Some("2".to_string())));
     }
 }

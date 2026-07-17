@@ -601,7 +601,7 @@ impl EnvCapture {
         script
             .write_all(
                 format!(
-                    "\n__GOOSE_STATUS=$?\nenv -0 > \"${ENV_CAPTURE_PATH_VAR}\"\nexit \"$__GOOSE_STATUS\"\n"
+                    "\n__GOOSE_STATUS=$?\nenv > \"${ENV_CAPTURE_PATH_VAR}\"\nexit \"$__GOOSE_STATUS\"\n"
                 )
                 .as_bytes(),
             )
@@ -720,20 +720,22 @@ fn diff_environment(
 
 #[cfg(not(windows))]
 fn parse_env_block(bytes: &[u8]) -> HashMap<String, String> {
-    bytes
-        .split(|byte| *byte == 0)
-        .filter(|entry| !entry.is_empty())
+    String::from_utf8_lossy(bytes)
+        .lines()
         .filter_map(|entry| {
-            let split_at = entry.iter().position(|byte| *byte == b'=')?;
-            let (key, value_with_equals) = entry.split_at(split_at);
-            let value = &value_with_equals[1..];
-            Some((
-                String::from_utf8_lossy(key).into_owned(),
-                String::from_utf8_lossy(value).into_owned(),
-            ))
+            let (key, value) = entry.split_once('=')?;
+            Some((key.to_string(), value.to_string()))
         })
         .filter(|(key, _)| key != ENV_CAPTURE_PATH_VAR)
         .collect()
+}
+
+fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
+    timeout_secs.unwrap_or_else(|| {
+        crate::config::Config::global()
+            .get_goose_default_extension_timeout()
+            .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+    })
 }
 
 async fn run_command(
@@ -745,6 +747,8 @@ async fn run_command(
     output_dir: &std::path::Path,
     cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
+    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+
     if cancellation_token.is_cancelled() {
         return Ok(ExecutionOutput {
             lines: Vec::new(),
@@ -1269,6 +1273,31 @@ mod tests {
     #[test]
     fn unix_shell_command_args_wrap_commands_for_execution() {
         assert_eq!(unix_shell_command_args("ls -la"), ["-c", "ls -la"]);
+    }
+
+    #[test]
+    fn omitted_shell_timeout_uses_config_default() {
+        assert_eq!(
+            resolve_shell_timeout(Some(7)),
+            7,
+            "explicit timeout should be preserved"
+        );
+        assert_eq!(
+            resolve_shell_timeout(None),
+            crate::config::Config::global()
+                .get_goose_default_extension_timeout()
+                .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn env_capture_parses_portable_env_output() {
+        let parsed = parse_env_block(b"A=1\nB=two=parts\n__GOOSE_ENV_AFTER=/tmp/capture\n");
+
+        assert_eq!(parsed.get("A"), Some(&"1".to_string()));
+        assert_eq!(parsed.get("B"), Some(&"two=parts".to_string()));
+        assert!(!parsed.contains_key("__GOOSE_ENV_AFTER"));
     }
 
     #[test]
