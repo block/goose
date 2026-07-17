@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseReasoningMode,
   reasoningModeForSelection,
+  resolvedReasoningModeCapability,
   shouldSyncSessionReasoningMode,
   supportsReasoningMode,
 } from './reasoningMode';
@@ -59,6 +60,13 @@ describe('GPT-5.6 reasoning mode', () => {
     expect(parseReasoningMode('standard')).toBe('standard');
     expect(parseReasoningMode('pro')).toBe('pro');
     expect(parseReasoningMode('turbo')).toBeNull();
+  });
+
+  it('prefers the resolved route capability over predefined metadata', () => {
+    expect(resolvedReasoningModeCapability(false, true)).toBe(false);
+    expect(resolvedReasoningModeCapability(true, false)).toBe(true);
+    expect(resolvedReasoningModeCapability(null, true)).toBe(true);
+    expect(resolvedReasoningModeCapability(undefined, undefined)).toBeNull();
   });
 
   it('preserves the session mode only for the current provider and model', () => {

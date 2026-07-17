@@ -36,6 +36,7 @@ import type {
 import { trackModelChanged } from '../../../../utils/analytics';
 import {
   reasoningModeForSelection,
+  resolvedReasoningModeCapability,
   shouldSyncSessionReasoningMode,
   supportsReasoningMode,
 } from '../reasoningMode';
@@ -360,10 +361,12 @@ export const SwitchModelModal = ({
     .find(
       (option) => option.provider === selectedProviderName && option.value === selectedModelName
     );
-  const selectedProviderCapability =
-    (usePredefinedModels
-      ? selectedPredefinedModel?.supports_reasoning_mode
-      : selectedModelOption?.supportsReasoningMode) ?? selectedModelReasoningModeCapability;
+  const selectedProviderCapability = usePredefinedModels
+    ? resolvedReasoningModeCapability(
+        selectedModelReasoningModeCapability,
+        selectedPredefinedModel?.supports_reasoning_mode
+      )
+    : (selectedModelOption?.supportsReasoningMode ?? selectedModelReasoningModeCapability);
   const showReasoningModeControl = Boolean(
     sessionId &&
     supportsReasoningMode(selectedProviderName, selectedModelName, selectedProviderCapability)

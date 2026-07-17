@@ -48,6 +48,13 @@ export function parseReasoningMode(value: unknown): ReasoningMode | null {
   return value === 'standard' || value === 'pro' ? value : null;
 }
 
+export function resolvedReasoningModeCapability(
+  resolvedCapability: boolean | null | undefined,
+  fallbackCapability: boolean | null | undefined
+): boolean | null {
+  return resolvedCapability ?? fallbackCapability ?? null;
+}
+
 export function reasoningModeForSelection(
   providerName: string | null | undefined,
   modelName: string | null | undefined,
