@@ -48,6 +48,10 @@ pub struct RoamingConfig {
     pub identity: RoamingIdentity,
     pub relay: RelaySettings,
     pub trust: TrustBook,
+    /// Directory used to track observed connections. Defaults to an in-memory
+    /// directory; pass [`Directory::persistent`] to make `roam list` work from
+    /// a separate process.
+    pub directory: Directory,
 }
 
 /// A bound roaming node.
@@ -74,7 +78,7 @@ impl RoamingNode {
             endpoint,
             router: Mutex::new(None),
             trust: Arc::new(Mutex::new(config.trust)),
-            directory: Directory::new(),
+            directory: config.directory,
         }))
     }
 
@@ -117,7 +121,34 @@ impl RoamingNode {
         Ok(())
     }
 
+    /// Wait (up to `timeout`) for the endpoint to contact a relay and be
+    /// reachable. Returns `true` if it came online.
+    pub async fn wait_online(&self, timeout: std::time::Duration) -> bool {
+        tokio::time::timeout(timeout, self.endpoint.online())
+            .await
+            .is_ok()
+    }
+
+    /// The endpoint's currently-known relay URLs, read from its live address.
+    /// These are what let a client reach this node when no static relay URLs
+    /// are configured (e.g. under [`RelaySettings::N0Default`]).
+    pub fn live_relay_urls(&self) -> Vec<String> {
+        self.endpoint
+            .addr()
+            .addrs
+            .into_iter()
+            .filter_map(|addr| match addr {
+                iroh::TransportAddr::Relay(url) => Some(url.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Mint a signed invite for this node with the given scope and validity.
+    ///
+    /// The invite advertises the configured relay URLs plus the endpoint's
+    /// live relay URL(s), so a client can reach this node through a relay.
+    /// Call [`Self::wait_online`] first so a live relay URL is available.
     pub fn make_invite(
         &self,
         identity: &RoamingIdentity,
@@ -128,10 +159,16 @@ impl RoamingNode {
         single_use: bool,
     ) -> SignedInvite {
         let now = now_ms();
+        let mut relay_urls = relay.advertised_urls();
+        for url in self.live_relay_urls() {
+            if !relay_urls.contains(&url) {
+                relay_urls.push(url);
+            }
+        }
         let claims = crate::invite::InviteClaims {
             version: 1,
             audience: self.endpoint_id(),
-            relay_urls: relay.advertised_urls(),
+            relay_urls,
             scope,
             allowed_client_keys,
             token_id: random_token_id(),

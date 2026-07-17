@@ -14,9 +14,13 @@ use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
 use goose_roaming::{
-    default_key_path, parse_endpoint_id, GooseAcpBridge, RelaySettings, RoamingConfig,
+    default_key_path, parse_endpoint_id, Directory, GooseAcpBridge, RelaySettings, RoamingConfig,
     RoamingIdentity, RoamingNode, Scope, TrustBook, TrustPolicy,
 };
+
+fn directory_path() -> std::path::PathBuf {
+    Paths::state_dir().join("roaming_directory.json")
+}
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ShareScope {
@@ -74,6 +78,9 @@ pub enum RoamCommand {
 
     /// Print this machine's roaming endpoint id.
     Id,
+
+    /// List agents that have connected to (or been connected to by) this node.
+    List,
 }
 
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
@@ -91,7 +98,40 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             builtins,
         } => handle_share(scope.into(), ttl, allow_keys, pair, builtins).await,
         RoamCommand::Connect { token, label } => handle_connect(token, label).await,
+        RoamCommand::List => handle_list().await,
     }
+}
+
+async fn handle_list() -> Result<()> {
+    let entries = Directory::read_persisted(&directory_path());
+    if entries.is_empty() {
+        eprintln!("no roaming peers recorded yet");
+        return Ok(());
+    }
+    println!(
+        "{:<10} {:<9} {:<8} {:<20} ENDPOINT ID",
+        "STATUS", "DIR", "SCOPE", "AGENT"
+    );
+    for e in entries {
+        let status = if e.connected { "connected" } else { "seen" };
+        let dir = match e.direction {
+            goose_roaming::Direction::Inbound => "inbound",
+            goose_roaming::Direction::Outbound => "outbound",
+        };
+        let scope = format!("{:?}", e.scope).to_lowercase();
+        let agent = e.agent_id.unwrap_or_else(|| "-".to_string());
+        let agent = if agent.chars().count() > 20 {
+            let truncated: String = agent.chars().take(19).collect();
+            format!("{truncated}…")
+        } else {
+            agent
+        };
+        println!(
+            "{status:<10} {dir:<9} {scope:<8} {agent:<20} {}",
+            e.endpoint_id
+        );
+    }
+    Ok(())
 }
 
 fn load_identity() -> Result<RoamingIdentity> {
@@ -135,6 +175,7 @@ async fn handle_share(
         identity: identity.clone(),
         relay: relay.clone(),
         trust,
+        directory: Directory::persistent(directory_path()),
     })
     .await?;
 
@@ -151,6 +192,13 @@ async fn handle_share(
     ));
 
     node.share(bridge).await?;
+
+    // Wait for the endpoint to reach a relay so the invite can carry a live
+    // relay URL the client can dial (the Minimal preset has no DNS discovery).
+    eprintln!("connecting to relay...");
+    if !node.wait_online(std::time::Duration::from_secs(15)).await {
+        eprintln!("warning: endpoint did not come online; invite may lack a reachable address");
+    }
 
     let invite = node.make_invite(&identity, &relay, scope, allowed_client_keys, ttl, pair);
     let token = invite.encode()?;
@@ -181,12 +229,16 @@ async fn handle_connect(token: String, label: Option<String>) -> Result<()> {
     use goose_roaming::SignedInvite;
 
     let invite = SignedInvite::decode(&token)?;
-    let identity = load_identity()?;
+    // Clients use a fresh ephemeral identity per connection: a persisted key
+    // must not be shared across concurrent processes (ambiguous endpoint
+    // ownership), and the connecting side has no need for a stable id.
+    let identity = RoamingIdentity::generate();
 
     let node = RoamingNode::bind(RoamingConfig {
         identity,
         relay: RelaySettings::N0Default,
         trust: TrustBook::new(TrustPolicy::Bearer),
+        directory: Directory::new(),
     })
     .await?;
 

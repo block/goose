@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope, TrustBook,
-    TrustPolicy,
+    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
+    TrustBook, TrustPolicy,
 };
 use iroh::EndpointId;
 
@@ -53,6 +53,7 @@ async fn bind_node(trust: TrustBook) -> Arc<RoamingNode> {
         identity: RoamingIdentity::generate(),
         relay: RelaySettings::Disabled,
         trust,
+        directory: Directory::new(),
     })
     .await
     .expect("bind node")
@@ -65,6 +66,7 @@ async fn bearer_invite_connects_and_streams() {
         identity: host_identity.clone(),
         relay: RelaySettings::Disabled,
         trust: TrustBook::new(TrustPolicy::Bearer),
+        directory: Directory::new(),
     })
     .await
     .expect("bind host");
@@ -113,6 +115,7 @@ async fn allowlist_rejects_unknown_client() {
         relay: RelaySettings::Disabled,
         // Allowlist policy with an empty allowlist: nobody is authorized.
         trust: TrustBook::new(TrustPolicy::Allowlist),
+        directory: Directory::new(),
     })
     .await
     .expect("bind host");

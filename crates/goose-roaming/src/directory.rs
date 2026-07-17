@@ -7,6 +7,7 @@
 //! ambient network discovery.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use iroh::EndpointId;
@@ -40,15 +41,55 @@ pub struct PeerEntry {
     pub connected: bool,
 }
 
-/// A shared, in-memory directory of peers.
+/// A shared directory of peers, optionally persisted to disk so that a separate
+/// process (e.g. `goose roam list`) can read what a running `share` has seen.
 #[derive(Clone, Default)]
 pub struct Directory {
     inner: Arc<Mutex<HashMap<String, PeerEntry>>>,
+    path: Option<PathBuf>,
 }
 
 impl Directory {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a directory backed by a JSON file at `path`, loading any existing
+    /// entries. All mutations are flushed back to the file (best effort).
+    pub fn persistent(path: PathBuf) -> Self {
+        let entries = std::fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Vec<PeerEntry>>(&bytes).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|e| (e.endpoint_id.clone(), e))
+            .collect::<HashMap<_, _>>();
+        Self {
+            inner: Arc::new(Mutex::new(entries)),
+            path: Some(path),
+        }
+    }
+
+    /// Read the persisted directory at `path` without holding the endpoint.
+    pub fn read_persisted(path: &std::path::Path) -> Vec<PeerEntry> {
+        let mut entries = std::fs::read(path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Vec<PeerEntry>>(&bytes).ok())
+            .unwrap_or_default();
+        entries.sort_by_key(|e| std::cmp::Reverse(e.last_seen_ms));
+        entries
+    }
+
+    async fn flush(&self, map: &HashMap<String, PeerEntry>) {
+        let Some(path) = &self.path else { return };
+        let mut entries: Vec<&PeerEntry> = map.values().collect();
+        entries.sort_by_key(|e| std::cmp::Reverse(e.last_seen_ms));
+        if let Ok(json) = serde_json::to_vec_pretty(&entries) {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, json);
+        }
     }
 
     /// Record the start of a connection, creating or updating the entry.
@@ -85,6 +126,7 @@ impl Directory {
                 last_seen_ms: now_ms,
                 connected: true,
             });
+        self.flush(&map).await;
     }
 
     /// Record that a connection with a peer has ended.
@@ -95,6 +137,7 @@ impl Directory {
             entry.connected = false;
             entry.last_seen_ms = now_ms;
         }
+        self.flush(&map).await;
     }
 
     /// Snapshot the directory, most-recently-seen first.
