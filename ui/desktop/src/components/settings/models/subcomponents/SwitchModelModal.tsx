@@ -519,14 +519,27 @@ export const SwitchModelModal = ({
     if (matchingModel) {
       setSelectedPredefinedModel(matchingModel);
       setReasoningMode(
-        matchingModel.request_params?.reasoning_mode ?? sessionReasoningMode ?? 'standard'
+        reasoningModeForSelection(
+          matchingModel.provider,
+          matchingModel.name,
+          currentProvider,
+          currentModel,
+          sessionReasoningMode,
+          matchingModel.request_params?.reasoning_mode
+        )
       );
       resolveSelectedModelCapabilities(matchingModel.provider, matchingModel.name, {
         reasoning: matchingModel.reasoning,
         supportsReasoningMode: matchingModel.supports_reasoning_mode,
       });
     }
-  }, [usePredefinedModels, currentModel, resolveSelectedModelCapabilities, sessionReasoningMode]);
+  }, [
+    usePredefinedModels,
+    currentModel,
+    currentProvider,
+    resolveSelectedModelCapabilities,
+    sessionReasoningMode,
+  ]);
 
   // For manual mode: one-time sync of provider/model when session data
   // arrives after the modal has already mounted. Uses a ref so it only
@@ -735,14 +748,14 @@ export const SwitchModelModal = ({
   const handlePredefinedModelChange = (model: Model) => {
     setSelectedPredefinedModel(model);
     setReasoningMode(
-      model.request_params?.reasoning_mode ??
-        reasoningModeForSelection(
-          model.provider,
-          model.name,
-          currentProvider,
-          currentModel,
-          sessionReasoningMode
-        )
+      reasoningModeForSelection(
+        model.provider,
+        model.name,
+        currentProvider,
+        currentModel,
+        sessionReasoningMode,
+        model.request_params?.reasoning_mode
+      )
     );
     resolveSelectedModelCapabilities(model.provider, model.name, {
       reasoning: model.reasoning,

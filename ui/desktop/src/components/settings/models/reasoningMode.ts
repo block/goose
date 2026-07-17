@@ -53,9 +53,10 @@ export function reasoningModeForSelection(
   modelName: string | null | undefined,
   currentProvider: string | null | undefined,
   currentModel: string | null | undefined,
-  sessionReasoningMode: ReasoningMode | null | undefined
+  sessionReasoningMode: ReasoningMode | null | undefined,
+  fallbackMode: ReasoningMode = 'standard'
 ): ReasoningMode {
   return providerName && modelName && providerName === currentProvider && modelName === currentModel
-    ? (sessionReasoningMode ?? 'standard')
-    : 'standard';
+    ? (sessionReasoningMode ?? fallbackMode)
+    : fallbackMode;
 }

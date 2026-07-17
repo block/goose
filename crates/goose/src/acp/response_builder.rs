@@ -255,7 +255,11 @@ pub(super) async fn build_session_setup_config(
     let model_state = build_model_state(model_config.model_name.as_str(), &inventory);
     let provider_selection = session_provider_selection(session);
     let provider_options = build_provider_options(Some(provider_name)).await;
-    let supports_reasoning_mode = provider.supports_reasoning_mode(model_config).await;
+    let supports_reasoning_mode =
+        match inventory.reasoning_mode_capability(&model_config.model_name) {
+            Some(supports_reasoning_mode) => supports_reasoning_mode,
+            None => provider.supports_reasoning_mode(model_config).await,
+        };
     let config_options = build_config_options(
         &mode_state,
         &model_state,

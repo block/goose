@@ -47,6 +47,15 @@ pub struct ProviderInventoryEntry {
     pub model_selection_hint: Option<String>,
 }
 
+impl ProviderInventoryEntry {
+    pub(crate) fn reasoning_mode_capability(&self, model_id: &str) -> Option<bool> {
+        self.models
+            .iter()
+            .find(|model| model.id == model_id)
+            .and_then(|model| model.supports_reasoning_mode)
+    }
+}
+
 /// Families whose latest model should be surfaced in the compact picker.
 /// Each entry is matched against the `family` field of enriched models.
 const RECOMMENDED_FAMILIES: &[&str] = &[
@@ -1338,6 +1347,54 @@ mod tests {
         guard.complete();
 
         assert!(!refreshing_keys.read().unwrap().contains("key-a"));
+    }
+
+    #[test]
+    fn reasoning_mode_capability_uses_inventory_model_metadata() {
+        let inventory = ProviderInventoryEntry {
+            provider_id: "openai".to_string(),
+            provider_name: "OpenAI-compatible".to_string(),
+            description: String::new(),
+            default_model: "team-prod".to_string(),
+            configured: true,
+            provider_type: ProviderType::Declarative,
+            category: ProviderSetupCategory::Model,
+            config_keys: Vec::new(),
+            setup_steps: Vec::new(),
+            supports_refresh: false,
+            refreshing: false,
+            models: vec![
+                InventoryModel {
+                    id: "team-prod".to_string(),
+                    name: "team-prod".to_string(),
+                    supports_reasoning_mode: Some(true),
+                    family: None,
+                    context_limit: None,
+                    reasoning: Some(true),
+                    recommended: false,
+                },
+                InventoryModel {
+                    id: "team-basic".to_string(),
+                    name: "team-basic".to_string(),
+                    supports_reasoning_mode: Some(false),
+                    family: None,
+                    context_limit: None,
+                    reasoning: Some(false),
+                    recommended: false,
+                },
+            ],
+            last_updated_at: None,
+            last_refresh_attempt_at: None,
+            last_refresh_error: None,
+            model_selection_hint: None,
+        };
+
+        assert_eq!(inventory.reasoning_mode_capability("team-prod"), Some(true));
+        assert_eq!(
+            inventory.reasoning_mode_capability("team-basic"),
+            Some(false)
+        );
+        assert_eq!(inventory.reasoning_mode_capability("unknown"), None);
     }
 
     #[tokio::test]

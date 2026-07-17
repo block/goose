@@ -61,14 +61,21 @@ describe('GPT-5.6 reasoning mode', () => {
   });
 
   it('preserves the session mode only for the current provider and model', () => {
-    expect(reasoningModeForSelection('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')).toBe(
-      'pro'
+    expect(reasoningModeForSelection('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')).toBe('pro');
+    expect(reasoningModeForSelection('databricks', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')).toBe(
+      'standard'
     );
+    expect(reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro')).toBe(
+      'standard'
+    );
+  });
+
+  it('prefers the current session mode over a predefined model default', () => {
     expect(
-      reasoningModeForSelection('databricks', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro')
-    ).toBe('standard');
+      reasoningModeForSelection('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro', 'standard')
+    ).toBe('pro');
     expect(
-      reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro')
+      reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro', 'standard')
     ).toBe('standard');
   });
 });
