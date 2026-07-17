@@ -11,6 +11,7 @@ use crate::agents::agent::DEFAULT_MAX_TURNS;
 use crate::agents::state_machine::operation::{
     Emitter, Operation, OperationResult, TurnEffect, TurnOutcome,
 };
+use crate::agents::state_machine::ops_bang_shell::BangShellOperation;
 use crate::agents::state_machine::ops_compaction::CompactionOperation;
 use crate::agents::state_machine::ops_exit_on_error::ExitOnErrorOperation;
 use crate::agents::state_machine::ops_llm::LlmOperation;
@@ -108,6 +109,7 @@ pub async fn reply(
         Arc::new(SlashCommandOperation::new(agent)),
         Arc::new(SteerOperation::new(agent)),
         Arc::new(MaxTurnsOperation::new(max_turns)),
+        Arc::new(BangShellOperation::new()),
         Arc::new(CompactionOperation::new(
             agent,
             provider.clone(),

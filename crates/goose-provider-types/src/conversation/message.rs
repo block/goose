@@ -353,6 +353,14 @@ impl fmt::Display for MessageContent {
 }
 
 impl MessageContent {
+    pub fn agent_visible_content(&self) -> Option<MessageContent> {
+        self.filter_for_audience(Role::Assistant)
+    }
+
+    pub fn user_visible_content(&self) -> Option<MessageContent> {
+        self.filter_for_audience(Role::User)
+    }
+
     pub fn text<S: Into<String>>(text: S) -> Self {
         MessageContent::Text(
             RawTextContent {
@@ -897,6 +905,19 @@ impl Message {
             .content
             .iter()
             .filter_map(|c| c.filter_for_audience(Role::Assistant))
+            .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
+    pub fn user_visible_content(&self) -> Message {
+        let filtered_content = self
+            .content
+            .iter()
+            .filter_map(|c| c.filter_for_audience(Role::User))
             .collect();
 
         Message {

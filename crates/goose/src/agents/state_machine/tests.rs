@@ -3,7 +3,7 @@ use futures::StreamExt;
 use rmcp::model::Role;
 
 use crate::agents::state_machine::test_helpers::{
-    tool_response_text, ScriptedProvider, Step, TestHarness,
+    tool_response_text, ScriptedProvider, Step, TestExtensionClient, TestHarness, TestToolBehavior,
 };
 use crate::agents::tool_execution::DECLINED_RESPONSE;
 use crate::agents::types::SessionConfig;
@@ -12,6 +12,48 @@ use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::permission::Permission;
 use std::sync::Arc;
+
+#[tokio::test]
+async fn bang_shell_runs_shell_without_llm() -> Result<()> {
+    let harness = TestHarness::with_steps([Step::Text("should not be called".to_string())])
+        .await
+        .with_extension(TestExtensionClient::named(
+            "developer",
+            vec![("shell".to_string(), TestToolBehavior::Echo)],
+        ))
+        .await;
+
+    let messages = harness.run("!echo hello", 10).await?;
+
+    assert_eq!(messages.len(), 2, "events: {messages:#?}");
+    assert_eq!(messages[0].role, Role::Assistant);
+    assert!(messages[0].content.iter().any(|content| {
+        matches!(
+            content,
+            MessageContent::ToolRequest(request)
+                if request
+                    .tool_call
+                    .as_ref()
+                    .is_ok_and(|tool_call| tool_call.name == "developer__shell"
+                        && tool_call
+                            .arguments
+                            .as_ref()
+                            .and_then(|args| args.get("command"))
+                            .and_then(|command| command.as_str())
+                            == Some("echo hello"))
+        )
+    }));
+    assert_eq!(messages[1].role, Role::User);
+    assert!(messages[1].is_tool_response());
+    assert!(
+        tool_response_text(&messages[1]).contains("\"command\":\"echo hello\""),
+        "tool response: {}",
+        tool_response_text(&messages[1])
+    );
+    assert_eq!(harness.provider.call_count(), 0);
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn llm_requests_tool_then_replies() -> Result<()> {

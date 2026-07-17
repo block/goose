@@ -1,5 +1,6 @@
 mod machine;
 mod operation;
+mod ops_bang_shell;
 mod ops_compaction;
 mod ops_exit_on_error;
 mod ops_llm;
