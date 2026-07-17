@@ -1,6 +1,5 @@
 import type { FixedExtensionEntry } from '../../ConfigContext';
 import type { ExtensionConfig } from '../../../types/extensions';
-import { parse as parseShellQuote } from 'shell-quote';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -110,7 +109,10 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args ?? []) : undefined,
+    cmd:
+      extension.type === 'stdio'
+        ? combineCmdAndArgs(extension.cmd, extension.args ?? [])
+        : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)
@@ -203,14 +205,7 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
     return { cmd: '', args: [] };
   }
 
-  // shell-quote treats `\` as a POSIX escape character, so a Windows path like
-  // `C:\Users\name\ext.js` would lose its backslashes and become `C:Usersnameext.js`.
-  // Doubling backslashes on Windows lets them survive parsing (shell-quote unescapes
-  // `\\` back to `\`), while still honoring quotes for paths containing spaces.
-  const toParse = isWindowsPlatform() ? trimmed.replace(/\\/g, '\\\\') : trimmed;
-
-  const parsed = parseShellQuote(toParse);
-  const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
+  const words = parseCommandLine(trimmed, isWindowsPlatform());
 
   const cmd = words[0] || '';
   const args = words.slice(1);
@@ -221,14 +216,85 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
   };
 }
 
+function parseCommandLine(value: string, windows: boolean): string[] {
+  const words: string[] = [];
+  let word = '';
+  let wordStarted = false;
+  let quote: "'" | '"' | undefined;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (windows && quote !== "'" && character === '\\') {
+      let runEnd = index;
+      while (value[runEnd] === '\\') {
+        runEnd += 1;
+      }
+
+      const backslashCount = runEnd - index;
+      if (value[runEnd] === '"') {
+        word += '\\'.repeat(Math.floor(backslashCount / 2));
+        if (backslashCount % 2 === 0) {
+          quote = quote === '"' ? undefined : '"';
+        } else {
+          word += '"';
+        }
+        index = runEnd;
+      } else {
+        word += '\\'.repeat(backslashCount);
+        index = runEnd - 1;
+      }
+      wordStarted = true;
+    } else if (quote) {
+      if (character === quote) {
+        quote = undefined;
+      } else if (quote === '"' && character === '\\' && index + 1 < value.length) {
+        const next = value[index + 1];
+        if (next === '"' || next === '\\' || next === '$') {
+          word += next;
+          index += 1;
+        } else {
+          word += character;
+        }
+      } else {
+        word += character;
+      }
+      wordStarted = true;
+    } else if (/\s/.test(character)) {
+      if (wordStarted) {
+        words.push(word);
+        word = '';
+        wordStarted = false;
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character;
+      wordStarted = true;
+    } else if (character === '\\' && !windows && index + 1 < value.length) {
+      word += value[index + 1];
+      wordStarted = true;
+      index += 1;
+    } else {
+      word += character;
+      wordStarted = true;
+    }
+  }
+
+  if (wordStarted) {
+    words.push(word);
+  }
+
+  return words;
+}
+
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return [cmd, ...args]
-    .map((a) => {
-      if (!a.includes(' ')) return a;
-      if (a.includes('"')) return `'${a}'`;
-      return `"${a}"`;
-    })
-    .join(' ');
+  return [cmd, ...args].map(quoteCommandPart).join(' ');
+}
+
+function quoteCommandPart(value: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 export function extractCommand(link: string): string {
