@@ -52,6 +52,15 @@ async fn bang_shell_runs_shell_without_llm() -> Result<()> {
     );
     assert_eq!(harness.provider.call_count(), 0);
 
+    let persisted = harness.persisted_messages().await?;
+    assert_eq!(persisted.len(), 3, "persisted: {persisted:#?}");
+    assert_eq!(persisted[0].role, Role::User);
+    assert_eq!(persisted[0].as_concat_text(), "!echo hello");
+    assert_eq!(persisted[1].role, Role::Assistant);
+    assert!(persisted[1].is_tool_call());
+    assert_eq!(persisted[2].role, Role::User);
+    assert!(persisted[2].is_tool_response());
+
     Ok(())
 }
 
