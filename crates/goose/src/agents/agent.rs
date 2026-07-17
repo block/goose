@@ -2715,6 +2715,13 @@ impl Agent {
                             match retry_delay {
                                 Some(delay) => {
                                     transient_retry_attempts += 1;
+                                    // Abort this attempt's summarization task
+                                    // before the backoff so it can't finish and
+                                    // make a discarded, billable provider call
+                                    // during the wait; the retry spawns its own.
+                                    if let Some(task) = &tool_pair_summarization_task {
+                                        task.abort();
+                                    }
                                     yield AgentEvent::Message(provider_retry_notification(
                                         provider_err,
                                         transient_retry_attempts,
@@ -2735,11 +2742,6 @@ impl Agent {
                     }
                 }
                 if pending_provider_retry {
-                    // Abort this attempt's summarization task so it doesn't keep
-                    // running detached — the retry spawns its own.
-                    if let Some(task) = &tool_pair_summarization_task {
-                        task.abort();
-                    }
                     retrying_after_provider_error = true;
                     continue;
                 }
