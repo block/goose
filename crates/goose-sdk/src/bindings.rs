@@ -43,6 +43,57 @@ impl From<serde_json::Error> for GooseError {
     }
 }
 
+/// Receives provider request logs as JSONL records.
+///
+/// `start` returns an identifier that is passed to `write` for every record in
+/// that request, allowing callers to keep concurrent request logs separate.
+#[uniffi::export(callback_interface)]
+pub trait RequestLogger: Send + Sync {
+    fn start(&self) -> Result<u64, GooseError>;
+    fn write(&self, request_id: u64, record: String) -> Result<(), GooseError>;
+}
+
+struct RequestLoggerAdapter {
+    logger: Arc<dyn RequestLogger>,
+}
+
+impl goose_providers::request_log::RequestLogger for RequestLoggerAdapter {
+    fn start(
+        &self,
+    ) -> Result<
+        Box<dyn goose_providers::request_log::RequestLogHandle>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        Ok(Box::new(RequestLogHandleAdapter {
+            request_id: self.logger.start()?,
+            logger: Arc::clone(&self.logger),
+        }))
+    }
+}
+
+struct RequestLogHandleAdapter {
+    request_id: u64,
+    logger: Arc<dyn RequestLogger>,
+}
+
+impl goose_providers::request_log::RequestLogHandle for RequestLogHandleAdapter {
+    fn write(&mut self, record: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.logger.write(self.request_id, record.to_string())?;
+        Ok(())
+    }
+}
+
+/// Installs the process-wide provider request logger.
+///
+/// A logger can only be installed once for the lifetime of the process.
+#[uniffi::export]
+pub fn install_request_logger(logger: Box<dyn RequestLogger>) -> Result<(), GooseError> {
+    goose_providers::request_log::install_logger(RequestLoggerAdapter {
+        logger: Arc::from(logger),
+    })
+    .map_err(|error| GooseError::Generic(error.to_string()))
+}
+
 /// A text message passed to a provider.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ProviderMessage {
