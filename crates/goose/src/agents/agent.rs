@@ -2972,12 +2972,18 @@ impl Agent {
         // backfill `context_limit` from their known models before the config is
         // persisted as the session source of truth; otherwise auto-compaction
         // would fall back to DEFAULT_CONTEXT_LIMIT.
-        let model_config = match crate::providers::get_from_registry(&provider_name).await {
+        let mut model_config = match crate::providers::get_from_registry(&provider_name).await {
             Ok(entry) => entry
                 .normalize_model_config(model_config.clone())
                 .unwrap_or(model_config),
             Err(_) => model_config,
         };
+
+        if let Ok(info) = provider.fetch_model_info(&model_config.model_name).await {
+            if model_config.reasoning.is_none() {
+                model_config.reasoning = info.reasoning.clone();
+            }
+        }
 
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider);
