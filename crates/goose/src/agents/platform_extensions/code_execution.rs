@@ -146,6 +146,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         working_dir: Option<PathBuf>,
+        cancellation_token: CancellationToken,
         code_mode: &CodeMode,
     ) -> Result<PctxRegistry, String> {
         let manager = self
@@ -170,6 +171,7 @@ impl CodeExecutionClient {
                 working_dir.clone(),
                 full_name,
                 manager.clone(),
+                cancellation_token.clone(),
             );
             registry
                 .add_callback(&cfg.id(), callback)
@@ -245,6 +247,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         working_dir: Option<PathBuf>,
+        cancellation_token: CancellationToken,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let args: ExecuteWithToolGraph = arguments
@@ -254,7 +257,8 @@ impl CodeExecutionClient {
             .ok_or("Missing arguments for execute_typescript")?;
 
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, working_dir, &code_mode)?;
+        let registry =
+            self.build_callback_registry(session_id, working_dir, cancellation_token, &code_mode)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -285,12 +289,14 @@ fn create_tool_callback(
     working_dir: Option<PathBuf>,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
+    cancellation_token: CancellationToken,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let session_id = session_id.clone();
         let working_dir = working_dir.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
+        let cancellation_token = cancellation_token.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -301,7 +307,7 @@ fn create_tool_callback(
             };
             let ctx = crate::agents::ToolCallContext::new(session_id, working_dir, None);
             match manager
-                .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
+                .dispatch_tool_call(&ctx, tool_call, cancellation_token)
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -457,7 +463,7 @@ impl McpClientTrait for CodeExecutionClient {
         ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let session_id = &ctx.session_id;
         let result = match name {
@@ -468,8 +474,13 @@ impl McpClientTrait for CodeExecutionClient {
             }
             "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
             "execute_typescript" => {
-                self.handle_execute_typescript(session_id, ctx.working_dir.clone(), arguments)
-                    .await
+                self.handle_execute_typescript(
+                    session_id,
+                    ctx.working_dir.clone(),
+                    cancellation_token,
+                    arguments,
+                )
+                .await
             }
             _ => Err(format!("Unknown tool: {name}")),
         };
