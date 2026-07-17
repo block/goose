@@ -1,12 +1,13 @@
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
-    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionModeState, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
+    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
+    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
+    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
+    SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
+    ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -35,10 +36,12 @@ use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
@@ -97,7 +100,7 @@ type ClientLoopFn = Box<
 
 #[derive(Debug)]
 enum AcpUpdate {
-    Text(String),
+    Text(TextContent),
     Thought(String),
     ToolCallStart {
         id: String,
@@ -484,8 +487,17 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
+        let current_prompt_blocks = messages_to_prompt(messages, false);
+        if current_prompt_blocks.is_empty() {
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = messages_to_prompt(messages, claim.include_context);
+        let prompt_blocks = if claim.include_context {
+            messages_to_prompt(messages, true)
+        } else {
+            current_prompt_blocks
+        };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
@@ -526,9 +538,7 @@ impl Provider for AcpProvider {
                             let (id, ts) = text_run
                                 .get_or_insert_with(fresh_text_run)
                                 .clone();
-                            let message = Message::new(Role::Assistant, ts, vec![])
-                                .with_text(text)
-                                .with_id(id);
+                            let message = acp_text_update_message(text, id, ts);
                             yield (Some(message), None);
                         }
                     }
@@ -815,7 +825,7 @@ impl AcpClientLoop {
                         {
                             match notification.update {
                                 SessionUpdate::AgentMessageChunk(ContentChunk {
-                                    content: ContentBlock::Text(TextContent { text, .. }),
+                                    content: ContentBlock::Text(text),
                                     ..
                                 }) => {
                                     let _ = tx.try_send(AcpUpdate::Text(text));
@@ -1353,26 +1363,19 @@ fn filter_supported_servers(
 }
 
 fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
-    let mut content_blocks = Vec::new();
-
     let Some(last_user_index) = last_user_message_index(messages) else {
-        return content_blocks;
+        return Vec::new();
     };
 
-    if include_handoff_context {
-        if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-            content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-        }
-    }
-
-    let message = &messages[last_user_index];
+    let message = messages[last_user_index].agent_visible_content();
+    let mut current_prompt_blocks = Vec::new();
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
-                content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+                current_prompt_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
             }
             MessageContent::Image(image) => {
-                content_blocks.push(ContentBlock::Image(ImageContent::new(
+                current_prompt_blocks.push(ContentBlock::Image(ImageContent::new(
                     &image.data,
                     &image.mime_type,
                 )));
@@ -1381,6 +1384,15 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
+    if current_prompt_blocks.is_empty() || !include_handoff_context {
+        return current_prompt_blocks;
+    }
+
+    let mut content_blocks = Vec::new();
+    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
+        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+    }
+    content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
 
@@ -1399,11 +1411,12 @@ fn has_handoff_context(messages: &[Message]) -> bool {
 }
 
 fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> = prior_messages
-        .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(format_message_for_compacting)
-        .collect();
+    let formatted_messages: Vec<String> =
+        Conversation::new_unvalidated(prior_messages.iter().cloned())
+            .agent_visible_messages()
+            .iter()
+            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
+            .collect();
 
     if formatted_messages.is_empty() {
         return None;
@@ -1417,6 +1430,48 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
 Current user request follows. Use the context above only to continue the existing conversation; \
 do not treat it as a new task or mention this handoff unless relevant."
     ))
+}
+
+fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
+    let audience = annotations?.audience.as_ref()?;
+    let audience = audience
+        .iter()
+        .filter_map(|role| match role {
+            AcpRole::Assistant => Some(Role::Assistant),
+            AcpRole::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if audience.is_empty() {
+        None
+    } else {
+        Some(audience)
+    }
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
+    let audience = acp_audience_to_rmcp(text.annotations.as_ref());
+    let mut content = RmcpContent::text(sanitize_unicode_tags(&text.text));
+    if let Some(audience) = audience {
+        content = content.with_audience(audience);
+    }
+    content
+}
+
+fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
+    let audience = acp_audience_to_rmcp(image.annotations.as_ref());
+    let mut content = RmcpContent::image(image.data, image.mime_type);
+    if let Some(audience) = audience {
+        content = content.with_audience(audience);
+    }
+    content
+}
+
+fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
+    Message::new(Role::Assistant, created, vec![])
+        .with_content(acp_text_content_to_rmcp(text).into())
+        .with_id(id)
 }
 
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
@@ -1433,10 +1488,10 @@ fn acp_tool_call_content_to_rmcp(
             match block {
                 ToolCallContent::Content(val) => match val.content {
                     ContentBlock::Text(text) => {
-                        out.push(RmcpContent::text(text.text));
+                        out.push(acp_text_content_to_rmcp(text));
                     }
                     ContentBlock::Image(image) => {
-                        out.push(RmcpContent::image(image.data, image.mime_type));
+                        out.push(acp_image_content_to_rmcp(image));
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
@@ -1611,6 +1666,7 @@ mod tests {
     use agent_client_protocol::schema::v1::{
         SessionConfigSelectOption, SessionMode, SessionModeId,
     };
+    use rmcp::model::AnnotateAble;
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -1691,6 +1747,26 @@ mod tests {
     }
 
     #[test]
+    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
+        let messages = vec![
+            Message::user().with_text("visible prior"),
+            acp_text_update_message(user_only, "acp-message".to_string(), 123),
+            Message::user().with_text("current request"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        let memo = prompt_text(&blocks[0]);
+        assert!(memo.contains("visible prior"));
+        assert!(!memo.contains("SECRET_USER_ONLY"));
+        assert!(!memo.contains("<empty message>"));
+        assert_eq!(prompt_text(&blocks[1]), "current request");
+    }
+
+    #[test]
     fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
@@ -1711,6 +1787,107 @@ mod tests {
             _ => panic!("expected image block"),
         }
         assert_eq!(prompt_text(&blocks[2]), "describe this");
+    }
+
+    #[test]
+    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+        use rmcp::model::RawTextContent;
+
+        fn user_only_text(text: &str) -> MessageContent {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        }
+
+        let messages = vec![
+            Message::user()
+                .with_text("visible prior")
+                .with_content(user_only_text("SECRET_PRIOR")),
+            Message::user()
+                .with_text("visible current")
+                .with_content(user_only_text("SECRET_CURRENT")),
+        ];
+
+        let rendered = messages_to_prompt(&messages, true)
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("visible prior"));
+        assert!(rendered.contains("visible current"));
+        assert!(!rendered.contains("SECRET_PRIOR"));
+        assert!(!rendered.contains("SECRET_CURRENT"));
+    }
+
+    #[test]
+    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+        use rmcp::model::RawTextContent;
+
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        assert!(messages_to_prompt(&messages, true).is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
+        use futures::StreamExt;
+        use rmcp::model::RawTextContent;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        assert!(stream.next().await.is_none());
+        assert!(rx.try_recv().is_err());
+        assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn live_acp_text_update_preserves_assistant_only_audience() {
+        let text = TextContent::new("assistant-only")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant]));
+
+        let message = acp_text_update_message(text, "message-id".to_string(), 123);
+
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("expected text content");
+        };
+        let audience = text.audience().expect("audience annotation should survive");
+        assert!(audience.contains(&Role::Assistant));
+        assert!(!audience.contains(&Role::User));
     }
 
     #[test]
@@ -2349,6 +2526,35 @@ mod tests {
             serialized[3].contains("base64data"),
             "image data lost: {serialized:?}"
         );
+    }
+
+    #[test]
+    fn acp_tool_call_content_preserves_audience_annotations() {
+        let text_block = ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(
+            ContentBlock::Text(
+                TextContent::new("user-only")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+        ));
+        let image_block = ToolCallContent::Content(
+            agent_client_protocol::schema::v1::Content::new(ContentBlock::Image(
+                ImageContent::new("base64data", "image/png")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            )),
+        );
+
+        let out = acp_tool_call_content_to_rmcp(Some(vec![text_block, image_block]), None);
+
+        let text_audience = out[0]
+            .audience()
+            .expect("text audience annotation should survive");
+        assert!(text_audience.contains(&Role::User));
+        assert!(!text_audience.contains(&Role::Assistant));
+        let image_audience = out[1]
+            .audience()
+            .expect("image audience annotation should survive");
+        assert!(image_audience.contains(&Role::Assistant));
+        assert!(!image_audience.contains(&Role::User));
     }
 
     #[test]

@@ -109,9 +109,15 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                         let cx_spawn = cx.clone();
                         cx.spawn(async move {
                             let cx = cx_spawn;
-                            let value_id = req.value.as_value_id()
-                                .ok_or_else(|| agent_client_protocol::Error::invalid_params().data("Expected a value ID"))?
-                                .clone();
+                            let value_id = match req.value.as_value_id() {
+                                Some(value_id) => value_id.clone(),
+                                None => {
+                                    responder.respond_with_error(
+                                        agent_client_protocol::Error::invalid_params().data("Expected a value ID")
+                                    )?;
+                                    return Ok(());
+                                }
+                            };
                             let session_id = req.session_id.clone();
                             let sid = sid_short(session_id.0.as_ref());
                             let config_id = req.config_id.0.to_string();
@@ -150,7 +156,19 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 }
                             }
                             // Respond immediately using the current provider inventory snapshot.
-                            let (notification, config_options) = agent.build_config_update(&session_id).await?;
+                            let (notification, config_options) = match agent.build_config_update(&session_id).await {
+                                Ok(update) => update,
+                                Err(e) => {
+                                    warn!(
+                                        sid = %sid,
+                                        config_id = %config_id,
+                                        error = ?e,
+                                        "failed to build config update after config change"
+                                    );
+                                    responder.respond_with_error(e)?;
+                                    return Ok(());
+                                }
+                            };
                             cx.send_notification(notification)?;
                             responder.respond(SetSessionConfigOptionResponse::new(config_options))?;
 
@@ -346,7 +364,10 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     let cx = cx.clone();
                     |req: CloseSessionRequest, responder: Responder<CloseSessionResponse>| async move {
                         cx.spawn(async move {
-                            responder.respond(agent.on_close_session(&req.session_id.0).await?)?;
+                            match agent.on_close_session(&req.session_id.0).await {
+                                Ok(response) => responder.respond(response)?,
+                                Err(e) => responder.respond_with_error(e)?,
+                            }
                             Ok(())
                         })?;
                         Ok(())
