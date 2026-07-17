@@ -106,6 +106,9 @@ jobs:
   bundle-windows:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-windows.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       package_cli: true
@@ -115,6 +118,9 @@ jobs:
   bundle-windows-cuda:
     needs: [prepare-version]
     uses: ./.github/workflows/bundle-windows.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       package_cli: true
