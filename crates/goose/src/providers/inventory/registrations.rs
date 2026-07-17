@@ -36,6 +36,12 @@ pub fn openai_inventory() -> InventoryRegistration {
                     config
                         .get_param::<String>("OPENAI_BASE_PATH")
                         .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string()),
+                )
+                .with_public(
+                    "base_url",
+                    config
+                        .get_param::<String>("OPENAI_BASE_URL")
+                        .unwrap_or_default(),
                 );
 
         if let Ok(organization) = config.get_param::<String>("OPENAI_ORGANIZATION") {
@@ -212,6 +218,47 @@ mod tests {
     use super::*;
     use crate::config::paths::Paths;
     use chrono::Utc;
+
+    #[test]
+    #[serial_test::serial]
+    fn openai_inventory_identity_changes_with_base_url() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+
+        let responses_identity = {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_PATH_ROOT", Some(root_path.as_str())),
+                ("OPENAI_HOST", None),
+                ("OPENAI_BASE_PATH", None),
+                ("OPENAI_BASE_URL", Some("https://api.openai.com/v1")),
+                ("OPENAI_API_KEY", None),
+                ("OPENAI_CUSTOM_HEADERS", None),
+            ]);
+            (openai_inventory().identity)()
+                .unwrap()
+                .into_identity()
+                .unwrap()
+        };
+        let chat_identity = {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_PATH_ROOT", Some(root_path.as_str())),
+                ("OPENAI_HOST", None),
+                ("OPENAI_BASE_PATH", None),
+                ("OPENAI_BASE_URL", Some("https://api.openai.com")),
+                ("OPENAI_API_KEY", None),
+                ("OPENAI_CUSTOM_HEADERS", None),
+            ]);
+            (openai_inventory().identity)()
+                .unwrap()
+                .into_identity()
+                .unwrap()
+        };
+
+        assert_ne!(
+            responses_identity.inventory_key,
+            chat_identity.inventory_key
+        );
+    }
 
     #[test]
     #[serial_test::serial]
