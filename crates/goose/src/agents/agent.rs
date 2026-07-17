@@ -2726,6 +2726,11 @@ impl Agent {
                     }
                 }
                 if pending_provider_retry {
+                    // Abort this attempt's summarization task so it doesn't keep
+                    // running detached — the retry spawns its own.
+                    if let Some(task) = &tool_pair_summarization_task {
+                        task.abort();
+                    }
                     retrying_after_provider_error = true;
                     continue;
                 }
