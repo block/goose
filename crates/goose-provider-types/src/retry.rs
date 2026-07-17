@@ -107,6 +107,27 @@ pub fn should_retry(error: &ProviderError, config: &RetryConfig) -> bool {
     }
 }
 
+/// Returns the delay to wait before the next attempt, or `None` when the error
+/// must not be retried (non-transient) or the attempt budget is exhausted
+/// (`attempts >= config.max_retries`). Honors `RateLimitExceeded.retry_delay`.
+pub fn next_retry_delay(
+    error: &ProviderError,
+    attempts: usize,
+    config: &RetryConfig,
+) -> Option<Duration> {
+    if !should_retry(error, config) || attempts >= config.max_retries {
+        return None;
+    }
+    let delay = match error {
+        ProviderError::RateLimitExceeded {
+            retry_delay: Some(d),
+            ..
+        } => *d,
+        _ => config.delay_for_attempt(attempts + 1),
+    };
+    Some(delay)
+}
+
 pub async fn retry_operation<F, Fut, T>(
     config: &RetryConfig,
     operation: F,
@@ -341,5 +362,76 @@ mod tests {
             &ProviderError::Authentication("invalid key".into()),
             &config
         ));
+    }
+
+    #[test]
+    fn next_retry_delay_network_error_returns_backoff() {
+        let config = RetryConfig::default();
+        let error = ProviderError::NetworkError("Stream decode error: boom".into());
+        let delay = next_retry_delay(&error, 0, &config).expect("first attempt should retry");
+        assert!(delay.as_millis() > 0);
+        // delay_for_attempt(1) base is 1000ms with 0.8–1.2× jitter
+        assert!(delay.as_millis() >= 800 && delay.as_millis() <= 1200);
+    }
+
+    #[test]
+    fn next_retry_delay_server_error_returns_backoff() {
+        let config = RetryConfig::default();
+        let error = ProviderError::ServerError("500 internal".into());
+        assert!(next_retry_delay(&error, 1, &config).is_some());
+    }
+
+    #[test]
+    fn next_retry_delay_exhausted_budget_returns_none() {
+        let config = RetryConfig::default();
+        let error = ProviderError::NetworkError("boom".into());
+        // attempts == max_retries → exhausted
+        assert_eq!(next_retry_delay(&error, config.max_retries, &config), None);
+    }
+
+    #[test]
+    fn next_retry_delay_non_transient_returns_none() {
+        let config = RetryConfig::default();
+        assert_eq!(
+            next_retry_delay(&ProviderError::Authentication("bad key".into()), 0, &config),
+            None
+        );
+        assert_eq!(
+            next_retry_delay(
+                &ProviderError::ContextLengthExceeded("too long".into()),
+                0,
+                &config
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn next_retry_delay_rate_limit_honors_retry_delay() {
+        let config = RetryConfig::default();
+        let error = ProviderError::RateLimitExceeded {
+            details: "too many requests".into(),
+            retry_delay: Some(Duration::from_secs(5)),
+        };
+        let delay = next_retry_delay(&error, 0, &config).expect("rate limit should retry");
+        assert_eq!(delay, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn next_retry_delay_rate_limit_without_delay_uses_backoff() {
+        let config = RetryConfig::default();
+        let error = ProviderError::RateLimitExceeded {
+            details: "too many requests".into(),
+            retry_delay: None,
+        };
+        let delay = next_retry_delay(&error, 0, &config).expect("rate limit should retry");
+        assert!(delay.as_millis() > 0);
+    }
+
+    #[test]
+    fn next_retry_delay_transient_only_skips_request_failed() {
+        let config = RetryConfig::default().transient_only();
+        let error = ProviderError::RequestFailed("400 bad request".into());
+        assert_eq!(next_retry_delay(&error, 0, &config), None);
     }
 }

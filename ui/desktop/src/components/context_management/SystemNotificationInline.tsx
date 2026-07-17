@@ -16,6 +16,8 @@ export function getInlineSystemNotification(
 ): SystemNotificationContent | undefined {
   return message.content.find(
     (content): content is SystemNotificationContent & { type: 'systemNotification' } =>
-      content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
+      content.type === 'systemNotification' &&
+      (content.notificationType === 'inlineMessage' ||
+        content.notificationType === 'providerRetry')
   );
 }

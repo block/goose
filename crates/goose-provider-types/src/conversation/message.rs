@@ -244,6 +244,7 @@ pub enum SystemNotificationType {
     ProgressMessage,
     InlineMessage,
     CreditsExhausted,
+    ProviderRetry,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -2102,6 +2102,7 @@ fn status_message_from_system_notification(
             })
         }
         SystemNotificationType::CreditsExhausted => None,
+        SystemNotificationType::ProviderRetry => None,
     }
 }
 

@@ -95,4 +95,4 @@ pub use init::{
     create_with_working_dir, get_from_registry, inventory_identity, providers,
     refresh_custom_providers,
 };
-pub use retry::{retry_operation, RetryConfig};
+pub use retry::{next_retry_delay, retry_operation, RetryConfig};

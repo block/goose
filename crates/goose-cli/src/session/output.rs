@@ -274,6 +274,10 @@ pub fn render_message(message: &Message, debug: bool) {
                         hide_thinking();
                         println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
+                    SystemNotificationType::ProviderRetry => {
+                        hide_thinking();
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
+                    }
                     SystemNotificationType::CreditsExhausted => {
                         render_credits_exhausted_notification(notification);
                     }
@@ -354,6 +358,11 @@ pub fn render_message_streaming(
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
+                        flush_markdown_buffer(buffer, theme);
+                        hide_thinking();
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
+                    }
+                    SystemNotificationType::ProviderRetry => {
                         flush_markdown_buffer(buffer, theme);
                         hide_thinking();
                         println!("\n{} {}", style("·").dim(), &notification.msg);
