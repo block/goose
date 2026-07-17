@@ -453,6 +453,44 @@ client-bound credential → save it in `PeerBook`.
 Defer: durable conversations, steering, presence probing, dynamic tools,
 remote MCP federation, multi-hop delegation, `grants` UI polish.
 
+### Future idea — remote subagent spawning ("run a subagent somewhere else")
+
+goose already has local **subagents** (spawn a child agent loop for a task).
+A natural roaming extension: let an agent spawn a subagent *on a remote node*.
+This is really just `roam__delegate` viewed through the subagent lens — the
+remote agent IS the subagent — but it raises one important anchoring question:
+
+**Where does the process that holds the connection open and waits for work
+live?** Three models, in increasing power/complexity:
+
+1. **Caller-anchored (delegate model, what we're building).** The *caller*
+   holds the iroh connection open, opens an ACP session on the remote, sends a
+   task, and awaits the result. The remote spawns the work inside that session;
+   when the caller disconnects, the work ends. Simple, bounded, no host daemon
+   required. This is the v1 `roam__delegate`.
+
+2. **Host-anchored / detached.** The remote host runs a persistent listener
+   (a `goose roam serve` daemon) that OWNS the spawned subagent's lifecycle.
+   The caller fires a task and may disconnect; the subagent keeps running on
+   the host and the caller reconnects later to collect results (by session id).
+   Needs: durable sessions + the session coordinator + a resume/collect path
+   (roadmap steps 2–3 of §9). This is where "spawn a subagent somewhere else
+   and walk away" becomes real.
+
+3. **Broker/relay-anchored fan-out.** A caller spawns subagents across *several*
+   remote nodes and aggregates — the roaming analogue of goose's parallel
+   subagents. Depends on host-anchored spawning + concurrency limits + the
+   loop/cost guardrails already specified (turn caps, deadlines, no recursive
+   `roam` injection).
+
+Anchoring decides the failure semantics: caller-anchored work dies with the
+caller (safe default); host-anchored work outlives the caller (powerful, needs
+durable session ownership + resource accounting on the host so a disconnected
+caller can't leave unbounded work running). Recommendation: ship caller-anchored
+(1) as `roam__delegate`, then unlock (2) only once durable sessions + the
+session coordinator land, reusing the exact same `Delegate` scope, bounded
+execution, and no-recursive-roaming guardrails.
+
 ---
 
 ## Appendix: key file references (continued)
