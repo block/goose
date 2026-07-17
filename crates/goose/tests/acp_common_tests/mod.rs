@@ -4,9 +4,9 @@
 
 #[path = "../acp_fixtures/mod.rs"]
 pub mod fixtures;
-use agent_client_protocol::schema::{
-    ContentBlock, ListSessionsResponse, McpServer, McpServerHttp, ModelId, SessionInfo,
-    SessionModeId, SessionUpdate, ToolCallStatus, ToolKind,
+use agent_client_protocol::schema::v1::{
+    ContentBlock, ListSessionsResponse, McpServer, McpServerHttp, SessionInfo, SessionModeId,
+    SessionUpdate, ToolCallStatus, ToolKind,
 };
 use fixtures::{
     assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
@@ -71,7 +71,9 @@ pub async fn run_list_sessions<C: Connection>() {
         // createdAt is a dynamic timestamp — verify it exists then remove for comparison.
         if let Some(ref mut meta) = s.meta {
             assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
+            assert!(meta.get("lastMessageAt").and_then(|v| v.as_str()).is_some());
             meta.remove("createdAt");
+            meta.remove("lastMessageAt");
             // Provider/model metadata varies by test fixture; not relevant here.
             meta.remove("providerId");
             meta.remove("modelId");
@@ -429,7 +431,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
 
 pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     let provider_factory: AcpProviderFactory =
-        Arc::new(|_, _, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
+        Arc::new(|_, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
     let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let config = TestConnectionConfig {
@@ -538,7 +540,7 @@ pub async fn run_load_model<C: Connection>() {
     assert_eq!(output.text, "2");
 
     let SessionData { models, .. } = conn.load_session(&session_id, vec![]).await.unwrap();
-    assert_eq!(&*models.unwrap().current_model_id.0, "gpt-4.1");
+    assert_eq!(models.unwrap().current_model_id, "gpt-4.1");
 }
 
 pub async fn run_load_session_mcp<C: Connection>() {
@@ -760,7 +762,6 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
 
     let config = TestConnectionConfig {
         data_root: temp_dir.path().to_path_buf(),
-        strip_config_options: matches!(via, SetModeVia::Dedicated),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -883,7 +884,7 @@ pub async fn run_model_list<C: Connection>() {
 
     let models = models.unwrap();
     assert!(!models.available_models.is_empty());
-    assert_eq!(models.current_model_id, ModelId::new(TEST_MODEL));
+    assert_eq!(models.current_model_id, TEST_MODEL);
 }
 
 #[allow(dead_code)]
@@ -938,19 +939,14 @@ pub async fn run_new_session_uses_current_config_mode<C: Connection>() {
 }
 
 pub async fn run_config_option_model_set<C: Connection>() {
-    run_model_set_impl::<C>(SetModelVia::ConfigOption).await;
+    run_model_set_impl::<C>().await;
 }
 
 pub async fn run_model_set<C: Connection>() {
-    run_model_set_impl::<C>(SetModelVia::Dedicated).await;
+    run_model_set_impl::<C>().await;
 }
 
-enum SetModelVia {
-    Dedicated,
-    ConfigOption,
-}
-
-async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
+async fn run_model_set_impl<C: Connection>() {
     // Use a Chat Completions model so the canned SSE fixtures parse correctly.
     // TODO: add a Responses API mock to OpenAiFixture for responses-routed models.
     let expected_session_id = C::expected_session_id();
@@ -971,10 +967,7 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
     )
     .await;
 
-    let config = TestConnectionConfig {
-        strip_config_options: matches!(via, SetModelVia::Dedicated),
-        ..Default::default()
-    };
+    let config = TestConnectionConfig::default();
     let mut conn = C::new(config, openai).await;
 
     // Session A: default model
@@ -989,13 +982,9 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
         ..
     } = conn.new_session().await.unwrap();
     let session_id = &session_b.session_id().0;
-    match via {
-        SetModelVia::Dedicated => conn.set_model(session_id, "gpt-4.1").await.unwrap(),
-        SetModelVia::ConfigOption => conn
-            .set_config_option(session_id, "model", "gpt-4.1")
-            .await
-            .unwrap(),
-    }
+    conn.set_config_option(session_id, "model", "gpt-4.1")
+        .await
+        .unwrap();
 
     let set_model_notifs = session_b.notifications();
 
@@ -1007,9 +996,8 @@ async fn run_model_set_impl<C: Connection>(via: SetModelVia) {
         .unwrap();
     assert_eq!(output.text, "2");
 
-    // Some connections emit a ConfigOption update immediately on model change,
-    // while the stripped legacy provider path only updates local state before
-    // the next prompt.
+    // Connections may emit a ConfigOption update immediately on model change,
+    // or only update local state before the next prompt.
     let prompt_notifs = session_b.notifications();
     let mut all = set_model_notifs;
     all.extend(prompt_notifs);

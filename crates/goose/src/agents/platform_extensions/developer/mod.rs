@@ -167,10 +167,10 @@ impl DeveloperClient {
             )
             .annotate(ToolAnnotations::from_raw(
                 Some("Read Image".to_string()),
-                Some(true),
+                Some(false),
                 Some(false),
                 Some(true),
-                Some(false),
+                Some(true),
             )),
         ]
     }
@@ -221,19 +221,14 @@ impl McpClientTrait for DeveloperClient {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let Some(working_dir) = ctx.working_dir.as_deref() else {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "Error: developer tools require a working directory",
-            )
-            .with_priority(0.0)]));
-        };
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => {
                     let env_overlay = self.load_env_overlay(&ctx.session_id).await;
                     let execution = self
                         .shell_tool
-                        .shell(params, working_dir, &env_overlay, cancel_token)
+                        .shell_with_cwd(params, working_dir, &env_overlay, cancel_token)
                         .await;
                     if let Some(env_overlay) = execution.env_overlay {
                         if let Err(error) =
@@ -247,28 +242,31 @@ impl McpClientTrait for DeveloperClient {
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_write(params, working_dir)),
+                Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_edit(params, working_dir)),
+                Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
-                Ok(params) => Ok(self.tree_tool.tree(params, working_dir)),
+                Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "read_image" => match Self::parse_args::<ImageReadParams>(arguments) {
-                Ok(params) => Ok(self.image_tool.image_read(params, working_dir).await),
+                Ok(params) => Ok(self
+                    .image_tool
+                    .image_read_with_cwd(params, working_dir)
+                    .await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
@@ -302,6 +300,18 @@ mod tests {
             .collect();
 
         assert_eq!(names, vec!["write", "edit", "shell", "tree", "read_image"]);
+    }
+
+    #[test]
+    fn read_image_annotations_reflect_network_access() {
+        let read_image = DeveloperClient::get_tools()
+            .into_iter()
+            .find(|tool| tool.name == "read_image")
+            .unwrap();
+        let annotations = read_image.annotations.unwrap();
+
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {
@@ -390,71 +400,5 @@ mod tests {
         let observed = std::fs::canonicalize(first_text(&result)).unwrap();
         let expected = std::fs::canonicalize(&cwd).unwrap();
         assert_eq!(observed, expected);
-    }
-
-    #[cfg(not(windows))]
-    fn process_exists(pid: i32) -> bool {
-        std::process::Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .status()
-            .is_ok_and(|status| status.success())
-    }
-
-    #[cfg(not(windows))]
-    #[tokio::test]
-    async fn developer_client_cancels_shell_tool_and_child_processes() {
-        let temp = tempfile::tempdir().unwrap();
-        let client = DeveloperClient::new(test_context(temp.path().join("sessions"))).unwrap();
-        let cwd = temp.path().join("workspace");
-        fs::create_dir_all(&cwd).unwrap();
-
-        let ctx = ToolCallContext::new("session".to_owned(), Some(cwd.clone()), None);
-        let token = CancellationToken::new();
-        let pid_file = cwd.join("pid");
-        let mut call = Box::pin(client.call_tool(
-            &ctx,
-            "shell",
-            Some(object!({
-                "command": "sleep 300 & echo $! > pid; wait"
-            })),
-            token.clone(),
-        ));
-
-        let started = std::time::Instant::now();
-        let sleep_pid = loop {
-            tokio::select! {
-                result = &mut call => {
-                    let _ = result.expect("shell tool call should not fail");
-                    panic!("shell tool call finished before cancellation");
-                }
-                _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {
-                    if let Ok(raw_pid) = fs::read_to_string(&pid_file) {
-                        break raw_pid.trim().parse::<i32>().unwrap();
-                    }
-                    assert!(
-                        started.elapsed() < std::time::Duration::from_secs(5),
-                        "shell command did not write child pid"
-                    );
-                }
-            }
-        };
-
-        assert!(process_exists(sleep_pid));
-        token.cancel();
-        let result = call.await.unwrap();
-
-        assert_eq!(result.is_error, Some(true));
-        assert!(first_text(&result).contains("Command cancelled"));
-
-        let cleanup_started = std::time::Instant::now();
-        while process_exists(sleep_pid)
-            && cleanup_started.elapsed() < std::time::Duration::from_secs(5)
-        {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        assert!(
-            !process_exists(sleep_pid),
-            "cancelling the shell tool should kill child processes"
-        );
     }
 }

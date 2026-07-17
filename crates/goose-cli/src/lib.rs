@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 #[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
 compile_error!("At least one of `rustls-tls` or `native-tls` features must be enabled");
 

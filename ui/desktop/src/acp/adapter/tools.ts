@@ -3,7 +3,8 @@ import type {
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { CallToolResponse, ContentBlock as ApiContentBlock, Message } from '../../api';
+import type { Message } from '../../types/message';
+import type { ContentBlock as GooseContentBlock } from '../../types/message';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
@@ -182,16 +183,22 @@ function baseToolMetadata(
 function toolResultValue(
   update: ToolCallUpdate,
   mcpAppMeta: DesktopMcpAppMeta | undefined
-): CallToolResponse {
-  return {
+): ToolResultValue {
+  const toolResult: ToolResultValue = {
     content: toolResultContent(update),
     isError: false,
     ...(mcpAppMeta ? { _meta: mcpAppMeta } : {}),
   };
+
+  if (update.rawOutput !== undefined) {
+    toolResult.structuredContent = update.rawOutput;
+  }
+
+  return toolResult;
 }
 
-function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
-  const content: ApiContentBlock[] = [];
+function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {
+  const content: GooseContentBlock[] = [];
 
   for (const item of update.content ?? []) {
     if (item.type !== 'content') {
@@ -215,7 +222,9 @@ function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
   return [];
 }
 
-function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiContentBlock | undefined {
+function apiContentBlockFromAcpContentBlock(
+  content: AcpContentBlock
+): GooseContentBlock | undefined {
   switch (content.type) {
     case 'text':
       return {
@@ -260,7 +269,7 @@ function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiConten
 
 function apiResourceContentsFromAcpResource(
   resource: Extract<AcpContentBlock, { type: 'resource' }>['resource']
-): Extract<ApiContentBlock, { type: 'resource' }>['resource'] {
+): Extract<GooseContentBlock, { type: 'resource' }>['resource'] {
   if ('text' in resource) {
     return {
       uri: resource.uri,
@@ -301,6 +310,13 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
   extensionName?: string;
   toolName?: string;
 }
+
+type ToolResultValue = {
+  content: GooseContentBlock[];
+  structuredContent?: unknown;
+  isError: boolean;
+  _meta?: DesktopMcpAppMeta;
+};
 
 function mcpAppMetadata(update: ToolCallUpdate): DesktopMcpAppMeta | undefined {
   if (!isRecord(update._meta)) {

@@ -38,7 +38,6 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 #[derive(Debug, serde::Serialize)]
 pub struct GeminiCliProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -47,7 +46,6 @@ pub struct GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = Config::global();
@@ -56,7 +54,6 @@ impl GeminiCliProvider {
 
         Ok(Self {
             command: resolved_command,
-            model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         })
@@ -180,11 +177,10 @@ impl ProviderDef for GeminiCliProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -198,10 +194,6 @@ impl Provider for GeminiCliProvider {
         true
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(GEMINI_CLI_KNOWN_MODELS
             .iter()
@@ -212,7 +204,6 @@ impl Provider for GeminiCliProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -336,7 +327,6 @@ mod tests {
     fn make_provider() -> GeminiCliProvider {
         GeminiCliProvider {
             command: PathBuf::from("gemini"),
-            model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         }

@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
     SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
     SetSessionConfigOptionRequest,
@@ -445,7 +445,7 @@ fn test_get_session_info() {
 
         assert_eq!(
             response.session.session_id,
-            agent_client_protocol::schema::SessionId::new(session.id)
+            agent_client_protocol::schema::v1::SessionId::new(session.id)
         );
         assert_eq!(response.session.cwd, cwd.to_path_buf());
         assert_eq!(response.session.title.as_deref(), Some("Session info"));
@@ -522,6 +522,41 @@ fn test_config_option_thinking_effort_set() {
         };
 
         assert_eq!(select.current_value.0.as_ref(), "high");
+    });
+}
+
+#[test]
+fn test_config_option_non_value_id_returns_error_and_keeps_connection() {
+    run_test(async {
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn =
+            <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+        let data = conn.new_session().await.unwrap();
+
+        let err = conn
+            .cx()
+            .send_request(SetSessionConfigOptionRequest::new(
+                data.session.session_id().clone(),
+                "mode".to_string(),
+                SessionConfigOptionValue::boolean(true),
+            ))
+            .block_task()
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err,
+            agent_client_protocol::Error::invalid_params().data("Expected a value ID")
+        );
+
+        conn.cx()
+            .send_request(ListSessionsRequest::new())
+            .block_task()
+            .await
+            .expect("connection should survive an invalid set_config_option");
     });
 }
 

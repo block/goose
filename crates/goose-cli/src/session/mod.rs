@@ -1,10 +1,11 @@
 mod builder;
 mod completion;
-mod editor;
+pub mod editor;
 mod elicitation;
 mod export;
 mod input;
 mod output;
+mod paste;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -12,14 +13,14 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{fix_conversation, Conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use self::export::message_to_markdown;
+pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
@@ -53,12 +54,17 @@ use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+
+fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
+    let projected_messages = plan_messages.agent_visible_messages();
+    fix_conversation(Conversation::new_unvalidated(projected_messages)).0
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
@@ -219,22 +225,23 @@ pub async fn classify_planner_response(
     session_id: &str,
     message_text: String,
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
 ) -> Result<PlannerResponseType> {
     let prompt = format!(
         "The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}"
     );
 
     let message = Message::user().with_text(&prompt);
-    let model_config = provider.get_model_config();
-    let (result, _usage) = provider
-        .complete(
+    let (result, _usage) = goose::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(
             &model_config,
-            session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
             &[],
-        )
-        .await?;
+        ),
+    )
+    .await?;
 
     let predicted = result.as_concat_text();
     if predicted.to_lowercase().contains("plan") {
@@ -242,6 +249,15 @@ pub async fn classify_planner_response(
     } else {
         Ok(PlannerResponseType::ClarifyingQuestions)
     }
+}
+
+fn planner_classification_text(response: &Message) -> Result<String> {
+    let text = response.agent_visible_content().as_concat_text();
+    anyhow::ensure!(
+        !text.trim().is_empty(),
+        "Planner returned no agent-visible text to classify"
+    );
+    Ok(text)
 }
 
 impl CliSession {
@@ -486,10 +502,6 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
-        self.agent
-            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
-            .await;
-
         let result = self.run_interactive(prompt).await;
 
         self.agent
@@ -525,6 +537,7 @@ impl CliSession {
 
             let conversation_strings: Vec<String> = self
                 .messages
+                .user_visible_messages()
                 .iter()
                 .map(|msg| {
                     let role = match msg.role {
@@ -655,6 +668,8 @@ impl CliSession {
                             prefill.as_deref(),
                         ) {
                             Ok((message, true)) => {
+                                editor.add_history_entry(message.as_str())?;
+                                history.save(editor);
                                 self.handle_message_input(&message, history, editor).await?;
                             }
                             Ok((_, false)) => {}
@@ -722,8 +737,8 @@ impl CliSession {
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
-                let reasoner = get_reasoner().await?;
-                self.plan_with_reasoner_model(plan_messages, reasoner)
+                let (reasoner, reasoner_model_config) = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
                     .await?;
             }
         }
@@ -810,7 +825,10 @@ impl CliSession {
     async fn handle_model(&self, model: Option<&str>) -> Result<()> {
         let provider = self.agent.provider().await?;
         let current_provider_name = provider.get_name().to_string();
-        let current_model_config = provider.get_model_config();
+        let current_model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
         let current_model_name = current_model_config.model_name.clone();
 
         if model.is_none() {
@@ -859,13 +877,12 @@ impl CliSession {
         }
 
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider =
-            goose::providers::create(&current_provider_name, new_model_config, extensions)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let new_provider = goose::providers::create(&current_provider_name, extensions)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         self.agent
-            .update_provider(new_provider, &self.session_id)
+            .update_provider(new_provider, new_model_config, &self.session_id)
             .await?;
 
         let mode = self.agent.goose_mode().await;
@@ -888,8 +905,9 @@ impl CliSession {
         let mut plan_messages = self.messages.clone();
         plan_messages.push(Message::user().with_text(&options.message_text));
 
-        let reasoner = get_reasoner().await?;
-        self.plan_with_reasoner_model(plan_messages, reasoner).await
+        let (reasoner, reasoner_model_config) = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
+            .await
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
@@ -1051,25 +1069,37 @@ impl CliSession {
         &mut self,
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
+        model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
-        let model_config = reasoner.get_model_config();
-        let (plan_response, _usage) = reasoner
-            .complete(
+        let (plan_response, _usage) = goose::session_context::with_session_id(
+            Some(self.session_id.clone()),
+            reasoner.complete(
                 &model_config,
-                &self.session_id,
                 &plan_prompt,
-                plan_messages.messages(),
+                provider_messages.messages(),
                 &[],
-            )
-            .await?;
+            ),
+        )
+        .await?;
+        let classifier_text = planner_classification_text(&plan_response);
+        let plan_response = plan_response.user_visible_content();
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let classifier_text = classifier_text?;
+        anyhow::ensure!(
+            !plan_response.content.is_empty(),
+            "Planner returned no user-visible content"
+        );
         let planner_response_type = classify_planner_response(
             &self.session_id,
-            plan_response.as_concat_text(),
+            classifier_text,
             self.agent.provider().await?,
+            self.agent
+                .model_config_for_session(&self.session_id)
+                .await?,
         )
         .await?;
 
@@ -1134,9 +1164,6 @@ impl CliSession {
 
     /// Process a single message and exit
     pub async fn headless(&mut self, prompt: String) -> Result<()> {
-        self.agent
-            .emit_hook(goose::hooks::HookEvent::SessionStart, &self.session_id)
-            .await;
         let message = Message::user().with_text(&prompt);
         let result = self
             .process_message(message, CancellationToken::default(), false)
@@ -1328,6 +1355,7 @@ impl CliSession {
                         Some(Ok(AgentEvent::Usage(usage))) => {
                             last_usage = Some(usage);
                         }
+                        Some(Ok(AgentEvent::MessageUsage { .. })) => {}
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
                             handle_mcp_notification(
                                 &extension_id,
@@ -1406,7 +1434,7 @@ impl CliSession {
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: self.messages.user_visible_messages(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
@@ -1562,18 +1590,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let messages = self.messages.user_visible_messages();
+        if messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in &messages {
             output::render_message(message, self.debug);
         }
 
@@ -1596,8 +1625,14 @@ impl CliSession {
     /// Display enhanced context usage with session totals
     pub async fn display_context_usage(&self) -> Result<()> {
         let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
+        let model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
 
         let config = Config::global();
         let show_cost = config
@@ -1764,25 +1799,54 @@ fn print_run_stats(
     usage: Option<&ProviderUsage>,
 ) {
     let elapsed = run_started.elapsed();
+    let stats = usage.and_then(|usage| usage.stats.as_ref());
+    let generation_elapsed = stats
+        .and_then(|stats| stats.elapsed_ms)
+        .map(Duration::from_millis);
     let output_tokens = usage
         .and_then(|usage| usage.usage.output_tokens)
         .and_then(|tokens| usize::try_from(tokens).ok())
-        .or_else(|| usage.and_then(|usage| usage.stats.as_ref()?.output_tokens));
+        .or_else(|| stats.and_then(|stats| stats.output_tokens));
     let tokens_per_second = output_tokens.map(|tokens| {
-        if elapsed.as_secs_f64() > 0.0 {
-            tokens as f64 / elapsed.as_secs_f64()
+        let rate_elapsed = generation_elapsed.unwrap_or(elapsed);
+        if rate_elapsed.as_secs_f64() > 0.0 {
+            tokens as f64 / rate_elapsed.as_secs_f64()
         } else {
             0.0
         }
     });
+    let model_load_ms = stats.and_then(|stats| stats.model_load_ms);
+    let generation_time_to_first_token_ms = stats.and_then(|stats| stats.time_to_first_token_ms);
 
     eprintln!("\nStats:");
-    match first_token_at {
-        Some(first) => eprintln!(
-            "  Time to first token: {:.2}s",
-            first.duration_since(run_started).as_secs_f64()
-        ),
-        None => eprintln!("  Time to first token: unavailable"),
+    if let Some(ms) = model_load_ms {
+        eprintln!("  Model load: {:.2}s", ms as f64 / 1000.0);
+    }
+    if model_load_ms.is_some() {
+        match generation_time_to_first_token_ms {
+            Some(ms) => eprintln!(
+                "  Generation time to first token: {:.2}s",
+                ms as f64 / 1000.0
+            ),
+            None => eprintln!("  Generation time to first token: unavailable"),
+        }
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  End-to-end time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  End-to-end time to first token: unavailable"),
+        }
+    } else if let Some(ms) = generation_time_to_first_token_ms {
+        eprintln!("  Time to first token: {:.2}s", ms as f64 / 1000.0);
+    } else {
+        match first_token_at {
+            Some(first) => eprintln!(
+                "  Time to first token: {:.2}s",
+                first.duration_since(run_started).as_secs_f64()
+            ),
+            None => eprintln!("  Time to first token: unavailable"),
+        }
     }
     match tokens_per_second {
         Some(rate) => eprintln!("  Tokens/sec: {:.2}", rate),
@@ -1792,10 +1856,7 @@ fn print_run_stats(
         eprintln!("  Output tokens: {tokens}");
     }
 
-    if let Some(draft) = usage
-        .and_then(|usage| usage.stats.as_ref())
-        .and_then(|stats| stats.draft.as_ref())
-    {
+    if let Some(draft) = stats.and_then(|stats| stats.draft.as_ref()) {
         eprintln!("  Draft accept rate: {:.1}%", draft.accept_rate * 100.0);
         eprintln!(
             "  Draft tokens: {} accepted: {} target verified: {} rounds: {}",
@@ -2213,7 +2274,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
-async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
+async fn get_reasoner(
+) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
 
     let config = Config::global();
@@ -2252,9 +2314,9 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
         goose::model_config::model_config_from_user_config(&provider, model.as_str())?
             .with_context_limit(planner_context_limit);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
-    let reasoner = create(&provider, model_config, extensions).await?;
+    let reasoner = create(&provider, extensions).await?;
 
-    Ok(reasoner)
+    Ok((reasoner, model_config))
 }
 
 /// Format elapsed time duration
@@ -2293,6 +2355,67 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn planner_classification_excludes_user_only_content() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let user_only = RawTextContent {
+            text: "user-only plan".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let assistant_only = RawTextContent {
+            text: "agent classification text".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let mixed = Message::assistant()
+            .with_content(MessageContent::Text(user_only.clone()))
+            .with_content(MessageContent::Text(assistant_only));
+
+        assert_eq!(
+            planner_classification_text(&mixed).unwrap(),
+            "agent classification text"
+        );
+        assert!(planner_classification_text(
+            &Message::assistant().with_content(MessageContent::Text(user_only))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn planner_history_is_fixed_after_audience_projection() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let hidden_separator = MessageContent::Text(
+            RawTextContent {
+                text: "hidden separator".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(hidden_separator),
+            Message::user().with_text("second request"),
+        ]);
+
+        let provider_messages = planner_provider_messages(&history).agent_visible_messages();
+
+        assert_eq!(provider_messages.len(), 1);
+        assert_eq!(provider_messages[0].role, Role::User);
+        assert_eq!(
+            provider_messages[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!provider_messages[0]
+            .as_concat_text()
+            .contains("hidden separator"));
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
@@ -2434,7 +2557,6 @@ mod tests {
             max_tokens: Some(16_384),
             toolshim: true,
             toolshim_model: Some("qwen2.5-coder".to_string()),
-            fast_model_config: None,
             request_params: Some(HashMap::from([(
                 "anthropic_beta".to_string(),
                 serde_json::json!(["output-128k-2025-02-19"]),
@@ -2444,7 +2566,7 @@ mod tests {
 
         let switched =
             build_switched_model_config("openai", "gpt-5.4", &current_model_config).unwrap();
-        let expected = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4")
+        let expected = goose_providers::model::ModelConfig::new("gpt-5.4")
             .with_canonical_limits("openai")
             .with_temperature(Some(0.25))
             .with_toolshim(true)
@@ -2471,7 +2593,7 @@ mod tests {
             ("GOOSE_THINKING_EFFORT", None::<&str>),
         ]);
 
-        let current = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4-high")
+        let current = goose_providers::model::ModelConfig::new("gpt-5.4-high")
             .with_canonical_limits("openai");
         assert_eq!(current.model_name, "gpt-5.4");
         assert_eq!(

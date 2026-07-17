@@ -5,8 +5,8 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
         audience
             .iter()
             .map(|role| match role {
-                Role::Assistant => agent_client_protocol::schema::Role::Assistant,
-                Role::User => agent_client_protocol::schema::Role::User,
+                Role::Assistant => agent_client_protocol::schema::v1::Role::Assistant,
+                Role::User => agent_client_protocol::schema::v1::Role::User,
             })
             .collect::<Vec<_>>(),
     )
@@ -29,6 +29,7 @@ fn send_replay_content_chunk(
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
+    supports_goose_custom_notifications: bool,
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
@@ -37,7 +38,7 @@ fn replay_conversation_to_client(
     let messages = session
         .conversation
         .as_ref()
-        .map(|c| c.messages().to_vec())
+        .map(|c| c.user_visible_messages())
         .unwrap_or_default();
     debug!(
         target: "perf",
@@ -50,10 +51,6 @@ fn replay_conversation_to_client(
         HashMap::<String, crate::conversation::message::ToolRequest>::new();
 
     for message in &messages {
-        if !message.metadata.user_visible {
-            continue;
-        }
-
         for content_item in &message.content {
             match content_item {
                 MessageContent::Text(text) => {
@@ -158,6 +155,18 @@ fn replay_conversation_to_client(
                 _ => {}
             }
         }
+
+        if supports_goose_custom_notifications {
+            if let Some(usage) = &message.metadata.usage {
+                cx.send_notification(GooseSessionNotification {
+                    session_id: session.id.clone(),
+                    update: GooseSessionUpdate::MessageUsage(message_usage_update(
+                        message.id.clone(),
+                        usage,
+                    )),
+                })?;
+            }
+        }
     }
 
     Ok(replay_tool_requests)
@@ -189,8 +198,13 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
+        let replay_tool_requests = replay_conversation_to_client(
+            cx,
+            &session,
+            self.supports_goose_custom_notifications(),
+        )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+        self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 
@@ -205,15 +219,12 @@ impl GooseAcpAgent {
             .update_working_dir(&session.working_dir)
             .await;
 
-        let (mode_state, model_state, config_options) =
+        let (mode_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &session).await?;
 
-        send_session_setup_notifications(cx, &session, self.supports_goose_custom_notifications())?;
+        self.notify_session_setup(cx, &session).await?;
 
         let mut response = LoadSessionResponse::new().modes(mode_state);
-        if let Some(ms) = model_state {
-            response = response.models(ms);
-        }
         if let Some(co) = config_options {
             response = response.config_options(co);
         }

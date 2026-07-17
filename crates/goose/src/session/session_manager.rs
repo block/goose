@@ -1,7 +1,8 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, TokenState};
+use crate::conversation::message::{Message, MessageUsage, TokenState};
 use crate::conversation::Conversation;
+use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
@@ -9,7 +10,7 @@ use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
 };
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
@@ -21,11 +22,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
-use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 14;
+pub const CURRENT_SCHEMA_VERSION: i32 = 15;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
+const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
 
 #[derive(
     Debug,
@@ -33,7 +34,6 @@ pub const DB_NAME: &str = "sessions.db";
     Copy,
     Serialize,
     Deserialize,
-    ToSchema,
     PartialEq,
     Eq,
     Default,
@@ -56,10 +56,9 @@ pub enum SessionType {
 static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =
     LazyLock::new(|| Arc::new(SessionStorage::new(Paths::data_dir())));
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
-    #[schema(value_type = String)]
     pub working_dir: PathBuf,
     #[serde(alias = "description")]
     pub name: String,
@@ -80,6 +79,8 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    #[serde(default)]
+    pub last_message_at: Option<DateTime<Utc>>,
     pub provider_name: Option<String>,
     pub model_config: Option<ModelConfig>,
     #[serde(default)]
@@ -88,6 +89,8 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub parent_session_id: Option<String>,
     #[serde(default)]
     pub last_message_snippet: Option<String>,
 }
@@ -116,6 +119,31 @@ impl From<&Session> for TokenState {
     }
 }
 
+pub fn token_state_from_session_and_totals(
+    session: &Session,
+    totals: &SessionUsageTotals,
+) -> TokenState {
+    TokenState {
+        input_tokens: session.usage.input_tokens.unwrap_or(0),
+        output_tokens: session.usage.output_tokens.unwrap_or(0),
+        total_tokens: session.usage.total_tokens.unwrap_or(0),
+        cache_read_tokens: session.usage.cache_read_input_tokens.unwrap_or(0),
+        cache_write_tokens: session.usage.cache_write_input_tokens.unwrap_or(0),
+        accumulated_input_tokens: totals.accumulated_usage.input_tokens.unwrap_or(0),
+        accumulated_output_tokens: totals.accumulated_usage.output_tokens.unwrap_or(0),
+        accumulated_total_tokens: totals.accumulated_usage.total_tokens.unwrap_or(0),
+        accumulated_cache_read_tokens: totals
+            .accumulated_usage
+            .cache_read_input_tokens
+            .unwrap_or(0),
+        accumulated_cache_write_tokens: totals
+            .accumulated_usage
+            .cache_write_input_tokens
+            .unwrap_or(0),
+        accumulated_cost: totals.accumulated_cost,
+    }
+}
+
 pub struct SessionUpdateBuilder<'a> {
     session_manager: &'a SessionManager,
     session_id: String,
@@ -136,13 +164,20 @@ pub struct SessionUpdateBuilder<'a> {
     archived_at: Option<Option<DateTime<Utc>>>,
 
     project_id: Option<Option<String>>,
+    parent_session_id: Option<Option<String>>,
 }
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
     pub total_sessions: usize,
     pub total_tokens: i64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SessionUsageTotals {
+    pub accumulated_usage: Usage,
+    pub accumulated_cost: Option<f64>,
 }
 
 impl<'a> SessionUpdateBuilder<'a> {
@@ -166,6 +201,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             goose_mode: None,
             archived_at: None,
             project_id: None,
+            parent_session_id: None,
         }
     }
 
@@ -268,6 +304,11 @@ impl<'a> SessionUpdateBuilder<'a> {
         self.project_id = Some(project_id);
         self
     }
+
+    pub fn parent_session_id(mut self, parent_session_id: Option<String>) -> Self {
+        self.parent_session_id = Some(parent_session_id);
+        self
+    }
 }
 
 pub struct SessionManager {
@@ -276,7 +317,7 @@ pub struct SessionManager {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SessionListCursor {
-    pub(crate) updated_at: DateTime<Utc>,
+    pub(crate) sort_at: DateTime<Utc>,
     pub(crate) session_id: String,
 }
 
@@ -427,6 +468,23 @@ impl SessionManager {
             .await
     }
 
+    pub async fn get_session_usage_totals(&self, id: &str) -> Result<SessionUsageTotals> {
+        self.storage.get_session_usage_totals(id).await
+    }
+
+    pub async fn record_usage_metrics(
+        &self,
+        session_id: &str,
+        schedule_id: Option<String>,
+        current_usage: Usage,
+        model: &str,
+        ledger: &MessageUsage,
+    ) -> Result<()> {
+        self.storage
+            .record_usage_metrics(session_id, schedule_id, current_usage, model, ledger)
+            .await
+    }
+
     pub async fn export_session(&self, id: &str) -> Result<String> {
         self.storage.export_session(id).await
     }
@@ -448,6 +506,16 @@ impl SessionManager {
     pub async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         self.storage
             .truncate_conversation(session_id, timestamp)
+            .await
+    }
+
+    pub async fn truncate_conversation_from_message(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<()> {
+        self.storage
+            .truncate_conversation_from_message(session_id, message_id)
             .await
     }
 
@@ -495,6 +563,21 @@ impl SessionManager {
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
 
+        let model_config = match session.model_config.clone() {
+            Some(model_config) => model_config,
+            None => {
+                let model_name =
+                    crate::config::Config::global()
+                        .get_goose_model()
+                        .map_err(|_| {
+                            anyhow::anyhow!("Could not resolve model config: missing model")
+                        })?;
+                crate::model_config::model_config_from_user_config(
+                    provider.get_name(),
+                    &model_name,
+                )?
+            }
+        };
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
@@ -506,7 +589,8 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
+            let name =
+                generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
@@ -575,6 +659,25 @@ pub(crate) fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
+fn message_timestamp_to_datetime(timestamp: i64) -> Option<DateTime<Utc>> {
+    let timestamp = if timestamp > MILLISECOND_TIMESTAMP_THRESHOLD {
+        timestamp / 1000
+    } else {
+        timestamp
+    };
+    Utc.timestamp_opt(timestamp, 0).single()
+}
+
+fn normalized_message_timestamp_sql(column: &str) -> String {
+    format!(
+        "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
+    )
+}
+
+fn session_sort_at(session: &Session) -> DateTime<Utc> {
+    session.last_message_at.unwrap_or(session.updated_at)
+}
+
 impl Default for Session {
     fn default() -> Self {
         Self {
@@ -594,11 +697,13 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            last_message_at: None,
             provider_name: None,
             model_config: None,
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            parent_session_id: None,
             last_message_snippet: None,
         }
     }
@@ -641,6 +746,12 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             .unwrap_or_else(|_| "user".to_string());
         let session_type = session_type_str.parse().unwrap_or_default();
 
+        let last_message_at = row
+            .try_get::<Option<i64>, _>("last_message_timestamp")
+            .ok()
+            .flatten()
+            .and_then(message_timestamp_to_datetime);
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
@@ -677,6 +788,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            last_message_at,
             provider_name: row.try_get("provider_name").ok().flatten(),
             model_config,
             goose_mode: row
@@ -686,9 +798,47 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            parent_session_id: row.try_get("parent_session_id").ok().flatten(),
             last_message_snippet: None,
         })
     }
+}
+
+async fn insert_usage_ledger_row(
+    tx: &mut sqlx::Transaction<'_, Sqlite>,
+    session_id: &str,
+    model: Option<&str>,
+    usage: &MessageUsage,
+) -> Result<()> {
+    let cost_source = usage.cost_source.map(|cs| match cs {
+        CostSource::ProviderReported => "provider_reported",
+        CostSource::Estimated => "estimated",
+    });
+
+    sqlx::query(
+        r#"
+        INSERT INTO usage_ledger (
+            session_id, created_timestamp, model,
+            input_tokens, output_tokens, total_tokens,
+            cache_read_tokens, cache_write_tokens,
+            cost, cost_source, is_compaction
+        )
+        VALUES (?, strftime('%s','now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(session_id)
+    .bind(model)
+    .bind(usage.input_tokens)
+    .bind(usage.output_tokens)
+    .bind(usage.total_tokens)
+    .bind(usage.cache_read_tokens)
+    .bind(usage.cache_write_tokens)
+    .bind(usage.cost)
+    .bind(cost_source)
+    .bind(usage.is_compaction as i64)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 impl SessionStorage {
@@ -808,7 +958,8 @@ impl SessionStorage {
                 model_config_json TEXT,
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
-                project_id TEXT
+                project_id TEXT,
+                parent_session_id TEXT
             )
         "#,
         )
@@ -833,6 +984,27 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS usage_ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                created_timestamp INTEGER NOT NULL,
+                model TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                cache_read_tokens INTEGER,
+                cache_write_tokens INTEGER,
+                cost REAL,
+                cost_source TEXT,
+                is_compaction INTEGER DEFAULT 0
+            )
+        "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)")
             .execute(&mut *tx)
             .await?;
@@ -848,6 +1020,16 @@ impl SessionStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_type ON sessions(session_type)")
             .execute(&mut *tx)
             .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_usage_ledger_session ON usage_ledger(session_id)",
+        )
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
 
@@ -1270,6 +1452,50 @@ impl SessionStorage {
                     }
                 }
             }
+            15 => {
+                let has_parent = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'parent_session_id'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_parent {
+                    sqlx::query("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT")
+                        .execute(&mut **tx)
+                        .await?;
+                    sqlx::query(
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                }
+
+                sqlx::query(
+                    r#"
+                    CREATE TABLE IF NOT EXISTS usage_ledger (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                        created_timestamp INTEGER NOT NULL,
+                        model TEXT,
+                        input_tokens INTEGER,
+                        output_tokens INTEGER,
+                        total_tokens INTEGER,
+                        cache_read_tokens INTEGER,
+                        cache_write_tokens INTEGER,
+                        cost REAL,
+                        cost_source TEXT,
+                        is_compaction INTEGER DEFAULT 0
+                    )
+                    "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_usage_ledger_session ON usage_ledger(session_id)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1335,7 +1561,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id
+               archived_at, project_id, parent_session_id
         FROM sessions
         WHERE id = ?
     "#,
@@ -1348,14 +1574,24 @@ impl SessionStorage {
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
             session.message_count = conv.messages().len();
+            session.last_message_at = conv
+                .messages()
+                .iter()
+                .filter_map(|message| message_timestamp_to_datetime(message.created))
+                .max();
             session.conversation = Some(conv);
         } else {
-            let count =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&session.id)
-                    .fetch_one(pool)
-                    .await? as usize;
-            session.message_count = count;
+            let sql = format!(
+                "SELECT COUNT(*), MAX({}) FROM messages WHERE session_id = ?",
+                normalized_message_timestamp_sql("created_timestamp")
+            );
+            let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(&sql)
+                .bind(&session.id)
+                .fetch_one(pool)
+                .await?;
+            session.message_count = count as usize;
+            session.last_message_at =
+                last_message_timestamp.and_then(message_timestamp_to_datetime);
         }
 
         Ok(session)
@@ -1404,6 +1640,7 @@ impl SessionStorage {
         add_update!(builder.archived_at, "archived_at");
 
         add_update!(builder.project_id, "project_id");
+        add_update!(builder.parent_session_id, "parent_session_id");
 
         if updates.is_empty() {
             return Ok(());
@@ -1479,6 +1716,9 @@ impl SessionStorage {
 
         if let Some(ref project_id) = builder.project_id {
             q = q.bind(project_id.as_ref());
+        }
+        if let Some(ref parent_session_id) = builder.parent_session_id {
+            q = q.bind(parent_session_id.as_ref());
         }
 
         let pool = self.pool().await?;
@@ -1624,6 +1864,10 @@ impl SessionStorage {
 
         let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
+        let mut having_clauses = Vec::new();
+        let normalized_message_timestamp = normalized_message_timestamp_sql("m.created_timestamp");
+        let sort_timestamp_sql =
+            format!("COALESCE(MAX({normalized_message_timestamp}), unixepoch(s.updated_at))");
         if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             where_clauses.push(format!("s.session_type IN ({})", placeholders));
@@ -1635,11 +1879,9 @@ impl SessionStorage {
             where_clauses.push(message_keyword_clause(keywords.len()));
         }
         if query.cursor.is_some() {
-            where_clauses.push(
-                "(datetime(s.updated_at) < datetime(?) \
-                 OR (datetime(s.updated_at) = datetime(?) AND s.id < ?))"
-                    .to_string(),
-            );
+            having_clauses.push(format!(
+                "({sort_timestamp_sql} < ? OR ({sort_timestamp_sql} = ? AND s.id < ?))"
+            ));
         }
 
         let where_clause = if where_clauses.is_empty() {
@@ -1647,16 +1889,17 @@ impl SessionStorage {
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
         };
+        let having_clause = if having_clauses.is_empty() {
+            String::new()
+        } else {
+            format!("HAVING {}", having_clauses.join(" AND "))
+        };
         let message_join = if filters.only_sessions_with_messages {
             "JOIN messages m ON s.id = m.session_id"
         } else {
             "LEFT JOIN messages m ON s.id = m.session_id"
         };
-        let order_by = if query.cursor.is_some() || query.limit.is_some() {
-            "ORDER BY datetime(s.updated_at) DESC, s.id DESC"
-        } else {
-            "ORDER BY s.updated_at DESC"
-        };
+        let order_by = "ORDER BY sort_timestamp DESC, s.id DESC";
         let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
 
         let sql = format!(
@@ -1669,16 +1912,25 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id,
-                   COUNT(m.id) as message_count
+                   s.archived_at, s.project_id, s.parent_session_id,
+                   COUNT(m.id) as message_count,
+                   MAX({}) as last_message_timestamp,
+                   {} as sort_timestamp
             FROM sessions s
             {}
             {}
             GROUP BY s.id
             {}
             {}
+            {}
             "#,
-            message_join, where_clause, order_by, limit_clause
+            normalized_message_timestamp,
+            sort_timestamp_sql,
+            message_join,
+            where_clause,
+            having_clause,
+            order_by,
+            limit_clause
         );
 
         let mut q = sqlx::query_as::<_, Session>(&sql);
@@ -1694,10 +1946,9 @@ impl SessionStorage {
             q = q.bind(term);
         }
         if let Some(cursor) = query.cursor {
-            let updated_at = cursor.updated_at.to_rfc3339();
-            // Normalize mixed SQLite CURRENT_TIMESTAMP and RFC3339 stored values.
-            q = q.bind(updated_at.clone());
-            q = q.bind(updated_at);
+            let sort_at = cursor.sort_at.timestamp();
+            q = q.bind(sort_at);
+            q = q.bind(sort_at);
             q = q.bind(&cursor.session_id);
         }
         if let Some(limit) = query.limit {
@@ -1743,7 +1994,7 @@ impl SessionStorage {
         let next_cursor = if has_next_page {
             let anchor = &sessions[page_size - 1];
             Some(SessionListCursor {
-                updated_at: anchor.updated_at,
+                sort_at: session_sort_at(anchor),
                 session_id: anchor.id.clone(),
             })
         } else {
@@ -1787,6 +2038,11 @@ impl SessionStorage {
             .execute(&mut *tx)
             .await?;
 
+        sqlx::query("DELETE FROM usage_ledger WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
+
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)
             .execute(&mut *tx)
@@ -1826,6 +2082,180 @@ impl SessionStorage {
         Ok(SessionInsights {
             total_sessions: row.0 as usize,
             total_tokens: row.1.unwrap_or(0),
+        })
+    }
+
+    async fn record_usage_metrics(
+        &self,
+        session_id: &str,
+        schedule_id: Option<String>,
+        current_usage: Usage,
+        model: &str,
+        ledger: &MessageUsage,
+    ) -> Result<()> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO usage_ledger (
+                session_id, created_timestamp,
+                input_tokens, output_tokens, total_tokens,
+                cache_read_tokens, cache_write_tokens,
+                cost, cost_source
+            )
+            SELECT s.id, strftime('%s','now'),
+                   MAX(COALESCE(s.accumulated_input_tokens, 0) - l.input_sum, 0),
+                   MAX(COALESCE(s.accumulated_output_tokens, 0) - l.output_sum, 0),
+                   MAX(COALESCE(s.accumulated_total_tokens, 0) - l.total_sum, 0),
+                   MAX(COALESCE(s.accumulated_cache_read_tokens, 0) - l.cache_read_sum, 0),
+                   MAX(COALESCE(s.accumulated_cache_write_tokens, 0) - l.cache_write_sum, 0),
+                   CASE WHEN s.accumulated_cost IS NULL OR s.accumulated_cost <= l.cost_sum THEN NULL
+                        ELSE s.accumulated_cost - l.cost_sum END,
+                   'carried_forward'
+            FROM sessions s,
+                 (SELECT COALESCE(SUM(input_tokens), 0) AS input_sum,
+                         COALESCE(SUM(output_tokens), 0) AS output_sum,
+                         COALESCE(SUM(total_tokens), 0) AS total_sum,
+                         COALESCE(SUM(cache_read_tokens), 0) AS cache_read_sum,
+                         COALESCE(SUM(cache_write_tokens), 0) AS cache_write_sum,
+                         COALESCE(SUM(cost), 0.0) AS cost_sum
+                  FROM usage_ledger WHERE session_id = ?) l
+            WHERE s.id = ?
+              AND (COALESCE(s.accumulated_input_tokens, 0) > l.input_sum
+                   OR COALESCE(s.accumulated_output_tokens, 0) > l.output_sum
+                   OR COALESCE(s.accumulated_total_tokens, 0) > l.total_sum
+                   OR COALESCE(s.accumulated_cost, 0.0) > l.cost_sum + 1e-9)
+            "#,
+        )
+        .bind(session_id)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE sessions SET
+                schedule_id = ?,
+                total_tokens = ?, input_tokens = ?, output_tokens = ?,
+                cache_read_tokens = ?, cache_write_tokens = ?,
+                accumulated_total_tokens = COALESCE(accumulated_total_tokens, 0) + ?,
+                accumulated_input_tokens = COALESCE(accumulated_input_tokens, 0) + ?,
+                accumulated_output_tokens = COALESCE(accumulated_output_tokens, 0) + ?,
+                accumulated_cache_read_tokens = COALESCE(accumulated_cache_read_tokens, 0) + ?,
+                accumulated_cache_write_tokens = COALESCE(accumulated_cache_write_tokens, 0) + ?,
+                accumulated_cost = CASE
+                    WHEN ? IS NULL THEN accumulated_cost
+                    ELSE COALESCE(accumulated_cost, 0) + ?
+                END,
+                updated_at = datetime('now')
+            WHERE id = ?
+            "#,
+        )
+        .bind(schedule_id)
+        .bind(current_usage.total_tokens)
+        .bind(current_usage.input_tokens)
+        .bind(current_usage.output_tokens)
+        .bind(current_usage.cache_read_input_tokens)
+        .bind(current_usage.cache_write_input_tokens)
+        .bind(ledger.total_tokens.unwrap_or(0))
+        .bind(ledger.input_tokens.unwrap_or(0))
+        .bind(ledger.output_tokens.unwrap_or(0))
+        .bind(ledger.cache_read_tokens.unwrap_or(0))
+        .bind(ledger.cache_write_tokens.unwrap_or(0))
+        .bind(ledger.cost)
+        .bind(ledger.cost)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+
+        insert_usage_ledger_row(&mut tx, session_id, Some(model), ledger).await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn get_session_usage_totals(&self, session_id: &str) -> Result<SessionUsageTotals> {
+        let pool = self.pool().await?;
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<f64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<i64>,
+                Option<f64>,
+            ),
+        >(
+            r#"
+            WITH RECURSIVE tree(id) AS (
+                SELECT id FROM sessions WHERE id = ?
+                UNION
+                SELECT s.id FROM sessions s JOIN tree ON s.parent_session_id = tree.id
+            )
+            SELECT
+                s.accumulated_input_tokens, s.accumulated_output_tokens, s.accumulated_total_tokens,
+                s.accumulated_cache_read_tokens, s.accumulated_cache_write_tokens, s.accumulated_cost,
+                SUM(u.input_tokens), SUM(u.output_tokens), SUM(u.total_tokens),
+                SUM(u.cache_read_tokens), SUM(u.cache_write_tokens), SUM(u.cost)
+            FROM sessions s
+            LEFT JOIN usage_ledger u ON u.session_id = s.id
+            WHERE s.id IN (SELECT id FROM tree)
+            GROUP BY s.id
+            "#,
+        )
+        .bind(session_id)
+        .fetch_all(pool)
+        .await?;
+
+        let mut input = 0i64;
+        let mut output = 0i64;
+        let mut total = 0i64;
+        let mut cache_read = 0i64;
+        let mut cache_write = 0i64;
+        let mut cost: Option<f64> = None;
+
+        let larger =
+            |acc: Option<i64>, ledger: Option<i64>| acc.unwrap_or(0).max(ledger.unwrap_or(0));
+
+        for row in rows {
+            let (
+                acc_in,
+                acc_out,
+                acc_total,
+                acc_cr,
+                acc_cw,
+                acc_cost,
+                l_in,
+                l_out,
+                l_total,
+                l_cr,
+                l_cw,
+                l_cost,
+            ) = row;
+            input += larger(acc_in, l_in);
+            output += larger(acc_out, l_out);
+            total += larger(acc_total, l_total);
+            cache_read += larger(acc_cr, l_cr);
+            cache_write += larger(acc_cw, l_cw);
+            if acc_cost.is_some() || l_cost.is_some() {
+                let c = acc_cost.unwrap_or(0.0).max(l_cost.unwrap_or(0.0));
+                cost = Some(cost.unwrap_or(0.0) + c);
+            }
+        }
+
+        let opt = |v: i64| Some(i32::try_from(v).unwrap_or(i32::MAX));
+        Ok(SessionUsageTotals {
+            accumulated_usage: Usage::new(opt(input), opt(output), opt(total))
+                .with_cache_tokens(opt(cache_read), opt(cache_write)),
+            accumulated_cost: cost,
         })
     }
 
@@ -1929,6 +2359,38 @@ impl SessionStorage {
             .execute(pool)
             .await?;
 
+        Ok(())
+    }
+
+    async fn truncate_conversation_from_message(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<()> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let boundary = sqlx::query_as::<_, (i64, i64)>(
+            "SELECT id, created_timestamp FROM messages WHERE session_id = ? AND message_id = ? ORDER BY created_timestamp, id LIMIT 1",
+        )
+        .bind(session_id)
+        .bind(message_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some((boundary_id, boundary_timestamp)) = boundary {
+            sqlx::query(
+                "DELETE FROM messages WHERE session_id = ? AND (created_timestamp > ? OR (created_timestamp = ? AND id >= ?))",
+            )
+            .bind(session_id)
+            .bind(boundary_timestamp)
+            .bind(boundary_timestamp)
+            .bind(boundary_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -2080,7 +2542,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::MessageStream;
-    use goose_providers::conversation::token_usage::ProviderUsage;
+    use goose_providers::conversation::token_usage::{CostSource, ProviderUsage};
     use goose_providers::errors::ProviderError;
     use rmcp::model::Tool;
     use tempfile::TempDir;
@@ -2089,9 +2551,7 @@ mod tests {
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
 
-    struct NamingTestProvider {
-        model_config: ModelConfig,
-    }
+    struct NamingTestProvider;
 
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
@@ -2102,21 +2562,16 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[rmcp::model::Tool],
         ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
-            unimplemented!("session naming calls complete_fast")
+            unimplemented!("session naming calls complete")
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
-        async fn complete_fast(
+        async fn complete(
             &self,
-            _session_id: &str,
+            _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -2129,9 +2584,7 @@ mod tests {
     }
 
     fn naming_test_provider() -> Arc<dyn Provider> {
-        Arc::new(NamingTestProvider {
-            model_config: ModelConfig::new("test-model").unwrap(),
-        })
+        Arc::new(NamingTestProvider)
     }
 
     fn test_recipe(title: &str) -> Recipe {
@@ -2218,10 +2671,147 @@ mod tests {
         .unwrap();
     }
 
+    async fn add_message_at_millis(
+        sm: &SessionManager,
+        session_id: &str,
+        text: &str,
+        timestamp: &str,
+    ) {
+        sm.add_message(session_id, &Message::user().with_text(text))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE id = (SELECT MAX(id) FROM messages WHERE session_id = ?)",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp_millis())
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn set_message_timestamp(
+        sm: &SessionManager,
+        session_id: &str,
+        message_id: &str,
+        timestamp: &str,
+    ) {
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE session_id = ? AND message_id = ?",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp())
+        .bind(session_id)
+        .bind(message_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     async fn add_user_message(sm: &SessionManager, session_id: &str) {
         sm.add_message(session_id, &Message::user().with_text("hello world"))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_last_message_at_is_derived_from_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Session recency".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let empty = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(empty.message_count, 0);
+        assert_eq!(empty.last_message_at, None);
+
+        add_message_at_millis(&sm, &session.id, "older", "2026-01-01T00:00:00Z").await;
+        add_message_at(&sm, &session.id, "newer", "2026-01-02T03:04:05Z").await;
+
+        let expected = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let without_messages = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(without_messages.message_count, 2);
+        assert_eq!(without_messages.last_message_at, Some(expected));
+
+        let with_messages = sm.get_session(&session.id, true).await.unwrap();
+        assert_eq!(with_messages.message_count, 2);
+        assert_eq!(with_messages.last_message_at, Some(expected));
+    }
+
+    #[tokio::test]
+    async fn test_truncate_conversation_from_message_keeps_same_second_previous_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Same second truncation".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let timestamp = "2026-06-23T12:00:00Z";
+        sm.add_message(
+            &session.id,
+            &Message::assistant()
+                .with_text("assistant reply")
+                .with_id("assistant"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "assistant", timestamp).await;
+
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("terminal history")
+                .with_id("terminal-history"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "terminal-history", timestamp).await;
+
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("next prompt")
+                .with_id("next-prompt"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "next-prompt", timestamp).await;
+
+        sm.truncate_conversation_from_message(&session.id, "terminal-history")
+            .await
+            .unwrap();
+
+        let reloaded = sm.get_session(&session.id, true).await.unwrap();
+        let messages = reloaded.conversation.unwrap().messages().to_vec();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id.as_deref(), Some("assistant"));
+        assert_eq!(messages[0].as_concat_text(), "assistant reply");
     }
 
     #[tokio::test]
@@ -2236,6 +2826,12 @@ mod tests {
                 SessionType::User,
                 GooseMode::default(),
             )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
             .await
             .unwrap();
 
@@ -2432,8 +3028,8 @@ mod tests {
             sessions.push(sm.get_session(session_id, false).await.unwrap());
         }
         sessions.sort_by(|a, b| {
-            b.updated_at
-                .cmp(&a.updated_at)
+            session_sort_at(b)
+                .cmp(&session_sort_at(a))
                 .then_with(|| b.id.cmp(&a.id))
         });
         sessions.into_iter().map(|session| session.id).collect()
@@ -2582,7 +3178,53 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_session_list_paged_uses_id_tiebreaker_for_duplicate_updated_at() {
+    async fn test_session_list_paged_sorts_by_last_message_at() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let stale_but_modified = create_session_for_list(&sm, "/tmp/session-list", false).await;
+        add_message_at(
+            &sm,
+            &stale_but_modified,
+            "older message",
+            "2026-01-01T00:00:00Z",
+        )
+        .await;
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&stale_but_modified),
+            "2026-02-01T00:00:00Z",
+        )
+        .await;
+
+        let active_but_not_modified =
+            create_session_for_list(&sm, "/tmp/session-list", false).await;
+        add_message_at(
+            &sm,
+            &active_but_not_modified,
+            "newer message",
+            "2026-01-02T00:00:00Z",
+        )
+        .await;
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&active_but_not_modified),
+            "2026-01-15T00:00:00Z",
+        )
+        .await;
+
+        assert_session_list_page(
+            &sm,
+            None,
+            None,
+            2,
+            &[active_but_not_modified, stale_but_modified],
+            false,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_uses_id_tiebreaker_for_duplicate_activity_time() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
         let mut expected_ids = Vec::new();
@@ -3335,5 +3977,272 @@ mod tests {
         let loaded = sm.get_session("cache_id", false).await.unwrap();
         assert_eq!(loaded.usage, usage);
         assert_eq!(loaded.accumulated_usage, accumulated_usage);
+    }
+
+    fn message_usage(input: i32, output: i32, cost: f64, is_compaction: bool) -> MessageUsage {
+        MessageUsage {
+            input_tokens: Some(input),
+            output_tokens: Some(output),
+            total_tokens: Some(input + output),
+            cost: Some(cost),
+            cost_source: Some(CostSource::Estimated),
+            is_compaction,
+            ..Default::default()
+        }
+    }
+
+    async fn new_session(sm: &SessionManager) -> String {
+        sm.create_session(
+            PathBuf::from("/tmp"),
+            "s".to_string(),
+            SessionType::User,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    async fn seed_ledger(
+        sm: &SessionManager,
+        session_id: &str,
+        usage: &MessageUsage,
+    ) -> Result<()> {
+        let pool = sm.storage().pool().await?;
+        let mut tx = pool.begin().await?;
+        insert_usage_ledger_row(&mut tx, session_id, None, usage).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_usage_totals_include_subagent_tree() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let parent = new_session(&sm).await;
+        let child = new_session(&sm).await;
+        sm.update(&child)
+            .parent_session_id(Some(parent.clone()))
+            .apply()
+            .await
+            .unwrap();
+
+        seed_ledger(&sm, &parent, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+        seed_ledger(&sm, &child, &message_usage(40, 8, 0.04, false))
+            .await
+            .unwrap();
+
+        let parent_totals = sm.get_session_usage_totals(&parent).await.unwrap();
+        assert_eq!(parent_totals.accumulated_usage.input_tokens, Some(140));
+        assert!((parent_totals.accumulated_cost.unwrap() - 0.14).abs() < 1e-9);
+
+        let child_totals = sm.get_session_usage_totals(&child).await.unwrap();
+        assert_eq!(child_totals.accumulated_usage.input_tokens, Some(40));
+        assert!((child_totals.accumulated_cost.unwrap() - 0.04).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn test_ledger_reconciles_spend_recorded_on_pre_v15_builds() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        sm.update(&id)
+            .accumulated_usage(Usage::new(Some(5000), Some(1000), Some(6000)))
+            .accumulated_cost(Some(5.0))
+            .apply()
+            .await
+            .unwrap();
+
+        sm.record_usage_metrics(
+            &id,
+            None,
+            Usage::new(Some(100), Some(20), Some(120)),
+            "test-model",
+            &message_usage(100, 20, 0.01, false),
+        )
+        .await
+        .unwrap();
+
+        let totals = sm.get_session_usage_totals(&id).await.unwrap();
+        assert_eq!(totals.accumulated_usage.total_tokens, Some(6120));
+        assert!((totals.accumulated_cost.unwrap() - 5.01).abs() < 1e-9);
+
+        let session = sm.get_session(&id, false).await.unwrap();
+        sm.update(&id)
+            .accumulated_usage(
+                session.accumulated_usage + Usage::new(Some(500), Some(50), Some(550)),
+            )
+            .accumulated_cost(Some(session.accumulated_cost.unwrap() + 0.50))
+            .apply()
+            .await
+            .unwrap();
+
+        sm.record_usage_metrics(
+            &id,
+            None,
+            Usage::new(Some(30), Some(5), Some(35)),
+            "test-model",
+            &message_usage(30, 5, 0.03, false),
+        )
+        .await
+        .unwrap();
+
+        let totals = sm.get_session_usage_totals(&id).await.unwrap();
+        assert_eq!(totals.accumulated_usage.input_tokens, Some(5630));
+        assert_eq!(totals.accumulated_usage.output_tokens, Some(1075));
+        assert_eq!(totals.accumulated_usage.total_tokens, Some(6705));
+        assert!((totals.accumulated_cost.unwrap() - 5.54).abs() < 1e-9);
+
+        let session = sm.get_session(&id, false).await.unwrap();
+        assert_eq!(session.accumulated_usage, totals.accumulated_usage);
+        assert!((session.accumulated_cost.unwrap() - 5.54).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn test_usage_totals_read_through_unreconciled_drift() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        sm.record_usage_metrics(
+            &id,
+            None,
+            Usage::new(Some(100), Some(20), Some(120)),
+            "test-model",
+            &message_usage(100, 20, 0.10, false),
+        )
+        .await
+        .unwrap();
+
+        let session = sm.get_session(&id, false).await.unwrap();
+        sm.update(&id)
+            .accumulated_usage(
+                session.accumulated_usage + Usage::new(Some(500), Some(50), Some(550)),
+            )
+            .accumulated_cost(Some(session.accumulated_cost.unwrap() + 0.50))
+            .apply()
+            .await
+            .unwrap();
+
+        let totals = sm.get_session_usage_totals(&id).await.unwrap();
+        assert_eq!(totals.accumulated_usage.input_tokens, Some(600));
+        assert_eq!(totals.accumulated_usage.total_tokens, Some(670));
+        assert!((totals.accumulated_cost.unwrap() - 0.60).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn test_usage_totals_fall_back_to_accumulated_for_legacy_sessions() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        sm.update(&id)
+            .accumulated_usage(Usage::new(Some(500), Some(100), Some(600)))
+            .accumulated_cost(Some(0.42))
+            .apply()
+            .await
+            .unwrap();
+
+        let totals = sm.get_session_usage_totals(&id).await.unwrap();
+        assert_eq!(totals.accumulated_usage.input_tokens, Some(500));
+        assert_eq!(totals.accumulated_cost, Some(0.42));
+    }
+
+    #[tokio::test]
+    async fn test_usage_ledger_survives_conversation_replace() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        seed_ledger(&sm, &id, &message_usage(1000, 200, 1.0, false))
+            .await
+            .unwrap();
+        seed_ledger(&sm, &id, &message_usage(50, 10, 0.05, true))
+            .await
+            .unwrap();
+
+        sm.replace_conversation(&id, &Conversation::default())
+            .await
+            .unwrap();
+
+        let totals = sm.get_session_usage_totals(&id).await.unwrap();
+        assert_eq!(totals.accumulated_usage.total_tokens, Some(1260));
+        assert!((totals.accumulated_cost.unwrap() - 1.05).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn test_usage_totals_mixed_legacy_and_ledger_tree() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let parent = new_session(&sm).await;
+        let child = new_session(&sm).await;
+        sm.update(&child)
+            .parent_session_id(Some(parent.clone()))
+            .apply()
+            .await
+            .unwrap();
+
+        seed_ledger(&sm, &parent, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+        sm.update(&child)
+            .accumulated_usage(Usage::new(Some(300), Some(60), Some(360)))
+            .accumulated_cost(Some(0.25))
+            .apply()
+            .await
+            .unwrap();
+
+        let totals = sm.get_session_usage_totals(&parent).await.unwrap();
+        assert_eq!(totals.accumulated_usage.input_tokens, Some(400));
+        assert_eq!(totals.accumulated_usage.output_tokens, Some(80));
+        assert!((totals.accumulated_cost.unwrap() - 0.35).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_with_ledger_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        seed_ledger(&sm, &id, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+
+        sm.delete_session(&id).await.unwrap();
+        assert!(sm.get_session(&id, false).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_pre_v15_delete_cascades_ledger_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = new_session(&sm).await;
+
+        seed_ledger(&sm, &id, &message_usage(100, 20, 0.10, false))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        sqlx::query("DELETE FROM messages WHERE session_id = ?")
+            .bind(&id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM sessions WHERE id = ?")
+            .bind(&id)
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let remaining: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM usage_ledger WHERE session_id = ?")
+                .bind(&id)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(remaining, 0);
     }
 }

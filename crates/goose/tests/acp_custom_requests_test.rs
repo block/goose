@@ -2,7 +2,7 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ContentBlock, PromptRequest, SessionUpdate, StopReason, TextContent,
 };
 use common_tests::fixtures::server::AcpServerConnection;
@@ -47,7 +47,6 @@ fn write_acp_global_config(contents: &str) -> PathBuf {
 
 struct MockProvider {
     name: String,
-    model_config: ModelConfig,
     recommended_models: Vec<String>,
     supported_models: Vec<String>,
 }
@@ -61,7 +60,6 @@ impl Provider for MockProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         _messages: &[goose::conversation::message::Message],
         _tools: &[rmcp::model::Tool],
@@ -69,11 +67,10 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(self.recommended_models.clone())
     }
 
@@ -439,6 +436,100 @@ fn test_custom_get_available_extensions() {
                 extension["type"] == "platform" && extension["name"] == "orchestrator"
             }),
             "hidden orchestrator platform extension should not be available"
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_prompt_methods() {
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let list_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/list",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("list prompts should succeed");
+        let prompts = list_response["prompts"]
+            .as_array()
+            .expect("prompts should be an array");
+        assert!(
+            prompts.iter().any(|prompt| prompt["name"] == "system.md"),
+            "system.md should be listed"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get prompt should succeed");
+        assert_eq!(get_response["name"], "system.md");
+        assert!(get_response["content"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()));
+        assert_eq!(get_response["isCustomized"], false);
+
+        let content = "custom acp system prompt";
+        let save_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/save",
+            serde_json::json!({ "name": "system.md", "content": content }),
+        )
+        .await
+        .expect("save prompt should succeed");
+        assert_eq!(save_response["message"], "Saved prompt: system.md");
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get saved prompt should succeed");
+        assert_eq!(get_response["content"], content);
+        assert_eq!(get_response["isCustomized"], true);
+
+        let reset_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/reset",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("reset prompt should succeed");
+        assert_eq!(
+            reset_response["message"],
+            "Reset prompt to default: system.md"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get reset prompt should succeed");
+        assert_eq!(get_response["isCustomized"], false);
+        assert_ne!(get_response["content"], content);
+
+        let missing = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "missing.md" }),
+        )
+        .await
+        .expect_err("unknown prompt should fail");
+        assert_eq!(
+            missing.code,
+            agent_client_protocol::ErrorCode::InvalidParams
         );
     });
 }
@@ -1005,9 +1096,11 @@ fn test_developer_fs_requests_use_acp_session_id() {
             current_model: "gpt-4.1".to_string(),
             read_text_file: Some(Arc::new(move |req| {
                 *seen_session_id_clone.lock().unwrap() = Some(req.session_id.0.to_string());
-                Ok(agent_client_protocol::schema::ReadTextFileResponse::new(
-                    "test-read-content-12345",
-                ))
+                Ok(
+                    agent_client_protocol::schema::v1::ReadTextFileResponse::new(
+                        "test-read-content-12345",
+                    ),
+                )
             })),
             ..Default::default()
         };
@@ -1040,11 +1133,10 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+            Arc::new(|provider_name, _extensions, _working_dir| {
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
-                        model_config,
                         recommended_models: vec!["canonical-filtered-model".to_string()],
                         supported_models: vec![
                             "goose-claude-opus-4-8".to_string(),

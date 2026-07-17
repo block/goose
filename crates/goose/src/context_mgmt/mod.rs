@@ -9,6 +9,7 @@ use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
@@ -65,6 +66,7 @@ struct SummarizeContext {
 ///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     provider: &dyn Provider,
+    model_config: &ModelConfig,
     session_id: &str,
     conversation: &Conversation,
     manual_compact: bool,
@@ -87,37 +89,32 @@ pub async fn compact_messages(
         has_text && !has_tool_content
     };
 
-    let extract_text = |msg: &Message| -> Option<String> {
-        let text_parts: Vec<String> = msg
-            .content
-            .iter()
-            .filter_map(|c| {
-                if let MessageContent::Text(text) = c {
-                    Some(text.text.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if text_parts.is_empty() {
-            None
-        } else {
-            Some(text_parts.join("\n"))
-        }
-    };
-
     // Find and preserve the most recent user message for non-manual compacts
     let (preserved_user_message, is_most_recent) = if !manual_compact {
-        let found_msg = messages.iter().enumerate().rev().find(|(_, msg)| {
-            msg.is_agent_visible()
-                && matches!(msg.role, rmcp::model::Role::User)
-                && has_text_only(msg)
+        let found_msg = messages.iter().enumerate().rev().find_map(|(idx, msg)| {
+            if !msg.is_agent_visible() || !matches!(msg.role, rmcp::model::Role::User) {
+                return None;
+            }
+
+            let projected = msg.agent_visible_content();
+            if !has_text_only(&projected) {
+                return None;
+            }
+
+            let preserved = projected
+                .content
+                .into_iter()
+                .filter(|content| matches!(content, MessageContent::Text(_)))
+                .fold(
+                    Message::user().with_metadata(MessageMetadata::agent_only()),
+                    Message::with_content,
+                );
+            Some((idx, preserved))
         });
 
         if let Some((idx, msg)) = found_msg {
             let is_last = idx == messages.len() - 1;
-            (Some(msg.clone()), is_last)
+            (Some(msg), is_last)
         } else {
             (None, false)
         }
@@ -128,7 +125,7 @@ pub async fn compact_messages(
     let messages_to_compact = messages.as_slice();
 
     let (summary_message, summarization_usage) =
-        do_compact(provider, session_id, messages_to_compact).await?;
+        do_compact(provider, model_config, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -136,16 +133,8 @@ pub async fn compact_messages(
     // 3. Assistant messages to continue the conversation are also agent_visible but not user_visible
     let mut final_messages = Vec::new();
 
-    for (idx, msg) in messages_to_compact.iter().enumerate() {
-        let updated_metadata = if is_most_recent
-            && idx == messages_to_compact.len() - 1
-            && preserved_user_message.is_some()
-        {
-            // This is the most recent message and we're preserving it by adding a fresh copy
-            MessageMetadata::invisible()
-        } else {
-            msg.metadata.clone().with_agent_invisible()
-        };
+    for msg in messages_to_compact {
+        let updated_metadata = msg.metadata.clone().with_agent_invisible();
         let updated_msg = msg.clone().with_metadata(updated_metadata);
         final_messages.push(updated_msg);
     }
@@ -171,9 +160,7 @@ pub async fn compact_messages(
     final_messages.extend(merged_continuation);
 
     if let Some(user_msg) = preserved_user_message {
-        if let Some(text) = extract_text(&user_msg) {
-            final_messages.push(Message::user().with_text(&text));
-        }
+        final_messages.push(user_msg);
     }
 
     Ok((
@@ -201,7 +188,14 @@ pub async fn check_if_compaction_needed(
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
-    let context_limit = provider.get_model_config().context_limit();
+    let model_config = session
+        .model_config
+        .clone()
+        .unwrap_or_else(|| ModelConfig::new("unknown"));
+    let context_limit = provider
+        .get_context_limit(&model_config)
+        .await
+        .unwrap_or_else(|_| model_config.context_limit());
 
     let (current_tokens, _token_source) = match session.usage.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
@@ -282,14 +276,12 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
 
 async fn do_compact(
     provider: &dyn Provider,
+    model_config: &ModelConfig,
     session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-    let agent_visible_messages: Vec<Message> = messages
-        .iter()
-        .filter(|msg| msg.is_agent_visible())
-        .map(|msg| msg.agent_visible_content())
-        .collect();
+    let agent_visible_messages =
+        Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
@@ -313,9 +305,15 @@ async fn do_compact(
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match provider
-            .complete_fast(session_id, &system_prompt, &summarization_request, &[])
-            .await
+        match crate::model_config::complete_fast(
+            provider,
+            model_config,
+            session_id,
+            &system_prompt,
+            &summarization_request,
+            &[],
+        )
+        .await
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
@@ -474,15 +472,9 @@ pub fn tool_ids_to_summarize(
         .collect()
 }
 
-pub async fn summarize_tool_call(
-    provider: &dyn Provider,
-    session_id: &str,
-    conversation: &Conversation,
-    tool_id: &str,
-) -> Result<Message> {
-    let messages = conversation.messages();
-
-    let matching_messages: Vec<&Message> = messages
+fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result<Vec<Message>> {
+    let matching_messages = conversation
+        .messages()
         .iter()
         .filter(|m| {
             m.content.iter().any(|c| match c {
@@ -491,18 +483,42 @@ pub async fn summarize_tool_call(
                 _ => false,
             })
         })
-        .collect();
+        .cloned()
+        .collect::<Vec<_>>();
+    let matching_messages =
+        Conversation::new_unvalidated(matching_messages).agent_visible_messages();
 
-    if matching_messages.is_empty() {
+    let has_request = matching_messages.iter().any(|message| {
+        message.content.iter().any(
+            |content| matches!(content, MessageContent::ToolRequest(request) if request.id == tool_id),
+        )
+    });
+    let has_response = matching_messages.iter().any(|message| {
+        message.content.iter().any(
+            |content| matches!(content, MessageContent::ToolResponse(response) if response.id == tool_id),
+        )
+    });
+    if !has_request || !has_response {
         return Err(anyhow::anyhow!(
-            "No messages found for tool id: {}",
+            "No agent-visible tool pair found for tool id: {}",
             tool_id
         ));
     }
+    Ok(matching_messages)
+}
+
+pub async fn summarize_tool_call(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    conversation: &Conversation,
+    tool_id: &str,
+) -> Result<Message> {
+    let matching_messages = agent_visible_tool_pair(conversation, tool_id)?;
 
     let formatted = matching_messages
         .iter()
-        .map(|msg| format_message_for_compacting(msg))
+        .map(format_message_for_compacting)
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -522,9 +538,15 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = provider
-        .complete_fast(session_id, system_prompt, &summarization_request, &[])
-        .await?;
+    let (mut response, _) = crate::model_config::complete_fast(
+        provider,
+        model_config,
+        session_id,
+        system_prompt,
+        &summarization_request,
+        &[],
+    )
+    .await?;
 
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
@@ -535,6 +557,7 @@ pub async fn summarize_tool_call(
 
 pub fn maybe_summarize_tool_pairs(
     provider: Arc<dyn Provider>,
+    model_config: ModelConfig,
     session_id: String,
     conversation: Conversation,
     cutoff: usize,
@@ -552,7 +575,14 @@ pub fn maybe_summarize_tool_pairs(
     Some(tokio::spawn(async move {
         let mut results = Vec::new();
         for tool_id in tool_ids {
-            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
+            match summarize_tool_call(
+                provider.as_ref(),
+                &model_config,
+                &session_id,
+                &conversation,
+                &tool_id,
+            )
+            .await
             {
                 Ok(summary) => results.push((summary, tool_id)),
                 Err(e) => {
@@ -569,8 +599,6 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::Usage;
-    use goose_providers::errors::ProviderError;
-    use goose_providers::model::ModelConfig;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     fn create_tool_pair(
@@ -614,7 +642,6 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model_config: None,
                     request_params: None,
                     reasoning: None,
                 },
@@ -637,7 +664,6 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             messages: &[Message],
             _tools: &[Tool],
@@ -666,8 +692,11 @@ mod tests {
             Ok(stream_from_single_message(message, usage))
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.config.clone()
+        async fn get_context_limit(
+            &self,
+            _model_config: &ModelConfig,
+        ) -> Result<usize, ProviderError> {
+            Ok(self.config.context_limit())
         }
     }
 
@@ -688,15 +717,186 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let (compacted_conversation, _usage) =
-            compact_messages(&provider, "test-session-id", &conversation, false)
-                .await
-                .unwrap();
+        let model_config = provider.config.clone();
+        let (compacted_conversation, _usage) = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    #[tokio::test]
+    async fn preserved_user_message_keeps_audience_projection_after_compaction() {
+        use rmcp::model::{RawTextContent, Role};
+
+        let annotated_text = |text: &str, audience| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(audience),
+            )
+        };
+        let current_request = Message::user()
+            .with_text("visible current request")
+            .with_content(annotated_text("user-only secret", vec![Role::User]))
+            .with_content(annotated_text(
+                "assistant-only preprompt",
+                vec![Role::Assistant],
+            ));
+        let conversation = Conversation::new_unvalidated([
+            Message::user().with_text("earlier request"),
+            Message::assistant().with_text("earlier response"),
+            current_request,
+        ]);
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+
+        let (compacted, _) = compact_messages(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let preserved_copies = compacted
+            .messages()
+            .iter()
+            .filter(|message| message.as_concat_text().contains("visible current request"))
+            .collect::<Vec<_>>();
+        assert_eq!(preserved_copies.len(), 2);
+        let archived = preserved_copies
+            .iter()
+            .find(|message| message.is_user_visible())
+            .unwrap();
+        assert!(!archived.is_agent_visible());
+        assert!(archived.as_concat_text().contains("user-only secret"));
+        let replay = preserved_copies
+            .iter()
+            .find(|message| message.is_agent_visible())
+            .unwrap();
+        assert!(!replay.is_user_visible());
+        assert!(replay.as_concat_text().contains("assistant-only preprompt"));
+        assert!(!replay.as_concat_text().contains("user-only secret"));
+
+        let agent_text = compacted
+            .agent_visible_messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(agent_text.contains("visible current request"));
+        assert!(agent_text.contains("assistant-only preprompt"));
+        assert!(!agent_text.contains("user-only secret"));
+
+        let user_text = compacted
+            .user_visible_messages()
+            .iter()
+            .map(Message::as_concat_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(user_text.contains("user-only secret"));
+        assert!(!user_text.contains("assistant-only preprompt"));
+    }
+
+    #[tokio::test]
+    async fn tool_pair_summary_projects_nested_audiences_before_provider_input() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user().with_tool_response(
+                "tool_0",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("visible result").no_annotation(),
+                    RawContent::text("user-only secret")
+                        .no_annotation()
+                        .with_audience(vec![Role::User]),
+                ])),
+            ),
+        ]);
+
+        let projected = agent_visible_tool_pair(&conversation, "tool_0").unwrap();
+        let formatted = projected
+            .iter()
+            .map(format_message_for_compacting)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(formatted.contains("visible result"));
+        assert!(!formatted.contains("user-only secret"));
+
+        let user_only_conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("user-only secret")
+                        .no_annotation()
+                        .with_audience(vec![Role::User]),
+                ])),
+            ),
+        ]);
+        let user_only_formatted = agent_visible_tool_pair(&user_only_conversation, "tool_1")
+            .unwrap()
+            .iter()
+            .map(format_message_for_compacting)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!user_only_formatted.contains("user-only secret"));
+
+        summarize_tool_call(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            "tool_0",
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn tool_pair_summary_rejects_agent_hidden_response() {
+        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+            Message::user()
+                .with_tool_response(
+                    "tool_0",
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        RawContent::text("user-only secret").no_annotation(),
+                    ])),
+                )
+                .with_metadata(MessageMetadata::user_only()),
+        ]);
+
+        let error = summarize_tool_call(
+            &provider,
+            &provider.config,
+            "test-session-id",
+            &conversation,
+            "tool_0",
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.to_string().contains("No agent-visible tool pair"));
     }
 
     #[tokio::test]
@@ -721,7 +921,15 @@ mod tests {
         }
 
         let conversation = Conversation::new_unvalidated(messages);
-        let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
+        let model_config = provider.config.clone();
+        let result = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await;
 
         assert!(
             result.is_ok(),

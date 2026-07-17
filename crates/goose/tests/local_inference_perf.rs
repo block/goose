@@ -24,10 +24,8 @@ fn test_model() -> String {
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_cold_vs_warm() {
-    let model_config = ModelConfig::new(test_model())
-        .expect("valid model config")
-        .with_max_tokens(Some(20));
-    let provider = create("local", model_config.clone(), Vec::new())
+    let model_config = ModelConfig::new(test_model()).with_max_tokens(Some(20));
+    let provider = create("local", Vec::new())
         .await
         .expect("provider creation should succeed");
 
@@ -35,7 +33,7 @@ async fn test_local_inference_cold_vs_warm() {
     let messages = vec![Message::user().with_text("What is 2+2?")];
     let start = Instant::now();
     let (response, _) = provider
-        .complete(&model_config, "perf-session", "", &messages, &[])
+        .complete(&model_config, "", &messages, &[])
         .await
         .expect("cold completion should succeed");
     let cold_elapsed = start.elapsed();
@@ -48,7 +46,7 @@ async fn test_local_inference_cold_vs_warm() {
     let messages2 = vec![Message::user().with_text("What is 3+3?")];
     let start2 = Instant::now();
     let (response2, _) = provider
-        .complete(&model_config, "perf-session", "", &messages2, &[])
+        .complete(&model_config, "", &messages2, &[])
         .await
         .expect("warm completion should succeed");
     let warm_elapsed = start2.elapsed();

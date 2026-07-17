@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "カスタムアプリ"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "MCPサーバーのアプリケーションと、goose自身が作成したアプリです。チャット画面で新しいアプリの作成を依頼すると、ここに表示されます。"
   },
   "appsView.errorLoading": {
     "defaultMessage": "アプリの読み込みエラー: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "アプリをインポート"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "利用可能なアプリはありません"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "再試行"
@@ -116,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "接続が失われました。再接続しています…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -185,9 +203,6 @@
   "chatInput.send": {
     "defaultMessage": "送信"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "ツールが多すぎるとパフォーマンスが低下する可能性があります。ツール数: {toolCount}（推奨: {recommended}）"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "文字起こし中..."
   },
@@ -200,8 +215,8 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "レシピを表示/編集"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "拡張機能を表示"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "キャンセルの完了を待機中"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "画像の保存を待機中..."
@@ -1172,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "デフォルトでは goose がサーバーを起動します。外部の goose サーバーに接続する場合に使用してください。"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "変更を有効にするには Goose の再起動が必要です。新しいチャットウィンドウは外部サーバーに接続します。"
   },
@@ -1179,7 +1197,7 @@
     "defaultMessage": "シークレットキー"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "Goose サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "サーバーのシークレットキーを入力"
@@ -1187,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "サーバーURL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Server"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL形式が無効です"
@@ -1201,96 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "別の場所で実行中の goose サーバーに接続します（アプリの再起動が必要）"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "開始するオプションを選択してください。"
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "無料・プライベート"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "モデルをダウンロードして、すべて自分のマシン上で実行します。APIキーもアカウントも不要です。"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "ローカルモデルを使用"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "登録すると、7日間使える6,000万無料トークンを受け取れます。"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "再試行"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "自動セットアップで複数のAIモデルにアクセスできます。登録すると10ドル分のクレジットを受け取れます。"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "セットアップ中に予期しないエラーが発生しました。"
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "スマートフォンで @BotFather を開き、/newbot を送信して、指示に従ってボットに名前を付けます。BotFather から API トークンが届くので、下に貼り付けてください。"
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "閉じる"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} 後に期限切れ"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "ペアリングコードの生成に失敗しました"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "削除に失敗しました"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "開始に失敗しました"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "停止に失敗しました"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "ユーザーのペアリング解除に失敗しました"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "読み込み中..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "デバイスをペアリング"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "ペアリング済みユーザー"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "ペアリングコード"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "ボットトークンをここに貼り付け"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "削除"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "実行中"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "ペアリングするには、このコードを {gatewayType} ボットに送信してください。"
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "開始"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "停止"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "停止中"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "閉じる"
@@ -1814,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "ダウンロード中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "注目モデル"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "モデル設定"
@@ -1885,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "おすすめのみ表示"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "戻る"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "お使いのマシンに最適"
@@ -2012,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "ピクチャ・イン・ピクチャで再生中"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "キャンセル"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "開く"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "次を開きます: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message}のメッセージを受信しました。"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType}メッセージ"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message}のメッセージを受信しました。{messageType}メッセージはまだサポートされていません。詳細はコンソールを確認してください。"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# 件見つかりました} other{# 件見つかりました}}"
   },
@@ -2116,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "待機中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（入力の{percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "キャッシュ読み取り"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "キャッシュ書き込み"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "圧縮"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "コスト"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（推定）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "最初のトークン"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "入力"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "出力"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（報告値）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "合計"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "合計時間"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "音声入力に使用するマイクを選択"
@@ -2858,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "テンプレートまたは手動設定から"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "「{query}」に一致するプロバイダーはありません"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "プロバイダーを検索..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName}のロゴ"
   },
@@ -2873,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "OpenAI、Anthropic、Googleなどに接続"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "ローカルモデルまたは無料クレジット付きのプロバイダーを使用"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "モデルをダウンロードして、すべて自分のマシン上で実行します。APIキーもアカウントも不要です。"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "プロバイダーを選択"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "無料/ローカルプロバイダーを使用"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "ローカルモデルを使用"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "プロバイダー設定"
@@ -3299,6 +3263,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "既に実行中のため、スケジュールを実行または変更できません。"
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "セッション: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "作成: {date}"
   },
@@ -3319,9 +3286,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "エラー: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "セッションの読み込みに失敗しました"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3365,9 +3329,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "メッセージ: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "新しいセッション: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "スケジュールIDが指定されていません。スケジュール一覧に戻ってください。"
   },
@@ -3404,6 +3365,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "スケジュールを今すぐ実行"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "実行が完了しました"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "スケジュール詳細"
   },
@@ -3422,9 +3386,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "スケジュールを一時停止しました"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "スケジュールを実行しました"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "スケジュールを再開しました"
   },
@@ -3433,9 +3394,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "セッションID: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "トークン: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "スケジュールを再開"
@@ -3758,57 +3716,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "セッションJSONを表示"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "キャンセル"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "コピー"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "このセッションにはメッセージがありません"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "メッセージが見つかりません"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "セッション詳細の読み込みエラー"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "再試行"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "セッション詳細を読み込み中..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "再開"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "履歴を検索..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "共有"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "このセッションリンクを共有すると、他のユーザーがあなたのgooseチャットを読み取り専用で表示できます。"
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "セッションを共有（ベータ）"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "セッション共有を有効にするには、<b>設定</b> > <b>セッション</b> > <b>セッション共有</b> に移動してください。"
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "共有中..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "リンクをクリップボードにコピーできませんでした"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "セッションを起動できませんでした: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "セッションの共有に失敗しました: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"
   },
@@ -3817,57 +3724,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "セッション共有は既に設定済みです"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "ベースURL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "接続に失敗しました。"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "接続に成功しました！"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "接続がタイムアウトしました。サーバーが遅いか、到達できない可能性があります。"
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "セッション共有は設定済みですが、共有は完全に任意です。明示的に共有ボタンをクリックした場合にのみ、セッションが共有されます。"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "セッション共有を有効にすると、セッションを他のユーザーと共有できます。"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "セッション共有を有効化"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "URL形式が無効です。有効なURL（例: https://example.com/api）を入力してください。"
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "サーバーエラー: HTTP {status}。サーバーが正しく設定されていない可能性があります。"
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "接続をテスト"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "テスト中..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "接続をテスト中..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "セッション共有"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "不明なエラーが発生しました。"
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "サーバーに到達できません。URLとネットワーク接続を確認してください。"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "このセッションにはメッセージがありません"
@@ -4019,12 +3875,6 @@
   "sessions.toast.updated": {
     "defaultMessage": "セッションの説明を更新しました"
   },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "セッションの詳細を読み込めませんでした。後でもう一度お試しください。"
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "読み込み中..."
-  },
   "settings.appearance.description": {
     "defaultMessage": "システム上でのgooseの表示を設定します"
   },
@@ -4064,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "英語"
   },
+  "settings.language.french": {
+    "defaultMessage": "フランス語"
+  },
+  "settings.language.german": {
+    "defaultMessage": "ドイツ語"
+  },
   "settings.language.hindi": {
     "defaultMessage": "ヒンディー語"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "インドネシア語"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "イタリア語"
   },
   "settings.language.japanese": {
     "defaultMessage": "日本語"
   },
   "settings.language.korean": {
     "defaultMessage": "韓国語"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "マレー語"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "ポルトガル語"
   },
   "settings.language.russian": {
     "defaultMessage": "ロシア語"
@@ -4088,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "トルコ語"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "ベトナム語"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "中国語（簡体字）"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中国語（繁体字）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "メニューバーにgooseを表示します"
@@ -4178,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "チャット"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部バックエンド"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "キーボード"
   },
@@ -4190,17 +4067,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "プロンプト"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "セッション"
-  },
   "settingsView.title": {
     "defaultMessage": "設定"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "セッションの詳細を読み込み中..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "共有セッション"
   },
   "sheet.close": {
     "defaultMessage": "閉じる"
@@ -4571,6 +4439,9 @@
   "toolApprovalButtons.deny": {
     "defaultMessage": "拒否"
   },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
+  },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "ツールのステータス: {status}"
   },
@@ -4585,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "ログ"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UIは実験的な機能であり、予告なく変更される場合があります。"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "出力"
@@ -4606,96 +4474,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Gooseが{toolName}を実行しようとしています。許可しますか？"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "このQRコードをiPhoneのカメラでスキャンして、App Storeからgooseモバイルアプリをインストールしてください"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "閉じる"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "接続の詳細"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOSアプリをダウンロード"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "トンネルステータスの読み込みに失敗しました"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "トンネルの開始に失敗しました"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "トンネルの停止に失敗しました"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "iOSアプリを入手"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "モバイルアプリ"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "モバイルアプリ接続"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "App Storeで開く"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "または"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "安全なトンネリングを使用して、モバイルデバイスからgooseへリモートアクセスできるようにします。"
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "プレビュー機能:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "このQRコードをgooseモバイルアプリでスキャンしてください。このコードは個人アクセス用です。他人と共有しないでください。"
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "再試行"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QRコードをスキャン"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "シークレットキー"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QRコードを表示"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "トンネルを開始"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "開始中..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "トンネルは無効です"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "トンネルでエラーが発生しました"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "トンネルは実行されていません"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "トンネルは実行中です"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "トンネルを開始中..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "トンネルを停止"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "トンネルステータス"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "トンネルURL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"

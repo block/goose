@@ -5,14 +5,14 @@ use crate::agents::platform_extensions::developer::edit::{
 };
 use crate::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
 use crate::agents::platform_extensions::developer::DeveloperClient;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     CreateTerminalRequest, Diff, KillTerminalRequest, ReadTextFileRequest, ReleaseTerminalRequest,
     SessionId, SessionNotification, SessionUpdate, Terminal, TerminalOutputRequest,
     ToolCallContent, ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
     WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use agent_client_protocol::{Client, ConnectionTo};
-use agent_client_protocol_schema::TerminalId;
+use agent_client_protocol_schema::v1::TerminalId;
 use async_trait::async_trait;
 use fs_err as fs;
 use rmcp::model::{CallToolResult, Content as RmcpContent, Tool, ToolAnnotations};
@@ -143,7 +143,7 @@ impl AcpTools {
             Ok(working_dir) => working_dir,
             Err(result) => return Ok(result),
         };
-        let path = resolve_path(&params.path, working_dir);
+        let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()
@@ -172,7 +172,7 @@ impl AcpTools {
             Ok(working_dir) => working_dir,
             Err(result) => return Ok(result),
         };
-        let path = resolve_path(&params.path, working_dir);
+        let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()
@@ -213,7 +213,7 @@ impl AcpTools {
             Ok(working_dir) => working_dir,
             Err(result) => return Ok(result),
         };
-        let path = resolve_path(&params.path, working_dir);
+        let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new()
@@ -331,7 +331,7 @@ impl AcpTools {
         &self,
         terminal_id: &TerminalId,
         timeout_secs: Option<u64>,
-    ) -> Result<agent_client_protocol::schema::TerminalOutputResponse, McpError> {
+    ) -> Result<agent_client_protocol::schema::v1::TerminalOutputResponse, McpError> {
         let wait_fut = self
             .cx
             .send_request(WaitForTerminalExitRequest::new(

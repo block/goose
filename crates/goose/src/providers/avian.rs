@@ -3,7 +3,6 @@ use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use anyhow::Result;
 use futures::future::BoxFuture;
-use goose_providers::model::ModelConfig;
 
 const AVIAN_PROVIDER_NAME: &str = "avian";
 pub const AVIAN_API_HOST: &str = "https://api.avian.io/v1";
@@ -39,7 +38,6 @@ impl ProviderDef for AvianProvider {
     type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
@@ -51,12 +49,12 @@ impl ProviderDef for AvianProvider {
                 .unwrap_or_else(|_| AVIAN_API_HOST.to_string());
 
             let api_client =
-                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?;
+                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?
+                    .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(OpenAiCompatibleProvider::new(
                 AVIAN_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             ))
         })

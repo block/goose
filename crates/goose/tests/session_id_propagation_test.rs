@@ -2,7 +2,7 @@ use goose::conversation::message::Message;
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
-use goose::session_context::SESSION_ID_HEADER;
+use goose::session_context::{session_id_request_builder, SESSION_ID_HEADER};
 use goose_providers::model::ModelConfig;
 use serde_json::json;
 use std::sync::Arc;
@@ -41,9 +41,9 @@ fn create_test_provider(mock_server_url: &str) -> Box<dyn Provider> {
         AuthMethod::BearerToken("test-key".to_string()),
         None,
     )
-    .unwrap();
-    let model = ModelConfig::new_or_fail("gpt-5-nano");
-    Box::new(OpenAiProvider::new(api_client, model))
+    .unwrap()
+    .with_request_builder(session_id_request_builder());
+    Box::new(OpenAiProvider::new(api_client))
 }
 
 async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
@@ -144,17 +144,18 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
 
 async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
-    let model_config = provider.get_model_config();
-    let _ = provider
-        .complete(
+    let model_config = ModelConfig::new("gpt-5-nano");
+    let _ = goose::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(
             &model_config,
-            session_id,
             "You are a helpful assistant.",
             &[message],
             &[],
-        )
-        .await
-        .unwrap();
+        ),
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]

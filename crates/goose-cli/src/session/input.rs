@@ -1,4 +1,7 @@
 use super::completion::GooseCompleter;
+use super::paste::{
+    read_paste_aware_input, PasteAwareEnterHandler, PasteCaptureHandler, PasteState,
+};
 use super::{CompletionCache, HintStatus};
 use anyhow::Result;
 use goose::config::{Config, GooseMode};
@@ -83,12 +86,18 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
     }
 }
 
+/// The Ctrl-modified character that inserts a newline instead of submitting the
+/// prompt. Configurable via `GOOSE_CLI_NEWLINE_KEY`, defaulting to `j` (Ctrl+J).
+/// Characters already bound to other actions are rejected: `m` (Ctrl+M is Enter)
+/// and `c` (Ctrl+C interrupts), both of which would otherwise shadow the paste
+/// and interrupt handlers.
 pub fn get_newline_key() -> char {
     Config::global()
         .get_param::<String>("GOOSE_CLI_NEWLINE_KEY")
         .ok()
         .and_then(|s| s.chars().next())
         .map(|c| c.to_ascii_lowercase())
+        .filter(|c| !matches!(c, 'm' | 'c'))
         .unwrap_or('j')
 }
 
@@ -136,10 +145,32 @@ pub fn get_input(
         .map(|h| h.completion_cache.clone())
         .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
 
-    let newline_key = get_newline_key();
+    let paste_state = Arc::new(std::sync::RwLock::new(PasteState::default()));
+
+    editor.bind_sequence(
+        rustyline::Event::Any,
+        rustyline::EventHandler::Conditional(Box::new(PasteCaptureHandler::new(
+            paste_state.clone(),
+        ))),
+    );
+
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Enter, rustyline::Modifiers::NONE),
+        rustyline::EventHandler::Conditional(Box::new(PasteAwareEnterHandler::new(
+            paste_state.clone(),
+        ))),
+    );
+
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Char('m'), rustyline::Modifiers::CTRL),
+        rustyline::EventHandler::Conditional(Box::new(PasteAwareEnterHandler::new(
+            paste_state.clone(),
+        ))),
+    );
+
     editor.bind_sequence(
         rustyline::KeyEvent(
-            rustyline::KeyCode::Char(newline_key),
+            rustyline::KeyCode::Char(get_newline_key()),
             rustyline::Modifiers::CTRL,
         ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
@@ -150,7 +181,7 @@ pub fn get_input(
         rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
-    let input = match editor.readline("> ") {
+    let input = match read_paste_aware_input(editor, paste_state) {
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
@@ -401,10 +432,17 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     Some(InputResult::Plan(options))
 }
 
-fn print_help() {
-    let newline_key = get_newline_key().to_ascii_uppercase();
+fn help_text() -> String {
     let modes = GooseMode::VARIANTS.join(", ");
-    println!(
+    let newline_key = get_newline_key().to_ascii_uppercase();
+    let additional_builtin_help = additional_builtin_help();
+    let additional_builtin_help = if additional_builtin_help.is_empty() {
+        String::new()
+    } else {
+        format!("{additional_builtin_help}\n")
+    };
+
+    format!(
         "Available commands:
 /exit or /quit - Exit the session
 /t - Toggle Light/Dark/Ansi theme
@@ -425,7 +463,7 @@ fn print_help() {
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
 /compact - Compact the current conversation to reduce context length while preserving key information.
-/status - Show session status: model, provider, mode, and token usage.
+{additional_builtin_help}/status - Show session status: model, provider, mode, and token usage.
 /edit [text] - Open your prompt editor to compose a message. Optionally pre-fill with text.
                Uses $GOOSE_PROMPT_EDITOR, $VISUAL, or $EDITOR (in that order).
 /skills - List available skills or enable skills by name (usage: /skills [<name>...])
@@ -433,10 +471,27 @@ fn print_help() {
 /clear - Clears the current chat history
 
 Navigation:
-Ctrl+C - Clear current line if text is entered, otherwise exit the session
+Enter - Send message
 Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
+Ctrl+C - Clear current line if text is entered, otherwise exit the session
 Up/Down arrows - Navigate through command history"
-    );
+    )
+}
+
+fn additional_builtin_help() -> String {
+    const DOCUMENTED_BUILTINS: &[&str] =
+        &["prompts", "prompt", "compact", "clear", "skills", "status"];
+
+    goose::agents::execute_commands::list_commands()
+        .iter()
+        .filter(|command| !DOCUMENTED_BUILTINS.contains(&command.name))
+        .map(|command| format!("/{} - {}", command.name, command.description))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn print_help() {
+    println!("{}", help_text());
 }
 
 /// Extract recent messages for editor context
@@ -533,6 +588,19 @@ mod tests {
 
         // Test unknown commands
         assert!(handle_slash_command("/unknown").is_none());
+    }
+
+    #[test]
+    fn help_lists_builtin_agent_commands() {
+        let help = help_text();
+
+        for command in goose::agents::execute_commands::list_commands() {
+            assert!(
+                help.contains(&format!("/{}", command.name)),
+                "help output should list /{}",
+                command.name
+            );
+        }
     }
 
     #[test]

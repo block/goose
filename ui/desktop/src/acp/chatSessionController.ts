@@ -1,11 +1,11 @@
 import { v7 as uuidv7 } from 'uuid';
-import { updateSessionUserRecipeValues, type Message, type Session } from '../api';
 import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
+import type { Session } from '../types/session';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { createUserMessage } from '../types/message';
+import { createUserMessage, getPendingToolConfirmationIds, type Message } from '../types/message';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -44,6 +44,7 @@ export interface AcpChatSessionController {
     recipe?: AcpRecipeOptions
   ): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
+  restoreSession(sessionId: string): Promise<void>;
   submitMessage(
     sessionId: string,
     userMessage: Message,
@@ -56,11 +57,6 @@ export interface AcpChatSessionController {
     newContent: string,
     editType: 'fork' | 'edit' | undefined,
     options: AcpSubmitMessageOptions
-  ): Promise<void>;
-  setRecipeUserParams(
-    sessionId: string,
-    userRecipeValues: Record<string, string>,
-    options: AcpSnapshotOptions
   ): Promise<void>;
 }
 
@@ -79,6 +75,30 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
     ],
     metadata: { userVisible: true, agentVisible: false },
   };
+}
+
+function assertNoPendingPromptCancellation(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.pendingCancelPromptAttemptId) {
+    throw new Error('Cannot submit while prompt cancellation is pending');
+  }
+}
+
+async function forkSessionWithEditedMessage(
+  sessionId: string,
+  message: Message,
+  editedMessage: string
+): Promise<void> {
+  const targetSessionId = await acpForkSession(sessionId, message.created);
+
+  const event = new CustomEvent(AppEvents.SESSION_FORKED, {
+    detail: {
+      newSessionId: targetSessionId,
+      shouldStartAgent: true,
+      editedMessage,
+    },
+  });
+  window.dispatchEvent(event);
 }
 
 async function createSession(
@@ -108,6 +128,17 @@ async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {
     return;
   }
 
+  await loadSessionFromServer(sessionId, options);
+}
+
+async function restoreSession(sessionId: string): Promise<void> {
+  await loadSessionFromServer(sessionId);
+}
+
+async function loadSessionFromServer(
+  sessionId: string,
+  options: AcpLoadSessionOptions = {}
+): Promise<void> {
   if (!isAcpSessionLoadInFlight(sessionId)) {
     acpChatSessionActions.startSessionLoad(sessionId);
   }
@@ -122,6 +153,7 @@ async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {
     acpChatSessionActions.finishSessionLoad(sessionId, sessionInfoToSession(sessionInfo, meta));
     options.onSessionLoaded?.();
   } catch (error) {
+    console.error('Failed to load ACP session:', error);
     acpChatSessionActions.failSessionLoad(sessionId, errorMessage(error));
   }
 }
@@ -131,7 +163,10 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
-  if (acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId) {
+  assertNoPendingPromptCancellation(sessionId);
+
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
     return;
   }
 
@@ -140,10 +175,17 @@ async function submitMessage(
 
   try {
     await acpPromptSession(sessionId, userMessage);
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish();
     }
   } catch (error) {
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
+
     const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
     if (creditsExhaustedError) {
       if (!acpChatSessionActions.isCurrentPromptAttempt(sessionId, promptAttemptId)) {
@@ -175,7 +217,7 @@ function stop(sessionId: string): void {
   const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
-    acpChatSessionActions.clearActivePromptAttempt(sessionId);
+    acpChatSessionActions.startPromptCancellation(sessionId, storedPromptAttemptId);
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
     acpCancelPrompt(sessionId).catch((error) => {
@@ -194,35 +236,70 @@ async function updateMessage(
   editType: 'fork' | 'edit' | undefined,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
+  assertNoPendingPromptCancellation(sessionId);
+
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
+  const storedSnapshot = acpChatSessionStore.getSnapshot(sessionId);
+  const activePromptAttemptId = storedSnapshot?.activePromptAttemptId;
+  const currentMessages = currentSnapshot?.messages ?? [];
+  const message = currentMessages.find((m) => m.id === messageId);
+
+  if (!message) {
+    throw new Error(`Message with id ${messageId} not found in current messages`);
+  }
+
+  if (resolvedEditType === 'fork') {
+    await forkSessionWithEditedMessage(sessionId, message, newContent);
+    return;
+  }
+
+  const editSnapshot = currentSnapshot ?? storedSnapshot;
+  const isPendingToolPermission =
+    editSnapshot?.chatState === ChatState.WaitingForUserInput &&
+    getPendingToolConfirmationIds(editSnapshot?.messages ?? []).size > 0;
+  const isIdle = editSnapshot?.chatState === ChatState.Idle;
+  const pendingToolPermissionPromptAttemptId = isPendingToolPermission
+    ? activePromptAttemptId
+    : undefined;
+  const canEditInPlace = isIdle || pendingToolPermissionPromptAttemptId != null;
+
+  if (!canEditInPlace) {
+    return;
+  }
+
+  if (pendingToolPermissionPromptAttemptId != null) {
+    const cancellation = acpChatSessionActions.startPromptCancellation(
+      sessionId,
+      pendingToolPermissionPromptAttemptId
+    );
+    if (!cancellation) {
+      throw new Error('Cannot update message while prompt is active');
+    }
+
+    const promptCancellationSettled = acpChatSessionActions.waitForPromptCancellation(
+      sessionId,
+      pendingToolPermissionPromptAttemptId
+    );
+
+    try {
+      await acpCancelPrompt(sessionId);
+    } catch {
+      acpChatSessionActions.restorePromptCancellation(
+        sessionId,
+        pendingToolPermissionPromptAttemptId
+      );
+      throw new Error('Cannot update message because the active prompt could not be cancelled');
+    }
+
+    cancelAcpPermissionRequestsForSession(sessionId);
+    cancelAcpElicitationRequestsForSession(sessionId);
+    await promptCancellationSettled;
+  }
 
   acpChatSessionActions.setChatState(sessionId, ChatState.Thinking);
 
   try {
-    const currentMessages = currentSnapshot?.messages ?? [];
-    const message = currentMessages.find((m) => m.id === messageId);
-
-    if (!message) {
-      throw new Error(`Message with id ${messageId} not found in current messages`);
-    }
-
-    if (resolvedEditType === 'fork') {
-      const targetSessionId = await acpForkSession(sessionId, message.created);
-
-      acpChatSessionActions.setChatState(sessionId, ChatState.Idle);
-      const event = new CustomEvent(AppEvents.SESSION_FORKED, {
-        detail: {
-          newSessionId: targetSessionId,
-          shouldStartAgent: true,
-          editedMessage: newContent,
-        },
-      });
-      window.dispatchEvent(event);
-      window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
-      return;
-    }
-
     await acpTruncateSessionConversation(sessionId, message.created);
 
     const truncatedMessages = currentMessages.filter((m) => m.created < message.created);
@@ -244,42 +321,11 @@ async function updateMessage(
   }
 }
 
-async function setRecipeUserParams(
-  sessionId: string,
-  userRecipeValues: Record<string, string>,
-  options: AcpSnapshotOptions
-): Promise<void> {
-  const currentSession =
-    options.getCurrentSnapshot()?.session ?? acpChatSessionStore.getSnapshot(sessionId)?.session;
-
-  if (currentSession) {
-    await updateSessionUserRecipeValues({
-      path: {
-        session_id: sessionId,
-      },
-      body: {
-        userRecipeValues,
-      },
-      throwOnError: true,
-    });
-    const updatedSession = {
-      ...currentSession,
-      user_recipe_values: userRecipeValues,
-    };
-    acpChatSessionActions.setSessionMetadata(sessionId, updatedSession);
-  } else {
-    acpChatSessionActions.setSessionLoadError(
-      sessionId,
-      "can't call setRecipeParams without a session"
-    );
-  }
-}
-
 export const acpChatSessionController: AcpChatSessionController = {
   createSession,
   loadSession,
+  restoreSession,
   submitMessage,
   stop,
   updateMessage,
-  setRecipeUserParams,
 };

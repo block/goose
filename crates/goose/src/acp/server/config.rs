@@ -1,6 +1,22 @@
 use super::*;
 use goose_providers::thinking::ThinkingEffort;
 
+const SECRET_MASK_SHOW_LEN: usize = 8;
+
+fn mask_secret(secret: serde_json::Value) -> String {
+    let as_string = match secret {
+        serde_json::Value::String(s) => s,
+        _ => serde_json::to_string(&secret).unwrap_or_else(|_| secret.to_string()),
+    };
+
+    let chars: Vec<_> = as_string.chars().collect();
+    let show_len = std::cmp::min(chars.len() / 2, SECRET_MASK_SHOW_LEN);
+    let visible: String = chars.iter().take(show_len).collect();
+    let mask = "*".repeat(chars.len() - show_len);
+
+    format!("{}{}", visible, mask)
+}
+
 impl GooseAcpAgent {
     pub(super) async fn on_preferences_read(
         &self,
@@ -58,6 +74,101 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
+    pub(super) async fn on_config_read(
+        &self,
+        req: ConfigReadRequest,
+    ) -> Result<ConfigReadResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+
+        if req.key == "GOOSE_PROVIDER" || req.key == "active_provider" {
+            let value = config
+                .get_goose_provider()
+                .map(serde_json::Value::String)
+                .unwrap_or(serde_json::Value::Null);
+            return Ok(ConfigReadResponse { value });
+        }
+        if req.key == "GOOSE_MODEL" {
+            let value = config
+                .get_goose_model()
+                .map(serde_json::Value::String)
+                .unwrap_or(serde_json::Value::Null);
+            return Ok(ConfigReadResponse { value });
+        }
+
+        let value = match config.get(&req.key, req.is_secret) {
+            Ok(value) if req.is_secret => serde_json::Value::String(mask_secret(value)),
+            Ok(value) => value,
+            Err(crate::config::ConfigError::NotFound(_)) => serde_json::Value::Null,
+            Err(e) => {
+                return Err(agent_client_protocol::Error::internal_error().data(e.to_string()))
+            }
+        };
+        Ok(ConfigReadResponse { value })
+    }
+
+    pub(super) async fn on_config_upsert(
+        &self,
+        req: ConfigUpsertRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+
+        if req.key == "GOOSE_PROVIDER" {
+            if let Some(name) = req.value.as_str() {
+                let model = crate::config::get_provider_entry(config, name)
+                    .map(|e| e.model)
+                    .or_else(|| config.get_goose_model().ok())
+                    .unwrap_or_default();
+                crate::config::set_active_provider(config, name, &model).internal_err()?;
+                return Ok(EmptyResponse {});
+            }
+        }
+        if req.key == "GOOSE_MODEL" {
+            if let Some(model) = req.value.as_str() {
+                if let Ok(provider) = config.get_goose_provider() {
+                    crate::config::set_active_provider(config, &provider, model).internal_err()?;
+                    return Ok(EmptyResponse {});
+                }
+            }
+        }
+
+        config
+            .set(&req.key, &req.value, req.is_secret)
+            .internal_err()?;
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_config_remove(
+        &self,
+        req: ConfigRemoveRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+
+        if req.is_secret {
+            config.delete_secret(&req.key).internal_err()?;
+        } else if req.key == "GOOSE_PROVIDER" || req.key == "active_provider" {
+            config.delete("active_provider").internal_err()?;
+            config.delete("GOOSE_PROVIDER").internal_err()?;
+        } else if req.key == "GOOSE_MODEL" {
+            if let Ok(provider) = config.get_goose_provider() {
+                crate::config::set_active_provider(config, &provider, "").internal_err()?;
+            }
+            config.delete("GOOSE_MODEL").internal_err()?;
+        } else {
+            config.delete(&req.key).internal_err()?;
+        }
+
+        Ok(EmptyResponse {})
+    }
+
+    pub(super) async fn on_config_read_all(
+        &self,
+        _req: ConfigReadAllRequest,
+    ) -> Result<ConfigReadAllResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+        let values = config.all_values().internal_err()?;
+        Ok(ConfigReadAllResponse { config: values })
+    }
+
     pub(super) async fn on_defaults_read(
         &self,
         _req: DefaultsReadRequest,
@@ -105,7 +216,8 @@ impl GooseAcpAgent {
 
         if let Some(model_id) = model_id.as_deref() {
             let model_exists = entry.default_model == model_id
-                || entry.models.iter().any(|model| model.id == model_id);
+                || entry.models.iter().any(|model| model.id == model_id)
+                || (provider_id == "local" && local_inference_model_exists(model_id)?);
             if !model_exists {
                 return Err(agent_client_protocol::Error::invalid_params().data(format!(
                     "Model '{model_id}' is not available for provider '{provider_id}'"
@@ -126,6 +238,34 @@ impl GooseAcpAgent {
             provider_id: Some(provider_id),
             model_id,
         })
+    }
+
+    pub(super) async fn on_defaults_clear(
+        &self,
+        _req: DefaultsClearRequest,
+    ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+        crate::config::clear_active_provider(config)
+            .internal_err_ctx("Failed to clear default provider")?;
+
+        Ok(DefaultsReadResponse {
+            provider_id: None,
+            model_id: None,
+        })
+    }
+}
+
+fn local_inference_model_exists(model_id: &str) -> Result<bool, agent_client_protocol::Error> {
+    #[cfg(feature = "local-inference")]
+    {
+        crate::providers::local_inference::management::model_exists(model_id)
+            .internal_err_ctx("Failed to read local inference models")
+    }
+
+    #[cfg(not(feature = "local-inference"))]
+    {
+        let _ = model_id;
+        Ok(false)
     }
 }
 

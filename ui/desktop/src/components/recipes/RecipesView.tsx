@@ -991,8 +991,8 @@ export default function RecipesView() {
                         id: scheduleRecipeManifest.id,
                         source: '',
                         cron: scheduleRecipeManifest.schedule_cron,
-                        last_run: null,
-                        currently_running: false,
+                        lastRun: null,
+                        currentlyRunning: false,
                         paused: false,
                       }
                     : null

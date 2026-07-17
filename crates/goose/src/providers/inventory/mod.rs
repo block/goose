@@ -617,9 +617,11 @@ impl ProviderInventoryService {
                             .await
                         {
                             Ok(()) => {
-                                match AssertUnwindSafe(provider.fetch_recommended_models())
-                                    .catch_unwind()
-                                    .await
+                                match AssertUnwindSafe(provider.fetch_recommended_models(
+                                    crate::model_config::global_toolshim(),
+                                ))
+                                .catch_unwind()
+                                .await
                                 {
                                     Ok(Ok(models)) => Ok(models),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
@@ -1011,6 +1013,20 @@ fn enrich_model_ids_with_canonical(
     provider_family: &str,
     model_ids: &[String],
 ) -> Vec<InventoryModel> {
+    if provider_family == "litellm" {
+        return model_ids
+            .iter()
+            .map(|id| InventoryModel {
+                id: id.clone(),
+                name: id.clone(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            })
+            .collect();
+    }
+
     let mut models: Vec<InventoryModel> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
 

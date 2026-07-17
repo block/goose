@@ -29,7 +29,6 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     api_client: ApiClient,
     base_path: String,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -38,7 +37,6 @@ pub struct LiteLLMProvider {
 
 impl LiteLLMProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -71,7 +69,8 @@ impl LiteLLMProvider {
             auth,
             std::time::Duration::from_secs(timeout_secs),
             tls_config,
-        )?;
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder());
 
         if let Some(headers) = custom_headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -86,7 +85,6 @@ impl LiteLLMProvider {
         Ok(Self {
             api_client,
             base_path,
-            model,
             name: LITELLM_PROVIDER_NAME.to_string(),
             cached_model_info: tokio::sync::OnceCell::new(),
         })
@@ -100,11 +98,7 @@ impl LiteLLMProvider {
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let response = self
-            .api_client
-            .request(None, "model/info")
-            .response_get()
-            .await?;
+        let response = self.api_client.request("model/info").response_get().await?;
 
         if !response.status().is_success() {
             return Err(ProviderError::RequestFailed(format!(
@@ -142,16 +136,22 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(session_id, &self.base_path, payload)
+            .response_post(&self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
+    }
+
+    async fn supports_cache_control(&self, model: &ModelConfig) -> bool {
+        if let Ok(models) = self.get_or_fetch_models().await {
+            if let Some(model_info) = models.iter().find(|m| m.name == model.model_name) {
+                return model_info.supports_cache_control.unwrap_or(false);
+            }
+        }
+
+        model.model_name.to_lowercase().contains("claude")
     }
 }
 
@@ -191,11 +191,10 @@ impl ProviderDef for LiteLLMProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -205,38 +204,34 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        let mut config = self.model.clone();
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(limit) = model_config.context_limit {
+            return Ok(limit);
+        }
+
         // The cache is populated lazily by the first stream() call (via
         // supports_cache_control). On turn 1 this will be None and we fall
         // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
         // too small to trigger compaction. From turn 2 onward the real limit
         // from /model/info is used.
-        if config.context_limit.is_none() {
-            if let Some(models) = self.cached_model_info.get() {
-                if let Some(info) = models.iter().find(|m| m.name == config.model_name) {
-                    if info.context_limit > 0 {
-                        config.context_limit = Some(info.context_limit);
-                    }
+        if let Some(models) = self.cached_model_info.get() {
+            if let Some(info) = models.iter().find(|m| m.name == model_config.model_name) {
+                if info.context_limit > 0 {
+                    return Ok(info.context_limit);
                 }
             }
         }
-        config
+
+        Ok(model_config.context_limit())
     }
 
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() {
-            None
-        } else {
-            Some(session_id)
-        };
         let mut payload = goose_providers::formats::openai::create_request(
             model_config,
             system,
@@ -246,14 +241,14 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control().await {
+        if self.supports_cache_control(model_config).await {
             payload = update_request_for_cache_control(&payload);
         }
 
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
+                self.post(&payload_clone).await
             })
             .await?;
 
@@ -269,14 +264,8 @@ impl Provider for LiteLLMProvider {
         ))
     }
 
-    async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.get_or_fetch_models().await {
-            if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
-                return model_info.supports_cache_control.unwrap_or(false);
-            }
-        }
-
-        self.model.model_name.to_lowercase().contains("claude")
+    fn skip_canonical_filtering(&self) -> bool {
+        true
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

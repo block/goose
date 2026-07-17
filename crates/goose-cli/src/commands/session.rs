@@ -1,4 +1,4 @@
-use crate::session::message_to_markdown;
+use crate::session::user_projected_message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
@@ -7,7 +7,9 @@ use etcetera::home_dir;
 use goose::config::Config;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
-use goose::session::{generate_diagnostics, Session, SessionManager, SessionType};
+use goose::session::{
+    generate_diagnostics, DiagnosticsLevel, Session, SessionManager, SessionType,
+};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -68,7 +70,8 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
                 &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
-            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
+            let display_text =
+                format!("{} - {} ({})", session_activity_at(s), truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();
@@ -148,6 +151,10 @@ fn write_line_or_broken_pipe_ok<W: Write>(out: &mut W, line: &str) -> Result<boo
     }
 }
 
+fn session_activity_at(session: &Session) -> chrono::DateTime<chrono::Utc> {
+    session.last_message_at.unwrap_or(session.updated_at)
+}
+
 pub async fn handle_session_list(
     format: String,
     ascending: bool,
@@ -168,9 +175,9 @@ pub async fn handle_session_list(
     }
 
     if ascending {
-        sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
+        sessions.sort_by_key(session_activity_at);
     } else {
-        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        sessions.sort_by_key(|b| std::cmp::Reverse(session_activity_at(b)));
     }
 
     if let Some(n) = limit {
@@ -204,7 +211,7 @@ pub async fn handle_session_list(
                     "{} - {} - {} - {}",
                     session.id,
                     session.name,
-                    session.updated_at,
+                    session_activity_at(&session),
                     display_path_with_tilde(&session.working_dir)
                 );
                 if !write_line_or_broken_pipe_ok(&mut out, &output)? {
@@ -242,7 +249,7 @@ pub async fn handle_session_export(
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
+            export_session_to_markdown(conversation.user_visible_messages(), &session.name)
         }
         _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
@@ -322,24 +329,27 @@ pub async fn handle_session_import(input: String, nostr: bool) -> Result<()> {
 
 pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
     println!(
-        "Generating diagnostics bundle for session '{}'...",
+        "Generating diagnostics report for session '{}'...",
         session_id
     );
 
     let session_manager = SessionManager::instance();
-    let diagnostics_data = generate_diagnostics(&session_manager, session_id)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to write to generate diagnostics bundle for session '{}'",
-                session_id
-            )
-        })?;
+    let diagnostics_report =
+        generate_diagnostics(&session_manager, session_id, DiagnosticsLevel::Full)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to generate diagnostics report for session '{}'",
+                    session_id
+                )
+            })?;
+    let diagnostics_data = serde_json::to_vec_pretty(&diagnostics_report)
+        .context("Failed to serialize diagnostics report")?;
 
     let output_file = if let Some(path) = output_path {
         path.clone()
     } else {
-        PathBuf::from(format!("diagnostics_{}.zip", session_id))
+        PathBuf::from(format!("diagnostics_{}.json", session_id))
     };
 
     let mut file = fs::File::create(&output_file).context(format!(
@@ -350,7 +360,7 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
     file.write_all(&diagnostics_data)
         .context("Failed to write diagnostics data")?;
 
-    println!("Diagnostics bundle saved to: {}", output_file.display());
+    println!("Diagnostics report saved to: {}", output_file.display());
 
     Ok(())
 }
@@ -387,7 +397,7 @@ fn export_session_to_markdown(
         // don't create a new User section - we'll attach the responses to the tool calls
         if skip_next_if_tool_response && is_only_tool_response {
             // Export the tool responses without a User heading
-            markdown_output.push_str(&message_to_markdown(message, false));
+            markdown_output.push_str(&user_projected_message_to_markdown(message));
             markdown_output.push_str("\n\n---\n\n");
             skip_next_if_tool_response = false;
             continue;
@@ -406,7 +416,7 @@ fn export_session_to_markdown(
         }
 
         // Add the message content
-        markdown_output.push_str(&message_to_markdown(message, false));
+        markdown_output.push_str(&user_projected_message_to_markdown(message));
         markdown_output.push_str("\n\n---\n\n");
 
         // Check if this message has any tool requests, to handle the next message differently
@@ -475,5 +485,37 @@ pub async fn prompt_interactive_session_selection(
         Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::conversation::message::Message;
+    use goose::conversation::Conversation;
+    use rmcp::model::{Content, Role};
+
+    #[test]
+    fn markdown_export_preserves_user_audience_tool_output() {
+        let user_output = Content::text("user-visible output").with_audience(vec![Role::User]);
+        let assistant_output =
+            Content::text("assistant-only output").with_audience(vec![Role::Assistant]);
+        let conversation = Conversation::new_unvalidated([Message::user().with_tool_response(
+            "tool-1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                user_output,
+                assistant_output,
+                Content::text("shared output"),
+            ])),
+        )]);
+
+        let markdown = export_session_to_markdown(
+            conversation.user_visible_messages(),
+            &"Audience export".to_string(),
+        );
+
+        assert!(markdown.contains("user-visible output"));
+        assert!(markdown.contains("shared output"));
+        assert!(!markdown.contains("assistant-only output"));
     }
 }

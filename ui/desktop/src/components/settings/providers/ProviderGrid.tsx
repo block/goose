@@ -2,12 +2,16 @@ import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
 import CardContainer from './subcomponents/CardContainer';
 import ProviderConfigurationModal from './modal/ProviderConfigurationModal';
+import type { CustomProviderConfigDto } from '@aaif/goose-sdk';
+import type { ProviderDetails, UpdateCustomProviderRequest } from '../../../types/providers';
 import {
-  DeclarativeProviderConfig,
-  ProviderDetails,
-  UpdateCustomProviderRequest,
-} from '../../../api';
-import { Plus } from 'lucide-react';
+  acpCreateCustomProviderFromRequest,
+  acpGetCustomProvider,
+  acpDeleteCustomProvider,
+  acpUpdateCustomProviderFromRequest,
+} from '../../../acp/providers';
+import { Plus, Search } from 'lucide-react';
+import { Input } from '../../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
@@ -39,6 +43,14 @@ const i18n = defineMessages({
   chooseModel: {
     id: 'providerGrid.chooseModel',
     defaultMessage: 'Choose Model',
+  },
+  searchPlaceholder: {
+    id: 'providerGrid.searchPlaceholder',
+    defaultMessage: 'Search providers...',
+  },
+  noMatch: {
+    id: 'providerGrid.noMatch',
+    defaultMessage: 'No providers match "{query}"',
   },
 });
 
@@ -94,6 +106,7 @@ function ProviderCards({
   onModelSelected?: (model?: string) => void;
 }) {
   const intl = useIntl();
+  const [searchQuery, setSearchQuery] = useState('');
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
@@ -102,7 +115,7 @@ function ProviderCards({
   const { getCurrentModelAndProvider } = useModelAndProvider();
   const [editingProvider, setEditingProvider] = useState<{
     id: string;
-    config: DeclarativeProviderConfig;
+    config: CustomProviderConfigDto;
     isEditable: boolean;
     providerType: string;
   } | null>(null);
@@ -120,14 +133,13 @@ function ProviderCards({
   const configureProviderViaModal = useCallback(
     async (provider: ProviderDetails) => {
       if (provider.provider_type === 'Custom') {
-        const { getCustomProvider } = await import('../../../api');
-        const result = await getCustomProvider({ path: { id: provider.name }, throwOnError: true });
+        const result = await acpGetCustomProvider(provider.name);
 
-        if (result.data) {
+        if (result) {
           setEditingProvider({
             id: provider.name,
-            config: result.data.config,
-            isEditable: result.data.is_editable,
+            config: result.provider,
+            isEditable: result.editable,
             providerType: provider.provider_type,
           });
 
@@ -152,12 +164,7 @@ function ProviderCards({
     async (data: UpdateCustomProviderRequest) => {
       if (!editingProvider) return;
 
-      const { updateCustomProvider } = await import('../../../api');
-      await updateCustomProvider({
-        path: { id: editingProvider.id },
-        body: data,
-        throwOnError: true,
-      });
+      await acpUpdateCustomProviderFromRequest(editingProvider.id, data);
       const providerId = editingProvider.id;
       setShowCustomProviderModal(false);
       setEditingProvider(null);
@@ -173,11 +180,7 @@ function ProviderCards({
   const handleDeleteCustomProvider = useCallback(async () => {
     if (!editingProvider) return;
 
-    const { removeCustomProvider } = await import('../../../api');
-    await removeCustomProvider({
-      path: { id: editingProvider.id },
-      throwOnError: true,
-    });
+    await acpDeleteCustomProvider(editingProvider.id);
     setShowCustomProviderModal(false);
     setEditingProvider(null);
     setIsActiveProvider(false);
@@ -227,9 +230,8 @@ function ProviderCards({
 
   const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
-      const { createCustomProvider } = await import('../../../api');
-      const result = await createCustomProvider({ body: data, throwOnError: true });
-      const providerId = result.data?.provider_name;
+      const result = await acpCreateCustomProviderFromRequest(data);
+      const providerId = result.provider_name;
       setShowCustomProviderModal(false);
       if (refreshProviders) {
         await refreshProviders();
@@ -240,6 +242,8 @@ function ProviderCards({
     [refreshProviders]
   );
 
+  const query = searchQuery.trim().toLowerCase();
+
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
@@ -247,7 +251,14 @@ function ProviderCards({
     const sortedProviders = [...providersArray].sort((a, b) =>
       a.metadata.display_name.localeCompare(b.metadata.display_name)
     );
-    const cards = sortedProviders.map((provider) => (
+    const filteredProviders = query
+      ? sortedProviders.filter(
+          (provider) =>
+            provider.metadata.display_name.toLowerCase().includes(query) ||
+            provider.metadata.description.toLowerCase().includes(query)
+        )
+      : sortedProviders;
+    const cards = filteredProviders.map((provider) => (
       <ProviderCard
         key={provider.name}
         provider={provider}
@@ -262,19 +273,30 @@ function ProviderCards({
     );
 
     return cards;
-  }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
+  }, [
+    providers,
+    query,
+    isOnboarding,
+    configureProviderViaModal,
+    handleProviderLaunchWithModelSelection,
+  ]);
+
+  const hasNoMatches =
+    query.length > 0 &&
+    providerCards.length === 1 &&
+    (Array.isArray(providers) ? providers.length : 0) > 0;
 
   const initialData = editingProvider && {
     engine: editingProvider.config.engine,
-    display_name: editingProvider.config.display_name,
-    api_url: editingProvider.config.base_url,
-    base_path: editingProvider.config.base_path ?? undefined,
+    display_name: editingProvider.config.displayName,
+    api_url: editingProvider.config.apiUrl,
+    base_path: editingProvider.config.basePath ?? undefined,
     api_key: '',
-    models: editingProvider.config.models.map((m) => m.name),
-    supports_streaming: editingProvider.config.supports_streaming ?? true,
-    requires_auth: editingProvider.config.requires_auth ?? true,
+    models: editingProvider.config.models ?? [],
+    supports_streaming: editingProvider.config.supportsStreaming ?? true,
+    requires_auth: editingProvider.config.requiresAuth ?? true,
     headers: editingProvider.config.headers ?? undefined,
-    catalog_provider_id: editingProvider.config.catalog_provider_id ?? undefined,
+    catalog_provider_id: editingProvider.config.catalogProviderId ?? undefined,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
@@ -285,7 +307,25 @@ function ProviderCards({
     : intl.formatMessage(i18n.addProviderTitle);
   return (
     <>
-      {providerCards}
+      <div className="mx-auto mb-4 max-w-md px-1">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+          <Input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={intl.formatMessage(i18n.searchPlaceholder)}
+            className="pl-9"
+            data-testid="provider-search-input"
+          />
+        </div>
+      </div>
+      <GridLayout>{providerCards}</GridLayout>
+      {hasNoMatches && (
+        <div className="mt-2 text-center text-sm text-text-secondary">
+          {intl.formatMessage(i18n.noMatch, { query: searchQuery.trim() })}
+        </div>
+      )}
       <Dialog open={showCustomProviderModal} onOpenChange={handleCloseModal}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -338,14 +378,12 @@ export default function ProviderGrid({
   onModelSelected?: (model?: string) => void;
 }) {
   return (
-    <GridLayout>
-      <ProviderCards
-        providers={providers}
-        isOnboarding={isOnboarding}
-        refreshProviders={refreshProviders}
-        setView={setView}
-        onModelSelected={onModelSelected}
-      />
-    </GridLayout>
+    <ProviderCards
+      providers={providers}
+      isOnboarding={isOnboarding}
+      refreshProviders={refreshProviders}
+      setView={setView}
+      onModelSelected={onModelSelected}
+    />
   );
 }

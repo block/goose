@@ -1,15 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { getSession } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';
-import type { Session } from '../api';
-import { acpListRecentSessions, type SessionListItem } from '../acp/sessions';
+import type { Session } from '../types/session';
+import {
+  acpGetSessionListItem,
+  acpListRecentSessions,
+  type SessionListItem,
+} from '../acp/sessions';
+import { groupSessionsByProject } from '../utils/projectSessions';
 
 const MAX_RECENT_SESSIONS = 25;
 
-export function prependUnique(prev: SessionListItem[], session: SessionListItem): SessionListItem[] {
+export function prependUnique(
+  prev: SessionListItem[],
+  session: SessionListItem
+): SessionListItem[] {
   if (prev.some((s) => s.id === session.id)) return prev;
   return [session, ...prev].slice(0, MAX_RECENT_SESSIONS);
 }
@@ -31,6 +38,7 @@ export function sessionToListItem(s: Session): SessionListItem {
     workingDir: s.working_dir,
     updatedAt: s.updated_at,
     messageCount: s.message_count,
+    lastMessageAt: s.last_message_at ?? undefined,
     createdAt: s.created_at,
     archivedAt: s.archived_at ?? undefined,
     projectId: s.project_id ?? undefined,
@@ -48,6 +56,10 @@ export function useNavigationSessions() {
   const chatContext = useChatContext();
 
   const [recentSessions, setRecentSessions] = useState<SessionListItem[]>([]);
+  const recentSessionsByProject = useMemo(
+    () => groupSessionsByProject(recentSessions),
+    [recentSessions]
+  );
   const lastSessionIdRef = useRef<string | null>(null);
 
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
@@ -73,11 +85,13 @@ export function useNavigationSessions() {
     if (!activeSessionId) return;
     if (recentSessions.some((s) => s.id === activeSessionId)) return;
 
-    getSession({ path: { session_id: activeSessionId }, throwOnError: false }).then((response) => {
-      if (!response.data) return;
-      const item = sessionToListItem(response.data as Session);
-      setRecentSessions((prev) => prependUnique(prev, item));
-    });
+    acpGetSessionListItem(activeSessionId)
+      .then((item) => {
+        setRecentSessions((prev) => prependUnique(prev, item));
+      })
+      .catch((error) => {
+        console.error('Failed to fetch active session:', error);
+      });
   }, [activeSessionId, recentSessions]);
 
   useEffect(() => {
@@ -194,6 +208,7 @@ export function useNavigationSessions() {
 
   return {
     recentSessions,
+    recentSessionsByProject,
     activeSessionId,
     fetchSessions,
     handleNavClick,

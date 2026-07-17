@@ -42,7 +42,11 @@ impl ImageTool {
         Self
     }
 
-    pub async fn image_read(&self, params: ImageReadParams, working_dir: &Path) -> CallToolResult {
+    pub async fn image_read_with_cwd(
+        &self,
+        params: ImageReadParams,
+        working_dir: Option<&Path>,
+    ) -> CallToolResult {
         match load_image(&params, working_dir).await {
             Ok(loaded) => {
                 let mut result = CallToolResult::success(vec![
@@ -104,7 +108,10 @@ impl LoadedImage {
     }
 }
 
-async fn load_image(params: &ImageReadParams, working_dir: &Path) -> Result<LoadedImage, String> {
+async fn load_image(
+    params: &ImageReadParams,
+    working_dir: Option<&Path>,
+) -> Result<LoadedImage, String> {
     if params.source.trim().is_empty() {
         return Err("source cannot be empty".to_string());
     }
@@ -154,7 +161,7 @@ async fn load_image(params: &ImageReadParams, working_dir: &Path) -> Result<Load
     })
 }
 
-async fn load_image_bytes(source: &str, working_dir: &Path) -> Result<Vec<u8>, String> {
+async fn load_image_bytes(source: &str, working_dir: Option<&Path>) -> Result<Vec<u8>, String> {
     if let Ok(url) = url::Url::parse(source) {
         match url.scheme() {
             "http" | "https" => load_url_bytes(url).await,

@@ -29,7 +29,7 @@ jobs:
     steps:
       # Use the official stale action from GitHub
       - name: 'Close Stale PRs'
-        uses: actions/stale@997185467fa4f803885201cee163a9f38240193d  # v10.1.1
+        uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629  # v10.4.0
         with:
           # Authentication token with required permissions
           repo-token: ${{ secrets.GITHUB_TOKEN }}

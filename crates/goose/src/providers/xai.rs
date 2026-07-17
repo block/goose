@@ -3,7 +3,6 @@ use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use anyhow::Result;
 use futures::future::BoxFuture;
-use goose_providers::model::ModelConfig;
 
 const XAI_PROVIDER_NAME: &str = "xai";
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
@@ -54,7 +53,6 @@ impl ProviderDef for XaiProvider {
     type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
@@ -66,12 +64,12 @@ impl ProviderDef for XaiProvider {
                 .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
             let api_client =
-                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?;
+                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?
+                    .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(OpenAiCompatibleProvider::new(
                 XAI_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             ))
         })

@@ -2,7 +2,9 @@ use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
     SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
 };
-use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
+use agent_client_protocol::schema::v1::{
+    ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,9 +15,10 @@ const ACP_SESSION_LIST_TYPES: [SessionType; 3] =
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SessionListCursorToken {
-    updated_at: chrono::DateTime<chrono::Utc>,
-    // Goose stores updated_at with second precision in common write paths, so the
-    // cursor needs the full (updated_at, id) sort key to avoid skipping tied rows.
+    #[serde(alias = "updated_at")]
+    sort_at: chrono::DateTime<chrono::Utc>,
+    // Goose stores timestamps with second precision in common write paths, so the
+    // cursor needs the full (sort_at, id) sort key to avoid skipping tied rows.
     session_id: String,
     filter_hash: String,
 }
@@ -146,7 +149,7 @@ fn decode_session_list_cursor(
     }
 
     Ok(Some(SessionListCursor {
-        updated_at: token.updated_at,
+        sort_at: token.sort_at,
         session_id: token.session_id,
     }))
 }
@@ -158,7 +161,7 @@ fn encode_session_list_cursor(
     keyword: Option<&str>,
 ) -> Result<String, agent_client_protocol::Error> {
     let token = SessionListCursorToken {
-        updated_at: cursor.updated_at,
+        sort_at: cursor.sort_at,
         session_id: cursor.session_id.clone(),
         filter_hash: session_list_filter_hash(cwd, session_types, keyword)?,
     };

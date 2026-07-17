@@ -357,10 +357,22 @@ impl ShellTool {
         })
     }
 
+    #[cfg(test)]
     pub(crate) async fn shell(
         &self,
         params: ShellParams,
         working_dir: &std::path::Path,
+        env_overlay: &EnvOverlay,
+        cancellation_token: CancellationToken,
+    ) -> ShellExecution {
+        self.shell_with_cwd(params, Some(working_dir), env_overlay, cancellation_token)
+            .await
+    }
+
+    pub(crate) async fn shell_with_cwd(
+        &self,
+        params: ShellParams,
+        working_dir: Option<&std::path::Path>,
         env_overlay: &EnvOverlay,
         cancellation_token: CancellationToken,
     ) -> ShellExecution {
@@ -725,7 +737,7 @@ fn parse_env_block(bytes: &[u8]) -> HashMap<String, String> {
 async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
-    working_dir: &std::path::Path,
+    working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
     env_overlay: &EnvOverlay,
     output_dir: &std::path::Path,
@@ -866,7 +878,7 @@ fn kill_child_process(child: &mut tokio::process::Child) {
 
 fn build_shell_command(
     command_line: &str,
-    working_dir: &std::path::Path,
+    working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
     env_overlay: &EnvOverlay,
     output_dir: &std::path::Path,
@@ -891,7 +903,9 @@ fn build_shell_command(
                 command.args(["-c", command_line]);
             }
         }
-        command.current_dir(working_dir);
+        if let Some(path) = working_dir {
+            command.current_dir(path);
+        }
         if let Some(path) = login_path {
             command.env("PATH", path);
         }
@@ -914,7 +928,9 @@ fn build_shell_command(
 
         if flatpak {
             let mut command = flatpak_spawn_command();
-            command.arg(format!("--directory={}", working_dir.display()));
+            if let Some(path) = working_dir {
+                command.arg(format!("--directory={}", path.display()));
+            }
             apply_flatpak_env(&mut command, login_path, env_overlay);
             command.arg(&shell);
             command.args(unix_shell_command_args(command_line));
@@ -926,7 +942,9 @@ fn build_shell_command(
             } else {
                 command.args(unix_shell_command_args(command_line));
             }
-            command.current_dir(working_dir);
+            if let Some(path) = working_dir {
+                command.current_dir(path);
+            }
             apply_command_env(&mut command, login_path, env_overlay);
             if let Some(env_capture) = &env_capture {
                 command.env(ENV_CAPTURE_PATH_VAR, env_capture.after_path());

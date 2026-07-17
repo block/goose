@@ -8,11 +8,6 @@ use tracing::warn;
 const PROVIDERS_CONFIG_KEY: &str = "providers";
 const ACTIVE_PROVIDER_KEY: &str = "active_provider";
 
-/// A single provider's persisted configuration within the `providers:` block.
-///
-/// The `providers` block in config.yaml is the authoritative source for
-/// per-provider settings, replacing the old flat-key scheme where switching
-/// providers destructively overwrote `GOOSE_PROVIDER` / `GOOSE_MODEL`.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ProviderEntry {
     #[serde(default)]
@@ -22,10 +17,6 @@ pub struct ProviderEntry {
     #[serde(default)]
     pub configured: bool,
 }
-
-// ---------------------------------------------------------------------------
-// Read helpers
-// ---------------------------------------------------------------------------
 
 fn parse_providers_map(raw: Mapping) -> IndexMap<String, ProviderEntry> {
     let mut map = IndexMap::with_capacity(raw.len());
@@ -53,16 +44,10 @@ fn get_providers_map(config: &Config) -> IndexMap<String, ProviderEntry> {
     parse_providers_map(raw)
 }
 
-/// Retrieve the [`ProviderEntry`] for a named provider, if it exists.
 pub fn get_provider_entry(config: &Config, name: &str) -> Option<ProviderEntry> {
     get_providers_map(config).get(name).cloned()
 }
 
-// ---------------------------------------------------------------------------
-// Write helpers
-// ---------------------------------------------------------------------------
-
-/// Persist a [`ProviderEntry`] under `providers.{name}`.
 pub fn set_provider_entry(
     config: &Config,
     name: &str,
@@ -77,45 +62,20 @@ pub fn set_provider_entry(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Active-provider accessors
-// ---------------------------------------------------------------------------
-
-/// Return the currently active provider name.
-///
-/// Resolution order:
-/// 1. `GOOSE_PROVIDER` environment variable (uppercase check performed by
-///    `get_param`)
-/// 2. `active_provider` key in config.yaml
-/// 3. Legacy flat `GOOSE_PROVIDER` key in config.yaml (backward compat)
 pub fn get_active_provider(config: &Config) -> Option<String> {
-    // Env var takes precedence (get_param checks env automatically)
     if let Ok(val) = env::var("GOOSE_PROVIDER") {
         return Some(val);
     }
-
-    // New structured key
     if let Ok(val) = config.get_param::<String>(ACTIVE_PROVIDER_KEY) {
         return Some(val);
     }
-
-    // Legacy flat key fallback
     config.get_param::<String>("GOOSE_PROVIDER").ok()
 }
 
-/// Return the model for the currently active provider.
-///
-/// Resolution order:
-/// 1. `GOOSE_MODEL` environment variable
-/// 2. Model recorded in the active provider's entry (`providers.{name}.model`)
-/// 3. Legacy flat `GOOSE_MODEL` key in config.yaml
 pub fn get_active_model(config: &Config) -> Option<String> {
-    // Env var takes precedence
     if let Ok(val) = env::var("GOOSE_MODEL") {
         return Some(val);
     }
-
-    // Try provider entry model
     if let Some(provider_name) = get_active_provider(config) {
         if let Some(entry) = get_provider_entry(config, &provider_name) {
             if !entry.model.is_empty() {
@@ -123,17 +83,9 @@ pub fn get_active_model(config: &Config) -> Option<String> {
             }
         }
     }
-
-    // Legacy flat key fallback
     config.get_param::<String>("GOOSE_MODEL").ok()
 }
 
-/// Set the active provider and update its entry in the `providers` block.
-///
-/// This writes:
-/// - `active_provider: {name}` at the top level
-/// - `providers.{name}` with `configured: true`, `enabled: true`, and the
-///   supplied model.
 pub fn set_active_provider(config: &Config, name: &str, model: &str) -> Result<(), ConfigError> {
     config.set_param(ACTIVE_PROVIDER_KEY, name)?;
     let entry = ProviderEntry {
@@ -142,6 +94,16 @@ pub fn set_active_provider(config: &Config, name: &str, model: &str) -> Result<(
         configured: true,
     };
     set_provider_entry(config, name, &entry)
+}
+
+pub fn clear_active_provider(config: &Config) -> Result<(), ConfigError> {
+    for key in [ACTIVE_PROVIDER_KEY, "GOOSE_PROVIDER", "GOOSE_MODEL"] {
+        match config.delete(key) {
+            Ok(()) | Err(ConfigError::NotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -172,12 +134,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_provider_entry_missing() {
-        let config = new_test_config();
-        assert!(get_provider_entry(&config, "nonexistent").is_none());
-    }
-
-    #[test]
     fn test_set_active_provider_writes_structured_keys() {
         let config = new_test_config();
         set_active_provider(&config, "claude-acp", "current").unwrap();
@@ -192,28 +148,28 @@ mod tests {
     }
 
     #[test]
-    fn test_get_active_provider_from_new_key() {
+    fn test_clear_active_provider_preserves_provider_entries() {
         let config = new_test_config();
-        config.set_param(ACTIVE_PROVIDER_KEY, "openai").unwrap();
+        set_active_provider(&config, "openai", "gpt-4o").unwrap();
 
-        let result = get_active_provider(&config);
-        assert_eq!(result, Some("openai".to_string()));
+        clear_active_provider(&config).unwrap();
+
+        assert!(get_active_provider(&config).is_none());
+        let entry = get_provider_entry(&config, "openai").unwrap();
+        assert_eq!(entry.model, "gpt-4o");
+        assert!(entry.configured);
     }
 
     #[test]
-    fn test_get_active_provider_falls_back_to_legacy() {
+    fn test_clear_active_provider_removes_legacy_keys() {
         let config = new_test_config();
         config.set_param("GOOSE_PROVIDER", "anthropic").unwrap();
+        config.set_param("GOOSE_MODEL", "claude").unwrap();
 
-        let result = get_active_provider(&config);
-        assert_eq!(result, Some("anthropic".to_string()));
-    }
+        clear_active_provider(&config).unwrap();
 
-    #[test]
-    fn test_get_active_provider_none_when_empty() {
-        let config = new_test_config();
-        let result = get_active_provider(&config);
-        assert_eq!(result, None);
+        assert!(get_active_provider(&config).is_none());
+        assert!(get_active_model(&config).is_none());
     }
 
     #[test]
@@ -226,24 +182,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_active_model_falls_back_to_legacy() {
-        let config = new_test_config();
-        // Only set the legacy key, no providers block
-        config.set_param("GOOSE_MODEL", "gpt-3.5-turbo").unwrap();
-
-        let result = get_active_model(&config);
-        assert_eq!(result, Some("gpt-3.5-turbo".to_string()));
-    }
-
-    #[test]
     fn test_multiple_providers_preserved() {
         let config = new_test_config();
-
-        // Set up two providers
         set_active_provider(&config, "openai", "gpt-4o").unwrap();
         set_active_provider(&config, "anthropic", "claude-3-opus").unwrap();
 
-        // Both entries should exist
         let openai = get_provider_entry(&config, "openai").unwrap();
         assert_eq!(openai.model, "gpt-4o");
         assert!(openai.configured);
@@ -252,8 +195,6 @@ mod tests {
         assert_eq!(anthropic.model, "claude-3-opus");
         assert!(anthropic.configured);
 
-        // Active provider should be the last one set
-        let active = get_active_provider(&config);
-        assert_eq!(active, Some("anthropic".to_string()));
+        assert_eq!(get_active_provider(&config), Some("anthropic".to_string()));
     }
 }

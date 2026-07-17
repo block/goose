@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
 import type { FixedExtensionEntry } from '../components/ConfigContext';
 
 export type NextChatExtensionDraft = {
