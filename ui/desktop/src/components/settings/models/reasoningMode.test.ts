@@ -14,6 +14,7 @@ describe('GPT-5.6 reasoning mode', () => {
     'gpt-5-6',
     'gpt-5-6-sol-xhigh',
     'openai.gpt-5.6-terra',
+    'openai/gpt-5.6-terra',
     'databricks-gpt-5.6-luna',
     'goose-gpt-5-6-sol',
   ])('supports %s', (model) => {

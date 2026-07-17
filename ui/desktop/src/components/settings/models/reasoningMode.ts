@@ -28,7 +28,7 @@ export function supportsReasoningMode(
     return false;
   }
 
-  const lower = modelName?.toLowerCase();
+  const lower = modelName?.toLowerCase().split('/').pop();
   const normalized = lower?.startsWith('openai.')
     ? lower.slice('openai.'.length)
     : lower?.startsWith('databricks-')

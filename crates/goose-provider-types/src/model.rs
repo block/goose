@@ -245,11 +245,12 @@ impl ModelConfig {
 
     pub fn supports_reasoning_mode(&self) -> bool {
         let normalized = self.model_name.to_ascii_lowercase();
+        let normalized = normalized.rsplit('/').next().unwrap_or(&normalized);
         let normalized = normalized
             .strip_prefix("openai.")
             .or_else(|| normalized.strip_prefix("databricks-"))
             .or_else(|| normalized.strip_prefix("goose-"))
-            .unwrap_or(&normalized);
+            .unwrap_or(normalized);
         normalized == "gpt-5.6"
             || normalized.starts_with("gpt-5.6-")
             || normalized == "gpt-5-6"
@@ -575,6 +576,7 @@ mod tests {
                 "gpt-5-6",
                 "gpt-5-6-sol-xhigh",
                 "openai.gpt-5.6-terra",
+                "openai/gpt-5.6-terra",
                 "databricks-gpt-5.6-luna",
                 "goose-gpt-5-6-sol",
             ] {
