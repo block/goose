@@ -350,7 +350,7 @@ mod tests {
                 &ctx,
                 "shell",
                 Some(object!({
-                    "command": "printf '%s' \"$AGENT_SESSION_ID\""
+                    "command": "printenv AGENT_SESSION_ID"
                 })),
                 CancellationToken::new(),
             )

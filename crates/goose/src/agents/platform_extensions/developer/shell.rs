@@ -912,67 +912,49 @@ mod tests {
     }
 
     #[test]
-    fn session_environment_is_scoped_to_the_shell_command() {
-        let mut command = tokio::process::Command::new("ignored");
+    fn session_environment_is_set_or_removed() {
+        for (session_id, expected) in [
+            (
+                Some("session-123"),
+                Some(Some(std::ffi::OsStr::new("session-123"))),
+            ),
+            (None, Some(None)),
+        ] {
+            let mut command = tokio::process::Command::new("ignored");
+            command.env("AGENT_SESSION_ID", "stale-session");
 
-        apply_session_environment(&mut command, Some("session-123"));
+            apply_session_environment(&mut command, session_id);
 
-        assert_eq!(
-            command.as_std().get_envs().find_map(|(key, value)| {
-                (key == "AGENT_SESSION_ID").then(|| value.unwrap().to_owned())
-            }),
-            Some(std::ffi::OsString::from("session-123"))
-        );
-    }
-
-    #[test]
-    fn session_environment_removes_stale_id_without_context() {
-        let mut command = tokio::process::Command::new("ignored");
-        command.env("AGENT_SESSION_ID", "stale-session");
-
-        apply_session_environment(&mut command, None);
-
-        assert_eq!(
-            command
-                .as_std()
-                .get_envs()
-                .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
-            Some(None)
-        );
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_envs()
+                    .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
+                expected
+            );
+        }
     }
 
     #[cfg(not(windows))]
     #[test]
-    fn flatpak_session_environment_is_forwarded_to_host() {
-        let mut command = tokio::process::Command::new("flatpak-spawn");
+    fn flatpak_session_environment_is_set_or_unset() {
+        for (session_id, expected) in [
+            (Some("session-123"), "--env=AGENT_SESSION_ID=session-123"),
+            (None, "--unset-env=AGENT_SESSION_ID"),
+        ] {
+            let mut command = tokio::process::Command::new("flatpak-spawn");
 
-        apply_flatpak_session_environment(&mut command, Some("session-123"));
+            apply_flatpak_session_environment(&mut command, session_id);
 
-        assert_eq!(
-            command
-                .as_std()
-                .get_args()
-                .map(|arg| arg.to_string_lossy().into_owned())
-                .collect::<Vec<_>>(),
-            vec!["--env=AGENT_SESSION_ID=session-123"]
-        );
-    }
-
-    #[cfg(not(windows))]
-    #[test]
-    fn flatpak_session_environment_removes_stale_id_without_context() {
-        let mut command = tokio::process::Command::new("flatpak-spawn");
-
-        apply_flatpak_session_environment(&mut command, None);
-
-        assert_eq!(
-            command
-                .as_std()
-                .get_args()
-                .map(|arg| arg.to_string_lossy().into_owned())
-                .collect::<Vec<_>>(),
-            vec!["--unset-env=AGENT_SESSION_ID"]
-        );
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_args()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                vec![expected]
+            );
+        }
     }
 
     #[cfg(not(windows))]

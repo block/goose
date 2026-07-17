@@ -453,13 +453,13 @@ mod tests {
 
     #[test]
     fn terminal_request_includes_agent_session_id() {
-        let session_id = SessionId::new("session-123");
+        let session_id = SessionId::new("acp-session");
         let params = ShellParams {
             command: "echo test".to_string(),
             timeout_secs: None,
         };
         let ctx = ToolCallContext::new(
-            "session-123".to_string(),
+            "agent-session".to_string(),
             Some(std::path::PathBuf::from("/tmp/worktree")),
             None,
         );
@@ -468,7 +468,7 @@ mod tests {
 
         assert_eq!(
             request.env,
-            vec![EnvVariable::new("AGENT_SESSION_ID", "session-123")]
+            vec![EnvVariable::new("AGENT_SESSION_ID", "agent-session")]
         );
         assert_eq!(request.cwd, Some(std::path::PathBuf::from("/tmp/worktree")));
     }
