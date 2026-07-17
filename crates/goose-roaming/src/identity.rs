@@ -5,8 +5,8 @@
 //! at the QUIC-TLS handshake that a peer holds the secret for the id it claims.
 //!
 //! The secret key is persisted as hex in a `0600` file inside goose's config
-//! directory. This mirrors the storage approach used by the sibling `mesh-llm`
-//! project.
+//! directory. This mirrors the storage approach used by a sibling production
+//! iroh project.
 
 use std::path::{Path, PathBuf};
 

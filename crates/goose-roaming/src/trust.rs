@@ -1,8 +1,9 @@
 //! Local access-control state: who may connect, what's revoked, and which
 //! single-use invites have already been redeemed.
 //!
-//! This is deliberately local, unsigned admin state (like `mesh-llm`'s
-//! `TrustStore`). It is trusted because it lives on the host under the user's
+//! This is deliberately local, unsigned admin state (like a sibling production
+//! iroh project's trust store). It is trusted because it lives on the host
+//! under the user's
 //! control. Authentication of *who* a peer is comes for free from iroh's
 //! QUIC-TLS handshake; this layer decides *whether they are authorized*.
 

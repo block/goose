@@ -4,8 +4,8 @@
 //! roaming agent (the host's [`EndpointId`] plus relay URLs), together with a
 //! capability scope, validity window, and a signature by the host's node key.
 //!
-//! Design notes (informed by the `mesh-llm` bootstrap token and an independent
-//! security review):
+//! Design notes (informed by a sibling production iroh project's bootstrap
+//! token and an independent security review):
 //!
 //! * The signature covers **canonical bytes**, not a re-serialized JSON blob,
 //!   with a domain-separation prefix so a signature can never be confused with
