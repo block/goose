@@ -22,7 +22,7 @@ import {
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
 import Model, {
-  fetchModelReasoning,
+  fetchModelCapabilities,
   fetchModelsForProviders,
   getProviderMetadata,
 } from '../modelInterface';
@@ -342,6 +342,9 @@ export const SwitchModelModal = ({
     sessionReasoningMode ?? 'standard'
   );
   const [selectedModelReasoning, setSelectedModelReasoning] = useState<boolean | null>(null);
+  const [selectedModelReasoningModeCapability, setSelectedModelReasoningModeCapability] = useState<
+    boolean | null
+  >(null);
 
   const modelReasoning = selectedModelReasoning ?? selectedPredefinedModel?.reasoning;
   const showThinkingControl = modelReasoning === true;
@@ -352,20 +355,27 @@ export const SwitchModelModal = ({
     .find(
       (option) => option.provider === selectedProviderName && option.value === selectedModelName
     );
-  const selectedProviderCapability = usePredefinedModels
-    ? selectedPredefinedModel?.supports_reasoning_mode
-    : selectedModelOption?.supportsReasoningMode;
+  const selectedProviderCapability =
+    (usePredefinedModels
+      ? selectedPredefinedModel?.supports_reasoning_mode
+      : selectedModelOption?.supportsReasoningMode) ?? selectedModelReasoningModeCapability;
   const showReasoningModeControl = Boolean(
     sessionId &&
-      supportsReasoningMode(selectedProviderName, selectedModelName, selectedProviderCapability)
+    supportsReasoningMode(selectedProviderName, selectedModelName, selectedProviderCapability)
   );
-  const resolveSelectedModelReasoning = useCallback(
-    (providerName: string, modelName: string, fallback?: boolean) => {
+  const resolveSelectedModelCapabilities = useCallback(
+    (
+      providerName: string,
+      modelName: string,
+      fallback?: { reasoning?: boolean | null; supportsReasoningMode?: boolean | null }
+    ) => {
       const requestId = ++reasoningRequestId.current;
-      setSelectedModelReasoning(fallback ?? null);
-      fetchModelReasoning(providerName, modelName, fallback).then((reasoning) => {
+      setSelectedModelReasoning(fallback?.reasoning ?? null);
+      setSelectedModelReasoningModeCapability(fallback?.supportsReasoningMode ?? null);
+      fetchModelCapabilities(providerName, modelName, fallback).then((capabilities) => {
         if (requestId === reasoningRequestId.current) {
-          setSelectedModelReasoning(reasoning);
+          setSelectedModelReasoning(capabilities.reasoning);
+          setSelectedModelReasoningModeCapability(capabilities.supportsReasoningMode);
         }
       });
     },
@@ -391,17 +401,21 @@ export const SwitchModelModal = ({
       .find((option) => option.provider === provider && option.value === model);
 
     if (selectedOption) {
-      resolveSelectedModelReasoning(provider, model, selectedOption.reasoning);
+      resolveSelectedModelCapabilities(provider, model, {
+        reasoning: selectedOption.reasoning,
+        supportsReasoningMode: selectedOption.supportsReasoningMode,
+      });
       return;
     }
 
     setSelectedModelReasoning(null);
+    setSelectedModelReasoningModeCapability(null);
     const timeout = setTimeout(() => {
-      resolveSelectedModelReasoning(provider, model);
+      resolveSelectedModelCapabilities(provider, model);
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [model, provider, modelOptions, resolveSelectedModelReasoning]);
+  }, [model, provider, modelOptions, resolveSelectedModelCapabilities]);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -507,13 +521,12 @@ export const SwitchModelModal = ({
       setReasoningMode(
         matchingModel.request_params?.reasoning_mode ?? sessionReasoningMode ?? 'standard'
       );
-      resolveSelectedModelReasoning(
-        matchingModel.provider,
-        matchingModel.name,
-        matchingModel.reasoning
-      );
+      resolveSelectedModelCapabilities(matchingModel.provider, matchingModel.name, {
+        reasoning: matchingModel.reasoning,
+        supportsReasoningMode: matchingModel.supports_reasoning_mode,
+      });
     }
-  }, [usePredefinedModels, currentModel, resolveSelectedModelReasoning, sessionReasoningMode]);
+  }, [usePredefinedModels, currentModel, resolveSelectedModelCapabilities, sessionReasoningMode]);
 
   // For manual mode: one-time sync of provider/model when session data
   // arrives after the modal has already mounted. Uses a ref so it only
@@ -731,7 +744,10 @@ export const SwitchModelModal = ({
           sessionReasoningMode
         )
     );
-    resolveSelectedModelReasoning(model.provider, model.name, model.reasoning);
+    resolveSelectedModelCapabilities(model.provider, model.name, {
+      reasoning: model.reasoning,
+      supportsReasoningMode: model.supports_reasoning_mode,
+    });
   };
 
   // Handle model selection change
@@ -741,12 +757,14 @@ export const SwitchModelModal = ({
       label: string;
       provider: string;
       reasoning?: boolean;
+      supportsReasoningMode?: boolean | null;
     } | null;
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
       setProvider(selectedOption.provider);
       setSelectedModelReasoning(null);
+      setSelectedModelReasoningModeCapability(null);
       setReasoningMode('standard');
       setUserClearedModel(false);
     } else if (selectedOption === null) {
@@ -754,6 +772,7 @@ export const SwitchModelModal = ({
       setIsCustomModel(false);
       setModel('');
       setSelectedModelReasoning(null);
+      setSelectedModelReasoningModeCapability(null);
       setReasoningMode('standard');
       setUserClearedModel(true);
     } else {
@@ -770,13 +789,13 @@ export const SwitchModelModal = ({
         )
       );
       if (selectedOption?.provider && selectedOption.value) {
-        resolveSelectedModelReasoning(
-          selectedOption.provider,
-          selectedOption.value,
-          selectedOption.reasoning
-        );
+        resolveSelectedModelCapabilities(selectedOption.provider, selectedOption.value, {
+          reasoning: selectedOption.reasoning,
+          supportsReasoningMode: selectedOption.supportsReasoningMode,
+        });
       } else {
         setSelectedModelReasoning(selectedOption?.reasoning ?? null);
+        setSelectedModelReasoningModeCapability(selectedOption?.supportsReasoningMode ?? null);
       }
       setUserClearedModel(false);
     }

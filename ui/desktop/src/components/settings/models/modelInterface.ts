@@ -117,16 +117,28 @@ export async function fetchModelsForProviders(
   return await Promise.all(modelPromises);
 }
 
-export async function fetchModelReasoning(
+export type ModelCapabilities = {
+  reasoning: boolean | null;
+  supportsReasoningMode: boolean | null;
+};
+
+export async function fetchModelCapabilities(
   provider: string,
   model: string,
-  fallback?: boolean
-): Promise<boolean | null> {
+  fallback?: Partial<ModelCapabilities>
+): Promise<ModelCapabilities> {
   try {
     const models = await acpListProviderModels(provider);
     const match = models.find((m) => m.id === model);
-    return match?.reasoning ?? fallback ?? null;
+    return {
+      reasoning: match?.reasoning ?? fallback?.reasoning ?? null,
+      supportsReasoningMode:
+        match?.supportsReasoningMode ?? fallback?.supportsReasoningMode ?? null,
+    };
   } catch {
-    return fallback ?? null;
+    return {
+      reasoning: fallback?.reasoning ?? null,
+      supportsReasoningMode: fallback?.supportsReasoningMode ?? null,
+    };
   }
 }

@@ -239,7 +239,7 @@ impl ProviderRegistry {
                 output_token_cost: m.output_token_cost,
                 currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
-                supports_reasoning_mode: None,
+                supports_reasoning_mode: m.supports_reasoning_mode,
                 reasoning: m.reasoning,
             })
             .collect();
@@ -414,5 +414,27 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+    }
+
+    #[test]
+    fn declarative_model_reasoning_mode_capability_is_preserved() {
+        let mut config = test_config();
+        config.models[0].supports_reasoning_mode = Some(true);
+        let mut registry = ProviderRegistry::new(None);
+        registry.register_with_name_and_inventory_configured::<OpenAiProviderDef, _, _, _>(
+            &config,
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
+            || false,
+        );
+
+        let entry = registry.entries.get("custom_hf").unwrap();
+
+        assert_eq!(
+            entry.metadata.known_models[0].supports_reasoning_mode,
+            Some(true)
+        );
     }
 }
