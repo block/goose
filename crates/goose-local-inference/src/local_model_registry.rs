@@ -516,7 +516,12 @@ impl LocalModelRegistry {
         let mut changed = false;
 
         for mut entry in featured_entries {
-            if !self.models.iter().any(|m| m.id == entry.id) {
+            if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
+                if existing.size_bytes == 0 && entry.size_bytes > 0 {
+                    existing.size_bytes = entry.size_bytes;
+                    changed = true;
+                }
+            } else {
                 entry.enrich_with_featured_mmproj();
                 self.models.push(entry);
                 changed = true;
@@ -559,7 +564,6 @@ impl LocalModelRegistry {
             if let Some(entry) = self.models.iter_mut().find(|m| m.id == id) {
                 entry.local_path = Paths::in_data_dir("models").join(&entry.filename);
                 entry.storage = LocalModelStorage::GooseManaged;
-                entry.size_bytes = 0;
                 entry.shard_files.clear();
             }
             self.save()
@@ -675,6 +679,10 @@ mod tests {
     use super::*;
     use crate::download_manager::DownloadProgress;
 
+    // Serializes tests that set GOOSE_PATH_ROOT so LocalModelRegistry::save()
+    // never races onto the real user data directory.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
     fn test_entry(id: &str) -> LocalModelEntry {
         LocalModelEntry {
             id: id.to_string(),
@@ -755,5 +763,68 @@ mod tests {
         assert_eq!(entry.settings.tool_calling, ToolCallingMode::ForceNative);
 
         let _ = std::fs::remove_file(existing_path);
+    }
+
+    #[test]
+    fn delete_model_preserves_size_bytes_for_featured_model() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let tmp_root = tempfile::tempdir().unwrap();
+        let prev_root = std::env::var("GOOSE_PATH_ROOT").ok();
+        std::env::set_var("GOOSE_PATH_ROOT", tmp_root.path());
+
+        let id = "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M";
+        assert!(is_featured_model(id));
+
+        let mut entry = test_entry(id);
+        entry.size_bytes = 123_456;
+        let mut registry = LocalModelRegistry {
+            models: vec![entry],
+        };
+
+        registry.delete_model(id).unwrap();
+
+        let updated = registry.get_model(id).unwrap();
+        assert_eq!(updated.size_bytes, 123_456);
+        assert!(updated.shard_files.is_empty());
+        assert_eq!(updated.storage, LocalModelStorage::GooseManaged);
+
+        match prev_root {
+            Some(value) => std::env::set_var("GOOSE_PATH_ROOT", value),
+            None => std::env::remove_var("GOOSE_PATH_ROOT"),
+        }
+    }
+
+    #[test]
+    fn sync_with_featured_backfills_size_bytes_without_touching_settings() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let tmp_root = tempfile::tempdir().unwrap();
+        let prev_root = std::env::var("GOOSE_PATH_ROOT").ok();
+        std::env::set_var("GOOSE_PATH_ROOT", tmp_root.path());
+
+        let id = "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M";
+
+        let mut existing = test_entry(id);
+        existing.size_bytes = 0;
+        existing.storage = LocalModelStorage::ManualPath;
+        existing.settings.context_size = Some(8192);
+
+        let mut incoming = test_entry(id);
+        incoming.size_bytes = 999_999;
+
+        let mut registry = LocalModelRegistry {
+            models: vec![existing],
+        };
+
+        registry.sync_with_featured(vec![incoming]);
+
+        let updated = registry.get_model(id).unwrap();
+        assert_eq!(updated.size_bytes, 999_999);
+        assert_eq!(updated.storage, LocalModelStorage::ManualPath);
+        assert_eq!(updated.settings.context_size, Some(8192));
+
+        match prev_root {
+            Some(value) => std::env::set_var("GOOSE_PATH_ROOT", value),
+            None => std::env::remove_var("GOOSE_PATH_ROOT"),
+        }
     }
 }
