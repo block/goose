@@ -110,6 +110,66 @@ pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -
     Ok(())
 }
 
+/// One-shot delegation: open a remote session, send a single task, return the
+/// agent's final text response. No interactive loop, no local stdin.
+///
+/// This is the reusable core a future `roam__delegate` model tool will call.
+/// Permission requests are auto-cancelled: a delegated (agent-driven) session
+/// must not block waiting for a human, and the caller isn't a person who can
+/// answer. Loop/cost safety is the caller's concern (bounded turns/deadline).
+pub async fn delegate(stream: RoamingClientStream, task: String) -> Result<String> {
+    let RoamingClientStream {
+        conn, send, recv, ..
+    } = stream;
+
+    let transport = agent_client_protocol::ByteStreams::new(send.compat_write(), recv.compat());
+    let collected = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let sink = collected.clone();
+
+    Client
+        .builder()
+        .name("goose-roam-delegate")
+        .on_receive_notification(
+            async move |notification: SessionNotification, _cx| {
+                if let SessionUpdate::AgentMessageChunk(chunk) = &notification.update {
+                    if let ContentBlock::Text(text) = &chunk.content {
+                        sink.lock().unwrap().push_str(&text.text);
+                    }
+                }
+                Ok(())
+            },
+            agent_client_protocol::on_receive_notification!(),
+        )
+        .on_receive_request(
+            async move |_request: RequestPermissionRequest, responder, _cx| {
+                // Agent-driven session: never wait on a human. Auto-cancel.
+                responder.respond(RequestPermissionResponse::new(
+                    RequestPermissionOutcome::Cancelled,
+                ))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
+            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                .block_task()
+                .await?;
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
+            cx.build_session(cwd)
+                .block_task()
+                .run_until(async |mut session| {
+                    session.send_prompt(&task)?;
+                    let _ = session.read_to_string().await?;
+                    Ok(())
+                })
+                .await
+        })
+        .await?;
+
+    drop(conn);
+    let result = collected.lock().unwrap().clone();
+    Ok(result)
+}
+
 fn render_update(update: &SessionUpdate) {
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {

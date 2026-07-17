@@ -267,7 +267,27 @@ spawn_provider_inventory_refresh`) as defence-in-depth. Verified: the official
    timeout only guards later requests, so an MCP server that starts but never
    answers `initialize` can hang session setup too.
 
-### Next roaming steps unchanged
+### Delegation shipped as a CLI command first (simplification)
+
+`roam__delegate` as a *model tool* hits the exact blocker the expert flagged:
+core platform tools use a **non-capturing fn-pointer** `client_factory`, so an
+`Arc<RoamingConnector>` can't be injected without a core refactor — and core
+can't depend on iroh anyway.
+
+So the delegation *logic* ships first as a plain CLI command, `goose roam
+delegate <peer|token> "<task>"`: resolve → dial → one-shot ACP session → send
+task → return the agent's final text → close. Verified over the n0 relay
+(remote replied "Paris"). Permission requests in a delegated session are
+auto-cancelled (agent-driven, no human to answer). This is the reusable core a
+future model tool will call, with **zero core changes**.
+
+Surfacing it *to the model* becomes a separate, smaller step — most likely a
+tiny **MCP server** (`roam__list_peers` + `roam__delegate`) rather than a core
+platform tool, reusing all existing MCP plumbing and keeping iroh out of core.
+Loop/cost guardrails (bounded turns/deadline, no recursive roam in delegated
+sessions) attach there.
+
+### Next roaming steps
 `serve_with_policy` + scope enforcement (§9), then `roam__list_peers` +
 `roam__delegate` (§10). Consider defaulting the roaming host to tolerate the
 keychain issue (or documenting `GOOSE_DISABLE_KEYRING`) until follow-up #1 lands.

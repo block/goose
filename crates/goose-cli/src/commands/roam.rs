@@ -65,6 +65,14 @@ pub enum RoamCommand {
         label: Option<String>,
     },
 
+    /// Delegate a one-shot task to a remote agent and print its response.
+    Delegate {
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        target: String,
+        /// The task/question to send to the remote agent.
+        task: String,
+    },
+
     /// Manage the address book of remote agents you can connect to.
     Peers {
         #[command(subcommand)]
@@ -112,6 +120,7 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             builtins,
         } => handle_share(Scope::Control, ttl, allow_keys, pair, builtins).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
+        RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
         RoamCommand::Connections => handle_list().await,
     }
@@ -314,47 +323,66 @@ async fn handle_share(
     Ok(())
 }
 
-async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
+/// Resolve a target (saved peer nickname or raw invite token) to a token.
+fn resolve_target(target: &str) -> Result<String> {
+    if target.starts_with("goose+roam://") {
+        return Ok(target.to_string());
+    }
+    let book = goose_roaming::PeerBook::load(peerbook_path())?;
+    match book.get(target) {
+        Some(rec) => Ok(rec.invite.clone()),
+        None => anyhow::bail!(
+            "no saved peer named `{target}` (and it is not an invite token); \
+             see `goose roam peers`"
+        ),
+    }
+}
+
+/// Bind a client node and dial the target, returning the node + authorized
+/// stream. Clients use a *stable* outbound identity (persisted, distinct from
+/// the host key so a node never dials itself).
+async fn dial_target(
+    target: &str,
+    label: Option<String>,
+) -> Result<(
+    std::sync::Arc<RoamingNode>,
+    goose_roaming::RoamingClientStream,
+)> {
     use goose_roaming::SignedInvite;
-
-    // Resolve the target: a saved peer nickname or a raw invite token.
-    let token = if target.starts_with("goose+roam://") {
-        target.clone()
-    } else {
-        let book = goose_roaming::PeerBook::load(peerbook_path())?;
-        match book.get(&target) {
-            Some(rec) => rec.invite.clone(),
-            None => {
-                anyhow::bail!(
-                    "no saved peer named `{target}` (and it is not an invite token); \
-                     see `goose roam peers`"
-                );
-            }
-        }
-    };
-
+    let token = resolve_target(target)?;
     let invite = SignedInvite::decode(&token)?;
-    // Clients use a *stable* outbound identity (persisted, distinct from the
-    // host key so a node never dials itself). A stable client key is required
-    // for durable client-key-bound grants and pairing across reconnects.
-    let identity = load_client_identity()?;
-
     let node = RoamingNode::bind(RoamingConfig {
-        identity,
+        identity: load_client_identity()?,
         relay: RelaySettings::N0Default,
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
         bind_addr: None,
     })
     .await?;
-
     eprintln!("connecting to {}...", invite.claims.audience);
     let stream = node.connect(&invite, label).await?;
+    Ok((node, stream))
+}
+
+async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
+    let (node, stream) = dial_target(&target, label).await?;
     let agent_label = stream.agent_id.clone();
     eprintln!("authorized with scope {:?}", stream.scope);
-
     let result = crate::commands::roam_client::run_interactive(stream, agent_label).await;
-
     node.shutdown().await?;
     result
+}
+
+async fn handle_delegate(target: String, task: String) -> Result<()> {
+    let (node, stream) = dial_target(&target, Some("delegate".to_string())).await?;
+    eprintln!("delegating task to `{}`...", stream.agent_id);
+    let result = crate::commands::roam_client::delegate(stream, task).await;
+    node.shutdown().await?;
+    match result {
+        Ok(response) => {
+            println!("{response}");
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
 }
