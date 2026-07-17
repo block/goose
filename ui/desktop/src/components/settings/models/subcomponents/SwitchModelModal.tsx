@@ -34,7 +34,11 @@ import type {
   ThinkingEffort,
 } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
-import { reasoningModeForSelection, supportsReasoningMode } from '../reasoningMode';
+import {
+  reasoningModeForSelection,
+  shouldSyncSessionReasoningMode,
+  supportsReasoningMode,
+} from '../reasoningMode';
 
 const i18n = defineMessages({
   thinkingEffortOff: {
@@ -337,6 +341,7 @@ export const SwitchModelModal = ({
   const [activeProvidersList, setActiveProvidersList] = useState<ProviderDetails[]>([]);
   const fetchedProviders = useRef<Set<string>>(new Set());
   const reasoningRequestId = useRef(0);
+  const reasoningModeEdited = useRef(false);
   const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort | null>(null);
   const [reasoningMode, setReasoningMode] = useState<ReasoningMode>(
     sessionReasoningMode ?? 'standard'
@@ -568,6 +573,23 @@ export const SwitchModelModal = ({
   ]);
 
   useEffect(() => {
+    if (
+      usePredefinedModels ||
+      !shouldSyncSessionReasoningMode(
+        provider,
+        model,
+        sessionProvider,
+        sessionModel,
+        sessionReasoningMode,
+        reasoningModeEdited.current
+      )
+    ) {
+      return;
+    }
+    setReasoningMode(sessionReasoningMode);
+  }, [model, provider, sessionModel, sessionProvider, sessionReasoningMode, usePredefinedModels]);
+
+  useEffect(() => {
     if (usePredefinedModels) {
       const models = getPredefinedModelsFromEnv();
       setPredefinedModels(models);
@@ -746,6 +768,7 @@ export const SwitchModelModal = ({
   ]);
 
   const handlePredefinedModelChange = (model: Model) => {
+    reasoningModeEdited.current = false;
     setSelectedPredefinedModel(model);
     setReasoningMode(
       reasoningModeForSelection(
@@ -765,6 +788,7 @@ export const SwitchModelModal = ({
 
   // Handle model selection change
   const handleModelChange = (newValue: unknown) => {
+    reasoningModeEdited.current = false;
     const selectedOption = newValue as {
       value: string;
       label: string;
@@ -887,6 +911,7 @@ export const SwitchModelModal = ({
         value={REASONING_MODE_OPTIONS.find((option) => option.value === reasoningMode)}
         onChange={(newValue: unknown) => {
           const option = newValue as { value: ReasoningMode; label: string } | null;
+          reasoningModeEdited.current = true;
           setReasoningMode(option?.value ?? 'standard');
         }}
         placeholder={intl.formatMessage(i18n.selectReasoningMode)}
@@ -985,6 +1010,7 @@ export const SwitchModelModal = ({
                       setView('ConfigureProviders');
                       onClose(); // Close the current modal
                     } else {
+                      reasoningModeEdited.current = false;
                       setProvider(option?.value || null);
                       setModel('');
                       setIsCustomModel(false);

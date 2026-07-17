@@ -60,3 +60,19 @@ export function reasoningModeForSelection(
     ? (sessionReasoningMode ?? fallbackMode)
     : fallbackMode;
 }
+
+export function shouldSyncSessionReasoningMode(
+  selectedProvider: string | null | undefined,
+  selectedModel: string | null | undefined,
+  sessionProvider: string | null | undefined,
+  sessionModel: string | null | undefined,
+  sessionReasoningMode: ReasoningMode | null | undefined,
+  userEditedMode: boolean
+): sessionReasoningMode is ReasoningMode {
+  return Boolean(
+    !userEditedMode &&
+    sessionReasoningMode &&
+    selectedProvider === sessionProvider &&
+    selectedModel === sessionModel
+  );
+}

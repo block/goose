@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseReasoningMode,
   reasoningModeForSelection,
+  shouldSyncSessionReasoningMode,
   supportsReasoningMode,
 } from './reasoningMode';
 
@@ -77,5 +78,20 @@ describe('GPT-5.6 reasoning mode', () => {
     expect(
       reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro', 'standard')
     ).toBe('standard');
+  });
+
+  it('syncs a delayed session mode only for an untouched matching selection', () => {
+    expect(
+      shouldSyncSessionReasoningMode('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro', false)
+    ).toBe(true);
+    expect(
+      shouldSyncSessionReasoningMode('openai', 'gpt-5.6', 'openai', 'gpt-5.6', 'pro', true)
+    ).toBe(false);
+    expect(
+      shouldSyncSessionReasoningMode('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro', false)
+    ).toBe(false);
+    expect(
+      shouldSyncSessionReasoningMode('openai', 'gpt-5.6', 'openai', 'gpt-5.6', null, false)
+    ).toBe(false);
   });
 });
