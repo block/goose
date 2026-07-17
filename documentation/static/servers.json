@@ -808,4 +808,17 @@
     "endorsed": true,
     "environmentVariables": []
   }
+,
+  {
+    "name": "sats4ai",
+    "description": "Bitcoin-powered AI tools marketplace. 33+ services paid per request with Lightning micropayments. No API keys, no accounts, no KYC.",
+    "repository": "https://github.com/cnghockey/sats4ai-mcp-server",
+    "homepage": "https://sats4ai.com",
+    "author": "cnghockey",
+    "license": "MIT",
+    "sourceType": "npm",
+    "packageName": "sats4ai-mcp",
+    "url": "https://sats4ai.com/api/mcp",
+    "environmentVariables": []
+  }
 ]

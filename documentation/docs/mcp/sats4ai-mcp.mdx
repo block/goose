@@ -1,0 +1,95 @@
+---
+title: Sats4AI - Bitcoin-Powered AI Tools
+description: Use Bitcoin Lightning to pay for 33+ AI services directly from Goose agents — no signup required.
+---
+
+# Sats4AI MCP Server
+
+Sats4AI is a remote MCP server providing 33+ AI services (image generation, video, audio, transcription, translation, SMS, email, phone calls, and more) that agents can call by paying per request with Bitcoin Lightning micropayments.
+
+**No API keys. No accounts. No KYC.** Just a Lightning wallet.
+
+## Installation
+
+### Quick Install
+
+```bash
+npm install -g sats4ai-mcp
+```
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "sats4ai": {
+      "command": "npx",
+      "args": ["sats4ai-mcp"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+### Goose
+
+The server is available as a remote HTTP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "sats4ai": {
+      "url": "https://sats4ai.com/api/mcp",
+      "type": "sse"
+    }
+  }
+}
+```
+
+## How It Works
+
+1. **Agent calls a tool** (e.g., `generate_image`)
+2. **Server returns an L402 challenge** (HTTP 402) with a payment request
+3. **Agent pays via WebLN or L402 library** (microtransaction, typically <100 sats)
+4. **Server executes the task** and returns the result
+
+## Pricing
+
+| Service | Model | Cost |
+|---------|-------|------|
+| Image Gen | Grok Imagine | 50 sats |
+| Video Gen | Kling v3 | 200 sats |
+| TTS (50 chars) | OmniVoice | 10 sats |
+| Transcription (1 min) | Mistral | 5 sats |
+| Translation (100 chars) | Qwen | 1 sat |
+| SMS | Telnyx | 2 sats |
+
+Live pricing and tool catalog: https://sats4ai.com/api/mcp/discovery
+
+## Tools
+
+- **Image**: generate_image, edit_image, remove_background, upscale_image, restore_face
+- **Video**: generate_video, animate_image
+- **Audio**: transcribe_audio, translate_text, synthesize_speech
+- **Communication**: send_sms, send_email, place_call, send_fax
+- **Document**: extract_document, extract_receipt, convert_pdf
+
+## Getting Started
+
+1. Install the MCP server
+2. Configure Goose to use https://sats4ai.com/api/mcp
+3. Ask your agent to generate an image
+4. Your wallet will prompt for payment (~50 sats)
+5. Agent receives the result
+
+## Documentation
+
+- **Full API docs**: https://sats4ai.com/api/l402
+- **GitHub**: https://github.com/cnghockey/sats4ai-mcp-server
+- **Contact**: sats4ai@gmail.com
+
+---
+
+**Sats4AI** — Payment is authorization. No login. No KYC. Just Bitcoin.
