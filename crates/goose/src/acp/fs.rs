@@ -93,12 +93,12 @@ fn read_tool() -> Tool {
 }
 
 impl AcpTools {
-    fn working_dir<'a>(
-        ctx: &'a crate::agents::ToolCallContext,
-    ) -> Result<&'a Path, CallToolResult> {
-        ctx.working_dir
-            .as_deref()
-            .ok_or_else(|| error_result("Error: ACP filesystem tools require a working directory"))
+    fn working_dir(ctx: &crate::agents::ToolCallContext) -> Result<&Path, Box<CallToolResult>> {
+        ctx.working_dir.as_deref().ok_or_else(|| {
+            Box::new(error_result(
+                "Error: ACP filesystem tools require a working directory",
+            ))
+        })
     }
 
     fn update_tool_call(&self, ctx: &crate::agents::ToolCallContext, fields: ToolCallUpdateFields) {
@@ -141,7 +141,7 @@ impl AcpTools {
         };
         let working_dir = match Self::working_dir(ctx) {
             Ok(working_dir) => working_dir,
-            Err(result) => return Ok(result),
+            Err(result) => return Ok(*result),
         };
         let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
@@ -170,7 +170,7 @@ impl AcpTools {
         };
         let working_dir = match Self::working_dir(ctx) {
             Ok(working_dir) => working_dir,
-            Err(result) => return Ok(result),
+            Err(result) => return Ok(*result),
         };
         let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
@@ -211,7 +211,7 @@ impl AcpTools {
         };
         let working_dir = match Self::working_dir(ctx) {
             Ok(working_dir) => working_dir,
-            Err(result) => return Ok(result),
+            Err(result) => return Ok(*result),
         };
         let path = resolve_path(&params.path, Some(working_dir));
         self.update_tool_call(
