@@ -1,6 +1,7 @@
 import type { ReasoningMode } from '../../../types/providers';
 
 const MODEL_ROUTED_REASONING_MODE_PROVIDERS = new Set([
+  'openai',
   'databricks_v2',
   'aws_bedrock',
   'github_copilot',
@@ -19,10 +20,11 @@ export function supportsReasoningMode(
     return providerCapability;
   }
 
-  // These providers resolve aliases or request routes at runtime. Without an
+  // Databricks resolves aliases and request routes at runtime. Without an
   // explicit inventory capability, showing the control can create a silent
-  // no-op when the effective route does not consume reasoning_mode.
-  if (providerName === 'openai' || providerName === 'databricks') {
+  // no-op when the effective route does not consume reasoning_mode. OpenAI's
+  // default route is model-based; custom chat routes report false explicitly.
+  if (providerName === 'databricks') {
     return false;
   }
 

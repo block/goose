@@ -43,10 +43,14 @@ describe('GPT-5.6 reasoning mode', () => {
     expect(supportsReasoningMode('databricks', 'team-prod', false)).toBe(false);
   });
 
-  it('requires an explicit capability for route-dependent providers', () => {
+  it('falls back to the model name for the default OpenAI route', () => {
     expect(supportsReasoningMode('openai', 'gpt-5.6', true)).toBe(true);
     expect(supportsReasoningMode('openai', 'gpt-5.6', false)).toBe(false);
-    expect(supportsReasoningMode('openai', 'gpt-5.6')).toBe(false);
+    expect(supportsReasoningMode('openai', 'gpt-5.6-custom')).toBe(true);
+    expect(supportsReasoningMode('openai', 'gpt-5.5')).toBe(false);
+  });
+
+  it('requires an explicit capability for route-dependent Databricks aliases', () => {
     expect(supportsReasoningMode('databricks', 'gpt-5.6')).toBe(false);
   });
 
