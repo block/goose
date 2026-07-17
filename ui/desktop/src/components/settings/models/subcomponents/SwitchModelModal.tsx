@@ -843,6 +843,20 @@ export const SwitchModelModal = ({
     }
   };
 
+  const handleCustomModelChange = (newModel: string) => {
+    reasoningModeEdited.current = false;
+    setModel(newModel);
+    setReasoningMode(
+      reasoningModeForSelection(
+        provider,
+        newModel,
+        currentProvider,
+        currentModel,
+        sessionReasoningMode
+      )
+    );
+  };
+
   // Store the original model options in state, initialized from modelOptions
   const [originalModelOptions, setOriginalModelOptions] =
     useState<{ options: ModelOption[] }[]>(modelOptions);
@@ -1085,7 +1099,7 @@ export const SwitchModelModal = ({
                       <Input
                         className="border-2 px-4 py-5"
                         placeholder={intl.formatMessage(i18n.typeModelName)}
-                        onChange={(event) => setModel(event.target.value)}
+                        onChange={(event) => handleCustomModelChange(event.target.value)}
                         value={model}
                       />
                       {attemptedSubmit && validationErrors.model && (
@@ -1147,7 +1161,7 @@ export const SwitchModelModal = ({
                       <Input
                         className="border-2 px-4 py-5"
                         placeholder={intl.formatMessage(i18n.typeModelName)}
-                        onChange={(event) => setModel(event.target.value)}
+                        onChange={(event) => handleCustomModelChange(event.target.value)}
                         value={model}
                       />
                       {attemptedSubmit && validationErrors.model && (
