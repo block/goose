@@ -43,6 +43,9 @@ pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     "us.anthropic.claude-opus-4-20250514-v1:0",
     "us.anthropic.claude-opus-4-1-20250805-v1:0",
+    "openai.gpt-5.6-sol",
+    "openai.gpt-5.6-terra",
+    "openai.gpt-5.6-luna",
     "openai.gpt-5.5",
     "openai.gpt-5.4",
 ];
@@ -1041,6 +1044,22 @@ mod tests {
         );
 
         std::env::remove_var("BEDROCK_ENABLE_CACHING");
+    }
+
+    #[tokio::test]
+    async fn supports_reasoning_mode_for_gpt_5_6_bedrock_models() {
+        for model_name in [
+            "openai.gpt-5.6-sol",
+            "openai.gpt-5.6-terra",
+            "openai.gpt-5.6-luna",
+        ] {
+            let (provider, model) = create_mock_provider_and_model(model_name);
+
+            assert!(
+                provider.supports_reasoning_mode(&model).await,
+                "{model_name}"
+            );
+        }
     }
 
     #[tokio::test]
