@@ -4,6 +4,8 @@ description: Add Speech MCP Server as a goose Extension
 unlisted: true
 ---
 
+Unlist per https://github.com/aaif-goose/goose/issues/5431
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
@@ -251,3 +253,4 @@ I understand! In that case, I can help you use voice commands instead. I'll laun
     style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
   ></iframe>
 </div>
+

@@ -34,11 +34,14 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
     <GooseDesktopInstaller
-        extensionId="gitmcp"
-        extensionName="GitMCP"
+        extensionId="Git-mcp"
+        extensionName="Git mcp"
         description="Git MCP server for up-to-date docs and project insights"
         command="npx"
         args={["-y", "mcp-remote" , "https://gitmcp.io/docs"]}
+        cliCommand="npx -y mcp-remote https://gitmcp.io/docs"
+        timeout={300}
+        note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
     />
  </TabItem>
   <TabItem value="cli" label="goose CLI">

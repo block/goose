@@ -1,8 +1,12 @@
 ---
 title: Using Subagents
 description: Spin up a team of subagents to build a fully functional app
-image: /img/tutorial-using-subagents.png
+image: /assets/images/tutorial-using-subagents-ef265627024db73e73d80e5799ed0c1a.png
 ---
+
+<div style={{display: 'none'}}>
+![](/img/tutorial-using-subagents.png)
+</div>
 
 This tutorial walks you through how to spin up a team of AI [subagents](/docs/guides/context-engineering/subagents/) and guide them through building a fully functional app.
 
@@ -386,3 +390,4 @@ Don't expect your app to be production ready. This workshop shows how vibe codin
    - `http://localhost:3000/index.html`
    - `http://localhost:3000/style.css`
    - `http://localhost:3000/script.js`
+

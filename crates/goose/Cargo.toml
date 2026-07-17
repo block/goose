@@ -187,7 +187,7 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 shellexpand = { workspace = true }
-indexmap = { version = "2.9", default-features = false, features = ["serde", "std"] }
+indexmap = { version = "2.9", default-features = false, features = ["std", "serde"] }
 ignore = { workspace = true }
 rayon = { workspace = true }
 tree-sitter = { workspace = true }
@@ -229,7 +229,7 @@ subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "minwinbase", "sddl", "securitybaseapi", "winbase", "winerror"] }
+winapi = { workspace = true }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference
@@ -240,8 +240,6 @@ keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["sync-secret-service"], optional = true }
-
-[target."cfg(unix)".dependencies]
 libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]

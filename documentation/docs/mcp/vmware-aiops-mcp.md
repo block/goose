@@ -70,6 +70,7 @@ vmware-aiops doctor
       type="stdio"
       command="uvx"
       args={["--from", "vmware-aiops", "vmware-aiops-mcp"]}
+      timeout={300}
       envVars={[
         { name: "VMWARE_AIOPS_CONFIG", label: "Path to config.yaml (e.g. /Users/you/.vmware-aiops/config.yaml)" }
       ]}

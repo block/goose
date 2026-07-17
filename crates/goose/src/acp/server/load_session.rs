@@ -38,7 +38,7 @@ fn replay_conversation_to_client(
     let messages = session
         .conversation
         .as_ref()
-        .map(|c| c.user_visible_messages())
+        .map(|c| c.messages().to_vec())
         .unwrap_or_default();
     debug!(
         target: "perf",
@@ -51,6 +51,10 @@ fn replay_conversation_to_client(
         HashMap::<String, crate::conversation::message::ToolRequest>::new();
 
     for message in &messages {
+        if !message.metadata.user_visible {
+            continue;
+        }
+
         for content_item in &message.content {
             match content_item {
                 MessageContent::Text(text) => {

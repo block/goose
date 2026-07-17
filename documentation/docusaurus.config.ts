@@ -335,6 +335,10 @@ const config: Config = {
             to: "/docs/mcp/knowledge-graph-mcp",
           },
           {
+            from: "/docs/tutorials/mbot-mcp",
+            to: "/docs/mcp/mbot-mcp",
+          },
+          {
             from: "/docs/tutorials/memory-mcp",
             to: "/docs/mcp/memory-mcp",
           },

@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import {
-  Activity,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Edit2,
-  FileJson,
-  LoaderCircle,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, Copy, Edit2, FileJson, LoaderCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { AppEvents } from '../constants/events';
 import { defineMessages, useIntl } from '../i18n';
-import { getDiagnosticsReport } from '../acp/diagnostics';
 import { acpExportSession, acpForkSession, acpRenameSession } from '../acp/sessions';
 import { getSessionDisplayName } from '../sessions';
 import type { Session } from '../types/session';
@@ -42,10 +33,6 @@ const i18n = defineMessages({
   viewJson: {
     id: 'sessionActionsHeader.viewJson',
     defaultMessage: 'View session JSON',
-  },
-  viewModelInteractions: {
-    id: 'sessionActionsHeader.viewModelInteractions',
-    defaultMessage: 'View recent model interactions',
   },
   renameTitle: {
     id: 'sessionActionsHeader.renameTitle',
@@ -87,10 +74,6 @@ const i18n = defineMessages({
     id: 'sessionActionsHeader.jsonTitle',
     defaultMessage: 'Session JSON',
   },
-  modelInteractionsTitle: {
-    id: 'sessionActionsHeader.modelInteractionsTitle',
-    defaultMessage: 'Recent model interactions',
-  },
   loadingJson: {
     id: 'sessionActionsHeader.loadingJson',
     defaultMessage: 'Loading JSON...',
@@ -98,10 +81,6 @@ const i18n = defineMessages({
   jsonFailed: {
     id: 'sessionActionsHeader.jsonFailed',
     defaultMessage: 'Failed to load session JSON: {error}',
-  },
-  modelInteractionsFailed: {
-    id: 'sessionActionsHeader.modelInteractionsFailed',
-    defaultMessage: 'Failed to load model interactions: {error}',
   },
   close: {
     id: 'sessionActionsHeader.close',
@@ -114,10 +93,6 @@ const i18n = defineMessages({
   copiedJson: {
     id: 'sessionActionsHeader.copiedJson',
     defaultMessage: 'Session JSON copied',
-  },
-  copiedModelInteractions: {
-    id: 'sessionActionsHeader.copiedModelInteractions',
-    defaultMessage: 'Recent model interactions copied',
   },
   fullTextTitle: {
     id: 'sessionActionsHeader.fullTextTitle',
@@ -153,22 +128,12 @@ interface FullTextSelection {
   value: string;
 }
 
-type JsonDialogKind = 'session' | 'modelInteractions';
-
 function parseSessionJson(json: string): ParsedSessionJson {
   const value = JSON.parse(json) as unknown;
   return {
     value,
     pretty: JSON.stringify(value, null, 2),
   };
-}
-
-function parseJsonLine(line: string): unknown {
-  try {
-    return JSON.parse(line) as unknown;
-  } catch {
-    return line;
-  }
 }
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
@@ -354,14 +319,11 @@ export default function SessionActionsHeader({
   const [renameValue, setRenameValue] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
-  const [jsonDialogKind, setJsonDialogKind] = useState<JsonDialogKind>('session');
   const [jsonValue, setJsonValue] = useState<unknown>(null);
   const [jsonText, setJsonText] = useState('');
   const [isJsonLoading, setIsJsonLoading] = useState(false);
-  const [isModelInteractionsLoading, setIsModelInteractionsLoading] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [fullTextSelection, setFullTextSelection] = useState<FullTextSelection | null>(null);
-  const jsonLoadRequestId = useRef(0);
 
   const title = useMemo(() => (session ? getSessionDisplayName(session) : ''), [session]);
 
@@ -426,21 +388,16 @@ export default function SessionActionsHeader({
   const handleViewJson = useCallback(async () => {
     if (!session) return;
 
-    const loadRequestId = ++jsonLoadRequestId.current;
     setIsJsonOpen(true);
-    setJsonDialogKind('session');
     setJsonValue(null);
     setJsonText('');
-    setIsModelInteractionsLoading(false);
     setIsJsonLoading(true);
     try {
       const json = await acpExportSession(session.id);
       const parsed = parseSessionJson(json);
-      if (jsonLoadRequestId.current !== loadRequestId) return;
       setJsonValue(parsed.value);
       setJsonText(parsed.pretty);
     } catch (error) {
-      if (jsonLoadRequestId.current !== loadRequestId) return;
       setIsJsonOpen(false);
       toast.error(
         intl.formatMessage(i18n.jsonFailed, {
@@ -448,60 +405,15 @@ export default function SessionActionsHeader({
         })
       );
     } finally {
-      if (jsonLoadRequestId.current === loadRequestId) {
-        setIsJsonLoading(false);
-      }
-    }
-  }, [intl, session]);
-
-  const handleViewModelInteractions = useCallback(async () => {
-    if (!session) return;
-
-    const loadRequestId = ++jsonLoadRequestId.current;
-    setIsJsonOpen(true);
-    setJsonDialogKind('modelInteractions');
-    setJsonValue(null);
-    setJsonText('');
-    setIsJsonLoading(false);
-    setIsModelInteractionsLoading(true);
-    try {
-      const report = await getDiagnosticsReport(session.id, 'full');
-      const interactions = report.logs.llm.map((log) => ({
-        path: log.path,
-        truncated: log.truncated,
-        entries: log.content
-          .split('\n')
-          .filter((line) => line.trim().length > 0)
-          .map(parseJsonLine),
-      }));
-      const text = JSON.stringify(interactions, null, 2);
-      if (jsonLoadRequestId.current !== loadRequestId) return;
-      setJsonValue(interactions);
-      setJsonText(text);
-    } catch (error) {
-      if (jsonLoadRequestId.current !== loadRequestId) return;
-      setIsJsonOpen(false);
-      toast.error(
-        intl.formatMessage(i18n.modelInteractionsFailed, {
-          error: errorMessage(error, 'Unknown error'),
-        })
-      );
-    } finally {
-      if (jsonLoadRequestId.current === loadRequestId) {
-        setIsModelInteractionsLoading(false);
-      }
+      setIsJsonLoading(false);
     }
   }, [intl, session]);
 
   const handleCopyJson = useCallback(async () => {
     if (!jsonText) return;
     await navigator.clipboard.writeText(jsonText);
-    toast.success(
-      intl.formatMessage(
-        jsonDialogKind === 'modelInteractions' ? i18n.copiedModelInteractions : i18n.copiedJson
-      )
-    );
-  }, [intl, jsonDialogKind, jsonText]);
+    toast.success(intl.formatMessage(i18n.copiedJson));
+  }, [intl, jsonText]);
 
   const handleCopyFullText = useCallback(async () => {
     if (!fullTextSelection) return;
@@ -512,9 +424,6 @@ export default function SessionActionsHeader({
   const handleJsonOpenChange = useCallback((open: boolean) => {
     setIsJsonOpen(open);
     if (!open) {
-      jsonLoadRequestId.current += 1;
-      setIsJsonLoading(false);
-      setIsModelInteractionsLoading(false);
       setFullTextSelection(null);
     }
   }, []);
@@ -532,14 +441,11 @@ export default function SessionActionsHeader({
     return null;
   }
 
-  const isDialogOpen = isRenameOpen || isJsonOpen || fullTextSelection !== null;
-
   return (
     <>
       <div
         className={cn(
-          'no-drag absolute top-[14px] left-1/2 max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
-          isDialogOpen ? 'z-30' : 'z-50',
+          'no-drag absolute top-[14px] left-1/2 z-30 max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
           className
         )}
       >
@@ -547,7 +453,7 @@ export default function SessionActionsHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="no-drag flex h-7 max-w-full items-center gap-1 rounded-md px-2.5 text-text-primary transition-colors hover:bg-background-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-active"
+              className="flex h-7 max-w-full items-center gap-1 rounded-md px-2.5 text-text-primary transition-colors hover:bg-background-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-active"
               aria-label={intl.formatMessage(i18n.actionsLabel)}
             >
               <span className="truncate text-xs font-medium">{title}</span>
@@ -575,14 +481,6 @@ export default function SessionActionsHeader({
               )}
               {intl.formatMessage(i18n.viewJson)}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void handleViewModelInteractions()}>
-              {isModelInteractionsLoading ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <Activity className="size-4" />
-              )}
-              {intl.formatMessage(i18n.viewModelInteractions)}
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -607,10 +505,7 @@ export default function SessionActionsHeader({
             <Button variant="outline" onClick={() => setIsRenameOpen(false)} disabled={isRenaming}>
               {intl.formatMessage(i18n.cancel)}
             </Button>
-            <Button
-              onClick={() => void handleRename()}
-              disabled={isRenaming || !renameValue.trim()}
-            >
+            <Button onClick={() => void handleRename()} disabled={isRenaming || !renameValue.trim()}>
               {isRenaming ? intl.formatMessage(i18n.saving) : intl.formatMessage(i18n.save)}
             </Button>
           </DialogFooter>
@@ -620,16 +515,10 @@ export default function SessionActionsHeader({
       <Dialog open={isJsonOpen} onOpenChange={handleJsonOpenChange}>
         <DialogContent className="grid max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>
-              {intl.formatMessage(
-                jsonDialogKind === 'modelInteractions'
-                  ? i18n.modelInteractionsTitle
-                  : i18n.jsonTitle
-              )}
-            </DialogTitle>
+            <DialogTitle>{intl.formatMessage(i18n.jsonTitle)}</DialogTitle>
           </DialogHeader>
           <div className="min-h-0 overflow-hidden rounded-lg border border-border-primary bg-background-secondary">
-            {isJsonLoading || isModelInteractionsLoading ? (
+            {isJsonLoading ? (
               <div className="flex h-64 items-center justify-center gap-2 text-sm text-text-secondary">
                 <LoaderCircle className="size-4 animate-spin" />
                 {intl.formatMessage(i18n.loadingJson)}
@@ -644,10 +533,7 @@ export default function SessionActionsHeader({
             <Button variant="outline" onClick={() => setIsJsonOpen(false)}>
               {intl.formatMessage(i18n.close)}
             </Button>
-            <Button
-              onClick={() => void handleCopyJson()}
-              disabled={!jsonText || isJsonLoading || isModelInteractionsLoading}
-            >
+            <Button onClick={() => void handleCopyJson()} disabled={!jsonText || isJsonLoading}>
               {intl.formatMessage(i18n.copyJson)}
             </Button>
           </DialogFooter>

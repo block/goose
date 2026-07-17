@@ -40,6 +40,7 @@ You'll need [Node.js](https://nodejs.org/) installed (the command uses `npx`). *
       type="stdio"
       command="npx"
       args={["-y", "scholar-sidekick-mcp@latest"]}
+      timeout={300}
     />
   </TabItem>
   <TabItem value="cli" label="goose CLI">

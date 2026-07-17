@@ -21,6 +21,7 @@ function getStdioConfig(
     'uvx',
     'goose',
     'npx.cmd',
+    'i-ching-mcp-server',
   ];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(
