@@ -23,8 +23,75 @@ use crate::providers::toolshim::{
 };
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
+use goose_providers::retry::should_retry;
 use rmcp::model::Tool;
 use tracing::warn;
+
+async fn open_provider_stream(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    system_prompt: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<MessageStream, ProviderError> {
+    let retry_config = provider.retry_config().transient_only();
+    let mut attempts = 0;
+
+    loop {
+        debug!("WAITING_LLM_STREAM_START");
+        let stream_result = provider
+            .stream(model_config, system_prompt, messages, tools)
+            .await;
+        debug!("WAITING_LLM_STREAM_END");
+
+        let mut stream = stream_result?;
+        match stream.next().await {
+            Some(Ok(first_item)) => {
+                return Ok(Box::pin(try_stream! {
+                    yield first_item;
+                    while let Some(result) = stream.next().await {
+                        yield result?;
+                    }
+                }));
+            }
+            Some(Err(error))
+                if provider.supports_stream_start_retry()
+                    && should_retry(&error, &retry_config)
+                    && attempts < retry_config.max_retries() =>
+            {
+                attempts += 1;
+                tracing::warn!(
+                    "Stream failed before yielding output, retrying ({}/{}): {:?}",
+                    attempts,
+                    retry_config.max_retries(),
+                    error
+                );
+
+                let delay = match &error {
+                    ProviderError::RateLimitExceeded {
+                        retry_delay: Some(provider_delay),
+                        ..
+                    } => *provider_delay,
+                    _ => retry_config.delay_for_attempt(attempts),
+                };
+
+                let skip_backoff = std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
+                    .unwrap_or_default()
+                    .parse::<bool>()
+                    .unwrap_or(false);
+
+                if skip_backoff {
+                    tracing::info!("Skipping backoff due to GOOSE_PROVIDER_SKIP_BACKOFF");
+                } else {
+                    tracing::info!("Backing off for {:?} before stream retry", delay);
+                    tokio::time::sleep(delay).await;
+                }
+            }
+            Some(Err(error)) => return Err(error),
+            None => return Ok(Box::pin(futures::stream::empty())),
+        }
+    }
+}
 
 async fn enhance_model_error(
     error: ProviderError,
@@ -313,15 +380,13 @@ impl Agent {
         let toolshim_tools = toolshim_tools.to_owned();
         let provider = provider.clone();
 
-        // Capture errors during stream creation and return them as part of the stream
-        // so they can be handled by the existing error handling logic in the agent
         let model_config =
             model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         let request_started = std::time::Instant::now();
-        debug!("WAITING_LLM_STREAM_START");
         let stream_result = crate::session_context::with_session_id(
             Some(session_id.to_string()),
-            provider.stream(
+            open_provider_stream(
+                provider.as_ref(),
                 &model_config,
                 system_prompt.as_str(),
                 messages_for_provider.messages(),
@@ -329,9 +394,7 @@ impl Agent {
             ),
         )
         .await;
-        debug!("WAITING_LLM_STREAM_END");
 
-        // If there was an error creating the stream, return a stream that yields that error
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
@@ -681,22 +744,37 @@ mod tests {
     use crate::config::{GooseMode, PermissionManager};
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
+    use crate::providers::RetryConfig;
     use crate::session::{SessionManager, SessionType};
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
     use rmcp::model::{AnnotateAble, RawTextContent, Role, ToolAnnotations};
     use rmcp::object;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     #[derive(Clone)]
-    struct MockProvider;
+    struct MockProvider {
+        attempts: Option<Arc<AtomicUsize>>,
+        first_error: Option<ProviderError>,
+        fail_after_output: bool,
+        supports_stream_start_retry: bool,
+    }
 
     #[async_trait]
     impl Provider for MockProvider {
         fn get_name(&self) -> &str {
             "mock"
+        }
+
+        fn retry_config(&self) -> RetryConfig {
+            RetryConfig::new(2, 1, 1.0, 1)
+        }
+
+        fn supports_stream_start_retry(&self) -> bool {
+            self.supports_stream_start_retry
         }
 
         async fn stream(
@@ -706,9 +784,29 @@ mod tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
+            let attempt = self
+                .attempts
+                .as_ref()
+                .map(|attempts| attempts.fetch_add(1, Ordering::SeqCst))
+                .unwrap_or(0);
+
+            if attempt == 0 {
+                if let Some(error) = self.first_error.clone() {
+                    return Ok(Box::pin(futures::stream::once(async move { Err(error) })));
+                }
+            }
+
             let message = Message::assistant().with_text("ok");
             let usage = ProviderUsage::new("mock".to_string(), Usage::default());
-            Ok(stream_from_single_message(message, usage))
+            let first_item = Ok((Some(message), Some(usage)));
+            if self.fail_after_output {
+                let error = Err(ProviderError::NetworkError(
+                    "stream failed after output".to_string(),
+                ));
+                Ok(Box::pin(futures::stream::iter([first_item, error])))
+            } else {
+                Ok(Box::pin(futures::stream::once(async move { first_item })))
+            }
         }
     }
 
@@ -891,7 +989,12 @@ mod tests {
             .await?;
 
         let model_config = ModelConfig::new("test-model");
-        let provider = std::sync::Arc::new(MockProvider);
+        let provider = std::sync::Arc::new(MockProvider {
+            attempts: None,
+            first_error: None,
+            fail_after_output: false,
+            supports_stream_start_retry: false,
+        });
         agent
             .update_provider(provider, model_config, &session.id)
             .await?;
@@ -939,6 +1042,109 @@ mod tests {
         assert_eq!(names, sorted);
 
         Ok(())
+    }
+
+    async fn test_provider_stream(provider: &MockProvider) -> MessageStream {
+        open_provider_stream(
+            provider,
+            &ModelConfig::new("test-model"),
+            "system",
+            &[],
+            &[],
+        )
+        .await
+        .unwrap()
+    }
+
+    fn stream_decode_error() -> ProviderError {
+        ProviderError::NetworkError("Stream decode error: error decoding response body".to_string())
+    }
+
+    #[tokio::test]
+    async fn retries_transient_stream_error_before_output_for_opted_in_provider() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let provider = MockProvider {
+            attempts: Some(attempts.clone()),
+            first_error: Some(stream_decode_error()),
+            fail_after_output: false,
+            supports_stream_start_retry: true,
+        };
+
+        let mut stream = test_provider_stream(&provider).await;
+        let (message, usage) = stream.next().await.unwrap().unwrap();
+        assert_eq!(message.unwrap().as_concat_text(), "ok");
+        assert!(usage.is_some());
+        assert!(stream.next().await.is_none());
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_stream_error_for_provider_without_opt_in() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let provider = MockProvider {
+            attempts: Some(attempts.clone()),
+            first_error: Some(stream_decode_error()),
+            fail_after_output: false,
+            supports_stream_start_retry: false,
+        };
+
+        let error = open_provider_stream(
+            &provider,
+            &ModelConfig::new("test-model"),
+            "system",
+            &[],
+            &[],
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(error, stream_decode_error());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_non_transient_stream_error() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let error = ProviderError::RequestFailed("invalid request".to_string());
+        let provider = MockProvider {
+            attempts: Some(attempts.clone()),
+            first_error: Some(error.clone()),
+            fail_after_output: false,
+            supports_stream_start_retry: true,
+        };
+
+        let actual = open_provider_stream(
+            &provider,
+            &ModelConfig::new("test-model"),
+            "system",
+            &[],
+            &[],
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(actual, error);
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_stream_error_after_first_output() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let provider = MockProvider {
+            attempts: Some(attempts.clone()),
+            first_error: None,
+            fail_after_output: true,
+            supports_stream_start_retry: true,
+        };
+
+        let mut stream = test_provider_stream(&provider).await;
+        let (message, _) = stream.next().await.unwrap().unwrap();
+        assert_eq!(message.unwrap().as_concat_text(), "ok");
+        assert_eq!(
+            stream.next().await.unwrap().unwrap_err(),
+            ProviderError::NetworkError("stream failed after output".to_string())
+        );
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

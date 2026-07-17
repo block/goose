@@ -422,6 +422,12 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
+    /// Whether it is safe to replay a streaming request that fails before its
+    /// first item. Providers with local or external side effects must not opt in.
+    fn supports_stream_start_retry(&self) -> bool {
+        false
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(vec![])
     }

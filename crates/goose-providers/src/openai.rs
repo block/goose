@@ -575,6 +575,10 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
+    fn supports_stream_start_retry(&self) -> bool {
+        true
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
