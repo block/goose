@@ -1876,7 +1876,7 @@ impl Agent {
         let model_info_opt = provider.fetch_model_info(&requested_model).await.ok();
 
         if let Some(info) = &model_info_opt {
-            if model_config.reasoning.is_none() {
+            if model_config.reasoning.is_none() || !model_config.reasoning_is_explicit {
                 model_config.reasoning = info.reasoning.clone();
             }
         }
@@ -2980,7 +2980,7 @@ impl Agent {
         };
 
         if let Ok(info) = provider.fetch_model_info(&model_config.model_name).await {
-            if model_config.reasoning.is_none() {
+            if model_config.reasoning.is_none() || !model_config.reasoning_is_explicit {
                 model_config.reasoning = info.reasoning.clone();
             }
         }
