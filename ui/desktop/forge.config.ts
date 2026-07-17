@@ -165,6 +165,7 @@ module.exports = {
             '--socket=system-bus',
             // This ensures the app looks in our shim folder first
             '--env=LD_LIBRARY_PATH=/app/lib',
+            '--env=GIT_EXEC_PATH=/app/libexec/git-core',
           ],
         },
       },
