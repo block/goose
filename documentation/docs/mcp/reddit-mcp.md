@@ -18,7 +18,7 @@ This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhik
 :::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit-mcp&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content&env=REDDIT_CLIENT_ID%3DReddit%20client%20ID&env=REDDIT_CLIENT_SECRET%3DReddit%20client%20secret)
+  [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit-mcp&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
@@ -43,10 +43,6 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
       description="Fetch and analyze Reddit content"
       command="uvx"
       args={["--from", "git+https://github.com/adhikasp/mcp-reddit.git", "mcp-reddit"]}
-      envVars={[
-        { name: "REDDIT_CLIENT_ID", label: "Reddit client ID" },
-        { name: "REDDIT_CLIENT_SECRET", label: "Reddit client secret" }
-      ]}
     />
   </TabItem>
 
@@ -55,10 +51,6 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
       name="Reddit MCP"
       description="Fetch and analyze Reddit content"
       command="uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit"
-      envVars={[
-        { key: "REDDIT_CLIENT_ID", value: "your_client_id" },
-        { key: "REDDIT_CLIENT_SECRET", value: "your_client_secret" }
-      ]}
       timeout={300}
     />
   </TabItem>

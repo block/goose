@@ -588,21 +588,10 @@
     "description": "Reddit API integration for posts and comments",
     "command": "uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit",
     "link": "https://github.com/adhikasp/mcp-reddit",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Install using uvx.",
     "is_builtin": false,
     "endorsed": false,
-    "environmentVariables": [
-      {
-        "name": "REDDIT_CLIENT_ID",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "REDDIT_CLIENT_SECRET",
-        "description": "Required environment variable",
-        "required": true
-      }
-    ]
+    "environmentVariables": []
   },
   {
     "id": "rendex-mcp",
