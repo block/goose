@@ -610,11 +610,6 @@ pub fn create_responses_request(
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
     let reasoning_mode = model_config.reasoning_mode().map_err(anyhow::Error::msg)?;
-    if reasoning_mode.is_some() && !model_config.supports_reasoning_mode() {
-        return Err(anyhow!(
-            "reasoning_mode is only supported for GPT-5.6 models"
-        ));
-    }
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
@@ -1497,19 +1492,17 @@ mod tests {
     }
 
     #[test]
-    fn test_responses_request_rejects_reasoning_mode_for_non_gpt_5_6_model() {
-        for model_name in ["gpt-5.5", "gpt-5.60"] {
-            let model_config = ModelConfig::new(model_name).with_merged_request_params(
-                std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
-            );
+    fn test_responses_request_honors_reasoning_mode_for_configured_alias() {
+        let model_config = ModelConfig::new("team-prod").with_merged_request_params(
+            std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+        );
 
-            let error = create_responses_request(&model_config, "You are helpful.", &[], &[])
-                .expect_err("reasoning mode should be gated to GPT-5.6 models");
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
 
-            assert!(error
-                .to_string()
-                .contains("reasoning_mode is only supported for GPT-5.6 models"));
-        }
+        assert_eq!(result["model"], "team-prod");
+        assert_eq!(result["reasoning"]["mode"], "pro");
+        assert!(result["reasoning"].get("effort").is_none());
+        assert!(result["reasoning"].get("summary").is_none());
     }
 
     #[test]
