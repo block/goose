@@ -266,7 +266,7 @@ function parseCommandLine(value: string, windows: boolean): string[] {
         word = '';
         wordStarted = false;
       }
-    } else if (character === "'" || character === '"') {
+    } else if (character === '"' || (!windows && character === "'")) {
       quote = character;
       wordStarted = true;
     } else if (character === '\\' && !windows && index + 1 < value.length) {
@@ -287,14 +287,42 @@ function parseCommandLine(value: string, windows: boolean): string[] {
 }
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return [cmd, ...args].map(quoteCommandPart).join(' ');
+  const windows = isWindowsPlatform();
+  return [cmd, ...args].map((value) => quoteCommandPart(value, windows)).join(' ');
 }
 
-function quoteCommandPart(value: string): string {
+function quoteCommandPart(value: string, windows: boolean): string {
+  if (windows) {
+    return quoteWindowsCommandPart(value);
+  }
+
   if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) {
     return value;
   }
   return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function quoteWindowsCommandPart(value: string): string {
+  if (value.length > 0 && !/[\s"]/u.test(value)) {
+    return value;
+  }
+
+  let quoted = '"';
+  let backslashCount = 0;
+
+  for (const character of value) {
+    if (character === '\\') {
+      backslashCount += 1;
+    } else if (character === '"') {
+      quoted += '\\'.repeat(backslashCount * 2 + 1) + character;
+      backslashCount = 0;
+    } else {
+      quoted += '\\'.repeat(backslashCount) + character;
+      backslashCount = 0;
+    }
+  }
+
+  return quoted + '\\'.repeat(backslashCount * 2) + '"';
 }
 
 export function extractCommand(link: string): string {

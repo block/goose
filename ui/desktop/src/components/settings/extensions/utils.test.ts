@@ -491,6 +491,13 @@ describe('Extension Utils', () => {
         });
       });
 
+      it('treats apostrophes as literal Windows command-line characters', () => {
+        expect(splitCmdAndArgs("node C:\\Users\\O'Connor\\ext.js --owner=O'Connor")).toEqual({
+          cmd: 'node',
+          args: ["C:\\Users\\O'Connor\\ext.js", "--owner=O'Connor"],
+        });
+      });
+
       it('handles a quoted Windows path containing spaces', () => {
         expect(splitCmdAndArgs('"C:\\Program Files\\app\\ext.js"')).toEqual({
           cmd: 'C:\\Program Files\\app\\ext.js',
@@ -514,7 +521,7 @@ describe('Extension Utils', () => {
 
       it('roundtrips quoted Windows paths and metacharacters', () => {
         const cmd = 'C:\\Program Files\\nodejs\\npx.cmd';
-        const args = ['C:\\Users\\name\\extension.js', '-"c"', 'a&b'];
+        const args = ["C:\\Users\\O'Connor\\extension.js", '-"c"', 'a&b', 'quoted "value"\\'];
         expect(splitCmdAndArgs(combineCmdAndArgs(cmd, args))).toEqual({ cmd, args });
       });
     });
