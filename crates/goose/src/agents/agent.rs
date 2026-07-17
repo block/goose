@@ -177,9 +177,8 @@ fn provider_error_message(error: &ProviderError) -> Message {
 /// Waits for `delay` before a provider retry, returning `true` if the
 /// cancellation token fires first. `GOOSE_PROVIDER_SKIP_BACKOFF=true` skips the wait.
 async fn backoff_or_cancelled(delay: Duration, cancel_token: &Option<CancellationToken>) -> bool {
-    if std::env::var("GOOSE_PROVIDER_SKIP_BACKOFF")
-        .unwrap_or_default()
-        .parse::<bool>()
+    if Config::global()
+        .get_param::<bool>("GOOSE_PROVIDER_SKIP_BACKOFF")
         .unwrap_or(false)
     {
         return false;
@@ -2009,6 +2008,7 @@ impl Agent {
             let mut tool_pair_summarization_done = false;
             let mut stop_hook_handled_for_exit = false;
             let mut retrying_after_stop_hook_denial = false;
+            let mut retrying_after_provider_error = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
@@ -2082,6 +2082,8 @@ impl Agent {
                     retrying_after_stop_hook_denial = false;
                 } else if retrying_after_empty_turn {
                     retrying_after_empty_turn = false;
+                } else if retrying_after_provider_error {
+                    retrying_after_provider_error = false;
                 } else {
                     turns_taken += 1;
                 }
@@ -2152,7 +2154,6 @@ impl Agent {
                     match next {
                         Ok((response, usage)) => {
                             compaction_attempts = 0;
-                            transient_retry_attempts = 0;
 
                             if let Some(ref usage) = usage {
                                 let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
@@ -2720,8 +2721,10 @@ impl Agent {
                     }
                 }
                 if pending_provider_retry {
+                    retrying_after_provider_error = true;
                     continue;
                 }
+                transient_retry_attempts = 0;
                 can_drain_pending_steers = true;
 
                 if tools_updated {
@@ -4229,6 +4232,53 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             provider.call_count.load(Ordering::SeqCst),
             2,
             "2 calls: 1 rate limit + 1 success"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retries_do_not_consume_turn_budget() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::flaky(
+            3,
+            ProviderError::NetworkError("Stream decode error: test".into()),
+            "success after retries",
+        ));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(5));
+
+        let session_config = SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: None,
+            max_turns: Some(1),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(Message::user().with_text("hi"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+        let mut messages = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            match event? {
+                AgentEvent::Message(message) => messages.push(message),
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_)
+                | AgentEvent::MessageUsage { .. } => {}
+            }
+        }
+
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("success after retries")),
+            "retries should not consume the turn budget: {texts:?}"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            4,
+            "4 calls: 3 failures + 1 success"
         );
         Ok(())
     }
