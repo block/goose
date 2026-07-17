@@ -2031,15 +2031,31 @@ impl Agent {
                     max_turns,
                 ).await;
 
-                let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
-                    model_config.clone(),
-                    &session_config.id,
-                    &system_prompt,
-                    conversation_with_moim.messages(),
-                    &tools,
-                    &toolshim_tools,
-                ).await?;
+                let stream_result = {
+                    let stream_future = Self::stream_response_from_provider(
+                        self.provider().await?,
+                        model_config.clone(),
+                        &session_config.id,
+                        &system_prompt,
+                        conversation_with_moim.messages(),
+                        &tools,
+                        &toolshim_tools,
+                    );
+                    tokio::pin!(stream_future);
+                    if let Some(token) = cancel_token.as_ref() {
+                        tokio::select! {
+                            biased;
+                            _ = token.cancelled() => None,
+                            result = &mut stream_future => Some(result),
+                        }
+                    } else {
+                        Some(stream_future.as_mut().await)
+                    }
+                };
+                let Some(stream_result) = stream_result else {
+                    break;
+                };
+                let mut stream = stream_result?;
                 last_assistant_text.clear();
 
                 let current_turn_tool_count = conversation.messages().iter()
@@ -3860,6 +3876,32 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
+    struct PendingFirstItemProvider;
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for PendingFirstItemProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::pending()))
+        }
+
+        fn supports_stream_start_retry(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+        ) -> bool {
+            true
+        }
+
+        fn get_name(&self) -> &str {
+            "pending-first-item"
+        }
+    }
+
     struct ChunkedTextProvider;
 
     #[async_trait::async_trait]
@@ -3911,6 +3953,47 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         fn get_name(&self) -> &str {
             "refusing"
         }
+    }
+
+    #[tokio::test]
+    async fn cancellation_interrupts_pending_first_provider_item() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) = create_test_agent(
+            temp_dir.path().join("data"),
+            hook_manager,
+            Arc::new(PendingFirstItemProvider),
+        )
+        .await?;
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(1),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let cancel = cancel_token.clone();
+        tokio::spawn(async move {
+            tokio::task::yield_now().await;
+            cancel.cancel();
+        });
+
+        let next =
+            tokio::time::timeout(std::time::Duration::from_secs(1), reply_stream.next()).await;
+        assert!(next.is_ok(), "cancellation should stop first-item polling");
+        if let Some(event) = next.unwrap() {
+            event?;
+        }
+        Ok(())
     }
 
     #[tokio::test]
