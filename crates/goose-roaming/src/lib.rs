@@ -29,6 +29,7 @@ mod handshake;
 mod identity;
 mod invite;
 mod node;
+mod peerbook;
 mod relay;
 mod trust;
 
@@ -48,5 +49,6 @@ pub use invite::{InviteClaims, Scope, SignedInvite};
 pub use node::{
     AcpStreamServer, RoamingClientStream, RoamingConfig, RoamingNode, ROAMING_ACP_ALPN,
 };
+pub use peerbook::{PeerBook, PeerRecord};
 pub use relay::{RelayEntry, RelaySettings};
 pub use trust::{TrustBook, TrustPolicy};

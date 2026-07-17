@@ -3,8 +3,10 @@
 //! Subcommands:
 //! * `share` — bind a roaming endpoint and host this machine's agent, printing
 //!   an invite token for a client to connect with.
-//! * `connect` — dial a shared agent using an invite token.
-//! * `id` — print this machine's roaming endpoint id.
+//! * `connect` — dial a shared agent by saved peer name or invite token.
+//! * `peers` — manage the address book of remote agents you can connect to.
+//! * `connections` (alias `list`) — show live/observed connections.
+//! * `id` — print this machine's host and client endpoint ids.
 
 use std::sync::Arc;
 
@@ -68,28 +70,54 @@ pub enum RoamCommand {
         builtins: Vec<String>,
     },
 
-    /// Connect to a shared agent using an invite token.
+    /// Connect to a shared agent by saved peer name or invite token.
     Connect {
-        /// The `goose+roam://...` invite token.
-        token: String,
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        target: String,
 
         /// Optional label reported to the host's directory.
         #[arg(long)]
         label: Option<String>,
     },
 
+    /// Manage the address book of remote agents you can connect to.
+    Peers {
+        #[command(subcommand)]
+        command: Option<PeersCommand>,
+    },
+
     /// Print this machine's roaming endpoint id.
     Id,
 
-    /// List agents that have connected to (or been connected to by) this node.
+    /// Show live/observed connections to and from this node.
+    #[command(visible_alias = "list")]
+    Connections,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PeersCommand {
+    /// Add or refresh a saved remote's credential.
+    Save {
+        /// Friendly nickname.
+        name: String,
+        /// The `goose+roam://...` invite token.
+        invite: String,
+    },
+    /// Remove a saved remote.
+    Remove { name: String },
+    /// Rename a saved remote.
+    Rename { from: String, to: String },
+    /// List saved remotes (default).
     List,
 }
 
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
     match command {
         RoamCommand::Id => {
-            let identity = load_identity()?;
-            println!("{}", identity.public_key());
+            let host = load_identity()?;
+            let client = load_client_identity()?;
+            println!("host   (share) : {}", host.public_key());
+            println!("client (connect): {}", client.public_key());
             Ok(())
         }
         RoamCommand::Share {
@@ -99,9 +127,76 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             pair,
             builtins,
         } => handle_share(scope.into(), ttl, allow_keys, pair, builtins).await,
-        RoamCommand::Connect { token, label } => handle_connect(token, label).await,
-        RoamCommand::List => handle_list().await,
+        RoamCommand::Connect { target, label } => handle_connect(target, label).await,
+        RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
+        RoamCommand::Connections => handle_list().await,
     }
+}
+
+fn peerbook_path() -> std::path::PathBuf {
+    Paths::config_dir().join("roaming_peers.json")
+}
+
+async fn handle_peers(command: PeersCommand) -> Result<()> {
+    let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
+    match command {
+        PeersCommand::Save { name, invite } => {
+            book.save(&name, &invite, now_ms())?;
+            let rec = book.get(&name).expect("just saved");
+            if rec.bearer {
+                eprintln!(
+                    "warning: `{name}` is a BEARER credential — anyone holding it can connect. \
+                     Prefer a client-key-bound invite (host uses --allow-key)."
+                );
+            }
+            eprintln!(
+                "saved peer `{name}` -> {} (scope {:?})",
+                rec.endpoint_id, rec.scope
+            );
+            Ok(())
+        }
+        PeersCommand::Remove { name } => {
+            if book.remove(&name)? {
+                eprintln!("removed peer `{name}`");
+            } else {
+                eprintln!("no peer named `{name}`");
+            }
+            Ok(())
+        }
+        PeersCommand::Rename { from, to } => {
+            book.rename(&from, &to)?;
+            eprintln!("renamed `{from}` -> `{to}`");
+            Ok(())
+        }
+        PeersCommand::List => {
+            let peers = book.list();
+            if peers.is_empty() {
+                eprintln!("no saved peers; add one with `goose roam peers save <name> <invite>`");
+                return Ok(());
+            }
+            println!("{:<16} {:<8} {:<9} ENDPOINT ID", "NAME", "SCOPE", "CRED");
+            let now = now_ms();
+            for p in peers {
+                let scope = format!("{:?}", p.scope).to_lowercase();
+                let cred = if p.expires_at_ms <= now {
+                    "expired"
+                } else if p.bearer {
+                    "bearer"
+                } else {
+                    "key-bound"
+                };
+                println!("{:<16} {scope:<8} {cred:<9} {}", p.name, p.endpoint_id);
+            }
+            Ok(())
+        }
+    }
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 async fn handle_list() -> Result<()> {
@@ -139,6 +234,13 @@ async fn handle_list() -> Result<()> {
 fn load_identity() -> Result<RoamingIdentity> {
     let path = default_key_path(&Paths::config_dir());
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
+}
+
+/// Stable outbound (client) identity, distinct from the host key so a node
+/// never dials itself. Required for durable client-key-bound grants and pairing.
+fn load_client_identity() -> Result<RoamingIdentity> {
+    let path = Paths::config_dir().join("roaming_client_key");
+    RoamingIdentity::load_or_create(&path).context("failed to load roaming client identity")
 }
 
 async fn handle_share(
@@ -228,14 +330,30 @@ async fn handle_share(
     Ok(())
 }
 
-async fn handle_connect(token: String, label: Option<String>) -> Result<()> {
+async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
     use goose_roaming::SignedInvite;
 
+    // Resolve the target: a saved peer nickname or a raw invite token.
+    let token = if target.starts_with("goose+roam://") {
+        target.clone()
+    } else {
+        let book = goose_roaming::PeerBook::load(peerbook_path())?;
+        match book.get(&target) {
+            Some(rec) => rec.invite.clone(),
+            None => {
+                anyhow::bail!(
+                    "no saved peer named `{target}` (and it is not an invite token); \
+                     see `goose roam peers`"
+                );
+            }
+        }
+    };
+
     let invite = SignedInvite::decode(&token)?;
-    // Clients use a fresh ephemeral identity per connection: a persisted key
-    // must not be shared across concurrent processes (ambiguous endpoint
-    // ownership), and the connecting side has no need for a stable id.
-    let identity = RoamingIdentity::generate();
+    // Clients use a *stable* outbound identity (persisted, distinct from the
+    // host key so a node never dials itself). A stable client key is required
+    // for durable client-key-bound grants and pairing across reconnects.
+    let identity = load_client_identity()?;
 
     let node = RoamingNode::bind(RoamingConfig {
         identity,
