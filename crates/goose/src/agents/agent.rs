@@ -2145,6 +2145,11 @@ impl Agent {
                 // thinking so a later tool-call chunk can suppress replayed
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
+                // Whether any visible assistant content (text, reasoning,
+                // images, …) has been streamed to the client this turn, so a
+                // later transient error surfaces instead of retrying and showing
+                // a duplicate response.
+                let mut visible_content_streamed = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) || exit_chat {
@@ -2208,6 +2213,10 @@ impl Agent {
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
+
+                                if !filtered_response.content.is_empty() {
+                                    visible_content_streamed = true;
+                                }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
@@ -2687,12 +2696,11 @@ impl Agent {
                             error!("Error: {}", provider_err);
 
                             // Don't retry once any visible assistant content
-                            // (text or reasoning) has been streamed to the
-                            // client: the partial response is already shown, so
-                            // resending would produce a duplicate/incoherent one.
+                            // (text, reasoning, images, …) has been streamed to
+                            // the client: the partial response is already shown,
+                            // so resending would produce a duplicate/incoherent one.
                             let retry_delay = if no_tools_called
-                                && last_assistant_text.is_empty()
-                                && !surfaced_thinking_in_turn
+                                && !visible_content_streamed
                                 && !is_token_cancelled(&cancel_token)
                             {
                                 next_retry_delay(
@@ -3994,6 +4002,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     enum PreFailContent {
         Text(&'static str),
         Thinking(&'static str),
+        Image,
     }
 
     struct MockProvider {
@@ -4052,6 +4061,16 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 pre_fail_content: Some(PreFailContent::Thinking(thinking)),
             }
         }
+
+        fn fails_after_image(error: ProviderError, success_text: &'static str) -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+                error,
+                fail_times: Some(1),
+                success_text,
+                pre_fail_content: Some(PreFailContent::Image),
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -4072,6 +4091,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                         PreFailContent::Text(text) => Message::assistant().with_text(text),
                         PreFailContent::Thinking(thinking) => {
                             Message::assistant().with_thinking(thinking, "sig")
+                        }
+                        PreFailContent::Image => {
+                            Message::assistant().with_image("image-data", "image/png")
                         }
                     };
                     let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
@@ -4409,6 +4431,41 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             count_provider_retries(&messages),
             0,
             "must not retry once reasoning has been streamed"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — no retry despite an available budget"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "the transient error should surface rather than retry silently: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_retry_after_streamed_image() -> Result<()> {
+        // Image content is also visible to the client before any text or tool
+        // call, so a mid-stream transient error after an image must surface
+        // rather than retry and show a duplicate/incoherent response.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::fails_after_image(
+            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+            "would have recovered on a later call",
+        ));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "must not retry once an image has been streamed"
         );
         assert_eq!(
             provider.call_count.load(Ordering::SeqCst),
