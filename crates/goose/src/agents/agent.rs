@@ -2686,7 +2686,12 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
+                            // Don't retry once visible assistant text has been
+                            // streamed to the client: the partial answer is
+                            // already shown, so resending would produce a
+                            // duplicate/incoherent response.
                             let retry_delay = if no_tools_called
+                                && last_assistant_text.is_empty()
                                 && !is_token_cancelled(&cancel_token)
                             {
                                 next_retry_delay(
@@ -3984,6 +3989,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         error: ProviderError,
         fail_times: Option<usize>,
         success_text: &'static str,
+        content_before_fail: Option<&'static str>,
     }
 
     impl MockProvider {
@@ -3993,6 +3999,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 error,
                 fail_times: None,
                 success_text: "",
+                content_before_fail: None,
             }
         }
 
@@ -4002,6 +4009,21 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 error,
                 fail_times: Some(fail_times),
                 success_text,
+                content_before_fail: None,
+            }
+        }
+
+        fn fails_after_content(
+            content: &'static str,
+            error: ProviderError,
+            success_text: &'static str,
+        ) -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+                error,
+                fail_times: Some(1),
+                success_text,
+                content_before_fail: Some(content),
             }
         }
     }
@@ -4019,7 +4041,15 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             let should_fail = self.fail_times.map_or(true, |n| call < n);
             if should_fail {
                 let error = self.error.clone();
-                Ok(Box::pin(futures::stream::once(async move { Err(error) })))
+                if let Some(content) = self.content_before_fail {
+                    let message = Message::assistant().with_text(content);
+                    let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                    let chunks: [Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+                        2] = [Ok((Some(message), Some(usage))), Err(error)];
+                    Ok(Box::pin(futures::stream::iter(chunks)))
+                } else {
+                    Ok(Box::pin(futures::stream::once(async move { Err(error) })))
+                }
             } else {
                 let message = Message::assistant().with_text(self.success_text);
                 let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
@@ -4279,6 +4309,47 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             provider.call_count.load(Ordering::SeqCst),
             4,
             "4 calls: 3 failures + 1 success"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_retry_after_visible_content_streamed() -> Result<()> {
+        // A transient error arriving mid-stream, after the provider has already
+        // streamed visible assistant text, must not be retried: the client has
+        // already seen the partial answer, so resending would produce a
+        // duplicate/incoherent response. The error should surface instead.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::fails_after_content(
+            "partial answer already streamed to the client",
+            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+            "would have recovered on a later call",
+        ));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "must not retry once visible content has been streamed"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — no retry despite an available budget"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("partial answer")),
+            "the streamed partial content should be visible: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "the transient error should surface rather than retry silently: {texts:?}"
         );
         Ok(())
     }
