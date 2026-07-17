@@ -10,7 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [RunComfy MCP Server](https://github.com/runcomfy-com/runcomfy-mcp) as a goose extension, enabling goose to manage RunComfy Serverless (ComfyUI) GPU deployments and run async image/video inference.
 
-RunComfy MCP is a remote, hosted server at `https://mcp.runcomfy.com/mcp`. goose connects to it through the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) bridge.
+RunComfy MCP is a remote, hosted server at `https://mcp.runcomfy.com/mcp`. goose connects to it natively as a **Streamable HTTP** extension — no local Node.js required.
 
 :::tip Quick Install
 <Tabs groupId="interface">
@@ -18,10 +18,7 @@ RunComfy MCP is a remote, hosted server at `https://mcp.runcomfy.com/mcp`. goose
   Add it from **Settings → Extensions → Add**, or use the goose CLI command.
   </TabItem>
   <TabItem value="cli" label="goose CLI">
-  **Command**
-  ```sh
-  npx -y mcp-remote https://mcp.runcomfy.com/mcp --header Authorization:${RUNCOMFY_AUTH}
-  ```
+  Run `goose configure` → **Add Extension** → **Remote Extension (Streamable HTTP)**, URL `https://mcp.runcomfy.com/mcp`, with header `Authorization: Bearer <YOUR_RUNCOMFY_TOKEN>`.
   </TabItem>
 </Tabs>
 :::
@@ -29,7 +26,7 @@ RunComfy MCP is a remote, hosted server at `https://mcp.runcomfy.com/mcp`. goose
 ## Configuration
 
 :::info
-You'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`. You'll also need a RunComfy API token — get one from your [RunComfy Profile](https://www.runcomfy.com/profile). Set `RUNCOMFY_AUTH` to your token as a Bearer credential, e.g. `Bearer <YOUR_RUNCOMFY_TOKEN>`.
+No local runtime required — RunComfy is a native Streamable HTTP extension. You'll need a RunComfy API token — get one from your [RunComfy Profile](https://www.runcomfy.com/profile) — and send it as an `Authorization: Bearer <YOUR_RUNCOMFY_TOKEN>` request header.
 :::
 
 <Tabs groupId="interface">
@@ -38,26 +35,26 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
         extensionId="runcomfy"
         extensionName="RunComfy"
         description="Manage RunComfy Serverless (ComfyUI) GPU deployments and run async image/video inference"
-        command="npx"
-        args={["-y", "mcp-remote", "https://mcp.runcomfy.com/mcp", "--header", "Authorization:${RUNCOMFY_AUTH}"]}
-        cliCommand="npx -y mcp-remote https://mcp.runcomfy.com/mcp --header Authorization:${RUNCOMFY_AUTH}"
+        type="http"
+        url="https://mcp.runcomfy.com/mcp"
         timeout={300}
         envVars={[
-          { name: "RUNCOMFY_AUTH", label: "RunComfy API token as a Bearer credential, e.g. 'Bearer <YOUR_RUNCOMFY_TOKEN>'" }
+          { name: "Authorization", label: "Bearer <YOUR_RUNCOMFY_TOKEN>" }
         ]}
         apiKeyLink="https://www.runcomfy.com/profile"
         apiKeyLinkText="RunComfy API token"
-        note="Requires Node.js. RunComfy is a remote server reached via mcp-remote."
+        note="Remote Streamable HTTP server — no Node.js required. Provide your RunComfy token as an Authorization header."
     />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
       <CLIExtensionInstructions
         name="RunComfy"
         description="Manage RunComfy Serverless (ComfyUI) GPU deployments and run async image/video inference"
-        command="npx -y mcp-remote https://mcp.runcomfy.com/mcp --header Authorization:${RUNCOMFY_AUTH}"
+        type="http"
+        url="https://mcp.runcomfy.com/mcp"
         timeout={300}
         envVars={[
-          { key: "RUNCOMFY_AUTH", value: "Bearer <YOUR_RUNCOMFY_TOKEN>" }
+          { key: "Authorization", value: "Bearer <YOUR_RUNCOMFY_TOKEN>" }
         ]}
         infoNote="Get your RunComfy API token from https://www.runcomfy.com/profile"
       />
