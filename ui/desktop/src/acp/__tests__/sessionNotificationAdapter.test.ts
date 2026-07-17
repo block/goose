@@ -647,4 +647,33 @@ describe('createAcpSessionNotificationAdapter', () => {
       expect(changes).toEqual([{ type: 'sessionInfo', gooseMode: 'approve' }]);
     });
   });
+
+  describe('config_option_update', () => {
+    it('extracts gooseMode from the mode config option', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(
+        acpUpdate({
+          sessionUpdate: 'config_option_update',
+          configOptions: [
+            { id: 'model', type: 'select', currentValue: 'gpt-4o', options: [] },
+            { id: 'mode', type: 'select', currentValue: 'smart_approve', options: [] },
+          ],
+        })
+      );
+
+      expect(changes).toEqual([{ type: 'sessionInfo', gooseMode: 'smart_approve' }]);
+    });
+
+    it('returns empty when no mode config option is present', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(
+        acpUpdate({
+          sessionUpdate: 'config_option_update',
+          configOptions: [{ id: 'model', type: 'select', currentValue: 'gpt-4o', options: [] }],
+        })
+      );
+
+      expect(changes).toEqual([]);
+    });
+  });
 });

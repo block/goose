@@ -93,9 +93,25 @@ function applyAcpSessionNotification(
     }
     case 'current_mode_update':
       return [{ type: 'sessionInfo', gooseMode: update.currentModeId }];
+    case 'config_option_update': {
+      const gooseMode = extractModeFromConfigOptions(update.configOptions);
+      return gooseMode ? [{ type: 'sessionInfo', gooseMode }] : [];
+    }
     case 'usage_update':
       return [];
     default:
       return [];
   }
+}
+
+function extractModeFromConfigOptions(configOptions: unknown): string | undefined {
+  if (!Array.isArray(configOptions)) return undefined;
+  for (const option of configOptions) {
+    if (!option || typeof option !== 'object') continue;
+    if (!('id' in option) || option.id !== 'mode') continue;
+    if ('type' in option && option.type === 'select' && 'currentValue' in option) {
+      return typeof option.currentValue === 'string' ? option.currentValue : undefined;
+    }
+  }
+  return undefined;
 }
