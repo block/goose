@@ -11,7 +11,7 @@ use tracing::debug;
 use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
-use crate::config::Config;
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::{fix_conversation, Conversation};
 #[cfg(test)]
@@ -250,6 +250,10 @@ impl Agent {
         let model_config = self.model_config_for_session(session_id).await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
+
+        if goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager.apply_tool_annotations(&tools);
+        }
 
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager
@@ -672,6 +676,7 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 mod tests {
     use super::*;
     use crate::agents::{AgentConfig, GoosePlatform};
+    use crate::config::permission::PermissionLevel;
     use crate::config::{GooseMode, PermissionManager};
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
@@ -679,7 +684,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role};
+    use rmcp::model::{AnnotateAble, RawTextContent, Role, ToolAnnotations};
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
@@ -931,6 +936,69 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort();
         assert_eq!(names, sorted);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn prepare_toolshim_tools_applies_writable_annotations() -> anyhow::Result<()> {
+        let data_dir = tempfile::tempdir()?;
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let permission_manager = Arc::new(PermissionManager::new(data_path));
+        permission_manager
+            .update_smart_approve_permission("frontend__write_tool", PermissionLevel::AlwaysAllow);
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::clone(&permission_manager),
+            None,
+            GooseMode::SmartApprove,
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "test-toolshim-annotations".to_string(),
+                SessionType::Hidden,
+                GooseMode::SmartApprove,
+            )
+            .await?;
+        let model_config = ModelConfig::new("test-model").with_toolshim(true);
+        agent
+            .update_provider(Arc::new(MockProvider), model_config, &session.id)
+            .await?;
+        agent
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: vec![Tool::new(
+                        "frontend__write_tool",
+                        "Write tool",
+                        object!({ "type": "object", "properties": { } }),
+                    )
+                    .annotate(ToolAnnotations::new().read_only(false))],
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
+            .await?;
+
+        let (tools, toolshim_tools, _, _) = agent
+            .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
+            .await?;
+
+        assert!(tools.is_empty());
+        assert!(toolshim_tools
+            .iter()
+            .any(|tool| tool.name == "frontend__write_tool"));
+        assert_eq!(
+            permission_manager.get_smart_approve_permission("frontend__write_tool"),
+            Some(PermissionLevel::AskBefore)
+        );
 
         Ok(())
     }
