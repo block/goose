@@ -214,6 +214,114 @@ Theoretical use cases this unlocks:
 - Tool permission handling (the sharp edge): `crates/goose/src/acp/server.rs:1907`
 - Config/secrets + keyring: `crates/goose/src/config/base.rs`; paths: `crates/goose/src/config/paths.rs`
 
+## 9. Connect-side architecture (post-implementation research)
+
+After landing the transport + host-side hosting, a second expert review corrected
+a topology mistake I was about to make on the *connect* side. Recording it here
+so the next implementation session starts from the right model.
+
+### The topology error to avoid
+
+Tempting but **wrong**: on `roam connect`, wrap the remote agent as a *provider*
+(`AcpProvider::connect_with_transport`) for a fresh **local** session. That
+creates a confusing double agent-loop — the connecting side would run its own
+agent loop and tool execution locally, with the remote reduced to a model-like
+backend. That defeats the entire premise ("share *your* agent — its tools, its
+working dir, its shell — across the wire").
+
+### Correct model: connect = thin ACP client UI onto the host's agent
+
+- The **host** runs the real agent loop via `serve()` (`on_prompt` →
+  `agent.reply(...)`, `server.rs:2550`). Its tools, filesystem, working dir.
+- The **connecting client** is just an ACP *client UI*: it speaks
+  `initialize` → `session/new` → `session/prompt` over the stream and renders
+  `session/update` notifications to the terminal. No second local `Agent`.
+- `AcpProvider::connect_with_transport` is therefore the **wrong** tool here.
+  Build a small ACP-native terminal client instead (skeleton already exists at
+  `crates/goose-sdk/examples/acp_client.rs`).
+
+### Crate placement (revised)
+
+- `goose-roaming`: **pure transport** — iroh endpoint, invites, authorization,
+  raw authorized streams. No `AcpProvider`, no UI, no session policy.
+- **Move `GooseAcpBridge` OUT of `goose-roaming` into `goose-cli`.** It is the
+  only thing forcing the transport crate to depend on `goose`. If a second
+  non-CLI consumer appears later, extract a small `goose-roaming-acp`
+  integration crate — *not* a provider.
+- `goose-cli/src/commands/roam/client.rs`: builds `ByteStreams`, runs the ACP
+  `Client`, renders updates, answers permission requests. ACP types in the CLI
+  are not a layering leak — the CLI is the composition/presentation boundary.
+  Add a direct `agent-client-protocol` dep rather than leaning on `goose`'s.
+- `goose` core: transport-independent host access policy + enforcement. Still
+  **no iroh dependency**.
+
+### Host-context requirements on connect
+
+- Advertise **no** client filesystem / terminal capabilities. Otherwise goose
+  replaces host developer operations with callbacks to the *connecting* machine
+  (`server.rs:1085`) — the opposite of what we want.
+- Do **not** use the connector's local cwd. `session/load` currently rewrites
+  the hosted session's working dir when the supplied cwd differs
+  (`server.rs:1162`). The host must impose the `share` cwd and preserve it on
+  resume.
+
+### Scope enforcement (the security gap)
+
+- Pass the handshake's granted scope into **host-side** ACP enforcement.
+  Client-side cancellation is only defense-in-depth.
+- Do **not** teach core about iroh's `Scope`. Introduce a transport-neutral
+  `AcpConnectionPolicy { session_access, workspace, mutation_access,
+  permission_access }` and a `serve_with_policy(...)`, keeping `serve(...)` as
+  the unrestricted compatibility path.
+- Enforce in two places:
+  1. **Incoming method dispatch**: `new`, `load`, `prompt`, `cancel`, `close`,
+     config/mode changes.
+  2. **Permission generation**: unauthorized clients must *never receive* the
+     permission request; resolve it host-side as deny/cancel. For limited
+     controllers, omit `AllowAlways`/`RejectAlways`. This cannot be done with a
+     byte-stream wrapper — `handle_tool_permission_request` sends a reverse ACP
+     request and consumes its response directly (`server.rs:1907`).
+
+Eventual scope matrix:
+
+| Scope | Sessions | Prompt | Permissions |
+|---|---|---|---|
+| Control | share-scoped new/resume | yes | explicitly configured full authority |
+| Attach | one token-bound session, with lease | yes | prefer once-only |
+| Observe | one token-bound subscription | no | never routed |
+
+`Attach`/`Observe` invites also need a **signed session/share resource** in the
+claims (today `InviteClaims` carries only a scope, `invite.rs:44`). Without
+resource binding, "attach" degrades into "load any host session".
+
+### Session semantics: defer true live-attach
+
+Ship in this order:
+
+1. **New host-side session, `Control` only** (minimum useful release):
+   "connect to the host process and create a durable session using the host's
+   provider, tools, filesystem, and configured share directory."
+2. **Disconnected-session resume** with a process-wide exclusive lease keyed by
+   session id (`LoadSession` only after the old controller disconnects). Do
+   *not* allow unrestricted `list`/`load` — the server uses the normal goose
+   data dir, so an unfiltered roaming client could enumerate unrelated host
+   sessions.
+3. **Session coordinator**: one controller + notification fan-out (substantial
+   refactor — notifications currently go straight to the prompting connection).
+4. **Live observers + controller handoff.**
+
+Until step 3, **hide/reject `Observe` and `Attach`** — an observer connection
+has no live session to observe yet.
+
+### Immediate next implementation slice
+
+> CLI thin ACP client · host-selected workspace · `Control`-only new session ·
+> no `AcpProvider` · no live-attach claims yet · `GooseAcpBridge` moved to CLI.
+
+---
+
+## Appendix: key file references (continued)
+
 **mesh-llm (../deez, reference implementation)**
 - Endpoint bind: `crates/mesh-llm-host-runtime/src/mesh/mod.rs:2110`
 - QUIC tuning: `...mesh/mod.rs:2060`
