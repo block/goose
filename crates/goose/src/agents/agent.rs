@@ -2686,12 +2686,13 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // Don't retry once visible assistant text has been
-                            // streamed to the client: the partial answer is
-                            // already shown, so resending would produce a
-                            // duplicate/incoherent response.
+                            // Don't retry once any visible assistant content
+                            // (text or reasoning) has been streamed to the
+                            // client: the partial response is already shown, so
+                            // resending would produce a duplicate/incoherent one.
                             let retry_delay = if no_tools_called
                                 && last_assistant_text.is_empty()
+                                && !surfaced_thinking_in_turn
                                 && !is_token_cancelled(&cancel_token)
                             {
                                 next_retry_delay(
@@ -3989,12 +3990,18 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         Ok(())
     }
 
+    #[derive(Clone, Copy)]
+    enum PreFailContent {
+        Text(&'static str),
+        Thinking(&'static str),
+    }
+
     struct MockProvider {
         call_count: AtomicUsize,
         error: ProviderError,
         fail_times: Option<usize>,
         success_text: &'static str,
-        content_before_fail: Option<&'static str>,
+        pre_fail_content: Option<PreFailContent>,
     }
 
     impl MockProvider {
@@ -4004,7 +4011,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 error,
                 fail_times: None,
                 success_text: "",
-                content_before_fail: None,
+                pre_fail_content: None,
             }
         }
 
@@ -4014,7 +4021,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 error,
                 fail_times: Some(fail_times),
                 success_text,
-                content_before_fail: None,
+                pre_fail_content: None,
             }
         }
 
@@ -4028,7 +4035,21 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 error,
                 fail_times: Some(1),
                 success_text,
-                content_before_fail: Some(content),
+                pre_fail_content: Some(PreFailContent::Text(content)),
+            }
+        }
+
+        fn fails_after_thinking(
+            thinking: &'static str,
+            error: ProviderError,
+            success_text: &'static str,
+        ) -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+                error,
+                fail_times: Some(1),
+                success_text,
+                pre_fail_content: Some(PreFailContent::Thinking(thinking)),
             }
         }
     }
@@ -4046,8 +4067,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             let should_fail = self.fail_times.map_or(true, |n| call < n);
             if should_fail {
                 let error = self.error.clone();
-                if let Some(content) = self.content_before_fail {
-                    let message = Message::assistant().with_text(content);
+                if let Some(content) = self.pre_fail_content {
+                    let message = match content {
+                        PreFailContent::Text(text) => Message::assistant().with_text(text),
+                        PreFailContent::Thinking(thinking) => {
+                            Message::assistant().with_thinking(thinking, "sig")
+                        }
+                    };
                     let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
                     let chunks: [Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
                         2] = [Ok((Some(message), Some(usage))), Err(error)];
@@ -4352,6 +4378,44 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             texts.iter().any(|t| t.contains("partial answer")),
             "the streamed partial content should be visible: {texts:?}"
         );
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "the transient error should surface rather than retry silently: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_retry_after_streamed_reasoning() -> Result<()> {
+        // The text-only guard isn't enough: reasoning (Thinking/RedactedThinking)
+        // is also streamed to the client before any text or tool call. A
+        // transient error after surfaced reasoning must surface rather than
+        // retry and leave the client with abandoned reasoning plus a second
+        // attempt.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::fails_after_thinking(
+            "let me reason about this",
+            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+            "would have recovered on a later call",
+        ));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "must not retry once reasoning has been streamed"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — no retry despite an available budget"
+        );
+        let texts = visible_texts(&messages);
         assert!(
             texts.iter().any(|t| t.contains("Please resend")),
             "the transient error should surface rather than retry silently: {texts:?}"
