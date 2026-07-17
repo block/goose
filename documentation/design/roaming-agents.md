@@ -231,8 +231,21 @@ for `ANTHROPIC_CUSTOM_HEADERS`. On an unsigned dev binary spawned with piped
 stdio, the macOS keychain ACL prompt can't be answered, so the read blocks
 forever and `session/new` never returns.
 
-Confirmed: `GOOSE_DISABLE_KEYRING=1` (reads `secrets.yaml` instead) → session
-completes instantly. That is the current **workaround** for dev testing.
+**Route-around (the intended mechanism, not a hack):** goose's secret lookup
+order is **env var → keyring → `secrets.yaml`** (`config/base.rs:848`,
+`get_secret`). `GOOSE_DISABLE_KEYRING=1` (a documented first-class env var,
+`documentation/docs/guides/environment-variables.md:323`) swaps the keyring step
+for the non-blocking `secrets.yaml` file, so the inventory-identity closure never
+touches the blocking keychain and `session/new` returns instantly. It does **not**
+drop the API key: env vars are still checked first regardless. `goose run` avoids
+the hang only incidentally — `ANTHROPIC_API_KEY` is in env, so it short-circuits
+before the keyring; `ANTHROPIC_CUSTOM_HEADERS` is absent from env, so the ACP path
+falls through to the keychain.
+
+There is no narrower "skip inventory refresh" env var
+(checked `should_refresh_inventory_for_session_init` + the inventory module);
+`GOOSE_DISABLE_KEYRING` is the correct knob. The roaming host should set/document
+it until core follow-up #1 (below) moves the secret reads off the hot path.
 
 ### Follow-ups this surfaced (core, separate from roaming)
 
