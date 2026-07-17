@@ -1435,32 +1435,6 @@ impl GooseAcpAgent {
                 ActionRequiredData::ElicitationResponse { .. } => {}
                 ActionRequiredData::ToolConfirmationResponse { .. } => {}
             },
-            MessageContent::Image(image) => {
-                let mut image_content =
-                    ImageContent::new(image.data.clone(), image.mime_type.clone());
-                if let Some(audience) = image.audience() {
-                    image_content = image_content.annotations(
-                        Annotations::new().audience(
-                            audience
-                                .iter()
-                                .map(|r| match r {
-                                    Role::Assistant => {
-                                        agent_client_protocol::schema::v1::Role::Assistant
-                                    }
-                                    Role::User => agent_client_protocol::schema::v1::Role::User,
-                                })
-                                .collect::<Vec<_>>(),
-                        ),
-                    );
-                }
-                let chunk = ContentChunk::new(ContentBlock::Image(image_content))
-                    .meta(message_update_meta(message_id, message_created, steer));
-                let update = match role {
-                    Role::User => SessionUpdate::UserMessageChunk(chunk),
-                    Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
-                };
-                cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
-            }
             MessageContent::SystemNotification(notification) => {
                 send_status_message_update(
                     cx,
@@ -1468,6 +1442,15 @@ impl GooseAcpAgent {
                     session_id.0.as_ref(),
                     notification,
                 )?;
+            }
+            MessageContent::Error(error) => {
+                let chunk =
+                    ContentChunk::new(ContentBlock::Text(TextContent::new(error.message.clone())))
+                        .meta(message_update_meta(message_id, message_created, steer));
+                cx.send_notification(SessionNotification::new(
+                    session_id.clone(),
+                    SessionUpdate::AgentMessageChunk(chunk),
+                ))?;
             }
             _ => {}
         }
@@ -2134,6 +2117,19 @@ fn prompt_error_from_message_content(
             if notification.notification_type == SystemNotificationType::CreditsExhausted =>
         {
             Some(credits_exhausted_prompt_error(notification))
+        }
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::CreditsExhausted =>
+        {
+            let mut data = serde_json::Map::new();
+            data.insert(
+                "reason".to_string(),
+                serde_json::Value::String("credits_exhausted".to_string()),
+            );
+            Some(
+                agent_client_protocol::Error::new(-32603, error.message.clone())
+                    .data(serde_json::Value::Object(data)),
+            )
         }
         _ => None,
     }

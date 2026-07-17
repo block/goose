@@ -51,7 +51,17 @@ impl Step {
                     .with_arguments(args.as_object().cloned().unwrap_or_default());
                 Ok(vec![Message::assistant().with_tool_request(id, Ok(call))])
             }
-            Step::Messages(messages) => Ok(messages),
+            // Pre-built messages carry construction-time `created` stamps; the
+            // conversation is read back ordered by created_timestamp, so a
+            // stale stamp can sort a reply before the prompt it answers once
+            // the test crosses a second boundary. Re-stamp at the call.
+            Step::Messages(mut messages) => {
+                let now = chrono::Utc::now().timestamp();
+                for message in &mut messages {
+                    message.created = now;
+                }
+                Ok(messages)
+            }
             Step::Error(err) => Err(err),
         }
     }

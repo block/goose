@@ -214,13 +214,7 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
     md
 }
 
-#[cfg(test)]
 pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) -> String {
-    let audience = (!export_all_content).then_some(Role::Assistant);
-    tool_response_to_markdown_for_audience(resp, audience)
-}
-
-fn tool_response_to_markdown_for_audience(resp: &ToolResponse, audience: Option<Role>) -> String {
     let mut md = String::new();
     md.push_str("#### Tool Response:\n");
 
@@ -231,9 +225,9 @@ fn tool_response_to_markdown_for_audience(resp: &ToolResponse, audience: Option<
             }
 
             for content in &result.content {
-                if let Some(ref role) = audience {
+                if !export_all_content {
                     if let Some(audience) = content.audience() {
-                        if !audience.contains(role) {
+                        if !audience.contains(&Role::Assistant) {
                             continue;
                         }
                     }
@@ -343,19 +337,6 @@ fn tool_response_to_markdown_for_audience(resp: &ToolResponse, audience: Option<
 }
 
 pub fn message_to_markdown(message: &Message, export_all_content: bool) -> String {
-    let audience = (!export_all_content).then_some(Role::Assistant);
-    message_to_markdown_for_audience(message, export_all_content, audience)
-}
-
-pub fn user_projected_message_to_markdown(message: &Message) -> String {
-    message_to_markdown_for_audience(message, false, Some(Role::User))
-}
-
-fn message_to_markdown_for_audience(
-    message: &Message,
-    export_all_content: bool,
-    audience: Option<Role>,
-) -> String {
     let mut md = String::new();
     for content in &message.content {
         match content {
@@ -396,10 +377,7 @@ fn message_to_markdown_for_audience(
                 md.push('\n');
             }
             MessageContent::ToolResponse(resp) => {
-                md.push_str(&tool_response_to_markdown_for_audience(
-                    resp,
-                    audience.clone(),
-                ));
+                md.push_str(&tool_response_to_markdown(resp, export_all_content));
                 md.push('\n');
             }
             MessageContent::Image(image) => {
@@ -418,6 +396,9 @@ fn message_to_markdown_for_audience(
             MessageContent::RedactedThinking(_) => {
                 md.push_str("**Thinking:**\n");
                 md.push_str("> *Thinking was redacted*\n\n");
+            }
+            MessageContent::Error(error) => {
+                md.push_str(&format!("**Error**: {}\n\n", error.message));
             }
             MessageContent::SystemNotification(notification) => {
                 md.push_str(&format!("*{}*\n\n", notification.msg));

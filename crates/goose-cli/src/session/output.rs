@@ -237,10 +237,6 @@ pub fn set_thinking_message(s: &String) {
 }
 
 pub fn render_message(message: &Message, debug: bool) {
-    if !message.is_user_visible() {
-        return;
-    }
-    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -286,6 +282,10 @@ pub fn render_message(message: &Message, debug: bool) {
                     }
                 }
             }
+            MessageContent::Error(error) => {
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
+            }
             _ => {
                 eprintln!("WARNING: Message content type could not be rendered");
             }
@@ -303,10 +303,6 @@ pub fn render_message_streaming(
     thinking_header_shown: &mut bool,
     debug: bool,
 ) {
-    if !message.is_user_visible() {
-        return;
-    }
-    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -377,6 +373,11 @@ pub fn render_message_streaming(
                         render_credits_exhausted_notification(notification);
                     }
                 }
+            }
+            MessageContent::Error(error) => {
+                flush_markdown_buffer(buffer, theme);
+                hide_thinking();
+                println!("\n{} {}", danger("error:").bold(), &error.message);
             }
             _ => {
                 flush_markdown_buffer(buffer, theme);
