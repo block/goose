@@ -85,23 +85,8 @@ impl Operation for ToolPairCompactionOperation {
         }
 
         let mut effects: Vec<TurnEffect> = Vec::new();
+        let mut hidden_messages: std::collections::HashSet<String> = Default::default();
         for tool_id in tool_ids {
-            let summary = match summarize_tool_call(
-                self.provider.as_ref(),
-                &self.model_config,
-                &session.id,
-                conversation,
-                &tool_id,
-            )
-            .await
-            {
-                Ok(summary) => summary,
-                Err(e) => {
-                    tracing::warn!("Failed to summarize tool pair: {e}");
-                    continue;
-                }
-            };
-
             let pair: Vec<_> = conversation
                 .messages()
                 .iter()
@@ -122,9 +107,53 @@ impl Operation for ToolPairCompactionOperation {
                 continue;
             }
 
+            // A message can carry several tool calls (parallel requests, and
+            // the execution op batches a turn's responses into one message).
+            // Hiding is per message, so the pair is summarized as a group: the
+            // summary formats both messages wholesale, covering every sibling
+            // call — which then must not be summarized (or hidden) again.
+            if pair
+                .iter()
+                .any(|message| hidden_messages.contains(message.id.as_ref().unwrap()))
+            {
+                continue;
+            }
+            let request_ids: std::collections::HashSet<&str> = pair
+                .iter()
+                .flat_map(|message| message.get_tool_request_ids())
+                .collect();
+            let response_ids: std::collections::HashSet<&str> = pair
+                .iter()
+                .flat_map(|message| message.get_tool_response_ids())
+                .collect();
+            if request_ids != response_ids {
+                tracing::warn!(
+                    "Tool pair for '{tool_id}' has siblings answered elsewhere; skipping"
+                );
+                continue;
+            }
+
+            let summary = match summarize_tool_call(
+                self.provider.as_ref(),
+                &self.model_config,
+                &session.id,
+                conversation,
+                &tool_id,
+            )
+            .await
+            {
+                Ok(summary) => summary,
+                Err(e) => {
+                    tracing::warn!("Failed to summarize tool pair: {e}");
+                    continue;
+                }
+            };
+
             for message in pair {
+                let message_id = message.id.clone().expect("filtered on id presence");
+                hidden_messages.insert(message_id.clone());
                 effects.push(TurnEffect::SetMessageVisibility {
-                    message_id: message.id.clone().expect("filtered on id presence"),
+                    message_id,
                     user_visible: message.is_user_visible(),
                     agent_visible: false,
                 });

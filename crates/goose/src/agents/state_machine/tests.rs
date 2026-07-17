@@ -457,6 +457,125 @@ async fn old_tool_pairs_are_summarized_away() -> Result<()> {
 }
 
 #[tokio::test]
+async fn batched_tool_pairs_are_summarized_as_groups() -> Result<()> {
+    // 14 turns of two parallel calls each: one assistant message with two
+    // requests, one user message with both responses — the shape the machine
+    // itself writes. Hiding is per message, so each pair must be summarized
+    // once as a group; per-id summaries would double-summarize and
+    // double-hide. The first batch of 10 ids covers 5 message pairs.
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("group summary")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+
+    let session_manager = harness.agent.config.session_manager.clone();
+    session_manager
+        .add_message(&harness.session_id, &Message::user().with_text("old work"))
+        .await?;
+    for n in 0..14 {
+        let ids = [format!("call_{n}a"), format!("call_{n}b")];
+        let mut request = Message::assistant();
+        let mut response = Message::user();
+        for id in &ids {
+            request = request.with_tool_request(
+                id.clone(),
+                Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                    .with_arguments(serde_json::Map::new())),
+            );
+            response.add_tool_response_with_metadata(
+                id.clone(),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    rmcp::model::Content::text("result"),
+                ])),
+                None,
+            );
+        }
+        session_manager
+            .add_message(&harness.session_id, &request)
+            .await?;
+        session_manager
+            .add_message(&harness.session_id, &response)
+            .await?;
+    }
+
+    harness.run("carry on", 10).await?;
+
+    // 5 group summaries plus the actual turn.
+    assert_eq!(harness.provider.call_count(), 6);
+
+    let persisted = harness.persisted_messages().await?;
+    let summaries = persisted
+        .iter()
+        .filter(|m| {
+            m.as_concat_text() == "group summary" && m.is_agent_visible() && !m.is_user_visible()
+        })
+        .count();
+    assert_eq!(summaries, 5, "persisted: {persisted:#?}");
+
+    // No widowed content: a request and its response are hidden or visible
+    // together.
+    for message in persisted.iter().filter(|m| m.is_tool_response()) {
+        let response_ids = message.get_tool_response_ids();
+        let paired_visibility = persisted
+            .iter()
+            .find(|m| {
+                m.get_tool_request_ids()
+                    .intersection(&response_ids)
+                    .next()
+                    .is_some()
+            })
+            .map(|m| m.is_agent_visible());
+        assert_eq!(paired_visibility, Some(message.is_agent_visible()));
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn compact_command_does_not_duplicate_the_command_message() -> Result<()> {
+    let provider = Arc::new(ScriptedProvider::from_fn(|_messages, _tools| {
+        vec![Message::assistant().with_text("a summary")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+
+    let session_manager = harness.agent.config.session_manager.clone();
+    session_manager
+        .add_message(&harness.session_id, &Message::user().with_text("hello"))
+        .await?;
+    session_manager
+        .add_message(
+            &harness.session_id,
+            &Message::assistant().with_text("hi there"),
+        )
+        .await?;
+
+    let events = harness.run_events("/compact", 10).await?;
+
+    let replaced = events
+        .iter()
+        .filter(|e| matches!(e, AgentEvent::HistoryReplaced(_)))
+        .count();
+    assert_eq!(replaced, 1, "events: {events:#?}");
+
+    // The compacted conversation retains the triggering message; the op must
+    // not append a second copy.
+    let persisted = harness.persisted_messages().await?;
+    let command_count = persisted
+        .iter()
+        .filter(|m| m.as_concat_text().trim() == "/compact")
+        .count();
+    assert_eq!(command_count, 1, "persisted: {persisted:#?}");
+    let command = persisted
+        .iter()
+        .find(|m| m.as_concat_text().trim() == "/compact")
+        .unwrap();
+    assert!(command.is_user_visible());
+    assert!(!command.is_agent_visible());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn chat_mode_skips_tool_execution() -> Result<()> {
     let harness = TestHarness::with_steps([
         Step::ToolCall {

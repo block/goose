@@ -78,7 +78,12 @@ impl Operation for SlashCommandOperation<'_> {
                 let user_only_response = response.with_visibility(true, false);
 
                 if modifies_history(&message_text) {
-                    effects.push(user_only_command.clone().into());
+                    // /clear wiped the conversation, so the command must be
+                    // re-added; /compact's replacement already contains it,
+                    // user-visible and agent-invisible.
+                    if message_text.trim() == "/clear" {
+                        effects.push(user_only_command.clone().into());
+                    }
                     effects.push(user_only_response.clone().into());
                     effects.push(TurnEffect::EmitCurrentHistoryReplaced);
                 } else {
