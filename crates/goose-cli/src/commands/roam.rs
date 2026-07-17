@@ -366,16 +366,11 @@ async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
 
     eprintln!("connecting to {}...", invite.claims.audience);
     let stream = node.connect(&invite, label).await?;
-    eprintln!(
-        "connected to agent `{}` with scope {:?}",
-        stream.agent_id, stream.scope
-    );
+    let agent_label = stream.agent_id.clone();
+    eprintln!("authorized with scope {:?}", stream.scope);
 
-    // TODO(roaming): feed `stream` into the ACP client transport so the remote
-    // agent becomes the local provider and an interactive session can begin.
-    // For now we confirm the authorized channel is established.
-    eprintln!("(interactive session bridging is not yet wired up)");
+    let result = crate::commands::roam_client::run_interactive(stream, agent_label).await;
 
     node.shutdown().await?;
-    Ok(())
+    result
 }

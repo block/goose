@@ -5298,6 +5298,7 @@ dependencies = [
 name = "goose-cli"
 version = "1.43.0"
 dependencies = [
+ "agent-client-protocol",
  "anstream",
  "anyhow",
  "async-trait",

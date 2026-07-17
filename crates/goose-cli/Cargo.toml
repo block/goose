@@ -22,6 +22,7 @@ path = "src/bin/generate_manpages.rs"
 [dependencies]
 clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
+agent-client-protocol = { workspace = true, features = ["unstable"] }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
 goose-roaming = { path = "../goose-roaming", optional = true }

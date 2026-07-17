@@ -10,6 +10,8 @@ pub mod review;
 pub mod roam;
 #[cfg(feature = "roaming")]
 pub mod roam_bridge;
+#[cfg(feature = "roaming")]
+pub mod roam_client;
 pub mod schedule;
 pub mod session;
 pub mod skills;
