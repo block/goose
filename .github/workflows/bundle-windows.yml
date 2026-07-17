@@ -1,4 +1,4 @@
-name: "Bundle Desktop (Windows)"
+name: "Bundle CLI and Desktop (Windows)"
 
 on:
   workflow_dispatch:
@@ -8,10 +8,23 @@ on:
         required: false
         type: boolean
         default: false
-      windows_variant:
-        description: 'Windows artifact variant to build'
+      package_cli:
+        description: 'Whether to package and upload the CLI artifact'
         required: false
-        type: string
+        type: boolean
+        default: false
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
+        required: false
+        type: boolean
+        default: false
+      windows_variant:
+        description: 'Windows artifact variant: standard or cuda'
+        required: false
+        type: choice
+        options:
+          - standard
+          - cuda
         default: 'standard'
   workflow_call:
     inputs:
@@ -24,52 +37,46 @@ on:
         required: false
         type: boolean
         default: false
+      package_cli:
+        description: 'Whether to package and upload the CLI artifact'
+        required: false
+        type: boolean
+        default: false
+      package_desktop:
+        description: 'Whether to package and upload the Desktop artifact'
+        required: false
+        type: boolean
+        default: false
       ref:
         description: 'Git ref to checkout'
         required: false
         type: string
         default: ''
       windows_variant:
-        description: 'Windows artifact variant to build'
+        description: 'Windows artifact variant: standard or cuda'
         required: false
         type: string
         default: 'standard'
 
-# Permissions required for OIDC authentication with Azure Trusted Signing
 permissions:
-  id-token: write   # Required to fetch the OIDC token for Azure federated credentials
-  contents: read    # Required by actions/checkout
-  actions: read     # May be needed for some workflows
+  contents: read
 
 jobs:
-  build-desktop-windows:
-    name: Build Desktop (Windows)
+  build-goose-windows:
+    name: Build Goose (Windows)
     runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
-        with:
-          node-version: 24.10.0
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.30.3
-
-      - name: Cache node_modules
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            node_modules
-            ui/desktop/node_modules
-            .hermit/node/cache
-          key: windows-pnpm-cache-v1-${{ runner.os }}-node24-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            windows-pnpm-cache-v1-${{ runner.os }}-node24-
+      - name: Update Cargo version
+        if: ${{ inputs.version != '' }}
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bash scripts/set-cargo-version.sh "$VERSION"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
@@ -82,21 +89,21 @@ jobs:
           rustup show
           rustup target add x86_64-pc-windows-msvc
 
-      - name: Install CUDA toolkit (Windows CUDA)
+      - name: Install CUDA toolkit
         if: ${{ inputs.windows_variant == 'cuda' }}
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@3d45d157f327c09c04b50ee6ccdea2d9d017ec76  # v0.2.35
         with:
           cuda: '12.9.1'
           method: 'local'
-          log-file-suffix: 'bundle-desktop-windows-cuda.txt'
+          log-file-suffix: 'bundle-windows-cuda.txt'
 
-      - name: Set up MSVC developer environment (Windows CUDA)
+      - name: Set up MSVC developer environment
         if: ${{ inputs.windows_variant == 'cuda' }}
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: amd64
 
-      - name: Verify CUDA toolchain (Windows CUDA)
+      - name: Verify CUDA toolchain
         if: ${{ inputs.windows_variant == 'cuda' }}
         shell: pwsh
         env:
@@ -115,43 +122,111 @@ jobs:
         run: |
           $isCuda = "${{ inputs.windows_variant }}" -eq "cuda"
 
-          Write-Output "Building Windows ACP backend"
           if ($isCuda) {
             cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose --features cuda
           } else {
             cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose
           }
-          $binaryPath = "./target/x86_64-pc-windows-msvc/release/goose.exe"
 
-          # Verify build succeeded
+          $binaryPath = "./target/x86_64-pc-windows-msvc/release/goose.exe"
           if (-not (Test-Path $binaryPath)) {
-            Write-Error "Windows backend binary not found: $binaryPath"
+            Write-Error "Windows binary not found: $binaryPath"
             Get-ChildItem ./target/x86_64-pc-windows-msvc/release/ -ErrorAction SilentlyContinue
             exit 1
           }
-
-          Write-Output "Windows backend binary found."
           Get-Item $binaryPath
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: internal-goose-x86_64-pc-windows-msvc${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: target/x86_64-pc-windows-msvc/release/goose.exe
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  package-cli-windows:
+    name: Package CLI (Windows)
+    if: ${{ inputs.package_cli }}
+    needs: build-goose-windows
+    runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
+    steps:
+      - name: Download binary artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: internal-goose-x86_64-pc-windows-msvc${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: package
+
+      - name: Package CLI
+        shell: bash
+        env:
+          VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+        run: |
+          mkdir -p goose-package
+          cp package/goose.exe goose-package/
+          7z a -tzip "goose-x86_64-pc-windows-msvc${VARIANT_SUFFIX}.zip" goose-package/
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: goose-x86_64-pc-windows-msvc${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: goose-x86_64-pc-windows-msvc${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          if-no-files-found: error
+          overwrite: true
+
+  build-desktop-windows:
+    name: Build Desktop (Windows)
+    if: ${{ inputs.package_desktop }}
+    needs: build-goose-windows
+    runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || '' }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: 24.10.0
+
+      - name: Update desktop version
+        if: ${{ inputs.version != '' }}
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cd ui/desktop
+          npm pkg set "version=${VERSION}"
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.30.3
+
+      - name: Cache node_modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            node_modules
+            ui/desktop/node_modules
+            .hermit/node/cache
+          key: windows-pnpm-cache-v1-${{ runner.os }}-node24-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            windows-pnpm-cache-v1-${{ runner.os }}-node24-
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: internal-goose-x86_64-pc-windows-msvc${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          path: backend
 
       - name: Prepare Windows binary
         shell: bash
         run: |
-          BACKEND_BINARY="./target/x86_64-pc-windows-msvc/release/goose.exe"
-
-          if [ ! -f "$BACKEND_BINARY" ]; then
-            echo "Windows backend binary not found: $BACKEND_BINARY"
-            exit 1
-          fi
-
-          echo "Cleaning destination directory..."
           rm -rf ./ui/desktop/src/bin
           mkdir -p ./ui/desktop/src/bin
-
-          echo "Copying Windows backend binary..."
-          cp -f "$BACKEND_BINARY" ./ui/desktop/src/bin/
+          cp -f ./backend/goose.exe ./ui/desktop/src/bin/
 
           if [ -d "./ui/desktop/src/platform/windows/bin" ]; then
-            echo "Copying Windows platform files..."
             for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do
               filename="$(basename "$file")"
               if [ -f "$file" ] && [ "$filename" != "goose.exe" ]; then
@@ -160,10 +235,8 @@ jobs:
             done
 
             if [ -d "./ui/desktop/src/platform/windows/bin/goose-npm" ]; then
-              echo "Setting up npm environment..."
               cp -r ./ui/desktop/src/platform/windows/bin/goose-npm/ ./ui/desktop/src/bin/goose-npm/
             fi
-            echo "Windows-specific files copied successfully"
           fi
 
       - name: Force GitHub HTTPS for npm git dependencies
@@ -179,13 +252,12 @@ jobs:
           ELECTRON_PLATFORM: win32
         run: |
           cd ui/desktop
-
           pnpm install --frozen-lockfile
           node scripts/build-main.js
           node scripts/prepare-platform-binaries.js
           pnpm run make --platform=win32 --arch=x64
 
-      - name: Copy exe to final out folder and prepare flat distribution
+      - name: Prepare flat distribution
         shell: bash
         run: |
           cd ui/desktop
@@ -195,29 +267,31 @@ jobs:
           mkdir -p ./dist-windows
           cp -r ./out/Goose-win32-x64/* ./dist-windows/
 
-          echo "📋 Final flat distribution structure:"
           ls -la ./dist-windows/
-          echo "📋 Binary files in resources/bin:"
           ls -la ./dist-windows/resources/bin/
 
       - name: Upload unsigned distribution
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          name: internal-windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: ui/desktop/dist-windows/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
   sign-desktop-windows:
     name: Sign Desktop (Windows)
     needs: build-desktop-windows
-    if: inputs.signing
+    if: ${{ inputs.package_desktop && inputs.signing }}
     runs-on: windows-latest
     environment: ${{ inputs.signing && 'signing' || null }}
-
+    permissions:
+      id-token: write
     steps:
       - name: Download unsigned distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          name: internal-windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: dist-windows
 
       - name: Azure login
@@ -253,44 +327,40 @@ jobs:
 
       - name: Create Windows zip package
         shell: bash
-        run: |
-          ZIP_NAME="Goose-win32-x64"
-          if [ "${{ inputs.windows_variant }}" = "cuda" ]; then
-            ZIP_NAME="${ZIP_NAME}-cuda"
-          fi
-          7z a -tzip "${ZIP_NAME}.zip" dist-windows/
+        env:
+          VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+        run: 7z a -tzip "Goose-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
 
       - name: Upload signed Windows build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          if-no-files-found: error
+          overwrite: true
 
-  # When signing is disabled, package the unsigned build directly
   package-desktop-windows:
     name: Package Desktop (Windows)
     needs: build-desktop-windows
-    if: ${{ !inputs.signing }}
+    if: ${{ inputs.package_desktop && !inputs.signing }}
     runs-on: windows-latest
-
     steps:
       - name: Download unsigned distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+          name: internal-windows-unsigned${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: dist-windows
 
       - name: Create Windows zip package
         shell: bash
-        run: |
-          ZIP_NAME="Goose-win32-x64"
-          if [ "${{ inputs.windows_variant }}" = "cuda" ]; then
-            ZIP_NAME="${ZIP_NAME}-cuda"
-          fi
-          7z a -tzip "${ZIP_NAME}.zip" dist-windows/
+        env:
+          VARIANT_SUFFIX: ${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
+        run: 7z a -tzip "Goose-win32-x64${VARIANT_SUFFIX}.zip" dist-windows/
 
       - name: Upload Windows build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}
           path: Goose-win32-x64${{ inputs.windows_variant == 'cuda' && '-cuda' || '' }}.zip
+          if-no-files-found: error
+          overwrite: true

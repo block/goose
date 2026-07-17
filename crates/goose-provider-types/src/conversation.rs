@@ -69,7 +69,7 @@ impl Conversation {
             }
             match (last.content.last_mut(), message.content.last()) {
                 (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
-                    if message.content.len() == 1 =>
+                    if message.content.len() == 1 && last.audience() == new.audience() =>
                 {
                     last.text.push_str(&new.text);
                 }
@@ -158,11 +158,21 @@ impl Conversation {
     }
 
     pub fn agent_visible_messages(&self) -> Vec<Message> {
-        self.filtered_messages(|meta| meta.agent_visible)
+        self.0
+            .iter()
+            .filter(|message| message.metadata.agent_visible)
+            .map(Message::agent_visible_content)
+            .filter(|message| !message.content.is_empty())
+            .collect()
     }
 
     pub fn user_visible_messages(&self) -> Vec<Message> {
-        self.filtered_messages(|meta| meta.user_visible)
+        self.0
+            .iter()
+            .filter(|message| message.metadata.user_visible)
+            .map(Message::user_visible_content)
+            .filter(|message| !message.content.is_empty())
+            .collect()
     }
 
     fn validate(self) -> Result<Self, InvalidConversation> {
@@ -274,13 +284,12 @@ fn merge_text_content_in_message(mut msg: Message) -> Message {
         .into_iter()
         .fold(Vec::new(), |mut content, item| {
             match item {
-                MessageContent::Text(text) => {
-                    if let Some(MessageContent::Text(ref mut last)) = content.last_mut() {
+                MessageContent::Text(text) => match content.last_mut() {
+                    Some(MessageContent::Text(last)) if last.audience() == text.audience() => {
                         last.text.push_str(&text.text);
-                    } else {
-                        content.push(MessageContent::Text(text));
                     }
-                }
+                    _ => content.push(MessageContent::Text(text)),
+                },
                 other => content.push(other),
             }
             content
@@ -665,7 +674,7 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
@@ -990,6 +999,129 @@ mod tests {
         } else {
             panic!("Expected second item to be an image");
         }
+    }
+
+    #[test]
+    fn test_streamed_text_with_different_audiences_is_not_merged() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let text = |value: &str, audience| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![audience]),
+            )
+        };
+
+        for (first, second) in [(Role::User, Role::Assistant), (Role::Assistant, Role::User)] {
+            let mut conversation = Conversation::empty();
+            conversation.push(
+                Message::assistant()
+                    .with_id("stream-1")
+                    .with_content(text("first", first.clone())),
+            );
+            conversation.push(
+                Message::assistant()
+                    .with_id("stream-1")
+                    .with_content(text("second", second)),
+            );
+
+            let message = conversation.last().unwrap();
+            assert_eq!(message.content.len(), 2);
+            assert_eq!(
+                message
+                    .user_visible_content()
+                    .content
+                    .iter()
+                    .filter_map(|content| match content {
+                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                if first == Role::User {
+                    vec!["first"]
+                } else {
+                    vec!["second"]
+                }
+            );
+            assert_eq!(
+                message
+                    .agent_visible_content()
+                    .content
+                    .iter()
+                    .filter_map(|content| match content {
+                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                if first == Role::Assistant {
+                    vec!["first"]
+                } else {
+                    vec!["second"]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_user_visible_messages_projects_content_and_drops_hidden_rows() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let assistant_only = |value: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::Assistant]),
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_content(assistant_only("content hidden by audience"))
+                .agent_only(),
+            Message::assistant()
+                .with_content(assistant_only("private"))
+                .with_text("public"),
+        ]);
+
+        let projected = conversation.user_visible_messages();
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].as_concat_text(), "public");
+    }
+
+    #[test]
+    fn test_agent_visible_messages_projects_content_and_drops_hidden_rows() {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        let user_only = |value: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: value.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        };
+        let conversation = Conversation::new_unvalidated([
+            Message::assistant()
+                .with_content(user_only("content hidden from agent"))
+                .user_only(),
+            Message::assistant()
+                .with_content(user_only("private from agent"))
+                .with_text("shared with agent"),
+        ]);
+
+        let projected = conversation.agent_visible_messages();
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].as_concat_text(), "shared with agent");
     }
 
     #[test]

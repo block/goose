@@ -314,10 +314,22 @@ fn assert_conversation_compacted(conversation: &Conversation) {
     for (idx, msg) in messages.iter().enumerate() {
         if idx >= continuation_end {
             assert!(
-                msg.is_agent_visible() && msg.is_user_visible(),
-                "Message after compaction at index {} should be fully visible",
+                msg.is_agent_visible(),
+                "Message after compaction at index {} should be agent visible",
                 idx
             );
+            if idx == continuation_end && matches!(msg.role, rmcp::model::Role::User) {
+                assert!(
+                    !msg.is_user_visible(),
+                    "Projected preserved user message should be user-invisible"
+                );
+            } else {
+                assert!(
+                    msg.is_user_visible(),
+                    "Ordinary message after compaction at index {} should be user visible",
+                    idx
+                );
+            }
         }
     }
 }
