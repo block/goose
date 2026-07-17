@@ -94,7 +94,8 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     setInputValues((prevValues: Record<string, string>) => ({ ...prevValues, [name]: value }));
   };
 
-  const handleSubmit = (): void => {
+  const handleSubmit = (e: React.SyntheticEvent): void => {
+    e.preventDefault();
     setValidationErrors({});
 
     const requiredParams: Parameter[] = parameters.filter(needsUserValue);

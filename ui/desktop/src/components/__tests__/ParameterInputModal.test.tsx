@@ -80,6 +80,30 @@ describe('ParameterInputModal', () => {
       });
     });
 
+    it('prevents the default form submission when Enter is pressed in a parameter field', async () => {
+      const user = userEvent.setup();
+      renderWithIntl(<ParameterInputModal {...defaultProps} />);
+
+      let submitFired = false;
+      let defaultPrevented: boolean | undefined;
+      const captureSubmit = (event: Event) => {
+        submitFired = true;
+        // Read before suppressing, otherwise this listener would mask the result
+        defaultPrevented = event.defaultPrevented;
+        event.preventDefault();
+      };
+      document.addEventListener('submit', captureSubmit);
+
+      try {
+        await user.type(screen.getByLabelText(/test parameter 1/i), 'test value{Enter}');
+      } finally {
+        document.removeEventListener('submit', captureSubmit);
+      }
+
+      expect(submitFired).toBe(true);
+      expect(defaultPrevented).toBe(true);
+    });
+
     it('shows validation errors for required parameters', async () => {
       const user = userEvent.setup();
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
