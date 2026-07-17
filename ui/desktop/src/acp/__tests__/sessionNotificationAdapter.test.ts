@@ -633,4 +633,18 @@ describe('createAcpSessionNotificationAdapter', () => {
       });
     });
   });
+
+  describe('current_mode_update', () => {
+    it('returns a sessionInfo change with the new mode', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(
+        acpUpdate({
+          sessionUpdate: 'current_mode_update',
+          currentModeId: 'approve',
+        })
+      );
+
+      expect(changes).toEqual([{ type: 'sessionInfo', gooseMode: 'approve' }]);
+    });
+  });
 });

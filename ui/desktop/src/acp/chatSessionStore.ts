@@ -4,7 +4,7 @@ import type { RequestPermissionRequest, SessionNotification } from '@agentclient
 import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import type { Message, NotificationEvent } from '../types/message';
-import type { Session } from '../types/session';
+import type { GooseMode, Session } from '../types/session';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
@@ -603,6 +603,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         }
         if (change.activeRunId !== undefined) {
           entry.activeRunId = change.activeRunId;
+        }
+        if (change.gooseMode && entry.session) {
+          entry.session = { ...entry.session, goose_mode: change.gooseMode as GooseMode };
         }
         break;
       case 'localSteerConfirmed':

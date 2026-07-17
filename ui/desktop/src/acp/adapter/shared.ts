@@ -10,6 +10,7 @@ export type AcpChatStateChange =
       type: 'sessionInfo';
       name?: string;
       activeRunId?: string | null;
+      gooseMode?: string;
     }
   | { type: 'localSteerConfirmed'; messageId: string }
   | { type: 'notification'; notification: NotificationEvent };

@@ -91,6 +91,8 @@ function applyAcpSessionNotification(
         },
       ];
     }
+    case 'current_mode_update':
+      return [{ type: 'sessionInfo', gooseMode: update.currentModeId }];
     case 'usage_update':
       return [];
     default:
