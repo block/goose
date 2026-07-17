@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Özel uygulama"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "MCP sunucularınızdaki uygulamalar ve goose tarafından oluşturulan Uygulamalar. Sohbet arayüzü aracılığıyla yeni uygulamalar oluşturmasını isteyebilirsiniz; bunlar burada görünecektir."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Uygulamalar yüklenirken hata oluştu: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Uygulamayı İçe Aktar"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "Kullanılabilir uygulama yok"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "Yeniden dene"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Ana sayfaya git"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Bağlantı kesildi. Yeniden bağlanılıyor…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Varsayılan olarak goose sizin için bir sunucu başlatır; harici bir goose sunucusuna bağlanmak için bunu kullanın"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Değişikliklerin etkili olması için Goose'nin yeniden başlatılması gerekir. Yeni sohbet pencereleri harici sunucuya bağlanacaktır."
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "Gizli Anahtar"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed sunucusunda yapılandırılan gizli anahtar (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Goose sunucusunda yapılandırılan gizli anahtar (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Sunucunun gizli anahtarını girin"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "Sunucu URL'si"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Sunucu"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Geçersiz URL biçimi"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Başka bir yerde çalışan bir goose sunucusuna bağlanın (uygulamanın yeniden başlatılmasını gerektirir)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Başlamak için bir seçenek seçin."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Ücretsiz ve Özel"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Bir model indirin ve tamamen makinenizde çalıştırın. API anahtarı yok, hesap yok."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Yerel Bir Model Kullanın"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "7 gün boyunca 60 milyon ücretsiz jeton almak için kaydolun."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Yeniden dene"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Otomatik kurulumla birden fazla yapay zeka modeline erişin. 10$ kredi almak için kaydolun."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate'den Ajan Yönlendirici"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Kurulum sırasında beklenmeyen bir hata oluştu."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Kapat"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "İndiriliyor"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Öne Çıkan Modeller"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Model ararken ve indirirken hız sınırlarını artırmak ve özel ya da erişimi kısıtlı Hugging Face depolarına erişmek için oturum açın."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Modeli Ayarları"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Yalnızca önerilenleri göster"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Geri"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Makineniz için en iyisi"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Resim İçinde Resim'de Oynatma"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "İptal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Açık"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Bu açılacak: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message} için mesaj alındı."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} mesajı"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message} için mesaj alındı. {messageType} mesajları henüz desteklenmiyor; daha fazla ayrıntı için konsola bakın."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# öğe bulundu} other{# öğe bulundu}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "beklemek"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(girdinin %{percent}'i)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "önbellek okuma"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "önbellek yazma"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Sıkıştırma"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Maliyet"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(tahmini)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "İlk jeton"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Girdi"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Çıktı"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(bildirilen)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Hız"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Toplam"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Toplam süre"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Dikte için hangi mikrofonun kullanılacağını seçin"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Şablondan veya manuel kurulumdan"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\" ile eşleşen sağlayıcı yok"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Sağlayıcı ara..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logosu"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "OpenAI, Anthropic, Google, vb.'yi bağlayın"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Yerel bir model veya ücretsiz kredili bir sağlayıcı kullanın"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Bir model indirin ve tamamen makinenizde çalıştırın. API anahtarı yok, hesap yok."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Bir sağlayıcı seçin"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Ücretsiz/Yerel Sağlayıcıları Kullanın"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Yerel Bir Model Kullanın"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Sağlayıcı Yapılandırma Ayarları"
@@ -3887,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "İngilizce"
   },
+  "settings.language.french": {
+    "defaultMessage": "Fransızca"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Almanca"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hintçe"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Endonezce"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "İtalyanca"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonca"
   },
   "settings.language.korean": {
     "defaultMessage": "Korece"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayca"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portekizce"
   },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
@@ -3911,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Türkçe"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamca"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Çince (Basitleştirilmiş)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Çince (Geleneksel)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Menü çubuğunda goose'yi göster"
@@ -4001,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Sohbet"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Harici Arka Uç"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Klavye"
   },
@@ -4012,9 +4066,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "İstemler"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Oturum"
   },
   "settingsView.title": {
     "defaultMessage": "Ayarlar"
@@ -4405,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Günlükler"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP Kullanıcı arayüzü deneyseldir ve herhangi bir zamanda değişebilir."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Çıkış"

@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "自定义应用"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "来自你 MCP 服务器的应用，以及 goose 自己构建的应用。你可以通过聊天界面让它创建新应用，新应用会显示在这里。"
   },
   "appsView.errorLoading": {
     "defaultMessage": "加载应用出错：{error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "导入应用"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "暂无可用应用"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "重试"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "连接已断开。正在重新连接…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "默认情况下 goose 会为你启动一个服务器，此选项用于连接到外部的 goose 服务器"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "更改需要重启 Goose 才能生效。新的聊天窗口将连接到外部服务器。"
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "密钥"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "在 goosed 服务器上配置的密钥（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "在 Goose 服务器上配置的密钥（GOOSE_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "输入服务器的密钥"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "服务器地址"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose 服务器"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL 格式无效"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "连接到运行在其他位置的 goose 服务器（需要重启应用）"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "选择一个选项以开始。"
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "免费 & 私密"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "下载模型并完全运行在你的机器上。无需 API 密钥，无需账号。"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "使用本地模型"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "注册即可获得 7 天 6000 万免费令牌。"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "重试"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "通过自动设置访问多个 AI 模型。注册即可获得 $10 额度。"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate 的 Agent Router"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "设置过程中发生意外错误。"
   },
   "goosehintsModal.close": {
     "defaultMessage": "关闭"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "下载中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "推荐模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登录后可在搜索和下载模型时提高速率限制，并访问私有或受限的 Hugging Face 仓库。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型设置"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "仅显示推荐"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "返回"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "最适合你的机器"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "正在以画中画播放"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "取消"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "打开"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "打开外部链接"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "这将打开：{url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "打开 {protocol} 链接？"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "已收到 {message} 的消息。"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} 消息"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "已收到 {message} 的消息。目前尚不支持 {messageType} 类型的消息，详见控制台。"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{找到 # 项} other{找到 # 项}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "等待中"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "（占输入的 {percent}%）"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "缓存读取"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "缓存写入"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "压缩"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "费用"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "（估算）"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "首个令牌"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "输入"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "输出"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "（上报）"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "速度"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "总计"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "总耗时"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "选择用于语音输入的麦克风"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "使用模板或手动设置"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "没有匹配 \"{query}\" 的提供商"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜索提供商..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 徽标"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "连接 OpenAI、Anthropic、Google 等"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "使用本地模型或带有免费额度的提供商"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "下载模型并完全运行在你的机器上。无需 API 密钥，无需账号。"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "选择提供商"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "使用免费/本地提供商"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "使用本地模型"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "提供商配置项"
@@ -3887,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "英语"
   },
+  "settings.language.french": {
+    "defaultMessage": "法语"
+  },
+  "settings.language.german": {
+    "defaultMessage": "德语"
+  },
   "settings.language.hindi": {
     "defaultMessage": "印地语"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "印度尼西亚语"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "意大利语"
   },
   "settings.language.japanese": {
     "defaultMessage": "日语"
   },
   "settings.language.korean": {
     "defaultMessage": "韩语"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "马来语"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "葡萄牙语"
   },
   "settings.language.russian": {
     "defaultMessage": "俄语"
@@ -3911,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "土耳其语"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "越南语"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "简体中文"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中文（繁体）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "在菜单栏显示 goose"
@@ -4001,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部后端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "键盘"
   },
@@ -4012,9 +4066,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
   },
   "settingsView.title": {
     "defaultMessage": "设置"
@@ -4405,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "日志"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI 是实验性功能，随时可能更改。"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "输出"

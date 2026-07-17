@@ -1,11 +1,255 @@
-import {
-  Message,
-  MessageEvent,
-  ActionRequired,
-  ToolRequest,
-  ToolResponse,
-  ToolConfirmationRequest,
-} from '../api';
+import type { TokenState } from './chat';
+
+type JsonObject = Record<string, unknown>;
+export type Role = 'user' | 'assistant';
+
+export type Annotations = {
+  audience?: Role[];
+  lastModified?: string;
+  priority?: number;
+};
+
+type ContentAnnotations =
+  | {
+      audience?: Role[];
+      lastModified?: string;
+      priority?: number;
+      _meta?: JsonObject;
+    }
+  | JsonObject;
+
+export type TextContent = {
+  _meta?: JsonObject;
+  annotations?: Annotations | JsonObject;
+  text: string;
+};
+
+export type ImageContent = {
+  _meta?: JsonObject;
+  annotations?: Annotations | JsonObject;
+  data: string;
+  mimeType: string;
+};
+
+export type ContentBlock =
+  | ({ type: 'text' } & RawTextContent)
+  | ({ type: 'image' } & RawImageContent)
+  | ({ type: 'resource' } & RawEmbeddedResource)
+  | ({ type: 'audio' } & RawAudioContent)
+  | ({ type: 'resource_link' } & RawResource);
+
+type RawTextContent = {
+  _meta?: JsonObject;
+  annotations?: ContentAnnotations;
+  text: string;
+};
+
+type RawImageContent = {
+  _meta?: JsonObject;
+  annotations?: ContentAnnotations;
+  data: string;
+  mimeType: string;
+};
+
+type RawAudioContent = {
+  data: string;
+  mimeType: string;
+};
+
+type RawEmbeddedResource = {
+  _meta?: JsonObject;
+  resource: ResourceContents;
+};
+
+type RawResource = {
+  _meta?: JsonObject;
+  description?: string;
+  icons?: ContentIcon[];
+  mimeType?: string;
+  name: string;
+  size?: number;
+  title?: string;
+  uri: string;
+};
+
+type ResourceContents =
+  | {
+      _meta?: JsonObject;
+      mimeType?: string;
+      text: string;
+      uri: string;
+    }
+  | {
+      _meta?: JsonObject;
+      blob: string;
+      mimeType?: string;
+      uri: string;
+    };
+
+type ContentIcon = {
+  mimeType?: string;
+  sizes?: string[];
+  src: string;
+  theme?: 'light' | 'dark' | JsonObject;
+};
+
+export type SystemNotificationType =
+  | 'thinkingMessage'
+  | 'progressMessage'
+  | 'inlineMessage'
+  | 'creditsExhausted';
+
+export type SystemNotificationContent = {
+  data?: unknown;
+  msg: string;
+  notificationType: SystemNotificationType;
+};
+
+export type ActionRequired = {
+  data: ActionRequiredData;
+};
+
+export type ActionRequiredData =
+  | {
+      actionType: 'toolConfirmation';
+      arguments: JsonObject;
+      id: string;
+      prompt?: string | null;
+      toolName: string;
+    }
+  | {
+      actionType: 'elicitation';
+      id: string;
+      message: string;
+      requested_schema: unknown;
+    }
+  | {
+      action?: string;
+      actionType: 'elicitationResponse';
+      id: string;
+      user_data: unknown;
+    };
+
+export type FrontendToolRequest = {
+  id: string;
+  toolCall: JsonObject;
+};
+
+export type ThinkingContent = {
+  signature: string;
+  thinking: string;
+};
+
+export type RedactedThinkingContent = {
+  data: string;
+};
+
+export type ToolConfirmationRequest = {
+  arguments: JsonObject;
+  id: string;
+  prompt?: string | null;
+  toolName: string;
+};
+
+export type ToolRequest = {
+  _meta?: JsonObject;
+  id: string;
+  metadata?: JsonObject;
+  toolCall: JsonObject;
+};
+
+export type ToolResponse = {
+  id: string;
+  metadata?: JsonObject;
+  toolResult: JsonObject;
+};
+
+export type InferenceMetadata = {
+  provider: string;
+  requestedModel: string;
+  resolvedModel?: string | null;
+};
+
+/** Mirrors the backend `MessageUsage` schema (camelCase). */
+export type MessageUsage = {
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cacheReadTokens?: number | null;
+  cacheWriteTokens?: number | null;
+  cost?: number | null;
+  costSource?: 'provider_reported' | 'estimated' | null;
+  elapsedMs?: number | null;
+  timeToFirstTokenMs?: number | null;
+  isCompaction?: boolean;
+};
+
+export type MessageMetadata = {
+  agentVisible: boolean;
+  inference?: InferenceMetadata | null;
+  steer?: boolean;
+  usage?: MessageUsage | null;
+  userVisible: boolean;
+};
+
+export type MessageContent =
+  | (TextContent & { type: 'text' })
+  | (ImageContent & { type: 'image' })
+  | (ToolRequest & { type: 'toolRequest' })
+  | (ToolResponse & { type: 'toolResponse' })
+  | (ToolConfirmationRequest & { type: 'toolConfirmationRequest' })
+  | (ActionRequired & { type: 'actionRequired' })
+  | (FrontendToolRequest & { type: 'frontendToolRequest' })
+  | (ThinkingContent & { type: 'thinking' })
+  | (RedactedThinkingContent & { type: 'redactedThinking' })
+  | (SystemNotificationContent & { type: 'systemNotification' });
+
+export type Message = {
+  content: MessageContent[];
+  created: number;
+  id?: string | null;
+  metadata: MessageMetadata;
+  role: Role;
+};
+
+export type Conversation = Message[];
+
+export type MessageEvent =
+  | {
+      message: Message;
+      token_state: TokenState;
+      type: 'Message';
+    }
+  | {
+      message_id?: string | null;
+      usage: MessageUsage;
+      type: 'MessageUsage';
+    }
+  | {
+      error: string;
+      type: 'Error';
+    }
+  | {
+      reason: string;
+      token_state: TokenState;
+      type: 'Finish';
+    }
+  | {
+      message: JsonObject;
+      request_id: string;
+      type: 'Notification';
+    }
+  | {
+      conversation: Conversation;
+      type: 'UpdateConversation';
+    }
+  | {
+      request_ids: string[];
+      type: 'ActiveRequests';
+    }
+  | {
+      type: 'Ping';
+    };
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
@@ -13,9 +257,6 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
   type: 'toolConfirmationRequest';
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
-
-// Compaction response message - must match backend constant
-const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
 
 export interface ImageData {
   data: string; // base64 encoded image data
@@ -50,28 +291,6 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     created: Math.floor(Date.now() / 1000),
     content,
     metadata: { userVisible: true, agentVisible: true },
-  };
-}
-
-export function createElicitationResponseMessage(
-  elicitationId: string,
-  userData: Record<string, unknown>
-): Message {
-  return {
-    id: generateMessageId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'actionRequired',
-        data: {
-          actionType: 'elicitationResponse',
-          id: elicitationId,
-          user_data: userData,
-        },
-      },
-    ],
-    metadata: { userVisible: false, agentVisible: true },
   };
 }
 
@@ -227,34 +446,4 @@ export function getElicitationContent(
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   return toolRequests.length > 0;
-}
-
-export function getThinkingMessage(message: Message | undefined): string | undefined {
-  if (!message || message.role !== 'assistant') {
-    return undefined;
-  }
-
-  for (const content of message.content) {
-    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
-      return content.msg;
-    }
-  }
-
-  return undefined;
-}
-
-export function getCompactingMessage(message: Message | undefined): string | undefined {
-  if (!message || message.role !== 'assistant') {
-    return undefined;
-  }
-
-  for (const content of message.content) {
-    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
-      if (content.msg === COMPACTION_THINKING_TEXT) {
-        return content.msg;
-      }
-    }
-  }
-
-  return undefined;
 }

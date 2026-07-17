@@ -1,4 +1,4 @@
-use crate::conversation::token_usage::ProviderUsage;
+use crate::conversation::token_usage::{CostSource, ProviderUsage};
 use crate::images::ImageFormat;
 use anyhow::Error;
 use async_stream::try_stream;
@@ -18,7 +18,7 @@ use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
+    create_request, get_cost, get_usage, response_to_message, response_to_streaming_message,
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
@@ -78,7 +78,7 @@ impl Provider for OpenAiCompatibleProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .response_get(None, "models")
+            .response_get("models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;
@@ -105,7 +105,6 @@ impl Provider for OpenAiCompatibleProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -124,7 +123,7 @@ impl Provider for OpenAiCompatibleProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), &completions_path, &payload)
+                    .response_post(&completions_path, &payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -144,8 +143,12 @@ impl Provider for OpenAiCompatibleProvider {
                 ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
             })?;
 
-            let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
-            let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+            let usage_data = get_usage(usage_json);
+            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            if let Some(cost) = get_cost(usage_json) {
+                usage = usage.with_cost(cost, CostSource::ProviderReported);
+            }
 
             log.write(
                 &serde_json::to_value(&message).unwrap_or_default(),

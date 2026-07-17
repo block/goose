@@ -75,7 +75,6 @@ impl Provider for MockProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],

@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   listLocalModels,
-  syncFeaturedModels,
   downloadHfModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   type DownloadProgress,
   type LocalModelResponse,
-} from '../../api';
+} from '../../acp/local-inference';
 import { trackOnboardingSetupFailed } from '../../utils/analytics';
 import { defineMessages, useIntl } from '../../i18n';
+import { errorMessage as formatErrorMessage } from '../../utils/conversionUtils';
 
 const i18n = defineMessages({
   checkingModels: {
@@ -48,10 +48,6 @@ const i18n = defineMessages({
     id: 'localModelPicker.downloadModel',
     defaultMessage: 'Download {modelId} ({size})',
   },
-  back: {
-    id: 'localModelPicker.back',
-    defaultMessage: 'Back',
-  },
   downloading: {
     id: 'localModelPicker.downloading',
     defaultMessage: 'Downloading {modelId}',
@@ -66,7 +62,8 @@ const i18n = defineMessages({
   },
   localModelsNote: {
     id: 'localModelPicker.localModelsNote',
-    defaultMessage: 'Local models keep everything on your machine for full privacy. Performance and context window size may vary compared to cloud providers depending on your hardware and model size.',
+    defaultMessage:
+      'Local models keep everything on your machine for full privacy. Performance and context window size may vary compared to cloud providers depending on your hardware and model size.',
   },
   failedToLoad: {
     id: 'localModelPicker.failedToLoad',
@@ -87,8 +84,7 @@ const i18n = defineMessages({
 });
 
 interface LocalModelPickerProps {
-  onConfigured: (providerName: string, modelId: string) => void;
-  onBack?: () => void;
+  onConfigured: (providerName: string, modelId: string) => void | Promise<void>;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -107,7 +103,7 @@ const LOCAL_PROVIDER = 'local';
 
 type Phase = 'loading' | 'select' | 'downloading' | 'error';
 
-export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPickerProps) {
+export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps) {
   const intl = useIntl();
   const [phase, setPhase] = useState<Phase>('loading');
   const [models, setModels] = useState<LocalModelResponse[]>([]);
@@ -129,16 +125,15 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
   useEffect(() => {
     const load = async () => {
       try {
-        await syncFeaturedModels();
-        const response = await listLocalModels({ throwOnError: true });
-        if (response.data) {
-          setModels(response.data);
+        const models = await listLocalModels();
+        if (models) {
+          setModels(models);
 
-          const alreadyDownloaded = response.data.find((m) => m.status.state === 'Downloaded');
+          const alreadyDownloaded = models.find((m) => m.status.state === 'Downloaded');
           if (alreadyDownloaded) {
             setSelectedModelId(alreadyDownloaded.id);
           } else {
-            const recommended = response.data.find((m: LocalModelResponse) => m.recommended);
+            const recommended = models.find((m: LocalModelResponse) => m.recommended);
             if (recommended) setSelectedModelId(recommended.id);
           }
         }
@@ -153,8 +148,15 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
     load();
   }, [intl]);
 
-  const finishSetup = (modelId: string) => {
-    onConfigured(LOCAL_PROVIDER, modelId);
+  const finishSetup = async (modelId: string) => {
+    try {
+      await onConfigured(LOCAL_PROVIDER, modelId);
+    } catch (error) {
+      console.error('Failed to finish local model setup:', error);
+      setErrorMessage(formatErrorMessage(error));
+      trackOnboardingSetupFailed(LOCAL_PROVIDER, 'save_defaults_failed');
+      setPhase('error');
+    }
   };
 
   const startDownload = async (modelId: string) => {
@@ -170,7 +172,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
     }
 
     try {
-      await downloadHfModel({ body: { spec: model.id }, throwOnError: true });
+      await downloadHfModel({ spec: model.id });
     } catch (error) {
       console.error('Failed to start download:', error);
       setErrorMessage(intl.formatMessage(i18n.failedToStartDownload));
@@ -181,24 +183,43 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
 
     pollRef.current = setInterval(async () => {
       try {
-        const response = await getLocalModelDownloadProgress({
-          path: { model_id: modelId },
-          throwOnError: true,
-        });
-        if (response.data) {
-          setDownloadProgress(response.data);
-          if (response.data.status === 'completed') {
-            cleanup();
-            finishSetup(modelId);
-          } else if (response.data.status === 'failed') {
-            cleanup();
-            setErrorMessage(response.data.error || 'Download failed.');
-            trackOnboardingSetupFailed(LOCAL_PROVIDER, response.data.error || 'download_failed');
-            setPhase('error');
-          } else if (response.data.status === 'cancelled') {
-            cleanup();
-            setPhase('select');
-          }
+        const progress = await getLocalModelDownloadProgress(modelId);
+        if (!progress) {
+          cleanup();
+          setErrorMessage(intl.formatMessage(i18n.lostConnection));
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, 'progress_missing');
+          setPhase('error');
+          return;
+        }
+
+        setDownloadProgress(progress);
+        if (progress.status === 'completed') {
+          cleanup();
+          setModels((previousModels) =>
+            previousModels.map((model) =>
+              model.id === modelId
+                ? {
+                    ...model,
+                    status: {
+                      ...model.status,
+                      state: 'Downloaded',
+                      progressPercent: 100,
+                      bytesDownloaded: model.sizeBytes,
+                      totalBytes: model.sizeBytes,
+                    },
+                  }
+                : model
+            )
+          );
+          await finishSetup(modelId);
+        } else if (progress.status === 'failed') {
+          cleanup();
+          setErrorMessage(progress.error || 'Download failed.');
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, progress.error || 'download_failed');
+          setPhase('error');
+        } else if (progress.status === 'cancelled') {
+          cleanup();
+          setPhase('select');
         }
       } catch {
         cleanup();
@@ -213,7 +234,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
     if (phase === 'downloading' && selectedModelId) {
       cleanup();
       try {
-        await cancelLocalModelDownload({ path: { model_id: selectedModelId } });
+        await cancelLocalModelDownload(selectedModelId);
       } catch {
         // best-effort
       }
@@ -227,7 +248,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
     const model = models.find((m) => m.id === selectedModelId);
     if (!model) return;
     if (model.status.state === 'Downloaded') {
-      finishSetup(model.id);
+      await finishSetup(model.id);
     } else {
       await startDownload(model.id);
     }
@@ -301,7 +322,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                       )}
                     </div>
                     <p className="text-text-muted text-xs mt-1">
-                      {formatSize(recommended.size_bytes)}
+                      {formatSize(recommended.sizeBytes)}
                     </p>
                   </div>
                 </div>
@@ -314,7 +335,9 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                   onClick={() => setShowAllModels(!showAllModels)}
                   className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
                 >
-                  {showAllModels ? intl.formatMessage(i18n.hideOtherSizes) : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
+                  {showAllModels
+                    ? intl.formatMessage(i18n.hideOtherSizes)
+                    : intl.formatMessage(i18n.showOtherSizes, { count: otherModels.length })}
                   <svg
                     className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
                     fill="none"
@@ -355,7 +378,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                                 {model.id}
                               </span>
                               <span className="text-xs text-text-muted">
-                                {formatSize(model.size_bytes)}
+                                {formatSize(model.sizeBytes)}
                               </span>
                               {model.status.state === 'Downloaded' && (
                                 <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
@@ -380,18 +403,12 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
               {selectedModel?.status.state === 'Downloaded'
                 ? intl.formatMessage(i18n.useModel, { modelId: selectedModel.id })
                 : selectedModel
-                  ? intl.formatMessage(i18n.downloadModel, { modelId: selectedModel.id, size: formatSize(selectedModel.size_bytes) })
+                  ? intl.formatMessage(i18n.downloadModel, {
+                      modelId: selectedModel.id,
+                      size: formatSize(selectedModel.sizeBytes),
+                    })
                   : intl.formatMessage(i18n.selectModel)}
             </button>
-
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="w-full px-4 py-2.5 text-blue-600 dark:text-blue-400 text-sm font-medium border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
-              >
-                {intl.formatMessage(i18n.back)}
-              </button>
-            )}
           </div>
         )}
 
@@ -407,30 +424,30 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                   <div className="w-full bg-background-subtle rounded-full h-2 overflow-hidden">
                     <div
                       className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${downloadProgress.progress_percent}%` }}
+                      style={{ width: `${downloadProgress.progressPercent}%` }}
                     />
                   </div>
 
                   <div className="flex justify-between text-xs text-text-muted">
                     <span>
-                      {formatBytes(downloadProgress.bytes_downloaded)} of{' '}
-                      {formatBytes(downloadProgress.total_bytes)}
+                      {formatBytes(downloadProgress.bytesDownloaded)} of{' '}
+                      {formatBytes(downloadProgress.totalBytes)}
                     </span>
-                    <span>{downloadProgress.progress_percent.toFixed(0)}%</span>
+                    <span>{downloadProgress.progressPercent.toFixed(0)}%</span>
                   </div>
 
                   <div className="flex justify-between text-xs text-text-muted">
-                    {downloadProgress.speed_bps ? (
-                      <span>{formatBytes(downloadProgress.speed_bps)}/s</span>
+                    {downloadProgress.speedBps ? (
+                      <span>{formatBytes(downloadProgress.speedBps)}/s</span>
                     ) : (
                       <span />
                     )}
-                    {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
+                    {downloadProgress.etaSeconds != null && downloadProgress.etaSeconds > 0 && (
                       <span>
                         ~
-                        {downloadProgress.eta_seconds < 60
-                          ? `${Math.round(downloadProgress.eta_seconds)}s`
-                          : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
+                        {downloadProgress.etaSeconds < 60
+                          ? `${Math.round(downloadProgress.etaSeconds)}s`
+                          : `${Math.round(downloadProgress.etaSeconds / 60)}m`}{' '}
                         remaining
                       </span>
                     )}
@@ -439,7 +456,9 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
               ) : (
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-text-muted"></div>
-                  <span className="text-sm text-text-muted">{intl.formatMessage(i18n.startingDownload)}</span>
+                  <span className="text-sm text-text-muted">
+                    {intl.formatMessage(i18n.startingDownload)}
+                  </span>
                 </div>
               )}
             </div>

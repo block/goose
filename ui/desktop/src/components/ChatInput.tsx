@@ -14,9 +14,8 @@ import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
-import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { acpListProviderDetails } from '../acp/providers';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -28,7 +27,7 @@ import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
-import { Message } from '../api';
+import type { Message } from '../types/message';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
@@ -161,7 +160,6 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (input: UserInput) => void;
   chatState: ChatState;
-  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   pauseQueueOnStop?: boolean;
@@ -197,7 +195,6 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
-  setChatState,
   onStop,
   onSteerQueuedMessage,
   pauseQueueOnStop = false,
@@ -286,7 +283,6 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const intl = useIntl();
-  const { getProviders } = useConfig();
   const {
     getCurrentModelAndProvider,
     currentModel: configModel,
@@ -609,14 +605,14 @@ export default function ChatInput({
 
       // Priority 2: Check canonical model info (source of truth)
       const canonicalInfo = await fetchCanonicalModelInfo(provider, model);
-      if (canonicalInfo?.context_limit) {
-        setTokenLimit(canonicalInfo.context_limit);
+      if (canonicalInfo?.contextLimit) {
+        setTokenLimit(canonicalInfo.contextLimit);
         setIsTokenLimitLoaded(true);
         return;
       }
 
       // Priority 3: Fall back to provider metadata known_models (may be outdated)
-      const providers = await getProviders(true);
+      const providers = await acpListProviderDetails();
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
@@ -659,7 +655,7 @@ export default function ChatInput({
           total: tokenLimit,
         },
         showCompactButton: true,
-        compactButtonDisabled: !totalTokens,
+        compactButtonDisabled: !totalTokens || isLoading,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
           handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
@@ -668,9 +664,8 @@ export default function ChatInput({
       });
     }
 
-    // Keep alert recalculation scoped to token state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -1683,10 +1678,6 @@ export default function ChatInput({
               await onWorkingDirChange?.(newDir);
               setWorkingDirOverride(newDir);
             }}
-            onRestartStart={
-              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
-            }
-            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
           />
         )}
 

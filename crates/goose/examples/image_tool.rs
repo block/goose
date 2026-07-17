@@ -4,8 +4,8 @@ use dotenvy::dotenv;
 use goose::conversation::message::Message;
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
-use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
+use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use rmcp::model::{CallToolRequestParams, Content, Tool};
 use rmcp::object;
 use std::fs;
@@ -77,7 +77,6 @@ async fn main() -> Result<()> {
         let (response, usage) = provider
             .complete(
                 &model_config,
-                "",
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],

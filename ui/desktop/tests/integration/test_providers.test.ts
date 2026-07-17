@@ -42,7 +42,12 @@ testNonAgentic('reads files via shell tool', async (tc) => {
       testdir,
       'Use the shell tool to cat ./part-a.txt and ./part-b.txt, then reply with ONLY the contents of both files, one per line, nothing else.',
       BUILTINS,
-      { GOOSE_PROVIDER: tc.provider, GOOSE_MODEL: tc.model }
+      { GOOSE_PROVIDER: tc.provider, GOOSE_MODEL: tc.model },
+      55_000,
+      (output) => {
+        const shellToolPattern = /(shell \| developer)|(▸.*shell)/;
+        return shellToolPattern.test(output) && output.includes(tokenA) && output.includes(tokenB);
+      }
     );
 
     const shellToolPattern = /(shell \| developer)|(▸.*shell)/;

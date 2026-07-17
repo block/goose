@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "local-inference")]
 use std::sync::Mutex;
 use std::time::Duration;
-use utoipa::ToSchema;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH: &str = "audio/transcriptions";
@@ -23,7 +22,7 @@ static LOCAL_TRANSCRIBER: once_cell::sync::Lazy<
 #[cfg(feature = "local-inference")]
 const WHISPER_TOKENIZER_JSON: &str = include_str!("whisper_data/tokens.json");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DictationProvider {
     OpenAI,
@@ -287,7 +286,7 @@ pub async fn transcribe_with_provider(
         .text(model_param, model_value);
 
     let response = client
-        .request(None, &endpoint_path)
+        .request(&endpoint_path)
         .multipart_post(form)
         .await
         .map_err(|e| {

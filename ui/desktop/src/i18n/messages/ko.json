@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "사용자 지정 앱"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "MCP 서버의 애플리케이션과 goose 자체에서 구축한 앱입니다. 채팅 인터페이스를 통해 새 앱을 생성하도록 요청할 수 있으며 여기에 표시됩니다."
   },
   "appsView.errorLoading": {
     "defaultMessage": "앱 로딩 오류: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "앱 가져오기"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "사용 가능한 앱이 없습니다."
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "다시 시도"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "홈으로 이동"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "연결이 끊어졌습니다. 다시 연결하는 중…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "기본적으로 goose가 서버를 자동으로 실행합니다. 외부 goose 서버에 연결하려면 이 옵션을 사용하세요."
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "변경 사항을 적용하려면 goose를 다시 시작해야 합니다. 새 채팅 창은 외부 서버에 연결됩니다."
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "비밀 키"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Goose 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "서버의 비밀 키를 입력하세요"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "서버 URL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "goose 서버"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "잘못된 URL 형식입니다."
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "다른 곳에서 실행 중인 goose 서버에 연결합니다. 앱을 다시 시작해야 합니다."
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "시작하려면 옵션을 선택하세요."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "무료 및 비공개"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "모델을 다운로드하고 컴퓨터에서 완전히 실행하세요. API 키도 없고 계정도 없습니다."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "로컬 모델 사용"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "7일 동안 6천만 개의 무료 토큰을 받으려면 등록하세요."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "나노GPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "다시 시도"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "자동 설정을 통해 여러 AI 모델에 액세스하세요. $10 크레딧을 받으려면 등록하세요."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate의 에이전트 라우터"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "설정 중에 예상치 못한 오류가 발생했습니다."
   },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "다운로드 중"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "주요 모델"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "모델 검색 및 다운로드 시 속도 제한 한도를 높이고 비공개 또는 접근 제한된 Hugging Face 리포지토리에 액세스하려면 로그인하세요."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "모델 설정"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "추천만 표시"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "뒤로"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "이 기기에 가장 적합"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "PIP(Picture-in-Picture)에서 재생 중"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "취소"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "열기"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "열립니다: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message}에 대한 메시지가 수신되었습니다."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} 메시지"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message}에 대한 메시지가 수신되었습니다. {messageType} 메시지는 아직 지원되지 않습니다. 자세한 내용은 콘솔을 참조하세요."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{#개 항목 발견} other{#개 항목 발견}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "대기 중"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(입력의 {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "캐시 읽기"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "캐시 쓰기"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "압축"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "비용"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(추정)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "첫 토큰"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "입력"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "출력"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(보고됨)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "속도"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "합계"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "총 시간"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "받아쓰기에 사용할 마이크 선택"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "템플릿 또는 수동 설정으로 시작"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\"와 일치하는 제공업체가 없습니다"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "제공업체 검색..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 로고"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "OpenAI, Anthropic, Google 등을 연결합니다."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "무료 크레딧이 있는 로컬 모델이나 제공업체를 사용하세요."
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "모델을 다운로드하고 컴퓨터에서 완전히 실행하세요. API 키도 없고 계정도 없습니다."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "제공업체 선택"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "무료/로컬 제공업체 이용"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "로컬 모델 사용"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "제공업체 구성 설정"
@@ -3887,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "영어"
   },
+  "settings.language.french": {
+    "defaultMessage": "프랑스어"
+  },
+  "settings.language.german": {
+    "defaultMessage": "독일어"
+  },
   "settings.language.hindi": {
     "defaultMessage": "힌디어"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "인도네시아어"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "이탈리아어"
   },
   "settings.language.japanese": {
     "defaultMessage": "일본어"
   },
   "settings.language.korean": {
     "defaultMessage": "한국어"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "말레이어"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "포르투갈어"
   },
   "settings.language.russian": {
     "defaultMessage": "러시아어"
@@ -3911,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "터키어"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "베트남어"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "중국어(간체)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "중국어(번체)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "메뉴 막대에 goose를 표시합니다."
@@ -4001,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "채팅"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "외부 백엔드"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "키보드"
   },
@@ -4012,9 +4066,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "프롬프트"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "세션"
   },
   "settingsView.title": {
     "defaultMessage": "설정"
@@ -4405,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "로그"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI는 실험적이며 언제든지 변경될 수 있습니다."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "출력"

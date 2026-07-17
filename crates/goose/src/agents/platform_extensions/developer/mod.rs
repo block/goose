@@ -163,10 +163,10 @@ impl DeveloperClient {
             )
             .annotate(ToolAnnotations::from_raw(
                 Some("Read Image".to_string()),
-                Some(true),
+                Some(false),
                 Some(false),
                 Some(true),
-                Some(false),
+                Some(true),
             )),
         ]
     }
@@ -192,12 +192,15 @@ impl McpClientTrait for DeveloperClient {
         ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _cancel_token: CancellationToken,
+        cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let working_dir = ctx.working_dir.as_deref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
-                Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
+                Ok(params) => Ok(self
+                    .shell_tool
+                    .shell_with_cwd(params, working_dir, cancel_token)
+                    .await),
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
@@ -259,6 +262,18 @@ mod tests {
             .collect();
 
         assert_eq!(names, vec!["write", "edit", "shell", "tree", "read_image"]);
+    }
+
+    #[test]
+    fn read_image_annotations_reflect_network_access() {
+        let read_image = DeveloperClient::get_tools()
+            .into_iter()
+            .find(|tool| tool.name == "read_image")
+            .unwrap();
+        let annotations = read_image.annotations.unwrap();
+
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {

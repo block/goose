@@ -29,16 +29,17 @@ It just means the change was too large for a first contribution. Start with some
 
 ### Issues
 
-If you spot a bug or have a concrete proposal for a feature, please open an issue. This shows the community and
-the maintainers the direction of your thinking.
+If you spot a bug, please open an issue. This shows the community and the maintainers the direction of your
+thinking.
 
 For bugs, describe how to reproduce the problem as clearly as possible. If the issue involves an interaction
 with an LLM, include a diagnostics report if possible.
 
 ### Discussions
 
-If you have an idea but are not yet sure how it should work, open a discussion instead. Discussions are a good
-place to explore design questions, alternatives, and whether something fits the goals of the project.
+Before opening a feature request or beginning implementation, please start with a discussion in the
+[goose-eng Discord channel](https://discord.com/channels/1287729918100246654/1514412780504088677). Discussions
+are a good place to explore design questions, alternatives, and whether something fits the goals of the project.
 
 If a change is large or touches multiple parts of the codebase, please start with a discussion before opening a PR.
 This helps us align on direction before you spend time implementing something.
@@ -184,41 +185,27 @@ cd ui && pnpm install
 
 See #8757.
 
-### Regenerating the OpenAPI schema
-
-The file `ui/desktop/openapi.json` is automatically generated during the build.
-It is written by the `generate_schema` binary in `crates/goose-server`.
-To update the spec without starting the UI, run:
-
-```
-just generate-openapi
-```
-
-This command regenerates `ui/desktop/openapi.json` and then runs the UI's
-`generate-api` script to rebuild the TypeScript client from that spec.
-
-API changes should be made in the Rust source under `crates/goose-server/src/`.
-
 ### Debugging
 
-To debug the Goose server, run it from an IDE. The configuration will depend on the IDE. The command to run is:
+To debug the external ACP backend, run it from an IDE. The configuration will depend on the IDE. The command to run is:
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
-cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+cargo run --package goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
 ```
 
-The server listens on port `3000` by default; this can be changed by setting the
-`GOOSE_PORT` environment variable.
+The `debug-ui` recipe connects to `http://127.0.0.1:3000` by default. If the
+backend uses another port, set `GOOSE_PORT` when starting the UI, or set
+`GOOSE_EXTERNAL_BACKEND_URL` to the backend's HTTP base URL.
 
-Once the server is running, start a UI and connect it to the server by running:
+Once the backend is running, start a UI and connect it to the backend by running:
 
 ```
 just debug-ui
 ```
 
-The UI connects to the server started in the IDE, allowing breakpoints
-and stepping through the server code while interacting with the UI.
+The UI connects to the backend started in the IDE, allowing breakpoints
+and stepping through the backend code while interacting with the UI.
 
 ## Creating a fork
 

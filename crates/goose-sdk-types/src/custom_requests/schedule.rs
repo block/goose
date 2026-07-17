@@ -1,4 +1,4 @@
-use agent_client_protocol::schema::SessionInfo;
+use agent_client_protocol::schema::v1::SessionInfo;
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

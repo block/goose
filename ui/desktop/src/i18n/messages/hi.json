@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "कस्टम ऐप"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "आपके MCP सर्वर से एप्लिकेशन और goose द्वारा निर्मित ऐप्स। आप इसे चैट इंटरफ़ेस के माध्यम से नए ऐप्स बनाने के लिए कह सकते हैं और वे यहां दिखाई देंगे।"
   },
   "appsView.errorLoading": {
     "defaultMessage": "ऐप्स लोड करने में त्रुटि: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "ऐप आयात करें"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "कोई ऐप्स उपलब्ध नहीं"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "पुनः प्रयास करें"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "घर जाओ"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "कनेक्शन टूट गया। फिर से कनेक्ट किया जा रहा है…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "डिफ़ॉल्ट रूप से goose आपके लिए एक सर्वर लॉन्च करता है, बाहरी goose सर्वर से कनेक्ट करने के लिए इसका उपयोग करें"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "परिवर्तनों को प्रभावी होने के लिए Goose को पुनः आरंभ करने की आवश्यकता है। नई चैट विंडो बाहरी सर्वर से कनेक्ट होंगी."
   },
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "सर्वर URL"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose सर्वर"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "अमान्य URL प्रारूप"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "कहीं और चल रहे goose सर्वर से कनेक्ट करें (ऐप पुनरारंभ की आवश्यकता है)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "आरंभ करने के लिए एक विकल्प चुनें."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "मुफ़्त और निजी"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "एक मॉडल डाउनलोड करें और पूरी तरह से अपनी मशीन पर चलाएं। कोई API कुंजी नहीं, कोई खाता नहीं।"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "स्थानीय मॉडल का प्रयोग करें"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "7 दिनों के लिए 60 मिलियन निःशुल्क टोकन प्राप्त करने के लिए साइन अप करें।"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "नैनोजीपीटी"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "स्वचालित सेटअप के साथ एकाधिक AI मॉडल तक पहुंचें। $10 क्रेडिट प्राप्त करने के लिए साइन अप करें।"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "टेट्रेट द्वारा एजेंट राउटर"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "सेटअप के दौरान एक अप्रत्याशित त्रुटि उत्पन्न हुई."
   },
   "goosehintsModal.close": {
     "defaultMessage": "बंद करें"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "डाउनलोड हो रहा है"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "विशेष रुप से प्रदर्शित मॉडल"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "मॉडल खोजते और डाउनलोड करते समय दर सीमा बढ़ाने के लिए और निजी या गेटेड हगिंग फेस रिपॉजिटरी तक पहुंचने के लिए साइन इन करें।"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "मॉडल Settings"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "केवल अनुशंसित दिखाएं"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "वापस"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "आपकी मशीन के लिए सर्वोत्तम"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "पिक्चर-इन-पिक्चर में बजाना"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "रद्द करें"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "खुला"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "यह खुलेगा: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ।"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "एमसीपी-यूआई {messageType} संदेश"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ। {messageType} संदेश अभी तक समर्थित नहीं हैं, अधिक विवरण के लिए कंसोल देखें।"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# आइटम मिला} other{# आइटम मिले}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "इंतज़ार कर रहा हूँ"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "(इनपुट का {percent}%)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "कैश रीड"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "कैश राइट"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "संक्षिप्तीकरण"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "लागत"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(अनुमानित)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "पहला टोकन"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "इनपुट"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "आउटपुट"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(रिपोर्ट किया गया)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "गति"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "कुल"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "कुल समय"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "श्रुतलेख के लिए कौन सा माइक्रोफ़ोन उपयोग करना है चुनें"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "टेम्प्लेट या मैन्युअल सेटअप से"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\" से मेल खाने वाला कोई प्रदाता नहीं"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "प्रदाता खोजें..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} लोगो"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "OpenAI, Anthropic, Google, आदि से कनेक्ट करें"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "स्थानीय मॉडल या मुफ़्त क्रेडिट वाले प्रदाता का उपयोग करें"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "एक मॉडल डाउनलोड करें और पूरी तरह से अपनी मशीन पर चलाएं। कोई API कुंजी नहीं, कोई खाता नहीं।"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "एक प्रदाता चुनें"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "निःशुल्क/स्थानीय प्रदाताओं का उपयोग करें"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "स्थानीय मॉडल का प्रयोग करें"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "प्रदाता कॉन्फ़िगरेशन Settings"
@@ -3887,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "अंग्रेज़ी"
   },
+  "settings.language.french": {
+    "defaultMessage": "फ़्रेंच"
+  },
+  "settings.language.german": {
+    "defaultMessage": "जर्मन"
+  },
   "settings.language.hindi": {
     "defaultMessage": "हिन्दी"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "इंडोनेशियाई"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "इतालवी"
   },
   "settings.language.japanese": {
     "defaultMessage": "जापानी"
   },
   "settings.language.korean": {
     "defaultMessage": "कोरियाई"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "मलय"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "पुर्तगाली"
   },
   "settings.language.russian": {
     "defaultMessage": "रूसी"
@@ -3911,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "तुर्की"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "वियतनामी"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "चीनी (सरलीकृत)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "चीनी (पारंपरिक)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "मेनू बार में goose दिखाएँ"
@@ -4001,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "बातचीत"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "बाहरी बैकएंड"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "कीबोर्ड"
   },
@@ -4012,9 +4066,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "संकेत"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "सत्र"
   },
   "settingsView.title": {
     "defaultMessage": "Settings"
@@ -4405,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "लॉग"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP यूआई प्रयोगात्मक है और किसी भी समय बदल सकता है।"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "आउटपुट"

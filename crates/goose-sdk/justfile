@@ -2,37 +2,164 @@ set shell := ["bash", "-cu"]
 set working-directory := '../..'
 
 lib_ext := if os() == "macos" { "dylib" } else if os() == "windows" { "dll" } else { "so" }
-lib_dir := "./target/debug"
-lib_path := lib_dir / "libgoose_sdk." + lib_ext
-bindgen := "./target/debug/goose-uniffi-bindgen"
+lib_prefix := if os() == "windows" { "" } else { "lib" }
+lib_name := lib_prefix + "goose_sdk." + lib_ext
+debug_lib_dir := "./target/debug"
+release_lib_dir := "./target/release"
+debug_lib_path := debug_lib_dir / lib_name
+release_lib_path := release_lib_dir / lib_name
+debug_bindgen := "./target/debug/goose-uniffi-bindgen"
+release_bindgen := "./target/release/goose-uniffi-bindgen"
 config := "./crates/goose-sdk/uniffi.toml"
 gen_dir := "./crates/goose-sdk/generated"
 examples_dir := "./crates/goose-sdk/examples/uniffi"
+python_dir := "./crates/goose-sdk/python"
+python_package_dir := python_dir / "src/goose"
+maven_dir := "./crates/goose-sdk/maven"
+maven_resources_dir := maven_dir / "src/main/resources"
+maven_kotlin_dir := maven_dir / "src/main/kotlin"
 
-default:
+_default:
     @just --list --justfile {{justfile()}}
 
 _build:
     cargo build -p goose-sdk --features uniffi -q
 
+_build-release:
+    cargo build -p goose-sdk --features uniffi --release -q
+
 _generate lang: _build
-    {{bindgen}} generate --library {{lib_path}} --config {{config}} --language {{lang}} --no-format --out-dir {{gen_dir}} 2>/dev/null
-    cp {{lib_path}} {{gen_dir}}/
+    {{debug_bindgen}} generate --library {{debug_lib_path}} --config {{config}} --language {{lang}} --no-format --out-dir {{gen_dir}} 2>/dev/null
+    cp {{debug_lib_path}} {{gen_dir}}/
     touch {{gen_dir}}/__init__.py
 
 python: (_generate "python")
-    DYLD_LIBRARY_PATH={{lib_dir}} LD_LIBRARY_PATH={{lib_dir}} \
-        python3 {{examples_dir}}/ping.py
+    DYLD_LIBRARY_PATH={{debug_lib_dir}} LD_LIBRARY_PATH={{debug_lib_dir}} \
+        python3 {{examples_dir}}/provider.py
 
-kotlin: (_generate "kotlin")
-    @if [ ! -f {{examples_dir}}/jna.jar ]; then \
-        curl -sSL -o {{examples_dir}}/jna.jar \
-            https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.14.0/jna-5.14.0.jar; \
+kotlin: maven-package
+    cd {{examples_dir}}/kotlin && gradle --no-daemon run
+
+python-bindings profile="debug":
+    @case "{{profile}}" in \
+        debug) cargo build -p goose-sdk --features uniffi -q; bindgen={{debug_bindgen}}; lib_path={{debug_lib_path}} ;; \
+        release) cargo build -p goose-sdk --features uniffi --release -q; bindgen={{release_bindgen}}; lib_path={{release_lib_path}} ;; \
+        *) echo 'profile must be debug or release' >&2; exit 1 ;; \
+    esac; \
+    rm -rf {{python_package_dir}}; \
+    mkdir -p {{python_package_dir}}; \
+    "$bindgen" generate --library "$lib_path" --config {{config}} --language python --no-format --out-dir {{python_package_dir}} 2>/dev/null; \
+    mv {{python_package_dir}}/goose.py {{python_package_dir}}/__init__.py; \
+    cp "$lib_path" {{python_package_dir}}/; \
+    touch {{python_package_dir}}/py.typed
+
+python-wheel: (python-bindings "release")
+    rm -rf {{python_dir}}/build {{python_dir}}/dist {{python_dir}}/*.egg-info {{python_dir}}/src/*.egg-info
+    cd {{python_dir}} && UV_NO_CONFIG=1 PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple uvx --default-index https://pypi.org/simple --from build pyproject-build --wheel
+
+python-check: python-wheel
+    python3 -m pip install --force-reinstall {{python_dir}}/dist/*.whl
+    python3 -c 'import goose; print(goose.__name__)'
+
+python-publish repository="pypi": python-wheel
+    UV_NO_CONFIG=1 PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple uvx --default-index https://pypi.org/simple twine check {{python_dir}}/dist/*.whl
+    @if [ "{{repository}}" = "pypi" ]; then \
+        UV_NO_CONFIG=1 PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple uvx --default-index https://pypi.org/simple twine upload {{python_dir}}/dist/*.whl; \
+    else \
+        UV_NO_CONFIG=1 PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=https://pypi.org/simple uvx --default-index https://pypi.org/simple twine upload --repository {{repository}} {{python_dir}}/dist/*.whl; \
     fi
-    kotlinc -cp {{examples_dir}}/jna.jar -nowarn \
-        {{gen_dir}}/aaif/goose/aaif_goose.kt \
-        {{examples_dir}}/Ping.kt \
-        -include-runtime -d {{examples_dir}}/ping.jar 2>/dev/null
-    java -Djna.library.path={{lib_dir}} \
-        --enable-native-access=ALL-UNNAMED \
-        -cp {{examples_dir}}/ping.jar:{{examples_dir}}/jna.jar aaif.example.PingKt
+
+maven-bindings profile="release":
+    @case "{{profile}}" in \
+        debug) cargo build -p goose-sdk --features uniffi -q; lib_path={{debug_lib_path}} ;; \
+        release) cargo build -p goose-sdk --features uniffi --release -q; lib_path={{release_lib_path}} ;; \
+        *) echo 'profile must be debug or release' >&2; exit 1 ;; \
+    esac; \
+    crates/goose-sdk/scripts/prepare-maven-package.sh "$lib_path"
+
+maven-package: (maven-bindings "release")
+    cd {{maven_dir}} && ./gradlew --no-daemon publishToMavenLocal
+
+maven-publish: (maven-bindings "release")
+    cd {{maven_dir}} && ./gradlew --no-daemon publishAndReleaseToMavenCentral
+
+crates-publish dry_run="true":
+    @set -euo pipefail; \
+    dry_run_flag=""; \
+    if [ "{{dry_run}}" = "true" ]; then \
+        dry_run_flag="--dry-run"; \
+    elif [ "{{dry_run}}" != "false" ]; then \
+        echo 'dry_run must be true or false' >&2; \
+        exit 1; \
+    fi; \
+    for crate in \
+        goose-provider-types \
+        goose-sdk-types \
+        goose-download-manager \
+        goose-local-inference \
+        goose-providers \
+        goose-sdk; do \
+        cargo publish -p "$crate" $dry_run_flag --allow-dirty; \
+    done
+
+bump-version rust_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 - "{{rust_version}}" <<'PY'
+    import re
+    import sys
+    from pathlib import Path
+
+    rust_version = sys.argv[1]
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-alpha\.(\d+))?", rust_version)
+    if not match:
+        raise SystemExit("rust_version must look like 0.1.0 or 0.1.0-alpha.0")
+
+    major, minor, patch, alpha = match.groups()
+    python_version = f"{major}.{minor}.{patch}" if alpha is None else f"{major}.{minor}.{patch}a{alpha}"
+
+    crate_names = [
+        "goose-provider-types",
+        "goose-sdk-types",
+        "goose-download-manager",
+        "goose-local-inference",
+        "goose-providers",
+        "goose-sdk",
+    ]
+    crate_paths = {name: Path("crates") / name / "Cargo.toml" for name in crate_names}
+
+    def replace_unique(path: Path, pattern: str, replacement: str) -> None:
+        text = path.read_text()
+        new_text, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
+        if count != 1:
+            raise SystemExit(f"expected one match for {pattern!r} in {path}")
+        path.write_text(new_text)
+
+    for path in crate_paths.values():
+        replace_unique(path, r'^version\s*=\s*"[^"]+"', f'version = "{rust_version}"')
+
+    dependency_names = [
+        "goose-provider-types",
+        "goose-sdk-types",
+        "goose-download-manager",
+        "goose-local-inference",
+        "goose-providers",
+    ]
+    for path in crate_paths.values():
+        text = path.read_text()
+        for dependency in dependency_names:
+            text = re.sub(
+                rf'({re.escape(dependency)}\s*=\s*[^\n]*version\s*=\s*)"[^"]+"',
+                rf'\1"{rust_version}"',
+                text,
+            )
+        path.write_text(text)
+
+    pyproject = Path("crates/goose-sdk/python/pyproject.toml")
+    replace_unique(pyproject, r'^version\s*=\s*"[^"]+"', f'version = "{python_version}"')
+
+    print(f"Rust crates: {rust_version}")
+    print(f"Python package: {python_version}")
+    print(f"Maven artifact: {rust_version}")
+    PY
+    cargo fmt --all

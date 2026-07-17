@@ -4,6 +4,7 @@ use super::openai_compatible::OpenAiCompatibleProvider;
 use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, XAI_KNOWN_MODELS};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
+use crate::providers::private_file::write_private_file;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
@@ -123,11 +124,8 @@ impl TokenCache {
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let contents = serde_json::to_string(token_data)?;
-        std::fs::write(&self.cache_path, contents)?;
+        write_private_file(&self.cache_path, &contents)?;
         Ok(())
     }
 
@@ -706,13 +704,12 @@ impl Provider for XaiOAuthProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.inner
-            .stream(model_config, session_id, system, messages, tools)
+            .stream(model_config, system, messages, tools)
             .await
     }
 
@@ -792,7 +789,8 @@ impl ProviderDef for XaiOAuthProvider {
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
                 tls_config,
-            )?;
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),
@@ -872,5 +870,31 @@ mod tests {
             s
         );
         assert!(s.ends_with("tokens.json"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn token_cache_replaces_loose_file_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        std::fs::write(&cache_path, "{}").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let cache = TokenCache {
+            cache_path: cache_path.clone(),
+        };
+
+        cache
+            .save(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: "refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+            })
+            .unwrap();
+
+        let mode = std::fs::metadata(cache_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }

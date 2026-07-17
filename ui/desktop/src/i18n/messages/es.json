@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "App personalizada"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplicaciones de tus servidores MCP y Apps creadas por goose. Puedes pedirle que cree nuevas apps desde la interfaz de chat y aparecerán aquí."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Error al cargar las apps: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importar App"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "No hay apps disponibles"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "Reintentar"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Ir al inicio"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Conexión perdida. Reconectando…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Por defecto goose lanza un servidor por ti; usa esto para conectarte a un servidor goose externo"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Los cambios requieren reiniciar Goose para que surtan efecto. Las nuevas ventanas de chat se conectarán al servidor externo."
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La secret key configurada en el servidor goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La clave secreta configurada en el servidor Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Introduce la secret key del servidor"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL del servidor"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Goose Server"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Formato de URL inválido"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conéctate a un servidor goose que se ejecuta en otro lugar (requiere reiniciar la app)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Elige una opción para empezar."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratis y privado"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Descarga un modelo y ejecútalo por completo en tu máquina. Sin API keys, sin cuentas."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Usar un modelo local"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Regístrate para recibir 60M de tokens gratis durante 7 días."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Reintentar"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Accede a múltiples modelos de IA con configuración automática. Regístrate para recibir $10 de crédito."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Ocurrió un error inesperado durante la configuración."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Descargando"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelos destacados"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Inicia sesión para aumentar los límites de uso al buscar y descargar modelos, y para acceder a repositorios de Hugging Face privados o restringidos."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Ajustes del modelo"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Mostrar solo los recomendados"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Atrás"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "El mejor para tu máquina"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Reproduciendo en imagen en imagen"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Cancelar"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Abrir"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Abrir enlace externo"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Esto abrirá: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "¿Abrir enlace {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Mensaje recibido para {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Mensaje {messageType} de MCP-UI"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Mensaje recibido para {message}. Los mensajes {messageType} aún no se admiten, consulta la consola para más detalles."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# elemento encontrado} other{# elementos encontrados}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "esperando"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% de la entrada)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lectura de caché"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "escritura de caché"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compactación"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Costo"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimado)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Primer token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Entrada"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Salida"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(reportado)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Velocidad"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tiempo total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Elige qué micrófono usar para el dictado"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Desde plantilla o configuración manual"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Ningún proveedor coincide con \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Buscar proveedores..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logotipo de {providerName}"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Conecta OpenAI, Anthropic, Google, etc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Usa un modelo local o un proveedor con créditos gratis"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Descarga un modelo y ejecútalo por completo en tu máquina. Sin API keys, sin cuentas."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Selecciona un proveedor"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Usar proveedores gratuitos/locales"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Usar un modelo local"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Ajustes de configuración del proveedor"
@@ -3887,14 +3914,32 @@
   "settings.language.english": {
     "defaultMessage": "Inglés"
   },
+  "settings.language.french": {
+    "defaultMessage": "Francés"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Alemán"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesio"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italiano"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonés"
   },
   "settings.language.korean": {
     "defaultMessage": "Coreano"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayo"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portugués"
   },
   "settings.language.russian": {
     "defaultMessage": "Ruso"
@@ -3911,8 +3956,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turco"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamita"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chino (simplificado)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chino (tradicional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Muestra goose en la barra de menús"
@@ -4001,6 +4052,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externo"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Teclado"
   },
@@ -4012,9 +4066,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesión"
   },
   "settingsView.title": {
     "defaultMessage": "Ajustes"
@@ -4405,9 +4456,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Logs"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "La UI de MCP es experimental y puede cambiar en cualquier momento."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Salida"

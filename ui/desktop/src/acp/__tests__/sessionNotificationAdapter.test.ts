@@ -1,8 +1,7 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import type { Message, MessageContent } from '../../api';
-import type { NotificationEvent } from '../../types/message';
+import type { Message, NotificationEvent } from '../../types/message';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
@@ -97,7 +96,7 @@ function expectOnlyNotificationChange(chatStateChanges: AcpChatStateChange[]): N
   return chatStateChange.notification;
 }
 
-function firstContent(message: Message): MessageContent {
+function firstContent(message: Message): Message['content'][number] {
   const content = message.content[0];
   expect(content).toBeDefined();
   return content;
@@ -584,13 +583,9 @@ describe('createAcpSessionNotificationAdapter', () => {
           status: { type: 'progress', message: 'Still working' },
         })
       );
-      messages = expectOnlyMessagesChange(progressStateChanges);
-
-      expect(firstContent(messages[2])).toMatchObject({
-        type: 'systemNotification',
-        notificationType: 'thinkingMessage',
-        msg: 'Still working',
-      });
+      expect(progressStateChanges).toEqual([
+        { type: 'progressMessage', message: 'Still working' },
+      ]);
     });
   });
 

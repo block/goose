@@ -2,7 +2,7 @@ use super::{
     config_secret_value, default_inventory_identity, default_inventory_identity_resolver,
     serialize_string_map, InventoryIdentityInput, InventoryRegistration,
 };
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
 use crate::providers::amp_acp::{AMP_ACP_BINARY, AMP_ACP_PROVIDER_NAME};
 use crate::providers::base::ProviderDescriptor;
@@ -11,10 +11,11 @@ use crate::providers::claude_acp::{CLAUDE_ACP_BINARY, CLAUDE_ACP_PROVIDER_NAME};
 use crate::providers::codex_acp::CODEX_ACP_PROVIDER_NAME;
 use crate::providers::copilot_acp::{COPILOT_ACP_BINARY, COPILOT_ACP_PROVIDER_NAME};
 use crate::providers::formats::anthropic::ANTHROPIC_PROVIDER_NAME;
+use crate::providers::gemini_oauth::TokenCache as GeminiOAuthTokenCache;
 use crate::providers::google::{GOOGLE_API_HOST, GOOGLE_PROVIDER_NAME};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
-use crate::providers::ollama::{ollama_host_configured, OLLAMA_PROVIDER_NAME};
+use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
 use crate::providers::xai_oauth::TokenCache as XaiOAuthTokenCache;
@@ -118,7 +119,11 @@ pub fn ollama_inventory() -> InventoryRegistration {
             ),
         )
     })
-    .with_configured(|| ollama_host_configured(Config::global()))
+    .with_configured(|| {
+        config::Config::global()
+            .get_param::<String>("OLLAMA_HOST")
+            .is_ok()
+    })
 }
 
 pub fn huggingface_inventory() -> InventoryRegistration {
@@ -149,6 +154,15 @@ pub fn chatgpt_codex_inventory() -> InventoryRegistration {
         configured: None,
     }
     .with_configured(|| ChatGptCodexTokenCache::new().has_token())
+}
+
+pub fn gemini_oauth_inventory() -> InventoryRegistration {
+    InventoryRegistration {
+        supports_refresh: false,
+        identity: default_inventory_identity_resolver(),
+        configured: None,
+    }
+    .with_configured(|| GeminiOAuthTokenCache::new().has_token())
 }
 
 pub fn xai_oauth_inventory() -> InventoryRegistration {
@@ -191,4 +205,44 @@ pub fn copilot_acp_inventory() -> InventoryRegistration {
 
 pub fn pi_acp_inventory() -> InventoryRegistration {
     acp_inventory(PI_ACP_PROVIDER_NAME, PI_ACP_BINARY, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::paths::Paths;
+    use chrono::Utc;
+
+    #[test]
+    #[serial_test::serial]
+    fn gemini_oauth_inventory_configured_uses_token_cache() {
+        let root = tempfile::tempdir().unwrap();
+        let root_path = root.path().to_string_lossy().to_string();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
+
+        let registration = gemini_oauth_inventory();
+        let configured = registration
+            .configured
+            .expect("Gemini OAuth should define configured resolver");
+
+        assert!(!configured());
+
+        let cache_path = Paths::in_config_dir("gemini_oauth/tokens.json");
+        std::fs::create_dir_all(cache_path.parent().unwrap()).unwrap();
+        std::fs::write(
+            cache_path,
+            serde_json::to_string(&serde_json::json!({
+                "project_id": "test-project",
+                "token": {
+                    "access_token": "access",
+                    "refresh_token": "refresh",
+                    "expires_at": (Utc::now() + chrono::Duration::hours(1)).to_rfc3339(),
+                },
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert!(configured());
+    }
 }
