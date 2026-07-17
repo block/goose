@@ -234,10 +234,6 @@ const config: Config = {
             to: "/docs/guides/context-engineering/creating-plans",
           },
           {
-            from: "/docs/guides/using-gooseignore",
-            to: "/docs/guides/context-engineering/using-gooseignore",
-          },
-          {
             from: "/docs/guides/config-file",
             to: "/docs/guides/config-files",
           },
@@ -337,10 +333,6 @@ const config: Config = {
           {
             from: "/docs/tutorials/knowledge-graph-mcp",
             to: "/docs/mcp/knowledge-graph-mcp",
-          },
-          {
-            from: "/docs/tutorials/mbot-mcp",
-            to: "/docs/mcp/mbot-mcp",
           },
           {
             from: "/docs/tutorials/memory-mcp",

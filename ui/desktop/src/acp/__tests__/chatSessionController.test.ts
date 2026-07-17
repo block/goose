@@ -168,6 +168,23 @@ describe('acpChatSessionController.loadSession', () => {
       loadedSession()
     );
   });
+
+  it('restores a cached session from the server', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      session: loadedSession(),
+    });
+    vi.mocked(isAcpSessionLoadInFlight).mockReturnValue(false);
+
+    await acpChatSessionController.restoreSession(SESSION_ID);
+
+    expect(acpChatSessionActions.startSessionLoad).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
+      SESSION_ID,
+      loadedSession()
+    );
+  });
 });
 
 describe('acpChatSessionController.stop', () => {
@@ -353,7 +370,10 @@ describe('acpChatSessionController.updateMessage', () => {
     resolvePromptCancellation!();
     await updatePromise;
 
-    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(SESSION_ID, existingMessage.created);
+    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
+      SESSION_ID,
+      existingMessage.created
+    );
     expect(acpPromptSession).toHaveBeenCalled();
     expect(acpChatSessionActions.clearPromptCancellation).not.toHaveBeenCalledWith(
       SESSION_ID,

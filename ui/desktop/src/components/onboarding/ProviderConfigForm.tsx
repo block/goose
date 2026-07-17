@@ -10,6 +10,9 @@ import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/S
 import { Button } from '../ui/button';
 import { LogIn, ChevronRight } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
+import { errorMessage } from '../../utils/conversionUtils';
+
+type OnConfigured = (name: string) => void | Promise<void>;
 
 const i18n = defineMessages({
   browserWindowOpen: {
@@ -69,7 +72,7 @@ function OAuthForm({
   onError,
 }: {
   provider: ProviderDetails;
-  onConfigured: (name: string) => void;
+  onConfigured: OnConfigured;
   onError: (msg: string) => void;
 }) {
   const intl = useIntl();
@@ -79,9 +82,9 @@ function OAuthForm({
     setIsLoading(true);
     try {
       await acpAuthenticateProvider(provider.name);
-      onConfigured(provider.name);
+      await onConfigured(provider.name);
     } catch (err) {
-      onError(`Sign-in failed: ${err instanceof Error ? err.message : String(err)}`);
+      onError(`Setup failed: ${errorMessage(err)}`);
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +120,7 @@ function ApiKeyForm({
   onError,
 }: {
   provider: ProviderDetails;
-  onConfigured: (name: string) => void;
+  onConfigured: OnConfigured;
   onError: (msg: string) => void;
 }) {
   const intl = useIntl();
@@ -157,15 +160,9 @@ function ApiKeyForm({
     setIsSubmitting(true);
     try {
       await providerConfigSubmitHandler(provider, toSubmit);
-      onConfigured(provider.name);
+      await onConfigured(provider.name);
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as Record<string, unknown>).message)
-            : JSON.stringify(err);
-      onError(msg);
+      onError(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -214,7 +211,7 @@ function ApiKeyForm({
 
 interface ProviderConfigFormProps {
   provider: ProviderDetails;
-  onConfigured: (providerName: string) => void;
+  onConfigured: OnConfigured;
 }
 
 export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {

@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::get_tool_owner;
+use crate::agents::extension_manager::{get_tool_owner, get_tool_resource_uri};
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
@@ -19,6 +19,7 @@ use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
@@ -28,6 +29,117 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "code_execution";
+
+fn sanitize_schema_for_code_mode(schema: &mut Value) {
+    let Some(obj) = schema.as_object_mut() else {
+        return;
+    };
+
+    let Some(defs_key) = ["$defs", "definitions"]
+        .into_iter()
+        .find(|key| obj.get(*key).is_some_and(Value::is_object))
+    else {
+        return;
+    };
+
+    let names: Vec<String> = obj[defs_key]
+        .as_object()
+        .map(|defs| defs.keys().cloned().collect())
+        .unwrap_or_default();
+
+    let mut edges: HashMap<String, HashSet<String>> = HashMap::new();
+    if let Some(defs) = obj.get(defs_key).and_then(Value::as_object) {
+        for name in &names {
+            let mut refs = HashSet::new();
+            if let Some(def_value) = defs.get(name) {
+                collect_ref_targets(def_value, &mut refs);
+            }
+            edges.insert(name.clone(), refs);
+        }
+    }
+
+    let cuts = find_cycle_edges(&names, &edges);
+    if cuts.is_empty() {
+        return;
+    }
+
+    if let Some(defs) = obj.get_mut(defs_key).and_then(Value::as_object_mut) {
+        for (from, to) in &cuts {
+            if let Some(def_value) = defs.get_mut(from) {
+                neutralize_refs_to(def_value, to);
+            }
+        }
+    }
+}
+
+fn collect_ref_targets(value: &Value, out: &mut HashSet<String>) {
+    match value {
+        Value::Object(map) => {
+            if let Some(Value::String(r)) = map.get("$ref") {
+                if let Some(name) = r.rsplit('/').next() {
+                    out.insert(name.to_string());
+                }
+            }
+            map.values().for_each(|v| collect_ref_targets(v, out));
+        }
+        Value::Array(items) => items.iter().for_each(|v| collect_ref_targets(v, out)),
+        _ => {}
+    }
+}
+
+fn neutralize_refs_to(value: &mut Value, target: &str) {
+    let is_target_ref = matches!(
+        value.as_object().and_then(|map| map.get("$ref")),
+        Some(Value::String(r)) if r.rsplit('/').next() == Some(target)
+    );
+    if is_target_ref {
+        *value = json!({});
+        return;
+    }
+    match value {
+        Value::Object(map) => map.values_mut().for_each(|v| neutralize_refs_to(v, target)),
+        Value::Array(items) => items.iter_mut().for_each(|v| neutralize_refs_to(v, target)),
+        _ => {}
+    }
+}
+
+fn find_cycle_edges(
+    names: &[String],
+    edges: &HashMap<String, HashSet<String>>,
+) -> Vec<(String, String)> {
+    enum State {
+        InProgress,
+        Done,
+    }
+
+    fn visit<'a>(
+        node: &'a str,
+        edges: &'a HashMap<String, HashSet<String>>,
+        state: &mut HashMap<&'a str, State>,
+        cuts: &mut Vec<(String, String)>,
+    ) {
+        state.insert(node, State::InProgress);
+        if let Some(targets) = edges.get(node) {
+            for target in targets {
+                match state.get(target.as_str()) {
+                    Some(State::InProgress) => cuts.push((node.to_string(), target.clone())),
+                    Some(State::Done) => {}
+                    None => visit(target, edges, state, cuts),
+                }
+            }
+        }
+        state.insert(node, State::Done);
+    }
+
+    let mut state: HashMap<&str, State> = HashMap::new();
+    let mut cuts = Vec::new();
+    for name in names {
+        if !state.contains_key(name.as_str()) {
+            visit(name, edges, &mut state, &mut cuts);
+        }
+    }
+    cuts
+}
 
 pub struct CodeExecutionClient {
     info: InitializeResult,
@@ -88,6 +200,10 @@ impl CodeExecutionClient {
 
         let mut cfgs = vec![];
         for tool in tools {
+            if get_tool_resource_uri(&tool).is_some() {
+                continue;
+            }
+
             let (name, namespace) = if let Some((prefix, tool_name)) = tool.name.split_once("__") {
                 (tool_name.to_string(), Some(prefix.to_string()))
             } else if let Some(owner) = get_tool_owner(&tool) {
@@ -96,12 +212,20 @@ impl CodeExecutionClient {
                 (tool.name.to_string(), None)
             };
 
+            let mut input_schema = json!(tool.input_schema);
+            sanitize_schema_for_code_mode(&mut input_schema);
+
+            let mut output_schema = tool.output_schema.as_ref().map(|s| json!(s));
+            if let Some(schema) = output_schema.as_mut() {
+                sanitize_schema_for_code_mode(schema);
+            }
+
             cfgs.push(CallbackConfig {
                 name,
                 namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
-                input_schema: Some(json!(tool.input_schema)),
-                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
+                input_schema: Some(input_schema),
+                output_schema,
             })
         }
         Some(cfgs)
@@ -147,6 +271,7 @@ impl CodeExecutionClient {
         ctx: &ToolCallContext,
         code_mode: &CodeMode,
         cancellation_token: CancellationToken,
+        rt: tokio::runtime::Handle,
     ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
@@ -170,6 +295,7 @@ impl CodeExecutionClient {
                 full_name,
                 manager.clone(),
                 cancellation_token.clone(),
+                rt.clone(),
             );
             registry
                 .add_callback(&cfg.id(), callback)
@@ -253,7 +379,8 @@ impl CodeExecutionClient {
         let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
         let dispatch_token = cancellation_token.child_token();
-        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone())?;
+        let rt = tokio::runtime::Handle::current();
+        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone(), rt)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -350,12 +477,14 @@ fn create_tool_callback(
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
     cancellation_token: CancellationToken,
+    rt: tokio::runtime::Handle,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
         let cancellation_token = cancellation_token.clone();
+        let rt = rt.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -364,39 +493,51 @@ fn create_tool_callback(
                 }
                 params
             };
-            match manager
-                .dispatch_tool_call(&ctx, tool_call, cancellation_token)
-                .await
-            {
-                Ok(dispatch_result) => match dispatch_result.result.await {
-                    Ok(result) => {
-                        if let Some(sc) = &result.structured_content {
-                            Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
-                        } else {
-                            // Filter to assistant-audience or no-audience content,
-                            // skipping user-only content to avoid duplicated output
-                            let text: String = result
-                                .content
-                                .iter()
-                                .filter(|c| {
-                                    c.audience().is_none_or(|audiences| {
-                                        audiences.is_empty() || audiences.contains(&Role::Assistant)
+
+            let handle = rt.spawn(async move {
+                match manager
+                    .dispatch_tool_call(&ctx, tool_call, cancellation_token)
+                    .await
+                {
+                    Ok(dispatch_result) => match dispatch_result.result.await {
+                        Ok(result) => {
+                            if let Some(sc) = &result.structured_content {
+                                Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
+                            } else {
+                                let text: String = result
+                                    .content
+                                    .iter()
+                                    .filter(|c| {
+                                        c.audience().is_none_or(|audiences| {
+                                            audiences.is_empty()
+                                                || audiences.contains(&Role::Assistant)
+                                        })
                                     })
-                                })
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            // Try to parse as JSON, otherwise return as string
-                            Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
+                                    .filter_map(|c| match &c.raw {
+                                        RawContent::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
+                            }
                         }
-                    }
-                    Err(e) => Err(format!("Tool error: {}", e.message)),
-                },
-                Err(e) => Err(format!("Dispatch error: {e}")),
+                        Err(e) => Err(format!("Tool error: {}", e.message)),
+                    },
+                    Err(e) => Err(format!("Dispatch error: {e}")),
+                }
+            });
+
+            struct AbortOnDrop(tokio::task::AbortHandle);
+            impl Drop for AbortOnDrop {
+                fn drop(&mut self) {
+                    self.0.abort();
+                }
             }
+            let _guard = AbortOnDrop(handle.abort_handle());
+            handle
+                .await
+                .unwrap_or_else(|e| Err(format!("Callback task failed: {e}")))
         }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
     })
 }
@@ -778,6 +919,66 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn callback_completing_from_main_runtime_does_not_hang() {
+        let rt = tokio::runtime::Handle::current();
+        let (tx, rx) = tokio::sync::oneshot::channel::<serde_json::Value>();
+        let rx = Arc::new(std::sync::Mutex::new(Some(rx)));
+
+        let callback: CallbackFn = Arc::new({
+            let rt = rt.clone();
+            move |_args: Option<Value>| {
+                let rt = rt.clone();
+                let rx = rx.clone();
+                Box::pin(async move {
+                    let receiver = rx.lock().unwrap().take().expect("receiver taken once");
+                    let handle = rt.spawn(async move {
+                        receiver.await.map_err(|_| "channel closed".to_string())
+                    });
+                    handle.await.unwrap_or_else(|e| Err(e.to_string()))
+                }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
+            }
+        });
+
+        rt.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let _ = tx.send(serde_json::json!({"done": true}));
+        });
+
+        let cfg = CallbackConfig {
+            name: "ping".to_string(),
+            namespace: Some("Test".to_string()),
+            description: Some("ping".to_string()),
+            input_schema: None,
+            output_schema: None,
+        };
+        let code_mode = CodeMode::default()
+            .with_callback(&cfg)
+            .expect("add callback");
+        let registry = PctxRegistry::default();
+        registry.add_callback(&cfg.id(), callback).unwrap();
+
+        let result = run_in_deno_runtime(
+            Duration::from_secs(5),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            move || async move {
+                code_mode
+                    .execute_typescript(
+                        "async function run() { return await Test.ping(); }",
+                        ToolDisclosure::default(),
+                        Some(registry),
+                    )
+                    .await
+                    .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await
+        .expect("script should not time out");
+
+        assert!(result.success, "callback should succeed: {}", result.stderr);
+    }
+
     #[test]
     fn catalog_moim_mentions_inspection_tools_without_function_names() {
         let moim = catalog_disclosure_moim(3);
@@ -787,5 +988,130 @@ mod tests {
         assert!(moim.contains("get_function_details"));
         assert!(!moim.contains("extract_relations"));
         assert!(!moim.contains("ask_heimdall"));
+    }
+
+    fn self_referential_any_schema() -> Value {
+        json!({
+            "$ref": "#/$defs/Any",
+            "$defs": {
+                "Any": {
+                    "anyOf": [
+                        {"type": "string"},
+                        {"type": "number"},
+                        {
+                            "type": "object",
+                            "additionalProperties": {"$ref": "#/$defs/Any"}
+                        }
+                    ]
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn collect_ref_targets_finds_nested_refs() {
+        let schema = self_referential_any_schema();
+        let mut refs = HashSet::new();
+        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
+
+        assert_eq!(refs, HashSet::from(["Any".to_string()]));
+    }
+
+    #[test]
+    fn find_cycle_edges_detects_self_loop() {
+        let mut edges = HashMap::new();
+        edges.insert("Any".to_string(), HashSet::from(["Any".to_string()]));
+        let names = vec!["Any".to_string()];
+
+        let cuts = find_cycle_edges(&names, &edges);
+
+        assert_eq!(cuts, vec![("Any".to_string(), "Any".to_string())]);
+    }
+
+    #[test]
+    fn find_cycle_edges_detects_longer_cycle_without_flagging_acyclic_refs() {
+        let mut edges = HashMap::new();
+        edges.insert("A".to_string(), HashSet::from(["B".to_string()]));
+        edges.insert("B".to_string(), HashSet::from(["C".to_string()]));
+        edges.insert("C".to_string(), HashSet::from(["A".to_string()]));
+        edges.insert("D".to_string(), HashSet::from(["A".to_string()]));
+        let names = vec![
+            "A".to_string(),
+            "B".to_string(),
+            "C".to_string(),
+            "D".to_string(),
+        ];
+
+        let cuts = find_cycle_edges(&names, &edges);
+
+        assert_eq!(cuts, vec![("C".to_string(), "A".to_string())]);
+    }
+
+    #[test]
+    fn neutralize_refs_to_replaces_matching_refs_only() {
+        let mut value = json!({
+            "anyOf": [
+                {"$ref": "#/$defs/Any"},
+                {"$ref": "#/$defs/Other"}
+            ]
+        });
+
+        neutralize_refs_to(&mut value, "Any");
+
+        assert_eq!(value["anyOf"][0], json!({}));
+        assert_eq!(value["anyOf"][1], json!({"$ref": "#/$defs/Other"}));
+    }
+
+    #[test]
+    fn sanitize_schema_for_code_mode_breaks_self_referential_defs() {
+        let mut schema = self_referential_any_schema();
+
+        sanitize_schema_for_code_mode(&mut schema);
+
+        let mut refs = HashSet::new();
+        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
+        assert!(
+            !refs.contains("Any"),
+            "cycle should be broken, got: {schema}"
+        );
+    }
+
+    #[test]
+    fn sanitize_schema_for_code_mode_leaves_acyclic_schemas_untouched() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "content": {"$ref": "#/$defs/Content"}
+            },
+            "$defs": {
+                "Content": {"type": "string"}
+            }
+        });
+        let original = schema.clone();
+
+        sanitize_schema_for_code_mode(&mut schema);
+
+        assert_eq!(schema, original);
+    }
+
+    #[test]
+    fn code_mode_accepts_previously_crashing_self_referential_schema() {
+        let mut output_schema = self_referential_any_schema();
+        sanitize_schema_for_code_mode(&mut output_schema);
+
+        let cfg = CallbackConfig {
+            name: "retain".to_string(),
+            namespace: Some("hindsight".to_string()),
+            description: Some("Store a memory".to_string()),
+            input_schema: Some(json!({
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+                "required": ["content"]
+            })),
+            output_schema: Some(output_schema),
+        };
+
+        let result = CodeMode::default().with_callback(&cfg);
+        assert!(result.is_ok(), "{:?}", result.err());
     }
 }

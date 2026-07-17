@@ -10,6 +10,7 @@ import {
   MenuItem,
   net,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   screen,
   session,
@@ -29,7 +30,7 @@ import { checkBackendStatus } from './backendStatus';
 import { startGooseServe } from './gooseServe';
 import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
 import { acpWebSocketUrlFromHttpBase, normalizeAcpHttpBaseUrl } from './acp/url';
-import { expandTilde } from './utils/pathUtils';
+import { expandTilde, sanitizeGoosePathRoot } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
@@ -860,14 +861,6 @@ const getBundledConfig = (): BundledConfig => {
 
 const { defaultProvider, defaultModel, predefinedModels, version } = getBundledConfig();
 
-const resolveGoosePathRoot = (): string | undefined => {
-  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
-  if (pathRoot) {
-    return expandTilde(pathRoot);
-  }
-  return undefined;
-};
-
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
 interface ExternalBackend {
@@ -953,7 +946,7 @@ let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
-  GOOSE_PATH_ROOT: resolveGoosePathRoot(),
+  GOOSE_PATH_ROOT: sanitizeGoosePathRoot(process.env),
   GOOSE_WORKING_DIR: '',
   // Start with the env-var override; the OS region locale is filled in after app.ready
   // (see updateLocaleFromSystem below) since getSystemLocale() cannot be called earlier.
@@ -2408,6 +2401,14 @@ const registerGlobalShortcuts = () => {
 };
 
 async function appMain() {
+  powerMonitor.on('resume', () => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send('system-resume');
+      }
+    }
+  });
+
   await configureProxy();
 
   // Ensure Windows shims are available before any MCP processes are spawned

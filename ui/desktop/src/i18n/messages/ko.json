@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "홈으로 이동"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "연결이 끊어졌습니다. 다시 연결하는 중…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
   },
@@ -1194,7 +1197,7 @@
     "defaultMessage": "비밀 키"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Goose 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "서버의 비밀 키를 입력하세요"
@@ -2813,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "템플릿 또는 수동 설정으로 시작"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "\"{query}\"와 일치하는 제공업체가 없습니다"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "제공업체 검색..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 로고"
   },
@@ -3653,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "세션 JSON 복사됨"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "텍스트가 복사되었습니다."
   },
@@ -3683,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSON 불러오는 중..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "세션 이름 변경 실패: {error}"
   },
@@ -3706,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "세션 JSON 보기"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "세션에 오류가 발생했습니다."

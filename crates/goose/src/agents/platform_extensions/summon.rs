@@ -84,6 +84,23 @@ pub struct CompletedTask {
     pub completed_at: Instant,
 }
 
+fn merge_subrecipe_parameters(
+    fixed_values: Option<&HashMap<String, String>>,
+    provided_parameters: Option<&HashMap<String, serde_json::Value>>,
+) -> HashMap<String, String> {
+    let mut merged = fixed_values.cloned().unwrap_or_default();
+    if let Some(provided_parameters) = provided_parameters {
+        for (key, value) in provided_parameters {
+            let value = match value {
+                serde_json::Value::String(value) => value.clone(),
+                other => other.to_string(),
+            };
+            merged.entry(key.clone()).or_insert(value);
+        }
+    }
+    merged
+}
+
 /// Result from handle_load_task_result with structured metadata for the caller
 #[derive(Debug)]
 struct TaskLoadResult {
@@ -1441,21 +1458,8 @@ impl SummonClient {
                         format!("Failed to load subrecipe '{}': {}", source.name, e)
                     })?;
 
-                    let mut merged: HashMap<String, String> = HashMap::new();
-                    if let Some(values) = &sr.values {
-                        for (k, v) in values {
-                            merged.insert(k.clone(), v.clone());
-                        }
-                    }
-                    if let Some(provided_params) = &params.parameters {
-                        for (k, v) in provided_params {
-                            let value_str = match v {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            };
-                            merged.insert(k.clone(), value_str);
-                        }
-                    }
+                    let merged =
+                        merge_subrecipe_parameters(sr.values.as_ref(), params.parameters.as_ref());
                     let param_values: Vec<(String, String)> = merged.into_iter().collect();
 
                     return build_recipe_from_template(
@@ -2445,6 +2449,32 @@ You review code."#;
             Some("# Reference Context\n\nbackground info")
         );
         assert_eq!(recipe.prompt.as_deref(), Some("do the task"));
+    }
+
+    #[test]
+    fn test_subrecipe_fixed_values_take_precedence_over_delegate_parameters() {
+        let fixed = HashMap::from([("fixed".to_string(), "parent-value".to_string())]);
+        let provided = HashMap::from([
+            (
+                "fixed".to_string(),
+                serde_json::Value::String("delegate-value".to_string()),
+            ),
+            (
+                "caller".to_string(),
+                serde_json::Value::String("caller-value".to_string()),
+            ),
+        ]);
+
+        let merged = merge_subrecipe_parameters(Some(&fixed), Some(&provided));
+
+        assert_eq!(
+            merged.get("fixed").map(String::as_str),
+            Some("parent-value")
+        );
+        assert_eq!(
+            merged.get("caller").map(String::as_str),
+            Some("caller-value")
+        );
     }
 
     #[test]

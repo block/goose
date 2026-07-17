@@ -30,7 +30,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
-utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
 
 [dev-dependencies]

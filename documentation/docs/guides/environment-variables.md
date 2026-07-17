@@ -154,16 +154,15 @@ These variables control how goose manages conversation sessions and context.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `GOOSE_GATEWAY_MAX_TURNS` | Maximum number of turns for gateway sessions (e.g., Telegram). Overrides `GOOSE_MAX_TURNS` for gateway traffic only, so chat platforms can keep a stricter cap than CLI/desktop sessions. | Integer (e.g., 5, 10, 25) | Falls back to `GOOSE_MAX_TURNS`, then 5 |
 | `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/context-engineering/subagents) to complete before timeout. Can be overridden by [`settings.max_turns`](/docs/guides/recipes/recipe-reference#settings) in recipes or subagent tool calls. | Integer (e.g., 25) | 25 |
 | `GOOSE_MAX_BACKGROUND_TASKS` | Sets the maximum number of concurrent background [subagent](/docs/guides/context-engineering/subagents) tasks goose can run at once | Integer (e.g., 1, 5, 10) | 5 |
-| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints", "AGENTS.md"]` |
 | `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_DISABLE_TOOL_CALL_SUMMARY` | Disables the per-tool-call AI-generated summary title, keeping the fallback title instead. Saves one provider call per tool invocation. | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
-| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response markdown | "light", "dark", "ansi" | "ansi" |
 | `GOOSE_CLI_LIGHT_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using light mode | bat theme name (e.g., "Solarized (light)", "OneHalfLight") | "GitHub" |
 | `GOOSE_CLI_DARK_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using dark mode | bat theme name (e.g., "Dracula", "Nord") | "zenburn" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
@@ -173,20 +172,14 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_MAX_CODE_BLOCK_LINES` | Line count threshold before code blocks are truncated in CLI output. Full content is saved to a temp file. | Positive integer | 50 |
 | `GOOSE_TRUNCATED_SHOW_LINES` | Number of lines shown before the "... (N more lines)" message when a code block is truncated | Positive integer | 20 |
 | `GOOSE_NO_CODE_TRUNCATION` | Disable code block truncation entirely — all code blocks are shown in full | "1", "true" (case-insensitive) to enable | false |
-| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
-| `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
+| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically compacts your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage | Integer (e.g., 5, 10, 20) | Computed from the model context limit and auto-compaction threshold |
 | `GOOSE_MOIM_MESSAGE_TEXT` | Injects persistent text into goose's [working memory](/docs/guides/context-engineering/using-persistent-instructions) every turn. Useful for behavioral guardrails or persistent reminders. | Any text string | Not set |
 | `GOOSE_MOIM_MESSAGE_FILE` | Path to a file whose contents are injected into goose's [working memory](/docs/guides/context-engineering/using-persistent-instructions) every turn. Supports `~/`. Max 64 KB per file. | File path | Not set |
 
 **Examples**
 
 ```bash
-# Automatically summarize when context limit is reached
-export GOOSE_CONTEXT_STRATEGY=summarize
-
-# Always prompt user to choose (default for interactive mode)
-export GOOSE_CONTEXT_STRATEGY=prompt
-
 # Set a low limit for step-by-step control
 export GOOSE_MAX_TURNS=5
 
@@ -281,15 +274,15 @@ These variables control how goose handles [tool execution](/docs/guides/managing
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
+| `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "auto" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
-| `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
 | `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case-insensitive) to enable | false |
-| `GOOSE_SEARCH_PATHS` | Prepends additional directories to PATH for extension commands | JSON array of paths (for example, `["/usr/local/bin", "~/custom/bin"]`) | System PATH only |
+| `GOOSE_SHOW_FULL_OUTPUT` | Shows full tool parameters in CLI output instead of truncating them to the terminal width | true/false | false |
+| `GOOSE_SEARCH_PATHS` | Prepends additional directories to PATH for extension commands | JSON array of paths (for example, `["/usr/local/bin", "~/custom/bin"]`) | Built-in search paths followed by the system PATH |
 | `GOOSE_MAX_TOOL_RESPONSE_SIZE` | Maximum character count for a single tool response before it is written to a temporary file instead of being included inline in the conversation | Positive integer (e.g., 100000, 200000) | 200000 |
-| `GOOSE_SHELL` | Overrides the shell used for Developer extension shell commands | Shell executable path or name (for example, `/bin/zsh`, `pwsh`, `C:\cygwin64\bin\bash.exe`) | Unix: `/bin/bash` if present, otherwise `$SHELL`, otherwise `sh`. Windows: `cmd` |
+| `GOOSE_SHELL` | Overrides the shell used for Developer extension shell commands | Shell executable path or name (for example, `/bin/zsh`, `pwsh`, `C:\cygwin64\bin\bash.exe`) | Unix: `bash` if found on PATH, otherwise `sh`. Windows: `cmd` |
 
 **Examples**
 
@@ -299,10 +292,14 @@ export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
 export GOOSE_MODE="auto"
 export GOOSE_CLI_MIN_PRIORITY=0.2  # Show only medium and high importance output
-export GOOSE_CLI_TOOL_PARAMS_MAX_LENGTH=100  # Show up to 100 characters for tool parameters in CLI output
+export GOOSE_SHOW_FULL_OUTPUT=true  # Show full tool parameters in CLI output
 
 # Add custom tool directories for extensions
 export GOOSE_SEARCH_PATHS='["/usr/local/bin", "~/custom/tools", "/opt/homebrew/bin"]'
+
+# These custom paths are checked before built-in fallback paths such as
+# ~/.local/bin, /usr/local/bin on Unix, Homebrew/MacPorts paths on macOS,
+# and finally the inherited system PATH.
 
 # Lower the tool response size limit for smaller-context models
 export GOOSE_MAX_TOOL_RESPONSE_SIZE=100000
@@ -314,37 +311,6 @@ export GOOSE_SHELL=/bin/zsh
 ```bat
 REM Windows: use a POSIX-like shell instead of cmd.exe
 set GOOSE_SHELL=C:\cygwin64\bin\bash.exe
-```
-
-### Enhanced Code Editing
-
-These variables configure [AI-powered code editing](/docs/guides/enhanced-code-editing) for the Developer extension's `str_replace` tool. All three variables must be set and non-empty for the feature to activate.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `GOOSE_EDITOR_API_KEY` | API key for the code editing model | API key string | None |
-| `GOOSE_EDITOR_HOST` | API endpoint for the code editing model | URL (e.g., "https://api.openai.com/v1") | None |
-| `GOOSE_EDITOR_MODEL` | Model to use for code editing | Model name (e.g., "gpt-4o", "claude-sonnet-4") | None |
-
-**Examples**
-
-This feature works with any OpenAI-compatible API endpoint, for example:
-
-```bash
-# OpenAI configuration
-export GOOSE_EDITOR_API_KEY="sk-..."
-export GOOSE_EDITOR_HOST="https://api.openai.com/v1"
-export GOOSE_EDITOR_MODEL="gpt-4o"
-
-# Anthropic configuration (via OpenAI-compatible proxy)
-export GOOSE_EDITOR_API_KEY="sk-ant-..."
-export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
-export GOOSE_EDITOR_MODEL="claude-sonnet-4-20250514"
-
-# Local model configuration
-export GOOSE_EDITOR_API_KEY="your-key"
-export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
-export GOOSE_EDITOR_MODEL="your-model"
 ```
 
 ## Security and Privacy
@@ -389,14 +355,6 @@ When the keyring is disabled (or cannot be accessed and goose [falls back to fil
 * macOS/Linux: `~/.config/goose/secrets.yaml`
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
-
-### macOS Sandbox for goose Desktop
-
-Optional [macOS sandbox](/docs/guides/sandbox) for goose Desktop that restricts file access, network connections, and process execution using Apple's `sandbox-exec` technology.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|--------|---------|
-| `GOOSE_SANDBOX` | Enable the sandbox with [customizable security controls](/docs/guides/sandbox#configuration) | `true` or `1` to enable | `false` |
 
 ## Network Configuration
 

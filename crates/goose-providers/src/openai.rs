@@ -18,9 +18,11 @@ use crate::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
+use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::StatusCode;
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -62,9 +64,10 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-5.4-pro", 1_050_000),
     ("gpt-5.5", 1_050_000),
     ("gpt-5.5-pro", 1_050_000),
-    ("gpt-5.6-luna", 1_050_000),
+    ("gpt-5.6", 1_050_000),
     ("gpt-5.6-sol", 1_050_000),
     ("gpt-5.6-terra", 1_050_000),
+    ("gpt-5.6-luna", 1_050_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -346,7 +349,33 @@ impl OpenAiProvider {
 
     const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
 
-    fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
+    /// Providers whose reasoning models accept an OpenAI-style
+    /// `reasoning_effort` field on chat-completions requests but aren't
+    /// matched by [`is_openai_responses_model`] (which only recognises
+    /// OpenAI's own `o*`/`gpt-5*` model names). These need the unified
+    /// [`ThinkingEffort`] mapped onto the request explicitly.
+    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta"];
+
+    /// Maps the unified thinking effort onto Meta's Muse Spark
+    /// `reasoning_effort` levels: `low`, `medium`, `high`, `xhigh`.
+    ///
+    /// Muse Spark always reasons and has no supported "disable reasoning"
+    /// level, so `Off` is clamped to `low` (the lightest level Meta
+    /// supports) rather than sent as-is or omitted.
+    fn meta_reasoning_effort(effort: ThinkingEffort) -> &'static str {
+        match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High => "high",
+            ThinkingEffort::Max => "xhigh",
+        }
+    }
+
+    fn sanitize_request_for_compat(
+        &self,
+        mut payload: serde_json::Value,
+        model_config: &ModelConfig,
+    ) -> serde_json::Value {
         if let Some(obj) = payload.as_object_mut() {
             if Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
                 if let Some(value) = obj.remove("max_completion_tokens") {
@@ -369,6 +398,20 @@ impl OpenAiProvider {
                         {
                             message["role"] = serde_json::Value::String("system".to_string());
                         }
+                    }
+                }
+            }
+
+            if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
+                match model_config.thinking_effort() {
+                    Some(effort) => {
+                        obj.insert(
+                            "reasoning_effort".to_string(),
+                            json!(Self::meta_reasoning_effort(effort)),
+                        );
+                    }
+                    None => {
+                        obj.remove("reasoning_effort");
                     }
                 }
             }
@@ -671,7 +714,7 @@ impl Provider for OpenAiProvider {
                     preserve_thinking_context: self.preserve_thinking_context,
                 },
             )?;
-            let payload = self.sanitize_request_for_compat(payload);
+            let payload = self.sanitize_request_for_compat(payload, model_config);
             let mut log = start_log(model_config, &payload)?;
 
             let response = self
@@ -844,26 +887,6 @@ mod tests {
     use crate::api_client::AuthMethod;
     use serde_json::json;
 
-    #[test]
-    fn gpt_5_5_and_5_6_models_have_expected_context_limits() {
-        for model in [
-            "gpt-5.5",
-            "gpt-5.5-pro",
-            "gpt-5.6-luna",
-            "gpt-5.6-sol",
-            "gpt-5.6-terra",
-        ] {
-            assert_eq!(
-                OPEN_AI_KNOWN_MODELS
-                    .iter()
-                    .find(|(name, _)| *name == model)
-                    .map(|(_, limit)| *limit),
-                Some(1_050_000),
-                "unexpected context limit for {model}"
-            );
-        }
-    }
-
     fn make_provider(name: &str) -> OpenAiProvider {
         OpenAiProvider {
             api_client: ApiClient::new_with_tls(
@@ -895,7 +918,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("mistral-medium-latest"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("max_completion_tokens"));
@@ -912,7 +936,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("mistral-medium-latest"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("max_completion_tokens"));
@@ -928,7 +953,7 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider.sanitize_request_for_compat(payload, &ModelConfig::new("o3"));
         let obj = result.as_object().unwrap();
 
         assert!(obj.contains_key("max_completion_tokens"));
@@ -944,7 +969,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result =
+            provider.sanitize_request_for_compat(payload, &ModelConfig::new("future-model"));
         let obj = result.as_object().unwrap();
 
         assert!(obj.contains_key("max_completion_tokens"));
@@ -959,7 +985,10 @@ mod tests {
             "messages": []
         });
 
-        let result = provider.sanitize_request_for_compat(payload.clone());
+        let result = provider.sanitize_request_for_compat(
+            payload.clone(),
+            &ModelConfig::new("llama-3.3-70b-versatile"),
+        );
         assert_eq!(result, payload);
     }
 
@@ -982,7 +1011,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("Qwen/Qwen3.6-35B-A3B-FP8"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("reasoning_effort"));
@@ -1002,12 +1032,80 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result =
+            provider.sanitize_request_for_compat(payload, &ModelConfig::new("openai/gpt-5"));
         let obj = result.as_object().unwrap();
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
         assert!(!obj.contains_key("max_completion_tokens"));
         assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
+    }
+
+    #[test]
+    fn sanitize_meta_applies_reasoning_effort_from_thinking_effort() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::High);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("high")));
+    }
+
+    #[test]
+    fn sanitize_meta_maps_max_thinking_effort_to_xhigh() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::Max);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
+    }
+
+    #[test]
+    fn sanitize_meta_clamps_off_thinking_effort_to_low() {
+        // Muse Spark always reasons and has no "disable reasoning" level,
+        // so an explicit `Off` must be clamped to the lightest supported
+        // level rather than omitted or sent as-is.
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": [],
+            "reasoning_effort": "high"
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::Off);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("low")));
+    }
+
+    #[test]
+    fn sanitize_meta_omits_reasoning_effort_when_unset() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config = ModelConfig::new("muse-spark-1.1");
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert!(!obj.contains_key("reasoning_effort"));
     }
 
     #[test]
@@ -1023,6 +1121,8 @@ mod tests {
         for (model_name, base_path, expected) in [
             ("gpt-5.4", "v1/chat/completions", true),
             ("gpt-5.4-xhigh", "v1/chat/completions", true),
+            ("gpt-5.6-sol", "v1/chat/completions", true),
+            ("gpt-5.6-terra-xhigh", "v1/chat/completions", true),
             ("gpt-5.2-pro-2025-12-11", "v1/chat/completions", true),
             ("gpt-4o", "v1/chat/completions", false),
             ("gpt-5.2-codex", "openai/v1/chat/completions", false),

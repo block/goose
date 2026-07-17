@@ -84,12 +84,7 @@ function getProviders(): ProviderConfig[] {
     },
     {
       provider: 'google',
-      models: [
-        'gemini-2.5-pro',
-        { name: 'gemini-2.5-flash', flaky: true },
-        { name: 'gemini-3-pro-preview', flaky: true },
-        'gemini-3-flash-preview',
-      ],
+      models: [{ name: 'gemini-2.5-flash', flaky: true }, 'gemini-3.5-flash'],
       available: () => hasEnv('GOOGLE_API_KEY'),
     },
     {
@@ -369,7 +364,8 @@ export function runGoose(
   prompt: string,
   builtins: string,
   env: Record<string, string>,
-  timeoutMs: number = 55_000
+  timeoutMs: number = 55_000,
+  success?: (output: string) => boolean
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child: ChildProcess = spawn(
@@ -393,12 +389,18 @@ export function runGoose(
       }
     }, timeoutMs);
 
-    child.stdout?.on('data', (d) => {
-      output += String(d);
-    });
-    child.stderr?.on('data', (d) => {
-      output += String(d);
-    });
+    const captureOutput = (data: unknown) => {
+      output += String(data);
+      if (!settled && success?.(output)) {
+        settled = true;
+        clearTimeout(timer);
+        child.kill('SIGKILL');
+        resolve(output);
+      }
+    };
+
+    child.stdout?.on('data', captureOutput);
+    child.stderr?.on('data', captureOutput);
 
     child.on('close', () => {
       if (!settled) {

@@ -20,7 +20,7 @@ use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
-use goose::scheduler::{ScheduledJob, SchedulerError};
+use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::Session as GooseSession;
 use goose::session_context::SESSION_ID_HEADER;
@@ -76,6 +76,14 @@ impl SchedulerTrait for FixtureScheduler {
         }
         jobs.push(job);
         Ok(())
+    }
+
+    async fn add_scheduled_job_with_recipe(
+        &self,
+        job: ScheduledJob,
+        _validated_recipe: ValidatedScheduleRecipe,
+    ) -> Result<(), SchedulerError> {
+        self.add_scheduled_job(job, false).await
     }
 
     async fn schedule_recipe(

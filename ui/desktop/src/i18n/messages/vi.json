@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Không có ứng dụng nào"
   },
-  "appsView.retry": {
-    "defaultMessage": "Thử lại"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Thử lại"
   },
   "appsView.title": {
     "defaultMessage": "Ứng dụng"
@@ -130,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Mất kết nối. Đang kết nối lại…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"
@@ -1194,7 +1197,7 @@
     "defaultMessage": "Khóa bí mật"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Nhập khóa bí mật của máy chủ"
@@ -2813,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Từ mẫu hoặc thiết lập thủ công"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Không có nhà cung cấp nào khớp với \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Tìm kiếm nhà cung cấp..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
   },
@@ -3653,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Đã sao chép JSON của phiên"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Đã sao chép văn bản"
   },
@@ -3683,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Đang tải JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Không thể đổi tên phiên: {error}"
   },
@@ -3706,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Xem JSON của phiên"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "Phiên gặp lỗi"

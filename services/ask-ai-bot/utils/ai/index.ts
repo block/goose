@@ -84,6 +84,10 @@ export async function answerQuestion({
               );
             } else if (event.toolName === "list_codebase_files") {
               await statusMessage.edit("Exploring project structure...");
+            } else if (event.toolName === "search_github") {
+              await statusMessage.edit("Searching GitHub...");
+            } else if (event.toolName === "get_github_issue_or_pr") {
+              await statusMessage.edit("Reading GitHub issues and PRs...");
             }
           } catch (error) {
             logger.verbose("Failed to update status message:", error);
@@ -123,6 +127,10 @@ export async function answerQuestion({
           }
         } else if (event.toolName === "list_codebase_files") {
           tracker.recordListDir();
+        } else if (event.toolName === "search_github") {
+          tracker.recordGitHubSearch();
+        } else if (event.toolName === "get_github_issue_or_pr") {
+          tracker.recordGitHubRead();
         }
       }
     }
