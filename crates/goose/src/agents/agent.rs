@@ -470,6 +470,19 @@ impl Agent {
             .await;
     }
 
+    pub async fn emit_hook_with_banners(
+        &self,
+        event: crate::hooks::HookEvent,
+        session_id: &str,
+    ) -> Vec<String> {
+        if !self.hook_manager.has_hooks(event) {
+            return Vec::new();
+        }
+        self.hook_manager
+            .emit_collecting_banners(event, crate::hooks::HookContext::new(event, session_id))
+            .await
+    }
+
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,
