@@ -14,6 +14,8 @@ pub mod roam_bridge;
 pub mod roam_client;
 pub mod schedule;
 pub mod session;
+#[cfg(feature = "roaming")]
+pub mod shared_session_bridge;
 pub mod skills;
 pub mod term;
 #[cfg(feature = "tui")]

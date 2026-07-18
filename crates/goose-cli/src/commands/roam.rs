@@ -20,7 +20,7 @@ use goose_roaming::{
     RoamingNode, Scope, TrustBook, TrustPolicy,
 };
 
-use crate::commands::roam_bridge::GooseAcpBridge;
+use crate::commands::shared_session_bridge::{GooseAgentBackend, SharedSessionBridge};
 
 fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
@@ -300,8 +300,9 @@ async fn handle_share(
         additional_source_roots: Vec::new(),
         session_cwd: Some(session_cwd.clone()),
     }));
-    let bridge = Arc::new(GooseAcpBridge::new(
-        acp_server,
+    let backend = Arc::new(GooseAgentBackend::new(acp_server));
+    let bridge = Arc::new(SharedSessionBridge::start(
+        backend,
         identity.public_key().to_string(),
     ));
 
