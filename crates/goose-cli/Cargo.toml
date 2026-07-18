@@ -64,6 +64,7 @@ clap_complete = { version = "4", default-features = false }
 comfy-table = { version = "8", default-features = false }
 sha2 = { workspace = true }
 sigstore-verify = { version = "0.11", default-features = false, optional = true }
+snap = { workspace = true, optional = true }
 axum.workspace = true
 axum-server = { workspace = true, optional = true }
 clap_complete_nushell = { version = "4", default-features = false }
@@ -105,7 +106,7 @@ nostr = ["goose/nostr"]
 otel = ["goose/otel"]
 system-keyring = ["goose/system-keyring"]
 tui = []
-update = ["dep:sigstore-verify"]
+update = ["dep:sigstore-verify", "dep:snap"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []

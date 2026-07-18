@@ -78,7 +78,10 @@ struct AttestationResponse {
 
 #[derive(serde::Deserialize)]
 struct AttestationEntry {
-    bundle: serde_json::Value,
+    #[serde(default)]
+    bundle: Option<serde_json::Value>,
+    #[serde(default)]
+    bundle_url: Option<String>,
 }
 
 const GITHUB_ACTIONS_ISSUER: &str = "https://token.actions.githubusercontent.com";
@@ -134,7 +137,53 @@ async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<ser
         .await
         .context("Failed to parse attestation response")?;
 
-    Ok(body.attestations.into_iter().map(|a| a.bundle).collect())
+    // GitHub no longer embeds bundles in attestation list responses; they are
+    // served from blob storage via bundle_url instead.
+    let mut bundles = Vec::with_capacity(body.attestations.len());
+    for entry in body.attestations {
+        match (entry.bundle, entry.bundle_url) {
+            (Some(bundle), _) if !bundle.is_null() => bundles.push(bundle),
+            (_, Some(url)) => bundles.push(fetch_bundle(&client, &url).await?),
+            _ => bail!("Attestation has neither a bundle nor a bundle URL"),
+        }
+    }
+
+    Ok(bundles)
+}
+
+// The bundle URL is pre-signed for blob storage, so no API credentials are sent.
+async fn fetch_bundle(client: &reqwest::Client, url: &str) -> Result<serde_json::Value> {
+    let resp = client
+        .get(url)
+        .header("User-Agent", "goose-cli")
+        .send()
+        .await
+        .context("Failed to fetch attestation bundle")?;
+
+    if !resp.status().is_success() {
+        bail!(
+            "Attestation bundle download returned HTTP {}",
+            resp.status()
+        );
+    }
+
+    let body = resp
+        .bytes()
+        .await
+        .context("Failed to read attestation bundle")?;
+    parse_bundle_bytes(&body)
+}
+
+fn parse_bundle_bytes(body: &[u8]) -> Result<serde_json::Value> {
+    if let Ok(bundle) = serde_json::from_slice(body) {
+        return Ok(bundle);
+    }
+
+    // Offloaded bundles are served as snappy-compressed JSON.
+    let decompressed = snap::raw::Decoder::new()
+        .decompress_vec(body)
+        .context("Failed to decompress attestation bundle")?;
+    serde_json::from_slice(&decompressed).context("Failed to parse attestation bundle")
 }
 
 async fn fetch_attestations_response(
@@ -803,6 +852,56 @@ mod tests {
             StatusCode::UNAUTHORIZED,
             None
         ));
+    }
+
+    #[test]
+    fn test_attestation_entry_parses_embedded_bundle() {
+        let response: AttestationResponse = serde_json::from_str(
+            r#"{"attestations":[{"repository_id":1,"bundle":{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}}]}"#,
+        )
+        .unwrap();
+        assert!(response.attestations[0].bundle.is_some());
+        assert!(response.attestations[0].bundle_url.is_none());
+    }
+
+    #[test]
+    fn test_attestation_entry_parses_offloaded_bundle() {
+        let response: AttestationResponse = serde_json::from_str(
+            r#"{"attestations":[{"repository_id":1,"bundle_url":"https://example.com/bundle.json.sn","initiator":"user","bundle":null}]}"#,
+        )
+        .unwrap();
+        assert!(response.attestations[0].bundle.is_none());
+        assert_eq!(
+            response.attestations[0].bundle_url.as_deref(),
+            Some("https://example.com/bundle.json.sn")
+        );
+    }
+
+    #[test]
+    fn test_parse_bundle_bytes_plain_json() {
+        let bundle =
+            parse_bundle_bytes(br#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#)
+                .unwrap();
+        assert_eq!(
+            bundle["mediaType"],
+            "application/vnd.dev.sigstore.bundle.v0.3+json"
+        );
+    }
+
+    #[test]
+    fn test_parse_bundle_bytes_snappy_compressed() {
+        let json = br#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#;
+        let compressed = snap::raw::Encoder::new().compress_vec(json).unwrap();
+        let bundle = parse_bundle_bytes(&compressed).unwrap();
+        assert_eq!(
+            bundle["mediaType"],
+            "application/vnd.dev.sigstore.bundle.v0.3+json"
+        );
+    }
+
+    #[test]
+    fn test_parse_bundle_bytes_rejects_garbage() {
+        assert!(parse_bundle_bytes(&[0xff, 0x00, 0x12]).is_err());
     }
 
     // -----------------------------------------------------------------------

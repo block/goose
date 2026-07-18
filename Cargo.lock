@@ -5129,6 +5129,7 @@ dependencies = [
  "sha2 0.11.0",
  "shlex 2.0.1",
  "sigstore-verify",
+ "snap",
  "strsim",
  "strum 0.28.0",
  "tar",
@@ -10421,6 +10422,12 @@ dependencies = [
  "parking_lot",
  "reqwest 0.13.4",
 ]
+
+[[package]]
+name = "snap"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "199905e6153d6405f9728fe44daace35f8f837bbf830bb6e85fbd5828709a886"
 
 [[package]]
 name = "socket2"
