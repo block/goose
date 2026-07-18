@@ -1447,6 +1447,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         config_dir: Paths::config_dir(),
         goose_platform: platform.into(),
         additional_source_roots,
+        session_cwd: None,
     }));
     let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()

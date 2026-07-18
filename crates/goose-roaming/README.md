@@ -1,17 +1,18 @@
 # goose-roaming
 
-Peer-to-peer roaming transport for goose agents, built on
-[iroh](https://iroh.computer) (QUIC with zero-trust public relays).
+Peer-to-peer transport for goose agents, built on
+[iroh](https://iroh.computer) (QUIC, using iroh's public relays for NAT
+traversal).
 
-It lets a goose agent expose itself over the internet so a remote ACP client
-(another goose) can drive it, and lets a client dial remote agents to hold an
-interactive session or delegate a one-shot task — all through NAT without
+It lets a goose agent accept connections from a remote ACP client (another
+goose) that drives it, and lets a client dial a remote agent to hold an
+interactive session or delegate a one-shot task, typically without
 port-forwarding.
 
-This crate is **pure transport**: it has no dependency on `goose` core, and the
-heavy iroh dependency never enters the core crate. The one place that bridges
-the transport to goose's agent machinery lives in `goose-cli` behind an optional
-`roaming` feature, so library consumers pay zero cost when it's disabled.
+The crate has no dependency on `goose` core, so the iroh dependency stays out of
+core. The code that bridges the transport to goose's agent machinery lives in
+`goose-cli` behind an optional `roaming` feature; it isn't compiled unless that
+feature is enabled.
 
 ## Concepts
 
@@ -43,9 +44,9 @@ host:    authorize (scope + allowlist) ──▶ hand the bi-stream to ACP serve
 client:  run an ACP client over the same bi-stream
 ```
 
-An iroh bidirectional stream is a drop-in transport for goose's existing
-transport-agnostic ACP `serve` / `ByteStreams` seam, so hosting reuses the real
-ACP server unchanged, and the client reuses the standard ACP client.
+An iroh bidirectional stream is used as the byte transport for goose's existing
+transport-agnostic ACP `serve` / `ByteStreams` seam, so hosting reuses the ACP
+server and the client reuses the ACP client.
 
 ## CLI
 
@@ -65,7 +66,9 @@ Exposed via `goose roam` (in `goose-cli`, feature `roaming`):
 Build both with the roaming feature (`cargo build -p goose-cli --features roaming`,
 or `just` equivalent) — no shared network, VPN, or port-forwarding needed; the
 public n0 relays bridge them. On **machine A** (the host), run `goose roam share`
-and copy the printed `goose+roam://…` invite token (it embeds A's endpoint id + a
+(optionally `--cwd <dir>` to choose the directory the agent runs in; it defaults
+to where `share` started, and the connector's own path is always ignored) and
+copy the printed `goose+roam://…` invite token (it embeds A's endpoint id + a
 live relay URL; default TTL 1h). Get that token to **machine B** out of band
 (paste it in chat, etc.). On **machine B**, either drive A interactively with
 `goose roam connect '<token>'` (you'll get a prompt that runs on A's agent — its
@@ -80,28 +83,31 @@ hangs on macOS, prefix with `GOOSE_DISABLE_KEYRING=1` (see PR #10549 for the fix
 ## Design decisions & rationale
 
 **`connect` is a thin ACP client UI onto the host's agent — not a provider
-wrapper.** The host runs the real agent loop (its tools, working directory,
-shell); the client just opens an ACP session, sends prompts, and renders
+wrapper.** The host runs the agent loop (its tools, working directory, shell);
+the client just opens an ACP session, sends prompts, and renders
 `session/update` notifications. Wrapping the remote as a *provider* for a second
-local agent loop would double the loop and defeat the point of "share your
-agent". A fresh agent is created per accepted connection (never shared).
+local agent loop would double the loop and defeat the point of sharing an agent.
+A fresh agent is created per accepted connection (never shared).
 
-**Scope is Control-only for now.** A shared agent is handed to a trusted,
-authenticated peer, and a control invite is intentionally SSH-equivalent — the
-peer driving the agent and approving its tool use is the feature, not a gap. The
-`Scope` enum keeps `Observe`/`Attach` variants for the future, but they are not
-advertised until they can actually be enforced host-side (which needs a session
-coordinator). Advertising an unenforced scope would be false security.
+**The host controls the working directory.** ACP's `session/new` carries a cwd,
+but the connector's absolute path is meaningless on the host machine — using it
+would fail on a path mismatch or, worse, silently run in an unintended directory
+that happens to exist. So the host ignores the sent cwd and imposes its own:
+the directory `roam share` was started in, or an explicit `--cwd`. The client
+sends only a placeholder.
 
-**Delegation cares about loops, not authz.** Because the peer is already
-trusted, the risk in agent-to-agent delegation isn't authorization — it's
-runaway cost (A → B → A …). Guardrails (bounded turns/deadline, no recursive
-roaming into delegated sessions) belong wherever delegation is surfaced to the
-model, independent of scopes. Delegated sessions auto-cancel permission requests
-since there's no human to answer.
+**Scope is Control-only for now.** A connected client can drive the agent and
+approve its tool use, which is close to shell access on the host — so only share
+with peers you trust. The `Scope` enum keeps `Observe`/`Attach` variants, but
+they are not offered in the CLI because the host does not yet enforce them
+(that needs a session coordinator). Offering an unenforced scope would be
+misleading, so it's left out.
 
-**Secrets never hang the runtime.** Reading the node key or config secrets must
-not block; see the keychain-read timeout in goose core's config layer.
+**Delegation guardrails are about cost, not authorization.** The peer is already
+trusted, so the concern with agent-to-agent delegation is runaway cost from
+loops (A → B → A …). Any loop/cost guardrails belong wherever delegation is
+surfaced to the model. The current `delegate` path auto-cancels tool-permission
+requests, since there is no human present to answer them.
 
 ## Surfacing delegation to the model
 

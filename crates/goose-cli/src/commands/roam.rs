@@ -53,6 +53,12 @@ pub enum RoamCommand {
         /// Builtin extensions to load into the hosted agent.
         #[arg(long = "with-builtin", value_delimiter = ',')]
         builtins: Vec<String>,
+
+        /// Working directory the hosted agent runs in. Defaults to the directory
+        /// `roam share` was started in. The connecting client's own path is
+        /// always ignored — it is meaningless on this machine.
+        #[arg(long)]
+        cwd: Option<std::path::PathBuf>,
     },
 
     /// Connect to a shared agent by saved peer name or invite token.
@@ -118,7 +124,8 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             allow_keys,
             pair,
             builtins,
-        } => handle_share(Scope::Control, ttl, allow_keys, pair, builtins).await,
+            cwd,
+        } => handle_share(Scope::Control, ttl, allow_keys, pair, builtins, cwd).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
@@ -242,8 +249,16 @@ async fn handle_share(
     allow_keys: Vec<String>,
     pair: bool,
     builtins: Vec<String>,
+    cwd: Option<std::path::PathBuf>,
 ) -> Result<()> {
     let identity = load_identity()?;
+
+    // Host imposes its own working directory; the connector's path is ignored.
+    let session_cwd = match cwd {
+        Some(dir) => std::fs::canonicalize(&dir)
+            .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
+        None => std::env::current_dir().context("could not determine current directory")?,
+    };
 
     let allowed_client_keys = allow_keys
         .iter()
@@ -283,6 +298,7 @@ async fn handle_share(
         config_dir: Paths::config_dir(),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
+        session_cwd: Some(session_cwd.clone()),
     }));
     let bridge = Arc::new(GooseAcpBridge::new(
         acp_server,
@@ -304,6 +320,7 @@ async fn handle_share(
     eprintln!("roaming agent is live");
     eprintln!("  endpoint id : {}", node.endpoint_id());
     eprintln!("  scope       : {scope:?}");
+    eprintln!("  working dir : {}", session_cwd.display());
     eprintln!(
         "  invite ttl  : {ttl}s{}",
         if pair { " (single-use pairing)" } else { "" }

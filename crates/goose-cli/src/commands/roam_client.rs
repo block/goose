@@ -63,13 +63,10 @@ pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -
             );
             eprintln!("type a message and press enter; Ctrl-D or /quit to end.\n");
 
-            // ACP requires an absolute cwd. Ideally the HOST imposes its own
-            // share working directory and ignores this (design doc §9, tracked
-            // as a host-side serve_with_policy change). Until then we send an
-            // absolute path so session creation validates; on the same machine
-            // this is the connector's cwd.
-            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
-            tracing::debug!(cwd = %cwd.display(), "roam client: creating remote session");
+            // The host imposes its own working directory and ignores whatever we
+            // send here (our local path is meaningless on the host machine). ACP
+            // still requires a syntactically-absolute cwd, so send a placeholder.
+            let cwd = std::path::PathBuf::from("/");
             let result = cx
                 .build_session(cwd)
                 .block_task()
@@ -153,7 +150,8 @@ pub async fn delegate(stream: RoamingClientStream, task: String) -> Result<Strin
             cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
                 .block_task()
                 .await?;
-            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
+            // Host imposes its own working directory; send a placeholder.
+            let cwd = std::path::PathBuf::from("/");
             cx.build_session(cwd)
                 .block_task()
                 .run_until(async |mut session| {

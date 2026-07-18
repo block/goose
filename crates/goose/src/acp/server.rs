@@ -208,6 +208,9 @@ pub struct GooseAcpAgentOptions {
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
     pub scheduler: Arc<dyn SchedulerTrait>,
+    /// When set, new sessions use this host-controlled working directory instead
+    /// of the `cwd` the connecting client sends (see `AcpServerFactoryConfig`).
+    pub session_cwd: Option<std::path::PathBuf>,
 }
 
 pub struct GooseAcpAgent {
@@ -231,6 +234,7 @@ pub struct GooseAcpAgent {
     disable_session_naming: bool,
     provider_inventory: ProviderInventoryService,
     additional_source_roots: Vec<SourceRoot>,
+    session_cwd: Option<PathBuf>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
@@ -969,6 +973,7 @@ impl GooseAcpAgent {
             disable_session_naming: options.disable_session_naming,
             provider_inventory,
             additional_source_roots: options.additional_source_roots,
+            session_cwd: options.session_cwd,
             recipe_path_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -3204,6 +3209,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
+            session_cwd: None,
         },
     );
     let agent = server.create_agent().await?;
