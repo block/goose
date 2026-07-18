@@ -28,9 +28,45 @@
 //!
 //! # Status
 //!
-//! Skeleton. The routing policy ([`Router`]) is implemented and tested. The wire
-//! adapter that connects it to real ACP streams is stubbed (`todo!()`) and
-//! called out at each seam.
+//! Routing policy ([`Router`]) is implemented and tested, and multi-client
+//! fan-out is proven over real iroh transport (see the crate's `end_to_end`
+//! test `multiple_clients_share_one_session`). The remaining work is the ACP
+//! wire adapter, planned below.
+//!
+//! # Wire adapter plan (the "act as remote ACP" layer)
+//!
+//! The broker lives entirely on top of goose — goose core is untouched; from
+//! goose's view the broker is just another ACP client over a byte stream. The
+//! adapter has two halves:
+//!
+//! **Agent-facing half — one ACP client to the live local agent.** Runs
+//! `agent_client_protocol::Client` over an in-memory duplex whose other end is
+//! goose's `acp::server::serve(agent, ..)`. Starts one session (`session/new`,
+//! or `session/load` to attach to an existing one), then owns it for the
+//! session's life. It:
+//!   * receives `session/update` notifications and pushes each into the
+//!     broadcast channel (fan-out source),
+//!   * submits prompts/steer that peers funnel in,
+//!   * answers `session/request_permission` by forwarding to the current
+//!     controller peer and relaying the reply (or a safe default via
+//!     [`Route::Drop`]).
+//!
+//! **Peer-facing half — an ACP agent façade per accepted iroh stream.** Each
+//! roaming peer runs `roam connect` (an ACP *client*), so the broker must answer
+//! `initialize` and `session/*` on that stream. It:
+//!   * replies to `initialize` with the shared agent's capabilities,
+//!   * on `session/new`|`session/load`, attaches the peer via
+//!     [`SessionBroker::attach_peer`] and starts subscribe-before-replay:
+//!     register → buffer live updates → replay persisted history → flush buffer
+//!     → go live,
+//!   * forwards inbound `session/prompt`/steer to the agent-facing half, gated
+//!     by [`Router::accept_steer`],
+//!   * delivers permission requests only to the controller
+//!     ([`Router::route_permission_request`]).
+//!
+//! Everything ACP-specific stays in the integration layer (goose-cli or a small
+//! `goose-roaming-acp` crate) so this crate remains ACP-free; the broker core
+//! here only owns the transport-neutral routing decisions.
 
 use std::collections::HashMap;
 
