@@ -485,9 +485,12 @@ impl Agent {
         event: crate::hooks::HookEvent,
         session_id: &str,
     ) -> Vec<String> {
+<<<<<<< HEAD
         if event == crate::hooks::HookEvent::SessionStart {
             self.session_start_emitted.store(true, Ordering::Release);
         }
+=======
+>>>>>>> 13096fd60 (feat: session banner hooks - let plugins surface context at startup)
         if !self.hook_manager.has_hooks(event) {
             return Vec::new();
         }
