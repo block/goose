@@ -36,6 +36,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
 import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
 import { getCachedTools } from './toolsCache';
+import { ResourceIntegrityTracker, checkResourceIntegrity } from './resourceIntegrity';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils';
@@ -132,6 +133,32 @@ const i18n = defineMessages({
 const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
 const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
+
+// Trust-on-first-use integrity tracking for fetched ui:// resources, shared
+// across renders and app instances so a tampered UI is detected even when the
+// same resource is loaded in a later message. Verification never blocks render.
+const resourceIntegrityTracker = new ResourceIntegrityTracker();
+
+function verifyResourceIntegrity(extensionName: string, resourceUri: string, html: string): void {
+  void checkResourceIntegrity(resourceIntegrityTracker, extensionName, resourceUri, html)
+    .then((result) => {
+      if (result.changed) {
+        console.warn(
+          '[McpAppRenderer] MCP App resource content changed since it was first loaded; ' +
+            'the served UI may have been tampered with.',
+          {
+            extensionName,
+            resourceUri,
+            previousHash: result.previousHash,
+            currentHash: result.hash,
+          }
+        );
+      }
+    })
+    .catch((error) => {
+      console.warn('[McpAppRenderer] Failed to verify MCP App resource integrity:', error);
+    });
+}
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -735,6 +762,7 @@ export default function McpAppRenderer({
 
             if (resolvedHtml) {
               fetchedDataRef.current = { html: resolvedHtml, meta: resolvedMeta };
+              verifyResourceIntegrity(extensionName, resourceUri, resolvedHtml);
             }
             dispatch({ type: 'RESOURCE_LOADED', html: resolvedHtml, meta: resolvedMeta });
             return;
