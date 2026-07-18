@@ -8,6 +8,7 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
+use rmcp::model::AnnotateAble as _;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -216,28 +217,49 @@ fn format_messages_with_options(
                 }
                 MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     Ok(result) => {
-                        let text = result
-                            .content
-                            .iter()
-                            .filter_map(|c| {
-                                if let Some(t) = c.as_text() {
-                                    return Some(t.text.clone());
+                        let mut text_parts: Vec<String> = Vec::new();
+                        let mut blocks: Vec<Value> = Vec::new();
+                        let mut has_image = false;
+
+                        for c in &result.content {
+                            if let Some(t) = c.as_text() {
+                                text_parts.push(t.text.clone());
+                                blocks.push(json!({
+                                    TYPE_FIELD: TEXT_TYPE,
+                                    TEXT_TYPE: t.text
+                                }));
+                            } else if let Some(i) = c.as_image() {
+                                has_image = true;
+                                blocks.push(convert_image(
+                                    &i.clone().no_annotation(),
+                                    &ImageFormat::Anthropic,
+                                ));
+                            } else if let Some(r) = c.as_resource() {
+                                let text = extract_text_from_resource(&r.resource);
+                                if !text.is_empty() {
+                                    text_parts.push(text.clone());
+                                    blocks.push(json!({
+                                        TYPE_FIELD: TEXT_TYPE,
+                                        TEXT_TYPE: text
+                                    }));
                                 }
-                                if let Some(r) = c.as_resource() {
-                                    let text = extract_text_from_resource(&r.resource);
-                                    if !text.is_empty() {
-                                        return Some(text);
-                                    }
-                                }
-                                None
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n");
+                            }
+                        }
+
+                        // Preserve the historical single-string encoding when the
+                        // tool result has no images; the array form (which
+                        // Anthropic also accepts) is only needed to forward
+                        // image blocks.
+                        let tool_result_content = if has_image {
+                            json!(blocks)
+                        } else {
+                            json!(text_parts.join("\n"))
+                        };
 
                         content.push(json!({
                             TYPE_FIELD: TOOL_RESULT_TYPE,
                             TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: text
+                            CONTENT_FIELD: tool_result_content
                         }));
                     }
                     Err(tool_error) => {
@@ -1645,6 +1667,68 @@ mod tests {
             spec[1]["content"][0]["content"],
             "Summary: file loaded\nFile content here"
         );
+    }
+
+    #[test]
+    fn test_tool_response_with_image_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let text_content = Content::text("Screenshot captured");
+        let image_content = Content::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("screenshot").with_arguments(object!({}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![text_content, image_content])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 2);
+        assert_eq!(spec[1]["role"], "user");
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
+
+        // With an image present, tool_result content must be an array of
+        // text/image blocks so the model actually receives the image.
+        let blocks = spec[1]["content"][0]["content"].as_array().unwrap();
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0]["type"], "text");
+        assert_eq!(blocks[0]["text"], "Screenshot captured");
+        assert_eq!(blocks[1]["type"], "image");
+        assert_eq!(blocks[1]["source"]["type"], "base64");
+        assert_eq!(blocks[1]["source"]["media_type"], "image/png");
+        assert_eq!(blocks[1]["source"]["data"], "aW1hZ2VkYXRh");
+    }
+
+    #[test]
+    fn test_tool_response_text_only_keeps_string_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![
+                    Content::text("first"),
+                    Content::text("second"),
+                ])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        // Without images the historical single-string encoding is preserved.
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(spec[1]["content"][0]["content"], "first\nsecond");
     }
 
     #[test]
