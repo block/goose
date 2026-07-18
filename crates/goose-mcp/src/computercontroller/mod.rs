@@ -19,6 +19,7 @@ use rmcp::{
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tokio::process::Command;
 
@@ -36,6 +37,92 @@ mod xlsx_tool;
 
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
+
+/// Returns true when `ip` is not a public, routable address that `web_scrape`
+/// should be allowed to reach. Blocking these ranges prevents SSRF against
+/// loopback services, private networks, and cloud metadata endpoints such as
+/// 169.254.169.254.
+fn is_blocked_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            if v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+            {
+                return true;
+            }
+            let o = v4.octets();
+            // 100.64.0.0/10 carrier-grade NAT shared space
+            (o[0] == 100 && (o[1] & 0xc0) == 64)
+                // 192.0.0.0/24 IETF protocol assignments
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                // 198.18.0.0/15 benchmarking
+                || (o[0] == 198 && (o[1] & 0xfe) == 18)
+                // 240.0.0.0/4 reserved (includes 255.255.255.255)
+                || o[0] >= 240
+        }
+        IpAddr::V6(v6) => {
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return is_blocked_ip(IpAddr::V4(mapped));
+            }
+            if v6.is_loopback() || v6.is_unspecified() {
+                return true;
+            }
+            let first = v6.segments()[0];
+            // fc00::/7 unique local addresses
+            (first & 0xfe00) == 0xfc00
+                // fe80::/10 link-local
+                || (first & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+/// Validate a `web_scrape` target URL before any request is made. Only http(s)
+/// URLs whose host resolves exclusively to public addresses are allowed. This
+/// performs a blocking DNS lookup, so callers should run it off the async
+/// runtime (e.g. via `spawn_blocking`).
+fn validate_scrape_url(url_str: &str) -> Result<Url, String> {
+    let url = Url::parse(url_str).map_err(|e| format!("Invalid URL: {}", e))?;
+
+    match url.scheme() {
+        "http" | "https" => {}
+        other => {
+            return Err(format!(
+                "URL scheme '{}' is not allowed; only http and https are permitted",
+                other
+            ))
+        }
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| "URL has no host".to_string())?;
+    let port = url.port_or_known_default().unwrap_or(80);
+
+    let mut resolved = false;
+    for addr in (host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("could not resolve host '{}': {}", host, e))?
+    {
+        resolved = true;
+        if is_blocked_ip(addr.ip()) {
+            return Err(format!(
+                "URL '{}' resolves to a blocked address ({}); refusing to fetch to prevent SSRF",
+                url_str,
+                addr.ip()
+            ));
+        }
+    }
+
+    if !resolved {
+        return Err(format!("could not resolve host '{}'", host));
+    }
+
+    Ok(url)
+}
 
 /// Enum for save_as parameter in web_scrape tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
@@ -543,7 +630,19 @@ impl ComputerControllerServer {
             tool_router,
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
-            http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
+            http_client: Client::builder()
+                .user_agent("goose/1.0")
+                .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                    if attempt.previous().len() > 10 {
+                        return attempt.error("too many redirects");
+                    }
+                    match validate_scrape_url(attempt.url().as_str()) {
+                        Ok(_) => attempt.follow(),
+                        Err(e) => attempt.error(e),
+                    }
+                }))
+                .build()
+                .unwrap(),
             instructions,
             system_automation,
             #[cfg(target_os = "macos")]
@@ -615,13 +714,25 @@ impl ComputerControllerServer {
         params: Parameters<WebScrapeParams>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
-        let url = &params.url;
+        let url = params.url.clone();
         let save_as = params.save_as;
+
+        let validation_url = url.clone();
+        tokio::task::spawn_blocking(move || validate_scrape_url(&validation_url))
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("URL validation task failed: {}", e),
+                    None,
+                )
+            })?
+            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e, None))?;
 
         // Fetch the content
         let response = self
             .http_client
-            .get(url)
+            .get(&url)
             .header("Accept", "text/markdown, */*")
             .send()
             .await
@@ -1664,5 +1775,89 @@ impl ServerHandler for ComputerControllerServer {
 
         // Clone the resource to return
         Ok(ReadResourceResult::new(vec![resource.clone()]))
+    }
+}
+
+#[cfg(test)]
+mod ssrf_tests {
+    use super::{is_blocked_ip, validate_scrape_url};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn blocks_private_and_special_ipv4() {
+        for ip in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "255.255.255.255",
+            "100.64.0.1",
+            "198.18.0.1",
+            "240.0.0.1",
+        ] {
+            let parsed: Ipv4Addr = ip.parse().unwrap();
+            assert!(
+                is_blocked_ip(IpAddr::V4(parsed)),
+                "{} should be blocked",
+                ip
+            );
+        }
+    }
+
+    #[test]
+    fn allows_public_ipv4() {
+        for ip in ["8.8.8.8", "1.1.1.1", "93.184.216.34"] {
+            let parsed: Ipv4Addr = ip.parse().unwrap();
+            assert!(
+                !is_blocked_ip(IpAddr::V4(parsed)),
+                "{} should be allowed",
+                ip
+            );
+        }
+    }
+
+    #[test]
+    fn blocks_special_ipv6_including_mapped_v4() {
+        for ip in ["::1", "::", "fc00::1", "fe80::1", "::ffff:127.0.0.1"] {
+            let parsed: Ipv6Addr = ip.parse().unwrap();
+            assert!(
+                is_blocked_ip(IpAddr::V6(parsed)),
+                "{} should be blocked",
+                ip
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_non_http_schemes() {
+        for url in ["file:///etc/passwd", "ftp://example.com/x", "gopher://x/"] {
+            assert!(
+                validate_scrape_url(url).is_err(),
+                "{} should be rejected",
+                url
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_loopback_and_metadata_literals() {
+        assert!(validate_scrape_url("http://127.0.0.1/").is_err());
+        assert!(validate_scrape_url("http://169.254.169.254/latest/meta-data/").is_err());
+        assert!(validate_scrape_url("http://[::1]:8080/").is_err());
+        assert!(validate_scrape_url("http://10.0.0.5/internal").is_err());
+    }
+
+    #[test]
+    fn rejects_malformed_url() {
+        assert!(validate_scrape_url("not a url").is_err());
+        assert!(validate_scrape_url("http://").is_err());
+    }
+
+    #[test]
+    fn allows_public_ip_literal() {
+        assert!(validate_scrape_url("http://8.8.8.8/").is_ok());
+        assert!(validate_scrape_url("https://1.1.1.1/path?q=1").is_ok());
     }
 }
