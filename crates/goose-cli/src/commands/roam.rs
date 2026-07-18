@@ -314,7 +314,11 @@ async fn handle_share(
         eprintln!("warning: endpoint did not come online; invite may lack a reachable address");
     }
 
-    let invite = node.make_invite(&identity, &relay, scope, allowed_client_keys, ttl, pair);
+    let mut invite_opts =
+        goose_roaming::InviteOptions::new(scope, std::time::Duration::from_secs(ttl));
+    invite_opts.allowed_client_keys = allowed_client_keys;
+    invite_opts.single_use = pair;
+    let invite = node.make_invite(invite_opts);
     let token = invite.encode()?;
 
     eprintln!("roaming agent is live");

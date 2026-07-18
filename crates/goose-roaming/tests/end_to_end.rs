@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
-    TrustBook, TrustPolicy,
+    AcpStreamServer, Directory, InviteOptions, RelaySettings, RoamingConfig, RoamingIdentity,
+    RoamingNode, Scope, TrustBook, TrustPolicy,
 };
 use iroh::EndpointId;
 
@@ -81,14 +81,10 @@ async fn bearer_invite_connects_and_streams() {
 
     host.share(Arc::new(EchoServer)).await.expect("share");
 
-    let invite = host.make_invite(
-        &host_identity,
-        &RelaySettings::Disabled,
+    let invite = host.make_invite(InviteOptions::new(
         Scope::Control,
-        vec![],
-        60,
-        false,
-    );
+        std::time::Duration::from_secs(60),
+    ));
 
     // The client dials using the host's *direct* address, since relays are
     // disabled. We inject the host's real endpoint addr into a re-signed invite
@@ -130,14 +126,10 @@ async fn allowlist_rejects_unknown_client() {
     .expect("bind host");
     host.share(Arc::new(EchoServer)).await.expect("share");
 
-    let invite = host.make_invite(
-        &host_identity,
-        &RelaySettings::Disabled,
+    let invite = host.make_invite(InviteOptions::new(
         Scope::Control,
-        vec![],
-        60,
-        false,
-    );
+        std::time::Duration::from_secs(60),
+    ));
 
     let client = bind_node(TrustBook::new(TrustPolicy::Bearer)).await;
     let result = connect_direct(&client, &host, &invite).await;

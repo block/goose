@@ -47,7 +47,8 @@ pub use handshake::{ClientHello, HostAck};
 pub use identity::{default_key_path, RoamingIdentity};
 pub use invite::{InviteClaims, Scope, SignedInvite};
 pub use node::{
-    AcpStreamServer, RoamingClientStream, RoamingConfig, RoamingNode, ROAMING_ACP_ALPN,
+    AcpStreamServer, InviteOptions, RoamingClientStream, RoamingConfig, RoamingNode,
+    ROAMING_ACP_ALPN,
 };
 pub use peerbook::{PeerBook, PeerRecord};
 pub use relay::{RelayEntry, RelaySettings};

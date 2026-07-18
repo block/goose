@@ -19,7 +19,7 @@ use crate::handshake::{ClientHello, HostAck};
 use crate::identity::RoamingIdentity;
 use crate::invite::{Scope, SignedInvite};
 use crate::relay::RelaySettings;
-use crate::trust::TrustBook;
+use crate::trust::{TrustBook, TrustPolicy};
 
 /// ALPN identifying the goose ACP-over-iroh protocol.
 pub const ROAMING_ACP_ALPN: &[u8] = b"goose-acp/1";
@@ -44,6 +44,17 @@ pub trait AcpStreamServer: Send + Sync + 'static {
 }
 
 /// Configuration for binding a roaming node.
+///
+/// For the common case use [`RoamingConfig::new`] and the `with_*` chainers,
+/// which default to iroh's public relays, a bearer trust policy, and an
+/// in-memory directory:
+///
+/// ```no_run
+/// use goose_roaming::{RoamingConfig, RoamingIdentity, RoamingNode};
+/// # async fn f() -> anyhow::Result<()> {
+/// let node = RoamingNode::bind(RoamingConfig::new(RoamingIdentity::generate())).await?;
+/// # Ok(()) }
+/// ```
 pub struct RoamingConfig {
     pub identity: RoamingIdentity,
     pub relay: RelaySettings,
@@ -60,12 +71,90 @@ pub struct RoamingConfig {
     pub bind_addr: Option<std::net::SocketAddr>,
 }
 
+impl RoamingConfig {
+    /// A config for `identity` with sensible defaults: iroh's public relays,
+    /// bearer trust (anyone with a valid invite), an in-memory directory, and
+    /// no explicit bind address.
+    pub fn new(identity: RoamingIdentity) -> Self {
+        Self {
+            identity,
+            relay: RelaySettings::N0Default,
+            trust: TrustBook::new(TrustPolicy::Bearer),
+            directory: Directory::new(),
+            bind_addr: None,
+        }
+    }
+
+    /// Use a specific relay configuration (default: iroh's public relays).
+    pub fn with_relay(mut self, relay: RelaySettings) -> Self {
+        self.relay = relay;
+        self
+    }
+
+    /// Use a specific trust policy / allowlist (default: bearer).
+    pub fn with_trust(mut self, trust: TrustBook) -> Self {
+        self.trust = trust;
+        self
+    }
+
+    /// Track observed connections in `directory` (default: in-memory).
+    pub fn with_directory(mut self, directory: Directory) -> Self {
+        self.directory = directory;
+        self
+    }
+
+    /// Bind the QUIC endpoint to a specific socket address.
+    pub fn with_bind_addr(mut self, addr: std::net::SocketAddr) -> Self {
+        self.bind_addr = Some(addr);
+        self
+    }
+}
+
+/// Options for minting a [`SignedInvite`] via [`RoamingNode::make_invite`].
+pub struct InviteOptions {
+    /// Capability granted to the connecting client.
+    pub scope: Scope,
+    /// How long the invite is valid for.
+    pub ttl: std::time::Duration,
+    /// If non-empty, only these client keys may redeem the invite.
+    pub allowed_client_keys: Vec<EndpointId>,
+    /// If true, the invite is consumed on first redemption and the redeeming
+    /// client's key is pinned to the host's allowlist (pairing).
+    pub single_use: bool,
+}
+
+impl InviteOptions {
+    /// A `Control` invite valid for `ttl`, bearer (any holder), reusable.
+    pub fn new(scope: Scope, ttl: std::time::Duration) -> Self {
+        Self {
+            scope,
+            ttl,
+            allowed_client_keys: Vec::new(),
+            single_use: false,
+        }
+    }
+
+    /// Restrict redemption to a specific client key (repeatable).
+    pub fn allow_client(mut self, id: EndpointId) -> Self {
+        self.allowed_client_keys.push(id);
+        self
+    }
+
+    /// Make the invite single-use (pairing): the first redeemer's key is pinned.
+    pub fn single_use(mut self) -> Self {
+        self.single_use = true;
+        self
+    }
+}
+
 /// A bound roaming node.
 pub struct RoamingNode {
     endpoint: Endpoint,
     router: Mutex<Option<Router>>,
     trust: Arc<Mutex<TrustBook>>,
     directory: Directory,
+    identity: RoamingIdentity,
+    relay: RelaySettings,
 }
 
 impl RoamingNode {
@@ -73,6 +162,8 @@ impl RoamingNode {
     /// (or a manual router) is set up.
     pub async fn bind(config: RoamingConfig) -> Result<Arc<Self>, RoamingError> {
         let relay_mode = config.relay.to_relay_mode()?;
+        let identity = config.identity.clone();
+        let relay = config.relay.clone();
         let relays_disabled = matches!(config.relay, RelaySettings::Disabled);
         let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
             .secret_key(config.identity.secret_key().clone())
@@ -95,6 +186,8 @@ impl RoamingNode {
             router: Mutex::new(None),
             trust: Arc::new(Mutex::new(config.trust)),
             directory: config.directory,
+            identity,
+            relay,
         }))
     }
 
@@ -165,17 +258,12 @@ impl RoamingNode {
     /// The invite advertises the configured relay URLs plus the endpoint's
     /// live relay URL(s), so a client can reach this node through a relay.
     /// Call [`Self::wait_online`] first so a live relay URL is available.
-    pub fn make_invite(
-        &self,
-        identity: &RoamingIdentity,
-        relay: &RelaySettings,
-        scope: Scope,
-        allowed_client_keys: Vec<EndpointId>,
-        ttl_secs: u64,
-        single_use: bool,
-    ) -> SignedInvite {
+    /// Mint a signed invite for this node, using the identity and relay settings
+    /// it was bound with. Relay URLs advertised in the invite merge the
+    /// configured relays with any live relay the endpoint has since discovered.
+    pub fn make_invite(&self, options: InviteOptions) -> SignedInvite {
         let now = now_ms();
-        let mut relay_urls = relay.advertised_urls();
+        let mut relay_urls = self.relay.advertised_urls();
         for url in self.live_relay_urls() {
             if !relay_urls.contains(&url) {
                 relay_urls.push(url);
@@ -185,14 +273,14 @@ impl RoamingNode {
             version: 1,
             audience: self.endpoint_id(),
             relay_urls,
-            scope,
-            allowed_client_keys,
+            scope: options.scope,
+            allowed_client_keys: options.allowed_client_keys,
             token_id: random_token_id(),
             not_before_ms: now,
-            expires_at_ms: now + ttl_secs * 1000,
-            single_use,
+            expires_at_ms: now + options.ttl.as_secs() * 1000,
+            single_use: options.single_use,
         };
-        SignedInvite::sign(identity.secret_key(), claims)
+        SignedInvite::sign(self.identity.secret_key(), claims)
     }
 
     /// Cleanly shut the router and endpoint down.
@@ -284,6 +372,37 @@ pub struct RoamingClientStream {
     pub conn: Connection,
     pub send: iroh::endpoint::SendStream,
     pub recv: iroh::endpoint::RecvStream,
+}
+
+impl RoamingClientStream {
+    /// Capability the host granted this connection.
+    pub fn scope(&self) -> Scope {
+        self.scope
+    }
+
+    /// The host-facing id of the agent on the other end.
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
+
+    /// The authenticated remote endpoint id (the host's public key).
+    pub fn peer_id(&self) -> EndpointId {
+        self.conn.remote_id()
+    }
+
+    /// Consume the stream into `futures::io` read/write halves ready to feed to
+    /// an ACP client transport (e.g. `ByteStreams::new(send, recv)`), plus the
+    /// live [`Connection`] which the caller must keep alive for the duration of
+    /// the session. This saves consumers from repeating the tokio-compat dance.
+    pub fn into_futures_io(
+        self,
+    ) -> (
+        impl AsyncWrite + Send + Unpin,
+        impl AsyncRead + Send + Unpin,
+        Connection,
+    ) {
+        (self.send.compat_write(), self.recv.compat(), self.conn)
+    }
 }
 
 struct RoamingAcpHandler {

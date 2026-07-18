@@ -20,18 +20,14 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use anyhow::Result;
 use goose_roaming::RoamingClientStream;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 /// Run an interactive ACP session over an authorized roaming stream.
 ///
 /// The provided `read_prompt` closure supplies successive user prompts; it
 /// returns `None` when the user wants to end the session (EOF / quit).
 pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -> Result<()> {
-    let RoamingClientStream {
-        conn, send, recv, ..
-    } = stream;
-
-    let transport = agent_client_protocol::ByteStreams::new(send.compat_write(), recv.compat());
+    let (send, recv, conn) = stream.into_futures_io();
+    let transport = agent_client_protocol::ByteStreams::new(send, recv);
 
     Client
         .builder()
@@ -115,11 +111,8 @@ pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -
 /// must not block waiting for a human, and the caller isn't a person who can
 /// answer. Loop/cost safety is the caller's concern (bounded turns/deadline).
 pub async fn delegate(stream: RoamingClientStream, task: String) -> Result<String> {
-    let RoamingClientStream {
-        conn, send, recv, ..
-    } = stream;
-
-    let transport = agent_client_protocol::ByteStreams::new(send.compat_write(), recv.compat());
+    let (send, recv, conn) = stream.into_futures_io();
+    let transport = agent_client_protocol::ByteStreams::new(send, recv);
     let collected = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let sink = collected.clone();
 
