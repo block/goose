@@ -117,6 +117,45 @@ via the shell. The skill ships in core but is inert unless the `roaming` CLI
 feature is built in. This keeps iroh out of core and adds nothing to maintain;
 a richer tool (e.g. a small MCP server) can come later if warranted.
 
+## Roadmap: multi-client attach & remote steering
+
+A key target use case is a phone joining a session already running on a laptop —
+watching it stream and injecting steering messages — like `paseo`'s model
+(a daemon streams a timeline to many clients; one live stream for immediacy plus
+an authoritative history fetch for catch-up).
+
+goose already speaks the right wire protocol: ACP has `session/update`
+notifications, `session/prompt`, and an unstable `session/steer` for active
+runs. What's missing is a coordinator: today each accepted roaming stream builds
+a **fresh** `GooseAcpAgent`, and several of its fields (sessions, active-run map,
+`client_cx`) are connection-owned, so two clients can't share one live agent by
+construction.
+
+The minimal path (expert-reviewed), roughly in order:
+
+1. **Session-bound invites.** Separate *resource* from *access* in invite claims
+   — `InviteTarget::{Agent, Session(id)}` and `Access::{Observe, Steer, Control}`
+   — so a phone invite is capability-bound to exactly one session rather than
+   able to reach any session on the host.
+2. **A session actor/hub in `goose::acp`** (transport-neutral, iroh-free): one
+   live `Agent` per session; serialize prompts/steer; fan out `session/update`
+   to every attached connection; route permission/fs requests to a single
+   designated controller (the laptop), not every subscriber.
+3. **Attach via `session/load`**: a late joiner subscribes, the daemon replays
+   the persisted session, buffered live events flush, then switch to live —
+   subscribe-before-replay avoids the snapshot/live gap. Reconnect = full replay
+   (no cursor protocol yet).
+4. **Steer** uses the existing active-run steer request; idle input uses
+   `session/prompt`.
+
+Deferred until needed: durable `epoch + sequence` cursors and paged catch-up
+(paseo's full timeline), controller handoff, and cross-process session ownership.
+Note the roaming endpoint must run **inside the process that owns the live
+session** — a separate `goose roam share` process can't attach to an agent
+running in the desktop process; for a first demo, either embed sharing in the
+owner process or have `roam share` own the session and let both laptop and phone
+attach to it.
+
 ## What's deferred
 - Durable / attachable sessions and a session coordinator (needed before
   observe/attach scopes and "spawn a subagent that outlives the caller").
