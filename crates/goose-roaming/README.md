@@ -131,6 +131,15 @@ a **fresh** `GooseAcpAgent`, and several of its fields (sessions, active-run map
 `client_cx`) are connection-owned, so two clients can't share one live agent by
 construction.
 
+**Chosen shape: a broker in front, not a multi-client agent** (like paseo's
+daemon). The agent still speaks ACP to exactly one client; that one client is a
+**broker** which re-serves ACP to N roaming peers and applies three routing
+rules — fan out `session/update`, funnel `session/prompt`/`steer` (serialized),
+and route `session/request_permission` to a single controller. This keeps both
+iroh *and* multi-client logic out of goose core. The transport-neutral routing
+policy is implemented and unit-tested in [`broker.rs`](src/broker.rs)
+(`Router`/`SessionBroker`); the ACP wire adapter is the remaining work.
+
 The minimal path (expert-reviewed), roughly in order:
 
 1. **Session-bound invites.** Separate *resource* from *access* in invite claims
