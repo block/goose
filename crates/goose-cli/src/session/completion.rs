@@ -146,9 +146,99 @@ impl GooseCompleter {
         Ok((pos, candidates))
     }
 
-    /// Complete model names for the /model command.
+    /// Complete model names (and providers) for the /model command.
+    ///
+    /// Handles these completion contexts:
+    ///   /model <TAB>                  → models for the current provider
+    ///   /model --p<TAB>               → the --provider flag
+    ///   /model --provider <TAB>       → provider names
+    ///   /model --provider <p> <TAB>   → models for provider <p>
     fn complete_model_names(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        Ok((line.len(), vec![]))
+        let after_cmd = line.strip_prefix("/model").unwrap_or("").trim_start();
+
+        // Case: --provider flag (partial or complete)
+        if after_cmd == "--provider" || after_cmd.starts_with("--provider ") {
+            let flag_rest = after_cmd.strip_prefix("--provider").unwrap_or("").trim();
+            if after_cmd == "--provider" {
+                // Just the flag, no space yet — user might type more of the flag or space
+                return Ok((line.len(), vec![]));
+            }
+
+            // We have "--provider <rest>" — split into provider + optional model
+            let parts: Vec<&str> = flag_rest.split_whitespace().collect();
+            let trailing_space = after_cmd.ends_with(' ');
+
+            if parts.is_empty() || (parts.len() == 1 && !trailing_space) {
+                // Completing the provider name
+                let partial = if parts.is_empty() { "" } else { parts[0] };
+                let cache = self.completion_cache.read().unwrap();
+                let candidates: Vec<Pair> = cache
+                    .provider_names
+                    .iter()
+                    .filter(|name| name.starts_with(partial))
+                    .map(|name| Pair {
+                        display: name.clone(),
+                        replacement: format!("{} ", name),
+                    })
+                    .collect();
+                let pos = line.len() - partial.len();
+                return Ok((pos, candidates));
+            }
+
+            // Provider is selected, completing model name
+            let provider_name = parts[0];
+            let partial = if parts.len() > 1 && !trailing_space {
+                parts[1]
+            } else {
+                ""
+            };
+            return self.models_completion_from_cache(provider_name, partial, line);
+        }
+
+        // Case: partial --provider flag (e.g. "/model --p")
+        if after_cmd.starts_with("--") {
+            let flag_partial = &after_cmd;
+            if "--provider".starts_with(flag_partial) {
+                return Ok((
+                    line.len() - flag_partial.len(),
+                    vec![Pair {
+                        display: "--provider".to_string(),
+                        replacement: "--provider ".to_string(),
+                    }],
+                ));
+            }
+            return Ok((line.len(), vec![]));
+        }
+
+        // Case: completing a model name for the current provider
+        let current_provider = goose::config::Config::global()
+            .get_goose_provider()
+            .unwrap_or_default();
+        self.models_completion_from_cache(&current_provider, after_cmd, line)
+    }
+
+    /// Build completion candidates for model names of a given provider from the cache.
+    fn models_completion_from_cache(
+        &self,
+        provider_name: &str,
+        partial: &str,
+        full_line: &str,
+    ) -> Result<(usize, Vec<Pair>)> {
+        let cache = self.completion_cache.read().unwrap();
+        let models = cache.provider_models.get(provider_name);
+        let candidates: Vec<Pair> = match models {
+            Some(names) if !names.is_empty() => names
+                .iter()
+                .filter(|name| name.starts_with(partial))
+                .map(|name| Pair {
+                    display: name.clone(),
+                    replacement: format!("{} ", name),
+                })
+                .collect(),
+            _ => vec![],
+        };
+        let pos = full_line.len() - partial.len();
+        Ok((pos, candidates))
     }
 
     /// Complete slash commands
@@ -556,6 +646,24 @@ mod tests {
             .prompt_info
             .insert("other_prompt".to_string(), other_prompt_info);
 
+        // Add test provider/model data for /model tab-completion
+        cache.provider_names = vec![
+            "anthropic".to_string(),
+            "openai".to_string(),
+            "zai".to_string(),
+        ];
+        cache.provider_models.insert(
+            "anthropic".to_string(),
+            vec!["claude-sonnet-4".to_string(), "claude-haiku-4".to_string()],
+        );
+        cache.provider_models.insert(
+            "openai".to_string(),
+            vec!["gpt-4.1".to_string(), "gpt-4.1-mini".to_string()],
+        );
+        cache
+            .provider_models
+            .insert("zai".to_string(), vec!["glm-4.5".to_string()]);
+
         Arc::new(RwLock::new(cache))
     }
 
@@ -601,13 +709,45 @@ mod tests {
         let cache = create_test_cache();
         let completer = GooseCompleter::new(cache);
 
-        let (pos, candidates) = completer.complete_model_names("/model ").unwrap();
-        assert_eq!(pos, "/model ".len());
-        assert!(candidates.is_empty());
+        // /model --provider <TAB> → completes provider names
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider ")
+            .unwrap();
+        assert_eq!(pos, "/model --provider ".len());
+        assert!(candidates.len() >= 3);
+        assert!(candidates.iter().any(|c| c.display == "anthropic"));
+        assert!(candidates.iter().any(|c| c.display == "openai"));
+        assert!(candidates.iter().any(|c| c.display == "zai"));
 
-        let (pos, candidates) = completer.complete_model_names("/model gpt").unwrap();
-        assert_eq!(pos, "/model gpt".len());
-        assert!(candidates.is_empty());
+        // /model --provider a<TAB> → partial provider name
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider a")
+            .unwrap();
+        assert_eq!(pos, "/model --provider ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "anthropic");
+
+        // /model --provider anthropic <TAB> → models for anthropic
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider anthropic ")
+            .unwrap();
+        assert_eq!(pos, "/model --provider anthropic ".len());
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.iter().any(|c| c.display == "claude-sonnet-4"));
+
+        // /model --provider anthropic claude-s<TAB> → partial model name
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider anthropic claude-s")
+            .unwrap();
+        assert_eq!(pos, "/model --provider anthropic ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "claude-sonnet-4");
+
+        // /model --p<TAB> → completes --provider flag
+        let (pos, candidates) = completer.complete_model_names("/model --p").unwrap();
+        assert_eq!(pos, "/model ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "--provider");
     }
 
     #[test]

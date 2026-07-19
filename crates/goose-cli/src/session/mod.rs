@@ -208,6 +208,8 @@ pub enum HintStatus {
 pub struct CompletionCache {
     pub prompts: HashMap<String, Vec<String>>,
     pub prompt_info: HashMap<String, output::PromptInfo>,
+    pub provider_names: Vec<String>,
+    pub provider_models: HashMap<String, Vec<String>>,
     pub last_updated: Instant,
     pub hint_status: HintStatus,
 }
@@ -217,6 +219,8 @@ impl CompletionCache {
         Self {
             prompts: HashMap::new(),
             prompt_info: HashMap::new(),
+            provider_names: Vec::new(),
+            provider_models: HashMap::new(),
             last_updated: Instant::now(),
             hint_status: HintStatus::Default,
         }
@@ -641,9 +645,9 @@ impl CliSession {
                 history.save(editor);
                 self.handle_goose_mode(&mode).await?;
             }
-            InputResult::Model(model) => {
+            InputResult::Model(options) => {
                 history.save(editor);
-                self.handle_model(model.as_deref()).await?;
+                self.handle_model(options).await?;
             }
             InputResult::Plan(options) => {
                 self.handle_plan_mode(options).await?;
@@ -834,7 +838,7 @@ impl CliSession {
         Ok(())
     }
 
-    async fn handle_model(&self, model: Option<&str>) -> Result<()> {
+    async fn handle_model(&mut self, options: input::ModelCommandOptions) -> Result<()> {
         let provider = self.agent.provider().await?;
         let current_provider_name = provider.get_name().to_string();
         let current_model_config = self
@@ -843,28 +847,60 @@ impl CliSession {
             .await?;
         let current_model_name = current_model_config.model_name.clone();
 
-        if model.is_none() {
+        // No args → show current state with a helpful hint
+        if options.provider.is_none() && options.model.is_none() {
             output::goose_mode_message(&format!(
-                "Current session model: '{}' (provider '{}')",
+                "Current session model: '{}' (provider '{}')\n\
+                 Tip: use '/model <name>' to switch model, or '/model --provider <name> [model]' to switch provider.",
                 current_model_name, current_provider_name
             ));
             return Ok(());
         }
 
-        let model_name = model.unwrap_or_default().trim();
-        if model_name.is_empty() {
-            output::render_error("Model name cannot be empty");
-            return Ok(());
-        }
+        // Determine the target provider
+        let requested_provider = options
+            .provider
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let target_provider_name = requested_provider.unwrap_or(&current_provider_name);
 
-        if current_provider_name.ends_with("-acp") {
+        // Validate that the target provider exists in the registry
+        let target_entry = match goose::providers::get_from_registry(target_provider_name).await {
+            Ok(entry) => entry,
+            Err(_) => {
+                output::render_error(&format!(
+                    "Unknown provider '{}'. Use tab-completion to see available providers.",
+                    target_provider_name
+                ));
+                return Ok(());
+            }
+        };
+
+        // Guard: ACP and self-managing-context providers
+        if target_provider_name.ends_with("-acp") {
             output::render_error(
                 "Session model switching is not supported for ACP providers in the CLI.",
             );
             return Ok(());
         }
 
-        if provider.manages_own_context() {
+        if requested_provider.is_some() {
+            // Provider switching path — we don't have a Provider instance for the
+            // target yet, so check whether it's known to manage its own context.
+            if target_entry
+                .metadata()
+                .config_keys
+                .iter()
+                .any(|k| k.name == "manages_own_context")
+            {
+                output::render_error(&format!(
+                    "Session provider switching is not supported for '{}' because it manages its own conversation context.",
+                    target_provider_name
+                ));
+                return Ok(());
+            }
+        } else if provider.manages_own_context() {
             output::render_error(&format!(
                 "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
                 current_provider_name
@@ -872,13 +908,39 @@ impl CliSession {
             return Ok(());
         }
 
-        let new_model_config =
-            build_switched_model_config(&current_provider_name, model_name, &current_model_config)?;
+        // Determine the target model name
+        let target_model_name = match options.model.as_deref().map(str::trim) {
+            Some(m) if !m.is_empty() => m.to_string(),
+            _ => {
+                // Provider-only switch: keep current model if valid for the new
+                // provider, otherwise fall back to the new provider's default.
+                let known: Vec<&str> = target_entry
+                    .metadata()
+                    .known_models
+                    .iter()
+                    .map(|m| m.name.as_str())
+                    .collect();
+                if known.contains(&current_model_name.as_str()) {
+                    current_model_name.clone()
+                } else {
+                    target_entry.metadata().default_model.clone()
+                }
+            }
+        };
 
+        let new_model_config = build_switched_model_config(
+            target_provider_name,
+            &target_model_name,
+            &current_model_config,
+        )?;
+
+        // No-op check
         let configured_effort = Config::global().get_goose_thinking_effort();
         let new_effort = new_model_config.thinking_effort().or(configured_effort);
         let current_effort = current_model_config.thinking_effort().or(configured_effort);
-        if new_model_config.model_name == current_model_config.model_name
+        let provider_unchanged = requested_provider.is_none();
+        if provider_unchanged
+            && new_model_config.model_name == current_model_config.model_name
             && new_effort == current_effort
         {
             output::goose_mode_message(&format!(
@@ -888,10 +950,45 @@ impl CliSession {
             return Ok(());
         }
 
+        // Warn if the new model has a smaller context window than the current one
+        if let Some(model_info) = target_entry
+            .metadata()
+            .known_models
+            .iter()
+            .find(|m| m.name == target_model_name)
+        {
+            if model_info.context_limit < current_model_config.context_limit.unwrap_or(0) {
+                eprintln!(
+                    "{}",
+                    console::style(format!(
+                        "Warning: '{}' has a smaller context window ({} tokens) than the current session ({} tokens). \
+                        You may need to use /compact.",
+                        target_model_name,
+                        model_info.context_limit,
+                        current_model_config.context_limit.unwrap_or(0)
+                    ))
+                    .yellow()
+                );
+            }
+        }
+
+        // Create the new provider, preserving session extensions
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider = goose::providers::create(&current_provider_name, extensions)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let new_provider = match goose::providers::create(target_provider_name, extensions).await {
+            Ok(p) => p,
+            Err(e) => {
+                // Don't kill the session — connect to the lesson from #9491.
+                // Missing API keys and credential errors are common when switching
+                // providers in segregated environments.
+                output::render_error(&format!(
+                        "Cannot switch to provider '{}': {}\n\
+                         Set credentials via `goose configure` or the appropriate environment variable.\n\
+                         Session continues with current provider '{}'.",
+                        target_provider_name, e, current_provider_name
+                    ));
+                return Ok(());
+            }
+        };
 
         self.agent
             .update_provider(new_provider, new_model_config, &self.session_id)
@@ -899,10 +996,21 @@ impl CliSession {
 
         let mode = self.agent.goose_mode().await;
         self.agent.update_goose_mode(mode, &self.session_id).await?;
-        output::goose_mode_message(&format!(
-            "Session model switched from '{}' to '{}' for provider '{}'",
-            current_model_name, model_name, current_provider_name
-        ));
+
+        // Refresh completion cache so model tab-completion reflects the new provider
+        self.update_completion_cache().await?;
+
+        if provider_unchanged {
+            output::goose_mode_message(&format!(
+                "Session model switched from '{}' to '{}' for provider '{}'",
+                current_model_name, target_model_name, current_provider_name
+            ));
+        } else {
+            output::goose_mode_message(&format!(
+                "Session switched from provider '{}' / model '{}' to provider '{}' / model '{}'",
+                current_provider_name, current_model_name, target_provider_name, target_model_name
+            ));
+        }
         Ok(())
     }
 
@@ -1568,8 +1676,9 @@ impl CliSession {
     /// Update the completion cache with fresh data
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        // Get fresh data
+        // Fetch all async data before acquiring the write lock
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        let all_providers = goose::providers::providers().await;
 
         // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
@@ -1591,6 +1700,18 @@ impl CliSession {
                     },
                 );
             }
+        }
+
+        // Populate provider/model data for /model tab-completion
+        cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        cache.provider_models.clear();
+        for (metadata, _) in &all_providers {
+            let models: Vec<String> = metadata
+                .known_models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect();
+            cache.provider_models.insert(metadata.name.clone(), models);
         }
 
         cache.last_updated = Instant::now();
