@@ -160,7 +160,11 @@ async fn fetch_scrape_url(url_str: &str) -> Result<reqwest::Response, ErrorData>
         .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e, None))?;
 
         let host = validated.url.host_str().ok_or_else(|| {
-            ErrorData::new(ErrorCode::INVALID_PARAMS, "URL has no host".to_string(), None)
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "URL has no host".to_string(),
+                None,
+            )
         })?;
 
         let client = Client::builder()
@@ -210,9 +214,8 @@ async fn fetch_scrape_url(url_str: &str) -> Result<reqwest::Response, ErrorData>
                     )
                 })?;
 
-            current = resolve_redirect_url(&validated.url, location).map_err(|e| {
-                ErrorData::new(ErrorCode::INTERNAL_ERROR, e, None)
-            })?;
+            current = resolve_redirect_url(&validated.url, location)
+                .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e, None))?;
             continue;
         }
 
