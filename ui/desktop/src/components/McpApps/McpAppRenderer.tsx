@@ -708,6 +708,12 @@ export default function McpAppRenderer({
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
 
+  useEffect(() => {
+    if (cachedHtml) {
+      verifyResourceIntegrity(extensionName, resourceUri, cachedHtml);
+    }
+  }, [cachedHtml, extensionName, resourceUri]);
+
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
   // replaces HTML only if the server returns different content.

@@ -47,11 +47,18 @@ describe('ResourceIntegrityTracker', () => {
     });
   });
 
-  it('flags a changed hash and reports the previous one', () => {
+  it('flags a changed hash and reports the first-seen baseline', () => {
     const tracker = new ResourceIntegrityTracker();
     tracker.record('k', 'hash1');
     const result = tracker.record('k', 'hash2');
     expect(result).toEqual({
+      hash: 'hash2',
+      firstSeen: false,
+      changed: true,
+      previousHash: 'hash1',
+    });
+    const repeat = tracker.record('k', 'hash2');
+    expect(repeat).toEqual({
       hash: 'hash2',
       firstSeen: false,
       changed: true,
@@ -82,5 +89,30 @@ describe('checkResourceIntegrity', () => {
     const tampered = await checkResourceIntegrity(tracker, 'ext', 'ui://app', '<html>evil</html>');
     expect(tampered.changed).toBe(true);
     expect(tampered.previousHash).toBe(first.hash);
+
+    const repeatTampered = await checkResourceIntegrity(
+      tracker,
+      'ext',
+      'ui://app',
+      '<html>evil</html>'
+    );
+    expect(repeatTampered.changed).toBe(true);
+    expect(repeatTampered.previousHash).toBe(first.hash);
+  });
+
+  it('detects tampering when cached HTML differs from a later fetch', async () => {
+    const tracker = new ResourceIntegrityTracker();
+
+    const cached = await checkResourceIntegrity(
+      tracker,
+      'ext',
+      'ui://app',
+      '<html>cached</html>'
+    );
+    expect(cached.firstSeen).toBe(true);
+
+    const fresh = await checkResourceIntegrity(tracker, 'ext', 'ui://app', '<html>fresh</html>');
+    expect(fresh.changed).toBe(true);
+    expect(fresh.previousHash).toBe(cached.hash);
   });
 });

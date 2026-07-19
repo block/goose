@@ -20,9 +20,9 @@ export interface IntegrityCheckResult {
   hash: string;
   /** True the first time this (extension, resource) pair is seen. */
   firstSeen: boolean;
-  /** True when the content hash differs from the previously recorded one. */
+  /** True when the content hash differs from the first-seen baseline. */
   changed: boolean;
-  /** The hash recorded on a prior fetch, when one exists. */
+  /** The first-seen hash for this resource, when one exists. */
   previousHash?: string;
 }
 
@@ -51,7 +51,6 @@ export class ResourceIntegrityTracker {
     if (previousHash === hash) {
       return { hash, firstSeen: false, changed: false, previousHash };
     }
-    this.hashes.set(key, hash);
     return { hash, firstSeen: false, changed: true, previousHash };
   }
 
