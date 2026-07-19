@@ -413,7 +413,8 @@
         "description": "Bearer <YOUR_LATCHSHOT_API_KEY>",
         "required": true
       }
-    ]
+    ],
+    "show_install_command": false
   },
   {
     "id": "linux-mcp-server",
