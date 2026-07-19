@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use pctx_code_mode::{
     config::ToolDisclosure,
     descriptions::{tools as tool_descriptions, workflow::get_workflow_description},
-    model::{CallbackConfig, ExecuteBashInput, ExecuteInput, GetFunctionDetailsInput},
+    model::{CallbackConfig, ExecuteBashInput, ExecuteTypescriptInput, GetFunctionDetailsInput},
     registry::{CallbackFn, PctxRegistry},
     CodeMode,
 };
@@ -162,7 +162,7 @@ struct ToolGraphNode {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteWithToolGraph {
     #[serde(flatten)]
-    input: ExecuteInput,
+    input: ExecuteTypescriptInput,
     /// DAG of tool calls showing execution flow. Each node represents a tool call.
     /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
     #[serde(default)]
@@ -360,7 +360,10 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![Content::text(output.markdown())])
+        Ok(vec![Content::text(format!(
+            "Exit Code: {}\n\n# STDOUT\n{}\n\n# STDERR\n{}",
+            output.exit_code, output.stdout, output.stderr
+        ))])
     }
 
     /// Handle the execute typescript tool call
