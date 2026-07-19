@@ -215,13 +215,23 @@ instructions: Deploy
         .unwrap();
 
         let prev = env::var_os(GOOSE_RECIPE_PATH_ENV_VAR);
-        env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, temp_dir.path());
+        unsafe { env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, temp_dir.path()) };
         let result = load_local_recipe_file("deploy.prod");
         match prev {
-            Some(v) => env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, v),
-            None => env::remove_var(GOOSE_RECIPE_PATH_ENV_VAR),
+            Some(v) => unsafe { env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, v) },
+            None => unsafe { env::remove_var(GOOSE_RECIPE_PATH_ENV_VAR) },
         }
 
-        assert!(result.is_ok(), "{:?}", result.err());
+        let recipe = result.expect("deploy.prod should resolve to deploy.prod.yaml");
+        assert!(
+            recipe.file_path.ends_with("deploy.prod.yaml"),
+            "got path {}",
+            recipe.file_path.display()
+        );
+        assert!(
+            recipe.content.contains("title: Deploy Prod"),
+            "unexpected content: {}",
+            recipe.content
+        );
     }
 }
