@@ -54,7 +54,7 @@ pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
         return read_recipe_file(path);
     }
 
-    if is_file_path(recipe_name) || is_file_name(recipe_name) {
+    if is_file_path(recipe_name) {
         return Err(anyhow!(
             "Recipe file {} is not a json or yaml file",
             recipe_name
@@ -97,10 +97,6 @@ fn is_file_path(recipe_name: &str) -> bool {
         || recipe_name.contains('\\')
         || recipe_name.starts_with('~')
         || recipe_name.starts_with('.')
-}
-
-fn is_file_name(recipe_name: &str) -> bool {
-    Path::new(recipe_name).extension().is_some()
 }
 
 fn load_recipe_file_from_dir(dir: &Path, recipe_name: &str) -> Result<RecipeFile> {
@@ -197,4 +193,35 @@ pub fn save_recipe_to_file(recipe: Recipe, file_path: Option<PathBuf>) -> anyhow
     let yaml_content = recipe.to_yaml()?;
     fs::write(&file_path_value, yaml_content)?;
     Ok(file_path_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn load_local_recipe_file_accepts_dotted_stem() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe_path = temp_dir.path().join("deploy.prod.yaml");
+        std::fs::write(
+            &recipe_path,
+            r#"version: 1.0.0
+title: Deploy Prod
+description: Deploy to prod
+instructions: Deploy
+"#,
+        )
+        .unwrap();
+
+        let prev = env::var_os(GOOSE_RECIPE_PATH_ENV_VAR);
+        env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, temp_dir.path());
+        let result = load_local_recipe_file("deploy.prod");
+        match prev {
+            Some(v) => env::set_var(GOOSE_RECIPE_PATH_ENV_VAR, v),
+            None => env::remove_var(GOOSE_RECIPE_PATH_ENV_VAR),
+        }
+
+        assert!(result.is_ok(), "{:?}", result.err());
+    }
 }
