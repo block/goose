@@ -403,7 +403,6 @@
     "url": "https://latchshot.fly.dev/mcp",
     "type": "streamable-http",
     "link": "https://github.com/BaiqingL/latchshot-mcp",
-    "documentation": "https://latchshot.fly.dev/guides/screenshot-mcp-server.html",
     "installation_notes": "This is a remote extension that requires a Latchshot API key from https://latchshot.fly.dev/?intent=goose#trial as a request header, e.g. Authorization: Bearer <YOUR_LATCHSHOT_API_KEY>. The recurring Free plan includes 100 successful renders per UTC calendar month with no credit card; only public HTTP/HTTPS targets are supported.",
     "is_builtin": false,
     "endorsed": false,
