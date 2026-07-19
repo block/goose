@@ -46,7 +46,10 @@ use rmcp::model::{ErrorCode, ErrorData};
 use strum::VariantNames;
 
 use goose::config::paths::Paths;
+use goose::config::providers;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use goose::providers::inventory::ProviderInventoryService;
+use goose::session::SessionManager;
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1680,6 +1683,39 @@ impl CliSession {
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
         let all_providers = goose::providers::providers().await;
 
+        // Fetch inventory-fetched models (dynamically discovered via API refresh)
+        // to supplement the static known_models list.
+        let provider_ids: Vec<String> =
+            all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        let inventory_models: HashMap<String, Vec<String>> = {
+            let storage = SessionManager::instance().storage().clone();
+            let inventory = ProviderInventoryService::new(storage);
+            inventory
+                .entries(&provider_ids)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|entry| {
+                    let model_ids: Vec<String> =
+                        entry.models.iter().map(|m| m.id.clone()).collect();
+                    (entry.provider_id, model_ids)
+                })
+                .collect()
+        };
+
+        // Fetch configured model per provider from config so the user's
+        // currently-selected model always appears in completion, even if it
+        // is not in the static or inventory model lists.
+        let config = Config::global();
+        let configured_models: HashMap<String, String> = all_providers
+            .iter()
+            .filter_map(|(m, _)| {
+                providers::get_provider_entry(config, &m.name)
+                    .map(|entry| (m.name.clone(), entry.model))
+                    .filter(|(_, model)| !model.is_empty())
+            })
+            .collect();
+
         // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
         cache.prompts.clear();
@@ -1702,15 +1738,31 @@ impl CliSession {
             }
         }
 
-        // Populate provider/model data for /model tab-completion
+        // Populate provider/model data for /model tab-completion.
+        // Models are merged from three sources, deduplicated:
+        //   1. Static known_models from provider metadata (curated list)
+        //   2. Inventory-fetched models (dynamically discovered via API refresh)
+        //   3. The user's currently-configured model for each provider
         cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         cache.provider_models.clear();
         for (metadata, _) in &all_providers {
-            let models: Vec<String> = metadata
-                .known_models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect();
+            let mut models: Vec<String> =
+                metadata.known_models.iter().map(|m| m.name.clone()).collect();
+
+            if let Some(inv_models) = inventory_models.get(&metadata.name) {
+                for model_id in inv_models {
+                    if !models.contains(model_id) {
+                        models.push(model_id.clone());
+                    }
+                }
+            }
+
+            if let Some(model) = configured_models.get(&metadata.name) {
+                if !models.contains(model) {
+                    models.push(model.clone());
+                }
+            }
+
             cache.provider_models.insert(metadata.name.clone(), models);
         }
 
