@@ -381,3 +381,168 @@ fn prompt_text(request: &PromptRequest) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex as StdMutex;
+    use std::time::Duration;
+
+    use agent_client_protocol::schema::v1::{ContentBlock, ContentChunk, SessionUpdate};
+
+    const MARKER: &str = "hello-peers";
+
+    /// A minimal ACP *agent* that stands in for a live goose agent. It answers
+    /// `initialize`/`session/new` and, once connected, streams an
+    /// `AgentMessageChunk` notification carrying [`MARKER`] on a short interval
+    /// so any peer that attaches to the shared session eventually observes it.
+    /// It stays alive until the byte stream closes so delivery is never torn
+    /// down prematurely.
+    struct StubBackend;
+
+    impl AgentBackend for StubBackend {
+        fn serve(
+            &self,
+            recv: Box<dyn AsyncRead + Send + Unpin>,
+            send: Box<dyn AsyncWrite + Send + Unpin>,
+        ) -> BoxFuture<'static, Result<()>> {
+            Box::pin(async move {
+                let transport = agent_client_protocol::ByteStreams::new(send, recv);
+                SacpAgent
+                    .builder()
+                    .name("stub-agent")
+                    .on_receive_request(
+                        async move |_request: InitializeRequest, responder, _cx| {
+                            responder.respond(InitializeResponse::new(ProtocolVersion::LATEST))
+                        },
+                        agent_client_protocol::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        async move |_request: NewSessionRequest, responder, _cx| {
+                            responder
+                                .respond(NewSessionResponse::new(SessionId::from("stub-session")))
+                        },
+                        agent_client_protocol::on_receive_request!(),
+                    )
+                    .connect_with(transport, async move |cx: ConnectionTo<Client>| {
+                        let mut ticker = tokio::time::interval(Duration::from_millis(100));
+                        loop {
+                            ticker.tick().await;
+                            let notification = SessionNotification::new(
+                                SessionId::from("stub-session"),
+                                SessionUpdate::AgentMessageChunk(ContentChunk::new(
+                                    ContentBlock::from(MARKER),
+                                )),
+                            );
+                            if cx.send_notification(notification).is_err() {
+                                break;
+                            }
+                        }
+                        Ok(())
+                    })
+                    .await
+                    .map_err(|e| anyhow!(e))?;
+                Ok(())
+            })
+        }
+    }
+
+    /// Drive a real ACP [`Client`] over `recv`/`send`: initialize, open a
+    /// session, and collect streamed agent text until it contains [`MARKER`],
+    /// returning the accumulated text.
+    async fn run_peer_client(
+        recv: Box<dyn AsyncRead + Send + Unpin>,
+        send: Box<dyn AsyncWrite + Send + Unpin>,
+    ) -> Result<String> {
+        let transport = agent_client_protocol::ByteStreams::new(send, recv);
+        let collected = Arc::new(StdMutex::new(String::new()));
+        let sink = collected.clone();
+        let wait_sink = collected.clone();
+
+        Client
+            .builder()
+            .name("test-peer")
+            .on_receive_notification(
+                async move |notification: SessionNotification, _cx| {
+                    if let SessionUpdate::AgentMessageChunk(chunk) = &notification.update {
+                        if let ContentBlock::Text(text) = &chunk.content {
+                            sink.lock().unwrap().push_str(&text.text);
+                        }
+                    }
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_notification!(),
+            )
+            .connect_with(transport, async move |cx: ConnectionTo<SacpAgent>| {
+                cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                    .block_task()
+                    .await?;
+                cx.build_session(PathBuf::from("/"))
+                    .block_task()
+                    .run_until(async |_session| loop {
+                        if wait_sink.lock().unwrap().contains(MARKER) {
+                            return Ok(());
+                        }
+                        tokio::time::sleep(Duration::from_millis(25)).await;
+                    })
+                    .await
+            })
+            .await
+            .map_err(|e| anyhow!(e))?;
+
+        let text = collected.lock().unwrap().clone();
+        Ok(text)
+    }
+
+    /// Two independent ACP peers attach to a single shared session via
+    /// [`SharedSessionBridge`] and BOTH observe the same `session/update`
+    /// broadcast from the one underlying agent, proving the fan-out shares one
+    /// live session rather than spawning a fresh agent per peer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn two_peers_share_one_session() {
+        let assertion = async {
+            let bridge = SharedSessionBridge::start(Arc::new(StubBackend), "test");
+
+            let mut peer_tasks = Vec::new();
+            for scope in [Scope::Control, Scope::Observe] {
+                let (bridge_side, client_side) = tokio::io::duplex(64 * 1024);
+                let (bridge_recv, bridge_send) = tokio::io::split(bridge_side);
+                let (client_recv, client_send) = tokio::io::split(client_side);
+
+                let endpoint = goose_roaming::RoamingIdentity::generate().public_key();
+                let serve = bridge.serve_stream(
+                    endpoint,
+                    scope,
+                    Box::new(bridge_recv.compat()),
+                    Box::new(bridge_send.compat_write()),
+                );
+                tokio::spawn(serve);
+
+                peer_tasks.push(tokio::spawn(run_peer_client(
+                    Box::new(client_recv.compat()),
+                    Box::new(client_send.compat_write()),
+                )));
+            }
+
+            let mut results = Vec::new();
+            for task in peer_tasks {
+                results.push(task.await.expect("peer task panicked"));
+            }
+            results
+        };
+
+        let results = tokio::time::timeout(Duration::from_secs(15), assertion)
+            .await
+            .expect("timed out waiting for peers to observe the shared session update");
+
+        for (i, result) in results.iter().enumerate() {
+            let text = result
+                .as_ref()
+                .unwrap_or_else(|e| panic!("peer {i} client failed: {e:?}"));
+            assert!(
+                text.contains(MARKER),
+                "peer {i} did not observe the shared session update; got: {text:?}"
+            );
+        }
+    }
+}
