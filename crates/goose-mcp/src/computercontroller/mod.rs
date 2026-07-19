@@ -19,7 +19,7 @@ use rmcp::{
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tokio::process::Command;
 
@@ -80,11 +80,21 @@ fn is_blocked_ip(ip: IpAddr) -> bool {
     }
 }
 
+const MAX_SCRAPE_REDIRECTS: usize = 10;
+
+/// DNS-validated target for a single `web_scrape` hop. Callers must pin
+/// `addrs` on the HTTP client so reqwest cannot reconnect via a different
+/// lookup (DNS rebinding / split-horizon bypass).
+struct ValidatedScrapeTarget {
+    url: Url,
+    addrs: Vec<SocketAddr>,
+}
+
 /// Validate a `web_scrape` target URL before any request is made. Only http(s)
 /// URLs whose host resolves exclusively to public addresses are allowed. This
 /// performs a blocking DNS lookup, so callers should run it off the async
 /// runtime (e.g. via `spawn_blocking`).
-fn validate_scrape_url(url_str: &str) -> Result<Url, String> {
+fn validate_scrape_url(url_str: &str) -> Result<ValidatedScrapeTarget, String> {
     let url = Url::parse(url_str).map_err(|e| format!("Invalid URL: {}", e))?;
 
     match url.scheme() {
@@ -102,12 +112,11 @@ fn validate_scrape_url(url_str: &str) -> Result<Url, String> {
         .ok_or_else(|| "URL has no host".to_string())?;
     let port = url.port_or_known_default().unwrap_or(80);
 
-    let mut resolved = false;
+    let mut addrs = Vec::new();
     for addr in (host, port)
         .to_socket_addrs()
         .map_err(|e| format!("could not resolve host '{}': {}", host, e))?
     {
-        resolved = true;
         if is_blocked_ip(addr.ip()) {
             return Err(format!(
                 "URL '{}' resolves to a blocked address ({}); refusing to fetch to prevent SSRF",
@@ -115,13 +124,106 @@ fn validate_scrape_url(url_str: &str) -> Result<Url, String> {
                 addr.ip()
             ));
         }
+        addrs.push(addr);
     }
 
-    if !resolved {
+    if addrs.is_empty() {
         return Err(format!("could not resolve host '{}'", host));
     }
 
-    Ok(url)
+    Ok(ValidatedScrapeTarget { url, addrs })
+}
+
+fn resolve_redirect_url(base: &Url, location: &str) -> Result<String, String> {
+    Url::parse(location)
+        .or_else(|_| base.join(location))
+        .map(|url| url.to_string())
+        .map_err(|e| format!("invalid redirect location '{}': {}", location, e))
+}
+
+async fn fetch_scrape_url(url_str: &str) -> Result<reqwest::Response, ErrorData> {
+    let mut current = url_str.to_string();
+
+    for redirect_hop in 0..=MAX_SCRAPE_REDIRECTS {
+        let validated = tokio::task::spawn_blocking({
+            let current = current.clone();
+            move || validate_scrape_url(&current)
+        })
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("URL validation task failed: {}", e),
+                None,
+            )
+        })?
+        .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e, None))?;
+
+        let host = validated.url.host_str().ok_or_else(|| {
+            ErrorData::new(ErrorCode::INVALID_PARAMS, "URL has no host".to_string(), None)
+        })?;
+
+        let client = Client::builder()
+            .user_agent("goose/1.0")
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(host, &validated.addrs)
+            .build()
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to build HTTP client: {}", e),
+                    None,
+                )
+            })?;
+
+        let response = client
+            .get(validated.url.clone())
+            .header("Accept", "text/markdown, */*")
+            .send()
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to fetch URL: {}", e),
+                    None,
+                )
+            })?;
+
+        if response.status().is_redirection() {
+            if redirect_hop >= MAX_SCRAPE_REDIRECTS {
+                return Err(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "too many redirects".to_string(),
+                    None,
+                ));
+            }
+
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        "redirect response missing Location header".to_string(),
+                        None,
+                    )
+                })?;
+
+            current = resolve_redirect_url(&validated.url, location).map_err(|e| {
+                ErrorData::new(ErrorCode::INTERNAL_ERROR, e, None)
+            })?;
+            continue;
+        }
+
+        return Ok(response);
+    }
+
+    Err(ErrorData::new(
+        ErrorCode::INTERNAL_ERROR,
+        "too many redirects".to_string(),
+        None,
+    ))
 }
 
 /// Enum for save_as parameter in web_scrape tool
@@ -401,7 +503,6 @@ pub struct ComputerControllerServer {
     tool_router: ToolRouter<Self>,
     cache_dir: PathBuf,
     active_resources: Arc<Mutex<HashMap<String, ResourceContents>>>,
-    http_client: Client,
     instructions: String,
     system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>>,
     #[cfg(target_os = "macos")]
@@ -630,19 +731,6 @@ impl ComputerControllerServer {
             tool_router,
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
-            http_client: Client::builder()
-                .user_agent("goose/1.0")
-                .redirect(reqwest::redirect::Policy::custom(|attempt| {
-                    if attempt.previous().len() > 10 {
-                        return attempt.error("too many redirects");
-                    }
-                    match validate_scrape_url(attempt.url().as_str()) {
-                        Ok(_) => attempt.follow(),
-                        Err(e) => attempt.error(e),
-                    }
-                }))
-                .build()
-                .unwrap(),
             instructions,
             system_automation,
             #[cfg(target_os = "macos")]
@@ -717,32 +805,7 @@ impl ComputerControllerServer {
         let url = params.url.clone();
         let save_as = params.save_as;
 
-        let validation_url = url.clone();
-        tokio::task::spawn_blocking(move || validate_scrape_url(&validation_url))
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("URL validation task failed: {}", e),
-                    None,
-                )
-            })?
-            .map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, e, None))?;
-
-        // Fetch the content
-        let response = self
-            .http_client
-            .get(&url)
-            .header("Accept", "text/markdown, */*")
-            .send()
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to fetch URL: {}", e),
-                    None,
-                )
-            })?;
+        let response = fetch_scrape_url(&url).await?;
 
         let status = response.status();
         if !status.is_success() {
@@ -1780,7 +1843,8 @@ impl ServerHandler for ComputerControllerServer {
 
 #[cfg(test)]
 mod ssrf_tests {
-    use super::{is_blocked_ip, validate_scrape_url};
+    use super::{is_blocked_ip, resolve_redirect_url, validate_scrape_url};
+    use reqwest::Url;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[test]
@@ -1859,5 +1923,18 @@ mod ssrf_tests {
     fn allows_public_ip_literal() {
         assert!(validate_scrape_url("http://8.8.8.8/").is_ok());
         assert!(validate_scrape_url("https://1.1.1.1/path?q=1").is_ok());
+    }
+
+    #[test]
+    fn resolve_redirect_url_handles_relative_locations() {
+        let base = Url::parse("https://example.com/a/b").unwrap();
+        assert_eq!(
+            resolve_redirect_url(&base, "/c").unwrap(),
+            "https://example.com/c"
+        );
+        assert_eq!(
+            resolve_redirect_url(&base, "d").unwrap(),
+            "https://example.com/a/d"
+        );
     }
 }
