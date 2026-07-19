@@ -7,7 +7,7 @@ set -eu
 # This script downloads the latest stable 'goose' CLI binary from GitHub releases
 # and installs it to your system.
 #
-# Supported OS: macOS (darwin), Linux, Windows (MSYS2/Git Bash/WSL)
+# Supported OS: macOS (darwin), Linux, Windows (MSYS2/Git Bash/WSL), Android (Termux)
 # Supported Architectures: x86_64, arm64
 #
 # Usage:
@@ -152,6 +152,12 @@ detect_linux_musl() {
 
   return 1
 }
+
+# Termux on Android: the musl portable build is the best fit (no system-keyring, no local-inference).
+if [ "$OS" = "linux" ] && [ -n "${TERMUX_VERSION:-}" ] && [ -z "$GOOSE_LINUX_VARIANT" ]; then
+  echo "Termux detected (v$TERMUX_VERSION). Using musl portable build."
+  GOOSE_LINUX_VARIANT="musl"
+fi
 
 if [ "$OS" = "linux" ] && [ -z "$GOOSE_LINUX_VARIANT" ]; then
   if detect_linux_musl; then
