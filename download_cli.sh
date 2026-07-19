@@ -98,6 +98,10 @@ else
   # If explicit Windows-like shells/variables are present (MSYS/Cygwin), treat as windows.
   if [[ "${WINDIR:-}" ]] || [[ "${windir:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
     OS="windows"
+  elif [[ -n "${TERMUX_VERSION:-}" ]]; then
+    # Termux on Android: treat as Linux before the Windows mount heuristic,
+    # since /d may exist on Android and would incorrectly match as Windows.
+    OS="linux"
   elif [[ -f "/proc/version" ]] && grep -q "Microsoft\|WSL" /proc/version 2>/dev/null; then
     # WSL is a Linux environment regardless of the current working directory.
     # The PWD (e.g. /mnt/c/) does not change the kernel — always install Linux.
@@ -248,7 +252,7 @@ if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
 fi
 
 # Create a temporary directory for extraction
-TMP_DIR="/tmp/goose_install_$RANDOM"
+TMP_DIR="${TMPDIR:-/tmp}/goose_install_$RANDOM"
 if ! mkdir -p "$TMP_DIR"; then
   echo "Error: Could not create temporary extraction directory"
   exit 1
