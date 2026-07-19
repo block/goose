@@ -186,6 +186,17 @@ fn merge_openrouter_parameters(model: &mut ModelConfig, params: HashMap<String, 
     merge_request_params(&mut model.request_params, params);
 }
 
+fn stores_responses(
+    model_config: &ModelConfig,
+    configured_parameters: Option<&HashMap<String, Value>>,
+) -> bool {
+    configured_parameters
+        .and_then(|params| params.get("store"))
+        .and_then(Value::as_bool)
+        .or_else(|| model_config.request_param::<bool>("store"))
+        .unwrap_or(false)
+}
+
 impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
@@ -234,7 +245,7 @@ impl Provider for OpenRouterProvider {
     }
 
     fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
-        !model_config.request_param::<bool>("store").unwrap_or(false)
+        !stores_responses(model_config, self.configured_parameters.as_ref())
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
@@ -377,6 +388,28 @@ mod tests {
             reasoning: None,
             request_headers: None,
         }
+    }
+
+    #[test]
+    fn configured_store_setting_controls_stream_start_retry() {
+        let model = model_config("openai/gpt-5");
+
+        assert!(!stores_responses(&model, None));
+        assert!(stores_responses(
+            &model,
+            Some(&HashMap::from([("store".to_string(), json!(true))]))
+        ));
+    }
+
+    #[test]
+    fn configured_store_overrides_model_request_param() {
+        let mut model = model_config("openai/gpt-5");
+        model.request_params = Some(HashMap::from([("store".to_string(), json!(true))]));
+
+        assert!(!stores_responses(
+            &model,
+            Some(&HashMap::from([("store".to_string(), json!(false))]))
+        ));
     }
 
     #[test]
