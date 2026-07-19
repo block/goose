@@ -884,31 +884,55 @@ pub fn validate_tool_schemas(tools: &mut [Value]) {
 /// Ensures that the given JSON value follows the expected JSON Schema structure.
 fn ensure_valid_json_schema(schema: &mut Value) {
     if let Some(params_obj) = schema.as_object_mut() {
-        // Check if this is meant to be an object type schema
-        let is_object_type = params_obj
-            .get("type")
-            .and_then(|t| t.as_str())
-            .is_none_or(|t| t == "object"); // Default to true if no type is specified
+        if !params_obj.contains_key("type") {
+            params_obj.insert("type".to_string(), json!("object"));
+        }
+    }
+    sanitize_schema_node(schema);
+}
 
-        // Only apply full schema validation to object types
-        if is_object_type {
-            // Ensure required fields exist with default values
-            params_obj.entry("properties").or_insert_with(|| json!({}));
-            params_obj.entry("required").or_insert_with(|| json!([]));
-            params_obj.entry("type").or_insert_with(|| json!("object"));
+fn sanitize_schema_node(node: &mut Value) {
+    if let Some(obj) = node.as_object_mut() {
+        // Moonshot's walle validator rejects `oneOf` behind a `$ref` as
+        // "infinite recursion" because its termination check only traverses
+        // `anyOf`. The two are interchangeable for tool-argument schemas, so
+        // emit the more widely supported form.
+        if !obj.contains_key("anyOf") {
+            if let Some(one_of) = obj.remove("oneOf") {
+                obj.insert("anyOf".to_string(), one_of);
+            }
+        }
+    }
 
-            // Recursively validate properties if it exists
-            if let Some(properties) = params_obj.get_mut("properties") {
-                if let Some(properties_obj) = properties.as_object_mut() {
-                    for (_key, prop) in properties_obj.iter_mut() {
-                        normalize_nullable(prop);
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
-                            ensure_valid_json_schema(prop);
-                        }
-                    }
-                }
+    normalize_nullable(node);
+
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+
+    if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+        obj.entry("properties").or_insert_with(|| json!({}));
+        obj.entry("required").or_insert_with(|| json!([]));
+    }
+
+    for key in ["properties", "$defs", "definitions"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            for child in children.values_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["anyOf", "allOf", "prefixItems"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_array_mut) {
+            for child in children.iter_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["items", "additionalProperties"] {
+        if let Some(child) = obj.get_mut(key) {
+            if child.is_object() {
+                sanitize_schema_node(child);
             }
         }
     }
@@ -1708,6 +1732,44 @@ mod tests {
         let timeout_schema = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
         assert_eq!(timeout_schema["type"], "integer");
         assert!(!timeout_schema["type"].is_array());
+    }
+
+    #[test]
+    fn test_validate_tool_schemas_sanitizes_defs() {
+        let mut tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "cache",
+                "description": "manage cache",
+                "parameters": {
+                    "type": "object",
+                    "$defs": {
+                        "CacheCommand": {
+                            "oneOf": [
+                                { "description": "List cached files", "type": "string", "const": "list" },
+                                { "description": "Clear cached files", "type": "string", "const": "clear" }
+                            ]
+                        },
+                        "TextStyle": {
+                            "type": "object",
+                            "properties": {
+                                "size": { "type": ["integer", "null"], "format": "int32" }
+                            }
+                        }
+                    },
+                    "properties": {
+                        "command": { "$ref": "#/$defs/CacheCommand" },
+                        "style": { "$ref": "#/$defs/TextStyle" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        })];
+        validate_tool_schemas(&mut tools);
+        let defs = &tools[0]["function"]["parameters"]["$defs"];
+        assert!(defs["CacheCommand"].get("oneOf").is_none());
+        assert_eq!(defs["CacheCommand"]["anyOf"].as_array().unwrap().len(), 2);
+        assert_eq!(defs["TextStyle"]["properties"]["size"]["type"], "integer");
     }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
