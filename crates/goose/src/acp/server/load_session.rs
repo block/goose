@@ -33,6 +33,7 @@ fn replay_conversation_to_client(
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
+    let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
     let sid = sid_short(session_id.0.as_ref());
 
     let messages = session
@@ -90,10 +91,7 @@ fn replay_conversation_to_client(
                         .tool_call
                         .meta(merge_replay_message_meta(meta, message));
 
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCall(tool_call),
-                    ))?;
+                    tool_call_notifier.send_initial(tool_call)?;
                 }
                 MessageContent::ToolResponse(tool_response) => {
                     let status = match &tool_response.tool_result {
@@ -135,10 +133,7 @@ fn replay_conversation_to_client(
                                 extract_tool_call_update_meta(tool_response),
                                 message,
                             ));
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCallUpdate(update),
-                    ))?;
+                    tool_call_notifier.send_update(update)?;
                 }
                 MessageContent::Thinking(thinking) => {
                     cx.send_notification(SessionNotification::new(

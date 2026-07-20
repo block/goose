@@ -1124,7 +1124,7 @@ impl GooseAcpAgent {
             inner: Arc::new(dev_client),
             cx: cx.clone(),
             session_id: session_id.clone(),
-            tool_call_notifier: ToolCallNotifier::new(cx.clone(), session_id),
+            tool_call_notifier: ToolCallNotifier::new(cx, &session_id),
             fs_read: client_fs_capabilities.read_text_file,
             fs_write: client_fs_capabilities.write_text_file,
             terminal: client_terminal,
@@ -1493,10 +1493,8 @@ impl GooseAcpAgent {
         let initial_tool_call = pending_tool_call
             .tool_call
             .meta(pending_tool_call.identity_meta.clone());
-        cx.send_notification(SessionNotification::new(
-            session_id.clone(),
-            SessionUpdate::ToolCall(initial_tool_call),
-        ))?;
+        let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
+        tool_call_notifier.send_initial(initial_tool_call)?;
 
         if Config::global()
             .get_goose_disable_tool_call_summary()
@@ -1509,7 +1507,7 @@ impl GooseAcpAgent {
             let agent = session.agent.clone();
             let sid = session_id.clone();
             let request_id = tool_request.id.clone();
-            let cx = cx.clone();
+            let tool_call_notifier = tool_call_notifier.clone();
             let name = tool_call.name.to_string();
             let identity_meta = pending_tool_call.identity_meta.clone();
             let fallback_title = pending_tool_call.fallback_title.clone();
@@ -1624,13 +1622,10 @@ impl GooseAcpAgent {
                 };
 
                 let fields = ToolCallUpdateFields::new().title(title.clone());
-                let _ = cx.send_notification(SessionNotification::new(
-                    sid,
-                    SessionUpdate::ToolCallUpdate(
-                        ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields)
-                            .meta(identity_meta),
-                    ),
-                ));
+                let _ = tool_call_notifier.send_update(
+                    ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields)
+                        .meta(identity_meta),
+                );
 
                 // Best-effort persistence: only persist the LLM-generated title
                 // (not the deterministic fallback) so reload uses fallback_title
@@ -1706,15 +1701,19 @@ impl GooseAcpAgent {
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
             .meta(extract_tool_call_update_meta(tool_response));
-        cx.send_notification(SessionNotification::new(
-            session_id.clone(),
-            SessionUpdate::ToolCallUpdate(update),
-        ))?;
+        let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
+        tool_call_notifier.send_update(update)?;
 
         // Chain summarization: when this response completes a multi-tool
         // chain, fire one LLM summary covering the run.
         session.responded_tool_ids.insert(tool_response.id.clone());
-        self.maybe_summarize_chain(&tool_response.id, session_id, session_id_str, session, cx);
+        self.maybe_summarize_chain(
+            &tool_response.id,
+            session_id,
+            session_id_str,
+            session,
+            &tool_call_notifier,
+        );
         let _ = message_id;
 
         Ok(())
@@ -1731,7 +1730,7 @@ impl GooseAcpAgent {
         session_id: &SessionId,
         _session_id_str: &str,
         session: &mut GooseAcpSession,
-        cx: &ConnectionTo<Client>,
+        tool_call_notifier: &ToolCallNotifier,
     ) {
         let Some(chain) = session.chain_membership.get(tool_call_id).cloned() else {
             warn!(
@@ -1805,7 +1804,7 @@ impl GooseAcpAgent {
 
         let sid = session_id.clone();
         let chain_for_task = chain.clone();
-        let cx = cx.clone();
+        let tool_call_notifier = tool_call_notifier.clone();
         let session_manager = self.session_manager.clone();
 
         let first_id = first_id.clone();
@@ -1923,12 +1922,8 @@ impl GooseAcpAgent {
 
             let meta = with_tool_chain_summary_meta(identity_meta, &summary, count);
             let fields = ToolCallUpdateFields::new();
-            let _ = cx.send_notification(SessionNotification::new(
-                sid,
-                SessionUpdate::ToolCallUpdate(
-                    ToolCallUpdate::new(ToolCallId::new(first_id), fields).meta(meta),
-                ),
-            ));
+            let _ = tool_call_notifier
+                .send_update(ToolCallUpdate::new(ToolCallId::new(first_id), fields).meta(meta));
         });
     }
 
@@ -2776,10 +2771,8 @@ impl GooseAcpAgent {
                     if let Some(update) =
                         tool_notifications::tool_notification_update(request_id, notification)
                     {
-                        cx.send_notification(SessionNotification::new(
-                            args.session_id.clone(),
-                            update,
-                        ))?;
+                        let tool_call_notifier = ToolCallNotifier::new(cx, &args.session_id);
+                        tool_call_notifier.send_update(update)?;
                     }
                 }
                 Ok(crate::agents::AgentEvent::MessageUsage { message_id, usage }) => {
