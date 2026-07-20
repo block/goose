@@ -188,7 +188,6 @@ pub struct ProviderMessage {
 pub enum MessageRole {
     User,
     Assistant,
-    System,
     Tool,
 }
 
@@ -216,7 +215,7 @@ pub enum MessageContent {
 impl ProviderMessage {
     fn to_goose_message(&self) -> Result<Option<Message>, GooseError> {
         let role = match self.role {
-            MessageRole::User | MessageRole::Tool | MessageRole::System => Role::User,
+            MessageRole::User | MessageRole::Tool => Role::User,
             MessageRole::Assistant => Role::Assistant,
         };
         let mut message = Message::new(role, chrono_now(), Vec::new());
