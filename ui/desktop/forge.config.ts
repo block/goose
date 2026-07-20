@@ -143,6 +143,15 @@ module.exports = {
                 'ln -s $(find /usr/lib -name "libbz2.so.1" | head -n 1) /app/lib/libbz2.so.1.0',
               ],
             },
+            {
+              name: 'git',
+              buildsystem: 'simple',
+              'build-commands': [
+                'mkdir -p /app/bin /app/libexec/git-core',
+                'cp /usr/bin/git /app/bin/git',
+                'cp /usr/libexec/git-core/git-remote-https /app/libexec/git-core/git-remote-https 2>/dev/null || true',
+              ],
+            },
           ],
           finishArgs: [
             '--share=ipc',
@@ -156,6 +165,7 @@ module.exports = {
             '--socket=system-bus',
             // This ensures the app looks in our shim folder first
             '--env=LD_LIBRARY_PATH=/app/lib',
+            '--env=GIT_EXEC_PATH=/app/libexec/git-core',
           ],
         },
       },

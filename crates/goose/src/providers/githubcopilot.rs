@@ -4,6 +4,7 @@ use crate::providers::oauth_device_flow::{run_device_flow, DeviceFlowConfig, Req
 use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
+use crate::providers::private_file::write_private_file;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -170,11 +171,9 @@ impl DiskCache {
     }
 
     async fn save(&self, info: &CopilotState) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
         let contents = serde_json::to_string(info)?;
-        tokio::fs::write(&self.cache_path, contents).await?;
+        let cache_path = self.cache_path.clone();
+        tokio::task::spawn_blocking(move || write_private_file(&cache_path, &contents)).await??;
         Ok(())
     }
 
@@ -711,6 +710,42 @@ fn promote_tool_choice(response: Value) -> Value {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn disk_cache_saves_owner_only_file() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("info.json");
+        std::fs::write(&cache_path, "old-secret").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let cache = DiskCache {
+            cache_path: cache_path.clone(),
+        };
+        let state = CopilotState {
+            expires_at: Utc::now(),
+            info: CopilotTokenInfo {
+                token: "copilot-secret".to_string(),
+                expires_at: 1,
+                refresh_in: 1,
+                endpoints: CopilotTokenEndpoints {
+                    api: "https://api.githubcopilot.com".to_string(),
+                    _extra: HashMap::new(),
+                },
+                _extra: HashMap::new(),
+            },
+        };
+
+        cache.save(&state).await.unwrap();
+
+        let metadata = std::fs::metadata(&cache_path).unwrap();
+        assert_eq!(metadata.mode() & 0o777, 0o600);
+        let saved: CopilotState =
+            serde_json::from_str(&std::fs::read_to_string(cache_path).unwrap()).unwrap();
+        assert_eq!(saved.info.token, "copilot-secret");
+    }
 
     #[test]
     fn responses_models_routed_correctly() {

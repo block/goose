@@ -6,10 +6,10 @@ use crate::agents::platform_extensions::developer::edit::{
 use crate::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
 use crate::agents::platform_extensions::developer::DeveloperClient;
 use agent_client_protocol::schema::v1::{
-    CreateTerminalRequest, Diff, KillTerminalRequest, ReadTextFileRequest, ReleaseTerminalRequest,
-    SessionId, SessionNotification, SessionUpdate, Terminal, TerminalOutputRequest,
-    ToolCallContent, ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
-    WaitForTerminalExitRequest, WriteTextFileRequest,
+    CreateTerminalRequest, Diff, EnvVariable, KillTerminalRequest, ReadTextFileRequest,
+    ReleaseTerminalRequest, SessionId, SessionNotification, SessionUpdate, Terminal,
+    TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallUpdate,
+    ToolCallUpdateFields, ToolKind, WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use agent_client_protocol_schema::v1::TerminalId;
@@ -67,6 +67,17 @@ pub(crate) struct AcpTools {
     pub(crate) fs_read: bool,
     pub(crate) fs_write: bool,
     pub(crate) terminal: bool,
+}
+
+fn create_terminal_request(
+    session_id: &SessionId,
+    params: &ShellParams,
+    ctx: &crate::agents::ToolCallContext,
+) -> CreateTerminalRequest {
+    CreateTerminalRequest::new(session_id.clone(), &params.command)
+        .env(vec![EnvVariable::new("AGENT_SESSION_ID", &ctx.session_id)])
+        .cwd(ctx.working_dir.clone())
+        .output_byte_limit(OUTPUT_LIMIT_BYTES as u64)
 }
 
 fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
@@ -250,11 +261,7 @@ impl AcpTools {
 
         let create_res = self
             .cx
-            .send_request(
-                CreateTerminalRequest::new(self.session_id.clone(), &params.command)
-                    .cwd(ctx.working_dir.clone())
-                    .output_byte_limit(OUTPUT_LIMIT_BYTES as u64),
-            )
+            .send_request(create_terminal_request(&self.session_id, &params, ctx))
             .block_task()
             .await
             .map_err(|e| {
@@ -436,5 +443,33 @@ impl McpClientTrait for AcpTools {
 
     fn get_info(&self) -> Option<&rmcp::model::InitializeResult> {
         self.inner.get_info()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agents::ToolCallContext;
+
+    #[test]
+    fn terminal_request_includes_agent_session_id() {
+        let session_id = SessionId::new("acp-session");
+        let params = ShellParams {
+            command: "echo test".to_string(),
+            timeout_secs: None,
+        };
+        let ctx = ToolCallContext::new(
+            "agent-session".to_string(),
+            Some(std::path::PathBuf::from("/tmp/worktree")),
+            None,
+        );
+
+        let request = create_terminal_request(&session_id, &params, &ctx);
+
+        assert_eq!(
+            request.env,
+            vec![EnvVariable::new("AGENT_SESSION_ID", "agent-session")]
+        );
+        assert_eq!(request.cwd, Some(std::path::PathBuf::from("/tmp/worktree")));
     }
 }

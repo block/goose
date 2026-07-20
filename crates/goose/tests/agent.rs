@@ -18,7 +18,7 @@ mod tests {
         use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
-        use goose::scheduler::{ScheduledJob, SchedulerError};
+        use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
         use std::path::PathBuf;
@@ -45,6 +45,14 @@ mod tests {
                 &self,
                 _job: ScheduledJob,
                 _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                _job: ScheduledJob,
+                _validated_recipe: ValidatedScheduleRecipe,
             ) -> Result<(), SchedulerError> {
                 Ok(())
             }
@@ -123,6 +131,16 @@ mod tests {
                 &self,
                 job: ScheduledJob,
                 _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                let mut jobs = self.jobs.lock().await;
+                jobs.push(job);
+                Ok(())
+            }
+
+            async fn add_scheduled_job_with_recipe(
+                &self,
+                job: ScheduledJob,
+                _validated_recipe: ValidatedScheduleRecipe,
             ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 jobs.push(job);
@@ -2783,12 +2801,170 @@ mod tests {
         }
     }
 
+    mod audience_tool_result_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
+        use goose::session::{SessionManager, SessionType};
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use goose_test_support::{IgnoreSessionId, McpFixture};
+        use rmcp::model::{CallToolRequestParams, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct AudienceToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        fn tool_response_texts(messages: &[Message], id: &str) -> Option<Vec<String>> {
+            messages.iter().find_map(|message| {
+                message.content.iter().find_map(|content| {
+                    let MessageContent::ToolResponse(response) = content else {
+                        return None;
+                    };
+                    if response.id != id {
+                        return None;
+                    }
+                    let result = response.tool_result.as_ref().ok()?;
+                    Some(
+                        result
+                            .content
+                            .iter()
+                            .filter_map(|content| content.as_text().map(|text| text.text.clone()))
+                            .collect(),
+                    )
+                })
+            })
+        }
+
+        #[async_trait]
+        impl Provider for AudienceToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let message = match call {
+                    0 => Message::assistant().with_tool_request(
+                        "call-1",
+                        Ok(CallToolRequestParams::new(
+                            "mcp-fixture__get_audience_content",
+                        )),
+                    ),
+                    1 => {
+                        assert_eq!(
+                            tool_response_texts(messages, "call-1"),
+                            Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                            "provider history must retain canonical tool content"
+                        );
+                        Message::assistant().with_text("done")
+                    }
+                    _ => panic!("unexpected provider call {call}"),
+                };
+                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "audience-tool-mock"
+            }
+        }
+
+        #[tokio::test]
+        async fn live_tool_result_projects_user_content_but_persists_canonical_result() -> Result<()>
+        {
+            let mcp = McpFixture::new(Arc::new(IgnoreSessionId)).await;
+            let extension =
+                ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let permission_manager =
+                Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                permission_manager,
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
+            let provider = Arc::new(AudienceToolProvider {
+                call_count: AtomicUsize::new(0),
+            });
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "audience-tool-result".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::Auto,
+                )
+                .await?;
+            let session_id = session.id.clone();
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session_id,
+                )
+                .await?;
+            agent.add_extension(extension, &session_id).await?;
+
+            let stream = agent
+                .reply(
+                    Message::user().with_text("use the audience tool"),
+                    SessionConfig {
+                        id: session_id.clone(),
+                        schedule_id: None,
+                        max_turns: Some(3),
+                        retry_config: None,
+                    },
+                    None,
+                )
+                .await?;
+            tokio::pin!(stream);
+            let mut live_messages = Vec::new();
+            while let Some(event) = stream.next().await {
+                if let AgentEvent::Message(message) = event? {
+                    live_messages.push(message);
+                }
+            }
+
+            assert_eq!(
+                tool_response_texts(&live_messages, "call-1"),
+                Some(vec!["visible".to_string()]),
+                "live events must project out provider-only tool content"
+            );
+            assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+
+            let persisted = session_manager
+                .get_session(&session_id, true)
+                .await?
+                .conversation
+                .expect("persisted conversation");
+            assert_eq!(
+                tool_response_texts(persisted.messages(), "call-1"),
+                Some(vec!["visible".to_string(), "provider-only".to_string()]),
+                "persisted provider history must remain canonical"
+            );
+            Ok(())
+        }
+    }
+
     mod empty_turn_tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentEvent, SessionConfig};
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
+        use goose::conversation::Conversation;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
@@ -2812,6 +2988,65 @@ mod tests {
         struct EmptyThenTextProvider {
             call_count: AtomicUsize,
             empty_count: usize,
+            wrap_empty_text: bool,
+        }
+
+        struct AssistantOnlyProvider;
+
+        impl goose::providers::base::ProviderDescriptor for AssistantOnlyProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "assistant-only-mock".to_string(),
+                    display_name: "Assistant Only Mock".to_string(),
+                    description: "Mock provider for audience-filtered response tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for AssistantOnlyProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for AssistantOnlyProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+                let assistant_only = RawTextContent {
+                    text: "provider-private-state".to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::Assistant]);
+                Ok(stream_from_single_message(
+                    Message::assistant().with_content(MessageContent::Text(assistant_only)),
+                    usage(),
+                ))
+            }
+
+            fn get_name(&self) -> &str {
+                "assistant-only-mock"
+            }
         }
 
         impl EmptyThenTextProvider {
@@ -2819,6 +3054,15 @@ mod tests {
                 Self {
                     call_count: AtomicUsize::new(0),
                     empty_count,
+                    wrap_empty_text: false,
+                }
+            }
+
+            fn with_wrapped_empty_text(empty_count: usize) -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                    empty_count,
+                    wrap_empty_text: true,
                 }
             }
         }
@@ -2863,7 +3107,12 @@ mod tests {
                 let call = self.call_count.fetch_add(1, Ordering::SeqCst);
                 if call < self.empty_count {
                     // Empty assistant turn: no text, no tool calls.
-                    Ok(stream_from_single_message(Message::assistant(), usage()))
+                    let message = if self.wrap_empty_text {
+                        Message::assistant().with_text("")
+                    } else {
+                        Message::assistant()
+                    };
+                    Ok(stream_from_single_message(message, usage()))
                 } else {
                     Ok(stream_from_single_message(
                         Message::assistant().with_text("All done."),
@@ -2969,6 +3218,19 @@ mod tests {
             Ok(())
         }
 
+        #[tokio::test]
+        async fn test_wrapped_empty_text_retries_then_recovers() -> Result<()> {
+            let provider = Arc::new(EmptyThenTextProvider::with_wrapped_empty_text(1));
+            let (messages, persisted) = run_reply(provider, "wrapped-empty-retry").await?;
+
+            assert!(concat_text(&messages).contains("All done."));
+            assert!(!persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && matches!(message.content.as_slice(), [MessageContent::Text(text)] if text.text.is_empty())
+            }));
+            Ok(())
+        }
+
         /// A provider that only ever returns empty responses must not hang
         /// silently — after the retry budget it surfaces a visible message.
         #[tokio::test]
@@ -2991,6 +3253,38 @@ mod tests {
             assert!(
                 !persisted.iter().any(is_empty_assistant),
                 "empty assistant turn must not be persisted alongside the fallback: {persisted:?}"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_assistant_only_response_is_persisted_without_empty_turn_retry() -> Result<()>
+        {
+            let provider = Arc::new(AssistantOnlyProvider);
+            let (messages, persisted) = run_reply(provider, "assistant-only-response").await?;
+
+            assert!(
+                messages.iter().all(|message| !is_empty_assistant(message)),
+                "audience filtering must not emit an empty user-visible message: {messages:?}"
+            );
+            assert!(
+                messages
+                    .iter()
+                    .all(|message| !message.as_concat_text().contains("provider-private-state")),
+                "assistant-only content must not be emitted to the user: {messages:?}"
+            );
+            assert!(
+                !concat_text(&messages).contains("empty response"),
+                "assistant-only content must not trigger the empty-turn fallback: {messages:?}"
+            );
+            assert!(persisted.iter().any(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.as_concat_text() == "provider-private-state"
+            }));
+            let restored = Conversation::new_unvalidated(persisted.clone()).user_visible_messages();
+            assert!(
+                !concat_text(&restored).contains("provider-private-state"),
+                "restored user history must project out assistant-only content: {restored:?}"
             );
             Ok(())
         }

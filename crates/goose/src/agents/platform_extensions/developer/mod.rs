@@ -199,7 +199,7 @@ impl McpClientTrait for DeveloperClient {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self
                     .shell_tool
-                    .shell_with_cwd(params, working_dir, cancel_token)
+                    .shell_with_cwd(params, working_dir, Some(&ctx.session_id), cancel_token)
                     .await),
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
@@ -336,6 +336,29 @@ mod tests {
             fs::read_to_string(cwd.join("notes.txt")).unwrap(),
             "updated line"
         );
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn developer_client_passes_session_id_to_shell_tool() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = DeveloperClient::new(test_context(temp.path().join("sessions"))).unwrap();
+        let ctx = ToolCallContext::new("session-789".to_owned(), None, None);
+
+        let result = client
+            .call_tool(
+                &ctx,
+                "shell",
+                Some(object!({
+                    "command": "printenv AGENT_SESSION_ID"
+                })),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.is_error, Some(false));
+        assert_eq!(first_text(&result), "session-789");
     }
 
     #[cfg(not(windows))]
