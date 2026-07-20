@@ -468,15 +468,7 @@ impl OpenAiProvider {
             return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        parse_model_ids(&json)
     }
 
     /// llama.cpp and Ollama expose the actual allocated context window in the
@@ -494,6 +486,22 @@ impl OpenAiProvider {
         let json = handle_response_openai_compat(response).await.ok()?;
         parse_n_ctx_from_models(&json, model_name)
     }
+}
+
+fn parse_model_ids(json: &serde_json::Value) -> Result<Vec<String>, ProviderError> {
+    let models = json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .or_else(|| json.as_array())
+        .ok_or_else(|| {
+            ProviderError::RequestFailed("Missing models array in JSON response".into())
+        })?;
+    let mut model_ids: Vec<String> = models
+        .iter()
+        .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+        .collect();
+    model_ids.sort();
+    Ok(model_ids)
 }
 
 /// Extract `meta.n_ctx` for `model_name` from a `/v1/models` response body.
@@ -1150,6 +1158,36 @@ mod tests {
         let models_path =
             OpenAiProvider::map_base_path("openai/v1/responses", "models", "v1/models");
         assert_eq!(models_path, "openai/v1/models");
+    }
+
+    #[test]
+    fn parse_model_ids_accepts_openai_response() {
+        let response = json!({"data": [{"id": "model-b"}, {"id": "model-a"}]});
+
+        assert_eq!(parse_model_ids(&response).unwrap(), ["model-a", "model-b"]);
+    }
+
+    #[test]
+    fn parse_model_ids_accepts_together_response() {
+        let response = json!([
+            {"id": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "type": "chat"},
+            {"id": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8", "type": "code"}
+        ]);
+
+        assert_eq!(
+            parse_model_ids(&response).unwrap(),
+            [
+                "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+                "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_model_ids_rejects_unknown_response() {
+        let response = json!({"models": []});
+
+        assert!(parse_model_ids(&response).is_err());
     }
 
     #[test]
