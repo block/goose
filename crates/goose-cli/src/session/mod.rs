@@ -896,9 +896,9 @@ impl CliSession {
             return Ok(());
         }
 
-        if requested_provider.is_none() && provider.manages_own_context() {
+        if provider.manages_own_context() {
             output::render_error(&format!(
-                "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
+                "Session model or provider switching is not supported for provider '{}' because it manages its own conversation context.",
                 current_provider_name
             ));
             return Ok(());
@@ -908,18 +908,21 @@ impl CliSession {
         let target_model_name = match options.model.as_deref().map(str::trim) {
             Some(m) if !m.is_empty() => m.to_string(),
             _ => {
-                // Provider-only switch: keep current model if valid for the new
-                // provider, otherwise fall back to the new provider's default.
-                let known: Vec<&str> = target_entry
-                    .metadata()
-                    .known_models
-                    .iter()
-                    .map(|m| m.name.as_str())
-                    .collect();
-                if known.contains(&current_model_name.as_str()) {
+                // Provider-only switch (no model specified).
+                if target_provider_name == current_provider_name {
                     current_model_name.clone()
                 } else {
-                    target_entry.metadata().default_model.clone()
+                    let known: Vec<&str> = target_entry
+                        .metadata()
+                        .known_models
+                        .iter()
+                        .map(|m| m.name.as_str())
+                        .collect();
+                    if known.contains(&current_model_name.as_str()) {
+                        current_model_name.clone()
+                    } else {
+                        target_entry.metadata().default_model.clone()
+                    }
                 }
             }
         };
@@ -934,7 +937,7 @@ impl CliSession {
         let configured_effort = Config::global().get_goose_thinking_effort();
         let new_effort = new_model_config.thinking_effort().or(configured_effort);
         let current_effort = current_model_config.thinking_effort().or(configured_effort);
-        let provider_unchanged = requested_provider.is_none();
+        let provider_unchanged = target_provider_name == current_provider_name;
         if provider_unchanged
             && new_model_config.model_name == current_model_config.model_name
             && new_effort == current_effort
