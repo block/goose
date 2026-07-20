@@ -11,10 +11,8 @@ use rmcp::model::{
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(ToSchema)]
 pub enum ToolCallResult<T> {
     Success { value: T },
     Error { error: String },
@@ -79,17 +77,13 @@ pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
-    #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParams>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
     #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub tool_meta: Option<serde_json::Value>,
 }
 
@@ -174,20 +168,16 @@ pub const TOOL_META_CHAIN_SUMMARY_KEY: &str = "goose.toolChain.summary";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
     #[serde(with = "tool_result_serde::call_tool_result")]
-    #[schema(value_type = Object)]
     pub tool_result: ToolResult<CallToolResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(ToSchema)]
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
@@ -195,7 +185,7 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "actionType", rename_all = "camelCase")]
 pub enum ActionRequiredData {
     #[serde(rename_all = "camelCase")]
@@ -214,7 +204,6 @@ pub enum ActionRequiredData {
         id: String,
         user_data: serde_json::Value,
         #[serde(default = "default_elicitation_action")]
-        #[schema(value_type = String)]
         action: ElicitationAction,
     },
 }
@@ -223,33 +212,32 @@ fn default_elicitation_action() -> ElicitationAction {
     ElicitationAction::Accept
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionRequired {
     pub data: ActionRequiredData,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
-    #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParams>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SystemNotificationType {
     ThinkingMessage,
@@ -258,7 +246,7 @@ pub enum SystemNotificationType {
     CreditsExhausted,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
@@ -267,7 +255,7 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -394,6 +382,15 @@ impl MessageContent {
                     None
                 }
             }
+            _ => Some(self.clone()),
+        }
+    }
+
+    pub fn user_visible_content(&self) -> Option<MessageContent> {
+        match self {
+            MessageContent::Text(_)
+            | MessageContent::Image(_)
+            | MessageContent::ToolResponse(_) => self.filter_for_audience(Role::User),
             _ => Some(self.clone()),
         }
     }
@@ -659,7 +656,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InferenceMetadata {
     pub provider: String,
@@ -668,7 +665,7 @@ pub struct InferenceMetadata {
     pub resolved_model: Option<String>,
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -711,7 +708,7 @@ impl MessageUsage {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility and model inference details
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -813,7 +810,7 @@ impl MessageMetadata {
     }
 }
 
-#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -845,6 +842,29 @@ impl Message {
             .iter()
             .filter_map(|c| c.filter_for_audience(Role::Assistant))
             .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
+    pub fn user_visible_content(&self) -> Message {
+        let mut filtered_content: Vec<MessageContent> = Vec::new();
+        for content in self
+            .content
+            .iter()
+            .filter_map(MessageContent::user_visible_content)
+        {
+            match (filtered_content.last_mut(), content) {
+                (Some(MessageContent::Text(last_text)), MessageContent::Text(new_text))
+                    if last_text.audience() == new_text.audience() =>
+                {
+                    last_text.text.push_str(&new_text.text);
+                }
+                (_, content) => filtered_content.push(content),
+            }
+        }
 
         Message {
             content: filtered_content,
@@ -1130,7 +1150,7 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenState {
     pub input_tokens: i32,
@@ -1157,8 +1177,8 @@ mod tests {
     };
     use crate::conversation::*;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParams, PromptMessage, PromptMessageContent,
-        PromptMessageRole, RawEmbeddedResource, RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParams, CallToolResult, PromptMessage, PromptMessageContent,
+        PromptMessageRole, RawEmbeddedResource, RawImageContent, RawTextContent, ResourceContents,
     };
     use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1357,6 +1377,96 @@ mod tests {
             provider_message.content[1],
             MessageContent::RedactedThinking(_)
         ));
+    }
+
+    #[test]
+    fn test_user_visible_content_filters_audience_without_dropping_thinking() {
+        let assistant_text = RawTextContent {
+            text: "assistant text".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let assistant_image = RawImageContent {
+            data: "assistant image".to_string(),
+            mime_type: "image/png".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let assistant_tool_content =
+            Content::text("assistant tool result").with_audience(vec![Role::Assistant]);
+        let user_tool_content = Content::text("user tool result").with_audience(vec![Role::User]);
+        let message = Message::assistant()
+            .with_content(MessageContent::Text(assistant_text))
+            .with_text("shared text")
+            .with_content(MessageContent::Image(assistant_image))
+            .with_tool_response(
+                "tool-1",
+                Ok(CallToolResult::success(vec![
+                    assistant_tool_content,
+                    user_tool_content,
+                ])),
+            )
+            .with_thinking("visible reasoning", "sig");
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.as_concat_text(), "shared text");
+        assert!(projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Thinking(_))));
+        assert!(!projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Image(_))));
+        let tool_response = projected
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContent::ToolResponse(response) => Some(response),
+                _ => None,
+            })
+            .expect("tool response should be preserved");
+        let result = tool_response
+            .tool_result
+            .as_ref()
+            .expect("tool result should be valid");
+        assert_eq!(result.content.len(), 1);
+        assert_eq!(
+            result.content[0].as_text().unwrap().text,
+            "user tool result"
+        );
+    }
+
+    #[test]
+    fn test_user_visible_content_rejoins_text_across_hidden_blocks() {
+        let user_text = |text: &str| {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        };
+        let assistant_text = RawTextContent {
+            text: "provider state".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let message = Message::assistant()
+            .with_content(user_text("Hello"))
+            .with_content(MessageContent::Text(assistant_text))
+            .with_content(user_text(" world"));
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.content.len(), 1);
+        assert_eq!(projected.as_concat_text(), "Hello world");
     }
 
     #[test]

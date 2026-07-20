@@ -1,4 +1,4 @@
-use crate::session::message_to_markdown;
+use crate::session::user_projected_message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
@@ -249,7 +249,7 @@ pub async fn handle_session_export(
             let conversation = session
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.messages().to_vec(), &session.name)
+            export_session_to_markdown(conversation.user_visible_messages(), &session.name)
         }
         _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
     };
@@ -397,7 +397,7 @@ fn export_session_to_markdown(
         // don't create a new User section - we'll attach the responses to the tool calls
         if skip_next_if_tool_response && is_only_tool_response {
             // Export the tool responses without a User heading
-            markdown_output.push_str(&message_to_markdown(message, false));
+            markdown_output.push_str(&user_projected_message_to_markdown(message));
             markdown_output.push_str("\n\n---\n\n");
             skip_next_if_tool_response = false;
             continue;
@@ -416,7 +416,7 @@ fn export_session_to_markdown(
         }
 
         // Add the message content
-        markdown_output.push_str(&message_to_markdown(message, false));
+        markdown_output.push_str(&user_projected_message_to_markdown(message));
         markdown_output.push_str("\n\n---\n\n");
 
         // Check if this message has any tool requests, to handle the next message differently
@@ -485,5 +485,37 @@ pub async fn prompt_interactive_session_selection(
         Ok(session.id.clone())
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use goose::conversation::message::Message;
+    use goose::conversation::Conversation;
+    use rmcp::model::{Content, Role};
+
+    #[test]
+    fn markdown_export_preserves_user_audience_tool_output() {
+        let user_output = Content::text("user-visible output").with_audience(vec![Role::User]);
+        let assistant_output =
+            Content::text("assistant-only output").with_audience(vec![Role::Assistant]);
+        let conversation = Conversation::new_unvalidated([Message::user().with_tool_response(
+            "tool-1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                user_output,
+                assistant_output,
+                Content::text("shared output"),
+            ])),
+        )]);
+
+        let markdown = export_session_to_markdown(
+            conversation.user_visible_messages(),
+            &"Audience export".to_string(),
+        );
+
+        assert!(markdown.contains("user-visible output"));
+        assert!(markdown.contains("shared output"));
+        assert!(!markdown.contains("assistant-only output"));
     }
 }

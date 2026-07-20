@@ -42,6 +42,8 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          cache: false
 
       - name: Run cargo fmt
         run: cargo fmt --check
@@ -61,9 +63,6 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
-
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
 
       - name: Build and Test
         run: |
@@ -166,10 +165,6 @@ jobs:
           sudo apt update -y
           sudo apt install -y libdbus-1-dev libxcb1-dev
 
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
-        with:
-          key: msrv
-
       - name: Check with MSRV toolchain
         run: cargo check --workspace --locked --all-targets
         env:
@@ -184,8 +179,6 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
-
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
 
       - name: Lint
         run: |
@@ -211,9 +204,6 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev libxcb1-dev
-
-      - name: Cache Cargo artifacts
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
 
       - name: Install Node.js Dependencies
         run: |
@@ -241,19 +231,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-      # Temporarily disabled due to GitHub Actions bug on macOS runners
-      # https://github.com/actions/runner-images/issues/13341
-      # https://github.com/actions/runner/issues/4134
-      # - name: Cache pnpm dependencies
-      #   uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
-      #   with:
-      #     path: |
-      #       ui/desktop/node_modules
-      #       .hermit/node/cache
-      #     key: ci-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
-      #     restore-keys: |
-      #       ci-pnpm-cache-v1-${{ runner.os }}-
 
       - name: Install Dependencies
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
