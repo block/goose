@@ -24,7 +24,9 @@ use goose_providers::{
     openai::OpenAiProviderBuilder,
     utils::sanitize_unicode_tags,
 };
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content, Role, Tool};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, Role, Tool,
+};
 use serde_json::Value;
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -213,14 +215,9 @@ pub enum MessageContent {
 
 impl ProviderMessage {
     fn to_goose_message(&self) -> Result<Option<Message>, GooseError> {
-        if matches!(self.role, MessageRole::System) {
-            return Ok(None);
-        }
-
         let role = match self.role {
-            MessageRole::User | MessageRole::Tool => Role::User,
+            MessageRole::User | MessageRole::Tool | MessageRole::System => Role::User,
             MessageRole::Assistant => Role::Assistant,
-            MessageRole::System => unreachable!(),
         };
         let mut message = Message::new(role, chrono_now(), Vec::new());
         for content in &self.content {
@@ -260,7 +257,11 @@ impl MessageContent {
                 let tool_result = if *success {
                     Ok(call_tool_result(value, false))
                 } else {
-                    Ok(call_tool_result(value, true))
+                    Err(ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        value.to_string(),
+                        None,
+                    ))
                 };
                 Ok(GooseMessageContent::tool_response(id.clone(), tool_result))
             }
@@ -291,23 +292,20 @@ fn call_tool_result(value: Value, is_error: bool) -> CallToolResult {
 fn value_to_content(value: Value) -> Content {
     match value {
         Value::String(text) => Content::text(text),
-        Value::Object(mut object) => match object
-            .remove("type")
-            .and_then(|value| value.as_str().map(str::to_owned))
-        {
-            Some(kind) if kind == "text" => object
-                .remove("text")
+        Value::Object(object) => match object.get("type").and_then(|value| value.as_str()) {
+            Some("text") => object
+                .get("text")
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .map(Content::text)
                 .unwrap_or_else(|| Content::text(Value::Object(object).to_string())),
-            Some(kind) if kind == "image" => {
+            Some("image") => {
                 let mime_type = object
-                    .remove("mimeType")
-                    .or_else(|| object.remove("mime_type"))
+                    .get("mimeType")
+                    .or_else(|| object.get("mime_type"))
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .unwrap_or_else(|| "image/png".to_string());
                 let data = object
-                    .remove("data")
+                    .get("data")
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .unwrap_or_default();
                 Content::image(data, mime_type)
@@ -442,6 +440,13 @@ pub enum StreamChunk {
         id: String,
         name: String,
         arguments_json: String,
+    },
+    ThinkingChunk {
+        thinking: String,
+        signature: String,
+    },
+    RedactedThinkingChunk {
+        data: String,
     },
     EndChunk {
         usage: Option<Usage>,
@@ -612,10 +617,13 @@ impl ProviderHandle {
         .await??;
 
         Ok(Arc::new(ProviderStream {
-            stream: Arc::new(tokio::sync::Mutex::new(stream)),
-            pending: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-            final_usage: Arc::new(tokio::sync::Mutex::new(None)),
-            ended: Arc::new(tokio::sync::Mutex::new(false)),
+            state: Arc::new(tokio::sync::Mutex::new(ProviderStreamState {
+                stream,
+                pending: Vec::new(),
+                final_usage: None,
+                ended: false,
+            })),
+            timeout_ms,
         }))
     }
 
@@ -880,59 +888,76 @@ pub fn databricks_v2_provider(host: String, token: String) -> Result<Arc<Provide
 
 #[derive(uniffi::Object)]
 pub struct ProviderStream {
-    stream: Arc<tokio::sync::Mutex<MessageStream>>,
-    pending: Arc<tokio::sync::Mutex<Vec<StreamChunk>>>,
-    final_usage: Arc<tokio::sync::Mutex<Option<Usage>>>,
-    ended: Arc<tokio::sync::Mutex<bool>>,
+    state: Arc<tokio::sync::Mutex<ProviderStreamState>>,
+    timeout_ms: Option<u64>,
+}
+
+struct ProviderStreamState {
+    stream: MessageStream,
+    pending: Vec<StreamChunk>,
+    final_usage: Option<Usage>,
+    ended: bool,
 }
 
 #[uniffi::export]
 impl ProviderStream {
     pub async fn next_chunk(&self) -> Result<Option<StreamChunk>, GooseError> {
-        loop {
-            if let Some(chunk) = self.pending.lock().await.pop() {
-                return Ok(Some(chunk));
-            }
+        let state = Arc::clone(&self.state);
+        let timeout_ms = self.timeout_ms;
+        run_on_runtime(async move {
+            let mut state = state.lock().await;
+            loop {
+                if let Some(chunk) = state.pending.pop() {
+                    return Ok(Some(chunk));
+                }
 
-            if *self.ended.lock().await {
-                return Ok(None);
-            }
+                if state.ended {
+                    return Ok(None);
+                }
 
-            let stream = Arc::clone(&self.stream);
-            let final_usage = Arc::clone(&self.final_usage);
-            let result: Result<Option<Vec<StreamChunk>>, GooseError> = run_on_runtime(async move {
-                let mut stream = stream.lock().await;
-                match stream.next().await {
+                let next = if let Some(timeout_ms) = timeout_ms {
+                    tokio::time::timeout(Duration::from_millis(timeout_ms), state.stream.next())
+                        .await
+                        .map_err(|_| GooseError::Timeout {
+                            details: format!("request timed out after {timeout_ms}ms"),
+                        })?
+                } else {
+                    state.stream.next().await
+                };
+
+                match next {
                     Some(Ok((message, usage))) => {
                         if let Some(usage) = usage {
-                            *final_usage.lock().await = Some(Usage::from_provider_usage(&usage)?);
+                            state.final_usage = Some(Usage::from_provider_usage(&usage)?);
                         }
-                        Ok(message.map(message_to_chunks))
+                        let Some(message) = message else {
+                            continue;
+                        };
+                        let mut chunks = message_to_chunks(message);
+                        if chunks.is_empty() {
+                            continue;
+                        }
+                        chunks.reverse();
+                        let first = chunks.pop();
+                        state.pending = chunks;
+                        return Ok(first);
                     }
-                    Some(Err(error)) => Ok(Some(vec![StreamChunk::ErrorChunk {
-                        error: GooseStreamError::from(GooseError::from(error)),
-                    }])),
-                    None => Ok(None),
-                }
-            })
-            .await?;
-
-            match result? {
-                Some(mut chunks) if !chunks.is_empty() => {
-                    chunks.reverse();
-                    let first = chunks.pop();
-                    *self.pending.lock().await = chunks;
-                    return Ok(first);
-                }
-                Some(_) => continue,
-                None => {
-                    *self.ended.lock().await = true;
-                    return Ok(Some(StreamChunk::EndChunk {
-                        usage: self.final_usage.lock().await.clone(),
-                    }));
+                    Some(Err(error)) => {
+                        state.ended = true;
+                        return Ok(Some(StreamChunk::ErrorChunk {
+                            error: GooseStreamError::from(GooseError::from(error)),
+                        }));
+                    }
+                    None => {
+                        state.ended = true;
+                        return Ok(Some(StreamChunk::EndChunk {
+                            usage: state.final_usage.clone(),
+                        }));
+                    }
                 }
             }
-        }
+        })
+        .await?
     }
 }
 
@@ -961,6 +986,15 @@ fn message_to_chunks(message: Message) -> Vec<StreamChunk> {
                     },
                 }),
             },
+            GooseMessageContent::Thinking(thinking) => Some(StreamChunk::ThinkingChunk {
+                thinking: thinking.thinking,
+                signature: thinking.signature,
+            }),
+            GooseMessageContent::RedactedThinking(redacted) => {
+                Some(StreamChunk::RedactedThinkingChunk {
+                    data: redacted.data,
+                })
+            }
             _ => None,
         })
         .collect()
@@ -982,6 +1016,7 @@ mod tests {
             provider_params_json: None,
             reasoning: None,
             timeout_ms: None,
+            request_headers: None,
         }
     }
 
