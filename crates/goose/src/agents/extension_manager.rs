@@ -718,6 +718,7 @@ async fn create_streamable_http_client(
         .build()
         .map_err(|_| ExtensionError::ConfigError("could not construct http client".to_string()))?;
 
+    let subscription_client = http_client.clone();
     let transport = StreamableHttpClientTransport::with_client(
         http_client,
         StreamableHttpClientTransportConfig::with_uri(uri),
@@ -796,7 +797,11 @@ async fn create_streamable_http_client(
             Err(_) => Ok(Box::new(client_res?)),
         }
     } else {
-        Ok(Box::new(client_res?))
+        Ok(Box::new(
+            client_res?
+                .with_modern_task_subscription(subscription_client, uri.to_string(), client_name)
+                .await,
+        ))
     }
 }
 

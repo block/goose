@@ -2,6 +2,8 @@ use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use futures::StreamExt;
 use rmcp::model::{
     CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
     ExtensionCapabilities, Extensions, JsonObject, ListRootsResult, LoggingMessageNotification,
@@ -27,11 +29,14 @@ use rmcp::{
 };
 use serde_json::Value;
 use std::{
-    collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, time::Duration,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::{atomic::AtomicU64, atomic::Ordering, Arc, Mutex as StdMutex},
+    time::Duration,
 };
 use tokio::sync::{
     mpsc::{self, Sender},
-    Mutex,
+    oneshot, Mutex,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -41,6 +46,213 @@ pub type Error = rmcp::ServiceError;
 
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
+const MODERN_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
+
+struct ModernTaskSubscription {
+    client: reqwest::Client,
+    uri: String,
+    client_name: String,
+    client_version: String,
+    notification_subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    request_id: AtomicU64,
+    subscribed_workspaces: Mutex<HashSet<String>>,
+}
+
+impl ModernTaskSubscription {
+    async fn probe(
+        client: reqwest::Client,
+        uri: String,
+        client_name: String,
+        client_version: String,
+        notification_subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    ) -> Option<Arc<Self>> {
+        let subscription = Arc::new(Self {
+            client,
+            uri,
+            client_name,
+            client_version,
+            notification_subscribers,
+            request_id: AtomicU64::new(1),
+            subscribed_workspaces: Mutex::new(HashSet::new()),
+        });
+        let result: Value = subscription
+            .post("server/discover", serde_json::json!({}), None, false)
+            .await
+            .ok()?
+            .json()
+            .await
+            .ok()?;
+        let result = result.get("result").unwrap_or(&result);
+        (result
+            .get("supportedVersions")
+            .and_then(Value::as_array)
+            .is_some_and(|versions| {
+                versions
+                    .iter()
+                    .any(|version| version.as_str() == Some(MODERN_MCP_PROTOCOL_VERSION))
+            })
+            && result
+                .pointer("/capabilities/resources/subscribe")
+                .and_then(Value::as_bool)
+                == Some(true))
+        .then_some(subscription)
+    }
+
+    async fn ensure_workspace_subscription(&self, working_dir: &std::path::Path) {
+        let workspace = working_dir.display().to_string();
+        let mut workspaces = self.subscribed_workspaces.lock().await;
+        if !workspaces.insert(workspace.clone()) {
+            return;
+        }
+        drop(workspaces);
+
+        let resource_uri = format!(
+            "ferrosa-memory://tasks/workspaces/{}/active",
+            URL_SAFE_NO_PAD.encode(workspace.as_bytes())
+        );
+        let response = self
+            .post(
+                "subscriptions/listen",
+                serde_json::json!({
+                    "notifications": {
+                        "resourceSubscriptions": [resource_uri]
+                    }
+                }),
+                None,
+                true,
+            )
+            .await;
+
+        let Ok(response) = response else {
+            self.subscribed_workspaces.lock().await.remove(&workspace);
+            return;
+        };
+
+        let (ready_tx, ready_rx) = oneshot::channel();
+        let subscribers = self.notification_subscribers.clone();
+        tokio::spawn(async move {
+            stream_task_subscription(response, subscribers, ready_tx).await;
+        });
+
+        if !matches!(
+            tokio::time::timeout(Duration::from_secs(5), ready_rx).await,
+            Ok(Ok(()))
+        ) {
+            self.subscribed_workspaces.lock().await.remove(&workspace);
+        }
+    }
+
+    async fn post(
+        &self,
+        method: &str,
+        params: Value,
+        request_name: Option<&str>,
+        accept_event_stream: bool,
+    ) -> anyhow::Result<reqwest::Response> {
+        let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
+        let mut params = params.as_object().cloned().unwrap_or_default();
+        params.insert(
+            "_meta".to_string(),
+            serde_json::json!({
+                "io.modelcontextprotocol/protocolVersion": MODERN_MCP_PROTOCOL_VERSION,
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {
+                    "name": self.client_name,
+                    "version": self.client_version
+                }
+            }),
+        );
+        let mut request = self
+            .client
+            .post(&self.uri)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(
+                reqwest::header::ACCEPT,
+                if accept_event_stream {
+                    "application/json, text/event-stream"
+                } else {
+                    "application/json"
+                },
+            )
+            .header("MCP-Protocol-Version", MODERN_MCP_PROTOCOL_VERSION)
+            .header("Mcp-Method", method)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": params,
+            }));
+        if let Some(name) = request_name {
+            request = request.header("Mcp-Name", mcp_header_value(name));
+        }
+        Ok(request.send().await?.error_for_status()?)
+    }
+}
+
+fn mcp_header_value(value: &str) -> String {
+    if !value.is_empty()
+        && value.trim_matches([' ', '\t']) == value
+        && value.bytes().all(|byte| matches!(byte, 0x21..=0x7e))
+    {
+        return value.to_string();
+    }
+    format!("=?base64?{}?=", URL_SAFE_NO_PAD.encode(value.as_bytes()))
+}
+
+async fn stream_task_subscription(
+    response: reqwest::Response,
+    subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    ready_tx: oneshot::Sender<()>,
+) {
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut ready_tx = Some(ready_tx);
+    while let Some(chunk) = stream.next().await {
+        let Ok(chunk) = chunk else {
+            return;
+        };
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+        while let Some(end) = buffer.find("\n\n") {
+            let event = buffer.drain(..end).collect::<String>();
+            buffer.drain(..2);
+            let Some(message) = sse_message(&event) else {
+                continue;
+            };
+            if message.get("method").and_then(Value::as_str)
+                == Some("notifications/subscriptions/acknowledged")
+            {
+                if let Some(ready_tx) = ready_tx.take() {
+                    let _ = ready_tx.send(());
+                }
+            }
+            if let Some(notification) = modern_task_subscription_notification(&message) {
+                subscribers.lock().await.iter().for_each(|subscriber| {
+                    let _ = subscriber.try_send(notification.clone());
+                });
+            }
+        }
+    }
+}
+
+fn sse_message(event: &str) -> Option<Value> {
+    let data = event
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    serde_json::from_str(&data).ok()
+}
+
+fn modern_task_subscription_notification(message: &Value) -> Option<ServerNotification> {
+    (message.get("method").and_then(Value::as_str) == Some("notifications/resources/updated")).then(
+        || {
+            ServerNotification::CustomNotification(rmcp::model::CustomNotification::new(
+                "notifications/resources/updated",
+                message.get("params").cloned(),
+            ))
+        },
+    )
+}
 
 fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
     let config = crate::config::Config::global();
@@ -554,6 +766,7 @@ pub struct GooseMcpClientCapabilities {
 pub struct McpClient {
     client: Mutex<RunningService<RoleClient, GooseClient>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
+    modern_task_subscription: Option<Arc<ModernTaskSubscription>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
     docker_container: Option<String>,
@@ -614,10 +827,28 @@ impl McpClient {
         Ok(Self {
             client: Mutex::new(client),
             notification_subscribers,
+            modern_task_subscription: None,
             server_info,
             timeout,
             docker_container,
         })
+    }
+
+    pub(crate) async fn with_modern_task_subscription(
+        mut self,
+        client: reqwest::Client,
+        uri: String,
+        client_name: String,
+    ) -> Self {
+        self.modern_task_subscription = ModernTaskSubscription::probe(
+            client,
+            uri,
+            client_name,
+            env!("CARGO_PKG_VERSION").to_string(),
+            self.notification_subscribers.clone(),
+        )
+        .await;
+        self
     }
 
     pub fn docker_container(&self) -> Option<&str> {
@@ -788,6 +1019,13 @@ impl McpClientTrait for McpClient {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        if let (Some(subscription), Some(working_dir)) =
+            (&self.modern_task_subscription, ctx.working_dir.as_deref())
+        {
+            subscription
+                .ensure_workspace_subscription(working_dir)
+                .await;
+        }
         let mut params = CallToolRequestParams::new(name.to_string());
         if let Some(args) = arguments {
             params = params.with_arguments(args);
@@ -1444,5 +1682,116 @@ mod tests {
         assert_eq!(result.roots.len(), 1);
         assert_eq!(result.roots[0].uri, "file:///tmp/test-project");
         assert_eq!(result.roots[0].name.as_deref(), Some("working_directory"));
+    }
+
+    #[test]
+    fn modern_task_subscription_forwards_resource_updates() {
+        let notification = modern_task_subscription_notification(&json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/resources/updated",
+            "params": {
+                "uri": "ferrosa-memory://tasks/workspaces/L3JlcG8vZ29vc2U/active",
+                "_meta": {
+                    "io.modelcontextprotocol/subscriptionId": 42
+                }
+            }
+        }))
+        .expect("resource update should become a Goose MCP notification");
+
+        let ServerNotification::CustomNotification(notification) = notification else {
+            panic!("expected a custom notification");
+        };
+        assert_eq!(notification.method, "notifications/resources/updated");
+        assert_eq!(
+            notification.params.expect("notification params")["_meta"]
+                ["io.modelcontextprotocol/subscriptionId"],
+            42
+        );
+    }
+
+    #[tokio::test]
+    async fn modern_task_subscription_streams_workspace_updates() {
+        use axum::{
+            response::{sse::Event, IntoResponse, Sse},
+            routing::post,
+            Json, Router,
+        };
+        use std::convert::Infallible;
+
+        let app = Router::new().route(
+            "/mcp",
+            post(|Json(request): Json<Value>| async move {
+                if request["method"] == "subscriptions/listen" {
+                    let id = request["id"].clone();
+                    let events = async_stream::stream! {
+                        yield Ok::<_, Infallible>(Event::default().data(serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "method": "notifications/subscriptions/acknowledged",
+                            "params": { "_meta": { "io.modelcontextprotocol/subscriptionId": id } }
+                        }).to_string()));
+                        yield Ok::<_, Infallible>(Event::default().data(serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "method": "notifications/resources/updated",
+                            "params": {
+                                "uri": "ferrosa-memory://tasks/workspaces/L3JlcG8vZ29vc2U/active",
+                                "_meta": { "io.modelcontextprotocol/subscriptionId": id }
+                            }
+                        }).to_string()));
+                    };
+                    Sse::new(events).into_response()
+                } else if request["method"] == "server/discover" {
+                    Json(serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": request["id"],
+                        "result": {
+                            "supportedVersions": [MODERN_MCP_PROTOCOL_VERSION],
+                            "capabilities": { "resources": { "subscribe": true } }
+                        }
+                    }))
+                    .into_response()
+                } else {
+                    Json(serde_json::json!({ "jsonrpc": "2.0", "id": request["id"], "result": {} }))
+                        .into_response()
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let subscribers = Arc::new(Mutex::new(Vec::new()));
+        let (sender, mut receiver) = mpsc::channel(1);
+        subscribers.lock().await.push(sender);
+        let subscription = ModernTaskSubscription::probe(
+            reqwest::Client::new(),
+            format!("http://{address}/mcp"),
+            "goose-test".to_string(),
+            "1.0.0".to_string(),
+            subscribers,
+        )
+        .await
+        .expect("modern server should be detected");
+
+        subscription
+            .ensure_workspace_subscription(std::path::Path::new("/repo/goose"))
+            .await;
+
+        let ServerNotification::CustomNotification(notification) =
+            tokio::time::timeout(Duration::from_secs(1), receiver.recv())
+                .await
+                .unwrap()
+                .expect("resource update")
+        else {
+            panic!("expected a custom notification");
+        };
+        assert_eq!(notification.method, "notifications/resources/updated");
+        assert_eq!(
+            notification.params.expect("notification params")["uri"],
+            "ferrosa-memory://tasks/workspaces/L3JlcG8vZ29vc2U/active"
+        );
+
+        server.abort();
     }
 }
