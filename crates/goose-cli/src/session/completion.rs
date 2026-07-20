@@ -210,10 +210,15 @@ impl GooseCompleter {
             return Ok((line.len(), vec![]));
         }
 
-        // Case: completing a model name for the current provider
-        let current_provider = goose::config::Config::global()
-            .get_goose_provider()
-            .unwrap_or_default();
+        // Case: completing a model name for the current session provider
+        let current_provider = {
+            let cache = self.completion_cache.read().unwrap();
+            if cache.current_session_provider.is_empty() {
+                Config::global().get_goose_provider().unwrap_or_default()
+            } else {
+                cache.current_session_provider.clone()
+            }
+        };
         self.models_completion_from_cache(&current_provider, after_cmd, line)
     }
 
@@ -652,6 +657,7 @@ mod tests {
             "openai".to_string(),
             "zai".to_string(),
         ];
+        cache.current_session_provider = "anthropic".to_string();
         cache.provider_models.insert(
             "anthropic".to_string(),
             vec!["claude-sonnet-4".to_string(), "claude-haiku-4".to_string()],
@@ -792,6 +798,22 @@ mod tests {
             .complete_model_names("/model --provider nosuchprovider")
             .unwrap();
         assert!(candidates.is_empty());
+
+        // /model <TAB> → completes models for the current session provider (anthropic),
+        // not the global config provider. Regression test: previously this read
+        // Config::global() which could differ from the session provider after a
+        // /model --provider switch or session resume.
+        let (_pos, candidates) = completer.complete_model_names("/model ").unwrap();
+        assert!(candidates.iter().any(|c| c.display == "claude-sonnet-4"));
+        assert!(candidates.iter().any(|c| c.display == "claude-haiku-4"));
+
+        // /model claude-s<TAB> → partial model for the session provider
+        let (pos, candidates) = completer
+            .complete_model_names("/model claude-s")
+            .unwrap();
+        assert_eq!(pos, "/model ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "claude-sonnet-4");
     }
 
     #[test]

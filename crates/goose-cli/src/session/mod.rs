@@ -213,6 +213,7 @@ pub struct CompletionCache {
     pub prompt_info: HashMap<String, output::PromptInfo>,
     pub provider_names: Vec<String>,
     pub provider_models: HashMap<String, Vec<String>>,
+    pub current_session_provider: String,
     pub last_updated: Instant,
     pub hint_status: HintStatus,
 }
@@ -224,6 +225,7 @@ impl CompletionCache {
             prompt_info: HashMap::new(),
             provider_names: Vec::new(),
             provider_models: HashMap::new(),
+            current_session_provider: String::new(),
             last_updated: Instant::now(),
             hint_status: HintStatus::Default,
         }
@@ -1681,6 +1683,7 @@ impl CliSession {
         // Fetch all async data before acquiring the write lock
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
         let all_providers = goose::providers::providers().await;
+        let session_provider = self.agent.provider().await?.get_name().to_string();
 
         // Fetch inventory-fetched models (dynamically discovered via API refresh)
         // to supplement the static known_models list.
@@ -1742,6 +1745,7 @@ impl CliSession {
         //   2. Inventory-fetched models (dynamically discovered via API refresh)
         //   3. The user's currently-configured model for each provider
         cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        cache.current_session_provider = session_provider;
         cache.provider_models.clear();
         for (metadata, _) in &all_providers {
             let mut models: Vec<String> = metadata
