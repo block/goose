@@ -120,9 +120,9 @@ a richer tool (e.g. a small MCP server) can come later if warranted.
 ## Roadmap: multi-client attach & remote steering
 
 A key target use case is a phone joining a session already running on a laptop —
-watching it stream and injecting steering messages — like `paseo`'s model
-(a daemon streams a timeline to many clients; one live stream for immediacy plus
-an authoritative history fetch for catch-up).
+watching it stream and injecting steering messages: a daemon streams a timeline
+to many clients — one live stream for immediacy, plus an authoritative history
+fetch for catch-up.
 
 goose already speaks the right wire protocol: ACP has `session/update`
 notifications, `session/prompt`, and an unstable `session/steer` for active
@@ -131,8 +131,8 @@ a **fresh** `GooseAcpAgent`, and several of its fields (sessions, active-run map
 `client_cx`) are connection-owned, so two clients can't share one live agent by
 construction.
 
-**Chosen shape: a broker in front, not a multi-client agent** (like paseo's
-daemon). The agent still speaks ACP to exactly one client; that one client is a
+**Chosen shape: a broker in front, not a multi-client agent.** The agent still
+speaks ACP to exactly one client; that one client is a
 **broker** which re-serves ACP to N roaming peers and applies three routing
 rules — fan out `session/update`, funnel `session/prompt`/`steer` (serialized),
 and route `session/request_permission` to a single controller. This keeps both
@@ -158,7 +158,7 @@ The minimal path (expert-reviewed), roughly in order:
    `session/prompt`.
 
 Deferred until needed: durable `epoch + sequence` cursors and paged catch-up
-(paseo's full timeline), controller handoff, and cross-process session ownership.
+(a full timeline), controller handoff, and cross-process session ownership.
 Note the roaming endpoint must run **inside the process that owns the live
 session** — a separate `goose roam share` process can't attach to an agent
 running in the desktop process; for a first demo, either embed sharing in the

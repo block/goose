@@ -7,7 +7,7 @@
 //! `session/request_permission` requests straight to it. To let several remote
 //! peers watch and drive one live session (e.g. a phone attaching to a session
 //! running on a laptop), we don't make the agent multi-client — we put a broker
-//! in front, exactly like `paseo`'s daemon does with its `AgentManager`.
+//! in front.
 //!
 //! The broker is the *single* ACP client to the local agent, and re-serves ACP
 //! to N roaming peers. It applies three routing rules:
