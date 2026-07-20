@@ -99,9 +99,9 @@ prefer `--allow-key` or `--pair` over bearer invites when you can.
 ## Letting the agent reach other agents
 
 With the roaming feature enabled, goose can delegate to other agents itself. Ask
-it to, and it can use the `roam delegate` command via the built-in `roam-delegate`
-skill — for example, "delegate this to my work laptop and summarize what it
-finds." It sends one self-contained task and relays the response.
+it to, and it can run `goose roam delegate <peer> "<task>"` via its shell — for
+example, "delegate this to my work laptop and summarize what it finds." It sends
+one self-contained task and relays the response.
 
 ## Notes and limits
 
