@@ -868,6 +868,12 @@ impl CliSession {
             .filter(|s| !s.is_empty());
         let target_provider_name = requested_provider.unwrap_or(&current_provider_name);
 
+        // Reject a bare --provider flag with no value
+        if options.provider.is_some() && requested_provider.is_none() {
+            output::render_error("Provider name is required after '--provider'.");
+            return Ok(());
+        }
+
         // Validate that the target provider exists in the registry
         let target_entry = match goose::providers::get_from_registry(target_provider_name).await {
             Ok(entry) => entry,
@@ -888,22 +894,7 @@ impl CliSession {
             return Ok(());
         }
 
-        if requested_provider.is_some() {
-            // Provider switching path — we don't have a Provider instance for the
-            // target yet, so check whether it's known to manage its own context.
-            if target_entry
-                .metadata()
-                .config_keys
-                .iter()
-                .any(|k| k.name == "manages_own_context")
-            {
-                output::render_error(&format!(
-                    "Session provider switching is not supported for '{}' because it manages its own conversation context.",
-                    target_provider_name
-                ));
-                return Ok(());
-            }
-        } else if provider.manages_own_context() {
+        if requested_provider.is_none() && provider.manages_own_context() {
             output::render_error(&format!(
                 "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
                 current_provider_name
@@ -992,6 +983,14 @@ impl CliSession {
                 return Ok(());
             }
         };
+
+        if new_provider.manages_own_context() {
+            output::render_error(&format!(
+                "Session provider switching is not supported for '{}' because it manages its own conversation context.",
+                target_provider_name
+            ));
+            return Ok(());
+        }
 
         self.agent
             .update_provider(new_provider, new_model_config, &self.session_id)
