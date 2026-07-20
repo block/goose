@@ -808,9 +808,7 @@ mod tests {
         assert!(candidates.iter().any(|c| c.display == "claude-haiku-4"));
 
         // /model claude-s<TAB> → partial model for the session provider
-        let (pos, candidates) = completer
-            .complete_model_names("/model claude-s")
-            .unwrap();
+        let (pos, candidates) = completer.complete_model_names("/model claude-s").unwrap();
         assert_eq!(pos, "/model ".len());
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].display, "claude-sonnet-4");
