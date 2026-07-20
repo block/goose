@@ -121,8 +121,9 @@ one self-contained task and relays the response.
 
 ## Notes and limits
 
-- Connections use iroh's public relays. They're rate-limited and best-effort;
-  self-hosting relays is possible but not covered here.
+- Peers connect directly when NAT hole-punching succeeds and fall back to
+  iroh's public relays otherwise. The default relays are rate-limited and
+  best-effort; self-hosting relays is possible but not covered here.
 - `connect` and `delegate` accept either a saved peer name or a raw token.
-- On macOS, if a session appears to hang on connect, set
-  `GOOSE_DISABLE_KEYRING=1` (a known keychain interaction fixed separately).
+- On macOS, if a session still appears to hang on connect, set
+  `GOOSE_DISABLE_KEYRING=1` to skip the keychain entirely.
