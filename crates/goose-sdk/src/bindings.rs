@@ -18,6 +18,7 @@ use goose_providers::{
     },
     databricks::DatabricksProvider as GooseDatabricksProvider,
     databricks_auth::DatabricksAuth,
+    databricks_v2::DatabricksV2Provider as GooseDatabricksV2Provider,
     declarative::{DeclarativeProviderConfig, EnvKeyResolver},
     model::ModelConfig,
     openai::OpenAiProviderBuilder,
@@ -698,11 +699,14 @@ impl Provider {
         let mut features = vec![Feature::Streaming, Feature::Tools, Feature::JsonSchema];
         if matches!(
             name.as_str(),
-            "openai" | "anthropic" | "databricks" | "groq"
+            "openai" | "anthropic" | "databricks" | "databricks_v2" | "groq"
         ) {
             features.push(Feature::Images);
         }
-        if matches!(name.as_str(), "openai" | "anthropic" | "databricks") {
+        if matches!(
+            name.as_str(),
+            "openai" | "anthropic" | "databricks" | "databricks_v2"
+        ) {
             features.push(Feature::Reasoning);
         }
         features
@@ -842,6 +846,28 @@ pub fn databricks_provider(host: String, token: String) -> Result<Arc<Provider>,
         retry_config,
         None,
         None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )?;
+
+    Ok(Provider::new(Box::new(provider)))
+}
+
+#[uniffi::export]
+pub fn databricks_v2_default_model() -> String {
+    goose_providers::databricks_v2::DATABRICKS_V2_DEFAULT_MODEL.to_string()
+}
+
+#[uniffi::export]
+pub fn databricks_v2_provider(host: String, token: String) -> Result<Arc<Provider>, GooseError> {
+    let retry_config = GooseDatabricksV2Provider::load_retry_config(|key| std::env::var(key).ok());
+    let provider = GooseDatabricksV2Provider::new(
+        host,
+        DatabricksAuth::token(token),
+        retry_config,
         None,
         None,
         None,
