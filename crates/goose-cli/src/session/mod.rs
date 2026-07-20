@@ -13,14 +13,14 @@ mod thinking;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
-use goose::conversation::Conversation;
+use goose::conversation::{fix_conversation, Conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use self::export::message_to_markdown;
+pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
@@ -61,6 +61,11 @@ use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
 
+fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
+    let projected_messages = plan_messages.agent_visible_messages();
+    fix_conversation(Conversation::new_unvalidated(projected_messages)).0
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonOutput {
     messages: Vec<Message>,
@@ -74,6 +79,12 @@ struct JsonMetadata {
     input_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_read_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_write_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost_usd: Option<f64>,
     status: String,
 }
 
@@ -97,6 +108,12 @@ enum StreamEvent {
         input_tokens: Option<i32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_read_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_write_input_tokens: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cost_usd: Option<f64>,
     },
 }
 
@@ -244,6 +261,15 @@ pub async fn classify_planner_response(
     } else {
         Ok(PlannerResponseType::ClarifyingQuestions)
     }
+}
+
+fn planner_classification_text(response: &Message) -> Result<String> {
+    let text = response.agent_visible_content().as_concat_text();
+    anyhow::ensure!(
+        !text.trim().is_empty(),
+        "Planner returned no agent-visible text to classify"
+    );
+    Ok(text)
 }
 
 impl CliSession {
@@ -523,6 +549,7 @@ impl CliSession {
 
             let conversation_strings: Vec<String> = self
                 .messages
+                .user_visible_messages()
                 .iter()
                 .map(|msg| {
                     let role = match msg.role {
@@ -1057,17 +1084,30 @@ impl CliSession {
         model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let provider_messages = planner_provider_messages(&plan_messages);
         output::show_thinking();
         let (plan_response, _usage) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
-            reasoner.complete(&model_config, &plan_prompt, plan_messages.messages(), &[]),
+            reasoner.complete(
+                &model_config,
+                &plan_prompt,
+                provider_messages.messages(),
+                &[],
+            ),
         )
         .await?;
+        let classifier_text = planner_classification_text(&plan_response);
+        let plan_response = plan_response.user_visible_content();
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let classifier_text = classifier_text?;
+        anyhow::ensure!(
+            !plan_response.content.is_empty(),
+            "Planner returned no user-visible content"
+        );
         let planner_response_type = classify_planner_response(
             &self.session_id,
-            plan_response.as_concat_text(),
+            classifier_text,
             self.agent.provider().await?,
             self.agent
                 .model_config_for_session(&self.session_id)
@@ -1381,56 +1421,66 @@ impl CliSession {
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
             {
-                Ok(session) => JsonMetadata {
-                    total_tokens: session
-                        .accumulated_usage
-                        .total_tokens
-                        .or(session.usage.total_tokens),
-                    input_tokens: session
-                        .accumulated_usage
-                        .input_tokens
-                        .or(session.usage.input_tokens),
-                    output_tokens: session
-                        .accumulated_usage
-                        .output_tokens
-                        .or(session.usage.output_tokens),
+                Ok(totals) => JsonMetadata {
+                    total_tokens: totals.accumulated_usage.total_tokens,
+                    input_tokens: totals.accumulated_usage.input_tokens,
+                    output_tokens: totals.accumulated_usage.output_tokens,
+                    cache_read_input_tokens: totals.accumulated_usage.cache_read_input_tokens,
+                    cache_write_input_tokens: totals.accumulated_usage.cache_write_input_tokens,
+                    cost_usd: totals.accumulated_cost,
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
                     input_tokens: None,
                     output_tokens: None,
+                    cache_read_input_tokens: None,
+                    cache_write_input_tokens: None,
+                    cost_usd: None,
                     status: "completed".to_string(),
                 },
             };
             let json_output = JsonOutput {
-                messages: self.messages.messages().to_vec(),
+                messages: self.messages.user_visible_messages(),
                 metadata,
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let session = self
+            let totals = self
                 .agent
                 .config
                 .session_manager
-                .get_session(&self.session_id, false)
+                .get_session_usage_totals(&self.session_id)
                 .await
                 .ok();
-            let (total_tokens, input_tokens, output_tokens) = match session {
-                Some(s) => (
-                    s.accumulated_usage.total_tokens.or(s.usage.total_tokens),
-                    s.accumulated_usage.input_tokens.or(s.usage.input_tokens),
-                    s.accumulated_usage.output_tokens.or(s.usage.output_tokens),
+            let (
+                total_tokens,
+                input_tokens,
+                output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
+            ) = match totals {
+                Some(totals) => (
+                    totals.accumulated_usage.total_tokens,
+                    totals.accumulated_usage.input_tokens,
+                    totals.accumulated_usage.output_tokens,
+                    totals.accumulated_usage.cache_read_input_tokens,
+                    totals.accumulated_usage.cache_write_input_tokens,
+                    totals.accumulated_cost,
                 ),
-                None => (None, None, None),
+                None => (None, None, None, None, None, None),
             };
             emit_stream_event(&StreamEvent::Complete {
                 total_tokens,
                 input_tokens,
                 output_tokens,
+                cache_read_input_tokens,
+                cache_write_input_tokens,
+                cost_usd,
             });
         } else {
             println!();
@@ -1563,18 +1613,19 @@ impl CliSession {
 
     /// Render all past messages from the session history
     pub fn render_message_history(&self) {
-        if self.messages.is_empty() {
+        let messages = self.messages.user_visible_messages();
+        if messages.is_empty() {
             return;
         }
 
         println!(
             "\n  {} {}",
             console::style("↻").cyan(),
-            console::style(format!("{} messages restored", self.messages.len())).dim()
+            console::style(format!("{} messages restored", messages.len())).dim()
         );
 
         // Render each message
-        for message in self.messages.iter() {
+        for message in &messages {
             output::render_message(message, self.debug);
         }
 
@@ -2327,6 +2378,55 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn planner_classification_excludes_user_only_content() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let user_only = TextContent::new("user-only plan")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let assistant_only = TextContent::new("agent classification text")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let mixed = Message::assistant()
+            .with_content(MessageContent::Text(user_only.clone()))
+            .with_content(MessageContent::Text(assistant_only));
+
+        assert_eq!(
+            planner_classification_text(&mixed).unwrap(),
+            "agent classification text"
+        );
+        assert!(planner_classification_text(
+            &Message::assistant().with_content(MessageContent::Text(user_only))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn planner_history_is_fixed_after_audience_projection() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let hidden_separator = MessageContent::Text(
+            TextContent::new("hidden separator")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let history = Conversation::new_unvalidated([
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(hidden_separator),
+            Message::user().with_text("second request"),
+        ]);
+
+        let provider_messages = planner_provider_messages(&history).agent_visible_messages();
+
+        assert_eq!(provider_messages.len(), 1);
+        assert_eq!(provider_messages[0].role, Role::User);
+        assert_eq!(
+            provider_messages[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!provider_messages[0]
+            .as_concat_text()
+            .contains("hidden separator"));
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {

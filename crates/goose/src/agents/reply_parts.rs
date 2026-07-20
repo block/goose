@@ -13,7 +13,7 @@ use super::super::agents::Agent;
 use crate::agents::platform_extensions::code_execution;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
-use crate::conversation::Conversation;
+use crate::conversation::{fix_conversation, Conversation};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
@@ -291,17 +291,16 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = model_config.clone();
 
-        let filtered_messages: Vec<Message> = messages
-            .iter()
-            .filter(|m| m.is_agent_visible())
-            .map(|m| m.agent_visible_content())
-            .collect();
+        let projected_messages =
+            Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
+        let (filtered_messages, _) =
+            fix_conversation(Conversation::new_unvalidated(projected_messages));
 
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(&filtered_messages)
+            convert_tool_messages_to_text(filtered_messages.messages())
         } else {
-            Conversation::new_unvalidated(filtered_messages)
+            filtered_messages
         };
 
         // Clone owned data to move into the async stream
@@ -364,7 +363,7 @@ impl Agent {
                                         (
                                             Some(MessageContent::Text(last_text)),
                                             MessageContent::Text(new_text),
-                                        ) => {
+                                        ) if last_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) == new_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) => {
                                             last_text.text.push_str(&new_text.text);
                                         }
                                         _ => {
@@ -526,7 +525,9 @@ impl Agent {
                 MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
                     if should_suppress_replayed_thinking => {}
                 _ => {
-                    filtered_content.push(content.clone());
+                    if let Some(content) = user_visible_provider_content(content) {
+                        filtered_content.push(content);
+                    }
                 }
             }
         }
@@ -621,6 +622,10 @@ impl Agent {
     }
 }
 
+fn user_visible_provider_content(content: &MessageContent) -> Option<MessageContent> {
+    content.user_visible_content()
+}
+
 /// Check whether a tool should be callable by an app based on MCP Apps visibility metadata.
 ///
 /// Per the MCP Apps spec (2026-01-26), if `_meta.ui.visibility` is present and does not
@@ -666,14 +671,17 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::GooseMode;
+    use crate::agents::{AgentConfig, GoosePlatform};
+    use crate::config::{GooseMode, PermissionManager};
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
-    use crate::session::session_manager::SessionType;
+    use crate::session::{SessionManager, SessionType};
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
+    use rmcp::model::{Annotations, Role, TextContent};
     use rmcp::object;
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     #[derive(Clone)]
@@ -698,13 +706,170 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct CapturingProvider {
+        messages: Arc<Mutex<Vec<Message>>>,
+    }
+
+    #[async_trait]
+    impl Provider for CapturingProvider {
+        fn get_name(&self) -> &str {
+            "capturing"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            *self.messages.lock().unwrap() = messages.to_vec();
+            let message = Message::assistant().with_text("ok");
+            let usage = ProviderUsage::new("capturing".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_input_drops_rows_empty_after_agent_projection() {
+        let user_only = TextContent::new("user-only ACP output")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::Text(user_only)),
+            Message::user().with_text("current request"),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].role, Role::User);
+        assert_eq!(captured[0].as_concat_text(), "current request");
+    }
+
+    #[tokio::test]
+    async fn provider_input_refixes_roles_after_agent_projection() {
+        let user_only = TextContent::new("hidden separator")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let messages = vec![
+            Message::user().with_text("first request"),
+            Message::assistant().with_content(MessageContent::Text(user_only)),
+            Message::user().with_text("second request"),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].role, Role::User);
+        assert_eq!(
+            captured[0].as_concat_text(),
+            "first request\nsecond request"
+        );
+        assert!(!captured[0].as_concat_text().contains("hidden separator"));
+    }
+
+    #[tokio::test]
+    async fn provider_input_refixes_tool_result_emptied_by_agent_projection() {
+        let user_only_result = rmcp::model::ContentBlock::Text(
+            TextContent::new("hidden result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let messages = vec![
+            Message::user().with_text("run the tool"),
+            Message::assistant().with_tool_request(
+                "tool-1",
+                Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+            ),
+            Message::user().with_tool_response(
+                "tool-1",
+                Ok(rmcp::model::CallToolResult::success(vec![user_only_result])),
+            ),
+        ];
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(CapturingProvider {
+            messages: captured.clone(),
+        });
+
+        let _stream = crate::agents::Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let captured = captured.lock().unwrap();
+        let tool_response = captured
+            .iter()
+            .flat_map(|message| &message.content)
+            .find_map(|content| match content {
+                MessageContent::ToolResponse(response) => Some(response),
+                _ => None,
+            })
+            .expect("projected tool response should remain paired");
+        let result = tool_response
+            .tool_result
+            .as_ref()
+            .expect("tool response should remain successful");
+        assert_eq!(result.content.len(), 1);
+        assert_eq!(
+            result.content[0]
+                .as_text()
+                .expect("placeholder should be text")
+                .text,
+            "(empty result)"
+        );
+    }
+
     #[tokio::test]
     async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
-        let agent = crate::agents::Agent::new();
+        let data_dir = tempfile::tempdir()?;
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = std::sync::Arc::new(SessionManager::new(data_path.clone()));
+        let agent = Agent::with_config(AgentConfig::new(
+            std::sync::Arc::clone(&session_manager),
+            std::sync::Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
 
-        let session = agent
-            .config
-            .session_manager
+        let session = session_manager
             .create_session(
                 std::env::current_dir().unwrap(),
                 "test-prepare-tools".to_string(),
@@ -848,6 +1013,27 @@ mod tests {
             filtered_message.content[0],
             MessageContent::ToolRequest(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_excludes_assistant_only_text_from_user_events() {
+        let agent = crate::agents::Agent::new();
+        let assistant_only = TextContent::new("assistant-only")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let response = Message::assistant()
+            .with_content(MessageContent::Text(assistant_only))
+            .with_text("user-visible")
+            .with_thinking("visible reasoning", "");
+
+        let (_frontend_requests, _other_requests, filtered_message) =
+            agent.categorize_tool_requests(&response, &[], false).await;
+
+        assert_eq!(response.as_concat_text(), "assistant-only\nuser-visible");
+        assert_eq!(filtered_message.as_concat_text(), "user-visible");
+        assert!(filtered_message
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::Thinking(_))));
     }
 
     #[tokio::test]

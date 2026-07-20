@@ -11,11 +11,7 @@ on:
 name: Release
 
 permissions:
-  id-token: write   # Required for Sigstore OIDC signing and AWS OIDC (Windows signing)
-  contents: write   # Required for creating releases and by actions/checkout
-  actions: read     # May be needed for some workflows
-  pull-requests: write  # Required for npm publish workflow
-  attestations: write  # Required for SLSA build provenance attestations
+  contents: read
 
 env:
   # Set this repository Actions variable to "true" in GitHub Settings > Secrets and variables
@@ -28,10 +24,10 @@ concurrency:
 
 jobs:
   # ------------------------------------
-  # 1) Build CLI for multiple OS/Arch
+  # 1) Build CLI targets not produced by desktop workflows
   # ------------------------------------
-  build-cli:
-    uses: ./.github/workflows/build-cli.yml
+  build-cli-linux:
+    uses: ./.github/workflows/build-cli-linux.yml
 
   # ------------------------------------
   # 2) Upload Install CLI Script
@@ -39,7 +35,6 @@ jobs:
   install-script:
     name: Upload Install Script
     runs-on: ubuntu-latest
-    needs: [build-cli]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -48,30 +43,30 @@ jobs:
           path: download_cli.sh
 
   # ------------------------------------------------------------
-  # 3) Bundle Desktop App (macOS)
+  # 3) Bundle CLI and Desktop (macOS ARM64)
   # ------------------------------------------------------------
-  bundle-desktop:
-    uses: ./.github/workflows/bundle-desktop.yml
+  bundle-macos-arm64:
+    uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
+      target: aarch64-apple-darwin
+      package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
-    secrets: inherit
 
   # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS)
+  # 4) Bundle CLI and Desktop (macOS x64)
   # ------------------------------------------------------------
-  bundle-desktop-intel:
-    uses: ./.github/workflows/bundle-desktop-intel.yml
+  bundle-macos-x64:
+    uses: ./.github/workflows/bundle-macos.yml
     permissions:
-      id-token: write
       contents: read
     with:
+      target: x86_64-apple-darwin
+      package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
-    secrets: inherit
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)
@@ -79,29 +74,29 @@ jobs:
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
 
-#  # ------------------------------------------------------------
-#  # 6) Bundle Desktop App (Windows)
-#  # ------------------------------------------------------------
-  bundle-desktop-windows:
-    uses: ./.github/workflows/bundle-desktop-windows.yml
+  # ------------------------------------------------------------
+  # 6) Bundle CLI and Desktop (Windows)
+  # ------------------------------------------------------------
+  bundle-windows:
+    uses: ./.github/workflows/bundle-windows.yml
     permissions:
       id-token: write
       contents: read
-      actions: read
     with:
+      package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
-    secrets: inherit
 
-  bundle-desktop-windows-cuda:
-    uses: ./.github/workflows/bundle-desktop-windows.yml
+  bundle-windows-cuda:
+    uses: ./.github/workflows/bundle-windows.yml
     permissions:
       id-token: write
       contents: read
-      actions: read
     with:
+      package_cli: true
+      package_desktop: true
       signing: ${{ startsWith(github.ref, 'refs/tags/') }}
       windows_variant: cuda
-    secrets: inherit
 
   # ------------------------------------
   # 7) Create/Update GitHub Release
@@ -110,17 +105,20 @@ jobs:
     name: Release
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux, bundle-desktop-windows, bundle-desktop-windows-cuda]
+    needs: [build-cli-linux, install-script, bundle-macos-arm64, bundle-macos-x64, bundle-desktop-linux, bundle-windows, bundle-windows-cuda]
     permissions:
       contents: write
       id-token: write      # Required for Sigstore OIDC signing
       attestations: write  # Required for SLSA build provenance attestations
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
 
-      - name: Download all artifacts
+      - name: Download release artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
+          pattern: '!internal-*'
           merge-multiple: true
 
       - name: Generate macOS update manifest

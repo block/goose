@@ -339,7 +339,15 @@ pub async fn collect_stream(
                             (
                                 Some(MessageContentBlock::Text(last_text)),
                                 MessageContentBlock::Text(new_text),
-                            ) => {
+                            ) if last_text
+                                .annotations
+                                .as_ref()
+                                .and_then(|a| a.audience.as_ref())
+                                == new_text
+                                    .annotations
+                                    .as_ref()
+                                    .and_then(|a| a.audience.as_ref()) =>
+                            {
                                 last_text.text.push_str(&new_text.text);
                             }
                             _ => {
@@ -660,6 +668,29 @@ mod tests {
         let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
         assert_eq!(content_to_strings(&msg), vec!["Hello"]);
         assert_eq!(usage.model, "unknown");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_preserves_text_audience_boundaries() {
+        use futures::stream;
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let message = |text: &str, audience| {
+            Message::assistant().with_content(MessageContentBlock::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![audience])),
+            ))
+        };
+        let stream = stream::iter([
+            Ok((Some(message("public", Role::User)), None)),
+            Ok((Some(message("private", Role::Assistant)), None)),
+        ]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 2);
+        assert_eq!(message.user_visible_content().as_concat_text(), "public");
+        assert_eq!(message.agent_visible_content().as_concat_text(), "private");
     }
 
     #[test]

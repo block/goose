@@ -128,6 +128,10 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_request_headers(self, _headers: Option<HashMap<String, String>>) -> Self {
+        self
+    }
+
     pub fn with_temperature(mut self, temp: Option<f32>) -> Self {
         self.temperature = temp;
         self

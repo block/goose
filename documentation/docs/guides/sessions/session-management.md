@@ -329,7 +329,7 @@ While you can resume sessions, we recommend creating new sessions for new tasks 
         Project-based sessions are only available through the CLI.
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        You can use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
+        You can use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata.
     </TabItem>
 </Tabs>
 

@@ -7,6 +7,7 @@ use crate::providers::base::{
 };
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use crate::providers::google::GOOGLE_DOC_URL;
+use crate::providers::private_file::write_private_file;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
@@ -172,11 +173,8 @@ impl TokenCache {
     }
 
     fn save(&self, data: &SetupData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let contents = serde_json::to_string(data)?;
-        std::fs::write(&self.cache_path, contents)?;
+        write_private_file(&self.cache_path, &contents)?;
         Ok(())
     }
 
@@ -1126,5 +1124,33 @@ mod tests {
         cache.clear();
         assert!(cache.load().is_none());
         assert!(!cache.has_token());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn token_cache_replaces_loose_file_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        std::fs::write(&cache_path, "{}").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let cache = TokenCache {
+            cache_path: cache_path.clone(),
+        };
+
+        cache
+            .save(&SetupData {
+                project_id: "project".to_string(),
+                token: TokenData {
+                    access_token: "access".to_string(),
+                    refresh_token: "refresh".to_string(),
+                    expires_at: Utc::now() + chrono::Duration::hours(1),
+                },
+            })
+            .unwrap();
+
+        let mode = std::fs::metadata(cache_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }

@@ -237,6 +237,10 @@ pub fn set_thinking_message(s: &String) {
 }
 
 pub fn render_message(message: &Message, debug: bool) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -296,6 +300,10 @@ pub fn render_message_streaming(
     thinking_header_shown: &mut bool,
     debug: bool,
 ) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {

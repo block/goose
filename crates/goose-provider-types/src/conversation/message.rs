@@ -398,6 +398,15 @@ impl MessageContentBlock {
         }
     }
 
+    pub fn user_visible_content(&self) -> Option<MessageContent> {
+        match self {
+            MessageContentBlock::Text(_)
+            | MessageContentBlock::Image(_)
+            | MessageContentBlock::ToolResponse(_) => self.filter_for_audience(Role::User),
+            _ => Some(self.clone()),
+        }
+    }
+
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
         MessageContentBlock::Image(ImageContent::new(data, mime_type))
     }
@@ -840,6 +849,38 @@ impl Message {
         }
     }
 
+    pub fn user_visible_content(&self) -> Message {
+        let mut filtered_content: Vec<MessageContent> = Vec::new();
+        for content in self
+            .content
+            .iter()
+            .filter_map(MessageContentBlock::user_visible_content)
+        {
+            match (filtered_content.last_mut(), content) {
+                (
+                    Some(MessageContentBlock::Text(last_text)),
+                    MessageContentBlock::Text(new_text),
+                ) if last_text
+                    .annotations
+                    .as_ref()
+                    .and_then(|a| a.audience.as_ref())
+                    == new_text
+                        .annotations
+                        .as_ref()
+                        .and_then(|a| a.audience.as_ref()) =>
+                {
+                    last_text.text.push_str(&new_text.text);
+                }
+                (_, content) => filtered_content.push(content),
+            }
+        }
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
@@ -1140,8 +1181,11 @@ mod tests {
     use crate::conversation::message::{
         ActionRequiredData, Message, MessageContentBlock, MessageMetadata,
     };
+    use rmcp::model::{
+        Annotations, CallToolResult, ElicitationAction, ErrorCode, ErrorData, ImageContent,
+        TextContent,
+    };
     use rmcp::model::{CallToolRequestParams, ContentBlock, PromptMessage, ResourceContents, Role};
-    use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
     use rmcp::object;
     use serde_json::Value;
 
@@ -1341,6 +1385,84 @@ mod tests {
     }
 
     #[test]
+    fn test_user_visible_content_filters_audience_without_dropping_thinking() {
+        let assistant_text = TextContent::new("assistant text")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let assistant_image = ImageContent::new("assistant image", "image/png")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let assistant_tool_content = ContentBlock::Text(
+            TextContent::new("assistant tool result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+        );
+        let user_tool_content = ContentBlock::Text(
+            TextContent::new("user tool result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let message = Message::assistant()
+            .with_content(MessageContentBlock::Text(assistant_text))
+            .with_text("shared text")
+            .with_content(MessageContentBlock::Image(assistant_image))
+            .with_tool_response(
+                "tool-1",
+                Ok(CallToolResult::success(vec![
+                    assistant_tool_content,
+                    user_tool_content,
+                ])),
+            )
+            .with_thinking("visible reasoning", "sig");
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.as_concat_text(), "shared text");
+        assert!(projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContentBlock::Thinking(_))));
+        assert!(!projected
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContentBlock::Image(_))));
+        let tool_response = projected
+            .content
+            .iter()
+            .find_map(|content| match content {
+                MessageContentBlock::ToolResponse(response) => Some(response),
+                _ => None,
+            })
+            .expect("tool response should be preserved");
+        let result = tool_response
+            .tool_result
+            .as_ref()
+            .expect("tool result should be valid");
+        assert_eq!(result.content.len(), 1);
+        assert_eq!(
+            result.content[0].as_text().unwrap().text,
+            "user tool result"
+        );
+    }
+
+    #[test]
+    fn test_user_visible_content_rejoins_text_across_hidden_blocks() {
+        let user_text = |text: &str| {
+            MessageContentBlock::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+            )
+        };
+        let assistant_text = TextContent::new("provider state")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let message = Message::assistant()
+            .with_content(user_text("Hello"))
+            .with_content(MessageContentBlock::Text(assistant_text))
+            .with_content(user_text(" world"));
+
+        let projected = message.user_visible_content();
+
+        assert_eq!(projected.content.len(), 1);
+        assert_eq!(projected.as_concat_text(), "Hello world");
+    }
+
+    #[test]
     fn test_deserialization_drops_invalid_reasoning_blocks() {
         let json = serde_json::json!({
             "role": "assistant",
@@ -1373,7 +1495,7 @@ mod tests {
         if let MessageContentBlock::Text(text_content) = &message.content[0] {
             assert_eq!(text_content.text, "Hello, world!");
         } else {
-            panic!("Expected MessageContent::Text");
+            panic!("Expected MessageContentBlock::Text");
         }
     }
 
@@ -1389,7 +1511,7 @@ mod tests {
             assert_eq!(image_content.data, "base64data");
             assert_eq!(image_content.mime_type, "image/jpeg");
         } else {
-            panic!("Expected MessageContent::Image");
+            panic!("Expected MessageContentBlock::Image");
         }
     }
 
@@ -1411,7 +1533,7 @@ mod tests {
         if let MessageContentBlock::Text(text_content) = &message.content[0] {
             assert_eq!(text_content.text, "Resource content");
         } else {
-            panic!("Expected MessageContent::Text");
+            panic!("Expected MessageContentBlock::Text");
         }
     }
 
