@@ -5,11 +5,6 @@
 #  - pr-comment-bundle-desktop.yml (when added)
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch name to bundle app from'
-        required: true
-        type: string
   workflow_call:
     inputs:
       version:
@@ -23,6 +18,9 @@ on:
         default: ''
 
 name: "Bundle Desktop (Linux)"
+
+permissions:
+  contents: read
 
 jobs:
   build-desktop-linux:
@@ -41,19 +39,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
-          ref: ${{ inputs.ref || inputs.branch }}
+          ref: ${{ inputs.ref }}
 
       - name: Update versions
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          # Update version in Cargo.toml
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
-          rm -f Cargo.toml.bak
-
-          # Update version in package.json
+          bash scripts/set-cargo-version.sh "$VERSION"
           source ./bin/activate-hermit
           cd ui/desktop
-          npm pkg set "version=${{ inputs.version }}"
+          npm pkg set "version=${VERSION}"
 
       - name: Debug workflow info
         env:

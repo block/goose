@@ -1434,6 +1434,32 @@ impl GooseAcpAgent {
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
+            MessageContent::Image(image) => {
+                let mut image_content =
+                    ImageContent::new(image.data.clone(), image.mime_type.clone());
+                if let Some(audience) = image.audience() {
+                    image_content = image_content.annotations(
+                        Annotations::new().audience(
+                            audience
+                                .iter()
+                                .map(|r| match r {
+                                    Role::Assistant => {
+                                        agent_client_protocol::schema::v1::Role::Assistant
+                                    }
+                                    Role::User => agent_client_protocol::schema::v1::Role::User,
+                                })
+                                .collect::<Vec<_>>(),
+                        ),
+                    );
+                }
+                let chunk = ContentChunk::new(ContentBlock::Image(image_content))
+                    .meta(message_update_meta(message_id, message_created, steer));
+                let update = match role {
+                    Role::User => SessionUpdate::UserMessageChunk(chunk),
+                    Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                };
+                cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
+            }
             MessageContent::SystemNotification(notification) => {
                 send_status_message_update(
                     cx,
