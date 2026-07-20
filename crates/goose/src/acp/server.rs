@@ -6,6 +6,7 @@ pub(super) use crate::acp::response_builder::{
     build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
     session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
 };
+use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
@@ -1118,10 +1119,12 @@ impl GooseAcpAgent {
             }
         };
 
+        let session_id = SessionId::new(session.id.clone());
         let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
             inner: Arc::new(dev_client),
             cx: cx.clone(),
-            session_id: SessionId::new(session.id.clone()),
+            session_id: session_id.clone(),
+            tool_call_notifier: ToolCallNotifier::new(cx.clone(), session_id),
             fs_read: client_fs_capabilities.read_text_file,
             fs_write: client_fs_capabilities.write_text_file,
             terminal: client_terminal,
