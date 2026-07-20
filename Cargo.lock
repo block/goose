@@ -5496,13 +5496,11 @@ version = "1.43.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
- "dirs",
  "futures",
  "iroh",
  "rand 0.10.2",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
