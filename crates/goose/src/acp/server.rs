@@ -2240,7 +2240,9 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                 RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
             })
             .collect(),
-        Err(_) => Vec::new(),
+        Err(error) => vec![ToolCallContent::Content(Content::new(ContentBlock::Text(
+            TextContent::new(error.message.to_string()),
+        )))],
     }
 }
 
@@ -2255,23 +2257,30 @@ fn tool_call_update_fields_from_response(
     tool_response: &ToolResponse,
     tool_request: Option<&ToolRequest>,
 ) -> ToolCallUpdateFields {
-    let status = match &tool_response.tool_result {
-        Ok(result) if result.is_error == Some(true) => ToolCallStatus::Failed,
-        Ok(_) => ToolCallStatus::Completed,
-        Err(_) => ToolCallStatus::Failed,
+    let is_failed = match &tool_response.tool_result {
+        Ok(result) => result.is_error == Some(true),
+        Err(_) => true,
+    };
+    let status = if is_failed {
+        ToolCallStatus::Failed
+    } else {
+        ToolCallStatus::Completed
     };
 
     let mut fields = ToolCallUpdateFields::new().status(status);
     if let Some(raw_output) = extract_tool_raw_output(&tool_response.tool_result) {
         fields = fields.raw_output(raw_output);
     }
-    if !tool_response
+    let is_acp_aware = tool_response
         .tool_result
         .as_ref()
-        .is_ok_and(|result| result.is_acp_aware())
-    {
-        fields = fields.content(build_tool_call_content(&tool_response.tool_result));
+        .is_ok_and(|result| result.is_acp_aware());
 
+    if is_failed || !is_acp_aware {
+        fields = fields.content(build_tool_call_content(&tool_response.tool_result));
+    }
+
+    if !is_acp_aware {
         let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
             tool_request
                 .map(|request| extract_tool_locations(request, tool_response))
@@ -4079,7 +4088,7 @@ print(\"hello, world\")
     }
 
     #[test]
-    fn test_tool_call_update_fields_from_response_characterizes_acp_aware_error_suppression() {
+    fn test_tool_call_update_fields_from_response_includes_acp_aware_error_content() {
         let result =
             CallToolResult::error(vec![RmcpContent::text("write failed")]).with_acp_aware_meta();
         let response = response_from_tool_result(Ok(result));
@@ -4088,12 +4097,12 @@ print(\"hello, world\")
         let fields = tool_call_update_fields_from_response(&response, Some(&request));
 
         assert_eq!(fields.status, Some(ToolCallStatus::Failed));
-        assert!(fields.content.is_none());
+        assert_eq!(first_tool_call_text(&fields), Some("write failed"));
         assert!(fields.locations.is_none());
     }
 
     #[test]
-    fn test_tool_call_update_fields_from_response_characterizes_transport_error_content() {
+    fn test_tool_call_update_fields_from_response_includes_transport_error_content() {
         let response = response_from_tool_result(Err(rmcp::model::ErrorData::new(
             rmcp::model::ErrorCode::INTERNAL_ERROR,
             "transport failed",
@@ -4103,7 +4112,7 @@ print(\"hello, world\")
         let fields = tool_call_update_fields_from_response(&response, None);
 
         assert_eq!(fields.status, Some(ToolCallStatus::Failed));
-        assert_eq!(fields.content, Some(Vec::new()));
+        assert_eq!(first_tool_call_text(&fields), Some("transport failed"));
     }
 
     fn make_session_with_usage(usage: TokenUsage, accumulated_usage: TokenUsage) -> Session {
