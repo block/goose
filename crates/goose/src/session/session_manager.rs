@@ -891,12 +891,6 @@ impl SessionStorage {
         Ok(&self.pool)
     }
 
-    pub async fn create(session_dir: &Path) -> Result<Self> {
-        let storage = Self::new(session_dir.to_path_buf());
-        Self::create_schema(&storage.pool).await?;
-        Ok(storage)
-    }
-
     async fn create_schema(pool: &Pool<Sqlite>) -> Result<()> {
         // Run schema creation under `BEGIN IMMEDIATE` so SQLite serializes
         // writers across processes. Combined with `IF NOT EXISTS` on every
@@ -1037,7 +1031,7 @@ impl SessionStorage {
         // after the commit opened a window where another pool() call would skip
         // migrations (version already current) and then fail with "no such
         // table: provider_inventory_entries".
-        crate::providers::inventory::create_tables_in_tx(&mut tx).await?;
+        crate::providers::inventory::create_tables(&mut tx).await?;
 
         tx.commit().await?;
 
@@ -1393,7 +1387,7 @@ impl SessionStorage {
                     .await?;
             }
             11 => {
-                crate::providers::inventory::create_tables_in_tx(tx).await?;
+                crate::providers::inventory::create_tables(tx).await?;
             }
             12 => {
                 // Add archived_at, project_id columns to sessions.
