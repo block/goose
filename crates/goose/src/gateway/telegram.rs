@@ -3,7 +3,7 @@ use super::{
 };
 use async_trait::async_trait;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
@@ -16,6 +16,18 @@ const MAX_VOICE_FILE_SIZE: i64 = 20 * 1024 * 1024;
 pub struct TelegramGateway {
     bot_token: String,
     client: Client,
+    api_base: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SendRichMessageRequest<'a> {
+    chat_id: i64,
+    rich_message: InputRichMessage<'a>,
+}
+
+#[derive(Debug, Serialize)]
+struct InputRichMessage<'a> {
+    markdown: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,11 +118,15 @@ impl TelegramGateway {
             .http1_only()
             .build()?;
 
-        Ok(Self { bot_token, client })
+        Ok(Self {
+            bot_token,
+            client,
+            api_base: TELEGRAM_API_BASE.to_string(),
+        })
     }
 
     fn api_url(&self, method: &str) -> String {
-        format!("{}/bot{}/{}", TELEGRAM_API_BASE, self.bot_token, method)
+        format!("{}/bot{}/{}", self.api_base, self.bot_token, method)
     }
 
     async fn get_updates(&self, offset: Option<i64>) -> anyhow::Result<Vec<TelegramUpdate>> {
@@ -141,16 +157,15 @@ impl TelegramGateway {
     }
 
     async fn send_text(&self, chat_id: i64, text: &str) -> anyhow::Result<()> {
-        let html = super::telegram_format::markdown_to_telegram_html(text);
-        for chunk in split_message(&html, MAX_MESSAGE_LENGTH) {
+        let chunks = split_message(text, MAX_MESSAGE_LENGTH);
+        for (index, chunk) in chunks.iter().enumerate() {
             let resp = self
                 .client
-                .post(self.api_url("sendMessage"))
-                .json(&serde_json::json!({
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "parse_mode": "HTML",
-                }))
+                .post(self.api_url("sendRichMessage"))
+                .json(&SendRichMessageRequest {
+                    chat_id,
+                    rich_message: InputRichMessage { markdown: chunk },
+                })
                 .send()
                 .await?;
 
@@ -158,9 +173,9 @@ impl TelegramGateway {
                 if !body.ok {
                     tracing::warn!(
                         error = body.description.as_deref().unwrap_or("unknown"),
-                        "Telegram rejected HTML, falling back to plain text"
+                        "Telegram rejected rich markdown, falling back to plain text"
                     );
-                    for plain_chunk in split_message(text, MAX_MESSAGE_LENGTH) {
+                    for plain_chunk in &chunks[index..] {
                         self.client
                             .post(self.api_url("sendMessage"))
                             .json(&serde_json::json!({
@@ -565,6 +580,74 @@ fn split_message(text: &str, max_len: usize) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn test_gateway(api_base: String) -> TelegramGateway {
+        TelegramGateway {
+            bot_token: "test-token".to_string(),
+            client: Client::new(),
+            api_base,
+        }
+    }
+
+    #[tokio::test]
+    async fn send_text_uses_rich_markdown() {
+        let server = MockServer::start().await;
+        let markdown = "| Tool | Status |\n|---|---|\n| **MCP** | `ready` |";
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "rich_message": { "markdown": markdown },
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, markdown)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn send_text_falls_back_to_plain_text() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendRichMessage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": false,
+                "description": "invalid rich markdown",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendMessage"))
+            .and(body_json(serde_json::json!({
+                "chat_id": 123,
+                "text": "broken **markdown",
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {},
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        test_gateway(server.uri())
+            .send_text(123, "broken **markdown")
+            .await
+            .unwrap();
+    }
 
     #[test]
     fn split_short_message() {
