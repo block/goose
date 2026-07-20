@@ -210,6 +210,13 @@ pub enum MessageContent {
         success: bool,
         content_json: String,
     },
+    Thinking {
+        thinking: String,
+        signature: String,
+    },
+    RedactedThinking {
+        data: String,
+    },
 }
 
 impl ProviderMessage {
@@ -263,6 +270,16 @@ impl MessageContent {
                     ))
                 };
                 Ok(GooseMessageContent::tool_response(id.clone(), tool_result))
+            }
+            MessageContent::Thinking {
+                thinking,
+                signature,
+            } => Ok(GooseMessageContent::thinking(
+                thinking.clone(),
+                signature.clone(),
+            )),
+            MessageContent::RedactedThinking { data } => {
+                Ok(GooseMessageContent::redacted_thinking(data.clone()))
             }
         }
     }
