@@ -784,9 +784,7 @@ mod tests {
         assert!(candidates.is_empty());
 
         // /model --xyz → unknown flag → no candidates
-        let (_pos, candidates) = completer
-            .complete_model_names("/model --xyz")
-            .unwrap();
+        let (_pos, candidates) = completer.complete_model_names("/model --xyz").unwrap();
         assert!(candidates.is_empty());
 
         // /model --provider nosuchprovider<TAB> → partial provider, no match

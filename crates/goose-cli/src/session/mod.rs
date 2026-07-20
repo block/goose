@@ -1685,8 +1685,7 @@ impl CliSession {
 
         // Fetch inventory-fetched models (dynamically discovered via API refresh)
         // to supplement the static known_models list.
-        let provider_ids: Vec<String> =
-            all_providers.iter().map(|(m, _)| m.name.clone()).collect();
+        let provider_ids: Vec<String> = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         let inventory_models: HashMap<String, Vec<String>> = {
             let storage = SessionManager::instance().storage().clone();
             let inventory = ProviderInventoryService::new(storage);
@@ -1746,8 +1745,11 @@ impl CliSession {
         cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         cache.provider_models.clear();
         for (metadata, _) in &all_providers {
-            let mut models: Vec<String> =
-                metadata.known_models.iter().map(|m| m.name.clone()).collect();
+            let mut models: Vec<String> = metadata
+                .known_models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect();
 
             if let Some(inv_models) = inventory_models.get(&metadata.name) {
                 for model_id in inv_models {
