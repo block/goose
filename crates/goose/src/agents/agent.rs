@@ -195,6 +195,7 @@ pub struct AgentConfig {
     pub mcp_host_info: Option<GooseMcpHostInfo>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
     pub use_login_shell_path: Option<bool>,
+    pub is_subagent: bool,
 }
 
 impl AgentConfig {
@@ -216,6 +217,7 @@ impl AgentConfig {
             mcp_host_info: None,
             session_name_update_tx: None,
             use_login_shell_path: None,
+            is_subagent: false,
         }
     }
 
@@ -399,6 +401,7 @@ impl Agent {
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
+        let is_subagent = config.is_subagent;
         Self {
             provider: provider.clone(),
             config,
@@ -425,10 +428,14 @@ impl Agent {
                 provider.clone(),
                 inspection_session_manager,
             ),
-            hook_manager: crate::hooks::HookManager::load(
-                std::env::current_dir().ok().as_deref(),
-                use_login_shell_path,
-            ),
+            hook_manager: if is_subagent {
+                crate::hooks::HookManager::default()
+            } else {
+                crate::hooks::HookManager::load(
+                    std::env::current_dir().ok().as_deref(),
+                    use_login_shell_path,
+                )
+            },
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
