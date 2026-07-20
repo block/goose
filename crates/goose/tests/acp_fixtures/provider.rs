@@ -189,7 +189,7 @@ impl Connection for AcpProviderConnection {
                 .iter()
                 .map(|v| {
                     let mode = GooseMode::from_str(v).unwrap();
-                    (mode, mode.to_string())
+                    (mode, vec![mode.to_string()])
                 })
                 .collect(),
             notification_callback: Some(Arc::new(move |n| {

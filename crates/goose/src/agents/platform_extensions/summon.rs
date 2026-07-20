@@ -84,6 +84,23 @@ pub struct CompletedTask {
     pub completed_at: Instant,
 }
 
+fn merge_subrecipe_parameters(
+    fixed_values: Option<&HashMap<String, String>>,
+    provided_parameters: Option<&HashMap<String, serde_json::Value>>,
+) -> HashMap<String, String> {
+    let mut merged = fixed_values.cloned().unwrap_or_default();
+    if let Some(provided_parameters) = provided_parameters {
+        for (key, value) in provided_parameters {
+            let value = match value {
+                serde_json::Value::String(value) => value.clone(),
+                other => other.to_string(),
+            };
+            merged.entry(key.clone()).or_insert(value);
+        }
+    }
+    merged
+}
+
 /// Result from handle_load_task_result with structured metadata for the caller
 #[derive(Debug)]
 struct TaskLoadResult {
@@ -481,6 +498,36 @@ impl SummonClient {
             completed_tasks: Mutex::new(HashMap::new()),
             notification_subscribers: Arc::new(Mutex::new(Vec::new())),
         })
+    }
+
+    async fn create_subagent_session(
+        &self,
+        task_config: &TaskConfig,
+        name: String,
+    ) -> Result<crate::session::Session, String> {
+        let session = self
+            .context
+            .session_manager
+            .create_session(
+                task_config.parent_working_dir.clone(),
+                name,
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
+            .await
+            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+
+        if !task_config.parent_session_id.is_empty() {
+            self.context
+                .session_manager
+                .update(&session.id)
+                .parent_session_id(Some(task_config.parent_session_id.clone()))
+                .apply()
+                .await
+                .map_err(|e| format!("Failed to link subagent to parent session: {}", e))?;
+        }
+
+        Ok(session)
     }
 
     fn spawn_notification_bridge(
@@ -1255,16 +1302,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                "Delegated task".to_string(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, "Delegated task".to_string())
+            .await?;
 
         let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
         Self::spawn_notification_bridge(
@@ -1419,21 +1458,8 @@ impl SummonClient {
                         format!("Failed to load subrecipe '{}': {}", source.name, e)
                     })?;
 
-                    let mut merged: HashMap<String, String> = HashMap::new();
-                    if let Some(values) = &sr.values {
-                        for (k, v) in values {
-                            merged.insert(k.clone(), v.clone());
-                        }
-                    }
-                    if let Some(provided_params) = &params.parameters {
-                        for (k, v) in provided_params {
-                            let value_str = match v {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            };
-                            merged.insert(k.clone(), value_str);
-                        }
-                    }
+                    let merged =
+                        merge_subrecipe_parameters(sr.values.as_ref(), params.parameters.as_ref());
                     let param_values: Vec<(String, String)> = merged.into_iter().collect();
 
                     return build_recipe_from_template(
@@ -1609,23 +1635,29 @@ impl SummonClient {
 
         if let Some(model) = override_model {
             if model != model_config.model_name {
-                // Build the new config from scratch so canonical fields
-                // (context_limit, max_tokens, reasoning) and env-derived
-                // overrides (GOOSE_CONTEXT_LIMIT, GOOSE_MAX_TOKENS) match the
-                // overridden model, then preserve session-level state that is
-                // not model-specific from the parent.
+                // Build the overridden config through the canonical session-settings
+                // path. This materializes model-specific fields (context_limit,
+                // max_tokens, reasoning) and env overrides for the *new* model, and
+                // inherits only model-family-agnostic session state from the parent:
+                // reasoning controls like `thinking_effort` and `budget_tokens` carry
+                // over (with the child > parent > global-default precedence the helper
+                // applies), while provider-specific request_params such as
+                // `anthropic_beta` are dropped so they can't bleed into a child
+                // targeting a different model family and trigger a 400 INVALID_ARGUMENT.
                 let parent = model_config;
                 let mut cfg =
-                    crate::model_config::model_config_from_user_config(provider_name, &model)?;
+                    crate::model_config::model_config_from_user_config_with_session_settings(
+                        provider_name,
+                        &model,
+                        Some(&parent),
+                        None,
+                        None,
+                    )?;
+                // Remaining model-agnostic session settings the helper doesn't
+                // touch, copied from the parent explicitly.
                 cfg.toolshim = parent.toolshim;
                 cfg.toolshim_model = parent.toolshim_model;
                 cfg.temperature = cfg.temperature.or(parent.temperature);
-                if let Some(parent_params) = parent.request_params {
-                    let merged = cfg.request_params.get_or_insert_with(Default::default);
-                    for (k, v) in parent_params {
-                        merged.insert(k, v);
-                    }
-                }
                 model_config = cfg;
             }
         }
@@ -1799,16 +1831,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                description.clone(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, description.clone())
+            .await?;
 
         let task_id = subagent_session.id.clone();
 
@@ -2428,6 +2452,32 @@ You review code."#;
     }
 
     #[test]
+    fn test_subrecipe_fixed_values_take_precedence_over_delegate_parameters() {
+        let fixed = HashMap::from([("fixed".to_string(), "parent-value".to_string())]);
+        let provided = HashMap::from([
+            (
+                "fixed".to_string(),
+                serde_json::Value::String("delegate-value".to_string()),
+            ),
+            (
+                "caller".to_string(),
+                serde_json::Value::String("caller-value".to_string()),
+            ),
+        ]);
+
+        let merged = merge_subrecipe_parameters(Some(&fixed), Some(&provided));
+
+        assert_eq!(
+            merged.get("fixed").map(String::as_str),
+            Some("parent-value")
+        );
+        assert_eq!(
+            merged.get("caller").map(String::as_str),
+            Some("caller-value")
+        );
+    }
+
+    #[test]
     fn test_build_instructions_with_context_wraps_existing_instructions() {
         assert_eq!(
             build_instructions_with_context("background info", "Run deploy steps"),
@@ -2616,13 +2666,17 @@ You review code."#;
 
     #[tokio::test]
     #[serial]
-    async fn test_resolve_model_config_preserves_parent_request_params_on_override() {
+    async fn test_resolve_model_config_does_not_inherit_provider_specific_request_params() {
         let _env = env_lock::lock_env([
             ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ("GOOSE_MAX_TOKENS", None::<&str>),
             ("GOOSE_SUBAGENT_MODEL", None::<&str>),
         ]);
 
+        // Parent session is a Claude model with anthropic_beta in request_params.
+        // When delegate() overrides to a different model (e.g. Gemini), provider-
+        // specific params like anthropic_beta must not bleed through — they would
+        // cause a 400 INVALID_ARGUMENT from the target API.
         let mut parent = parent_config();
         parent.request_params = Some(HashMap::from([(
             "anthropic_beta".to_string(),
@@ -2636,7 +2690,57 @@ You review code."#;
                 .request_params
                 .as_ref()
                 .and_then(|p| p.get("anthropic_beta")),
-            Some(&serde_json::json!("custom-beta-header")),
+            None,
+            "anthropic_beta must not be inherited by a child session with a different model"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_inherits_thinking_effort_on_override() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_MODEL", None::<&str>),
+        ]);
+
+        // Reasoning controls are model-family-agnostic and should be inherited,
+        // while provider-specific params like anthropic_beta must not.
+        let mut parent = parent_config();
+        parent.request_params = Some(HashMap::from([
+            ("thinking_effort".to_string(), serde_json::json!("high")),
+            ("budget_tokens".to_string(), serde_json::json!(8192)),
+            (
+                "anthropic_beta".to_string(),
+                serde_json::json!("custom-beta-header"),
+            ),
+        ]));
+
+        let resolved = resolve_with_override(Some(OVERRIDE_MODEL), parent);
+
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
+                .and_then(|p| p.get("thinking_effort")),
+            Some(&serde_json::json!("high")),
+            "thinking_effort should be inherited across model families"
+        );
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
+                .and_then(|p| p.get("budget_tokens")),
+            Some(&serde_json::json!(8192)),
+            "budget_tokens should be inherited across model families"
+        );
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
+                .and_then(|p| p.get("anthropic_beta")),
+            None,
+            "anthropic_beta must not be inherited alongside reasoning controls"
         );
     }
 

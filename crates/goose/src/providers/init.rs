@@ -23,7 +23,6 @@ use super::{
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
-    google::GoogleProvider,
     huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
@@ -31,7 +30,7 @@ use super::{
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
-    snowflake::SnowflakeProvider,
+    snowflake_def::SnowflakeProviderDef,
     tetrate::TetrateProvider,
     xai::XaiProvider,
     xai_oauth::XaiOAuthProvider,
@@ -41,6 +40,7 @@ use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
 use crate::providers::databricks_def::{self, DatabricksProviderDef};
 use crate::providers::databricks_v2_def::{self, DatabricksV2ProviderDef};
+use crate::providers::google_def::GoogleProviderDef;
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
@@ -102,9 +102,12 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
-        registry.register::<GeminiOAuthProvider>(true);
+        registry.register_with_inventory::<GeminiOAuthProvider>(
+            true,
+            Some(registrations::gemini_oauth_inventory()),
+        );
         registry.register::<GithubCopilotProvider>(false);
-        registry.register_with_inventory::<GoogleProvider>(
+        registry.register_with_inventory::<GoogleProviderDef>(
             true,
             Some(registrations::google_inventory()),
         );
@@ -113,7 +116,18 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::huggingface_inventory()),
         );
         registry.register::<KimiCodeProvider>(true);
-        registry.register::<LiteLLMProvider>(false);
+        registry.register_with_inventory::<LiteLLMProvider>(
+            false,
+            Some(registrations::refresh_only().with_configured(|| {
+                let config = crate::config::Config::global();
+                config
+                    .get_param::<serde_json::Value>("LITELLM_HOST")
+                    .is_ok()
+                    || config
+                        .get_secret::<serde_json::Value>("LITELLM_API_KEY")
+                        .is_ok()
+            })),
+        );
         registry.register::<NanoGptProvider>(true);
         registry.register_with_inventory::<OllamaProviderDef>(
             true,
@@ -130,7 +144,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
-        registry.register::<SnowflakeProvider>(false);
+        registry.register::<SnowflakeProviderDef>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
         registry.register_with_inventory::<XaiOAuthProvider>(
@@ -269,6 +283,7 @@ pub async fn create_with_named_model(
 mod tests {
     use super::*;
     use crate::config::paths::Paths;
+    use goose_providers::model::ModelConfig;
     use std::fs;
 
     #[tokio::test]
@@ -406,5 +421,104 @@ mod tests {
         assert_eq!(zero_config.context_limit, None);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
+    async fn test_goose_context_limit_overrides_known_models_and_defaults() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", Some("1000000")),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+        ]);
+
+        let openai = get_from_registry("openai")
+            .await
+            .expect("openai provider should be registered");
+        let unknown = openai
+            .normalize_model_config(ModelConfig::new("totally-unknown-model"))
+            .expect("unknown model config should normalize");
+        assert_eq!(unknown.context_limit(), 1_000_000);
+
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        let custom_dir = Paths::config_dir().join("custom_providers");
+        fs::create_dir_all(&custom_dir).expect("custom providers dir should be created");
+
+        let custom_inf = r#"{
+  "name": "custom_inf",
+  "engine": "openai",
+  "display_name": "Custom Inf",
+  "description": "test provider",
+  "api_key_env": "",
+  "base_url": "https://example.invalid/v1/chat/completions",
+  "models": [
+    {"name": "kimi-k2.5", "context_limit": 256000}
+  ],
+  "requires_auth": false
+}"#;
+        fs::write(custom_dir.join("custom_inf.json"), custom_inf)
+            .expect("custom_inf.json should be written");
+
+        refresh_custom_providers()
+            .await
+            .expect("custom providers should refresh");
+
+        let inf_entry = get_from_registry("custom_inf")
+            .await
+            .expect("custom_inf entry should exist");
+        let inf_config = inf_entry
+            .normalize_model_config(ModelConfig::new("kimi-k2.5"))
+            .expect("custom_inf model config should normalize");
+        assert_eq!(inf_config.context_limit(), 1_000_000);
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
+    async fn test_litellm_supports_inventory_refresh() {
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.supports_inventory_refresh(),
+            "litellm must support inventory refresh so the model picker calls fetch_supported_models"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_litellm_configured_without_api_key() {
+        let _guard = env_lock::lock_env([
+            ("LITELLM_API_KEY", None::<&str>),
+            ("LITELLM_HOST", Some("http://localhost:4000")),
+        ]);
+
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            entry.inventory_configured(),
+            "litellm should be considered configured when LITELLM_HOST is set without an API key"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_litellm_not_configured_without_any_settings() {
+        let _guard = env_lock::lock_env([
+            ("LITELLM_API_KEY", None::<&str>),
+            ("LITELLM_HOST", None::<&str>),
+        ]);
+
+        let entry = get_from_registry("litellm")
+            .await
+            .expect("litellm should be registered");
+        assert!(
+            !entry.inventory_configured(),
+            "litellm should not be considered configured when no settings are present"
+        );
     }
 }

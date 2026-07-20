@@ -7,7 +7,7 @@ use crate::model::ModelConfig;
 
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
-    openai_reasoning_effort_for_thinking, sanitize_function_name,
+    openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
 };
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use anyhow::{anyhow, Error};
@@ -554,52 +554,6 @@ pub fn apply_cache_control_for_claude(payload: &mut Value) {
             if let Some(function) = last_tool.get_mut("function") {
                 if let Some(obj) = function.as_object_mut() {
                     obj.insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
-                }
-            }
-        }
-    }
-}
-
-/// Validates and fixes tool schemas to ensure they have proper parameter structure.
-/// If parameters exist, ensures they have properties and required fields, or removes parameters entirely.
-pub fn validate_tool_schemas(tools: &mut [Value]) {
-    for tool in tools.iter_mut() {
-        if let Some(function) = tool.get_mut("function") {
-            if let Some(parameters) = function.get_mut("parameters") {
-                if parameters.is_object() {
-                    ensure_valid_json_schema(parameters);
-                }
-            }
-        }
-    }
-}
-
-/// Ensures that the given JSON value follows the expected JSON Schema structure.
-fn ensure_valid_json_schema(schema: &mut Value) {
-    if let Some(params_obj) = schema.as_object_mut() {
-        // Check if this is meant to be an object type schema
-        let is_object_type = params_obj
-            .get("type")
-            .and_then(|t| t.as_str())
-            .is_none_or(|t| t == "object"); // Default to true if no type is specified
-
-        // Only apply full schema validation to object types
-        if is_object_type {
-            // Ensure required fields exist with default values
-            params_obj.entry("properties").or_insert_with(|| json!({}));
-            params_obj.entry("required").or_insert_with(|| json!([]));
-            params_obj.entry("type").or_insert_with(|| json!("object"));
-
-            // Recursively validate properties if it exists
-            if let Some(properties) = params_obj.get_mut("properties") {
-                if let Some(properties_obj) = properties.as_object_mut() {
-                    for (_key, prop) in properties_obj.iter_mut() {
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
-                            ensure_valid_json_schema(prop);
-                        }
-                    }
                 }
             }
         }
@@ -1158,7 +1112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_off_effort_preserves_none() -> anyhow::Result<()> {
+    fn test_create_request_off_effort_uses_low() -> anyhow::Result<()> {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
         let model_config = ModelConfig {
@@ -1172,7 +1126,7 @@ mod tests {
             reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        assert_eq!(request["reasoning_effort"], "none");
+        assert_eq!(request["reasoning_effort"], "low");
         assert!(request.get("thinking_effort").is_none());
         Ok(())
     }
@@ -1317,7 +1271,7 @@ mod tests {
 
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
+        let mut model_config = ModelConfig::new("databricks-claude-sonnet-4.5");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1342,7 +1296,7 @@ mod tests {
             ("high", 16000),
             ("max", 32000),
         ] {
-            let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
+            let mut model_config = ModelConfig::new("databricks-claude-sonnet-4.5");
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
@@ -1361,7 +1315,7 @@ mod tests {
     #[test]
     fn test_response_to_message_claude_thinking() -> anyhow::Result<()> {
         let response = json!({
-            "model": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
             "choices": [{
                 "message": {
                     "role": "assistant",
@@ -1409,7 +1363,7 @@ mod tests {
     #[test]
     fn test_response_to_message_claude_encrypted_thinking() -> anyhow::Result<()> {
         let response = json!({
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-5-20250929",
             "choices": [{
                 "message": {
                     "role": "assistant",
@@ -1554,7 +1508,7 @@ mod tests {
     #[test]
     fn test_is_claude_model() {
         assert!(is_claude_model("databricks-claude-sonnet-4"));
-        assert!(is_claude_model("databricks-claude-3-7-sonnet"));
+        assert!(is_claude_model("databricks-claude-sonnet-4.5"));
         assert!(is_claude_model("claude-sonnet-4"));
         assert!(is_claude_model("goose-claude-sonnet"));
         assert!(!is_claude_model("gpt-4o"));

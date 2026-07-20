@@ -46,6 +46,11 @@
       "responseType": "AppsImportResponse_unstable"
     },
     {
+      "method": "_goose/unstable/apps/delete",
+      "requestType": "AppsDeleteRequest_unstable",
+      "responseType": "AppsDeleteResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/session/working-dir/update",
       "requestType": "UpdateWorkingDirRequest_unstable",
       "responseType": "EmptyResponse"
@@ -528,6 +533,11 @@
     {
       "method": "_goose/unstable/local-inference/models/delete",
       "requestType": "LocalInferenceModelDeleteRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/evict",
+      "requestType": "LocalInferenceModelEvictRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {

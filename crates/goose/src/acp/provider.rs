@@ -1,12 +1,13 @@
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
-    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
+    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
+    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
+    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
+    SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
+    ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -35,10 +36,12 @@ use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
@@ -58,7 +61,7 @@ pub struct AcpProviderConfig {
     /// provider re-applies this option from the per-completion `ModelConfig`
     /// whenever the active session model changes.
     pub model_config_option_id: Option<String>,
-    pub mode_mapping: HashMap<GooseMode, String>,
+    pub mode_mapping: HashMap<GooseMode, Vec<String>>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
 
@@ -97,7 +100,7 @@ type ClientLoopFn = Box<
 
 #[derive(Debug)]
 enum AcpUpdate {
-    Text(String),
+    Text(TextContent),
     Thought(String),
     ToolCallStart {
         id: String,
@@ -142,7 +145,7 @@ struct HandoffContextClaim {
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
-    mode_mapping: HashMap<GooseMode, String>,
+    mode_mapping: HashMap<GooseMode, Vec<String>>,
 
     session: AcpSession,
 
@@ -419,20 +422,27 @@ impl Provider for AcpProvider {
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
-        let mode_str = self
-            .mode_mapping
-            .get(&mode)
-            .cloned()
-            .unwrap_or_else(|| format!("{mode:?}"));
-
-        if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
-            self.send_set_config_option(session_id, "mode".into(), mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
-        } else {
-            self.send_set_mode(session_id, mode_str)
-                .await
-                .map_err(|e| ProviderError::RequestFailed(format!("Failed to set mode: {e}")))?;
+        if let Some(candidates) = self.mode_mapping.get(&mode) {
+            let mode_str = select_mode_id(candidates, self.session.response.modes.as_ref())
+                .ok_or_else(|| {
+                    ProviderError::RequestFailed(format!(
+                        "None of the mode ids [{}] are offered by the agent",
+                        candidates.join(", ")
+                    ))
+                })?;
+            if self.session_has_config_option(SessionConfigOptionCategory::Mode) {
+                self.send_set_config_option(session_id, "mode".into(), mode_str)
+                    .await
+                    .map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to set mode: {e}"))
+                    })?;
+            } else {
+                self.send_set_mode(session_id, mode_str)
+                    .await
+                    .map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to set mode: {e}"))
+                    })?;
+            }
         }
 
         if let Ok(mut guard) = self.goose_mode.lock() {
@@ -477,8 +487,17 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
+        let current_prompt_blocks = messages_to_prompt(messages, false);
+        if current_prompt_blocks.is_empty() {
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
         let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = messages_to_prompt(messages, claim.include_context);
+        let prompt_blocks = if claim.include_context {
+            messages_to_prompt(messages, true)
+        } else {
+            current_prompt_blocks
+        };
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
@@ -519,9 +538,7 @@ impl Provider for AcpProvider {
                             let (id, ts) = text_run
                                 .get_or_insert_with(fresh_text_run)
                                 .clone();
-                            let message = Message::new(Role::Assistant, ts, vec![])
-                                .with_text(text)
-                                .with_id(id);
+                            let message = acp_text_update_message(text, id, ts);
                             yield (Some(message), None);
                         }
                     }
@@ -808,7 +825,7 @@ impl AcpClientLoop {
                         {
                             match notification.update {
                                 SessionUpdate::AgentMessageChunk(ContentChunk {
-                                    content: ContentBlock::Text(TextContent { text, .. }),
+                                    content: ContentBlock::Text(text),
                                     ..
                                 }) => {
                                     let _ = tx.try_send(AcpUpdate::Text(text));
@@ -1210,42 +1227,66 @@ async fn apply_session_mode(
     session: NewSessionResponse,
 ) -> Result<NewSessionResponse> {
     let current_mode = goose_mode.lock().ok().map(|mode| *mode);
-    let requested_mode_id = current_mode
-        .and_then(|mode| config.mode_mapping.get(&mode).cloned())
-        .or_else(|| config.session_mode_id.clone());
+    let candidates = initial_mode_candidates(config, current_mode);
 
-    if let (Some(mode_id), Some(modes)) = (requested_mode_id, session.modes.as_ref()) {
-        if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
-            let available: Vec<String> = modes
-                .available_modes
-                .iter()
-                .map(|mode| mode.id.0.to_string())
-                .collect();
-
-            if !available.iter().any(|id| id == &mode_id) {
+    if let Some(modes) = session.modes.as_ref() {
+        if !candidates.is_empty() {
+            let Some(mode_id) = select_mode_id(&candidates, Some(modes)) else {
+                let available: Vec<String> = modes
+                    .available_modes
+                    .iter()
+                    .map(|mode| mode.id.0.to_string())
+                    .collect();
                 return Err(anyhow::anyhow!(
-                    "Requested mode '{}' not offered by agent. Available modes: {}",
-                    mode_id,
+                    "Requested mode(s) [{}] not offered by agent. Available modes: {}",
+                    candidates.join(", "),
                     available.join(", ")
                 ));
+            };
+            if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
+                let _: SetSessionModeResponse = cx
+                    .send_request(SetSessionModeRequest::new(
+                        session.session_id.clone(),
+                        mode_id,
+                    ))
+                    .block_task()
+                    .await
+                    .map_err(|err| {
+                        anyhow::anyhow!(
+                            "ACP agent rejected {}: {err}",
+                            AGENT_METHOD_NAMES.session_set_mode
+                        )
+                    })?;
             }
-            let _: SetSessionModeResponse = cx
-                .send_request(SetSessionModeRequest::new(
-                    session.session_id.clone(),
-                    mode_id,
-                ))
-                .block_task()
-                .await
-                .map_err(|err| {
-                    anyhow::anyhow!(
-                        "ACP agent rejected {}: {err}",
-                        AGENT_METHOD_NAMES.session_set_mode
-                    )
-                })?;
         }
     }
 
     Ok(session)
+}
+
+fn initial_mode_candidates(
+    config: &AcpProviderConfig,
+    current_mode: Option<GooseMode>,
+) -> Vec<String> {
+    current_mode
+        .and_then(|mode| config.mode_mapping.get(&mode).cloned())
+        .or_else(|| config.session_mode_id.clone().map(|id| vec![id]))
+        .unwrap_or_default()
+}
+
+fn select_mode_id(candidates: &[String], modes: Option<&SessionModeState>) -> Option<String> {
+    match modes {
+        Some(state) => candidates
+            .iter()
+            .find(|candidate| {
+                state
+                    .available_modes
+                    .iter()
+                    .any(|mode| mode.id.0.as_ref() == candidate.as_str())
+            })
+            .cloned(),
+        None => candidates.first().cloned(),
+    }
 }
 
 pub fn extension_configs_to_mcp_servers(configs: &[ExtensionConfig]) -> Vec<McpServer> {
@@ -1322,26 +1363,19 @@ fn filter_supported_servers(
 }
 
 fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
-    let mut content_blocks = Vec::new();
-
     let Some(last_user_index) = last_user_message_index(messages) else {
-        return content_blocks;
+        return Vec::new();
     };
 
-    if include_handoff_context {
-        if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-            content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-        }
-    }
-
-    let message = &messages[last_user_index];
+    let message = messages[last_user_index].agent_visible_content();
+    let mut current_prompt_blocks = Vec::new();
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
-                content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+                current_prompt_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
             }
             MessageContent::Image(image) => {
-                content_blocks.push(ContentBlock::Image(ImageContent::new(
+                current_prompt_blocks.push(ContentBlock::Image(ImageContent::new(
                     &image.data,
                     &image.mime_type,
                 )));
@@ -1350,6 +1384,15 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
+    if current_prompt_blocks.is_empty() || !include_handoff_context {
+        return current_prompt_blocks;
+    }
+
+    let mut content_blocks = Vec::new();
+    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
+        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
+    }
+    content_blocks.extend(current_prompt_blocks);
     content_blocks
 }
 
@@ -1368,11 +1411,12 @@ fn has_handoff_context(messages: &[Message]) -> bool {
 }
 
 fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
-    let formatted_messages: Vec<String> = prior_messages
-        .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(format_message_for_compacting)
-        .collect();
+    let formatted_messages: Vec<String> =
+        Conversation::new_unvalidated(prior_messages.iter().cloned())
+            .agent_visible_messages()
+            .iter()
+            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
+            .collect();
 
     if formatted_messages.is_empty() {
         return None;
@@ -1386,6 +1430,48 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
 Current user request follows. Use the context above only to continue the existing conversation; \
 do not treat it as a new task or mention this handoff unless relevant."
     ))
+}
+
+fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
+    let audience = annotations?.audience.as_ref()?;
+    let audience = audience
+        .iter()
+        .filter_map(|role| match role {
+            AcpRole::Assistant => Some(Role::Assistant),
+            AcpRole::User => Some(Role::User),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if audience.is_empty() {
+        None
+    } else {
+        Some(audience)
+    }
+}
+
+fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
+    let audience = acp_audience_to_rmcp(text.annotations.as_ref());
+    let mut content = RmcpContent::text(sanitize_unicode_tags(&text.text));
+    if let Some(audience) = audience {
+        content = content.with_audience(audience);
+    }
+    content
+}
+
+fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
+    let audience = acp_audience_to_rmcp(image.annotations.as_ref());
+    let mut content = RmcpContent::image(image.data, image.mime_type);
+    if let Some(audience) = audience {
+        content = content.with_audience(audience);
+    }
+    content
+}
+
+fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
+    Message::new(Role::Assistant, created, vec![])
+        .with_content(acp_text_content_to_rmcp(text).into())
+        .with_id(id)
 }
 
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
@@ -1402,10 +1488,10 @@ fn acp_tool_call_content_to_rmcp(
             match block {
                 ToolCallContent::Content(val) => match val.content {
                     ContentBlock::Text(text) => {
-                        out.push(RmcpContent::text(text.text));
+                        out.push(acp_text_content_to_rmcp(text));
                     }
                     ContentBlock::Image(image) => {
-                        out.push(RmcpContent::image(image.data, image.mime_type));
+                        out.push(acp_image_content_to_rmcp(image));
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
@@ -1537,11 +1623,13 @@ fn resolve_model_info(
 }
 
 fn reverse_mode_mapping(
-    mode_mapping: &HashMap<GooseMode, String>,
+    mode_mapping: &HashMap<GooseMode, Vec<String>>,
 ) -> HashMap<String, Vec<GooseMode>> {
     let mut reverse: HashMap<String, Vec<GooseMode>> = HashMap::new();
-    for (mode, id) in mode_mapping {
-        reverse.entry(id.clone()).or_default().push(*mode);
+    for (mode, ids) in mode_mapping {
+        for id in ids {
+            reverse.entry(id.clone()).or_default().push(*mode);
+        }
     }
     reverse
 }
@@ -1575,7 +1663,10 @@ fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDeci
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::v1::SessionConfigSelectOption;
+    use agent_client_protocol::schema::v1::{
+        SessionConfigSelectOption, SessionMode, SessionModeId,
+    };
+    use rmcp::model::AnnotateAble;
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -1656,6 +1747,26 @@ mod tests {
     }
 
     #[test]
+    fn messages_to_prompt_drops_user_only_acp_rows_from_handoff() {
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::User]));
+        let messages = vec![
+            Message::user().with_text("visible prior"),
+            acp_text_update_message(user_only, "acp-message".to_string(), 123),
+            Message::user().with_text("current request"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+
+        assert_eq!(blocks.len(), 2);
+        let memo = prompt_text(&blocks[0]);
+        assert!(memo.contains("visible prior"));
+        assert!(!memo.contains("SECRET_USER_ONLY"));
+        assert!(!memo.contains("<empty message>"));
+        assert_eq!(prompt_text(&blocks[1]), "current request");
+    }
+
+    #[test]
     fn messages_to_prompt_keeps_latest_user_images_after_handoff_memo() {
         let messages = vec![
             Message::assistant().with_text("prior answer"),
@@ -1676,6 +1787,107 @@ mod tests {
             _ => panic!("expected image block"),
         }
         assert_eq!(prompt_text(&blocks[2]), "describe this");
+    }
+
+    #[test]
+    fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
+        use rmcp::model::RawTextContent;
+
+        fn user_only_text(text: &str) -> MessageContent {
+            MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![Role::User]),
+            )
+        }
+
+        let messages = vec![
+            Message::user()
+                .with_text("visible prior")
+                .with_content(user_only_text("SECRET_PRIOR")),
+            Message::user()
+                .with_text("visible current")
+                .with_content(user_only_text("SECRET_CURRENT")),
+        ];
+
+        let rendered = messages_to_prompt(&messages, true)
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("visible prior"));
+        assert!(rendered.contains("visible current"));
+        assert!(!rendered.contains("SECRET_PRIOR"));
+        assert!(!rendered.contains("SECRET_CURRENT"));
+    }
+
+    #[test]
+    fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
+        use rmcp::model::RawTextContent;
+
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        assert!(messages_to_prompt(&messages, true).is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
+        use futures::StreamExt;
+        use rmcp::model::RawTextContent;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let current = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+        let messages = vec![
+            Message::assistant().with_text("prior context"),
+            Message::user().with_content(current),
+        ];
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        assert!(stream.next().await.is_none());
+        assert!(rx.try_recv().is_err());
+        assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn live_acp_text_update_preserves_assistant_only_audience() {
+        let text = TextContent::new("assistant-only")
+            .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant]));
+
+        let message = acp_text_update_message(text, "message-id".to_string(), 123);
+
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("expected text content");
+        };
+        let audience = text.audience().expect("audience annotation should survive");
+        assert!(audience.contains(&Role::Assistant));
+        assert!(!audience.contains(&Role::User));
     }
 
     #[test]
@@ -1811,6 +2023,195 @@ mod tests {
         assert!(rx.try_recv().is_err());
     }
 
+    fn test_acp_config(
+        mode_mapping: HashMap<GooseMode, Vec<String>>,
+        session_mode_id: Option<String>,
+    ) -> AcpProviderConfig {
+        AcpProviderConfig {
+            command: PathBuf::new(),
+            args: vec![],
+            env: vec![],
+            env_remove: vec![],
+            work_dir: PathBuf::new(),
+            mcp_servers: vec![],
+            session_mode_id,
+            session_config_options: vec![],
+            model_config_option_id: None,
+            mode_mapping,
+            notification_callback: None,
+        }
+    }
+
+    #[test_case(GooseMode::Auto)]
+    #[test_case(GooseMode::Approve)]
+    #[test_case(GooseMode::SmartApprove)]
+    #[test_case(GooseMode::Chat)]
+    fn initial_mode_candidates_empty_when_mode_negotiation_disabled(mode: GooseMode) {
+        let config = test_acp_config(HashMap::new(), None);
+        assert!(initial_mode_candidates(&config, Some(mode)).is_empty());
+    }
+
+    #[test]
+    fn initial_mode_candidates_prefer_mapping_then_fallback() {
+        let mapping = HashMap::from([(GooseMode::Auto, vec!["bypassPermissions".to_string()])]);
+        let config = test_acp_config(mapping, Some("default".to_string()));
+
+        assert_eq!(
+            initial_mode_candidates(&config, Some(GooseMode::Auto)),
+            vec!["bypassPermissions".to_string()]
+        );
+        assert_eq!(
+            initial_mode_candidates(&config, Some(GooseMode::Chat)),
+            vec!["default".to_string()]
+        );
+    }
+
+    fn mode_state(current: &str, available: &[&str]) -> SessionModeState {
+        SessionModeState::new(
+            SessionModeId::new(current),
+            available
+                .iter()
+                .map(|id| SessionMode::new(SessionModeId::new(*id), *id))
+                .collect(),
+        )
+    }
+
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["read-only", "auto", "full-access"],
+        Some("full-access")
+        ; "zed era ids"
+    )]
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["read-only", "agent", "agent-full-access"],
+        Some("agent-full-access")
+        ; "agentclientprotocol era ids"
+    )]
+    #[test_case(
+        &["full-access", "agent-full-access"],
+        &["something-else"],
+        None
+        ; "no candidate offered"
+    )]
+    fn select_mode_id_picks_first_offered_candidate(
+        candidates: &[&str],
+        available: &[&str],
+        expected: Option<&str>,
+    ) {
+        let candidates: Vec<String> = candidates.iter().map(|s| s.to_string()).collect();
+        let modes = mode_state(available[0], available);
+        assert_eq!(
+            select_mode_id(&candidates, Some(&modes)),
+            expected.map(|s| s.to_string())
+        );
+    }
+
+    #[test]
+    fn select_mode_id_first_candidate_when_agent_has_no_modes() {
+        let candidates = vec!["full-access".to_string(), "agent-full-access".to_string()];
+        assert_eq!(
+            select_mode_id(&candidates, None),
+            Some("full-access".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn update_mode_without_mapping_skips_acp_request_but_tracks_mode() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        provider
+            .update_mode("session", GooseMode::Chat)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Chat);
+    }
+
+    #[tokio::test]
+    async fn update_mode_with_mapping_sends_set_mode() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["plan".to_string()])]);
+
+        let handle = tokio::spawn(async move {
+            provider
+                .update_mode("session", GooseMode::Chat)
+                .await
+                .unwrap();
+            provider
+        });
+
+        match rx.recv().await.expect("expected a SetMode request") {
+            ClientRequest::SetMode {
+                mode_id,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(mode_id, "plan");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        let provider = handle.await.unwrap();
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Chat);
+    }
+
+    #[tokio::test]
+    async fn update_mode_sends_candidate_offered_by_agent() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(
+            GooseMode::Auto,
+            vec!["full-access".to_string(), "agent-full-access".to_string()],
+        )]);
+        provider.session.response = NewSessionResponse::new("test-session").modes(mode_state(
+            "read-only",
+            &["read-only", "agent", "agent-full-access"],
+        ));
+
+        let handle = tokio::spawn(async move {
+            provider
+                .update_mode("session", GooseMode::Auto)
+                .await
+                .unwrap();
+            provider
+        });
+
+        match rx.recv().await.expect("expected a SetMode request") {
+            ClientRequest::SetMode {
+                mode_id,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(mode_id, "agent-full-access");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        let provider = handle.await.unwrap();
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
+    }
+
+    #[tokio::test]
+    async fn update_mode_errors_when_no_candidate_offered() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.mode_mapping = HashMap::from([(GooseMode::Chat, vec!["read-only".to_string()])]);
+        provider.session.response = NewSessionResponse::new("test-session")
+            .modes(mode_state("agent", &["agent", "agent-full-access"]));
+
+        let result = provider.update_mode("session", GooseMode::Chat).await;
+
+        assert!(result.is_err());
+        assert!(rx.try_recv().is_err());
+        assert_eq!(*provider.goose_mode.lock().unwrap(), GooseMode::Auto);
+    }
+
     #[test]
     fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
@@ -1935,10 +2336,10 @@ mod tests {
 
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "yolo".to_string()),
-            (GooseMode::Approve, "default".to_string()),
-            (GooseMode::SmartApprove, "auto_edit".to_string()),
-            (GooseMode::Chat, "plan".to_string()),
+            (GooseMode::Auto, vec!["yolo".to_string()]),
+            (GooseMode::Approve, vec!["default".to_string()]),
+            (GooseMode::SmartApprove, vec!["auto_edit".to_string()]),
+            (GooseMode::Chat, vec!["plan".to_string()]),
         ]),
         HashMap::from([
             ("yolo".to_string(), vec![GooseMode::Auto]),
@@ -1950,10 +2351,10 @@ mod tests {
     )]
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "bypassPermissions".to_string()),
-            (GooseMode::Approve, "default".to_string()),
-            (GooseMode::SmartApprove, "acceptEdits".to_string()),
-            (GooseMode::Chat, "plan".to_string()),
+            (GooseMode::Auto, vec!["bypassPermissions".to_string()]),
+            (GooseMode::Approve, vec!["default".to_string()]),
+            (GooseMode::SmartApprove, vec!["acceptEdits".to_string()]),
+            (GooseMode::Chat, vec!["plan".to_string()]),
         ]),
         HashMap::from([
             ("bypassPermissions".to_string(), vec![GooseMode::Auto]),
@@ -1965,20 +2366,22 @@ mod tests {
     )]
     #[test_case(
         HashMap::from([
-            (GooseMode::Auto, "full-access".to_string()),
-            (GooseMode::Approve, "read-only".to_string()),
-            (GooseMode::SmartApprove, "auto".to_string()),
-            (GooseMode::Chat, "read-only".to_string()),
+            (GooseMode::Auto, vec!["full-access".to_string(), "agent-full-access".to_string()]),
+            (GooseMode::Approve, vec!["read-only".to_string()]),
+            (GooseMode::SmartApprove, vec!["auto".to_string(), "agent".to_string()]),
+            (GooseMode::Chat, vec!["read-only".to_string()]),
         ]),
         HashMap::from([
             ("full-access".to_string(), vec![GooseMode::Auto]),
+            ("agent-full-access".to_string(), vec![GooseMode::Auto]),
             ("read-only".to_string(), vec![GooseMode::Approve, GooseMode::Chat]),
             ("auto".to_string(), vec![GooseMode::SmartApprove]),
+            ("agent".to_string(), vec![GooseMode::SmartApprove]),
         ])
-        ; "codex duplicate read-only"
+        ; "codex candidates for both bridge generations"
     )]
     fn test_reverse_mode_mapping(
-        forward: HashMap<GooseMode, String>,
+        forward: HashMap<GooseMode, Vec<String>>,
         expected: HashMap<String, Vec<GooseMode>>,
     ) {
         let result = reverse_mode_mapping(&forward);
@@ -2035,7 +2438,7 @@ mod tests {
         resolve_model_info("test", &response)
     }
 
-    fn codex_reverse_modes() -> HashMap<String, Vec<GooseMode>> {
+    fn duplicate_read_only_reverse_modes() -> HashMap<String, Vec<GooseMode>> {
         HashMap::from([
             ("full-access".to_string(), vec![GooseMode::Auto]),
             (
@@ -2067,7 +2470,7 @@ mod tests {
         ; "unknown mode id returns None"
     )]
     fn test_resolve_mode(mode_id: &str, current: GooseMode, expected: Option<GooseMode>) {
-        let reverse_modes = codex_reverse_modes();
+        let reverse_modes = duplicate_read_only_reverse_modes();
         let current = Arc::new(Mutex::new(current));
         let result = resolve_mode(&reverse_modes, mode_id, &current);
         if mode_id == "read-only" && expected == Some(GooseMode::Approve) {
@@ -2123,6 +2526,35 @@ mod tests {
             serialized[3].contains("base64data"),
             "image data lost: {serialized:?}"
         );
+    }
+
+    #[test]
+    fn acp_tool_call_content_preserves_audience_annotations() {
+        let text_block = ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(
+            ContentBlock::Text(
+                TextContent::new("user-only")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::User])),
+            ),
+        ));
+        let image_block = ToolCallContent::Content(
+            agent_client_protocol::schema::v1::Content::new(ContentBlock::Image(
+                ImageContent::new("base64data", "image/png")
+                    .annotations(AcpAnnotations::new().audience(vec![AcpRole::Assistant])),
+            )),
+        );
+
+        let out = acp_tool_call_content_to_rmcp(Some(vec![text_block, image_block]), None);
+
+        let text_audience = out[0]
+            .audience()
+            .expect("text audience annotation should survive");
+        assert!(text_audience.contains(&Role::User));
+        assert!(!text_audience.contains(&Role::Assistant));
+        let image_audience = out[1]
+            .audience()
+            .expect("image audience annotation should survive");
+        assert!(image_audience.contains(&Role::Assistant));
+        assert!(!image_audience.contains(&Role::User));
     }
 
     #[test]

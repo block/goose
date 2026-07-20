@@ -18,6 +18,7 @@ use tokio::sync::OnceCell;
 #[cfg(not(windows))]
 use tokio::task::JoinHandle;
 use tokio_stream::{wrappers::SplitStream, StreamExt};
+use tokio_util::sync::CancellationToken;
 
 use crate::subprocess::SubprocessExt;
 
@@ -170,6 +171,8 @@ struct TruncationInfo {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
     pub command: String,
+    /// Maximum time in seconds to allow the command to run before it is killed.
+    /// If omitted, defaults to DEFAULT_EXTENSION_TIMEOUT.
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -345,13 +348,16 @@ impl ShellTool {
     }
 
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
-        self.shell_with_cwd(params, None).await
+        self.shell_with_cwd(params, None, None, CancellationToken::new())
+            .await
     }
 
     pub async fn shell_with_cwd(
         &self,
         params: ShellParams,
         working_dir: Option<&std::path::Path>,
+        session_id: Option<&str>,
+        cancellation_token: CancellationToken,
     ) -> CallToolResult {
         if params.command.trim().is_empty() {
             return Self::error_result("Command cannot be empty.", None);
@@ -369,6 +375,8 @@ impl ShellTool {
             params.timeout_secs,
             working_dir,
             login_path_ref,
+            session_id,
+            cancellation_token,
         )
         .await
         {
@@ -433,14 +441,10 @@ impl ShellTool {
         .collect();
 
         let is_error = if execution.timed_out {
-            if let Some(timeout_secs) = params.timeout_secs {
-                rendered.push_str(&format!(
-                    "\n\nCommand timed out after {} seconds",
-                    timeout_secs
-                ));
-            } else {
-                rendered.push_str("\n\nCommand timed out");
-            }
+            rendered.push_str(&format!(
+                "\n\nCommand timed out after {} seconds",
+                resolve_shell_timeout(params.timeout_secs)
+            ));
             true
         } else {
             execution.exit_code.unwrap_or(1) != 0
@@ -505,13 +509,25 @@ struct ExecutionOutput {
     output_collection_error: Option<String>,
 }
 
+fn resolve_shell_timeout(timeout_secs: Option<u64>) -> u64 {
+    timeout_secs.unwrap_or_else(|| {
+        crate::config::Config::global()
+            .get_goose_default_extension_timeout()
+            .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)
+    })
+}
+
 async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
+    cancellation_token: CancellationToken,
 ) -> Result<ExecutionOutput, String> {
-    let mut command = build_shell_command(command_line, working_dir, login_path);
+    let timeout_secs = Some(resolve_shell_timeout(timeout_secs));
+
+    let mut command = build_shell_command(command_line, working_dir, login_path, session_id);
 
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -536,23 +552,35 @@ async fn run_command(
 
     let mut timed_out = false;
     let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
-        match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
-            Ok(wait_result) => wait_result
-                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-                .code(),
-            Err(_) => {
-                timed_out = true;
+        tokio::select! {
+            result = tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()) => match result {
+                Ok(wait_result) => wait_result
+                    .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+                    .code(),
+                Err(_) => {
+                    timed_out = true;
+                    let _ = child.start_kill();
+                    let _ = child.wait().await;
+                    None
+                }
+            },
+            _ = cancellation_token.cancelled() => {
                 let _ = child.start_kill();
                 let _ = child.wait().await;
                 None
             }
         }
     } else {
-        child
-            .wait()
-            .await
-            .map_err(|error| format!("Failed waiting on shell command: {}", error))?
-            .code()
+        tokio::select! {
+            result = child.wait() => result
+                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+                .code(),
+            _ = cancellation_token.cancelled() => {
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+                None
+            }
+        }
     };
 
     const OUTPUT_DRAIN_TIMEOUT_MILLIS: u64 = 500;
@@ -574,8 +602,8 @@ async fn run_command(
         }
         Err(_) => {
             tracing::debug!(
-                    "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
-                );
+                "output drain timed out after {OUTPUT_DRAIN_TIMEOUT_MILLIS}ms (backgrounded process?)"
+            );
             abort_handle.abort();
             true
         }
@@ -600,6 +628,7 @@ fn build_shell_command(
     command_line: &str,
     working_dir: Option<&std::path::Path>,
     login_path: Option<&str>,
+    session_id: Option<&str>,
 ) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
@@ -639,6 +668,7 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.arg(format!("--env=PATH={}", path));
             }
+            apply_flatpak_session_environment(&mut command, session_id);
             command
                 .arg(&shell)
                 .args(unix_shell_command_args(command_line));
@@ -652,12 +682,35 @@ fn build_shell_command(
             if let Some(path) = login_path {
                 command.env("PATH", path);
             }
+            apply_session_environment(&mut command, session_id);
             command
         }
     };
 
+    #[cfg(windows)]
+    apply_session_environment(&mut command, session_id);
     command.set_no_window();
     command
+}
+
+fn apply_session_environment(command: &mut tokio::process::Command, session_id: Option<&str>) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.env("AGENT_SESSION_ID", session_id);
+    } else {
+        command.env_remove("AGENT_SESSION_ID");
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_flatpak_session_environment(
+    command: &mut tokio::process::Command,
+    session_id: Option<&str>,
+) {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        command.arg(format!("--env=AGENT_SESSION_ID={session_id}"));
+    } else {
+        command.arg("--unset-env=AGENT_SESSION_ID");
+    }
 }
 
 /// Split tagged lines into (stdout, stderr, interleaved) strings.
@@ -847,6 +900,8 @@ mod tests {
                     timeout_secs: None,
                 },
                 Some(dir.path()),
+                None,
+                CancellationToken::new(),
             )
             .await;
 
@@ -854,6 +909,88 @@ mod tests {
         let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
         let expected = std::fs::canonicalize(dir.path()).unwrap();
         assert_eq!(observed, expected);
+    }
+
+    #[test]
+    fn session_environment_is_set_or_removed() {
+        for (session_id, expected) in [
+            (
+                Some("session-123"),
+                Some(Some(std::ffi::OsStr::new("session-123"))),
+            ),
+            (None, Some(None)),
+        ] {
+            let mut command = tokio::process::Command::new("ignored");
+            command.env("AGENT_SESSION_ID", "stale-session");
+
+            apply_session_environment(&mut command, session_id);
+
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_envs()
+                    .find_map(|(key, value)| (key == "AGENT_SESSION_ID").then_some(value)),
+                expected
+            );
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn flatpak_session_environment_is_set_or_unset() {
+        for (session_id, expected) in [
+            (Some("session-123"), "--env=AGENT_SESSION_ID=session-123"),
+            (None, "--unset-env=AGENT_SESSION_ID"),
+        ] {
+            let mut command = tokio::process::Command::new("flatpak-spawn");
+
+            apply_flatpak_session_environment(&mut command, session_id);
+
+            assert_eq!(
+                command
+                    .as_std()
+                    .get_args()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                vec![expected]
+            );
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_kills_child_on_cancellation() {
+        let tool = ShellTool::new_for_test().unwrap();
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            token_clone.cancel();
+        });
+
+        let start = std::time::Instant::now();
+        let result = tool
+            .shell_with_cwd(
+                ShellParams {
+                    command: "sleep 30".to_string(),
+                    timeout_secs: None,
+                },
+                None,
+                None,
+                token,
+            )
+            .await;
+
+        assert!(
+            start.elapsed().as_secs() < 5,
+            "shell should return quickly after cancellation, not wait for the command"
+        );
+        let shell_output = extract_shell_output(&result);
+        assert!(
+            shell_output.exit_code.is_none(),
+            "cancelled process should have no exit code"
+        );
     }
 
     #[cfg(not(windows))]
@@ -1050,5 +1187,43 @@ mod tests {
             text.contains("after"),
             "should capture output after background cmd"
         );
+    }
+
+    #[test]
+    fn resolve_shell_timeout_prefers_explicit_value() {
+        assert_eq!(resolve_shell_timeout(Some(42)), 42);
+    }
+
+    #[test]
+    fn resolve_shell_timeout_falls_back_to_a_bound_when_absent() {
+        // The key behavioral guarantee: an omitted timeout no longer means
+        // "run forever" — it resolves to the default extension timeout.
+        assert!(resolve_shell_timeout(None) > 0);
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_kills_hanging_command_after_explicit_timeout() {
+        let tool = ShellTool::new_for_test().unwrap();
+        let start = std::time::Instant::now();
+        let result = tool
+            .shell(ShellParams {
+                command: "sleep 30".to_string(),
+                timeout_secs: Some(1),
+            })
+            .await;
+
+        assert!(
+            start.elapsed().as_secs() < 10,
+            "shell should return shortly after the timeout, not wait for the command"
+        );
+        assert_eq!(result.is_error, Some(true));
+        let shell_output = extract_shell_output(&result);
+        assert!(shell_output.timed_out, "command should be marked timed_out");
+        assert!(
+            shell_output.exit_code.is_none(),
+            "killed process should have no exit code"
+        );
+        assert!(extract_text(&result).contains("Command timed out after 1 seconds"));
     }
 }

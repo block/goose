@@ -214,7 +214,13 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
     md
 }
 
+#[cfg(test)]
 pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) -> String {
+    let audience = (!export_all_content).then_some(Role::Assistant);
+    tool_response_to_markdown_for_audience(resp, audience)
+}
+
+fn tool_response_to_markdown_for_audience(resp: &ToolResponse, audience: Option<Role>) -> String {
     let mut md = String::new();
     md.push_str("#### Tool Response:\n");
 
@@ -225,9 +231,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
             }
 
             for content in &result.content {
-                if !export_all_content {
+                if let Some(ref role) = audience {
                     if let Some(audience) = content.audience() {
-                        if !audience.contains(&Role::Assistant) {
+                        if !audience.contains(role) {
                             continue;
                         }
                     }
@@ -337,6 +343,19 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
 }
 
 pub fn message_to_markdown(message: &Message, export_all_content: bool) -> String {
+    let audience = (!export_all_content).then_some(Role::Assistant);
+    message_to_markdown_for_audience(message, export_all_content, audience)
+}
+
+pub fn user_projected_message_to_markdown(message: &Message) -> String {
+    message_to_markdown_for_audience(message, false, Some(Role::User))
+}
+
+fn message_to_markdown_for_audience(
+    message: &Message,
+    export_all_content: bool,
+    audience: Option<Role>,
+) -> String {
     let mut md = String::new();
     for content in &message.content {
         match content {
@@ -371,7 +390,10 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                 md.push('\n');
             }
             MessageContent::ToolResponse(resp) => {
-                md.push_str(&tool_response_to_markdown(resp, export_all_content));
+                md.push_str(&tool_response_to_markdown_for_audience(
+                    resp,
+                    audience.clone(),
+                ));
                 md.push('\n');
             }
             MessageContent::Image(image) => {

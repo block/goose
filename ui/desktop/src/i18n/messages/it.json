@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "App personalizzata"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applicazioni dai tuoi server MCP e app create da goose stesso. Puoi chiedere di creare nuove app tramite l'interfaccia di chat e appariranno qui."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Errore durante il caricamento delle app: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importa app"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nessuna app disponibile"
   },
-  "appsView.retry": {
-    "defaultMessage": "Riprova"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
   },
   "appsView.title": {
     "defaultMessage": "App"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Vai alla home"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connessione persa. Riconnessione…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Estensione aggiornata"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Chiave segreta"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La chiave segreta configurata sul server goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La chiave segreta configurata sul server Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Inserisci la chiave segreta del server"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Download in corso"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modelli in evidenza"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Accedi per aumentare i limiti di frequenza durante la ricerca e il download dei modelli e per accedere ai repository Hugging Face privati o ad accesso limitato."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Impostazioni modello"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "in attesa"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dell'input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lettura cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "scrittura cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compattazione"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Costo"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(stimato)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Primo token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(riportato)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Velocità"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Totale"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Tempo totale"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Scegli quale microfono usare per la dettatura"
@@ -2752,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Da modello o configurazione manuale"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Nessun provider corrisponde a \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cerca provider..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
@@ -3593,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON della sessione copiato"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Testo copiato"
   },
@@ -3623,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Caricamento JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Impossibile rinominare la sessione: {error}"
   },
@@ -3646,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Visualizza JSON della sessione"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "La sessione ha riscontrato un errore"
@@ -3983,6 +4064,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend esterno"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Tastiera"
   },
@@ -3994,9 +4078,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sessione"
   },
   "settingsView.title": {
     "defaultMessage": "Impostazioni"

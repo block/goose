@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 const GUEST_HTML_TTL_SECS: u64 = 300;
 const GUEST_HTML_MAX_ENTRIES: usize = 64;
-const GUEST_HTML_MAX_BYTES: usize = 8 * 1024 * 1024;
+const GUEST_HTML_MAX_BYTES: usize = 16 * 1024 * 1024;
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
 
 type GuestHtmlStore = Arc<RwLock<HashMap<String, GuestHtmlEntry>>>;

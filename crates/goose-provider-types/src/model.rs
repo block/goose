@@ -4,11 +4,23 @@ use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+/// Request param keys that describe model-family-agnostic reasoning behavior and
+/// are therefore safe to carry across a model switch or subagent delegation.
+/// Provider-specific keys (e.g. `anthropic_beta`) are deliberately excluded so
+/// they can't bleed into a request targeting a different model family.
+const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
+    "thinking_effort",
+    "thinking_budget",
+    "budget_tokens",
+    "enable_thinking",
+    "preserve_thinking_context",
+    "preserve_unsigned_thinking",
+];
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
@@ -187,22 +199,13 @@ impl ModelConfig {
         previous: Option<&ModelConfig>,
         request_params: Option<HashMap<String, Value>>,
     ) -> Self {
-        if let Some(previous) = previous {
-            let has_thinking_effort = self
-                .request_params
-                .as_ref()
-                .and_then(|params| params.get("thinking_effort"))
-                .is_some();
-
-            if !has_thinking_effort {
-                if let Some(thinking_effort) = previous
-                    .request_params
-                    .as_ref()
-                    .and_then(|params| params.get("thinking_effort"))
-                    .cloned()
-                {
-                    let params = self.request_params.get_or_insert_with(HashMap::new);
-                    params.insert("thinking_effort".to_string(), thinking_effort);
+        if let Some(previous_params) = previous.and_then(|p| p.request_params.as_ref()) {
+            for key in INHERITED_SESSION_PARAM_KEYS {
+                if let Some(value) = previous_params.get(*key) {
+                    self.request_params
+                        .get_or_insert_with(HashMap::new)
+                        .entry(key.to_string())
+                        .or_insert_with(|| value.clone());
                 }
             }
         }
@@ -365,15 +368,28 @@ mod tests {
         }
 
         #[test]
-        fn does_not_preserve_unrelated_request_params() {
+        fn inherits_reasoning_controls_but_not_provider_specific_params() {
             let previous = config_with_params(
                 "previous",
-                HashMap::from([("provider_specific".to_string(), serde_json::json!("old"))]),
+                HashMap::from([
+                    ("budget_tokens".to_string(), serde_json::json!(8192)),
+                    (
+                        "preserve_thinking_context".to_string(),
+                        serde_json::json!(true),
+                    ),
+                    ("anthropic_beta".to_string(), serde_json::json!("beta")),
+                ]),
             );
             let config = ModelConfig::new("next")
                 .with_inherited_session_settings_from(Some(&previous), None);
 
-            assert!(config.request_params.is_none());
+            let params = config.request_params.expect("reasoning controls inherited");
+            assert_eq!(params.get("budget_tokens"), Some(&serde_json::json!(8192)));
+            assert_eq!(
+                params.get("preserve_thinking_context"),
+                Some(&serde_json::json!(true))
+            );
+            assert_eq!(params.get("anthropic_beta"), None);
         }
 
         #[test]
@@ -606,6 +622,20 @@ mod tests {
             // "gpt-5.4-xhigh" should resolve via "gpt-5.4"
             let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(1_050_000));
+
+            // "gpt-5.6-sol-xhigh" should resolve via "gpt-5.6-sol"
+            let config = ModelConfig::new("gpt-5.6-sol-xhigh").with_canonical_limits("openai");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
+            let canonical = crate::canonical::maybe_get_canonical_model("openai", "gpt-5.6-sol")
+                .expect("gpt-5.6-sol should have canonical metadata");
+            assert_eq!(canonical.temperature, Some(false));
+
+            let config = ModelConfig::new("gpt-5.6-sol").with_canonical_limits("chatgpt_codex");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
 
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
             let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");

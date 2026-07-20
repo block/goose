@@ -1,5 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::json::{parse_tool_arguments, truncation_error_message};
@@ -138,7 +138,16 @@ struct StreamingChoice {
     #[serde(default)]
     delta: Delta,
     index: Option<i32>,
+    #[serde(default, deserialize_with = "empty_finish_reason_as_none")]
     finish_reason: Option<String>,
+}
+
+fn empty_finish_reason_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.filter(|reason| !reason.is_empty()))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -709,13 +718,13 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
-                if !is_valid_function_name(&function_name) {
+                if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
-                        message: Cow::from(format!(
-                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                            function_name
-                        )),
+                        message: Cow::from(
+                            "The provided function name was empty; a tool call must name a tool"
+                                .to_string(),
+                        ),
                         data: None,
                     };
                     content.push(MessageContent::tool_request_with_metadata(
@@ -723,54 +732,50 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Err(error),
                         metadata.as_ref(),
                     ));
-                } else {
-                    match parse_tool_arguments(&arguments_str) {
-                        Some(params) if params.is_object() => {
-                            content.push(MessageContent::tool_request_with_metadata(
+                    continue;
+                }
+                match parse_tool_arguments(&arguments_str) {
+                    Some(params) if params.is_object() => {
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Ok(CallToolRequestParams::new(function_name)
+                                .with_arguments(object(params))),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    Some(other) => {
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(format!(
+                                "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                function_name,
                                 id,
-                                Ok(CallToolRequestParams::new(function_name)
-                                    .with_arguments(object(params))),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        // Valid JSON but NOT an object (a bare array/string/number).
-                        // Weaker models emit this; surface a tool error so the model
-                        // retries with a proper object instead of crashing the run
-                        // (rmcp's `object()` debug-asserts on non-objects).
-                        Some(other) => {
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
-                                    function_name,
-                                    id,
-                                    describe_json_value(&other),
-                                    arguments_str
-                                )),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        None => {
-                            let message_text = truncation_error_message(&arguments_str)
-                                .unwrap_or_else(|| {
-                                    format!("Could not interpret tool use parameters for id {id}")
-                                });
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(message_text),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
+                                describe_json_value(&other),
+                                arguments_str
+                            )),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    None => {
+                        let message_text =
+                            truncation_error_message(&arguments_str).unwrap_or_else(|| {
+                                format!("Could not interpret tool use parameters for id {id}")
+                            });
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(message_text),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
                     }
                 }
             }
@@ -836,6 +841,13 @@ pub fn get_usage(usage: &Value) -> Usage {
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
 }
 
+pub fn get_cost(usage: &Value) -> Option<f64> {
+    usage
+        .get("cost")
+        .and_then(|v| v.as_f64())
+        .filter(|c| c.is_finite() && *c >= 0.0)
+}
+
 fn extract_usage_with_output_tokens(
     chunk: &StreamingChunk,
     fallback_model: Option<&str>,
@@ -844,11 +856,13 @@ fn extract_usage_with_output_tokens(
         .usage
         .as_ref()
         .and_then(|u| {
-            chunk
-                .model
-                .as_deref()
-                .or(fallback_model)
-                .map(|model| ProviderUsage::new(model.to_string(), get_usage(u)))
+            chunk.model.as_deref().or(fallback_model).map(|model| {
+                let usage = ProviderUsage::new(model.to_string(), get_usage(u));
+                match get_cost(u) {
+                    Some(cost) => usage.with_cost(cost, CostSource::ProviderReported),
+                    None => usage,
+                }
+            })
         })
         .filter(|u| u.usage.output_tokens.is_some())
 }
@@ -870,31 +884,55 @@ pub fn validate_tool_schemas(tools: &mut [Value]) {
 /// Ensures that the given JSON value follows the expected JSON Schema structure.
 fn ensure_valid_json_schema(schema: &mut Value) {
     if let Some(params_obj) = schema.as_object_mut() {
-        // Check if this is meant to be an object type schema
-        let is_object_type = params_obj
-            .get("type")
-            .and_then(|t| t.as_str())
-            .is_none_or(|t| t == "object"); // Default to true if no type is specified
+        if !params_obj.contains_key("type") {
+            params_obj.insert("type".to_string(), json!("object"));
+        }
+    }
+    sanitize_schema_node(schema);
+}
 
-        // Only apply full schema validation to object types
-        if is_object_type {
-            // Ensure required fields exist with default values
-            params_obj.entry("properties").or_insert_with(|| json!({}));
-            params_obj.entry("required").or_insert_with(|| json!([]));
-            params_obj.entry("type").or_insert_with(|| json!("object"));
+fn sanitize_schema_node(node: &mut Value) {
+    if let Some(obj) = node.as_object_mut() {
+        // Moonshot's walle validator rejects `oneOf` behind a `$ref` as
+        // "infinite recursion" because its termination check only traverses
+        // `anyOf`. The two are interchangeable for tool-argument schemas, so
+        // emit the more widely supported form.
+        if !obj.contains_key("anyOf") {
+            if let Some(one_of) = obj.remove("oneOf") {
+                obj.insert("anyOf".to_string(), one_of);
+            }
+        }
+    }
 
-            // Recursively validate properties if it exists
-            if let Some(properties) = params_obj.get_mut("properties") {
-                if let Some(properties_obj) = properties.as_object_mut() {
-                    for (_key, prop) in properties_obj.iter_mut() {
-                        normalize_nullable(prop);
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
-                            ensure_valid_json_schema(prop);
-                        }
-                    }
-                }
+    normalize_nullable(node);
+
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+
+    if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+        obj.entry("properties").or_insert_with(|| json!({}));
+        obj.entry("required").or_insert_with(|| json!([]));
+    }
+
+    for key in ["properties", "$defs", "definitions"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            for child in children.values_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["anyOf", "allOf", "prefixItems"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_array_mut) {
+            for child in children.iter_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["items", "additionalProperties"] {
+        if let Some(child) = obj.get_mut(key) {
+            if child.is_object() {
+                sanitize_schema_node(child);
             }
         }
     }
@@ -1501,13 +1539,10 @@ pub fn openai_reasoning_effort_for_thinking(
     model_name: &str,
     effort: ThinkingEffort,
 ) -> Option<String> {
-    if effort == ThinkingEffort::Off {
-        return Some("none".to_string());
-    }
-
     let supported = openai_reasoning_efforts_for_model(model_name);
+
     let preferred: &[&str] = match effort {
-        ThinkingEffort::Off => unreachable!(),
+        ThinkingEffort::Off => &["none", "low"],
         ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
         ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
         ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
@@ -1520,7 +1555,7 @@ pub fn openai_reasoning_effort_for_thinking(
         .map(|level| (*level).to_string())
 }
 
-fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
+pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
     let normalized = model_name.to_ascii_lowercase();
 
     if normalized.contains("gpt-5") {
@@ -1530,8 +1565,10 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
             || normalized.contains("gpt-5-4")
             || normalized.contains("gpt-5.5")
             || normalized.contains("gpt-5-5")
+            || normalized.contains("gpt-5.6")
+            || normalized.contains("gpt-5-6")
         {
-            &["low", "medium", "high", "xhigh"]
+            &["none", "low", "medium", "high", "xhigh"]
         } else {
             &["low", "medium", "high"]
         }
@@ -1695,6 +1732,44 @@ mod tests {
         let timeout_schema = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
         assert_eq!(timeout_schema["type"], "integer");
         assert!(!timeout_schema["type"].is_array());
+    }
+
+    #[test]
+    fn test_validate_tool_schemas_sanitizes_defs() {
+        let mut tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "cache",
+                "description": "manage cache",
+                "parameters": {
+                    "type": "object",
+                    "$defs": {
+                        "CacheCommand": {
+                            "oneOf": [
+                                { "description": "List cached files", "type": "string", "const": "list" },
+                                { "description": "Clear cached files", "type": "string", "const": "clear" }
+                            ]
+                        },
+                        "TextStyle": {
+                            "type": "object",
+                            "properties": {
+                                "size": { "type": ["integer", "null"], "format": "int32" }
+                            }
+                        }
+                    },
+                    "properties": {
+                        "command": { "$ref": "#/$defs/CacheCommand" },
+                        "style": { "$ref": "#/$defs/TextStyle" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        })];
+        validate_tool_schemas(&mut tools);
+        let defs = &tools[0]["function"]["parameters"]["$defs"];
+        assert!(defs["CacheCommand"].get("oneOf").is_none());
+        assert_eq!(defs["CacheCommand"]["anyOf"].as_array().unwrap().len(), 2);
+        assert_eq!(defs["TextStyle"]["properties"]["size"]["type"], "integer");
     }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
@@ -2003,10 +2078,9 @@ mod tests {
     }
 
     #[test]
-    fn test_response_to_message_invalid_func_name() -> anyhow::Result<()> {
+    fn test_response_to_message_empty_func_name() -> anyhow::Result<()> {
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("invalid fn");
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("");
 
         let message = response_to_message(&response)?;
 
@@ -2019,8 +2093,50 @@ mod tests {
                 }) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
-                _ => panic!("Expected ToolNotFound error"),
+                _ => panic!("Expected invalid-request error for empty name"),
             }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_passes_names_through_to_dispatch() -> anyhow::Result<()> {
+        for name in [
+            "developer.shell",
+            "functions.example_fn",
+            "example fn",
+            "???!",
+        ] {
+            let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+            response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!(name);
+
+            let message = response_to_message(&response)?;
+
+            if let MessageContent::ToolRequest(request) = &message.content[0] {
+                let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                assert_eq!(tool_call.name, name, "name must pass through verbatim");
+            } else {
+                panic!("Expected ToolRequest content");
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_fenced_arguments() -> anyhow::Result<()> {
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("```json\n{\"param\": \"value\"}\n```");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -2446,10 +2562,10 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o3_off_effort_preserves_none() -> anyhow::Result<()> {
-        let model_config = test_model_config("o3")
+    fn test_create_request_gpt56_max_effort_uses_xhigh() -> anyhow::Result<()> {
+        let model_config = test_model_config("gpt-5.6-luna")
             .with_max_tokens(Some(1024))
-            .with_thinking_effort(ThinkingEffort::Off);
+            .with_thinking_effort(ThinkingEffort::Max);
         let request = create_request(
             &model_config,
             "system",
@@ -2460,7 +2576,7 @@ mod tests {
         )?;
         let obj = request.as_object().unwrap();
 
-        assert_eq!(obj.get("reasoning_effort"), Some(&json!("none")));
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
         assert!(obj.get("thinking_effort").is_none());
 
         Ok(())
@@ -2679,6 +2795,30 @@ data: [DONE]
             .all(|name| name == "developer__shell"));
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_empty_finish_reason_is_not_terminal() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"Checking."},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":"{\"command\""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":": \"ls\"}"}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120},"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_eq!(
+            result.tool_calls,
+            vec!["developer__shell"],
+            "tool call must survive intermediate empty-string finish_reason"
+        );
+        assert_usage_yielded_once(&result, 100, 20, 120);
 
         Ok(())
     }
@@ -3813,6 +3953,68 @@ data: [DONE]"#;
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0].0, "get_weather");
         assert_eq!(tool_calls[0].1, Some(object!({"city": "Paris"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_call_dotted_name_passes_through() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"ext__db.query\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                        tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].0, "ext__db.query");
+        assert_eq!(tool_calls[0].1, Some(object!({"command": "ls"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_call_degenerate_name_passes_through() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"???\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut names = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        names.push(
+                            request
+                                .tool_call
+                                .as_ref()
+                                .expect("passes through")
+                                .name
+                                .to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
+        assert_eq!(names, vec!["???".to_string()]);
         Ok(())
     }
 

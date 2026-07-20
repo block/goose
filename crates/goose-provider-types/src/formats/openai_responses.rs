@@ -3,6 +3,7 @@ use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+    sanitize_function_name,
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
@@ -396,6 +397,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -412,7 +414,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -523,6 +525,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -534,7 +537,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -558,6 +561,14 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
             }));
         }
     }
+}
+
+fn is_gpt_5_6_model(model_name: &str) -> bool {
+    let normalized = model_name.to_ascii_lowercase();
+    normalized == "gpt-5.6"
+        || normalized.starts_with("gpt-5.6-")
+        || normalized == "gpt-5-6"
+        || normalized.starts_with("gpt-5-6-")
 }
 
 pub fn create_responses_request(
@@ -587,11 +598,15 @@ pub fn create_responses_request(
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         if let Some(effort) = legacy_reasoning_effort.as_deref() {
-            effort
-                .parse()
-                .ok()
-                .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
-                .or(legacy_reasoning_effort)
+            if effort.eq_ignore_ascii_case("none") {
+                legacy_reasoning_effort
+            } else {
+                effort
+                    .parse()
+                    .ok()
+                    .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
+                    .or(legacy_reasoning_effort)
+            }
         } else {
             model_config
                 .thinking_effort()
@@ -602,20 +617,43 @@ pub fn create_responses_request(
     };
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
+    let reasoning_mode = model_config
+        .request_param::<String>("reasoning_mode")
+        .map(|mode| {
+            let normalized = mode.to_ascii_lowercase();
+            match normalized.as_str() {
+                "standard" | "pro" => Ok(normalized),
+                _ => Err(anyhow!(
+                    "Invalid reasoning_mode '{}'. Supported values are: standard, pro",
+                    mode
+                )),
+            }
+        })
+        .transpose()?;
+    if reasoning_mode.is_some() && !is_gpt_5_6_model(&model_name) {
+        return Err(anyhow!(
+            "reasoning_mode is only supported for GPT-5.6 models"
+        ));
+    }
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
         "store": store,
     });
 
-    if let Some(effort) = reasoning_effort {
-        payload.as_object_mut().unwrap().insert(
-            "reasoning".to_string(),
-            json!({
-                "effort": effort,
-                "summary": "auto",
-            }),
-        );
+    if reasoning_effort.is_some() || reasoning_mode.is_some() {
+        let mut reasoning = serde_json::Map::new();
+        if let Some(effort) = reasoning_effort {
+            reasoning.insert("effort".to_string(), json!(effort));
+            reasoning.insert("summary".to_string(), json!("auto"));
+        }
+        if let Some(mode) = reasoning_mode {
+            reasoning.insert("mode".to_string(), json!(mode));
+        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("reasoning".to_string(), Value::Object(reasoning));
     }
 
     if !tools.is_empty() {
@@ -647,10 +685,12 @@ pub fn create_responses_request(
         }
     }
 
-    payload.as_object_mut().unwrap().insert(
-        "max_output_tokens".to_string(),
-        json!(model_config.max_output_tokens()),
-    );
+    if let Some(max_tokens) = model_config.max_tokens {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_output_tokens".to_string(), json!(max_tokens));
+    }
 
     Ok(payload)
 }
@@ -1453,6 +1493,46 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_request_supports_gpt_5_6_xhigh_effort() {
+        let model_config = ModelConfig::new("gpt-5.6-sol-xhigh");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert_eq!(result["reasoning"]["effort"], "xhigh");
+        assert_eq!(result["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
+    fn test_responses_request_supports_gpt_5_6_reasoning_mode() {
+        let model_config = ModelConfig::new("gpt-5.6-sol").with_merged_request_params(
+            std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+        );
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["reasoning"]["mode"], "pro");
+        assert!(result["reasoning"].get("effort").is_none());
+        assert!(result["reasoning"].get("summary").is_none());
+    }
+
+    #[test]
+    fn test_responses_request_rejects_reasoning_mode_for_non_gpt_5_6_model() {
+        for model_name in ["gpt-5.5", "gpt-5.60"] {
+            let model_config = ModelConfig::new(model_name).with_merged_request_params(
+                std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+            );
+
+            let error = create_responses_request(&model_config, "You are helpful.", &[], &[])
+                .expect_err("reasoning mode should be gated to GPT-5.6 models");
+
+            assert!(error
+                .to_string()
+                .contains("reasoning_mode is only supported for GPT-5.6 models"));
+        }
+    }
+
+    #[test]
     fn test_responses_request_without_effort_suffix_omits_reasoning() {
         for model_name in ["gpt-5.4", "o3", "gpt-5-nano"] {
             let model_config = ModelConfig {
@@ -1475,6 +1555,31 @@ mod tests {
                 "reasoning should be omitted for {model_name} without explicit effort suffix"
             );
         }
+    }
+
+    #[test]
+    fn test_responses_request_omits_default_max_output_tokens_for_unknown_model() {
+        let model_config = ModelConfig::new("gpt-5.6-sol");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert!(
+            result.get("max_output_tokens").is_none(),
+            "unknown/new models should not receive Goose's fallback max_output_tokens"
+        );
+    }
+
+    #[test]
+    fn test_responses_request_includes_canonical_max_output_tokens() {
+        let model_config = ModelConfig::new("gpt-5.4").with_canonical_limits("openai");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(
+            result["max_output_tokens"],
+            model_config.max_tokens.unwrap()
+        );
     }
 
     #[test]
@@ -1992,6 +2097,46 @@ mod tests {
         assert_eq!(input[1]["type"], "function_call_output");
         assert_eq!(input[1]["call_id"], "call_ft1");
         assert_eq!(input[1]["output"], "clicked");
+    }
+
+    #[test]
+    fn test_responses_request_sanitizes_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "call_agent",
+                Ok(CallToolRequestParams::new("Crack Catcher")
+                    .with_arguments(object!({"prompt": "verify the work"}))),
+            ),
+            Message::assistant().with_frontend_tool_request(
+                "call_frontend_agent",
+                Ok(CallToolRequestParams::new("@Review Agent")
+                    .with_arguments(object!({"prompt": "check it"}))),
+            ),
+        ];
+
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        assert_eq!(input[0]["type"], "function_call");
+        assert_eq!(input[0]["call_id"], "call_agent");
+        assert_eq!(input[0]["name"], "Crack_Catcher");
+
+        assert_eq!(input[1]["type"], "function_call");
+        assert_eq!(input[1]["call_id"], "call_frontend_agent");
+        assert_eq!(input[1]["name"], "_Review_Agent");
     }
 
     #[test]

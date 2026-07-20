@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Aplikasi khusus"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplikasi dari server MCP Anda dan Aplikasi yang dibuat oleh goose sendiri. Anda dapat memintanya membuat aplikasi baru melalui antarmuka obrolan dan aplikasi tersebut akan muncul di sini."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Kesalahan saat memuat aplikasi: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Impor Aplikasi"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tidak ada aplikasi yang tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Coba lagi"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Coba lagi"
   },
   "appsView.title": {
     "defaultMessage": "Aplikasi"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Ke beranda"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Koneksi terputus. Menghubungkan kembali…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Ekstensi Diperbarui"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "Kunci Rahasia"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Kunci rahasia yang dikonfigurasi pada server goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Kunci rahasia yang dikonfigurasi pada server Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Masukkan kunci rahasia server"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Mengunduh"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Unggulan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Masuk untuk meningkatkan batas laju saat mencari dan mengunduh model, serta untuk mengakses repositori Hugging Face yang privat atau terbatas."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Pengaturan Model"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% dari masukan)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Biaya"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(perkiraan)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Masukan"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Keluaran"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kecepatan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Waktu total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon mana yang akan digunakan untuk dikte"
@@ -2752,6 +2815,12 @@
   },
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Dari templat atau penyiapan manual"
+  },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Tidak ada penyedia yang cocok dengan \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cari penyedia..."
   },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
@@ -3593,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON sesi disalin"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Teks disalin"
   },
@@ -3623,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Memuat JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Gagal mengganti nama sesi: {error}"
   },
@@ -3646,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Lihat JSON sesi"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "Sesi mengalami kesalahan"
@@ -3983,6 +4064,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Obrolan"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Eksternal"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -3994,9 +4078,6 @@
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompt"
-  },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
   },
   "settingsView.title": {
     "defaultMessage": "Pengaturan"

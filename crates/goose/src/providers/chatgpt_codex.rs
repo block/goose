@@ -3,6 +3,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::api_client::{AuthProvider, RequestBuilderDecorator};
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::openai_compatible::handle_status;
+use crate::providers::private_file::write_private_file;
 use crate::providers::retry::ProviderRetry;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -53,15 +54,27 @@ pub struct ChatGptCodexModelAttrs {
 
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
     ChatGptCodexModelAttrs {
+        name: "gpt-5.6-sol",
+        reasoning_levels: &["none", "low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.6-terra",
+        reasoning_levels: &["none", "low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.6-luna",
+        reasoning_levels: &["none", "low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.6",
+        reasoning_levels: &["none", "low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
         name: "gpt-5.5",
         reasoning_levels: &["low", "medium", "high", "xhigh"],
     },
     ChatGptCodexModelAttrs {
         name: "gpt-5.4",
-        reasoning_levels: &["low", "medium", "high", "xhigh"],
-    },
-    ChatGptCodexModelAttrs {
-        name: "gpt-5.3-codex",
         reasoning_levels: &["low", "medium", "high", "xhigh"],
     },
 ];
@@ -81,14 +94,6 @@ pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
 fn known_model_names() -> Vec<&'static str> {
     CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
 }
-
-const GPT_53_CODEX_TOOL_PREAMBLE: &str = "\
-You are a coding agent. You have access to tools to accomplish tasks. \
-Always use your tools to fulfill requests - do not just describe what you would do. \
-Keep going until the query is completely resolved before yielding back to the user. \
-Autonomously resolve the query using the tools available to you. \
-Do NOT guess or make up an answer. \
-Before making tool calls, send a brief message explaining what you're about to do.";
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -235,7 +240,13 @@ fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
         .map(|effort| {
             let valid_levels = reasoning_levels_for_model(&model_config.model_name);
             let preferred_levels: &[&str] = match effort {
-                ThinkingEffort::Off => return None,
+                ThinkingEffort::Off => {
+                    return Some(if valid_levels.contains(&"none") {
+                        "none".to_string()
+                    } else {
+                        "low".to_string()
+                    });
+                }
                 ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
                 ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
                 ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
@@ -259,16 +270,11 @@ fn create_codex_request(
     let input_items = build_input_items(messages)?;
     let reasoning_effort = reasoning_effort_for_config(model_config);
 
-    let instructions = match model_config.model_name.as_str() {
-        "gpt-5.3-codex" => format!("{GPT_53_CODEX_TOOL_PREAMBLE}\n\n{system}"),
-        _ => system.to_string(),
-    };
-
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
-        "instructions": instructions,
+        "instructions": system,
     });
 
     let payload_obj = payload
@@ -342,11 +348,8 @@ impl TokenCache {
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let contents = serde_json::to_string(token_data)?;
-        std::fs::write(&self.cache_path, contents)?;
+        write_private_file(&self.cache_path, &contents)?;
         Ok(())
     }
 
@@ -1097,6 +1100,33 @@ mod tests {
         assert!(TokenCache::new().has_token());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn token_cache_replaces_loose_file_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().unwrap();
+        let cache_path = directory.path().join("tokens.json");
+        std::fs::write(&cache_path, "{}").unwrap();
+        std::fs::set_permissions(&cache_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let cache = TokenCache {
+            cache_path: cache_path.clone(),
+        };
+
+        cache
+            .save(&TokenData {
+                access_token: "access".to_string(),
+                refresh_token: "refresh".to_string(),
+                id_token: None,
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                account_id: None,
+            })
+            .unwrap();
+
+        let mode = std::fs::metadata(cache_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
     #[test_case(
         vec![
             Message::user().with_text("user text"),
@@ -1197,7 +1227,7 @@ mod tests {
     fn test_create_codex_request_reasoning_effort_from_unified_thinking() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
-        let mut config = ModelConfig::new("gpt-5.3-codex");
+        let mut config = ModelConfig::new("gpt-5.5");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
@@ -1218,14 +1248,14 @@ mod tests {
     }
 
     #[test]
-    fn test_create_codex_request_off_omits_reasoning_for_codex_models() {
+    fn test_create_codex_request_off_sets_none_for_gpt_5_6_models() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
-        let mut config = ModelConfig::new("gpt-5.2-codex");
+        let mut config = ModelConfig::new("gpt-5.6-sol");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
-        assert!(payload.get("reasoning").is_none());
+        assert_eq!(payload["reasoning"]["effort"], "none");
         assert!(payload.get("reasoning_effort").is_none());
     }
 
@@ -1391,22 +1421,27 @@ mod tests {
         assert_eq!(claims.chatgpt_account_id.as_deref(), Some("account-1"));
     }
 
+    #[test_case("gpt-5.6-sol", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 sol supports extended reasoning levels")]
+    #[test_case("gpt-5.6-terra", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 terra supports extended reasoning levels")]
+    #[test_case("gpt-5.6-luna", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 luna supports extended reasoning levels")]
+    #[test_case("gpt-5.6", &["none", "low", "medium", "high", "xhigh"]; "gpt 5.6 supports extended reasoning levels")]
     #[test_case("unknown-model", &["medium", "high"]; "unknown model gets default reasoning levels")]
     fn test_reasoning_levels_for_model(model: &str, expected: &[&str]) {
         assert_eq!(reasoning_levels_for_model(model), expected);
     }
 
     #[test]
-    fn test_gpt53_preamble_injected() {
-        let model = ModelConfig::new("gpt-5.3-codex");
-        let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
-        let instructions = payload["instructions"].as_str().unwrap();
-        assert!(instructions.contains(GPT_53_CODEX_TOOL_PREAMBLE));
-        assert!(instructions.contains("system prompt"));
+    fn test_known_model_names_include_gpt_5_6_models() {
+        let names = known_model_names();
+
+        assert!(names.contains(&"gpt-5.6-sol"));
+        assert!(names.contains(&"gpt-5.6-terra"));
+        assert!(names.contains(&"gpt-5.6-luna"));
+        assert!(names.contains(&"gpt-5.6"));
     }
 
     #[test]
-    fn test_other_models_no_preamble() {
+    fn test_instructions_passed_through() {
         let model = ModelConfig::new("gpt-5.4");
         let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
         let instructions = payload["instructions"].as_str().unwrap();

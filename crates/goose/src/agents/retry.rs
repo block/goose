@@ -22,8 +22,9 @@ use crate::tool_monitor::RepetitionInspector;
 pub enum RetryResult {
     /// No retry configuration or session available, retry logic skipped
     Skipped,
-    /// Maximum retry attempts reached, cannot retry further
-    MaxAttemptsReached,
+    /// Maximum retry attempts reached, cannot retry further. Carries the
+    /// user-facing failure message so the caller can yield and persist it.
+    MaxAttemptsReached(Message),
     /// Success checks passed, no retry needed
     SuccessChecksPassed,
     /// Retry is needed and will be performed
@@ -135,7 +136,6 @@ impl RetryManager {
                 "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
                 retry_config.max_retries
             ));
-            messages.push(error_msg);
             warn!(
                 "Maximum retry attempts ({}) exceeded",
                 retry_config.max_retries
@@ -145,7 +145,7 @@ impl RetryManager {
                 "retry_max_exceeded",
                 &format!("Max retries ({}) exceeded", retry_config.max_retries),
             );
-            return Ok(RetryResult::MaxAttemptsReached);
+            return Ok(RetryResult::MaxAttemptsReached(error_msg));
         }
 
         if let Some(on_failure_cmd) = &retry_config.on_failure {
@@ -335,21 +335,19 @@ mod tests {
 
     #[test]
     fn test_retry_result_enum() {
-        assert_ne!(RetryResult::Skipped, RetryResult::MaxAttemptsReached);
+        let max_attempts = RetryResult::MaxAttemptsReached(Message::assistant().with_text("done"));
+        assert_ne!(RetryResult::Skipped, max_attempts);
         assert_ne!(RetryResult::Skipped, RetryResult::SuccessChecksPassed);
         assert_ne!(RetryResult::Skipped, RetryResult::Retried);
-        assert_ne!(
-            RetryResult::MaxAttemptsReached,
-            RetryResult::SuccessChecksPassed
-        );
-        assert_ne!(RetryResult::MaxAttemptsReached, RetryResult::Retried);
+        assert_ne!(max_attempts, RetryResult::SuccessChecksPassed);
+        assert_ne!(max_attempts, RetryResult::Retried);
         assert_ne!(RetryResult::SuccessChecksPassed, RetryResult::Retried);
 
         let result = RetryResult::Retried;
         let cloned = result.clone();
         assert_eq!(result, cloned);
 
-        let debug_str = format!("{:?}", RetryResult::MaxAttemptsReached);
+        let debug_str = format!("{:?}", max_attempts);
         assert!(debug_str.contains("MaxAttemptsReached"));
     }
 

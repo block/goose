@@ -72,11 +72,7 @@ impl GooseAcpAgent {
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        send_session_setup_notifications(
-            cx,
-            &goose_session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        self.notify_session_setup(cx, &goose_session).await?;
         Ok(response)
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "goose-provider-types"
-version.workspace = true
+version = "0.1.0-alpha.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -30,7 +30,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
-utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
 
 [dev-dependencies]

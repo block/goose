@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 #[cfg(all(feature = "rustls-tls", feature = "native-tls"))]
 compile_error!("Features `rustls-tls` and `native-tls` are mutually exclusive");
 

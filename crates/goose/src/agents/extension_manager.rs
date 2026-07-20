@@ -275,11 +275,41 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+fn recover_mangled_tool_name<'a>(
+    emitted: &str,
+    tool_names: impl Iterator<Item = &'a str>,
+) -> Option<String> {
+    let trimmed = emitted.trim();
+    let stripped = trimmed
+        .strip_prefix("functions.")
+        .or_else(|| trimmed.strip_prefix("functions:"))
+        .unwrap_or(trimmed);
+
+    let mut matched: Option<&str> = None;
+    for name in tool_names {
+        let separator_mangled = name
+            .split_once("__")
+            .map(|(extension, tool)| format!("{extension}.{tool}"));
+
+        let matches = stripped == name || separator_mangled.as_deref() == Some(stripped);
+        if name == emitted || !matches {
+            continue;
+        }
+
+        match matched {
+            None => matched = Some(name),
+            Some(prev) if prev == name => {}
+            Some(_) => return None,
+        }
+    }
+    matched.map(|s| s.to_string())
+}
+
 fn get_tool_meta_value(tool: &Tool) -> Option<Value> {
     tool.meta.as_ref().map(|meta| Value::Object(meta.0.clone()))
 }
 
-fn get_tool_resource_uri(tool: &Tool) -> Option<String> {
+pub(crate) fn get_tool_resource_uri(tool: &Tool) -> Option<String> {
     tool.meta
         .as_ref()
         .and_then(|meta| meta.0.get("ui"))
@@ -1673,56 +1703,68 @@ impl ExtensionManager {
             )
         })?;
 
-        if let Some(tool) = tools.iter().find(|t| *t.name == *tool_name) {
-            let owner = get_tool_owner(tool)
-                .or_else(|| {
-                    tool_name
-                        .split_once("__")
-                        .map(|(prefix, _)| name_to_key(prefix))
-                })
-                .ok_or_else(|| {
+        let mut name = tool_name.to_string();
+        let mut recovery_attempted = false;
+        loop {
+            if let Some(tool) = tools.iter().find(|t| *t.name == *name) {
+                let owner = get_tool_owner(tool)
+                    .or_else(|| name.split_once("__").map(|(prefix, _)| name_to_key(prefix)))
+                    .ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::RESOURCE_NOT_FOUND,
+                            format!("Tool '{}' has no owner", name),
+                            None,
+                        )
+                    })?;
+
+                let actual_tool_name = name
+                    .strip_prefix(&format!("{owner}__"))
+                    .unwrap_or(&name)
+                    .to_string();
+
+                let client = self.get_server_client(&owner).await.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::RESOURCE_NOT_FOUND,
-                        format!("Tool '{}' has no owner", tool_name),
+                        format!("Extension '{}' not found for tool '{}'", owner, name),
                         None,
                     )
                 })?;
 
-            let actual_tool_name = tool_name
-                .strip_prefix(&format!("{owner}__"))
-                .unwrap_or(tool_name)
-                .to_string();
-
-            let client = self.get_server_client(&owner).await.ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Extension '{}' not found for tool '{}'", owner, tool_name),
-                    None,
-                )
-            })?;
-
-            return Ok(ResolvedTool {
-                tool_name: tool.name.to_string(),
-                extension_name: owner,
-                actual_tool_name,
-                client,
-                tool_meta: get_tool_meta_value(tool),
-                resource_uri: get_tool_resource_uri(tool),
-            });
-        }
-
-        if let Some((prefix, actual)) = tool_name.split_once("__") {
-            let owner = name_to_key(prefix);
-            if let Some(client) = self.get_server_client(&owner).await {
                 return Ok(ResolvedTool {
-                    tool_name: tool_name.to_string(),
+                    tool_name: tool.name.to_string(),
                     extension_name: owner,
-                    actual_tool_name: actual.to_string(),
+                    actual_tool_name,
                     client,
-                    tool_meta: None,
-                    resource_uri: None,
+                    tool_meta: get_tool_meta_value(tool),
+                    resource_uri: get_tool_resource_uri(tool),
                 });
             }
+
+            if let Some((prefix, actual)) = name.split_once("__") {
+                let owner = name_to_key(prefix);
+                if let Some(client) = self.get_server_client(&owner).await {
+                    return Ok(ResolvedTool {
+                        tool_name: name.to_string(),
+                        extension_name: owner,
+                        actual_tool_name: actual.to_string(),
+                        client,
+                        tool_meta: None,
+                        resource_uri: None,
+                    });
+                }
+            }
+
+            if !recovery_attempted {
+                recovery_attempted = true;
+                if let Some(recovered) =
+                    recover_mangled_tool_name(&name, tools.iter().map(|t| t.name.as_ref()))
+                {
+                    name = recovered;
+                    continue;
+                }
+            }
+
+            break;
         }
 
         let available = tools
@@ -2158,6 +2200,20 @@ mod tests {
                         "hidden tool".to_string(),
                         Arc::new(json!({}).as_object().unwrap().clone()),
                     ),
+                    {
+                        let mut t = Tool::new(
+                            "render_chart".to_string(),
+                            "Render a chart".to_string(),
+                            Arc::new(json!({}).as_object().unwrap().clone()),
+                        );
+                        t.meta = Some(Meta(
+                            json!({ "ui": { "resourceUri": "ui://autovisualiser/chart" } })
+                                .as_object()
+                                .unwrap()
+                                .clone(),
+                        ));
+                        t
+                    },
                 ],
                 next_cursor: None,
                 meta: None,
@@ -2172,7 +2228,7 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" | "available_tool" | "hidden_tool" => {
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" | "render_chart" => {
                     Ok(CallToolResult::success(vec![]))
                 }
                 _ => Err(Error::TransportClosed),
@@ -2349,7 +2405,10 @@ mod tests {
         assert!(tool_names
             .iter()
             .any(|name| name == "test_extension__hidden_tool"));
-        assert!(tool_names.len() == 3);
+        assert!(tool_names
+            .iter()
+            .any(|name| name == "test_extension__render_chart"));
+        assert!(tool_names.len() == 4);
     }
 
     #[tokio::test]
@@ -2543,6 +2602,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_mcp_app_tools_identified_for_code_mode_exclusion() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+
+        extension_manager
+            .add_mock_extension("autovisualiser".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let tools = extension_manager
+            .get_prefixed_tools_excluding("test-session-id", "code_execution")
+            .await
+            .unwrap();
+
+        let (mcp_app_tools, regular_tools): (Vec<_>, Vec<_>) = tools
+            .iter()
+            .partition(|t| get_tool_resource_uri(t).is_some());
+
+        assert_eq!(mcp_app_tools.len(), 1, "exactly one MCP app tool");
+        assert_eq!(
+            mcp_app_tools[0].name.as_ref(),
+            "autovisualiser__render_chart"
+        );
+        assert!(
+            regular_tools
+                .iter()
+                .all(|t| get_tool_resource_uri(t).is_none()),
+            "non-MCP-app tools have no resourceUri"
+        );
+    }
+
+    #[tokio::test]
     async fn test_get_prefixed_tools_by_extension_name() {
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
@@ -2591,6 +2682,198 @@ mod tests {
         assert!(
             msg.contains("ext_a__"),
             "error should list at least one real tool name; got: {msg}"
+        );
+    }
+
+    struct MockDottedClient {}
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for MockDottedClient {
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+
+        async fn list_resources(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListResourcesResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn read_resource(
+            &self,
+            _session_id: &str,
+            _uri: &str,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ReadResourceResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn list_tools(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            use serde_json::json;
+            use std::sync::Arc;
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool::new(
+                        "db.query".to_string(),
+                        "A tool with a dotted name".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "db__query".to_string(),
+                        "A sibling with the separator name".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                ],
+                next_cursor: None,
+                meta: None,
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _ctx: &ToolCallContext,
+            name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            match name {
+                "db.query" | "db__query" => Ok(CallToolResult::success(vec![])),
+                _ => Err(Error::TransportClosed),
+            }
+        }
+
+        async fn list_prompts(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListPromptsResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn get_prompt(
+            &self,
+            _session_id: &str,
+            _name: &str,
+            _arguments: Value,
+            _cancellation_token: CancellationToken,
+        ) -> Result<GetPromptResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+            mpsc::channel(1).1
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_dotted_mangled_name() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "test_client.tool")
+            .await
+            .expect("mangled dotted name should resolve to the real tool");
+        assert_eq!(resolved.tool_name, "test_client__tool");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_functions_prefixed_name() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "functions.test_client__tool")
+            .await
+            .expect("functions-prefixed name should resolve to the real tool");
+        assert_eq!(resolved.tool_name, "test_client__tool");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_exact_dotted_name_never_rewritten() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("dotted".to_string(), Arc::new(MockDottedClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "dotted__db.query")
+            .await
+            .expect("exact dotted tool name must resolve");
+        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.actual_tool_name, "db.query");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_mangled_separator_with_dotted_tool_name() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("dotted".to_string(), Arc::new(MockDottedClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "dotted.db.query")
+            .await
+            .expect("mangled extension separator should resolve");
+        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.actual_tool_name, "db.query");
+    }
+
+    #[test]
+    fn test_recover_mangled_tool_name() {
+        let tools = ["developer__shell", "platform__search"];
+        assert_eq!(
+            recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("functions.developer__shell", tools.iter().copied())
+                .as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("functions.developer.shell", tools.iter().copied())
+                .as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("developer shell", tools.iter().copied()),
+            None
+        );
+        assert_eq!(
+            recover_mangled_tool_name("developer__shell!", tools.iter().copied()),
+            None
+        );
+        assert_eq!(
+            recover_mangled_tool_name("nonexistent.tool", tools.iter().copied()),
+            None
+        );
+
+        let dotted_tool = ["dotted__db.query"];
+        assert_eq!(
+            recover_mangled_tool_name("dotted.db.query", dotted_tool.iter().copied()).as_deref(),
+            Some("dotted__db.query")
         );
     }
 
