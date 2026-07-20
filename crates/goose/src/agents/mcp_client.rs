@@ -57,7 +57,7 @@ struct ModernTaskSubscription {
     notification_subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     auth_manager: Option<Arc<Mutex<AuthorizationManager>>>,
     request_id: AtomicU64,
-    subscribed_workspaces: Mutex<HashSet<String>>,
+    subscribed_workspaces: Arc<Mutex<HashSet<String>>>,
 }
 
 impl ModernTaskSubscription {
@@ -77,10 +77,10 @@ impl ModernTaskSubscription {
             notification_subscribers,
             auth_manager,
             request_id: AtomicU64::new(1),
-            subscribed_workspaces: Mutex::new(HashSet::new()),
+            subscribed_workspaces: Arc::new(Mutex::new(HashSet::new())),
         });
         let result: Value = subscription
-            .post("server/discover", serde_json::json!({}), None, false)
+            .post("server/discover", serde_json::json!({}), None, true)
             .await
             .ok()?
             .json()
@@ -134,8 +134,11 @@ impl ModernTaskSubscription {
 
         let (ready_tx, ready_rx) = oneshot::channel();
         let subscribers = self.notification_subscribers.clone();
+        let subscribed_workspaces = self.subscribed_workspaces.clone();
+        let stream_workspace = workspace.clone();
         tokio::spawn(async move {
             stream_task_subscription(response, subscribers, ready_tx).await;
+            subscribed_workspaces.lock().await.remove(&stream_workspace);
         });
 
         if !matches!(
@@ -254,7 +257,8 @@ fn next_sse_event(buffer: &str) -> Option<(usize, usize)> {
 fn sse_message(event: &str) -> Option<Value> {
     let data = event
         .lines()
-        .filter_map(|line| line.strip_prefix("data: "))
+        .filter_map(|line| line.strip_prefix("data:"))
+        .map(|data| data.strip_prefix(' ').unwrap_or(data))
         .collect::<Vec<_>>()
         .join("\n");
     serde_json::from_str(&data).ok()
@@ -1743,9 +1747,24 @@ mod tests {
         assert!(buffer.is_empty());
     }
 
+    #[test]
+    fn modern_task_subscription_parses_data_without_space() {
+        let message = sse_message(
+            r#"event: message
+data:{"jsonrpc":"2.0","method":"notifications/resources/updated","params":{}}"#,
+        )
+        .expect("SSE JSON data");
+
+        assert_eq!(
+            message.get("method").and_then(Value::as_str),
+            Some("notifications/resources/updated")
+        );
+    }
+
     #[tokio::test]
     async fn modern_task_subscription_streams_workspace_updates() {
         use axum::{
+            http::HeaderMap,
             response::{sse::Event, IntoResponse, Sse},
             routing::post,
             Json, Router,
@@ -1754,7 +1773,7 @@ mod tests {
 
         let app = Router::new().route(
             "/mcp",
-            post(|Json(request): Json<Value>| async move {
+            post(|headers: HeaderMap, Json(request): Json<Value>| async move {
                 if request["method"] == "subscriptions/listen" {
                     let id = request["id"].clone();
                     let events = async_stream::stream! {
@@ -1774,6 +1793,12 @@ mod tests {
                     };
                     Sse::new(events).into_response()
                 } else if request["method"] == "server/discover" {
+                    let accept = headers
+                        .get(axum::http::header::ACCEPT)
+                        .and_then(|value| value.to_str().ok())
+                        .unwrap_or_default();
+                    assert!(accept.contains("application/json"));
+                    assert!(accept.contains("text/event-stream"));
                     Json(serde_json::json!({
                         "jsonrpc": "2.0",
                         "id": request["id"],
@@ -1826,6 +1851,22 @@ mod tests {
             notification.params.expect("notification params")["uri"],
             "ferrosa-memory://tasks/workspaces/L3JlcG8vZ29vc2U/active"
         );
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if !subscription
+                    .subscribed_workspaces
+                    .lock()
+                    .await
+                    .contains("/repo/goose")
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("workspace subscription should be removed after stream exit");
 
         server.abort();
     }
