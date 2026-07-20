@@ -1438,6 +1438,13 @@ impl ExtensionManager {
                             tool.name = public_name.into();
                             tool.meta = Some(rmcp::model::Meta(meta_map));
 
+                            let mut schema = (*tool.input_schema).clone();
+                            if super::tool_schema_normalize::normalize_input_schema(
+                                &mut schema,
+                            ) {
+                                tool.input_schema = Arc::new(schema);
+                            }
+
                             tools.push(tool);
                         }
                     }
