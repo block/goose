@@ -21,7 +21,12 @@ export function getSessionDisplayName(session: Session): string {
 }
 
 export function shouldShowNewChatTitle(session: Session): boolean {
-  return !session.user_set_name && session.message_count === 0 && !session.recipe?.title;
+  return (
+    !session.user_set_name &&
+    session.message_count === 0 &&
+    !session.recipe?.title &&
+    session.name === DEFAULT_CHAT_TITLE
+  );
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
