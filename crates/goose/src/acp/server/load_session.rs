@@ -94,38 +94,10 @@ fn replay_conversation_to_client(
                     tool_call_notifier.send_initial(tool_call)?;
                 }
                 MessageContent::ToolResponse(tool_response) => {
-                    let status = match &tool_response.tool_result {
-                        Ok(result) if result.is_error == Some(true) => ToolCallStatus::Failed,
-                        Ok(_) => ToolCallStatus::Completed,
-                        Err(_) => ToolCallStatus::Failed,
-                    };
-
-                    let mut fields = ToolCallUpdateFields::new().status(status);
-                    if let Some(raw_output) = extract_tool_raw_output(&tool_response.tool_result) {
-                        fields = fields.raw_output(raw_output);
-                    }
-                    if !tool_response
-                        .tool_result
-                        .as_ref()
-                        .is_ok_and(|r| r.is_acp_aware())
-                    {
-                        let content = build_tool_call_content(&tool_response.tool_result);
-                        fields = fields.content(content);
-
-                        let locations =
-                            extract_locations_from_meta(tool_response).unwrap_or_else(|| {
-                                if let Some(tool_request) =
-                                    replay_tool_requests.get(&tool_response.id)
-                                {
-                                    extract_tool_locations(tool_request, tool_response)
-                                } else {
-                                    Vec::new()
-                                }
-                            });
-                        if !locations.is_empty() {
-                            fields = fields.locations(locations);
-                        }
-                    }
+                    let fields = tool_call_update_fields_from_response(
+                        tool_response,
+                        replay_tool_requests.get(&tool_response.id),
+                    );
 
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
