@@ -751,6 +751,52 @@ mod tests {
     }
 
     #[test]
+    fn test_complete_model_names_edge_cases() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // /model --provider z<TAB> → only "zai" matches
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider z")
+            .unwrap();
+        assert_eq!(pos, "/model --provider ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "zai");
+
+        // /model --provider zai <TAB> → single model for zai
+        let (pos, candidates) = completer
+            .complete_model_names("/model --provider zai ")
+            .unwrap();
+        assert_eq!(pos, "/model --provider zai ".len());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "glm-4.5");
+
+        // /model --provider nonexistent <TAB> → unknown provider, no models
+        let (_pos, candidates) = completer
+            .complete_model_names("/model --provider nonexistent ")
+            .unwrap();
+        assert!(candidates.is_empty());
+
+        // /model --provider anthropic nonexistent_model<TAB> → no model matches
+        let (_pos, candidates) = completer
+            .complete_model_names("/model --provider anthropic nonexistent_model")
+            .unwrap();
+        assert!(candidates.is_empty());
+
+        // /model --xyz → unknown flag → no candidates
+        let (_pos, candidates) = completer
+            .complete_model_names("/model --xyz")
+            .unwrap();
+        assert!(candidates.is_empty());
+
+        // /model --provider nosuchprovider<TAB> → partial provider, no match
+        let (_pos, candidates) = completer
+            .complete_model_names("/model --provider nosuchprovider")
+            .unwrap();
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
     fn test_complete_prompt_names() {
         let cache = create_test_cache();
         let completer = GooseCompleter::new(cache);

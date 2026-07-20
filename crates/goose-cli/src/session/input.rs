@@ -635,6 +635,36 @@ mod tests {
             panic!("Expected Model with provider and model");
         }
 
+        // Test /model --provider (bare flag, no value yet)
+        if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
+            handle_slash_command("/model --provider")
+        {
+            assert_eq!(provider.as_deref(), Some(""));
+            assert!(model.is_none());
+        } else {
+            panic!("Expected Model with empty provider");
+        }
+
+        // Test /model --provider (trailing space, same as bare flag after trim)
+        if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
+            handle_slash_command("/model --provider ")
+        {
+            assert_eq!(provider.as_deref(), Some(""));
+            assert!(model.is_none());
+        } else {
+            panic!("Expected Model with empty provider (trailing space)");
+        }
+
+        // Test extra whitespace between provider and model args
+        if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
+            handle_slash_command("/model --provider   anthropic    claude-sonnet-4")
+        {
+            assert_eq!(provider.as_deref(), Some("anthropic"));
+            assert_eq!(model.as_deref(), Some("claude-sonnet-4"));
+        } else {
+            panic!("Expected Model with extra whitespace handled");
+        }
+
         // Test unknown commands
         assert!(handle_slash_command("/unknown").is_none());
     }
