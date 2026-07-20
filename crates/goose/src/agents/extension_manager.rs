@@ -639,7 +639,9 @@ async fn connect_with_auth(
     let auth_http_client = auth_client_builder
         .build()
         .map_err(|_| ExtensionError::ConfigError("could not construct http client".to_string()))?;
+    let subscription_client = auth_http_client.clone();
     let auth_client = AuthClient::new(auth_http_client, auth_manager);
+    let subscription_auth_manager = auth_client.auth_manager.clone();
     let transport = StreamableHttpClientTransport::with_client(
         auth_client,
         StreamableHttpClientTransportConfig::with_uri(uri),
@@ -649,11 +651,18 @@ async fn connect_with_auth(
             transport,
             timeout,
             provider,
-            client_name,
+            client_name.clone(),
             capabilities,
             roots_dir.to_path_buf(),
         )
-        .await?,
+        .await?
+        .with_modern_task_subscription(
+            subscription_client,
+            uri.to_string(),
+            client_name,
+            Some(subscription_auth_manager),
+        )
+        .await,
     ))
 }
 
@@ -799,7 +808,12 @@ async fn create_streamable_http_client(
     } else {
         Ok(Box::new(
             client_res?
-                .with_modern_task_subscription(subscription_client, uri.to_string(), client_name)
+                .with_modern_task_subscription(
+                    subscription_client,
+                    uri.to_string(),
+                    client_name,
+                    None,
+                )
                 .await,
         ))
     }

@@ -10,6 +10,7 @@ use rmcp::model::{
     Meta, Root, SamplingMessageContent,
 };
 /// MCP client implementation for Goose
+use rmcp::transport::AuthorizationManager;
 use rmcp::{
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
@@ -54,6 +55,7 @@ struct ModernTaskSubscription {
     client_name: String,
     client_version: String,
     notification_subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+    auth_manager: Option<Arc<Mutex<AuthorizationManager>>>,
     request_id: AtomicU64,
     subscribed_workspaces: Mutex<HashSet<String>>,
 }
@@ -65,6 +67,7 @@ impl ModernTaskSubscription {
         client_name: String,
         client_version: String,
         notification_subscribers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
+        auth_manager: Option<Arc<Mutex<AuthorizationManager>>>,
     ) -> Option<Arc<Self>> {
         let subscription = Arc::new(Self {
             client,
@@ -72,6 +75,7 @@ impl ModernTaskSubscription {
             client_name,
             client_version,
             notification_subscribers,
+            auth_manager,
             request_id: AtomicU64::new(1),
             subscribed_workspaces: Mutex::new(HashSet::new()),
         });
@@ -185,6 +189,10 @@ impl ModernTaskSubscription {
         if let Some(name) = request_name {
             request = request.header("Mcp-Name", mcp_header_value(name));
         }
+        if let Some(auth_manager) = &self.auth_manager {
+            let token = auth_manager.lock().await.get_access_token().await?;
+            request = request.bearer_auth(token);
+        }
         Ok(request.send().await?.error_for_status()?)
     }
 }
@@ -212,9 +220,9 @@ async fn stream_task_subscription(
             return;
         };
         buffer.push_str(&String::from_utf8_lossy(&chunk));
-        while let Some(end) = buffer.find("\n\n") {
+        while let Some((end, delimiter_len)) = next_sse_event(&buffer) {
             let event = buffer.drain(..end).collect::<String>();
-            buffer.drain(..2);
+            buffer.drain(..delimiter_len);
             let Some(message) = sse_message(&event) else {
                 continue;
             };
@@ -231,6 +239,15 @@ async fn stream_task_subscription(
                 });
             }
         }
+    }
+}
+
+fn next_sse_event(buffer: &str) -> Option<(usize, usize)> {
+    match (buffer.find("\n\n"), buffer.find("\r\n\r\n")) {
+        (Some(lf), Some(crlf)) if crlf < lf => Some((crlf, 4)),
+        (Some(lf), _) => Some((lf, 2)),
+        (None, Some(crlf)) => Some((crlf, 4)),
+        (None, None) => None,
     }
 }
 
@@ -839,6 +856,7 @@ impl McpClient {
         client: reqwest::Client,
         uri: String,
         client_name: String,
+        auth_manager: Option<Arc<Mutex<AuthorizationManager>>>,
     ) -> Self {
         self.modern_task_subscription = ModernTaskSubscription::probe(
             client,
@@ -846,6 +864,7 @@ impl McpClient {
             client_name,
             env!("CARGO_PKG_VERSION").to_string(),
             self.notification_subscribers.clone(),
+            auth_manager,
         )
         .await;
         self
@@ -1709,6 +1728,21 @@ mod tests {
         );
     }
 
+    #[test]
+    fn modern_task_subscription_parses_crlf_sse_events() {
+        let mut buffer = "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/resources/updated\",\"params\":{}}\r\n\r\n".to_string();
+        let (end, delimiter_len) = next_sse_event(&buffer).expect("CRLF-delimited SSE event");
+        let event = buffer.drain(..end).collect::<String>();
+        buffer.drain(..delimiter_len);
+
+        let message = sse_message(&event).expect("SSE JSON data");
+        assert_eq!(
+            message.get("method").and_then(Value::as_str),
+            Some("notifications/resources/updated")
+        );
+        assert!(buffer.is_empty());
+    }
+
     #[tokio::test]
     async fn modern_task_subscription_streams_workspace_updates() {
         use axum::{
@@ -1770,6 +1804,7 @@ mod tests {
             "goose-test".to_string(),
             "1.0.0".to_string(),
             subscribers,
+            None,
         )
         .await
         .expect("modern server should be detected");
