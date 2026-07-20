@@ -1,7 +1,8 @@
-use super::tool_calls::{
+use super::tool_calls::conversion::{
     extract_tool_call_update_meta, pending_tool_call_from_request,
     tool_call_update_fields_from_response,
 };
+use super::tool_calls::enrichment::with_tool_chain_summary_meta;
 use super::*;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {

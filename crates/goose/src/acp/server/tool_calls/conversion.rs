@@ -9,13 +9,13 @@ use agent_client_protocol::schema::v1::{
 };
 use rmcp::model::{CallToolResult, RawContent, ResourceContents};
 
-pub(in crate::acp::server) struct PendingToolCall {
-    pub(in crate::acp::server) tool_call: ToolCall,
-    pub(in crate::acp::server) identity_meta: Option<Meta>,
-    pub(in crate::acp::server) fallback_title: String,
+pub(crate) struct PendingToolCall {
+    pub(crate) tool_call: ToolCall,
+    pub(crate) identity_meta: Option<Meta>,
+    pub(crate) fallback_title: String,
 }
 
-pub(in crate::acp::server) fn format_tool_name(tool_name: &str) -> String {
+pub(crate) fn format_tool_name(tool_name: &str) -> String {
     if let Some((extension, tool)) = tool_name.split_once("__") {
         format!(
             "{}: {}",
@@ -61,7 +61,7 @@ fn summarize_tool_call(tool_name: &str, arguments: Option<&serde_json::Value>) -
     }
 }
 
-pub(in crate::acp::server) fn tool_call_identity_meta(tool_request: &ToolRequest) -> Option<Meta> {
+pub(crate) fn tool_call_identity_meta(tool_request: &ToolRequest) -> Option<Meta> {
     let tool_call = tool_request.tool_call.as_ref().ok()?;
     let tool_name = tool_call.name.to_string();
     let extension_name = tool_request
@@ -96,9 +96,7 @@ pub(in crate::acp::server) fn tool_call_identity_meta(tool_request: &ToolRequest
     Some(meta)
 }
 
-pub(in crate::acp::server) fn pending_tool_call_from_request(
-    tool_request: &ToolRequest,
-) -> PendingToolCall {
+pub(crate) fn pending_tool_call_from_request(tool_request: &ToolRequest) -> PendingToolCall {
     let tool_name = match &tool_request.tool_call {
         Ok(tool_call) => tool_call.name.to_string(),
         Err(_) => "error".to_string(),
@@ -262,9 +260,7 @@ fn extract_first_line_number(text: &str) -> Option<usize> {
     None
 }
 
-pub(in crate::acp::server) fn extract_tool_call_update_meta(
-    tool_response: &ToolResponse,
-) -> Option<Meta> {
+pub(crate) fn extract_tool_call_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
     let tool_result = tool_response.tool_result.as_ref().ok()?;
     let goose_meta = tool_result
         .meta
@@ -330,7 +326,7 @@ fn extract_tool_raw_output(tool_result: &ToolResult<CallToolResult>) -> Option<s
         .and_then(|result| result.structured_content.clone())
 }
 
-pub(in crate::acp::server) fn tool_call_update_fields_from_response(
+pub(crate) fn tool_call_update_fields_from_response(
     tool_response: &ToolResponse,
     tool_request: Option<&ToolRequest>,
 ) -> ToolCallUpdateFields {

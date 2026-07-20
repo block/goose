@@ -76,10 +76,12 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use self::tool_calls::{
+use self::tool_calls::chain::{extend_chain_membership, ToolChain};
+use self::tool_calls::conversion::{
     extract_tool_call_update_meta, format_tool_name, pending_tool_call_from_request,
     tool_call_identity_meta, tool_call_update_fields_from_response,
 };
+use self::tool_calls::enrichment::{ChainSummaryEnrichmentContext, ToolTitleEnrichmentContext};
 
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
@@ -187,18 +189,6 @@ struct GooseAcpSession {
 struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
-}
-
-/// A run of consecutive ToolRequest blocks within one assistant message,
-/// tracked by [`GooseAcpSession::chain_membership`]. Used to drive a single
-/// LLM summary for the whole run once every step has a recorded ToolResponse.
-#[derive(Debug, Clone)]
-struct ToolChain {
-    /// Tool call ids in document order. Always `len() >= 2`.
-    ids: Vec<String>,
-    /// The message_id of the assistant message containing these tool calls.
-    /// Used to persist chain summaries back to the messages table.
-    message_id: String,
 }
 
 pub struct GooseAcpAgentOptions {
@@ -481,71 +471,6 @@ fn read_resource_link(link: ResourceLink) -> Option<String> {
         ))
     } else {
         None
-    }
-}
-
-/// Add `goose.toolChainSummary = { summary, count }` to a `Meta` blob,
-/// preserving any existing `goose.*` keys (e.g. `goose.toolCall` set by
-/// [`tool_call_identity_meta`]).
-fn with_tool_chain_summary_meta(base: Option<Meta>, summary: &str, count: usize) -> Option<Meta> {
-    let mut meta = base.unwrap_or_default();
-    let goose_entry = meta
-        .entry("goose".to_string())
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-    let goose_obj = match goose_entry {
-        serde_json::Value::Object(obj) => obj,
-        other => {
-            *other = serde_json::Value::Object(serde_json::Map::new());
-            match other {
-                serde_json::Value::Object(obj) => obj,
-                _ => unreachable!(),
-            }
-        }
-    };
-    let mut chain = serde_json::Map::new();
-    chain.insert(
-        "summary".to_string(),
-        serde_json::Value::String(summary.to_string()),
-    );
-    chain.insert(
-        "count".to_string(),
-        serde_json::Value::Number(serde_json::Number::from(count)),
-    );
-    goose_obj.insert(
-        "toolChainSummary".to_string(),
-        serde_json::Value::Object(chain),
-    );
-    Some(meta)
-}
-
-/// If `buffer` holds a multi-tool run (≥ 2 tool requests), (re)register a
-/// [`ToolChain`] in `chain_membership` anchored on the **first** tool's
-/// message_id (the row [`SessionManager::update_tool_request_meta`] will patch
-/// when persisting the LLM-generated summary). Does **not** clear the buffer
-/// — chains can grow as more tools arrive (sequential tool use), so callers
-/// keep accumulating and re-registering with the larger set of ids.
-///
-/// The buffer contains `(tool_call_id, message_id)` pairs in arrival order,
-/// fed by the prompt stream loop. Sequential tool use (Bedrock/Anthropic)
-/// interleaves request → response → request → response across separate
-/// `AgentEvent::Message` events, so a per-event view would only see length-1
-/// chains and miss the run. Tool responses are chain-neutral (they don't
-/// split the run); only non-tool content (text, thinking, image, etc.) does,
-/// matching the frontend's `groupContentSections` behavior.
-fn extend_chain_membership(
-    buffer: &[(String, String)],
-    chain_membership: &mut HashMap<String, Arc<ToolChain>>,
-) {
-    if buffer.len() >= 2 {
-        let ids: Vec<String> = buffer.iter().map(|(id, _)| id.clone()).collect();
-        let message_id = buffer[0].1.clone();
-        let chain = Arc::new(ToolChain {
-            ids: ids.clone(),
-            message_id,
-        });
-        for id in ids {
-            chain_membership.insert(id, chain.clone());
-        }
     }
 }
 
@@ -1252,157 +1177,20 @@ impl GooseAcpAgent {
         }
 
         if let Ok(tool_call) = &tool_request.tool_call {
-            let agent = session.agent.clone();
-            let sid = session_id.clone();
-            let request_id = tool_request.id.clone();
-            let tool_call_notifier = tool_call_notifier.clone();
-            let name = tool_call.name.to_string();
-            let identity_meta = pending_tool_call.identity_meta.clone();
-            let fallback_title = pending_tool_call.fallback_title.clone();
-            let session_id_for_persist = session_id_for_persist.to_string();
-            let message_id_for_persist = message_id.map(|s| s.to_string());
-            let session_manager = self.session_manager.clone();
-            let args_json = tool_call
-                .arguments
-                .as_ref()
-                .map(|a| {
-                    let s = serde_json::to_string(a).unwrap_or_default();
-                    if s.len() > 300 {
-                        format!("{}…", crate::utils::safe_truncate(&s, 300))
-                    } else {
-                        s
-                    }
-                })
-                .unwrap_or_default();
-
-            tokio::spawn(async move {
-                let (title, from_llm) = match agent.provider().await {
-                    Ok(provider) => {
-                        if provider.manages_own_context() {
-                            return;
-                        }
-
-                        let system =
-                            "Summarize this tool call in a short lowercase phrase (3-8 words). \
-                             No punctuation. No quotes. Examples: reading project configuration, \
-                             checking network connectivity, listing files in src directory";
-                        let user_text = format!("Tool: {name}\nArguments: {args_json}");
-                        let message = Message::user().with_text(&user_text);
-                        let model_config = match agent.model_config_for_session(&sid.0).await {
-                            Ok(config) => config,
-                            Err(_) => return,
-                        };
-                        let fast_model_config = match crate::model_config::get_fast_model(
-                            provider.get_name(),
-                            &model_config,
-                        )
-                        .await
-                        {
-                            Ok(config) => config,
-                            Err(_) => return,
-                        };
-                        // The fast model occasionally returns an empty response
-                        // under load (rate limiting, transient network). One
-                        // retry with a short backoff is enough to recover the
-                        // common cases without paying for the regular model.
-                        let mut llm_outcome: Option<String> = None;
-                        for attempt in 0..2 {
-                            match crate::session_context::with_session_id(
-                                Some(sid.0.to_string()),
-                                provider.complete(
-                                    &fast_model_config,
-                                    system,
-                                    std::slice::from_ref(&message),
-                                    &[],
-                                ),
-                            )
-                            .await
-                            {
-                                Ok((response, _)) => {
-                                    let summary: String = response
-                                        .content
-                                        .iter()
-                                        .filter_map(|c: &MessageContent| c.as_text())
-                                        .collect::<String>()
-                                        .trim()
-                                        .to_string();
-                                    if !summary.is_empty() {
-                                        llm_outcome = Some(summary);
-                                        break;
-                                    }
-                                    if attempt == 0 {
-                                        warn!(
-                                            "tool call summary: fast_complete returned empty for {request_id} ({name}), retrying once",
-                                        );
-                                        tokio::time::sleep(std::time::Duration::from_millis(150))
-                                            .await;
-                                    }
-                                }
-                                Err(e) => {
-                                    if attempt == 0 {
-                                        warn!(
-                                            "tool call summary: fast_complete errored for {request_id} ({name}): {e}, retrying once",
-                                        );
-                                        tokio::time::sleep(std::time::Duration::from_millis(150))
-                                            .await;
-                                    } else {
-                                        warn!(
-                                            "tool call summary: fast_complete errored for {request_id} ({name}) after retry: {e}",
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        match llm_outcome {
-                            Some(summary) => (summary, true),
-                            None => {
-                                warn!(
-                                    "tool call summary: falling back to deterministic title for {request_id} ({name}) — replay will not show an LLM summary for this call",
-                                );
-                                (fallback_title.clone(), false)
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        warn!("tool call summary: failed to get provider: {e}");
-                        (fallback_title.clone(), false)
-                    }
-                };
-
-                let fields = ToolCallUpdateFields::new().title(title.clone());
-                let _ = tool_call_notifier.send_update(
-                    ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields)
-                        .meta(identity_meta),
-                );
-
-                // Best-effort persistence: only persist the LLM-generated title
-                // (not the deterministic fallback) so reload uses fallback_title
-                // for older or failed cases just like today.
-                if from_llm {
-                    if let Some(msg_id) = message_id_for_persist {
-                        let patch = serde_json::json!({
-                            crate::conversation::message::TOOL_META_TITLE_KEY: title,
-                        });
-                        if let Err(e) = session_manager
-                            .update_tool_request_meta(
-                                &session_id_for_persist,
-                                &msg_id,
-                                &request_id,
-                                patch,
-                            )
-                            .await
-                        {
-                            warn!(
-                                "tool call summary: persist failed for {request_id} in {msg_id}: {e}",
-                            );
-                        }
-                    } else {
-                        warn!(
-                            "tool call summary: missing message_id for {request_id} — title will not survive reload",
-                        );
-                    }
-                }
-            });
+            ToolTitleEnrichmentContext::new(
+                &session.agent,
+                session_id,
+                &tool_call_notifier,
+                &self.session_manager,
+                session_id_for_persist,
+                message_id,
+            )
+            .spawn_title_enrichment(
+                tool_request.id.clone(),
+                tool_call,
+                pending_tool_call.identity_meta.clone(),
+                pending_tool_call.fallback_title.clone(),
+            );
         }
 
         Ok(())
@@ -1493,8 +1281,6 @@ impl GooseAcpAgent {
             return;
         }
 
-        let agent = session.agent.clone();
-
         // Snapshot (name, args_json) for each step in document order.
         let steps: Vec<(String, String)> = chain
             .ids
@@ -1525,129 +1311,19 @@ impl GooseAcpAgent {
             .get(first_id)
             .and_then(tool_call_identity_meta);
 
-        let sid = session_id.clone();
-        let chain_for_task = chain.clone();
-        let tool_call_notifier = tool_call_notifier.clone();
-        let session_manager = self.session_manager.clone();
-
-        let first_id = first_id.clone();
-        tokio::spawn(async move {
-            let provider = match agent.provider().await {
-                Ok(p) => p,
-                Err(e) => {
-                    warn!(
-                        "tool chain summary: failed to get provider for chain anchored at {first_id}: {e}",
-                    );
-                    return;
-                }
-            };
-            if provider.manages_own_context() {
-                warn!(
-                    "tool chain summary: provider manages own context; skipping chain anchored at {first_id}",
-                );
-                return;
-            }
-
-            let system = "Summarize this sequence of tool calls in a short lowercase phrase \
-                 (3-8 words). No punctuation. No quotes. \
-                 Examples: applied dark mode polish, scanned for security issues, \
-                 refactored config loading";
-
-            let mut user_text = String::from("Tool call sequence:\n");
-            for (i, (name, args)) in steps.iter().enumerate() {
-                user_text.push_str(&format!("Step {}: {} {}\n", i + 1, name, args));
-            }
-            let message = Message::user().with_text(&user_text);
-            let model_config = match agent.model_config_for_session(&sid.0).await {
-                Ok(config) => config,
-                Err(_) => return,
-            };
-            let fast_model_config =
-                match crate::model_config::get_fast_model(provider.get_name(), &model_config).await
-                {
-                    Ok(config) => config,
-                    Err(_) => return,
-                };
-
-            // Match the per-tool retry policy: one retry on empty/error keeps
-            // the chain header reliable when the fast model is rate-limited or
-            // momentarily flaky, without escalating to the regular model.
-            let mut summary: Option<String> = None;
-            for attempt in 0..2 {
-                match crate::session_context::with_session_id(
-                    Some(sid.0.to_string()),
-                    provider.complete(
-                        &fast_model_config,
-                        system,
-                        std::slice::from_ref(&message),
-                        &[],
-                    ),
-                )
-                .await
-                {
-                    Ok((response, _)) => {
-                        let s = response
-                            .content
-                            .iter()
-                            .filter_map(|c: &MessageContent| c.as_text())
-                            .collect::<String>()
-                            .trim()
-                            .to_string();
-                        if !s.is_empty() {
-                            summary = Some(s);
-                            break;
-                        }
-                        if attempt == 0 {
-                            warn!(
-                                "tool chain summary: fast_complete returned empty for chain anchored at {first_id} ({} steps), retrying once",
-                                steps.len(),
-                            );
-                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                        }
-                    }
-                    Err(e) => {
-                        if attempt == 0 {
-                            warn!(
-                                "tool chain summary: fast_complete errored for chain anchored at {first_id}: {e}, retrying once",
-                            );
-                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                        } else {
-                            warn!(
-                                "tool chain summary: fast_complete errored for chain anchored at {first_id} after retry: {e}",
-                            );
-                        }
-                    }
-                }
-            }
-            let Some(summary) = summary else {
-                warn!(
-                    "tool chain summary: no LLM summary produced for chain anchored at {first_id} — replay will fall back to the deterministic phrase",
-                );
-                return;
-            };
-
-            let count = chain_for_task.ids.len();
-            let patch = serde_json::json!({
-                crate::conversation::message::TOOL_META_CHAIN_SUMMARY_KEY: {
-                    "summary": &summary,
-                    "count": count,
-                },
-            });
-            if let Err(e) = session_manager
-                .update_tool_request_meta(&sid.0, &chain_for_task.message_id, &first_id, patch)
-                .await
-            {
-                warn!(
-                    "tool chain summary: persist failed for chain anchored at {first_id} in {}: {e}",
-                    chain_for_task.message_id,
-                );
-            }
-
-            let meta = with_tool_chain_summary_meta(identity_meta, &summary, count);
-            let fields = ToolCallUpdateFields::new();
-            let _ = tool_call_notifier
-                .send_update(ToolCallUpdate::new(ToolCallId::new(first_id), fields).meta(meta));
-        });
+        ChainSummaryEnrichmentContext::new(
+            &session.agent,
+            session_id,
+            tool_call_notifier,
+            &self.session_manager,
+        )
+        .spawn_chain_summary(
+            first_id.clone(),
+            chain.message_id.clone(),
+            steps,
+            identity_meta,
+            chain.ids.len(),
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2886,6 +2562,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::server::tool_calls::enrichment::with_tool_chain_summary_meta;
     use crate::conversation::message::ToolRequest;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
@@ -2987,135 +2664,6 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
-    }
-
-    fn buf_entry(tool_id: &str, msg_id: &str) -> (String, String) {
-        (tool_id.to_string(), msg_id.to_string())
-    }
-
-    #[test]
-    fn extend_chain_membership_skips_singleton_and_leaves_buffer() {
-        let mut membership: HashMap<String, Arc<ToolChain>> = HashMap::new();
-        let buffer = vec![buf_entry("a", "row_1")];
-
-        extend_chain_membership(&buffer, &mut membership);
-
-        assert_eq!(buffer.len(), 1, "buffer is left intact for caller");
-        assert!(
-            membership.is_empty(),
-            "single-tool runs should not register a chain",
-        );
-    }
-
-    #[test]
-    fn extend_chain_membership_registers_each_id_against_shared_chain() {
-        let mut membership: HashMap<String, Arc<ToolChain>> = HashMap::new();
-        let buffer = vec![
-            buf_entry("a", "row_first"),
-            buf_entry("b", "row_second"),
-            buf_entry("c", "row_third"),
-        ];
-
-        extend_chain_membership(&buffer, &mut membership);
-
-        assert_eq!(membership.len(), 3);
-        let chain_a = membership.get("a").expect("a registered");
-        let chain_b = membership.get("b").expect("b registered");
-        let chain_c = membership.get("c").expect("c registered");
-        assert!(
-            Arc::ptr_eq(chain_a, chain_b) && Arc::ptr_eq(chain_b, chain_c),
-            "every id in the run must point at the same ToolChain Arc",
-        );
-        assert_eq!(
-            chain_a.ids,
-            vec!["a".to_string(), "b".to_string(), "c".to_string()],
-        );
-    }
-
-    #[test]
-    fn extend_chain_membership_anchors_on_first_row_for_split_messages() {
-        // Sequential tool use (Bedrock/Anthropic) emits each tool request as
-        // its own assistant message, with the tool response interleaved in
-        // between. The chain should still form, anchored on the *first*
-        // tool's row id so `update_tool_request_meta` can find that
-        // ToolRequest when persisting the summary.
-        let mut membership: HashMap<String, Arc<ToolChain>> = HashMap::new();
-        let buffer = vec![
-            buf_entry("toolu_bdrk_1", "row_for_tool_1"),
-            buf_entry("toolu_bdrk_2", "row_for_tool_2"),
-        ];
-
-        extend_chain_membership(&buffer, &mut membership);
-
-        let chain = membership
-            .get("toolu_bdrk_1")
-            .expect("first tool registered");
-        assert_eq!(
-            chain.ids,
-            vec!["toolu_bdrk_1".to_string(), "toolu_bdrk_2".to_string()],
-        );
-        let chain_via_second = membership
-            .get("toolu_bdrk_2")
-            .expect("second tool registered");
-        assert!(Arc::ptr_eq(chain, chain_via_second));
-    }
-
-    #[test]
-    fn extend_chain_membership_grows_chain_as_more_requests_arrive() {
-        // The streaming loop re-registers eagerly each time a new request
-        // arrives, so a chain that started at length 2 must grow to include
-        // a third tool whose response is yet to come. Both the original
-        // members and the new member must point at the new (extended) chain.
-        let mut membership: HashMap<String, Arc<ToolChain>> = HashMap::new();
-        let mut buffer = vec![buf_entry("a", "row_1"), buf_entry("b", "row_2")];
-        extend_chain_membership(&buffer, &mut membership);
-
-        buffer.push(buf_entry("c", "row_3"));
-        extend_chain_membership(&buffer, &mut membership);
-
-        let chain_a = membership.get("a").expect("a present");
-        let chain_b = membership.get("b").expect("b present");
-        let chain_c = membership.get("c").expect("c present");
-        assert!(Arc::ptr_eq(chain_a, chain_b) && Arc::ptr_eq(chain_b, chain_c));
-        assert_eq!(
-            chain_a.ids,
-            vec!["a".to_string(), "b".to_string(), "c".to_string()],
-        );
-    }
-
-    #[test]
-    fn with_tool_chain_summary_meta_creates_fresh_when_none() {
-        let meta = with_tool_chain_summary_meta(None, "applied dark mode", 4)
-            .expect("meta should be created");
-        assert_eq!(
-            meta.get("goose"),
-            Some(&serde_json::json!({
-                "toolChainSummary": { "summary": "applied dark mode", "count": 4 },
-            })),
-        );
-    }
-
-    #[test]
-    fn with_tool_chain_summary_meta_preserves_existing_tool_call_identity() {
-        let existing = tool_call_identity_meta(&ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-            metadata: None,
-            tool_meta: None,
-        });
-        let meta = with_tool_chain_summary_meta(existing, "ran two commands", 2)
-            .expect("meta should be created");
-        let goose = meta.get("goose").expect("goose key");
-        assert_eq!(
-            goose.get("toolCall"),
-            Some(
-                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
-            )
-        );
-        assert_eq!(
-            goose.get("toolChainSummary"),
-            Some(&serde_json::json!({ "summary": "ran two commands", "count": 2 }))
-        );
     }
 
     #[test]
