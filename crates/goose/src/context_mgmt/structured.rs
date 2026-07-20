@@ -186,8 +186,16 @@ impl StructuredSummary {
 }
 
 /// Candidate JSON documents in the model's response, tried in order until one
-/// parses: after each post-analysis ```json fence (last first), after
-/// `</analysis>`, then at the start of the whole text.
+/// parses: after each `</analysis>` terminator (last first) the
+/// post-terminator ```json fences (last first) then a leading object, and
+/// finally a leading object of the whole text.
+///
+/// Terminators before the last are retried because the summary JSON may
+/// itself quote `</analysis>` (e.g. a session editing compaction prompts),
+/// hiding the real terminator from a plain rfind. Such a candidate is
+/// accepted only if it contains every later terminator occurrence - proof
+/// they were quoted inside it - so a fenced example inside the scratchpad,
+/// which precedes the real terminator, can never leak through.
 ///
 /// Every candidate must sit directly at its marker and brace-balance to a
 /// close. Anything looser erodes the lossless fallback: JSON merely quoted in
@@ -199,18 +207,27 @@ impl StructuredSummary {
 /// fallback preserves.
 #[allow(clippy::string_slice)] // All markers are ASCII; indices are byte offsets of ASCII matches.
 fn json_candidates(text: &str) -> Vec<&str> {
-    let after_analysis = text
-        .rfind("</analysis>")
-        .map(|idx| &text[idx + "</analysis>".len()..])
-        .unwrap_or(text);
+    const TERMINATOR: &str = "</analysis>";
 
-    let mut candidates: Vec<&str> = fenced_json_blocks(after_analysis)
-        .chain(
-            [leading_object(after_analysis), leading_object(text)]
-                .into_iter()
-                .flatten(),
-        )
+    let mut cuts: Vec<usize> = text
+        .match_indices(TERMINATOR)
+        .map(|(idx, _)| idx + TERMINATOR.len())
         .collect();
+    if cuts.is_empty() {
+        cuts.push(0);
+    }
+
+    let mut candidates: Vec<&str> = Vec::new();
+    for &cut in cuts.iter().rev() {
+        let tail = &text[cut..];
+        let later_terminators = tail.matches(TERMINATOR).count();
+        candidates.extend(
+            fenced_json_blocks(tail)
+                .chain(leading_object(tail))
+                .filter(|candidate| candidate.matches(TERMINATOR).count() == later_terminators),
+        );
+    }
+    candidates.extend(leading_object(text));
     candidates.dedup();
     candidates
 }
@@ -322,6 +339,8 @@ in {brace handling} and patched it.
             "<analysis>reviewing</analysis>\nA prose recap: the config was set to {\"user_intent\": [\"quoted example\"]} per the docs, then the run passed.",
             // a fenced example inside the scratchpad is not the summary
             "<analysis>\nThe target shape is:\n```json\n{\"user_intent\": [\"example only\"]}\n```\nNow let me review the conversation.\n</analysis>\nSorry, I ran out of room and could not produce the summary document.",
+            // a quoted terminator inside the scratchpad must not expose its fenced example
+            "<analysis>\nThe prompt ends with </analysis> and shows the shape:\n```json\n{\"user_intent\": [\"example only\"]}\n```\nNow let me review the conversation.\n</analysis>\nSorry, I ran out of room and could not produce the summary document.",
         ] {
             assert!(
                 StructuredSummary::parse(text).is_none(),
@@ -346,6 +365,17 @@ in {brace handling} and patched it.
         assert_eq!(
             summary.files[0].key_code.as_deref(),
             Some("```json\n{\"retries\": 3}\n```")
+        );
+    }
+
+    #[test]
+    fn quoted_terminator_inside_summary_json_does_not_hide_it() {
+        let text = "<analysis>\nThe session edited the compaction prompt itself.\n</analysis>\n```json\n{\"user_intent\": [\"Rework the scratchpad prompt\"], \"files\": [{\"path\": \"prompts/compact.md\", \"summary\": \"Tightened the <analysis>...</analysis> instructions\"}]}\n```";
+        let summary = StructuredSummary::parse(text).expect("should parse");
+        assert_eq!(summary.user_intent, vec!["Rework the scratchpad prompt"]);
+        assert_eq!(
+            summary.files[0].summary,
+            "Tightened the <analysis>...</analysis> instructions"
         );
     }
 
