@@ -3,8 +3,8 @@ use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
 use goose::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationContentBlock,
-    SystemNotificationType, ToolRequest, ToolResponse,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
+    ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -374,7 +374,7 @@ pub fn render_message_streaming(
     let _ = std::io::stdout().flush();
 }
 
-fn render_credits_exhausted_notification(notification: &SystemNotificationContentBlock) {
+fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
     hide_thinking();
     println!("\n{} {}", warning("warning:").bold(), &notification.msg);
 

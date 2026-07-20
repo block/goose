@@ -249,7 +249,7 @@ pub enum SystemNotificationType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SystemNotificationContentBlock {
+pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
     pub msg: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -271,7 +271,7 @@ pub enum MessageContentBlock {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContentBlock),
     RedactedThinking(RedactedThinkingContentBlock),
-    SystemNotification(SystemNotificationContentBlock),
+    SystemNotification(SystemNotificationContent),
 }
 
 impl fmt::Display for MessageContentBlock {
@@ -516,7 +516,7 @@ impl MessageContentBlock {
         notification_type: SystemNotificationType,
         msg: S,
     ) -> Self {
-        MessageContentBlock::SystemNotification(SystemNotificationContentBlock {
+        MessageContentBlock::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
             data: None,
@@ -528,14 +528,14 @@ impl MessageContentBlock {
         msg: S,
         data: serde_json::Value,
     ) -> Self {
-        MessageContentBlock::SystemNotification(SystemNotificationContentBlock {
+        MessageContentBlock::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
             data: Some(data),
         })
     }
 
-    pub fn as_system_notification(&self) -> Option<&SystemNotificationContentBlock> {
+    pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContentBlock::SystemNotification(ref notification) = self {
             Some(notification)
         } else {

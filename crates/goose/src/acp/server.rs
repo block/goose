@@ -21,8 +21,8 @@ use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationContentBlock,
-    SystemNotificationType, ToolRequest,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
+    ToolRequest,
 };
 use crate::execution::manager::{AgentManager, AgentManagerGetResult, RuntimeContext};
 use crate::mcp_utils::ToolResult;
@@ -2027,7 +2027,7 @@ fn prompt_error_from_message_content(
 }
 
 fn credits_exhausted_prompt_error(
-    notification: &SystemNotificationContentBlock,
+    notification: &SystemNotificationContent,
 ) -> agent_client_protocol::Error {
     let mut data = serde_json::Map::new();
     data.insert(
@@ -2055,7 +2055,7 @@ fn send_status_message_update(
     cx: &ConnectionTo<Client>,
     supports_goose_custom_notifications: bool,
     session_id: &str,
-    notification: &SystemNotificationContentBlock,
+    notification: &SystemNotificationContent,
 ) -> Result<(), agent_client_protocol::Error> {
     if let Some(status) = status_message_from_system_notification(notification) {
         if supports_goose_custom_notifications {
@@ -2086,7 +2086,7 @@ fn send_progress_message_update(
 }
 
 fn status_message_from_system_notification(
-    notification: &SystemNotificationContentBlock,
+    notification: &SystemNotificationContent,
 ) -> Option<StatusMessage> {
     match notification.notification_type {
         SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
@@ -3872,7 +3872,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_credits_exhausted_system_notification_maps_to_prompt_error() {
-        let content = MessageContent::SystemNotification(SystemNotificationContentBlock {
+        let content = MessageContent::SystemNotification(SystemNotificationContent {
             notification_type: SystemNotificationType::CreditsExhausted,
             msg: "Please add credits to your account, then resend your message to continue."
                 .to_string(),
@@ -3899,7 +3899,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_non_credit_system_notification_does_not_map_to_prompt_error() {
-        let content = MessageContent::SystemNotification(SystemNotificationContentBlock {
+        let content = MessageContent::SystemNotification(SystemNotificationContent {
             notification_type: SystemNotificationType::InlineMessage,
             msg: "Compaction complete".to_string(),
             data: None,
