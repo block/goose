@@ -1031,12 +1031,14 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        tx.commit().await?;
+        // Create the inventory tables inside the same transaction so that a
+        // second SessionStorage opening the same DB file never observes a
+        // committed schema_version (and thus takes the migration path) while
+        // the inventory tables don't yet exist — which raced as
+        // `no such table: provider_inventory_entries`.
+        crate::providers::inventory::create_tables_in_tx(&mut tx).await?;
 
-        // The inventory tables already use `CREATE TABLE IF NOT EXISTS`
-        // and run on the shared pool, so they don't need to be inside
-        // the same transaction.
-        crate::providers::inventory::create_tables(pool).await?;
+        tx.commit().await?;
 
         Ok(())
     }
