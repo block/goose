@@ -55,6 +55,22 @@ goose roam connect 'goose+roam://…'
 You get an interactive prompt that drives the agent on machine A. Type a message
 and press enter; `/quit` or Ctrl-D to leave.
 
+## Resuming an existing session
+
+Instead of starting fresh, you can share an existing local session — its
+conversation history is replayed into the hosted agent, which runs in that
+session's own working directory:
+
+```bash
+goose roam sessions                       # list local session ids
+goose roam share --session <SESSION_ID>   # resume and share it
+```
+
+`--cwd` is ignored when `--session` is given (a resumed session keeps its own
+directory). History replay reaches the hosted agent at share time, so a peer
+that connects later sees new activity from the point it attaches rather than a
+re-rendered transcript.
+
 ## One-shot delegation
 
 To send a single task and get the answer back — no interactive session:

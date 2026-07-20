@@ -15,12 +15,15 @@ use clap::Subcommand;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
+use goose::session::SessionManager;
 use goose_roaming::{
     default_key_path, parse_endpoint_id, Directory, RelaySettings, RoamingConfig, RoamingIdentity,
     RoamingNode, Scope, TrustBook, TrustPolicy,
 };
 
-use crate::commands::shared_session_bridge::{GooseAgentBackend, SharedSessionBridge};
+use crate::commands::shared_session_bridge::{
+    GooseAgentBackend, ResumeTarget, SharedSessionBridge,
+};
 
 fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
@@ -56,10 +59,21 @@ pub enum RoamCommand {
 
         /// Working directory the hosted agent runs in. Defaults to the directory
         /// `roam share` was started in. The connecting client's own path is
-        /// always ignored — it is meaningless on this machine.
+        /// always ignored — it is meaningless on this machine. Ignored when
+        /// `--session` is given (a resumed session keeps its own directory).
         #[arg(long)]
         cwd: Option<std::path::PathBuf>,
+
+        /// Resume an existing local session by id instead of starting fresh.
+        /// Its conversation history is replayed into the hosted agent and it
+        /// runs in the session's own working directory. Use `roam sessions` to
+        /// list ids.
+        #[arg(long, value_name = "SESSION_ID")]
+        session: Option<String>,
     },
+
+    /// List local sessions that can be resumed with `roam share --session`.
+    Sessions,
 
     /// Connect to a shared agent by saved peer name or invite token.
     Connect {
@@ -125,7 +139,20 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             pair,
             builtins,
             cwd,
-        } => handle_share(Scope::Control, ttl, allow_keys, pair, builtins, cwd).await,
+            session,
+        } => {
+            handle_share(
+                Scope::Control,
+                ttl,
+                allow_keys,
+                pair,
+                builtins,
+                cwd,
+                session,
+            )
+            .await
+        }
+        RoamCommand::Sessions => handle_sessions().await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
@@ -243,6 +270,33 @@ fn load_client_identity() -> Result<RoamingIdentity> {
     RoamingIdentity::load_or_create(&path).context("failed to load roaming client identity")
 }
 
+async fn handle_sessions() -> Result<()> {
+    let manager = SessionManager::new(Paths::data_dir());
+    let mut sessions = manager.list_sessions().await?;
+    if sessions.is_empty() {
+        eprintln!("no local sessions found");
+        return Ok(());
+    }
+    sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+
+    println!("{:<40} {:<20} UPDATED", "SESSION ID", "NAME");
+    for s in sessions {
+        let name = if s.name.chars().count() > 20 {
+            let truncated: String = s.name.chars().take(19).collect();
+            format!("{truncated}…")
+        } else {
+            s.name
+        };
+        println!(
+            "{:<40} {name:<20} {}",
+            s.id,
+            s.updated_at.format("%Y-%m-%d %H:%M")
+        );
+    }
+    eprintln!("\nresume one with: goose roam share --session <SESSION ID>");
+    Ok(())
+}
+
 async fn handle_share(
     scope: Scope,
     ttl: u64,
@@ -250,14 +304,37 @@ async fn handle_share(
     pair: bool,
     builtins: Vec<String>,
     cwd: Option<std::path::PathBuf>,
+    session: Option<String>,
 ) -> Result<()> {
     let identity = load_identity()?;
 
-    // Host imposes its own working directory; the connector's path is ignored.
-    let session_cwd = match cwd {
-        Some(dir) => std::fs::canonicalize(&dir)
-            .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
-        None => std::env::current_dir().context("could not determine current directory")?,
+    // A resumed session keeps its own working directory (replayed history is
+    // meaningless in a different tree); a fresh session uses `--cwd` or the
+    // directory `roam share` was started in. The connector's path is always
+    // ignored — it is meaningless on this machine.
+    let resume = match session {
+        Some(session_id) => {
+            let manager = SessionManager::new(Paths::data_dir());
+            let session = manager
+                .get_session(&session_id, false)
+                .await
+                .with_context(|| format!("no local session with id `{session_id}`"))?;
+            ResumeTarget::Existing {
+                session_id,
+                cwd: session.working_dir,
+            }
+        }
+        None => {
+            let cwd = match cwd {
+                Some(dir) => std::fs::canonicalize(&dir)
+                    .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
+                None => std::env::current_dir().context("could not determine current directory")?,
+            };
+            ResumeTarget::New { cwd }
+        }
+    };
+    let session_cwd = match &resume {
+        ResumeTarget::New { cwd } | ResumeTarget::Existing { cwd, .. } => cwd.clone(),
     };
 
     let allowed_client_keys = allow_keys
@@ -304,6 +381,7 @@ async fn handle_share(
     let bridge = Arc::new(SharedSessionBridge::start(
         backend,
         identity.public_key().to_string(),
+        resume,
     ));
 
     node.share(bridge).await?;

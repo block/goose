@@ -24,9 +24,10 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use agent_client_protocol::schema::v1::{
-    InitializeRequest, InitializeResponse, NewSessionRequest, NewSessionResponse, PromptRequest,
-    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionId, SessionNotification, StopReason,
+    InitializeRequest, InitializeResponse, LoadSessionRequest, NewSessionRequest,
+    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SessionId, SessionNotification,
+    StopReason,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent as SacpAgent, Client, ConnectionTo};
@@ -107,6 +108,17 @@ impl Shared {
     }
 }
 
+/// What the shared session should run against: a fresh session, or an existing
+/// persisted session resumed by id (its history is replayed into the agent).
+#[derive(Debug, Clone)]
+pub enum ResumeTarget {
+    /// Start a brand-new session in `cwd`.
+    New { cwd: PathBuf },
+    /// Resume the persisted session `session_id`, activated in `cwd` (its own
+    /// working directory).
+    Existing { session_id: String, cwd: PathBuf },
+}
+
 /// An [`AcpStreamServer`] that shares one live session across all roaming peers.
 pub struct SharedSessionBridge {
     shared: Arc<Shared>,
@@ -116,7 +128,11 @@ pub struct SharedSessionBridge {
 impl SharedSessionBridge {
     /// Start the agent-facing half against the given backend and return a bridge
     /// ready to serve peers. Spawns the long-lived ACP client task.
-    pub fn start(backend: Arc<dyn AgentBackend>, agent_id: impl Into<String>) -> Self {
+    pub fn start(
+        backend: Arc<dyn AgentBackend>,
+        agent_id: impl Into<String>,
+        target: ResumeTarget,
+    ) -> Self {
         let (updates, _) = broadcast::channel(256);
         let (prompt_tx, prompt_rx) = mpsc::unbounded_channel();
         let (session_tx, session_rx) = watch::channel(None);
@@ -132,8 +148,15 @@ impl SharedSessionBridge {
 
         let agent_shared = shared.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                run_agent_facing(backend, updates, prompt_rx, session_tx, agent_shared).await
+            if let Err(e) = run_agent_facing(
+                backend,
+                updates,
+                prompt_rx,
+                session_tx,
+                agent_shared,
+                target,
+            )
+            .await
             {
                 tracing::warn!("roaming shared session agent-facing half ended: {e:?}");
             }
@@ -166,15 +189,17 @@ impl AcpStreamServer for SharedSessionBridge {
     }
 }
 
-/// Agent-facing half: one ACP client to the live local agent. Starts a session,
-/// pushes every `session/update` into the broadcast, drains funnelled prompts
-/// into the session, and relays `session/request_permission` to the controller.
+/// Agent-facing half: one ACP client to the live local agent. Starts (or
+/// resumes) a session, pushes every `session/update` into the broadcast, drains
+/// funnelled prompts into the session, and relays `session/request_permission`
+/// to the controller.
 async fn run_agent_facing(
     backend: Arc<dyn AgentBackend>,
     updates: broadcast::Sender<SessionNotification>,
     prompt_rx: mpsc::UnboundedReceiver<String>,
     session_tx: watch::Sender<Option<SessionId>>,
     shared: Arc<Shared>,
+    target: ResumeTarget,
 ) -> Result<()> {
     // In-memory duplex: one end feeds goose's ACP server, the other is our client.
     let (client_side, server_side) = tokio::io::duplex(64 * 1024);
@@ -214,19 +239,32 @@ async fn run_agent_facing(
             cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
                 .block_task()
                 .await?;
-            let cwd = PathBuf::from("/");
-            cx.build_session(cwd)
-                .block_task()
-                .run_until(async |mut session| {
-                    let _ = session_tx.send(Some(session.session_id().clone()));
-                    let mut rx = prompt_rx.lock().await;
-                    while let Some(prompt) = rx.recv().await {
-                        session.send_prompt(&prompt)?;
-                        let _ = session.read_to_string().await?;
-                    }
-                    Ok(())
-                })
-                .await
+
+            // `build_session` (session/new) and `session/load` both yield a
+            // drivable `ActiveSession`; the ACP client has a builder for the
+            // former only, so a resume sends the request directly and attaches
+            // to the returned session id. Either way the top-level notification
+            // handler above forwards `session/update`s to the peer broadcast.
+            let mut session = match target {
+                ResumeTarget::New { cwd } => {
+                    cx.build_session(cwd).block_task().start_session().await?
+                }
+                ResumeTarget::Existing { session_id, cwd } => {
+                    let session_id = SessionId::from(session_id);
+                    cx.send_request(LoadSessionRequest::new(session_id.clone(), cwd))
+                        .block_task()
+                        .await?;
+                    cx.attach_session(NewSessionResponse::new(session_id), Vec::new())?
+                }
+            };
+
+            let _ = session_tx.send(Some(session.session_id().clone()));
+            let mut rx = prompt_rx.lock().await;
+            while let Some(prompt) = rx.recv().await {
+                session.send_prompt(&prompt)?;
+                let _ = session.read_to_string().await?;
+            }
+            Ok(())
         })
         .await?;
 
@@ -501,7 +539,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn two_peers_share_one_session() {
         let assertion = async {
-            let bridge = SharedSessionBridge::start(Arc::new(StubBackend), "test");
+            let bridge = SharedSessionBridge::start(
+                Arc::new(StubBackend),
+                "test",
+                ResumeTarget::New {
+                    cwd: PathBuf::from("/"),
+                },
+            );
 
             let mut peer_tasks = Vec::new();
             for scope in [Scope::Control, Scope::Observe] {
