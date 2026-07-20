@@ -533,6 +533,17 @@
     "environmentVariables": []
   },
   {
+    "id": "oss-skills-mcp",
+    "name": "OSS Skills",
+    "description": "Guided open-source contribution workflows - the agent researches, you think and code",
+    "command": "uvx --from git+https://github.com/chiruu12/oss-skills-mcp oss-skills-mcp",
+    "link": "https://github.com/chiruu12/oss-skills-mcp",
+    "installation_notes": "Install using uvx package manager. Requires uv to be installed.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "pdf_read",
     "name": "PDF Reader",
     "description": "Read large and complex PDF documents",
