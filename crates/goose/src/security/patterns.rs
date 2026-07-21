@@ -400,47 +400,76 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
     words
 }
 
-fn ext_option_takes_value(option: &str) -> bool {
-    matches!(
-        option,
-        "-b" | "-C"
-            | "-d"
-            | "-e"
-            | "-E"
-            | "-g"
-            | "-G"
-            | "-i"
-            | "-I"
-            | "-J"
-            | "-l"
-            | "-L"
-            | "-m"
-            | "-M"
-            | "-N"
-            | "-o"
-            | "-O"
-            | "-r"
-            | "-t"
-            | "-T"
-            | "-U"
-            | "-z"
-    )
+fn format_option_takes_value(command: &str, option: &str) -> bool {
+    match command {
+        "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => matches!(
+            option,
+            "-b" | "-C"
+                | "-d"
+                | "-e"
+                | "-E"
+                | "-g"
+                | "-G"
+                | "-i"
+                | "-I"
+                | "-J"
+                | "-l"
+                | "-L"
+                | "-m"
+                | "-M"
+                | "-N"
+                | "-o"
+                | "-O"
+                | "-r"
+                | "-t"
+                | "-T"
+                | "-U"
+                | "-z"
+        ),
+        "mkfs.f2fs" => matches!(
+            option,
+            "-a" | "-c"
+                | "-C"
+                | "-d"
+                | "-e"
+                | "-E"
+                | "-l"
+                | "-o"
+                | "-O"
+                | "-R"
+                | "-s"
+                | "-t"
+                | "-T"
+                | "-w"
+                | "-z"
+        ),
+        "mkfs.xfs" => matches!(
+            option,
+            "-b" | "-c" | "-d" | "-i" | "-l" | "-L" | "-m" | "-n" | "-p" | "-r" | "-s"
+        ),
+        _ => false,
+    }
 }
 
-fn is_non_writing_ext_option(option: &str) -> bool {
+fn is_non_writing_format_option(command: &str, option: &str) -> bool {
     if matches!(option, "--help" | "--version") {
         return true;
     }
 
-    option
-        .strip_prefix('-')
-        .filter(|flags| !flags.is_empty() && !flags.starts_with('-'))
-        .is_some_and(|flags| {
-            flags
-                .chars()
-                .all(|flag| matches!(flag, 'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'))
-                && flags.chars().any(|flag| matches!(flag, 'n' | 'V'))
-        })
+    match command {
+        "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => option
+            .strip_prefix('-')
+            .filter(|flags| !flags.is_empty() && !flags.starts_with('-'))
+            .is_some_and(|flags| {
+                flags
+                    .chars()
+                    .all(|flag| matches!(flag, 'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'))
+                    && flags.chars().any(|flag| matches!(flag, 'n' | 'V'))
+            }),
+        "mkfs.f2fs" => option == "-V",
+        "mkfs.xfs" => matches!(option, "-N" | "-V"),
+        _ => false,
+    }
 }
 
 fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
@@ -450,7 +479,6 @@ fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
         .rsplit(['/', '\\'])
         .next()?
         .to_ascii_lowercase();
-    let is_ext = matches!(command.as_str(), "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4");
     let mut target = None;
     let mut skip_option_value = false;
     let mut options_ended = false;
@@ -466,10 +494,8 @@ fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
             continue;
         }
         if !options_ended && word.value.starts_with('-') {
-            if is_ext {
-                non_writing |= is_non_writing_ext_option(&word.value);
-                skip_option_value = ext_option_takes_value(&word.value);
-            }
+            non_writing |= is_non_writing_format_option(&command, &word.value);
+            skip_option_value = format_option_takes_value(&command, &word.value);
             continue;
         }
         target.get_or_insert(word);
@@ -600,6 +626,8 @@ mod tests {
         assert!(matches(pat, "mkfs.ext3 /dev/sdb"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda"));
         assert!(matches(pat, "mkfs.f2fs /dev/sdc"));
+        assert!(matches(pat, "mkfs.f2fs -l data /dev/sdc"));
+        assert!(!matches(pat, "mkfs.f2fs -l /dev/sdc /tmp/image"));
     }
 
     #[test]
@@ -652,6 +680,10 @@ mod tests {
     fn format_drive_preserves_letter_only_types() {
         let pat = "format_drive";
         assert!(matches(pat, "mkfs.xfs /dev/sda"));
+        assert!(matches(pat, "mkfs.xfs -L data /dev/sda"));
+        assert!(!matches(pat, "mkfs.xfs -L /dev/sda /tmp/image"));
+        assert!(!matches(pat, "mkfs.xfs -N /dev/sda"));
+        assert!(!matches(pat, "mkfs.f2fs -V /dev/sda"));
         assert!(matches(pat, "MKFS.EXT4 /dev/sda"));
     }
 
