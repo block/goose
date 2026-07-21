@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -267,6 +268,7 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    session_start_emitted: AtomicBool,
     #[cfg(test)]
     pub(super) stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
@@ -436,6 +438,7 @@ impl Agent {
                     use_login_shell_path,
                 )
             },
+            session_start_emitted: AtomicBool::new(false),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -482,6 +485,9 @@ impl Agent {
         event: crate::hooks::HookEvent,
         session_id: &str,
     ) -> Vec<String> {
+        if event == crate::hooks::HookEvent::SessionStart {
+            self.session_start_emitted.store(true, Ordering::Release);
+        }
         if !self.hook_manager.has_hooks(event) {
             return Vec::new();
         }
@@ -1927,7 +1933,7 @@ impl Agent {
             return Ok(Box::pin(futures::stream::empty()));
         }
 
-        if is_first_agent_turn {
+        if is_first_agent_turn && !self.session_start_emitted.swap(true, Ordering::AcqRel) {
             self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
                 .await;
         }
