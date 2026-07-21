@@ -1,6 +1,6 @@
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
-use crate::conversation::message::{ToolRequest, ToolResponse};
+use crate::conversation::message::{ToolNameParts, ToolRequest, ToolResponse};
 use crate::mcp_utils::ToolResult;
 use agent_client_protocol::schema::v1::{
     BlobResourceContents, Content, ContentBlock, EmbeddedResource, EmbeddedResourceResource,
@@ -16,14 +16,15 @@ pub(crate) struct PendingToolCall {
 }
 
 pub(crate) fn format_tool_name(tool_name: &str) -> String {
-    if let Some((extension, tool)) = tool_name.split_once("__") {
+    let parts = ToolNameParts::from(tool_name);
+    if let Some(extension_name) = parts.extension_name {
         format!(
             "{}: {}",
-            extension.replace('_', " "),
-            tool.replace('_', " ")
+            extension_name.replace('_', " "),
+            parts.tool_name.replace('_', " ")
         )
     } else {
-        tool_name.replace('_', " ")
+        parts.tool_name.replace('_', " ")
     }
 }
 
@@ -71,9 +72,10 @@ pub(crate) fn tool_call_identity_meta(tool_request: &ToolRequest) -> Option<Meta
         .and_then(serde_json::Value::as_str)
         .map(ToString::to_string)
         .or_else(|| {
-            tool_name
-                .split_once("__")
-                .map(|(extension_name, _)| extension_name.to_string())
+            tool_request
+                .tool_name_parts()
+                .and_then(|parts| parts.extension_name)
+                .map(ToString::to_string)
         });
 
     let mut tool_call_meta = serde_json::Map::new();
