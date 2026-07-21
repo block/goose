@@ -1412,6 +1412,15 @@ impl ExtensionManager {
         *self.tools_cache.lock().await = None;
     }
 
+    /// Monotonic tool-cache version, bumped on every invalidation (add/remove
+    /// extension, or a `notifications/tools/list_changed`). A running reply loop
+    /// can poll this and re-list its tools when it changes, so tools added or
+    /// removed mid-reply reach the model on the next iteration of the same reply,
+    /// not only on the next one.
+    pub fn tools_cache_version(&self) -> u64 {
+        self.tools_cache_version.load(Ordering::SeqCst)
+    }
+
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
             .extensions

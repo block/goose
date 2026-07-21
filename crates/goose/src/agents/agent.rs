@@ -1863,6 +1863,13 @@ impl Agent {
             model_config,
         } = context;
 
+        // Snapshot of the tool-cache version that `tools` above was built from.
+        // If a server emits `notifications/tools/list_changed` mid-reply, the
+        // ExtensionManager cache is invalidated and this counter bumps; the reply
+        // loop polls it below to re-list tools so the change reaches the model on
+        // the next iteration of the *same* reply, not only on the next one.
+        let mut tools_cache_version = self.extension_manager.tools_cache_version();
+
         if let Some(project_addendum) = self.load_project_instructions(&session).await {
             system_prompt = format!("{system_prompt}\n\n{project_addendum}");
         }
@@ -2656,6 +2663,17 @@ impl Agent {
                     }
                 }
                 can_drain_pending_steers = true;
+
+                // A server may have emitted `notifications/tools/list_changed`
+                // during this iteration (e.g. a tool call that unlocks new tools),
+                // invalidating the shared tool cache. Detect that via the version
+                // counter so the loop re-lists and offers the updated tool set on
+                // the next iteration of this same reply.
+                let current_tools_cache_version = self.extension_manager.tools_cache_version();
+                if current_tools_cache_version != tools_cache_version {
+                    tools_cache_version = current_tools_cache_version;
+                    tools_updated = true;
+                }
 
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
