@@ -118,15 +118,8 @@ pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
     tool_call.meta(goose_meta)
 }
 
-fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
-    arguments
-        .and_then(|args| args.get("line"))
-        .and_then(|v| v.as_u64())
-        .map(|l| l as u32)
-}
-
-fn is_developer_file_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "read" | "write" | "edit")
+fn json_u32(value: &serde_json::Value) -> Option<u32> {
+    value.as_u64().and_then(|value| u32::try_from(value).ok())
 }
 
 fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolCallLocation>> {
@@ -138,7 +131,7 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
         .into_iter()
         .filter_map(|entry| {
             let path = entry.get("path")?.as_str()?;
-            let line = entry.get("line").and_then(|v| v.as_u64()).map(|l| l as u32);
+            let line = entry.get("line").and_then(json_u32);
             Some(ToolCallLocation::new(path).line(line))
         })
         .collect::<Vec<_>>();
@@ -150,13 +143,16 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
 }
 
 fn extract_tool_locations(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
-    let Ok(tool_call) = &tool_request.tool_call else {
+    let Some(parts) = tool_request.tool_name_parts() else {
         return Vec::new();
     };
-    if !is_developer_file_tool(tool_call.name.as_ref()) {
+    if parts.extension_name != Some("developer") {
         return Vec::new();
     }
 
+    let Ok(tool_call) = &tool_request.tool_call else {
+        return Vec::new();
+    };
     let Some(path) = tool_call
         .arguments
         .as_ref()
@@ -166,8 +162,12 @@ fn extract_tool_locations(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
         return Vec::new();
     };
 
-    let line = match tool_call.name.as_ref() {
-        "read" => get_requested_line(tool_call.arguments.as_ref()),
+    let line = match parts.tool_name {
+        "read" => tool_call
+            .arguments
+            .as_ref()
+            .and_then(|arguments| arguments.get("line"))
+            .and_then(json_u32),
         "write" | "edit" => Some(1),
         _ => return Vec::new(),
     };
@@ -435,65 +435,78 @@ mod tests {
         pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }
 
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+    mod extract_tool_locations {
+        use super::*;
+        use test_case::test_case;
+
+        fn request(name: &str, arguments: serde_json::Value) -> ToolRequest {
+            ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new(name.to_string()).with_arguments(
+                    arguments
+                        .as_object()
+                        .expect("test arguments should be an object")
+                        .clone(),
+                )),
+                metadata: None,
+                tool_meta: None,
+            }
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
-        ; "read returns requested line"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+
+        fn locations(request: &ToolRequest) -> Vec<(PathBuf, Option<u32>)> {
+            super::extract_tool_locations(request)
+                .into_iter()
+                .map(|location| (location.path, location.line))
+                .collect()
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), None)]
-        ; "read without line"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": "not_a_number"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+
+        #[test]
+        fn reads_requested_line() {
+            let request = request(
+                "developer__read",
+                serde_json::json!({"path": "/tmp/f.txt", "line": 5}),
+            );
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), None)]
-        ; "read ignores invalid line"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+
+        #[test_case(serde_json::json!({"path": "/tmp/f.txt"}); "missing line")]
+        #[test_case(serde_json::json!({"path": "/tmp/f.txt", "line": "not_a_number"}); "invalid line")]
+        fn reads_without_valid_line(arguments: serde_json::Value) {
+            let request = request("developer__read", arguments);
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), None)]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
-        ; "write returns line 1"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+
+        #[test_case("developer__write"; "write")]
+        #[test_case("developer__edit"; "edit")]
+        fn writes_and_edits_start_at_line_one(name: &str) {
+            let request = request(name, serde_json::json!({"path": "/tmp/f.txt"}));
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
-        ; "edit returns line 1"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
+
+        #[test_case("other__read"; "other extension read")]
+        #[test_case("other__write"; "other extension write")]
+        #[test_case("other__edit"; "other extension edit")]
+        #[test_case("read"; "unqualified read")]
+        #[test_case("write"; "unqualified write")]
+        #[test_case("edit"; "unqualified edit")]
+        #[test_case("developer__shell"; "non file developer tool")]
+        fn rejects_tools_without_a_qualified_developer_file_identity(name: &str) {
+            let request = request(name, serde_json::json!({"path": "/tmp/f.txt"}));
+
+            assert!(locations(&request).is_empty());
         }
-        => Vec::<(PathBuf, Option<u32>)>::new()
-        ; "non file tool returns empty"
-    )]
-    fn test_extract_tool_locations(request: ToolRequest) -> Vec<(PathBuf, Option<u32>)> {
-        extract_tool_locations(&request)
-            .into_iter()
-            .map(|loc| (loc.path, loc.line))
-            .collect()
     }
 
     fn response_with_meta(meta: Option<serde_json::Value>) -> ToolResponse {
