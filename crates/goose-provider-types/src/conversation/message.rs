@@ -98,6 +98,7 @@ fn sanitize_tool_result_in_place(tool_result: &mut ToolResult<CallToolResult>) {
                             let Ok(bytes) =
                                 base64::engine::general_purpose::STANDARD.decode(blob.as_bytes())
                             else {
+                                *blob = sanitize_unicode_tags(blob);
                                 continue;
                             };
                             let Ok(text) = String::from_utf8(bytes) else {
@@ -1383,6 +1384,32 @@ mod tests {
                 .unwrap(),
             b"resourcetext"
         );
+    }
+
+    #[test]
+    fn test_tool_response_sanitizes_malformed_blob_resource() {
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///result.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            blob: "malformed\u{E0041}text".to_string(),
+            meta: None,
+        };
+        let content = MessageContent::tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::resource(resource)])),
+        );
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.unwrap();
+        let RawContent::Resource(resource) = &result.content[0].raw else {
+            panic!("expected resource content");
+        };
+        let ResourceContents::BlobResourceContents { blob, .. } = &resource.resource else {
+            panic!("expected blob resource");
+        };
+        assert_eq!(blob, "malformedtext");
     }
 
     #[test]
