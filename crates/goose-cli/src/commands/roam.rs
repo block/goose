@@ -29,6 +29,10 @@ fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
 }
 
+fn trust_path() -> std::path::PathBuf {
+    Paths::config_dir().join("roaming_trust.json")
+}
+
 /// CLI surface for the roaming [`Scope`]. Kept separate so `goose-roaming`
 /// stays free of the clap dependency.
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -154,6 +158,16 @@ pub enum RoamCommand {
         command: Option<PeersCommand>,
     },
 
+    /// Manage clients this machine has paired with or allowed (host side).
+    ///
+    /// When you host with `--pair` or `--allow-key`, the trusted client keys are
+    /// persisted here so the relationship survives a restart. Use this to see
+    /// who is trusted and to revoke access.
+    Trust {
+        #[command(subcommand)]
+        command: Option<TrustCommand>,
+    },
+
     /// Print this machine's roaming endpoint id.
     Id,
 
@@ -177,6 +191,17 @@ pub enum PeersCommand {
     Rename { from: String, to: String },
     /// List saved remotes (default).
     List,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TrustCommand {
+    /// List trusted client keys and revocations (default).
+    List,
+    /// Revoke a client key so it can no longer connect, even with a valid invite.
+    Revoke {
+        /// The client endpoint id to revoke (from the peer's `goose roam id`).
+        client_id: String,
+    },
 }
 
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
@@ -206,6 +231,7 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             label,
         } => handle_bridge(target, listen, label).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
+        RoamCommand::Trust { command } => handle_trust(command.unwrap_or(TrustCommand::List)).await,
         RoamCommand::Connections => handle_list().await,
     }
 }
@@ -274,6 +300,41 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+async fn handle_trust(command: TrustCommand) -> Result<()> {
+    let path = trust_path();
+    match command {
+        TrustCommand::List => {
+            let book = TrustBook::load(&path).unwrap_or_default();
+            let allowed = book.allowed_keys();
+            let revoked = book.revoked_key_list();
+            if allowed.is_empty() && revoked.is_empty() {
+                eprintln!(
+                    "no trusted or revoked client keys yet; host with `--pair` or \
+                     `--allow-key` to pin a client"
+                );
+                return Ok(());
+            }
+            println!("{:<10} CLIENT ENDPOINT ID", "STATUS");
+            for key in allowed {
+                println!("{:<10} {key}", "allowed");
+            }
+            for key in revoked {
+                println!("{:<10} {key}", "revoked");
+            }
+            Ok(())
+        }
+        TrustCommand::Revoke { client_id } => {
+            let key = parse_endpoint_id(&client_id)?;
+            let mut book = TrustBook::load(&path).unwrap_or_default();
+            book.revoke_key(&key);
+            book.save(&path)?;
+            eprintln!("revoked client `{client_id}`; it can no longer connect");
+            eprintln!("note: an already-open session is unaffected until it disconnects");
+            Ok(())
+        }
+    }
 }
 
 async fn handle_list() -> Result<()> {
@@ -396,10 +457,16 @@ async fn handle_share(
     } else {
         TrustPolicy::Allowlist
     };
-    let mut trust = TrustBook::new(policy);
+    // Load any durable trust from previous runs so pinned keys (from pairing),
+    // consumed single-use tokens, and revocations survive a restart. This run's
+    // policy and allow-keys are layered on top.
+    let trust_path = trust_path();
+    let mut trust = TrustBook::load(&trust_path).unwrap_or_default();
+    trust.set_policy(policy);
     for key in &allowed_client_keys {
         trust.allow(key);
     }
+    trust.save(&trust_path).ok();
 
     // Default to the developer extension when none are specified, matching
     // `goose acp` / `goose serve`.
@@ -416,6 +483,7 @@ async fn handle_share(
         trust,
         directory: Directory::persistent(directory_path()),
         bind_addr: None,
+        trust_path: Some(trust_path.clone()),
     })
     .await?;
 
@@ -507,6 +575,7 @@ async fn dial_target(
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
         bind_addr: None,
+        trust_path: None,
     })
     .await?;
     eprintln!("connecting to {}...", invite.claims.audience);

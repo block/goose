@@ -156,6 +156,26 @@ it expires (`--ttl <seconds>`, default 1 hour). For tighter control:
 | Pair once, then lock to that key | `goose roam share --pair` — the invite is single-use and pins the client key of whoever redeems it first |
 | Limit the window | `goose roam share --ttl 300` |
 
+### Durable trust (pairing that survives restarts)
+
+`--allow-key` and `--pair` pin **client public keys**, and the host persists them
+so the relationship outlives any single `share` process. This is the durable,
+secret-free model: after pairing once, the client is trusted by its key — you
+don't have to keep handing out (or storing) a reusable token.
+
+```bash
+# On the host: pair once. The invite is single-use and consumed on first connect.
+goose roam share --pair
+
+# Later — even after restarting share — the paired client is still trusted:
+goose roam trust list          # show trusted (and revoked) client keys
+goose roam trust revoke <client-id>   # cut off a client by its key
+```
+
+An invite **token** still expires (`--ttl`), so it is only for the initial
+handshake; the lasting trust is the pinned key. Revoking a key takes effect on
+the next connection (an already-open session continues until it disconnects).
+
 :::warning
 By default a shared agent grants **full control** — the connecting peer can run
 the agent's tools, including its shell. Only share `control` with machines and

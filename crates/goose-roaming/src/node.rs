@@ -69,6 +69,11 @@ pub struct RoamingConfig {
     /// otherwise stalls (`MultipathNotNegotiated`) when both the specified IPv4
     /// and a default `[::]` IPv6 socket are candidates with no relay fallback.
     pub bind_addr: Option<std::net::SocketAddr>,
+    /// Optional path to persist the [`TrustBook`] to. When set, admission
+    /// changes made during a live session — pairing pinning a client key,
+    /// single-use tokens being consumed — are flushed here so they survive a
+    /// restart. When `None` the trust state is in-memory only.
+    pub trust_path: Option<std::path::PathBuf>,
 }
 
 impl RoamingConfig {
@@ -82,6 +87,7 @@ impl RoamingConfig {
             trust: TrustBook::new(TrustPolicy::Bearer),
             directory: Directory::new(),
             bind_addr: None,
+            trust_path: None,
         }
     }
 
@@ -106,6 +112,13 @@ impl RoamingConfig {
     /// Bind the QUIC endpoint to a specific socket address.
     pub fn with_bind_addr(mut self, addr: std::net::SocketAddr) -> Self {
         self.bind_addr = Some(addr);
+        self
+    }
+
+    /// Persist trust changes (pairing, single-use redemption) to `path` so they
+    /// survive a restart (default: in-memory only).
+    pub fn with_trust_path(mut self, path: std::path::PathBuf) -> Self {
+        self.trust_path = Some(path);
         self
     }
 }
@@ -152,6 +165,7 @@ pub struct RoamingNode {
     endpoint: Endpoint,
     router: Mutex<Option<Router>>,
     trust: Arc<Mutex<TrustBook>>,
+    trust_path: Option<std::path::PathBuf>,
     directory: Directory,
     identity: RoamingIdentity,
     relay: RelaySettings,
@@ -185,6 +199,7 @@ impl RoamingNode {
             endpoint,
             router: Mutex::new(None),
             trust: Arc::new(Mutex::new(config.trust)),
+            trust_path: config.trust_path,
             directory: config.directory,
             identity,
             relay,
@@ -498,17 +513,30 @@ impl RoamingAcpHandler {
             return Err("revoked".to_string());
         }
         let token_id = &hello.invite.claims.token_id;
+        let mut trust_changed = false;
         if hello.invite.claims.single_use {
             if !trust.redeem_single_use(token_id) {
                 return Err("invalid_capability".to_string());
             }
             trust.allow(&client);
+            trust_changed = true;
         } else if trust.is_token_revoked(token_id) {
             return Err("invalid_capability".to_string());
         }
         if !trust.is_allowed(&client) {
             return Err("not_allowlisted".to_string());
         }
+
+        // Pairing pinned a key and consumed a single-use token; persist so the
+        // relationship survives a restart (and the token stays consumed).
+        if trust_changed {
+            if let Some(path) = &self.node.trust_path {
+                if let Err(e) = trust.save(path) {
+                    tracing::warn!("roaming: failed to persist trust book: {e}");
+                }
+            }
+        }
+        drop(trust);
 
         Ok((hello.invite.claims.scope, hello.label))
     }

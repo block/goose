@@ -44,6 +44,12 @@ impl TrustBook {
         }
     }
 
+    /// Override the admission policy, preserving allow/revoke state. Used when a
+    /// persisted book is reloaded and this run's `share` flags set the policy.
+    pub fn set_policy(&mut self, policy: TrustPolicy) {
+        self.policy = policy;
+    }
+
     pub fn allow(&mut self, key: &EndpointId) {
         self.allowed.insert(key_str(key));
     }
@@ -65,6 +71,20 @@ impl TrustBook {
 
     pub fn is_key_revoked(&self, key: &EndpointId) -> bool {
         self.revoked_keys.contains(&key_str(key))
+    }
+
+    /// Client keys explicitly allowed (empty under bearer policy), sorted.
+    pub fn allowed_keys(&self) -> Vec<String> {
+        let mut keys: Vec<String> = self.allowed.iter().cloned().collect();
+        keys.sort();
+        keys
+    }
+
+    /// Client keys that are refused regardless of invite, sorted.
+    pub fn revoked_key_list(&self) -> Vec<String> {
+        let mut keys: Vec<String> = self.revoked_keys.iter().cloned().collect();
+        keys.sort();
+        keys
     }
 
     pub fn is_token_revoked(&self, token_id: &str) -> bool {
@@ -132,5 +152,35 @@ mod tests {
         let key = SecretKey::generate().public();
         book.revoke_key(&key);
         assert!(book.is_key_revoked(&key));
+    }
+
+    #[test]
+    fn persists_pairing_across_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("trust.json");
+        let key = SecretKey::generate().public();
+
+        {
+            let mut book = TrustBook::new(TrustPolicy::Allowlist);
+            assert!(book.redeem_single_use("tok"));
+            book.allow(&key);
+            book.save(&path).unwrap();
+        }
+
+        let reloaded = TrustBook::load(&path).unwrap();
+        // Pinned key survives, and the consumed single-use token stays consumed.
+        assert!(reloaded.is_allowed(&key));
+        assert!(reloaded.is_token_revoked("tok"));
+        assert_eq!(reloaded.allowed_keys(), vec![key.to_string()]);
+    }
+
+    #[test]
+    fn set_policy_preserves_state() {
+        let mut book = TrustBook::new(TrustPolicy::Allowlist);
+        let key = SecretKey::generate().public();
+        book.allow(&key);
+        book.set_policy(TrustPolicy::Bearer);
+        // Policy changed, but the pinned key is retained.
+        assert_eq!(book.allowed_keys(), vec![key.to_string()]);
     }
 }

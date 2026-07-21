@@ -150,6 +150,7 @@ async fn bind_node(trust: TrustBook) -> Arc<RoamingNode> {
         trust,
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        trust_path: None,
     })
     .await
     .expect("bind node")
@@ -164,6 +165,7 @@ async fn bearer_invite_connects_and_streams() {
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        trust_path: None,
     })
     .await
     .expect("bind host");
@@ -210,6 +212,7 @@ async fn allowlist_rejects_unknown_client() {
         trust: TrustBook::new(TrustPolicy::Allowlist),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        trust_path: None,
     })
     .await
     .expect("bind host");
@@ -240,6 +243,7 @@ async fn multiple_clients_share_one_session() {
         trust: TrustBook::new(TrustPolicy::Bearer),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
+        trust_path: None,
     })
     .await
     .expect("bind host");
