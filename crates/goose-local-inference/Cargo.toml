@@ -51,3 +51,6 @@ safemlx-lm-utils = { optional = true, version = "0.1.2" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }
+
+[dev-dependencies]
+env-lock.workspace = true

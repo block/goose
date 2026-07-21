@@ -3662,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "세션 JSON 복사됨"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "텍스트가 복사되었습니다."
   },
@@ -3692,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSON 불러오는 중..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "세션 이름 변경 실패: {error}"
   },
@@ -3715,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "세션 JSON 보기"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "세션에 오류가 발생했습니다."

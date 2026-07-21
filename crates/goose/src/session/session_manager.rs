@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 15;
+pub const CURRENT_SCHEMA_VERSION: i32 = 16;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -891,12 +891,6 @@ impl SessionStorage {
         Ok(&self.pool)
     }
 
-    pub async fn create(session_dir: &Path) -> Result<Self> {
-        let storage = Self::new(session_dir.to_path_buf());
-        Self::create_schema(&storage.pool).await?;
-        Ok(storage)
-    }
-
     async fn create_schema(pool: &Pool<Sqlite>) -> Result<()> {
         // Run schema creation under `BEGIN IMMEDIATE` so SQLite serializes
         // writers across processes. Combined with `IF NOT EXISTS` on every
@@ -1031,12 +1025,9 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        tx.commit().await?;
+        crate::providers::inventory::create_tables(&mut tx).await?;
 
-        // The inventory tables already use `CREATE TABLE IF NOT EXISTS`
-        // and run on the shared pool, so they don't need to be inside
-        // the same transaction.
-        crate::providers::inventory::create_tables(pool).await?;
+        tx.commit().await?;
 
         Ok(())
     }
@@ -1390,7 +1381,7 @@ impl SessionStorage {
                     .await?;
             }
             11 => {
-                crate::providers::inventory::create_tables_in_tx(tx).await?;
+                crate::providers::inventory::create_tables(tx).await?;
             }
             12 => {
                 // Add archived_at, project_id columns to sessions.
@@ -1495,6 +1486,32 @@ impl SessionStorage {
                 )
                 .execute(&mut **tx)
                 .await?;
+            }
+            16 => {
+                let has_supports_reasoning_mode = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('provider_inventory_models') WHERE name = 'supports_reasoning_mode'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_supports_reasoning_mode {
+                    sqlx::query(
+                        "ALTER TABLE provider_inventory_models ADD COLUMN supports_reasoning_mode BOOLEAN",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query(
+                        r#"
+                        UPDATE provider_inventory_entries
+                        SET last_updated_at = NULL, updated_at = CURRENT_TIMESTAMP
+                        WHERE inventory_key IN (
+                            SELECT DISTINCT inventory_key FROM provider_inventory_models
+                        )
+                        "#,
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                }
             }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
@@ -3977,6 +3994,74 @@ mod tests {
         let loaded = sm.get_session("cache_id", false).await.unwrap();
         assert_eq!(loaded.usage, usage);
         assert_eq!(loaded.accumulated_usage, accumulated_usage);
+    }
+
+    #[tokio::test]
+    async fn test_inventory_reasoning_mode_capability_migration() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        SessionStorage::create_schema(&pool).await.unwrap();
+        sqlx::query("ALTER TABLE provider_inventory_models DROP COLUMN supports_reasoning_mode")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            r#"
+            INSERT INTO provider_inventory_entries (
+                inventory_key, provider_id, provider_family, last_updated_at
+            ) VALUES ('openai-key', 'openai', 'openai', '2026-07-16T00:00:00Z')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            INSERT INTO provider_inventory_models (
+                inventory_key, ordinal, model_id, name
+            ) VALUES ('openai-key', 0, 'gpt-5.6', 'gpt-5.6')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE schema_version SET version = 15")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let migrated_pool = sm.storage().pool().await.unwrap();
+        let has_supports_reasoning_mode = sqlx::query_scalar::<_, i32>(
+            "SELECT COUNT(*) FROM pragma_table_info('provider_inventory_models') WHERE name = 'supports_reasoning_mode'",
+        )
+        .fetch_one(migrated_pool)
+        .await
+        .unwrap()
+            > 0;
+        assert!(has_supports_reasoning_mode);
+        let last_updated_at = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = 'openai-key'",
+        )
+        .fetch_one(migrated_pool)
+        .await
+        .unwrap();
+        assert_eq!(last_updated_at, None);
     }
 
     fn message_usage(input: i32, output: i32, cost: f64, is_compaction: bool) -> MessageUsage {

@@ -3662,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON sesi disalin"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Teks disalin"
   },
@@ -3692,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Memuat JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Gagal mengganti nama sesi: {error}"
   },
@@ -3715,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Lihat JSON sesi"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "Sesi mengalami kesalahan"

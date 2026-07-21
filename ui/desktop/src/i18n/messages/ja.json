@@ -3662,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "セッションJSONをコピーしました"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "テキストをコピーしました"
   },
@@ -3692,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSONを読み込み中..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "セッションの名前を変更できませんでした: {error}"
   },
@@ -3715,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "セッションJSONを表示"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"

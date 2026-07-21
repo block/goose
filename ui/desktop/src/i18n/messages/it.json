@@ -3662,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON della sessione copiato"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Testo copiato"
   },
@@ -3692,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Caricamento JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Impossibile rinominare la sessione: {error}"
   },
@@ -3715,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Visualizza JSON della sessione"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "La sessione ha riscontrato un errore"

@@ -18,7 +18,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{Pool, Row, Sqlite, Transaction};
+use sqlx::{Row, Sqlite, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -1181,79 +1181,7 @@ fn enriched_model(
     }
 }
 
-pub async fn create_tables(pool: &Pool<Sqlite>) -> Result<()> {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_entries (
-            inventory_key TEXT PRIMARY KEY,
-            provider_id TEXT NOT NULL,
-            provider_family TEXT NOT NULL,
-            last_updated_at TEXT,
-            last_refresh_attempt_at TEXT,
-            last_refresh_error TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS provider_inventory_models (
-            inventory_key TEXT NOT NULL REFERENCES provider_inventory_entries(inventory_key) ON DELETE CASCADE,
-            ordinal INTEGER NOT NULL,
-            model_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            supports_reasoning_mode BOOLEAN,
-            family TEXT,
-            context_limit INTEGER,
-            reasoning BOOLEAN,
-            recommended BOOLEAN,
-            PRIMARY KEY (inventory_key, ordinal)
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?;
-
-    let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
-        .fetch_all(pool)
-        .await?;
-    if !columns
-        .iter()
-        .any(|column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode"))
-    {
-        sqlx::query("ALTER TABLE provider_inventory_models ADD COLUMN supports_reasoning_mode BOOLEAN")
-            .execute(pool)
-            .await?;
-        // Existing snapshots predate route-specific capability metadata. Mark
-        // them uninitialized so session startup refreshes them before Desktop
-        // relies on a null capability value.
-        sqlx::query(
-            r#"
-            UPDATE provider_inventory_entries
-            SET last_updated_at = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE inventory_key IN (
-                SELECT DISTINCT inventory_key FROM provider_inventory_models
-            )
-            "#,
-        )
-        .execute(pool)
-        .await?;
-    }
-
-    sqlx::query(
-        "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
-pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
+pub async fn create_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<()> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS provider_inventory_entries (
@@ -1289,29 +1217,6 @@ pub async fn create_tables_in_tx(tx: &mut Transaction<'_, Sqlite>) -> Result<()>
     )
     .execute(&mut **tx)
     .await?;
-
-    let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
-        .fetch_all(&mut **tx)
-        .await?;
-    if !columns
-        .iter()
-        .any(|column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode"))
-    {
-        sqlx::query("ALTER TABLE provider_inventory_models ADD COLUMN supports_reasoning_mode BOOLEAN")
-            .execute(&mut **tx)
-            .await?;
-        sqlx::query(
-            r#"
-            UPDATE provider_inventory_entries
-            SET last_updated_at = NULL, updated_at = CURRENT_TIMESTAMP
-            WHERE inventory_key IN (
-                SELECT DISTINCT inventory_key FROM provider_inventory_models
-            )
-            "#,
-        )
-        .execute(&mut **tx)
-        .await?;
-    }
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_provider_inventory_provider_id ON provider_inventory_entries(provider_id)",
@@ -1472,69 +1377,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_tables_migrates_and_invalidates_existing_inventory_snapshots() {
+    async fn create_tables_includes_reasoning_mode_capability_column() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
             .await
             .unwrap();
-        sqlx::query(
-            r#"
-            CREATE TABLE provider_inventory_entries (
-                inventory_key TEXT PRIMARY KEY,
-                provider_id TEXT NOT NULL,
-                provider_family TEXT NOT NULL,
-                last_updated_at TEXT,
-                last_refresh_attempt_at TEXT,
-                last_refresh_error TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        sqlx::query(
-            r#"
-            CREATE TABLE provider_inventory_models (
-                inventory_key TEXT NOT NULL,
-                ordinal INTEGER NOT NULL,
-                model_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                family TEXT,
-                context_limit INTEGER,
-                reasoning BOOLEAN,
-                recommended BOOLEAN,
-                PRIMARY KEY (inventory_key, ordinal)
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        sqlx::query(
-            r#"
-            INSERT INTO provider_inventory_entries (
-                inventory_key, provider_id, provider_family, last_updated_at
-            ) VALUES ('openai-key', 'openai', 'openai', '2026-07-16T00:00:00Z')
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        sqlx::query(
-            r#"
-            INSERT INTO provider_inventory_models (
-                inventory_key, ordinal, model_id, name
-            ) VALUES ('openai-key', 0, 'gpt-5.6', 'gpt-5.6')
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        create_tables(&pool).await.unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        create_tables(&mut tx).await.unwrap();
+        tx.commit().await.unwrap();
 
         let columns = sqlx::query("PRAGMA table_info(provider_inventory_models)")
             .fetch_all(&pool)
@@ -1543,13 +1394,6 @@ mod tests {
         assert!(columns.iter().any(
             |column| matches!(column.try_get::<String, _>("name"), Ok(name) if name == "supports_reasoning_mode")
         ));
-        let last_updated_at = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT last_updated_at FROM provider_inventory_entries WHERE inventory_key = 'openai-key'",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(last_updated_at, None);
     }
 
     #[test]

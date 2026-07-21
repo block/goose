@@ -1,5 +1,5 @@
 use agent_client_protocol::schema::v1::{
-    Meta, SessionUpdate, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
+    Meta, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
 };
 use rmcp::model::{LoggingMessageNotificationParam, ProgressNotificationParam, ServerNotification};
 use serde::Serialize;
@@ -21,7 +21,7 @@ enum ToolNotification {
 pub(super) fn tool_notification_update(
     tool_call_id: impl Into<ToolCallId>,
     notification: ServerNotification,
-) -> Option<SessionUpdate> {
+) -> Option<ToolCallUpdate> {
     let tool_notification = match notification {
         ServerNotification::LoggingMessageNotification(notification) => ToolNotification::Message {
             params: notification.params,
@@ -45,18 +45,19 @@ pub(super) fn tool_notification_update(
         serde_json::to_value(tool_notification).ok()?,
     );
 
-    Some(SessionUpdate::ToolCallUpdate(
+    Some(
         ToolCallUpdate::new(
             tool_call_id,
             ToolCallUpdateFields::new().status(ToolCallStatus::InProgress),
         )
         .meta(meta),
-    ))
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::tool_notification_update;
+    use agent_client_protocol::schema::v1::SessionUpdate;
     use rmcp::model::{
         CancelledNotificationParam, CustomNotification, LoggingLevel,
         LoggingMessageNotificationParam, Notification, NumberOrString, ProgressNotificationParam,
@@ -82,7 +83,8 @@ mod tests {
         ));
 
         let update = tool_notification_update("tool_1", notification).expect("expected update");
-        let value = serde_json::to_value(update).expect("update should serialize");
+        let value = serde_json::to_value(SessionUpdate::ToolCallUpdate(update))
+            .expect("update should serialize");
 
         assert_eq!(value["sessionUpdate"], "tool_call_update");
         assert_eq!(value["toolCallId"], "tool_1");
@@ -114,7 +116,8 @@ mod tests {
         ));
 
         let update = tool_notification_update("tool_1", notification).expect("expected update");
-        let value = serde_json::to_value(update).expect("update should serialize");
+        let value = serde_json::to_value(SessionUpdate::ToolCallUpdate(update))
+            .expect("update should serialize");
 
         assert_eq!(value["sessionUpdate"], "tool_call_update");
         assert_eq!(value["toolCallId"], "tool_1");
@@ -159,7 +162,8 @@ mod tests {
         ));
 
         let update = tool_notification_update("tool_1", notification).expect("expected update");
-        let value = serde_json::to_value(update).expect("update should serialize");
+        let value = serde_json::to_value(SessionUpdate::ToolCallUpdate(update))
+            .expect("update should serialize");
 
         assert_eq!(value["sessionUpdate"], "tool_call_update");
         assert_eq!(value["toolCallId"], "tool_1");
