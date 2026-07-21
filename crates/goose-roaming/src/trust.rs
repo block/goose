@@ -87,12 +87,16 @@ impl TrustBook {
         }
     }
 
+    /// Persist atomically (temp file + rename) so a concurrent reader on the
+    /// authorization path never observes a half-written file.
     pub fn save(&self, path: &std::path::Path) -> Result<(), std::io::Error> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_vec_pretty(self).map_err(std::io::Error::other)?;
-        std::fs::write(path, json)
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, json)?;
+        std::fs::rename(&tmp, path)
     }
 }
 

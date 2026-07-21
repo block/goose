@@ -40,26 +40,27 @@ impl FullAcpBridge {
 }
 
 impl AcpStreamServer for FullAcpBridge {
+    fn admits(&self, scope: Scope) -> Result<(), String> {
+        // The full ACP surface has no per-request gate, so it can only be served
+        // safely to a Control peer. A narrower scope (attach/observe) is only
+        // meaningful when co-driving one live session (`roam share --session`),
+        // where the broker enforces it. Veto here — before the ack — so the peer
+        // gets a clean rejection rather than an accepted-then-closed stream.
+        if scope != Scope::Control {
+            return Err("scope_not_supported".to_string());
+        }
+        Ok(())
+    }
+
     fn serve_stream(
         &self,
         client: EndpointId,
-        scope: Scope,
+        _scope: Scope,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
     ) -> BoxFuture<'static, anyhow::Result<()>> {
         let server = self.server.clone();
         Box::pin(async move {
-            // The full ACP surface has no per-request gate, so it can only be
-            // served safely to a Control peer. A narrower scope (attach/observe)
-            // is only meaningful when co-driving one live session
-            // (`roam share --session`), where the broker enforces it. Refuse
-            // rather than silently grant more than the scope promises.
-            if scope != Scope::Control {
-                anyhow::bail!(
-                    "this share serves control peers only; a {scope:?} peer must \
-                     co-drive a session (host with `roam share --session <id>`)"
-                );
-            }
             tracing::info!(%client, "roaming: serving full ACP surface");
             let agent = server.create_agent().await?;
             serve(agent, recv, send).await

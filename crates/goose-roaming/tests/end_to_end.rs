@@ -247,6 +247,60 @@ async fn unaccepted_key_is_rejected() {
     host.shutdown().await.unwrap();
 }
 
+/// A server that only admits Control peers (like `FullAcpBridge`) vetoes a
+/// narrower scope *before* the ack, so the client sees a clean rejection rather
+/// than an accepted handshake followed by an abrupt close.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn admits_vetoes_scope_before_ack() {
+    struct ControlOnly;
+    impl AcpStreamServer for ControlOnly {
+        fn admits(&self, scope: Scope) -> Result<(), String> {
+            if scope == Scope::Control {
+                Ok(())
+            } else {
+                Err("scope_not_supported".to_string())
+            }
+        }
+        fn serve_stream(
+            &self,
+            _client: EndpointId,
+            _scope: Scope,
+            mut recv: Box<dyn AsyncRead + Send + Unpin>,
+            _send: Box<dyn AsyncWrite + Send + Unpin>,
+        ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
+            // Stay alive until the client closes, so the ack is delivered and
+            // the connection isn't torn down mid-handshake.
+            Box::pin(async move {
+                let mut drain = Vec::new();
+                let _ = recv.read_to_end(&mut drain).await;
+                Ok(())
+            })
+        }
+        fn agent_id(&self) -> String {
+            "control-only".to_string()
+        }
+    }
+
+    let host = bind_node().await;
+    host.share(Arc::new(ControlOnly)).await.expect("share");
+
+    let observer = bind_node().await;
+    host_accepts(&host, &observer, Scope::Observe).await;
+    // Key is accepted, but the service refuses the scope → rejected handshake.
+    let result = connect_direct(&observer, &host).await;
+    assert!(result.is_err(), "observe peer should be vetoed by admits()");
+
+    // A Control peer on the same host is admitted.
+    let controller = bind_node().await;
+    host_accepts(&host, &controller, Scope::Control).await;
+    let mut stream = connect_direct(&controller, &host)
+        .await
+        .expect("control peer admitted");
+    stream.send.finish().unwrap();
+
+    host.shutdown().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn accepted_scope_is_honored() {
     let host = bind_node().await;

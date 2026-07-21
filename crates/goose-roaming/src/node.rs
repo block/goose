@@ -25,10 +25,27 @@ use crate::trust::TrustBook;
 /// ALPN identifying the goose ACP-over-iroh protocol.
 pub const ROAMING_ACP_ALPN: &[u8] = b"goose-acp/1";
 
+/// Cap on the handshake phase (open bi-stream + read the client hello). A peer
+/// that connects and then stalls without completing the handshake is dropped
+/// rather than parking the accept task indefinitely (Slowloris guard).
+const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Serves an accepted, authorized ACP byte stream. Implemented by the
 /// integration layer (e.g. `goose-cli`) so this crate does not depend on the
 /// concrete agent/session machinery.
 pub trait AcpStreamServer: Send + Sync + 'static {
+    /// Whether this service will actually admit a peer granted `scope`.
+    ///
+    /// Called *before* the host sends `HostAck::Accepted`, so a service can veto
+    /// a scope it can't honor (e.g. the full-ACP bridge only serves `Control`)
+    /// and the client sees a clean rejection rather than an accepted handshake
+    /// followed by an abrupt stream close. Returns `Ok(())` to admit, or
+    /// `Err(code)` with a coarse reason code sent to the client. Defaults to
+    /// admitting any authorized scope.
+    fn admits(&self, _scope: Scope) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Drive the ACP protocol to completion over the given stream, having
     /// granted `scope` to the connecting peer identified by `client`.
     fn serve_stream(
@@ -383,9 +400,30 @@ impl ProtocolHandler for RoamingAcpHandler {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         let client = connection.remote_id();
 
-        let (mut send, mut recv) = connection.accept_bi().await?;
-
-        let decision = self.authorize(client, &mut recv).await;
+        // Bound the whole handshake phase so a peer that connects and then
+        // stalls (never opening its stream or never sending a hello) is dropped
+        // instead of parking this task forever (Slowloris guard).
+        let handshake = async {
+            let (send, mut recv) = connection.accept_bi().await?;
+            // Authenticate/authorize the key, then check the serving service
+            // will actually admit this scope — both *before* acking, so
+            // "Accepted" is truthful and a vetoed peer gets a clean rejection,
+            // not a slammed stream after a successful handshake.
+            let decision = self
+                .authorize(client, &mut recv)
+                .await
+                .and_then(|(scope, label)| self.server.admits(scope).map(|()| (scope, label)));
+            Ok::<_, AcceptError>((send, recv, decision))
+        };
+        let (mut send, recv, decision) =
+            match tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake).await {
+                Ok(Ok(parts)) => parts,
+                Ok(Err(e)) => return Err(e),
+                Err(_) => {
+                    tracing::info!(%client, "roaming: handshake timed out; dropping connection");
+                    return Ok(());
+                }
+            };
         match decision {
             Ok((scope, label)) => {
                 let agent_id = self.server.agent_id();
@@ -450,19 +488,24 @@ impl RoamingAcpHandler {
 
         // Re-read the persisted allowlist so `peers accept`/`revoke` from a
         // separate process take effect against this running share without a
-        // restart. Falls back to the in-memory book if there's no path or the
-        // read fails.
-        let trust = self.node.trust.lock().await;
-        let refreshed;
-        let trust = match &self.node.trust_path {
+        // restart. Reads are atomic (writers rename into place), so we never see
+        // a half-written file. If a path is set but the read genuinely fails we
+        // fail *closed* rather than fall back to a stale in-memory book — a
+        // just-revoked peer must not slip through. We snapshot under the lock and
+        // drop it before any decision so the mutex isn't held across I/O.
+        let refreshed = match &self.node.trust_path {
             Some(path) => match TrustBook::load(path) {
-                Ok(book) => {
-                    refreshed = book;
-                    &refreshed
+                Ok(book) => Some(book),
+                Err(e) => {
+                    tracing::warn!(%client, "roaming: trust reload failed, refusing: {e}");
+                    return Err("unavailable".to_string());
                 }
-                Err(_) => &*trust,
             },
-            None => &*trust,
+            None => None,
+        };
+        let trust = match &refreshed {
+            Some(book) => book,
+            None => &*self.node.trust.lock().await,
         };
         if trust.is_key_revoked(&client) {
             return Err("revoked".to_string());
