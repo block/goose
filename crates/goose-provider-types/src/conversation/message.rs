@@ -6,7 +6,7 @@ use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParams, CallToolResult, Content, ElicitationAction, ImageContent,
     JsonObject, PromptMessage, PromptMessageContent, PromptMessageRole, RawContent,
-    RawImageContent, RawTextContent, Role, TextContent,
+    RawImageContent, RawTextContent, ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -74,6 +74,33 @@ where
 /// Allows providers to store custom data without polluting the core model.
 pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
 pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
+
+fn sanitize_tool_result(tool_result: ToolResult<CallToolResult>) -> ToolResult<CallToolResult> {
+    match tool_result {
+        Ok(mut result) => {
+            for content in &mut result.content {
+                match &mut content.raw {
+                    RawContent::Text(text) => {
+                        text.text = sanitize_unicode_tags(&text.text);
+                    }
+                    RawContent::Resource(resource) => {
+                        if let ResourceContents::TextResourceContents { text, .. } =
+                            &mut resource.resource
+                        {
+                            *text = sanitize_unicode_tags(text);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(result)
+        }
+        Err(mut error) => {
+            error.message = sanitize_unicode_tags(error.message.as_ref()).into();
+            Err(error)
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -434,7 +461,7 @@ impl MessageContent {
     pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<CallToolResult>) -> Self {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
-            tool_result,
+            tool_result: sanitize_tool_result(tool_result),
             metadata: None,
         })
     }
@@ -446,7 +473,7 @@ impl MessageContent {
     ) -> Self {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
-            tool_result,
+            tool_result: sanitize_tool_result(tool_result),
             metadata: metadata.cloned(),
         })
     }
@@ -1173,12 +1200,13 @@ pub struct TokenState {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        ActionRequiredData, Message, MessageContent, MessageMetadata,
+        ActionRequiredData, Message, MessageContent, MessageMetadata, ProviderMetadata,
     };
     use crate::conversation::*;
     use rmcp::model::{
         AnnotateAble, CallToolRequestParams, CallToolResult, PromptMessage, PromptMessageContent,
-        PromptMessageRole, RawEmbeddedResource, RawImageContent, RawTextContent, ResourceContents,
+        PromptMessageRole, RawContent, RawEmbeddedResource, RawImageContent, RawTextContent,
+        ResourceContents,
     };
     use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1196,6 +1224,124 @@ mod tests {
         let clean_text = "Hello world 世界 🌍";
         let message = Message::user().with_text(clean_text);
         assert_eq!(message.as_concat_text(), clean_text);
+    }
+
+    #[test]
+    fn test_tool_response_sanitizes_unicode_tags() {
+        let content = MessageContent::tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::text(
+                "visible\u{E0041}\u{E0042}text",
+            )])),
+        );
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.unwrap();
+        let RawContent::Text(text) = &result.content[0].raw else {
+            panic!("expected text content");
+        };
+        assert_eq!(text.text, "visibletext");
+    }
+
+    #[test]
+    fn test_tool_response_with_metadata_sanitizes_unicode_tags() {
+        let mut metadata = ProviderMetadata::new();
+        metadata.insert("provider".to_string(), serde_json::json!("test"));
+        let tagged = Content::text("result\u{E0041}").with_audience(vec![Role::Assistant]);
+        let mut message = Message::user();
+
+        message.add_tool_response_with_metadata(
+            "tool-1",
+            Ok(CallToolResult::success(vec![tagged])),
+            Some(&metadata),
+        );
+
+        let MessageContent::ToolResponse(response) = &message.content[0] else {
+            panic!("expected tool response");
+        };
+        assert_eq!(response.metadata.as_ref(), Some(&metadata));
+        let result = response.tool_result.as_ref().unwrap();
+        let text = &result.content[0];
+        assert_eq!(text.audience(), Some(&vec![Role::Assistant]));
+        let RawContent::Text(text) = &text.raw else {
+            panic!("expected text content");
+        };
+        assert_eq!(text.text, "result");
+    }
+
+    #[test]
+    fn test_tool_response_sanitizes_error_message() {
+        let data = serde_json::json!({"retry": false});
+        let content = MessageContent::tool_response(
+            "tool-1",
+            Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "error\u{E0041}text",
+                Some(data.clone()),
+            )),
+        );
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        let error = response.tool_result.unwrap_err();
+        assert_eq!(error.message, "errortext");
+        assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
+        assert_eq!(error.data, Some(data));
+    }
+
+    #[test]
+    fn test_tool_response_sanitizes_text_resource() {
+        let resource = ResourceContents::TextResourceContents {
+            uri: "file:///result.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            text: "resource\u{E0041}text".to_string(),
+            meta: None,
+        };
+        let content = MessageContent::tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::resource(resource)])),
+        );
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.unwrap();
+        let RawContent::Resource(resource) = &result.content[0].raw else {
+            panic!("expected resource content");
+        };
+        let ResourceContents::TextResourceContents {
+            uri,
+            mime_type,
+            text,
+            meta,
+        } = &resource.resource
+        else {
+            panic!("expected text resource");
+        };
+        assert_eq!(uri, "file:///result.txt");
+        assert_eq!(mime_type.as_deref(), Some("text/plain"));
+        assert_eq!(text, "resourcetext");
+        assert!(meta.is_none());
+    }
+
+    #[test]
+    fn test_tool_response_sanitization_preserves_legitimate_content() {
+        let text = Content::text("世界 🌍 café").with_audience(vec![Role::Assistant]);
+        let image = Content::image("image-data", "image/png").with_audience(vec![Role::User]);
+        let mut result = CallToolResult::success(vec![text, image]);
+        result.structured_content = Some(serde_json::json!({"safe": "世界"}));
+        result.meta = Some(rmcp::model::Meta(object!({"source": "test"})));
+        let expected = result.clone();
+
+        let content = MessageContent::tool_response("tool-1", Ok(result));
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        assert_eq!(response.tool_result.unwrap(), expected);
     }
 
     #[test]
