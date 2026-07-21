@@ -2,6 +2,7 @@ use crate::conversation::token_usage::{CostSource, ProviderUsage};
 use crate::conversation::tool_result_serde;
 use crate::mcp_utils::extract_text_from_resource;
 use crate::utils::sanitize_unicode_tags;
+use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParams, CallToolResult, Content, ElicitationAction, ImageContent,
@@ -52,18 +53,24 @@ where
             .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
-        if let MessageContent::Text(text_content) = message_content {
-            let original = &text_content.text;
-            let sanitized = sanitize_unicode_tags(original);
-            if *original != sanitized {
-                tracing::info!(
-                    original = %original,
-                    sanitized = %sanitized,
-                    removed_count = original.len() - sanitized.len(),
-                    "Unicode Tags sanitized during Message deserialization"
-                );
-                text_content.text = sanitized;
+        match message_content {
+            MessageContent::Text(text_content) => {
+                let original = &text_content.text;
+                let sanitized = sanitize_unicode_tags(original);
+                if *original != sanitized {
+                    tracing::info!(
+                        original = %original,
+                        sanitized = %sanitized,
+                        removed_count = original.len() - sanitized.len(),
+                        "Unicode Tags sanitized during Message deserialization"
+                    );
+                    text_content.text = sanitized;
+                }
             }
+            MessageContent::ToolResponse(response) => {
+                sanitize_tool_result_in_place(&mut response.tool_result);
+            }
+            _ => {}
         }
     }
 
@@ -75,31 +82,47 @@ where
 pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
 pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
 
-fn sanitize_tool_result(tool_result: ToolResult<CallToolResult>) -> ToolResult<CallToolResult> {
+fn sanitize_tool_result_in_place(tool_result: &mut ToolResult<CallToolResult>) {
     match tool_result {
-        Ok(mut result) => {
+        Ok(result) => {
             for content in &mut result.content {
                 match &mut content.raw {
                     RawContent::Text(text) => {
                         text.text = sanitize_unicode_tags(&text.text);
                     }
-                    RawContent::Resource(resource) => {
-                        if let ResourceContents::TextResourceContents { text, .. } =
-                            &mut resource.resource
-                        {
+                    RawContent::Resource(resource) => match &mut resource.resource {
+                        ResourceContents::TextResourceContents { text, .. } => {
                             *text = sanitize_unicode_tags(text);
                         }
-                    }
+                        ResourceContents::BlobResourceContents { blob, .. } => {
+                            let Ok(bytes) =
+                                base64::engine::general_purpose::STANDARD.decode(blob.as_bytes())
+                            else {
+                                continue;
+                            };
+                            let Ok(text) = String::from_utf8(bytes) else {
+                                continue;
+                            };
+                            let sanitized = sanitize_unicode_tags(&text);
+                            if text != sanitized {
+                                *blob = base64::engine::general_purpose::STANDARD
+                                    .encode(sanitized.as_bytes());
+                            }
+                        }
+                    },
                     _ => {}
                 }
             }
-            Ok(result)
         }
-        Err(mut error) => {
+        Err(error) => {
             error.message = sanitize_unicode_tags(error.message.as_ref()).into();
-            Err(error)
         }
     }
+}
+
+fn sanitize_tool_result(mut tool_result: ToolResult<CallToolResult>) -> ToolResult<CallToolResult> {
+    sanitize_tool_result_in_place(&mut tool_result);
+    tool_result
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1201,8 +1224,10 @@ pub struct TokenState {
 mod tests {
     use crate::conversation::message::{
         ActionRequiredData, Message, MessageContent, MessageMetadata, ProviderMetadata,
+        ToolResponse,
     };
     use crate::conversation::*;
+    use base64::Engine;
     use rmcp::model::{
         AnnotateAble, CallToolRequestParams, CallToolResult, PromptMessage, PromptMessageContent,
         PromptMessageRole, RawContent, RawEmbeddedResource, RawImageContent, RawTextContent,
@@ -1325,6 +1350,65 @@ mod tests {
         assert_eq!(mime_type.as_deref(), Some("text/plain"));
         assert_eq!(text, "resourcetext");
         assert!(meta.is_none());
+    }
+
+    #[test]
+    fn test_tool_response_sanitizes_utf8_blob_resource() {
+        let blob =
+            base64::engine::general_purpose::STANDARD.encode("resource\u{E0041}text".as_bytes());
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///result.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            blob,
+            meta: None,
+        };
+        let content = MessageContent::tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::resource(resource)])),
+        );
+
+        let MessageContent::ToolResponse(response) = content else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.unwrap();
+        let RawContent::Resource(resource) = &result.content[0].raw else {
+            panic!("expected resource content");
+        };
+        let ResourceContents::BlobResourceContents { blob, .. } = &resource.resource else {
+            panic!("expected blob resource");
+        };
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(blob)
+                .unwrap(),
+            b"resourcetext"
+        );
+    }
+
+    #[test]
+    fn test_deserialization_sanitizes_persisted_tool_response() {
+        let message = Message::new(
+            Role::User,
+            1,
+            vec![MessageContent::ToolResponse(ToolResponse {
+                id: "tool-1".to_string(),
+                tool_result: Ok(CallToolResult::success(vec![Content::text(
+                    "persisted\u{E0041}text",
+                )])),
+                metadata: None,
+            })],
+        );
+
+        let json = serde_json::to_string(&message).unwrap();
+        let deserialized: Message = serde_json::from_str(&json).unwrap();
+        let MessageContent::ToolResponse(response) = &deserialized.content[0] else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.as_ref().unwrap();
+        let RawContent::Text(text) = &result.content[0].raw else {
+            panic!("expected text content");
+        };
+        assert_eq!(text.text, "persistedtext");
     }
 
     #[test]
