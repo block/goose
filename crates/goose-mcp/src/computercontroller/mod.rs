@@ -9,9 +9,10 @@ use reqwest::{Client, Url};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        Annotations, CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation,
+        InitializeResult, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        TextContent,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -1198,7 +1199,12 @@ impl ComputerControllerServer {
             stdout
         };
 
-        contents.insert(0, ContentBlock::text(&text));
+        contents.insert(
+            0,
+            ContentBlock::Text(TextContent::new(&text).with_annotations(
+                Annotations::default().with_audience(vec![rmcp::model::Role::Assistant]),
+            )),
+        );
 
         Ok(CallToolResult::success(contents))
     }

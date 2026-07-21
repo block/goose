@@ -63,7 +63,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{AnnotateAble, RawTextContent, Role};
+use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -975,9 +975,7 @@ impl GooseAcpAgent {
                         if audience.is_empty() {
                             raw
                         } else {
-                            raw.with_annotations(
-                                rmcp::model::Annotations::default().with_audience(audience),
-                            )
+                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
                         }
                     } else {
                         // No annotations — regular user text.

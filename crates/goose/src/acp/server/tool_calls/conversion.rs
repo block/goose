@@ -7,7 +7,7 @@ use agent_client_protocol::schema::v1::{
     ImageContent, Meta, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
     ToolCallLocation, ToolCallStatus, ToolCallUpdateFields,
 };
-use rmcp::model::{CallToolResult, RawContent, ResourceContents};
+use rmcp::model::{CallToolResult, ContentBlock as RmcpContentBlock, ResourceContents};
 
 pub(crate) struct PendingToolCall {
     pub(crate) tool_call: ToolCall,
@@ -201,7 +201,7 @@ fn extract_tool_locations(
 
             if let Ok(result) = &tool_response.tool_result {
                 for content in &result.content {
-                    if let RawContent::Text(text_content) = &content.raw {
+                    if let RmcpContentBlock::Text(text_content) = content {
                         let text = &text_content.text;
 
                         match command {
@@ -278,14 +278,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
         Ok(result) => result
             .content
             .iter()
-            .filter_map(|content| match &content.raw {
-                RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
+            .filter_map(|content| match content {
+                RmcpContentBlock::Text(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Text(TextContent::new(val.text.clone())),
                 ))),
-                RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
+                RmcpContentBlock::Image(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
                 ))),
-                RawContent::Resource(val) => {
+                RmcpContentBlock::Resource(val) => {
                     let resource = match &val.resource {
                         ResourceContents::TextResourceContents {
                             mime_type,
@@ -305,12 +305,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                             BlobResourceContents::new(blob.clone(), uri.clone())
                                 .mime_type(mime_type.clone()),
                         ),
+                        _ => return None,
                     };
                     Some(ToolCallContent::Content(Content::new(
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
                     )))
                 }
-                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
+                RmcpContentBlock::Audio(_) | RmcpContentBlock::ResourceLink(_) => None,
+                _ => None,
             })
             .collect(),
         Err(error) => vec![ToolCallContent::Content(Content::new(ContentBlock::Text(

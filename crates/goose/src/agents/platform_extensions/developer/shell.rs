@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -347,6 +347,12 @@ impl ShellTool {
         })
     }
 
+    fn visible_text(text: impl Into<String>) -> ContentBlock {
+        ContentBlock::Text(
+            TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+        )
+    }
+
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
         self.shell_with_cwd(params, None, None, CancellationToken::new())
             .await
@@ -467,18 +473,18 @@ impl ShellTool {
             if let Some(code) = execution.exit_code.filter(|c| *c != 0) {
                 rendered.push_str(&format!("\n\nCommand exited with code {code}"));
             }
-            let mut error_blocks = vec![ContentBlock::text(rendered)];
+            let mut error_blocks = vec![Self::visible_text(rendered)];
             if !truncation_notices.is_empty() {
-                error_blocks.push(ContentBlock::text(truncation_notices.join("\n")));
+                error_blocks.push(Self::visible_text(truncation_notices.join("\n")));
             }
             let mut result = CallToolResult::error(error_blocks);
             result.structured_content = structured_content;
             return result;
         }
 
-        let mut content_blocks = vec![ContentBlock::text(rendered)];
+        let mut content_blocks = vec![Self::visible_text(rendered)];
         if !truncation_notices.is_empty() {
-            content_blocks.push(ContentBlock::text(truncation_notices.join("\n")));
+            content_blocks.push(Self::visible_text(truncation_notices.join("\n")));
         }
         let mut result = CallToolResult::success(content_blocks);
         result.structured_content = structured_content;
@@ -494,7 +500,7 @@ impl ShellTool {
             output_truncated: false,
             output_collection_error: None,
         };
-        let mut result = CallToolResult::error(vec![ContentBlock::text(message)]);
+        let mut result = CallToolResult::error(vec![Self::visible_text(message)]);
         result.structured_content = serde_json::to_value(&shell_output).ok();
         result
     }
