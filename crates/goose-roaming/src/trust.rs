@@ -1,100 +1,82 @@
-//! Local access-control state: who may connect, what's revoked, and which
-//! single-use invites have already been redeemed.
+//! Local access-control state: which peer keys this node accepts inbound
+//! connections from, what each may do, and which keys are revoked.
 //!
-//! This is deliberately local, unsigned admin state (like a sibling production
-//! iroh project's trust store). It is trusted because it lives on the host
-//! under the user's
-//! control. Authentication of *who* a peer is comes for free from iroh's
-//! QUIC-TLS handshake; this layer decides *whether they are authorized*.
+//! Trust is a **mutual, public-key allowlist**. A peer is identified by the key
+//! iroh's QUIC-TLS handshake authenticated, and is admitted only if that key is
+//! on this node's allowlist. There is no bearer/token mode: sharing a
+//! [`crate::ConnectionCard`] grants nothing until the recipient explicitly
+//! accepts the sender's key.
+//!
+//! This is deliberately local, unsigned admin state: it lives on the host under
+//! the user's control. Authentication of *who* a peer is comes from the
+//! transport; this layer decides *whether* they are authorized and with what
+//! [`Scope`].
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use iroh::EndpointId;
 use serde::{Deserialize, Serialize};
 
-/// How strictly the host admits inbound connections.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TrustPolicy {
-    /// Any peer holding a valid invite may connect (bearer mode).
-    #[default]
-    Bearer,
-    /// Only peers whose key is on the allowlist may connect, in addition to
-    /// presenting a valid invite.
-    Allowlist,
-}
+use crate::scope::Scope;
 
-/// Persisted trust state.
+/// Persisted trust state: the inbound allowlist (key -> granted scope) plus
+/// revocations.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TrustBook {
-    pub policy: TrustPolicy,
-    /// Client keys explicitly permitted under [`TrustPolicy::Allowlist`].
-    allowed: HashSet<String>,
-    /// Client keys that are refused regardless of invite.
+    /// Peer keys allowed to connect, each mapped to the scope they are granted.
+    allowed: BTreeMap<String, Scope>,
+    /// Peer keys that are refused regardless of anything else.
     revoked_keys: HashSet<String>,
-    /// Token ids that are refused (revoked or already-redeemed single-use).
-    revoked_tokens: HashSet<String>,
 }
 
 impl TrustBook {
-    pub fn new(policy: TrustPolicy) -> Self {
-        Self {
-            policy,
-            ..Default::default()
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Override the admission policy, preserving allow/revoke state. Used when a
-    /// persisted book is reloaded and this run's `share` flags set the policy.
-    pub fn set_policy(&mut self, policy: TrustPolicy) {
-        self.policy = policy;
+    /// Accept inbound connections from `key`, granting `scope`. Re-accepting an
+    /// already-allowed key updates its scope.
+    pub fn accept(&mut self, key: &EndpointId, scope: Scope) {
+        self.allowed.insert(key_str(key), scope);
     }
 
-    pub fn allow(&mut self, key: &EndpointId) {
-        self.allowed.insert(key_str(key));
-    }
-
+    /// Stop accepting `key` and record it as revoked so it cannot be re-added by
+    /// a stale card automatically.
     pub fn revoke_key(&mut self, key: &EndpointId) {
-        self.revoked_keys.insert(key_str(key));
+        let s = key_str(key);
+        self.allowed.remove(&s);
+        self.revoked_keys.insert(s);
     }
 
-    pub fn revoke_token(&mut self, token_id: &str) {
-        self.revoked_tokens.insert(token_id.to_string());
-    }
-
+    /// Whether `key` is allowed to connect (on the allowlist and not revoked).
     pub fn is_allowed(&self, key: &EndpointId) -> bool {
-        match self.policy {
-            TrustPolicy::Bearer => true,
-            TrustPolicy::Allowlist => self.allowed.contains(&key_str(key)),
+        let s = key_str(key);
+        !self.revoked_keys.contains(&s) && self.allowed.contains_key(&s)
+    }
+
+    /// The scope granted to `key`, if it is allowed.
+    pub fn scope_for(&self, key: &EndpointId) -> Option<Scope> {
+        let s = key_str(key);
+        if self.revoked_keys.contains(&s) {
+            return None;
         }
+        self.allowed.get(&s).copied()
     }
 
     pub fn is_key_revoked(&self, key: &EndpointId) -> bool {
         self.revoked_keys.contains(&key_str(key))
     }
 
-    /// Client keys explicitly allowed (empty under bearer policy), sorted.
-    pub fn allowed_keys(&self) -> Vec<String> {
-        let mut keys: Vec<String> = self.allowed.iter().cloned().collect();
-        keys.sort();
-        keys
+    /// Allowed peer keys with their granted scope, sorted by key.
+    pub fn allowed_keys(&self) -> Vec<(String, Scope)> {
+        self.allowed.iter().map(|(k, s)| (k.clone(), *s)).collect()
     }
 
-    /// Client keys that are refused regardless of invite, sorted.
+    /// Revoked peer keys, sorted.
     pub fn revoked_key_list(&self) -> Vec<String> {
         let mut keys: Vec<String> = self.revoked_keys.iter().cloned().collect();
         keys.sort();
         keys
-    }
-
-    pub fn is_token_revoked(&self, token_id: &str) -> bool {
-        self.revoked_tokens.contains(token_id)
-    }
-
-    /// Mark a single-use token redeemed. Returns `false` if it was already
-    /// redeemed (i.e. this redemption should be refused).
-    pub fn redeem_single_use(&mut self, token_id: &str) -> bool {
-        self.revoked_tokens.insert(token_id.to_string())
     }
 
     pub fn load(path: &std::path::Path) -> Result<Self, std::io::Error> {
@@ -124,63 +106,43 @@ mod tests {
     use iroh::SecretKey;
 
     #[test]
-    fn bearer_allows_all() {
-        let book = TrustBook::new(TrustPolicy::Bearer);
-        assert!(book.is_allowed(&SecretKey::generate().public()));
-    }
-
-    #[test]
-    fn allowlist_gates() {
-        let mut book = TrustBook::new(TrustPolicy::Allowlist);
+    fn allowlist_gates_and_carries_scope() {
+        let mut book = TrustBook::new();
         let key = SecretKey::generate().public();
         assert!(!book.is_allowed(&key));
-        book.allow(&key);
+        assert_eq!(book.scope_for(&key), None);
+
+        book.accept(&key, Scope::Observe);
         assert!(book.is_allowed(&key));
+        assert_eq!(book.scope_for(&key), Some(Scope::Observe));
+
+        // Re-accepting updates the scope.
+        book.accept(&key, Scope::Control);
+        assert_eq!(book.scope_for(&key), Some(Scope::Control));
     }
 
     #[test]
-    fn single_use_redeems_once() {
-        let mut book = TrustBook::default();
-        assert!(book.redeem_single_use("tok"));
-        assert!(!book.redeem_single_use("tok"));
-        assert!(book.is_token_revoked("tok"));
-    }
-
-    #[test]
-    fn revocation() {
-        let mut book = TrustBook::default();
+    fn revocation_removes_and_blocks() {
+        let mut book = TrustBook::new();
         let key = SecretKey::generate().public();
+        book.accept(&key, Scope::Control);
         book.revoke_key(&key);
+        assert!(!book.is_allowed(&key));
         assert!(book.is_key_revoked(&key));
+        assert_eq!(book.scope_for(&key), None);
     }
 
     #[test]
-    fn persists_pairing_across_reload() {
+    fn persists_across_reload() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("trust.json");
         let key = SecretKey::generate().public();
-
         {
-            let mut book = TrustBook::new(TrustPolicy::Allowlist);
-            assert!(book.redeem_single_use("tok"));
-            book.allow(&key);
+            let mut book = TrustBook::new();
+            book.accept(&key, Scope::Attach);
             book.save(&path).unwrap();
         }
-
         let reloaded = TrustBook::load(&path).unwrap();
-        // Pinned key survives, and the consumed single-use token stays consumed.
-        assert!(reloaded.is_allowed(&key));
-        assert!(reloaded.is_token_revoked("tok"));
-        assert_eq!(reloaded.allowed_keys(), vec![key.to_string()]);
-    }
-
-    #[test]
-    fn set_policy_preserves_state() {
-        let mut book = TrustBook::new(TrustPolicy::Allowlist);
-        let key = SecretKey::generate().public();
-        book.allow(&key);
-        book.set_policy(TrustPolicy::Bearer);
-        // Policy changed, but the pinned key is retained.
-        assert_eq!(book.allowed_keys(), vec![key.to_string()]);
+        assert_eq!(reloaded.scope_for(&key), Some(Scope::Attach));
     }
 }

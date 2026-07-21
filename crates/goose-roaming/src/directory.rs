@@ -14,7 +14,7 @@ use iroh::EndpointId;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::invite::Scope;
+use crate::scope::Scope;
 
 /// Which way a connection was established.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

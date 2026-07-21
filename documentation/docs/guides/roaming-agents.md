@@ -13,78 +13,100 @@ Use it to drive your laptop's agent from another device, hand a one-shot task to
 a remote agent, or expose a remote agent to any local ACP client (like the goose
 desktop app or an editor).
 
-## Remote modes at a glance
+## The core idea: roaming is an ACP transport
 
-All modes share the same foundation: one machine hosts the real agent, and the
-wire protocol between machines is [ACP](/docs/guides/acp-clients). They differ in
-what sits on the connecting side.
+Roaming does exactly one thing: it provides an **authenticated, peer-to-peer
+[ACP](/docs/guides/acp-clients) transport**. The host runs goose's real ACP
+server; the connecting side is an ACP client. That's it.
 
-| Mode | Command | Connecting side is… | Use it to… |
-|------|---------|--------------------|------------|
-| Interactive | `roam connect` | a built-in terminal chat UI | drive a remote agent yourself |
-| One-shot | `roam delegate` | a non-interactive caller | send one task, get the answer back |
-| Bridge | `roam bridge` | a transparent ACP proxy | point *any* ACP client (goose desktop, Zed, an editor) at a remote agent |
-| Resume | `roam share --session` | (host side) a replayed session | share an existing local session |
-| Watch / co-drive | `roam share --scope observe\|attach` | one or more extra peers | let others listen in on, or help steer, one live session |
+Everything that feels "session-shaped" is therefore just plain ACP that happens
+to run over a roaming connection — not a bespoke roaming feature:
+
+| You want to… | It's just ACP… | Command |
+|--------------|----------------|---------|
+| List the remote's sessions | `session/list` | `roam delegate <target> --list-sessions` |
+| Continue a specific session | `session/load` | `roam delegate <target> --session <id> "…"` |
+| Run a fresh one-shot task | `session/new` + `session/prompt` | `roam delegate <target> "…"` |
+| Drive a remote agent from a real UI | full ACP surface | `roam bridge` → goose desktop, Zed, an editor |
+| Quick interactive peek | a built-in REPL | `roam connect` |
+
+Because the connection carries the full ACP surface, the connecting side can
+enumerate, create, and resume the host's sessions with no roaming-specific
+protocol. Higher-level behaviours (saved peers, co-driving one live session) sit
+*above* the transport and are described below.
 
 :::note
 Roaming is an optional, experimental feature. It's available when goose is built
 with the `roaming` feature (`cargo build -p goose-cli --features roaming`).
 :::
 
-## How it works
+## How it works: cards and mutual acceptance
 
-One machine **shares** its agent and prints a signed invite token. Another
-machine **connects** with that token. The connection is authorized by the
-invite, and the remote client speaks the same [ACP](/docs/guides/acp-clients)
-protocol goose already uses — so the host runs the real agent (its tools,
-files, and shell) while the connecting side is just a window onto it.
+Trust is a **mutual, public-key relationship** — like WireGuard or SSH
+known-hosts, and deliberately infrastructural. Each node has one long-lived
+identity and produces a **connection card**: a shareable string containing its
+public key and how to reach it (relay URLs). *Nothing in a card is secret* —
+possessing one grants no access.
+
+To let a peer reach you, you each:
+
+1. **Swap cards** (`goose roam id` prints yours; send it over any channel).
+2. **Accept the other's key** (`goose roam peers accept …`).
+
+A connection only succeeds when the **host has accepted the dialer's key**. The
+transport (iroh QUIC-TLS) proves each side holds the private key for the identity
+in its card, so no one can impersonate a key, and a leaked card lets no one in.
+There is no bearer token that grants access by possession.
 
 ```
-┌────────────┐   invite token   ┌────────────┐
-│  Machine A │ ───────────────▶ │  Machine B │
-│  roam share│                  │ roam connect│
-│  (agent)   │ ◀═══ ACP over ══▶ │  (client)  │
-└────────────┘   iroh + relay    └────────────┘
+┌────────────┐    swap cards     ┌────────────┐
+│  Machine A │ ◀───────────────▶ │  Machine B │
+│            │  each accepts the │            │
+│  roam share│  other's key      │ roam connect│
+│  (agent)   │ ◀═══ ACP over ══▶ │ /delegate/ │
+└────────────┘   iroh + relay    │  bridge    │
+                                 └────────────┘
 ```
+
+By default each connecting client gets its **own** agent and drives its **own**
+sessions over the full ACP surface. (Co-driving *one shared* live session is a
+separate, opt-in mode — see [Watching and co-driving](#watching-and-co-driving-a-session).)
 
 ## Quick start
 
-**On the host (machine A):**
+Say machine B wants to drive machine A's agent. Both run `goose roam id` and send
+each other the card it prints. Then:
+
+**On machine A (the host):** add B's card and accept its key.
 
 ```bash
-goose roam share
+goose roam peers add 'goose+roam://…B…' laptop-b
+goose roam peers accept laptop-b          # grants control by default
+goose roam share                          # serve to accepted peers
 ```
 
-This prints an invite token like `goose+roam://…` and keeps running. The agent
-runs in the directory `share` was started in (override with `--cwd <dir>`). The
-connecting side's own directory is always ignored — all work happens in the
-host's directory.
+`share` keeps running and prints A's card too. The agent runs in the directory
+`share` was started in (override with `--cwd <dir>`); the connecting side's own
+directory is always ignored.
 
-**On the client (machine B):**
+**On machine B (the client):** add A's card and connect.
 
 ```bash
-goose roam connect 'goose+roam://…'
+goose roam peers add 'goose+roam://…A…' laptop-a
+goose roam connect laptop-a
 ```
 
 You get an interactive prompt that drives the agent on machine A. Type a message
 and press enter; `/quit` or Ctrl-D to leave.
 
-## Resuming an existing session
+`connect` is a minimal built-in chat loop — handy for a quick sanity check. For
+real work, prefer `bridge` (drive the remote agent from a full ACP client) or
+`delegate` (scriptable one-shot tasks).
 
-Instead of starting fresh, you can share an existing local session — its
-conversation history is replayed into the hosted agent, which runs in that
-session's own working directory:
-
-```bash
-goose roam sessions                       # list local session ids
-goose roam share --session <SESSION_ID>   # resume and share it
-```
-
-`--cwd` is ignored when `--session` is given (a resumed session keeps its own
-directory). History replay reaches the hosted agent at share time, so a peer
-that connects later sees new activity from the point it attaches rather than a
-re-rendered transcript.
+:::tip
+Compare the short **fingerprint** shown by `roam id` / `peers accept` out of band
+(e.g. read it aloud) to be sure you accepted the key you meant to.
+:::
 
 ## One-shot delegation
 
@@ -95,6 +117,16 @@ goose roam delegate 'goose+roam://…' "Summarize the last 5 commits in this rep
 ```
 
 The remote agent runs the task with its own tools and prints its final response.
+`delegate` is a thin ACP client, so it can also work with the remote's existing
+sessions — all plain ACP under the hood:
+
+```bash
+# List the remote agent's sessions (session/list)
+goose roam delegate 'goose+roam://…' --list-sessions
+
+# Continue a specific session instead of starting fresh (session/load)
+goose roam delegate 'goose+roam://…' --session <SESSION_ID> "Now fix the first failure."
+```
 
 ## Bridging to any ACP client
 
@@ -112,7 +144,7 @@ subprocess):
 goose roam bridge 'goose+roam://…'
 ```
 
-Configure your ACP client to run `goose roam bridge '<token>'` as its agent
+Configure your ACP client to run `goose roam bridge '<card>'` as its agent
 command. It will speak ACP on the process's stdin/stdout, and every request is
 forwarded to the remote agent.
 
@@ -125,89 +157,105 @@ goose roam bridge laptop --listen 127.0.0.1:8900
 This accepts a single ACP connection on that address and proxies it to the
 remote agent. Saved peer names work here too.
 
+Because a default `share` serves the full ACP surface, a bridged client gets
+everything — it can list, create, and load the host's sessions, not just a
+single pre-selected one.
+
 :::note
-A bridge serves one client connection and inherits the invite's scope — the
-remote host still runs the agent, imposes its own working directory, and
-authorizes the connection.
+A bridge serves one client connection. The remote host still runs the agent,
+imposes its own working directory, and authorizes the connection.
 :::
 
 ## Saved peers
 
-Save an invite under a nickname so you don't paste tokens each time:
+Save a peer's card under a nickname so you don't paste cards each time. A saved
+card is just an address-book entry — it does **not** let that peer connect to
+you (use `peers accept` for that):
 
 ```bash
-goose roam peers save laptop 'goose+roam://…'
+goose roam peers add 'goose+roam://…' laptop   # save to the address book
 goose roam connect laptop
 goose roam delegate laptop "run the tests and report failures"
 
-goose roam peers list      # show saved peers (also: remove, rename)
+goose roam peers list      # show saved peers + which keys you accept
 goose roam connections     # show observed connections
-goose roam id              # print this machine's endpoint ids
+goose roam id              # print this node's connection card
 ```
 
 ## Controlling who can connect
 
-By default an invite is **bearer**: anyone holding the token can connect, until
-it expires (`--ttl <seconds>`, default 1 hour). For tighter control:
-
-| Goal | How |
-|------|-----|
-| Only a specific key may connect | `goose roam share --allow-key <client-id>` — use the connecting machine's **client** id from its `goose roam id`. Repeatable for multiple keys. |
-| Pair once, then lock to that key | `goose roam share --pair` — the invite is single-use and pins the client key of whoever redeems it first |
-| Limit the window | `goose roam share --ttl 300` |
-
-### Durable trust (pairing that survives restarts)
-
-`--allow-key` and `--pair` pin **client public keys**, and the host persists them
-so the relationship outlives any single `share` process. This is the durable,
-secret-free model: after pairing once, the client is trusted by its key — you
-don't have to keep handing out (or storing) a reusable token.
+Access is granted **only** by accepting a peer's public key — there is no bearer
+token that works by possession. You accept a peer (by saved name or inline card)
+and choose what it may do:
 
 ```bash
-# On the host: pair once. The invite is single-use and consumed on first connect.
-goose roam share --pair
+goose roam peers accept laptop                    # grant control (default)
+goose roam peers accept watcher --scope observe   # read-only (co-drive only, see below)
+goose roam peers accept 'goose+roam://…'          # accept an inline card (also saves it)
 
-# Later — even after restarting share — the paired client is still trusted:
-goose roam trust list          # show trusted (and revoked) client keys
-goose roam trust revoke <client-id>   # cut off a client by its key
+goose roam peers list                             # see who is accepted, and their scope
+goose roam peers revoke laptop                    # stop accepting (name, card, or raw id)
 ```
 
-An invite **token** still expires (`--ttl`), so it is only for the initial
-handshake; the lasting trust is the pinned key. Revoking a key takes effect on
-the next connection (an already-open session continues until it disconnects).
+Acceptance is **durable** and **live**: it is stored on disk, and a running
+`share` re-reads it on each connection — so `accept`/`revoke` take effect against
+a live share without a restart. Revoking takes effect on the next connection (an
+already-open session continues until it disconnects).
+
+:::note
+`attach`/`observe` scopes only apply when co-driving one live session
+(`roam share --session`, below). A **default** `share` serves the full ACP
+surface, which only makes sense for a `control` peer — it therefore *refuses* an
+`attach`/`observe` peer, directing it to co-drive instead.
+:::
+
+Because trust is keyed on the peer's public key and the transport authenticates
+that key cryptographically, a card can be shared over any channel — it is not a
+secret, and a leaked card lets no one in.
 
 :::warning
-By default a shared agent grants **full control** — the connecting peer can run
-the agent's tools, including its shell. Only share `control` with machines and
-people you trust, and prefer `--allow-key` or `--pair` over bearer invites when
-you can. Use a narrower `--scope` (below) when the peer doesn't need to drive.
+Accepting a peer with `control` grants **full control** — the peer can run the
+agent's tools, including its shell. Only accept machines and people you trust,
+and verify the fingerprint out of band. For a read-only or steer-only peer, grant
+a narrower `--scope` (see below), which only takes effect when co-driving a
+session.
 :::
 
 ## Watching and co-driving a session
 
-Several peers can attach to **one** live session at the same time. The invite's
-scope decides what each may do:
+The default `share` gives each accepted peer its own agent. To instead let
+several peers attach to **one** live session at the same time — for pairing,
+demos, or an over-the-shoulder review — co-drive a specific session with
+`--session`. The scope you granted each peer (`peers accept --scope`) then decides
+what it may do:
 
-| `--scope` | Can watch updates | Can prompt / steer | Answers tool-permission prompts |
+```bash
+goose roam sessions                          # list local session ids
+goose roam peers accept watcher --scope observe   # grant a peer read-only
+goose roam share --session <SESSION_ID>      # co-drive that live session
+```
+
+| Granted scope | Can watch updates | Can prompt / steer | Answers tool-permission prompts |
 |-----------|:-----------------:|:------------------:|:-------------------------------:|
-| `control` (default) | ✅ | ✅ | ✅ |
+| `control` | ✅ | ✅ | ✅ |
 | `attach` | ✅ | ✅ | ❌ |
 | `observe` | ✅ | ❌ | ❌ |
 
 Only one peer controls the session at a time (the host, or whoever it hands
 control to); everyone else watches the same `session/update` stream live. So you
-can keep a `control` invite for yourself and hand out `observe` invites for
-others to **listen in**:
+can accept yourself/one peer with `control` and others with `observe` so they can
+**listen in**. Observers and attachers connect exactly like a controller —
+`goose roam connect '<card>'` — but their prompts are refused (`observe`) and
+permission prompts are never routed to them; those always go to the controller.
 
-```bash
-# Host keeps control for itself and mints a read-only invite to share around:
-goose roam share --scope observe
-```
+Scope only shapes behaviour in this co-drive mode; a default `share` (no
+`--session`) lets each accepted peer drive its own sessions.
 
-Observers and attachers connect exactly like a controller — `goose roam connect
-'<token>'` — but their prompts are refused (`observe`) and permission prompts are
-never routed to them; those always go to the controller. This is the natural fit
-for pairing, demos, or an over-the-shoulder review of a running agent.
+:::note
+Co-drive resumes the session's history into the hosted agent at share time, and
+runs in that session's own working directory (`--cwd` is ignored). A peer that
+connects later sees new activity from the point it attaches.
+:::
 
 ## Letting the agent reach other agents
 
@@ -228,6 +276,6 @@ so this composes into multi-machine workflows without any shared state.
   iroh's public relays otherwise. The default relays are rate-limited and
   best-effort; self-hosting relays is possible but not covered here.
 - `connect`, `delegate`, and `bridge` all accept either a saved peer name or a
-  raw token.
+  raw `goose+roam://…` card. Remember the peer must also have accepted your key.
 - On macOS, if a session still appears to hang on connect, set
   `GOOSE_DISABLE_KEYRING=1` to skip the keychain entirely.

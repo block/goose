@@ -13,9 +13,9 @@ anyhow = { workspace = true }
 base64 = { workspace = true }
 futures = { workspace = true }
 iroh = { workspace = true, features = ["tls-aws-lc-rs"] }
-rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2.workspace = true
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync", "macros", "time", "io-util"] }
 tokio-util = { workspace = true, features = ["compat"] }

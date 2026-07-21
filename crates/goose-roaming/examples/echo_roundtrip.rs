@@ -1,10 +1,11 @@
 //! Minimal end-to-end example of the `goose-roaming` library API.
 //!
 //! It shows the whole surface a consumer touches — identity, bind, share,
-//! mint an invite, dial it, and exchange bytes over the authorized stream —
-//! without any dependency on goose's agent internals. The "agent" here is a
-//! trivial echo server plugged in via the [`AcpStreamServer`] trait; a real
-//! consumer would call goose's ACP `serve` instead (see `goose-cli`'s bridge).
+//! accept a peer's key, exchange cards, dial, and exchange bytes over the
+//! authorized stream — without any dependency on goose's agent internals. The
+//! "agent" here is a trivial echo server plugged in via the [`AcpStreamServer`]
+//! trait; a real consumer would call goose's ACP `serve` instead (see
+//! `goose-cli`'s bridge).
 //!
 //! Run it:
 //!
@@ -19,8 +20,7 @@ use std::sync::Arc;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, EndpointId, InviteOptions, RelaySettings, RoamingConfig, RoamingIdentity,
-    RoamingNode, Scope, TrustBook, TrustPolicy,
+    AcpStreamServer, EndpointId, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
 };
 
 const MSG: &[u8] = b"hello from the client";
@@ -70,26 +70,29 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     host.share(Arc::new(EchoServer)).await?;
 
-    // Mint a bearer invite valid for 60s.
-    let invite = host.make_invite(InviteOptions::new(
-        Scope::Control,
-        std::time::Duration::from_secs(60),
-    ));
+    // The host's shareable card: public identity + reachability, nothing secret.
+    let card = host.card();
     println!("host endpoint id : {}", host.endpoint_id());
-    println!("invite token     : {}", invite.encode()?);
+    println!("host card        : {}", card.encode()?);
 
     // --- Client side -------------------------------------------------------
     // A separate node dials the host directly (relays disabled → LAN address).
     let client = RoamingNode::bind(
         RoamingConfig::new(RoamingIdentity::generate())
             .with_relay(RelaySettings::Disabled)
-            .with_trust(TrustBook::new(TrustPolicy::Bearer))
             .with_bind_addr(loopback),
     )
     .await?;
 
+    // The host accepts the client's key into its allowlist — the mutual,
+    // key-based trust step. Without this the connection is refused.
+    host.trust()
+        .lock()
+        .await
+        .accept(&client.endpoint_id(), Scope::Control);
+
     let stream = client
-        .connect_with_addr(host.endpoint().addr(), &invite, Some("example".into()))
+        .connect_with_addr(host.endpoint().addr(), Some("example".into()))
         .await?;
     println!(
         "connected to `{}` with scope {:?}",

@@ -1,32 +1,31 @@
-//! A user-managed address book of remote agents you can connect to.
+//! A user-managed address book of remote nodes you can connect to.
 //!
 //! Unlike [`crate::Directory`] (which records connections that actually
 //! happened), the [`PeerBook`] holds saved remotes you *may* connect to,
-//! addressed by a friendly nickname. Each entry stores the complete invite
-//! token — it is the outbound credential — so it is persisted with restrictive
-//! permissions.
+//! addressed by a friendly nickname. Each entry stores the remote's
+//! [`ConnectionCard`] — its public identity and how to reach it. A card is
+//! **not** a secret and confers no access on its own; a connection only
+//! succeeds if the remote has also chosen to accept this node's key.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::card::ConnectionCard;
 use crate::error::RoamingError;
-use crate::invite::{Scope, SignedInvite};
 
-/// A single saved remote agent.
+/// A single saved remote node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerRecord {
     /// Friendly nickname used to `connect <name>`.
     pub name: String,
-    /// The complete invite token (the outbound credential).
-    pub invite: String,
-    /// Cached from the invite for display without re-decoding.
+    /// The remote's connection card (public identity + reachability).
+    pub card: ConnectionCard,
+    /// Cached for display without re-decoding.
     pub endpoint_id: String,
-    pub scope: Scope,
-    pub expires_at_ms: u64,
-    /// Whether this credential is bearer (no client-key binding).
-    pub bearer: bool,
+    /// Short fingerprint for out-of-band verification.
+    pub fingerprint: String,
     pub added_ms: u64,
 }
 
@@ -51,18 +50,16 @@ impl PeerBook {
         Ok(book)
     }
 
-    /// Save a remote under `name`, decoding `invite` to cache display fields.
-    /// Returns an error if the invite is malformed. Overwrites an existing
-    /// entry with the same name (used to refresh an expired credential).
-    pub fn save(&mut self, name: &str, invite: &str, now_ms: u64) -> Result<(), RoamingError> {
-        let decoded = SignedInvite::decode(invite)?;
+    /// Save a remote under `name` from its shared card string. Returns an error
+    /// if the card is malformed. Overwrites an existing entry with the same
+    /// name (used to refresh a card whose relays changed).
+    pub fn save(&mut self, name: &str, card_str: &str, now_ms: u64) -> Result<(), RoamingError> {
+        let card = ConnectionCard::decode(card_str)?;
         let record = PeerRecord {
             name: name.to_string(),
-            invite: invite.to_string(),
-            endpoint_id: decoded.claims.audience.to_string(),
-            scope: decoded.claims.scope,
-            expires_at_ms: decoded.claims.expires_at_ms,
-            bearer: decoded.claims.allowed_client_keys.is_empty(),
+            endpoint_id: card.endpoint_id.to_string(),
+            fingerprint: card.fingerprint(),
+            card,
             added_ms: now_ms,
         };
         self.peers.insert(name.to_string(), record);
@@ -82,12 +79,12 @@ impl PeerBook {
     /// already exists.
     pub fn rename(&mut self, from: &str, to: &str) -> Result<(), RoamingError> {
         if self.peers.contains_key(to) {
-            return Err(RoamingError::Invite(format!("peer `{to}` already exists")));
+            return Err(RoamingError::Card(format!("peer `{to}` already exists")));
         }
         let mut record = self
             .peers
             .remove(from)
-            .ok_or_else(|| RoamingError::Invite(format!("no peer named `{from}`")))?;
+            .ok_or_else(|| RoamingError::Card(format!("no peer named `{from}`")))?;
         record.name = to.to_string();
         self.peers.insert(to.to_string(), record);
         self.flush()
@@ -111,23 +108,12 @@ impl PeerBook {
             std::fs::create_dir_all(parent)?;
         }
         let json = serde_json::to_vec_pretty(self)
-            .map_err(|e| RoamingError::Invite(format!("serialize peer book: {e}")))?;
-        write_private(path, &json)
+            .map_err(|e| RoamingError::Card(format!("serialize peer book: {e}")))?;
+        write_file(path, &json)
     }
 }
 
-#[cfg(unix)]
-fn write_private(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, contents)?;
-    std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
-    std::fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn write_private(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {
+fn write_file(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, contents)?;
     std::fs::rename(&tmp, path)?;
@@ -138,22 +124,10 @@ fn write_private(path: &Path, contents: &[u8]) -> Result<(), RoamingError> {
 mod tests {
     use super::*;
     use crate::identity::RoamingIdentity;
-    use crate::invite::InviteClaims;
 
-    fn make_invite(scope: Scope) -> String {
+    fn make_card() -> String {
         let host = RoamingIdentity::generate();
-        let claims = InviteClaims {
-            version: 1,
-            audience: host.public_key(),
-            relay_urls: vec!["https://relay.example./".into()],
-            scope,
-            allowed_client_keys: vec![],
-            token_id: "tok".into(),
-            not_before_ms: 0,
-            expires_at_ms: 10_000,
-            single_use: false,
-        };
-        SignedInvite::sign(host.secret_key(), claims)
+        ConnectionCard::new(host.public_key(), vec!["https://relay.example./".into()])
             .encode()
             .unwrap()
     }
@@ -162,13 +136,12 @@ mod tests {
     fn save_get_remove() {
         let dir = tempfile::tempdir().unwrap();
         let mut book = PeerBook::load(dir.path().join("peers.json")).unwrap();
-        let invite = make_invite(Scope::Control);
+        let card = make_card();
 
-        book.save("work", &invite, 1_000).unwrap();
+        book.save("work", &card, 1_000).unwrap();
         let rec = book.get("work").unwrap();
         assert_eq!(rec.name, "work");
-        assert!(matches!(rec.scope, Scope::Control));
-        assert!(rec.bearer);
+        assert!(!rec.fingerprint.is_empty());
 
         assert!(book.remove("work").unwrap());
         assert!(book.get("work").is_none());
@@ -179,8 +152,8 @@ mod tests {
     fn rename_rules() {
         let dir = tempfile::tempdir().unwrap();
         let mut book = PeerBook::load(dir.path().join("peers.json")).unwrap();
-        book.save("a", &make_invite(Scope::Observe), 1).unwrap();
-        book.save("b", &make_invite(Scope::Observe), 1).unwrap();
+        book.save("a", &make_card(), 1).unwrap();
+        book.save("b", &make_card(), 1).unwrap();
 
         assert!(book.rename("a", "b").is_err()); // target exists
         assert!(book.rename("missing", "c").is_err()); // source missing
@@ -195,7 +168,7 @@ mod tests {
         let path = dir.path().join("peers.json");
         {
             let mut book = PeerBook::load(path.clone()).unwrap();
-            book.save("work", &make_invite(Scope::Control), 1).unwrap();
+            book.save("work", &make_card(), 1).unwrap();
         }
         let book = PeerBook::load(path).unwrap();
         assert_eq!(book.list().len(), 1);
@@ -203,9 +176,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_malformed_invite() {
+    fn rejects_malformed_card() {
         let dir = tempfile::tempdir().unwrap();
         let mut book = PeerBook::load(dir.path().join("peers.json")).unwrap();
-        assert!(book.save("bad", "not-a-token", 1).is_err());
+        assert!(book.save("bad", "not-a-card", 1).is_err());
     }
 }

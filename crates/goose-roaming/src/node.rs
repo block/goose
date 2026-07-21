@@ -12,14 +12,15 @@ use iroh::{
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+use crate::card::ConnectionCard;
 use crate::directory::{Direction, Directory};
 use crate::error::RoamingError;
 use crate::frame::{read_frame, write_frame};
 use crate::handshake::{ClientHello, HostAck};
 use crate::identity::RoamingIdentity;
-use crate::invite::{Scope, SignedInvite};
 use crate::relay::RelaySettings;
-use crate::trust::{TrustBook, TrustPolicy};
+use crate::scope::Scope;
+use crate::trust::TrustBook;
 
 /// ALPN identifying the goose ACP-over-iroh protocol.
 pub const ROAMING_ACP_ALPN: &[u8] = b"goose-acp/1";
@@ -59,6 +60,11 @@ pub struct RoamingConfig {
     pub identity: RoamingIdentity,
     pub relay: RelaySettings,
     pub trust: TrustBook,
+    /// Optional path to the persisted trust allowlist. When set, it is
+    /// re-read on every inbound connection so `peers accept`/`revoke` from a
+    /// separate process take effect against a running `share` without a
+    /// restart. When `None` only the in-memory `trust` is consulted.
+    pub trust_path: Option<std::path::PathBuf>,
     /// Directory used to track observed connections. Defaults to an in-memory
     /// directory; pass [`Directory::persistent`] to make `roam list` work from
     /// a separate process.
@@ -69,25 +75,20 @@ pub struct RoamingConfig {
     /// otherwise stalls (`MultipathNotNegotiated`) when both the specified IPv4
     /// and a default `[::]` IPv6 socket are candidates with no relay fallback.
     pub bind_addr: Option<std::net::SocketAddr>,
-    /// Optional path to persist the [`TrustBook`] to. When set, admission
-    /// changes made during a live session — pairing pinning a client key,
-    /// single-use tokens being consumed — are flushed here so they survive a
-    /// restart. When `None` the trust state is in-memory only.
-    pub trust_path: Option<std::path::PathBuf>,
 }
 
 impl RoamingConfig {
     /// A config for `identity` with sensible defaults: iroh's public relays,
-    /// bearer trust (anyone with a valid invite), an in-memory directory, and
-    /// no explicit bind address.
+    /// an empty trust allowlist (accepts no one until a peer key is accepted),
+    /// an in-memory directory, and no explicit bind address.
     pub fn new(identity: RoamingIdentity) -> Self {
         Self {
             identity,
             relay: RelaySettings::N0Default,
-            trust: TrustBook::new(TrustPolicy::Bearer),
+            trust: TrustBook::new(),
+            trust_path: None,
             directory: Directory::new(),
             bind_addr: None,
-            trust_path: None,
         }
     }
 
@@ -97,9 +98,16 @@ impl RoamingConfig {
         self
     }
 
-    /// Use a specific trust policy / allowlist (default: bearer).
+    /// Use a specific trust allowlist (default: empty — accepts no one).
     pub fn with_trust(mut self, trust: TrustBook) -> Self {
         self.trust = trust;
+        self
+    }
+
+    /// Re-read the trust allowlist from `path` on every inbound connection so
+    /// out-of-band `accept`/`revoke` take effect without restarting a share.
+    pub fn with_trust_path(mut self, path: std::path::PathBuf) -> Self {
+        self.trust_path = Some(path);
         self
     }
 
@@ -114,50 +122,6 @@ impl RoamingConfig {
         self.bind_addr = Some(addr);
         self
     }
-
-    /// Persist trust changes (pairing, single-use redemption) to `path` so they
-    /// survive a restart (default: in-memory only).
-    pub fn with_trust_path(mut self, path: std::path::PathBuf) -> Self {
-        self.trust_path = Some(path);
-        self
-    }
-}
-
-/// Options for minting a [`SignedInvite`] via [`RoamingNode::make_invite`].
-pub struct InviteOptions {
-    /// Capability granted to the connecting client.
-    pub scope: Scope,
-    /// How long the invite is valid for.
-    pub ttl: std::time::Duration,
-    /// If non-empty, only these client keys may redeem the invite.
-    pub allowed_client_keys: Vec<EndpointId>,
-    /// If true, the invite is consumed on first redemption and the redeeming
-    /// client's key is pinned to the host's allowlist (pairing).
-    pub single_use: bool,
-}
-
-impl InviteOptions {
-    /// A `Control` invite valid for `ttl`, bearer (any holder), reusable.
-    pub fn new(scope: Scope, ttl: std::time::Duration) -> Self {
-        Self {
-            scope,
-            ttl,
-            allowed_client_keys: Vec::new(),
-            single_use: false,
-        }
-    }
-
-    /// Restrict redemption to a specific client key (repeatable).
-    pub fn allow_client(mut self, id: EndpointId) -> Self {
-        self.allowed_client_keys.push(id);
-        self
-    }
-
-    /// Make the invite single-use (pairing): the first redeemer's key is pinned.
-    pub fn single_use(mut self) -> Self {
-        self.single_use = true;
-        self
-    }
 }
 
 /// A bound roaming node.
@@ -167,7 +131,6 @@ pub struct RoamingNode {
     trust: Arc<Mutex<TrustBook>>,
     trust_path: Option<std::path::PathBuf>,
     directory: Directory,
-    identity: RoamingIdentity,
     relay: RelaySettings,
 }
 
@@ -176,7 +139,6 @@ impl RoamingNode {
     /// (or a manual router) is set up.
     pub async fn bind(config: RoamingConfig) -> Result<Arc<Self>, RoamingError> {
         let relay_mode = config.relay.to_relay_mode()?;
-        let identity = config.identity.clone();
         let relay = config.relay.clone();
         let relays_disabled = matches!(config.relay, RelaySettings::Disabled);
         let mut builder = Endpoint::builder(iroh::endpoint::presets::Minimal)
@@ -201,7 +163,6 @@ impl RoamingNode {
             trust: Arc::new(Mutex::new(config.trust)),
             trust_path: config.trust_path,
             directory: config.directory,
-            identity,
             relay,
         }))
     }
@@ -268,34 +229,22 @@ impl RoamingNode {
             .collect()
     }
 
-    /// Mint a signed invite for this node with the given scope and validity.
+    /// Produce this node's [`ConnectionCard`]: its public identity plus the
+    /// relay URLs a peer needs to reach it. The card carries nothing secret and
+    /// grants no access — a peer must also be accepted into this node's trust
+    /// allowlist before it can connect.
     ///
-    /// The invite advertises the configured relay URLs plus the endpoint's
-    /// live relay URL(s), so a client can reach this node through a relay.
-    /// Call [`Self::wait_online`] first so a live relay URL is available.
-    /// Mint a signed invite for this node, using the identity and relay settings
-    /// it was bound with. Relay URLs advertised in the invite merge the
-    /// configured relays with any live relay the endpoint has since discovered.
-    pub fn make_invite(&self, options: InviteOptions) -> SignedInvite {
-        let now = now_ms();
+    /// The relays advertised merge the configured relays with any live relay the
+    /// endpoint has since registered with. Call [`Self::wait_online`] first so a
+    /// live relay URL is available.
+    pub fn card(&self) -> ConnectionCard {
         let mut relay_urls = self.relay.advertised_urls();
         for url in self.live_relay_urls() {
             if !relay_urls.contains(&url) {
                 relay_urls.push(url);
             }
         }
-        let claims = crate::invite::InviteClaims {
-            version: 1,
-            audience: self.endpoint_id(),
-            relay_urls,
-            scope: options.scope,
-            allowed_client_keys: options.allowed_client_keys,
-            token_id: random_token_id(),
-            not_before_ms: now,
-            expires_at_ms: now + options.ttl.as_secs() * 1000,
-            single_use: options.single_use,
-        };
-        SignedInvite::sign(self.identity.secret_key(), claims)
+        ConnectionCard::new(self.endpoint_id(), relay_urls)
     }
 
     /// Cleanly shut the router and endpoint down.
@@ -310,31 +259,30 @@ impl RoamingNode {
         Ok(())
     }
 
-    /// Dial a remote agent using a decoded invite, returning the authorized
+    /// Dial a remote node using its [`ConnectionCard`], returning the authorized
     /// bi-stream halves ready to feed to an ACP client transport.
     ///
-    /// The dial target is reconstructed from the invite (audience id + relay
-    /// URLs). Use [`Self::connect_with_addr`] when the caller already has a
-    /// dialable [`EndpointAddr`] (e.g. a direct LAN address learned out of
-    /// band).
+    /// The dial target is reconstructed from the card (endpoint id + relay
+    /// URLs). The connection only succeeds if the remote has accepted *this*
+    /// node's key into its allowlist. Use [`Self::connect_with_addr`] when the
+    /// caller already has a dialable [`EndpointAddr`] (e.g. a direct LAN address
+    /// learned out of band).
     pub async fn connect(
         &self,
-        invite: &SignedInvite,
+        card: &ConnectionCard,
         label: Option<String>,
     ) -> Result<RoamingClientStream, RoamingError> {
-        let addr = invite.endpoint_addr()?;
-        self.connect_with_addr(addr, invite, label).await
+        let addr = card.endpoint_addr()?;
+        self.connect_with_addr(addr, label).await
     }
 
-    /// Dial a remote agent at an explicit [`EndpointAddr`], authorizing with the
-    /// given invite.
+    /// Dial a remote node at an explicit [`EndpointAddr`]. Authorization happens
+    /// on the remote side purely by this node's authenticated key.
     pub async fn connect_with_addr(
         &self,
         addr: iroh::EndpointAddr,
-        invite: &SignedInvite,
         label: Option<String>,
     ) -> Result<RoamingClientStream, RoamingError> {
-        invite.verify(now_ms())?;
         let conn = self
             .endpoint
             .connect(addr, ROAMING_ACP_ALPN)
@@ -345,7 +293,7 @@ impl RoamingNode {
             .await
             .map_err(|e| RoamingError::Transport(format!("open_bi failed: {e}")))?;
 
-        let hello = ClientHello::new(invite.clone(), label);
+        let hello = ClientHello::new(label);
         let hello_bytes = serde_json::to_vec(&hello)
             .map_err(|e| RoamingError::Transport(format!("encode hello: {e}")))?;
         write_frame(&mut send, &hello_bytes).await?;
@@ -487,6 +435,10 @@ impl ProtocolHandler for RoamingAcpHandler {
 }
 
 impl RoamingAcpHandler {
+    /// Authorize a connection purely by the transport-authenticated peer key.
+    /// The peer's identity is already proven by QUIC-TLS; this only checks the
+    /// allowlist and reads the granted scope. The [`ClientHello`] carries just a
+    /// display label — nothing trusted for authorization.
     async fn authorize(
         &self,
         client: EndpointId,
@@ -496,49 +448,28 @@ impl RoamingAcpHandler {
         let hello: ClientHello =
             serde_json::from_slice(&hello_bytes).map_err(|e| format!("bad hello: {e}"))?;
 
-        hello
-            .invite
-            .verify(now_ms())
-            .map_err(|_| "invalid_capability".to_string())?;
-
-        if hello.invite.claims.audience != self.node.endpoint_id() {
-            return Err("invalid_capability".to_string());
-        }
-        if !hello.invite.permits_client(&client) {
-            return Err("not_allowlisted".to_string());
-        }
-
-        let mut trust = self.node.trust.lock().await;
+        // Re-read the persisted allowlist so `peers accept`/`revoke` from a
+        // separate process take effect against this running share without a
+        // restart. Falls back to the in-memory book if there's no path or the
+        // read fails.
+        let trust = self.node.trust.lock().await;
+        let refreshed;
+        let trust = match &self.node.trust_path {
+            Some(path) => match TrustBook::load(path) {
+                Ok(book) => {
+                    refreshed = book;
+                    &refreshed
+                }
+                Err(_) => &*trust,
+            },
+            None => &*trust,
+        };
         if trust.is_key_revoked(&client) {
             return Err("revoked".to_string());
         }
-        let token_id = &hello.invite.claims.token_id;
-        let mut trust_changed = false;
-        if hello.invite.claims.single_use {
-            if !trust.redeem_single_use(token_id) {
-                return Err("invalid_capability".to_string());
-            }
-            trust.allow(&client);
-            trust_changed = true;
-        } else if trust.is_token_revoked(token_id) {
-            return Err("invalid_capability".to_string());
-        }
-        if !trust.is_allowed(&client) {
-            return Err("not_allowlisted".to_string());
-        }
+        let scope = trust.scope_for(&client).ok_or("not_allowlisted")?;
 
-        // Pairing pinned a key and consumed a single-use token; persist so the
-        // relationship survives a restart (and the token stays consumed).
-        if trust_changed {
-            if let Some(path) = &self.node.trust_path {
-                if let Err(e) = trust.save(path) {
-                    tracing::warn!("roaming: failed to persist trust book: {e}");
-                }
-            }
-        }
-        drop(trust);
-
-        Ok((hello.invite.claims.scope, hello.label))
+        Ok((scope, hello.label))
     }
 }
 
@@ -556,14 +487,4 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-fn random_token_id() -> String {
-    let mut bytes = [0u8; 16];
-    rand::fill(&mut bytes);
-    let mut s = String::with_capacity(32);
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
 }

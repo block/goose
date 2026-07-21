@@ -11,8 +11,8 @@ pub enum RoamingError {
     #[error("identity error: {0}")]
     Identity(String),
 
-    #[error("invite error: {0}")]
-    Invite(String),
+    #[error("card error: {0}")]
+    Card(String),
 
     #[error("connection rejected: {0}")]
     Rejected(String),
@@ -22,26 +22,4 @@ pub enum RoamingError {
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
-}
-
-/// A reason a peer was refused at connection-accept time. Kept coarse on the
-/// wire so we never disclose *why* a specific key was rejected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RejectReason {
-    /// Peer's key is not on the allowlist.
-    NotAllowlisted,
-    /// Peer's key has been revoked.
-    Revoked,
-    /// The presented invite/capability is invalid or expired.
-    InvalidCapability,
-}
-
-impl RejectReason {
-    pub fn code(self) -> &'static str {
-        match self {
-            RejectReason::NotAllowlisted => "not_allowlisted",
-            RejectReason::Revoked => "revoked",
-            RejectReason::InvalidCapability => "invalid_capability",
-        }
-    }
 }

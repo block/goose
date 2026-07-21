@@ -1,12 +1,19 @@
-//! `goose roam` — peer-to-peer agent sharing over iroh.
+//! `goose roam` — peer-to-peer agent access over iroh.
+//!
+//! The model is deliberately infrastructural: roaming is just an authenticated
+//! p2p ACP transport. Each node has one identity and produces a **connection
+//! card** (`roam id`) — a non-secret string carrying its public key and how to
+//! reach it. You swap cards with another node and each side chooses to **accept**
+//! the other's key. A connection only succeeds when the host has accepted the
+//! dialer's key; there is no bearer token that grants access by possession.
 //!
 //! Subcommands:
-//! * `share` — bind a roaming endpoint and host this machine's agent, printing
-//!   an invite token for a client to connect with.
-//! * `connect` — dial a shared agent by saved peer name or invite token.
-//! * `peers` — manage the address book of remote agents you can connect to.
+//! * `id` — print this node's connection card (share it with a peer).
+//! * `share` — serve this node's agent to accepted peers over ACP.
+//! * `peers` — manage saved peer cards and which keys you accept.
+//! * `connect` / `delegate` / `bridge` — reach a peer that has accepted you.
+//! * `sessions` — list local sessions (for `share --session`).
 //! * `connections` (alias `list`) — show live/observed connections.
-//! * `id` — print this machine's host and client endpoint ids.
 
 use std::sync::Arc;
 
@@ -17,13 +24,16 @@ use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
 use goose::session::SessionManager;
 use goose_roaming::{
-    default_key_path, parse_endpoint_id, Directory, RelaySettings, RoamingConfig, RoamingIdentity,
-    RoamingNode, Scope, TrustBook, TrustPolicy,
+    default_key_path, parse_endpoint_id, ConnectionCard, Directory, EndpointId, RelaySettings,
+    RoamingConfig, RoamingIdentity, RoamingNode, Scope, TrustBook,
 };
 
+use crate::commands::roam_full_bridge::FullAcpBridge;
 use crate::commands::shared_session_bridge::{
     GooseAgentBackend, ResumeTarget, SharedSessionBridge,
 };
+
+const CARD_SCHEME: &str = "goose+roam://";
 
 fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
@@ -31,6 +41,10 @@ fn directory_path() -> std::path::PathBuf {
 
 fn trust_path() -> std::path::PathBuf {
     Paths::config_dir().join("roaming_trust.json")
+}
+
+fn peerbook_path() -> std::path::PathBuf {
+    Paths::config_dir().join("roaming_peers.json")
 }
 
 /// CLI surface for the roaming [`Scope`]. Kept separate so `goose-roaming`
@@ -58,62 +72,48 @@ impl From<ShareScope> for Scope {
 
 #[derive(Debug, Subcommand)]
 pub enum RoamCommand {
-    /// Host this machine's agent and print an invite token.
+    /// Print this node's connection card — the non-secret string you share with
+    /// a peer so it can find and identify this node. Nothing in it is a secret;
+    /// a peer must still be accepted (`roam peers accept`) before it can connect.
+    #[command(visible_alias = "card")]
+    Id,
+
+    /// Serve this node's agent to accepted peers over ACP.
     ///
-    /// By default a shared agent grants full control (the connecting peer can
-    /// drive the agent and approve its tool use — effectively remote shell
-    /// access), so only ever share `control` with peers you trust. Use
-    /// `--scope attach` or `--scope observe` to hand out narrower capabilities
-    /// that are enforced host-side.
+    /// Only peers whose key you have accepted (`roam peers accept`) can connect.
+    /// Two modes:
+    /// * default: serve the FULL ACP surface — each peer drives its own sessions
+    ///   (new/list/load/prompt).
+    /// * `--session <id>`: CO-DRIVE that one live session; several accepted peers
+    ///   attach to it, each limited by the scope you granted them.
     Share {
-        /// What a connecting peer may do:
-        /// `control` (default) drives the agent and answers tool-permission
-        /// prompts; `attach` may send prompts/steer but never answers permission
-        /// prompts; `observe` watches session activity read-only. Multiple peers
-        /// can share one live session — e.g. share `control` for yourself and
-        /// hand out `observe` invites for others to watch.
-        #[arg(long, value_enum, default_value_t = ShareScope::Control)]
-        scope: ShareScope,
-
-        /// Invite lifetime in seconds.
-        #[arg(long, default_value_t = 3600)]
-        ttl: u64,
-
-        /// Only these client endpoint ids may connect (repeatable). When
-        /// omitted the invite is bearer: anyone holding it may connect.
-        #[arg(long = "allow-key", value_name = "ENDPOINT_ID", action = clap::ArgAction::Append)]
-        allow_keys: Vec<String>,
-
-        /// Make the invite single-use: it is consumed on first redemption and
-        /// the redeeming client's key is pinned to the allowlist.
-        #[arg(long)]
-        pair: bool,
-
         /// Builtin extensions to load into the hosted agent.
         #[arg(long = "with-builtin", value_delimiter = ',')]
         builtins: Vec<String>,
 
         /// Working directory the hosted agent runs in. Defaults to the directory
         /// `roam share` was started in. The connecting client's own path is
-        /// always ignored — it is meaningless on this machine. Ignored when
-        /// `--session` is given (a resumed session keeps its own directory).
+        /// always ignored. Ignored when `--session` is given.
         #[arg(long)]
         cwd: Option<std::path::PathBuf>,
 
-        /// Resume an existing local session by id instead of starting fresh.
-        /// Its conversation history is replayed into the hosted agent and it
-        /// runs in the session's own working directory. Use `roam sessions` to
-        /// list ids.
+        /// Co-drive an existing local session by id: accepted peers attach to
+        /// this one live session (each limited by its granted scope) rather than
+        /// driving their own. Use `roam sessions` to list ids.
         #[arg(long, value_name = "SESSION_ID")]
         session: Option<String>,
     },
 
-    /// List local sessions that can be resumed with `roam share --session`.
+    /// List local sessions that can be co-driven with `roam share --session`.
     Sessions,
 
-    /// Connect to a shared agent by saved peer name or invite token.
+    /// Open a quick interactive REPL against a remote agent (debug/peek).
+    ///
+    /// This is a minimal built-in chat loop, handy for a quick sanity check. For
+    /// real work, prefer `bridge` (drive the remote agent from the goose desktop
+    /// app, Zed, or any ACP client) or `delegate` (scriptable one-shot tasks).
     Connect {
-        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` card.
         target: String,
 
         /// Optional label reported to the host's directory.
@@ -122,11 +122,24 @@ pub enum RoamCommand {
     },
 
     /// Delegate a one-shot task to a remote agent and print its response.
+    ///
+    /// This is a thin ACP client: it connects, opens a session (new, or the one
+    /// named by `--session`), sends the task as a prompt, prints the reply, and
+    /// exits. Session enumeration and resume are plain ACP (`session/list` /
+    /// `session/load`) served by the remote's full ACP surface.
     Delegate {
-        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` card.
         target: String,
-        /// The task/question to send to the remote agent.
-        task: String,
+        /// The task/question to send to the remote agent. Omit when using
+        /// `--list-sessions`.
+        task: Option<String>,
+        /// Run the task against an existing remote session id (via `session/load`)
+        /// instead of a fresh session. List ids with `--list-sessions`.
+        #[arg(long, value_name = "SESSION_ID")]
+        session: Option<String>,
+        /// List the remote agent's sessions (`session/list`) and exit.
+        #[arg(long)]
+        list_sessions: bool,
     },
 
     /// Expose a remote agent as a local ACP endpoint that any ACP client can drive.
@@ -139,7 +152,7 @@ pub enum RoamCommand {
     /// Defaults to stdio (for a client that spawns `goose roam bridge ...` as a
     /// subprocess). Use `--listen` to accept a single TCP connection instead.
     Bridge {
-        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` card.
         target: String,
 
         /// Listen for one ACP client on this TCP address (e.g. `127.0.0.1:8900`)
@@ -152,24 +165,11 @@ pub enum RoamCommand {
         label: Option<String>,
     },
 
-    /// Manage the address book of remote agents you can connect to.
+    /// Manage saved peer cards and which peer keys this node accepts.
     Peers {
         #[command(subcommand)]
         command: Option<PeersCommand>,
     },
-
-    /// Manage clients this machine has paired with or allowed (host side).
-    ///
-    /// When you host with `--pair` or `--allow-key`, the trusted client keys are
-    /// persisted here so the relationship survives a restart. Use this to see
-    /// who is trusted and to revoke access.
-    Trust {
-        #[command(subcommand)]
-        command: Option<TrustCommand>,
-    },
-
-    /// Print this machine's roaming endpoint id.
-    Id,
 
     /// Show live/observed connections to and from this node.
     #[command(visible_alias = "list")]
@@ -178,89 +178,148 @@ pub enum RoamCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum PeersCommand {
-    /// Add or refresh a saved remote's credential.
-    Save {
-        /// Friendly nickname.
-        name: String,
-        /// The `goose+roam://...` invite token.
-        invite: String,
+    /// Save a peer's connection card to the address book so you can reach it by
+    /// name. Does NOT let them connect to you — use `accept` for that.
+    Add {
+        /// The peer's `goose+roam://...` card.
+        card: String,
+        /// Friendly nickname (defaults to a short id if omitted).
+        name: Option<String>,
     },
-    /// Remove a saved remote.
+    /// Accept inbound connections from a peer's key, granting it a scope. The
+    /// target is a saved nickname or a `goose+roam://...` card (which is also
+    /// saved to the address book).
+    Accept {
+        /// A saved nickname or a `goose+roam://...` card.
+        target: String,
+        /// What the peer may do once connected.
+        #[arg(long, value_enum, default_value_t = ShareScope::Control)]
+        scope: ShareScope,
+    },
+    /// Stop accepting a peer: a saved nickname, a card, or a raw endpoint id.
+    /// A live session continues until it disconnects.
+    Revoke { target: String },
+    /// Remove a saved peer from the address book (does not change acceptance).
     Remove { name: String },
-    /// Rename a saved remote.
+    /// Rename a saved peer.
     Rename { from: String, to: String },
-    /// List saved remotes (default).
+    /// List saved peers and which keys are accepted (default).
     List,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum TrustCommand {
-    /// List trusted client keys and revocations (default).
-    List,
-    /// Revoke a client key so it can no longer connect, even with a valid invite.
-    Revoke {
-        /// The client endpoint id to revoke (from the peer's `goose roam id`).
-        client_id: String,
-    },
 }
 
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
     match command {
-        RoamCommand::Id => {
-            let host = load_identity()?;
-            let client = load_client_identity()?;
-            println!("host   (share) : {}", host.public_key());
-            println!("client (connect): {}", client.public_key());
-            Ok(())
-        }
+        RoamCommand::Id => handle_id().await,
         RoamCommand::Share {
-            scope,
-            ttl,
-            allow_keys,
-            pair,
             builtins,
             cwd,
             session,
-        } => handle_share(scope.into(), ttl, allow_keys, pair, builtins, cwd, session).await,
+        } => handle_share(builtins, cwd, session).await,
         RoamCommand::Sessions => handle_sessions().await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
-        RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,
+        RoamCommand::Delegate {
+            target,
+            task,
+            session,
+            list_sessions,
+        } => handle_delegate(target, task, session, list_sessions).await,
         RoamCommand::Bridge {
             target,
             listen,
             label,
         } => handle_bridge(target, listen, label).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
-        RoamCommand::Trust { command } => handle_trust(command.unwrap_or(TrustCommand::List)).await,
         RoamCommand::Connections => handle_list().await,
     }
 }
 
-fn peerbook_path() -> std::path::PathBuf {
-    Paths::config_dir().join("roaming_peers.json")
+/// Bind a node briefly to read its live card (id + relay URLs), waiting for a
+/// relay so the card carries a reachable address.
+async fn handle_id() -> Result<()> {
+    let identity = load_identity()?;
+    let node = RoamingNode::bind(RoamingConfig {
+        identity,
+        relay: RelaySettings::N0Default,
+        trust: TrustBook::new(),
+        trust_path: None,
+        directory: Directory::new(),
+        bind_addr: None,
+    })
+    .await?;
+    eprintln!("contacting relay so the card carries a reachable address...");
+    node.wait_online(std::time::Duration::from_secs(15)).await;
+    let card = node.card();
+    eprintln!("your connection card (share this with a peer):");
+    println!("{}", card.encode()?);
+    eprintln!();
+    eprintln!("  endpoint id : {}", card.endpoint_id);
+    eprintln!("  fingerprint : {}", card.fingerprint());
+    eprintln!();
+    eprintln!("the peer adds it with:  goose roam peers add '<card>' <name>");
+    eprintln!("and accepts you with:   goose roam peers accept <name>");
+    node.shutdown().await?;
+    Ok(())
 }
 
 async fn handle_peers(command: PeersCommand) -> Result<()> {
     let mut book = goose_roaming::PeerBook::load(peerbook_path())?;
     match command {
-        PeersCommand::Save { name, invite } => {
-            book.save(&name, &invite, now_ms())?;
-            let rec = book.get(&name).expect("just saved");
-            if rec.bearer {
-                eprintln!(
-                    "warning: `{name}` is a BEARER credential — anyone holding it can connect. \
-                     Prefer a client-key-bound invite (host uses --allow-key)."
-                );
-            }
+        PeersCommand::Add { card, name } => {
+            let decoded = ConnectionCard::decode(&card)?;
+            let name = name.unwrap_or_else(|| short_id(&decoded.endpoint_id.to_string()));
+            book.save(&name, &card, now_ms())?;
             eprintln!(
-                "saved peer `{name}` -> {} (scope {:?})",
-                rec.endpoint_id, rec.scope
+                "saved peer `{name}` -> {} (fingerprint {})",
+                decoded.endpoint_id,
+                decoded.fingerprint()
             );
+            eprintln!("accept connections from it with: goose roam peers accept {name}");
+            Ok(())
+        }
+        PeersCommand::Accept { target, scope } => {
+            // Resolve to a card: a saved name, or an inline card we also save.
+            let card = match ConnectionCard::decode(&target) {
+                Ok(card) => {
+                    let name = short_id(&card.endpoint_id.to_string());
+                    book.save(&name, &target, now_ms())?;
+                    card
+                }
+                Err(_) => {
+                    let rec = book.get(&target).ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "no saved peer `{target}` and it is not a card; add it first with \
+                             `goose roam peers add`"
+                        )
+                    })?;
+                    rec.card.clone()
+                }
+            };
+            let path = trust_path();
+            let mut trust = TrustBook::load(&path).unwrap_or_default();
+            trust.accept(&card.endpoint_id, scope.into());
+            trust.save(&path)?;
+            eprintln!(
+                "accepting connections from {} (scope {:?})",
+                card.endpoint_id,
+                Scope::from(scope)
+            );
+            eprintln!("verify the fingerprint out of band: {}", card.fingerprint());
+            eprintln!("run `goose roam share` (or restart it) to serve to this peer");
+            Ok(())
+        }
+        PeersCommand::Revoke { target } => {
+            let key = resolve_key(&book, &target)?;
+            let path = trust_path();
+            let mut trust = TrustBook::load(&path).unwrap_or_default();
+            trust.revoke_key(&key);
+            trust.save(&path)?;
+            eprintln!("revoked {key}; it can no longer connect");
+            eprintln!("note: an already-open session is unaffected until it disconnects");
             Ok(())
         }
         PeersCommand::Remove { name } => {
             if book.remove(&name)? {
-                eprintln!("removed peer `{name}`");
+                eprintln!("removed peer `{name}` from the address book");
             } else {
                 eprintln!("no peer named `{name}`");
             }
@@ -272,27 +331,50 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             Ok(())
         }
         PeersCommand::List => {
+            let trust = TrustBook::load(&trust_path()).unwrap_or_default();
+            let accepted: std::collections::HashMap<String, Scope> =
+                trust.allowed_keys().into_iter().collect();
             let peers = book.list();
-            if peers.is_empty() {
-                eprintln!("no saved peers; add one with `goose roam peers save <name> <invite>`");
+            if peers.is_empty() && accepted.is_empty() {
+                eprintln!("no saved peers; add one with `goose roam peers add '<card>' <name>`");
                 return Ok(());
             }
-            println!("{:<16} {:<8} {:<9} ENDPOINT ID", "NAME", "SCOPE", "CRED");
-            let now = now_ms();
-            for p in peers {
-                let scope = format!("{:?}", p.scope).to_lowercase();
-                let cred = if p.expires_at_ms <= now {
-                    "expired"
-                } else if p.bearer {
-                    "bearer"
-                } else {
-                    "key-bound"
+            println!("{:<16} {:<10} {:<8} ENDPOINT ID", "NAME", "ACCEPT", "SCOPE");
+            for p in &peers {
+                let (accept, scope) = match accepted.get(&p.endpoint_id) {
+                    Some(scope) => ("yes", format!("{scope:?}").to_lowercase()),
+                    None => ("no", "-".to_string()),
                 };
-                println!("{:<16} {scope:<8} {cred:<9} {}", p.name, p.endpoint_id);
+                println!("{:<16} {accept:<10} {scope:<8} {}", p.name, p.endpoint_id);
+            }
+            // Accepted keys with no saved card (accepted by raw id).
+            let known: std::collections::HashSet<String> =
+                peers.iter().map(|p| p.endpoint_id.clone()).collect();
+            for (id, scope) in &accepted {
+                if !known.contains(id) {
+                    let scope = format!("{scope:?}").to_lowercase();
+                    println!("{:<16} {:<10} {scope:<8} {id}", "(unsaved)", "yes");
+                }
             }
             Ok(())
         }
     }
+}
+
+/// Resolve a target (saved nickname, inline card, or raw endpoint id) to a key.
+fn resolve_key(book: &goose_roaming::PeerBook, target: &str) -> Result<EndpointId> {
+    if let Ok(card) = ConnectionCard::decode(target) {
+        return Ok(card.endpoint_id);
+    }
+    if let Some(rec) = book.get(target) {
+        return Ok(rec.card.endpoint_id);
+    }
+    parse_endpoint_id(target)
+        .map_err(|_| anyhow::anyhow!("`{target}` is not a saved peer, a card, or an endpoint id"))
+}
+
+fn short_id(id: &str) -> String {
+    id.chars().take(12).collect()
 }
 
 fn now_ms() -> u64 {
@@ -300,41 +382,6 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-async fn handle_trust(command: TrustCommand) -> Result<()> {
-    let path = trust_path();
-    match command {
-        TrustCommand::List => {
-            let book = TrustBook::load(&path).unwrap_or_default();
-            let allowed = book.allowed_keys();
-            let revoked = book.revoked_key_list();
-            if allowed.is_empty() && revoked.is_empty() {
-                eprintln!(
-                    "no trusted or revoked client keys yet; host with `--pair` or \
-                     `--allow-key` to pin a client"
-                );
-                return Ok(());
-            }
-            println!("{:<10} CLIENT ENDPOINT ID", "STATUS");
-            for key in allowed {
-                println!("{:<10} {key}", "allowed");
-            }
-            for key in revoked {
-                println!("{:<10} {key}", "revoked");
-            }
-            Ok(())
-        }
-        TrustCommand::Revoke { client_id } => {
-            let key = parse_endpoint_id(&client_id)?;
-            let mut book = TrustBook::load(&path).unwrap_or_default();
-            book.revoke_key(&key);
-            book.save(&path)?;
-            eprintln!("revoked client `{client_id}`; it can no longer connect");
-            eprintln!("note: an already-open session is unaffected until it disconnects");
-            Ok(())
-        }
-    }
 }
 
 async fn handle_list() -> Result<()> {
@@ -369,16 +416,11 @@ async fn handle_list() -> Result<()> {
     Ok(())
 }
 
+/// This node's single long-lived identity. Its public key is what peers accept
+/// and what the connection card advertises.
 fn load_identity() -> Result<RoamingIdentity> {
     let path = default_key_path(&Paths::config_dir());
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
-}
-
-/// Stable outbound (client) identity, distinct from the host key so a node
-/// never dials itself. Required for durable client-key-bound grants and pairing.
-fn load_client_identity() -> Result<RoamingIdentity> {
-    let path = Paths::config_dir().join("roaming_client_key");
-    RoamingIdentity::load_or_create(&path).context("failed to load roaming client identity")
 }
 
 async fn handle_sessions() -> Result<()> {
@@ -404,86 +446,72 @@ async fn handle_sessions() -> Result<()> {
             s.updated_at.format("%Y-%m-%d %H:%M")
         );
     }
-    eprintln!("\nresume one with: goose roam share --session <SESSION ID>");
+    eprintln!("\nco-drive one with: goose roam share --session <SESSION ID>");
     Ok(())
 }
 
 async fn handle_share(
-    scope: Scope,
-    ttl: u64,
-    allow_keys: Vec<String>,
-    pair: bool,
     builtins: Vec<String>,
     cwd: Option<std::path::PathBuf>,
     session: Option<String>,
 ) -> Result<()> {
     let identity = load_identity()?;
 
-    // A resumed session keeps its own working directory (replayed history is
-    // meaningless in a different tree); a fresh session uses `--cwd` or the
-    // directory `roam share` was started in. The connector's path is always
-    // ignored — it is meaningless on this machine.
-    let resume = match session {
+    // Two host modes, decided by whether a specific live session is named:
+    // * default: serve goose's FULL ACP surface. Each peer drives its own
+    //   sessions (new/list/load).
+    // * `--session <id>`: CO-DRIVE that one live session; each accepted peer is
+    //   limited by the scope granted to its key.
+    let co_drive = match &session {
         Some(session_id) => {
             let manager = SessionManager::new(Paths::data_dir());
             let session = manager
-                .get_session(&session_id, false)
+                .get_session(session_id, false)
                 .await
                 .with_context(|| format!("no local session with id `{session_id}`"))?;
-            ResumeTarget::Existing {
-                session_id,
+            Some(ResumeTarget::Existing {
+                session_id: session_id.clone(),
                 cwd: session.working_dir,
-            }
+            })
         }
-        None => {
-            let cwd = match cwd {
-                Some(dir) => std::fs::canonicalize(&dir)
-                    .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
-                None => std::env::current_dir().context("could not determine current directory")?,
-            };
-            ResumeTarget::New { cwd }
-        }
+        None => None,
     };
-    let session_cwd = match &resume {
-        ResumeTarget::New { cwd } | ResumeTarget::Existing { cwd, .. } => cwd.clone(),
+    let session_cwd = match &co_drive {
+        Some(ResumeTarget::Existing { cwd, .. }) | Some(ResumeTarget::New { cwd }) => cwd.clone(),
+        None => match &cwd {
+            Some(dir) => std::fs::canonicalize(dir)
+                .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
+            None => std::env::current_dir().context("could not determine current directory")?,
+        },
     };
 
-    let allowed_client_keys = allow_keys
-        .iter()
-        .map(|s| parse_endpoint_id(s).map_err(anyhow::Error::from))
-        .collect::<Result<Vec<_>>>()?;
-    let policy = if allowed_client_keys.is_empty() && !pair {
-        TrustPolicy::Bearer
-    } else {
-        TrustPolicy::Allowlist
-    };
-    // Load any durable trust from previous runs so pinned keys (from pairing),
-    // consumed single-use tokens, and revocations survive a restart. This run's
-    // policy and allow-keys are layered on top.
-    let trust_path = trust_path();
-    let mut trust = TrustBook::load(&trust_path).unwrap_or_default();
-    trust.set_policy(policy);
-    for key in &allowed_client_keys {
-        trust.allow(key);
+    // Load the accepted-peer allowlist. Peers are accepted out of band with
+    // `roam peers accept`; this serve loop reads that at startup.
+    let trust = TrustBook::load(&trust_path()).unwrap_or_default();
+    let accepted_count = trust.allowed_keys().len();
+    if accepted_count == 0 {
+        eprintln!(
+            "warning: no peers are accepted yet — no one can connect.\n\
+             Accept a peer's key first: goose roam peers accept <name|card>"
+        );
     }
-    trust.save(&trust_path).ok();
 
-    // Default to the developer extension when none are specified, matching
-    // `goose acp` / `goose serve`.
+    // Default to the developer extension when none are specified.
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
     } else {
         builtins
     };
 
-    let relay = RelaySettings::N0Default;
     let node = RoamingNode::bind(RoamingConfig {
-        identity: identity.clone(),
-        relay: relay.clone(),
+        identity,
+        relay: RelaySettings::N0Default,
         trust,
+        // Re-read acceptance on each connection so `peers accept`/`revoke` from
+        // another process take effect against this live share without restart.
+        trust_path: Some(trust_path()),
         directory: Directory::persistent(directory_path()),
         bind_addr: None,
-        trust_path: Some(trust_path.clone()),
     })
     .await?;
 
@@ -495,43 +523,43 @@ async fn handle_share(
         additional_source_roots: Vec::new(),
         session_cwd: Some(session_cwd.clone()),
     }));
-    let backend = Arc::new(GooseAgentBackend::new(acp_server));
-    let bridge = Arc::new(SharedSessionBridge::start(
-        backend,
-        identity.public_key().to_string(),
-        resume,
-    ));
-
-    node.share(bridge).await?;
-
-    // Wait for the endpoint to reach a relay so the invite can carry a live
-    // relay URL the client can dial (the Minimal preset has no DNS discovery).
-    eprintln!("connecting to relay...");
-    if !node.wait_online(std::time::Duration::from_secs(15)).await {
-        eprintln!("warning: endpoint did not come online; invite may lack a reachable address");
+    let agent_id = node.endpoint_id().to_string();
+    match &co_drive {
+        Some(target) => {
+            let backend = Arc::new(GooseAgentBackend::new(acp_server));
+            let bridge = Arc::new(SharedSessionBridge::start(
+                backend,
+                agent_id,
+                target.clone(),
+            ));
+            node.share(bridge).await?;
+        }
+        None => {
+            let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
+            node.share(bridge).await?;
+        }
     }
 
-    let mut invite_opts =
-        goose_roaming::InviteOptions::new(scope, std::time::Duration::from_secs(ttl));
-    invite_opts.allowed_client_keys = allowed_client_keys;
-    invite_opts.single_use = pair;
-    let invite = node.make_invite(invite_opts);
-    let token = invite.encode()?;
+    eprintln!("contacting relay...");
+    if !node.wait_online(std::time::Duration::from_secs(15)).await {
+        eprintln!("warning: endpoint did not come online; the card may lack a reachable address");
+    }
 
     eprintln!("roaming agent is live");
     eprintln!("  endpoint id : {}", node.endpoint_id());
-    eprintln!("  scope       : {scope:?}");
+    match &co_drive {
+        Some(ResumeTarget::Existing { session_id, .. }) => {
+            eprintln!("  mode        : co-drive session {session_id}");
+        }
+        _ => {
+            eprintln!("  mode        : full ACP surface (peers drive their own sessions)");
+        }
+    }
     eprintln!("  working dir : {}", session_cwd.display());
-    eprintln!(
-        "  invite ttl  : {ttl}s{}",
-        if pair { " (single-use pairing)" } else { "" }
-    );
+    eprintln!("  accepted    : {accepted_count} peer key(s)");
     eprintln!();
-    eprintln!("share this invite token with the connecting client:");
-    println!("{token}");
-    eprintln!();
-    eprintln!("connect from another machine with:");
-    eprintln!("  goose roam connect '{token}'");
+    eprintln!("your connection card (share with a peer so it can reach you):");
+    println!("{}", node.card().encode()?);
     eprintln!();
     eprintln!("press Ctrl-C to stop sharing");
 
@@ -541,24 +569,23 @@ async fn handle_share(
     Ok(())
 }
 
-/// Resolve a target (saved peer nickname or raw invite token) to a token.
-fn resolve_target(target: &str) -> Result<String> {
-    if target.starts_with("goose+roam://") {
-        return Ok(target.to_string());
+/// Resolve a target (saved peer nickname or inline card) to a [`ConnectionCard`].
+fn resolve_card(target: &str) -> Result<ConnectionCard> {
+    if target.starts_with(CARD_SCHEME) {
+        return ConnectionCard::decode(target).map_err(Into::into);
     }
     let book = goose_roaming::PeerBook::load(peerbook_path())?;
     match book.get(target) {
-        Some(rec) => Ok(rec.invite.clone()),
+        Some(rec) => Ok(rec.card.clone()),
         None => anyhow::bail!(
-            "no saved peer named `{target}` (and it is not an invite token); \
-             see `goose roam peers`"
+            "no saved peer named `{target}` (and it is not a card); see `goose roam peers`"
         ),
     }
 }
 
-/// Bind a client node and dial the target, returning the node + authorized
-/// stream. Clients use a *stable* outbound identity (persisted, distinct from
-/// the host key so a node never dials itself).
+/// Bind this node and dial the target's card, returning the node + authorized
+/// stream. The connection succeeds only if the remote has accepted this node's
+/// key.
 async fn dial_target(
     target: &str,
     label: Option<String>,
@@ -566,20 +593,18 @@ async fn dial_target(
     std::sync::Arc<RoamingNode>,
     goose_roaming::RoamingClientStream,
 )> {
-    use goose_roaming::SignedInvite;
-    let token = resolve_target(target)?;
-    let invite = SignedInvite::decode(&token)?;
+    let card = resolve_card(target)?;
     let node = RoamingNode::bind(RoamingConfig {
-        identity: load_client_identity()?,
+        identity: load_identity()?,
         relay: RelaySettings::N0Default,
-        trust: TrustBook::new(TrustPolicy::Bearer),
+        trust: TrustBook::new(),
+        trust_path: None,
         directory: Directory::new(),
         bind_addr: None,
-        trust_path: None,
     })
     .await?;
-    eprintln!("connecting to {}...", invite.claims.audience);
-    let stream = node.connect(&invite, label).await?;
+    eprintln!("connecting to {}...", card.endpoint_id);
+    let stream = node.connect(&card, label).await?;
     Ok((node, stream))
 }
 
@@ -592,10 +617,46 @@ async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
     result
 }
 
-async fn handle_delegate(target: String, task: String) -> Result<()> {
+async fn handle_delegate(
+    target: String,
+    task: Option<String>,
+    session: Option<String>,
+    list_sessions: bool,
+) -> Result<()> {
+    if list_sessions {
+        let (node, stream) = dial_target(&target, Some("delegate".to_string())).await?;
+        eprintln!("listing sessions on `{}`...", stream.agent_id);
+        let result = crate::commands::roam_client::list_sessions(stream).await;
+        node.shutdown().await?;
+        let sessions = result?;
+        if sessions.is_empty() {
+            eprintln!("no sessions on the remote agent");
+            return Ok(());
+        }
+        println!("{:<40} {:<20} UPDATED", "SESSION ID", "TITLE");
+        for s in sessions {
+            let title = s.title.unwrap_or_default();
+            let title = if title.chars().count() > 20 {
+                format!("{}…", title.chars().take(19).collect::<String>())
+            } else {
+                title
+            };
+            println!(
+                "{:<40} {title:<20} {}",
+                s.session_id,
+                s.updated_at.unwrap_or_default()
+            );
+        }
+        return Ok(());
+    }
+
+    let task = task.context("a task is required (or pass --list-sessions)")?;
     let (node, stream) = dial_target(&target, Some("delegate".to_string())).await?;
-    eprintln!("delegating task to `{}`...", stream.agent_id);
-    let result = crate::commands::roam_client::delegate(stream, task).await;
+    match &session {
+        Some(id) => eprintln!("delegating to `{}` session {id}...", stream.agent_id),
+        None => eprintln!("delegating task to `{}`...", stream.agent_id),
+    }
+    let result = crate::commands::roam_client::delegate(stream, task, session).await;
     node.shutdown().await?;
     match result {
         Ok(response) => {
@@ -618,8 +679,8 @@ async fn handle_bridge(
     let agent_id = stream.agent_id.clone();
     let scope = stream.scope;
     // The raw iroh streams carry post-handshake ACP and already implement
-    // tokio's AsyncRead/AsyncWrite, so we splice them directly (no ACP-client
-    // wrapper, no futures-io compat). `conn` must outlive the splice.
+    // tokio's AsyncRead/AsyncWrite, so we splice them directly. `conn` must
+    // outlive the splice.
     let goose_roaming::RoamingClientStream {
         conn,
         send: remote_send,
@@ -649,7 +710,6 @@ async fn handle_bridge(
         }
     };
 
-    // Flush stdout before tearing down (stdio mode); harmless otherwise.
     let _ = tokio::io::stdout().flush().await;
     drop(conn);
     node.shutdown().await?;

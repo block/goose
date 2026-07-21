@@ -13,8 +13,9 @@ use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use agent_client_protocol::schema::v1::{
-    ContentBlock, InitializeRequest, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification, SessionUpdate,
+    ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, NewSessionResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome, SessionId, SessionInfo, SessionNotification, SessionUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -110,7 +111,11 @@ pub async fn run_interactive(stream: RoamingClientStream, agent_label: String) -
 /// Permission requests are auto-cancelled: a delegated (agent-driven) session
 /// must not block waiting for a human, and the caller isn't a person who can
 /// answer. Loop/cost safety is the caller's concern (bounded turns/deadline).
-pub async fn delegate(stream: RoamingClientStream, task: String) -> Result<String> {
+pub async fn delegate(
+    stream: RoamingClientStream,
+    task: String,
+    session: Option<String>,
+) -> Result<String> {
     let (send, recv, conn) = stream.into_futures_io();
     let transport = agent_client_protocol::ByteStreams::new(send, recv);
     let collected = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
@@ -143,22 +148,69 @@ pub async fn delegate(stream: RoamingClientStream, task: String) -> Result<Strin
             cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
                 .block_task()
                 .await?;
-            // Host imposes its own working directory; send a placeholder.
+            // The host imposes its own working directory and ignores whatever we
+            // send; ACP still requires a syntactically-absolute cwd.
             let cwd = std::path::PathBuf::from("/");
-            cx.build_session(cwd)
-                .block_task()
-                .run_until(async |mut session| {
+            match session {
+                // Resume an existing remote session. `session/load` yields no
+                // session id (we already know it), so attach to the known id.
+                Some(id) => {
+                    let session_id = SessionId::from(id);
+                    cx.send_request(LoadSessionRequest::new(session_id.clone(), cwd))
+                        .block_task()
+                        .await?;
+                    let mut session =
+                        cx.attach_session(NewSessionResponse::new(session_id), Vec::new())?;
                     session.send_prompt(&task)?;
                     let _ = session.read_to_string().await?;
                     Ok(())
-                })
-                .await
+                }
+                None => {
+                    cx.build_session(cwd)
+                        .block_task()
+                        .run_until(async |mut session| {
+                            session.send_prompt(&task)?;
+                            let _ = session.read_to_string().await?;
+                            Ok(())
+                        })
+                        .await
+                }
+            }
         })
         .await?;
 
     drop(conn);
     let result = collected.lock().unwrap().clone();
     Ok(result)
+}
+
+/// List the remote agent's sessions via ACP `session/list`. Roaming adds no
+/// session semantics — this is plain ACP over the authorized stream.
+pub async fn list_sessions(stream: RoamingClientStream) -> Result<Vec<SessionInfo>> {
+    let (send, recv, conn) = stream.into_futures_io();
+    let transport = agent_client_protocol::ByteStreams::new(send, recv);
+
+    let sessions = Client
+        .builder()
+        .name("goose-roam-list")
+        .on_receive_notification(
+            async move |_notification: SessionNotification, _cx| Ok(()),
+            agent_client_protocol::on_receive_notification!(),
+        )
+        .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
+            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                .block_task()
+                .await?;
+            let response = cx
+                .send_request(ListSessionsRequest::default())
+                .block_task()
+                .await?;
+            Ok(response.sessions)
+        })
+        .await?;
+
+    drop(conn);
+    Ok(sessions)
 }
 
 fn render_update(update: &SessionUpdate) {

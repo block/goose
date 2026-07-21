@@ -9,11 +9,12 @@
 //!
 //! * [`RoamingIdentity`] — a persisted ed25519 node key whose public half is
 //!   the iroh endpoint id (self-certifying at the QUIC-TLS handshake).
-//! * [`SignedInvite`] — a signed, TTL'd capability token carrying the host's
-//!   endpoint id + relay URLs + a [`Scope`], optionally bound to specific
-//!   client keys.
-//! * [`TrustBook`] — local allow/revoke state and single-use redemption
-//!   tracking.
+//! * [`ConnectionCard`] — a non-secret, shareable string carrying a node's
+//!   public key + relay URLs (plus a short fingerprint for out-of-band
+//!   verification). It never expires and grants nothing on its own.
+//! * [`TrustBook`] — the local, mutual allowlist: which peer keys this node
+//!   accepts and with what [`Scope`], plus revocations. Access exists only by
+//!   accepting a key; there is no bearer token.
 //! * [`RoamingNode`] — owns the iroh endpoint + router, hosts agents over the
 //!   `goose-acp/1` ALPN, and dials remote agents.
 //!
@@ -23,18 +24,20 @@
 //! heavy iroh dependency out of the `goose` core crate entirely.
 
 mod broker;
+mod card;
 mod directory;
 mod error;
 mod frame;
 mod handshake;
 mod identity;
-mod invite;
 mod node;
 mod peerbook;
 mod relay;
+mod scope;
 mod trust;
 
 pub use broker::{Refused, Role, Route, Router, SessionBroker, SubscriberId};
+pub use card::ConnectionCard;
 pub use directory::{Direction, Directory, PeerEntry};
 #[doc(inline)]
 pub use iroh::EndpointId;
@@ -44,14 +47,13 @@ pub fn parse_endpoint_id(s: &str) -> Result<EndpointId, RoamingError> {
     s.parse()
         .map_err(|e| RoamingError::Identity(format!("invalid endpoint id `{s}`: {e}")))
 }
-pub use error::{RejectReason, RoamingError};
+pub use error::RoamingError;
 pub use handshake::{ClientHello, HostAck};
 pub use identity::{default_key_path, RoamingIdentity};
-pub use invite::{InviteClaims, Scope, SignedInvite};
 pub use node::{
-    AcpStreamServer, InviteOptions, RoamingClientStream, RoamingConfig, RoamingNode,
-    ROAMING_ACP_ALPN,
+    AcpStreamServer, RoamingClientStream, RoamingConfig, RoamingNode, ROAMING_ACP_ALPN,
 };
 pub use peerbook::{PeerBook, PeerRecord};
 pub use relay::{RelayEntry, RelaySettings};
-pub use trust::{TrustBook, TrustPolicy};
+pub use scope::Scope;
+pub use trust::TrustBook;

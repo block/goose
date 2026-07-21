@@ -70,7 +70,7 @@
 
 use std::collections::HashMap;
 
-use crate::invite::Scope;
+use crate::scope::Scope;
 
 /// Opaque id for a connected peer (one roaming ACP client).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

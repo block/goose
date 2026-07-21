@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, Directory, InviteOptions, RelaySettings, RoamingConfig, RoamingIdentity,
-    RoamingNode, Scope, TrustBook, TrustPolicy,
+    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
+    TrustBook,
 };
 use iroh::EndpointId;
 
@@ -143,47 +143,79 @@ fn loopback() -> std::net::SocketAddr {
     "127.0.0.1:0".parse().unwrap()
 }
 
-async fn bind_node(trust: TrustBook) -> Arc<RoamingNode> {
+async fn bind_node() -> Arc<RoamingNode> {
     RoamingNode::bind(RoamingConfig {
         identity: RoamingIdentity::generate(),
         relay: RelaySettings::Disabled,
-        trust,
+        trust: TrustBook::new(),
+        trust_path: None,
         directory: Directory::new(),
         bind_addr: Some(loopback()),
-        trust_path: None,
     })
     .await
     .expect("bind node")
 }
 
+/// Accept `client`'s key into `host`'s allowlist with the given scope — the
+/// out-of-band "I will accept connections from this node" step.
+async fn host_accepts(host: &RoamingNode, client: &RoamingNode, scope: Scope) {
+    host.trust()
+        .lock()
+        .await
+        .accept(&client.endpoint_id(), scope);
+}
+
+/// A running share re-reads its trust file per connection, so acceptance
+/// written out of band (as `roam peers accept` does) takes effect without a
+/// restart.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn bearer_invite_connects_and_streams() {
-    let host_identity = RoamingIdentity::generate();
+async fn trust_file_refresh_takes_effect_on_running_share() {
+    let dir = tempfile::tempdir().unwrap();
+    let trust_file = dir.path().join("trust.json");
+    // Start with an empty trust file.
+    TrustBook::new().save(&trust_file).unwrap();
+
     let host = RoamingNode::bind(RoamingConfig {
-        identity: host_identity.clone(),
+        identity: RoamingIdentity::generate(),
         relay: RelaySettings::Disabled,
-        trust: TrustBook::new(TrustPolicy::Bearer),
+        trust: TrustBook::new(),
+        trust_path: Some(trust_file.clone()),
         directory: Directory::new(),
         bind_addr: Some(loopback()),
-        trust_path: None,
     })
     .await
     .expect("bind host");
-
     host.share(Arc::new(EchoServer)).await.expect("share");
 
-    let invite = host.make_invite(InviteOptions::new(
-        Scope::Control,
-        std::time::Duration::from_secs(60),
-    ));
+    let client = bind_node().await;
 
-    // The client dials using the host's *direct* address, since relays are
-    // disabled. We inject the host's real endpoint addr into a re-signed invite
-    // so the client can reach it on localhost.
-    let client = bind_node(TrustBook::new(TrustPolicy::Bearer)).await;
+    // Not accepted yet: refused.
+    assert!(connect_direct(&client, &host).await.is_err());
 
-    // Connect using the invite but supply the live endpoint addr for dialing.
-    let mut stream = connect_direct(&client, &host, &invite)
+    // Accept out of band by writing the trust file (as the CLI does).
+    let mut book = TrustBook::load(&trust_file).unwrap();
+    book.accept(&client.endpoint_id(), Scope::Control);
+    book.save(&trust_file).unwrap();
+
+    // Now it connects against the SAME running share — no restart.
+    let mut stream = connect_direct(&client, &host)
+        .await
+        .expect("accepted after file refresh");
+    stream.send.finish().unwrap();
+
+    host.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn accepted_key_connects_and_streams() {
+    let host = bind_node().await;
+    host.share(Arc::new(EchoServer)).await.expect("share");
+
+    let client = bind_node().await;
+    // Host accepts the client's key (mutual, key-based trust).
+    host_accepts(&host, &client, Scope::Control).await;
+
+    let mut stream = connect_direct(&client, &host)
         .await
         .expect("client connects");
 
@@ -203,29 +235,30 @@ async fn bearer_invite_connects_and_streams() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn allowlist_rejects_unknown_client() {
-    let host_identity = RoamingIdentity::generate();
-    let host = RoamingNode::bind(RoamingConfig {
-        identity: host_identity.clone(),
-        relay: RelaySettings::Disabled,
-        // Allowlist policy with an empty allowlist: nobody is authorized.
-        trust: TrustBook::new(TrustPolicy::Allowlist),
-        directory: Directory::new(),
-        bind_addr: Some(loopback()),
-        trust_path: None,
-    })
-    .await
-    .expect("bind host");
+async fn unaccepted_key_is_rejected() {
+    let host = bind_node().await;
     host.share(Arc::new(EchoServer)).await.expect("share");
 
-    let invite = host.make_invite(InviteOptions::new(
-        Scope::Control,
-        std::time::Duration::from_secs(60),
-    ));
+    // Client's key was never accepted: connection must be refused.
+    let client = bind_node().await;
+    let result = connect_direct(&client, &host).await;
+    assert!(result.is_err(), "unaccepted client should be rejected");
 
-    let client = bind_node(TrustBook::new(TrustPolicy::Bearer)).await;
-    let result = connect_direct(&client, &host, &invite).await;
-    assert!(result.is_err(), "unlisted client should be rejected");
+    host.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn accepted_scope_is_honored() {
+    let host = bind_node().await;
+    host.share(Arc::new(EchoServer)).await.expect("share");
+
+    let client = bind_node().await;
+    host_accepts(&host, &client, Scope::Observe).await;
+
+    let mut stream = connect_direct(&client, &host).await.expect("connects");
+    // The scope the host granted this key is what the client sees.
+    assert!(matches!(stream.scope, Scope::Observe));
+    stream.send.finish().unwrap();
 
     host.shutdown().await.unwrap();
 }
@@ -236,33 +269,20 @@ async fn allowlist_rejects_unknown_client() {
 async fn multiple_clients_share_one_session() {
     use futures::io::AsyncReadExt;
 
-    let host_identity = RoamingIdentity::generate();
-    let host = RoamingNode::bind(RoamingConfig {
-        identity: host_identity.clone(),
-        relay: RelaySettings::Disabled,
-        trust: TrustBook::new(TrustPolicy::Bearer),
-        directory: Directory::new(),
-        bind_addr: Some(loopback()),
-        trust_path: None,
-    })
-    .await
-    .expect("bind host");
-
+    let host = bind_node().await;
     let server = FanoutServer::new();
     host.share(Arc::new(server.clone())).await.expect("share");
 
-    let invite = host.make_invite(InviteOptions::new(
-        Scope::Control,
-        std::time::Duration::from_secs(60),
-    ));
+    // Two independent tunnel clients, both accepted by key.
+    let client_a = bind_node().await;
+    let client_b = bind_node().await;
+    host_accepts(&host, &client_a, Scope::Control).await;
+    host_accepts(&host, &client_b, Scope::Control).await;
 
-    // Two independent tunnel clients dial the same host.
-    let client_a = bind_node(TrustBook::new(TrustPolicy::Bearer)).await;
-    let client_b = bind_node(TrustBook::new(TrustPolicy::Bearer)).await;
-    let stream_a = connect_direct(&client_a, &host, &invite)
+    let stream_a = connect_direct(&client_a, &host)
         .await
         .expect("client A connects");
-    let stream_b = connect_direct(&client_b, &host, &invite)
+    let stream_b = connect_direct(&client_b, &host)
         .await
         .expect("client B connects");
 
@@ -293,14 +313,14 @@ async fn multiple_clients_share_one_session() {
 }
 
 /// Dial the host on its live endpoint address (bypassing relay-based discovery,
-/// since the test runs relay-disabled on localhost).
+/// since the test runs relay-disabled on localhost). Authorization is by the
+/// client's authenticated key, which the host has accepted.
 async fn connect_direct(
     client: &RoamingNode,
     host: &RoamingNode,
-    invite: &goose_roaming::SignedInvite,
 ) -> Result<goose_roaming::RoamingClientStream, goose_roaming::RoamingError> {
     let addr = host.endpoint().addr();
     client
-        .connect_with_addr(addr, invite, Some("test-client".into()))
+        .connect_with_addr(addr, Some("test-client".into()))
         .await
 }
