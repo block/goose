@@ -854,6 +854,20 @@ impl Provider for ClaudeCodeProvider {
                                 }
                                 Some("result") => {
                                     process.needs_drain = false;
+                                    if parsed
+                                        .get("is_error")
+                                        .and_then(Value::as_bool)
+                                        .unwrap_or(false)
+                                    {
+                                        let message = parsed
+                                            .get("result")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("Unknown error");
+                                        stream_error = Some(ProviderError::RequestFailed(format!(
+                                            "Claude CLI error: {message}"
+                                        )));
+                                        break;
+                                    }
                                     if let Some(usage_info) = parsed.get("usage") {
                                         let new = extract_usage_tokens(usage_info);
                                         let reports_own_cache = new.cache_read_input_tokens.is_some()

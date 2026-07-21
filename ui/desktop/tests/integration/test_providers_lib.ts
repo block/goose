@@ -307,7 +307,7 @@ function registerTests(label: string, cases: TestCase[], fn: ProviderTestFn): vo
   const skipped = cases.filter((tc) => !tc.available);
 
   if (available.length > 0) {
-    test.each(available)(`${label} — $provider / $model`, async (tc) => {
+    test.concurrent.each(available)(`${label} — $provider / $model`, async (tc) => {
       await fn(tc);
     });
   }
@@ -315,7 +315,7 @@ function registerTests(label: string, cases: TestCase[], fn: ProviderTestFn): vo
   if (flaky.length > 0) {
     // Use a longer vitest timeout (90s) so the internal runGoose timeout (55s)
     // fires first — that rejection is catchable and the test passes as "allowed".
-    test.each(flaky)(
+    test.concurrent.each(flaky)(
       `${label} — $provider / $model (flaky)`,
       async (tc) => {
         try {
@@ -373,7 +373,7 @@ export function runGoose(
       ['run', '--text', prompt, '--with-builtin', builtins],
       {
         cwd,
-        env: { ...process.env, ...env },
+        env: { ...process.env, ...env, GOOSE_MODE: 'auto' },
         stdio: ['ignore', 'pipe', 'pipe'],
       }
     );
