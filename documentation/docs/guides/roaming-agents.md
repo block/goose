@@ -32,8 +32,8 @@ to run over a roaming connection — not a bespoke roaming feature:
 
 Because the connection carries the full ACP surface, the connecting side can
 enumerate, create, and resume the host's sessions with no roaming-specific
-protocol. Higher-level behaviours (saved peers, co-driving one live session) sit
-*above* the transport and are described below.
+protocol. Higher-level behaviours (saved peers) sit *above* the transport and
+are described below.
 
 :::note
 Roaming is an optional, experimental feature. It's available when goose is built
@@ -68,9 +68,9 @@ There is no bearer token that grants access by possession.
                                  └────────────┘
 ```
 
-By default each connecting client gets its **own** agent and drives its **own**
-sessions over the full ACP surface. (Co-driving *one shared* live session is a
-separate, opt-in mode — see [Watching and co-driving](#watching-and-co-driving-a-session).)
+Each connecting client gets its **own** agent and drives its **own** sessions
+over the full ACP surface. (Simultaneous multi-viewer "co-driving" of one live
+session is a possible future feature, not part of this ACP-transport model.)
 
 ## Quick start
 
@@ -185,76 +185,33 @@ goose roam id              # print this node's connection card
 ## Controlling who can connect
 
 Access is granted **only** by accepting a peer's public key — there is no bearer
-token that works by possession. You accept a peer (by saved name or inline card)
-and choose what it may do:
+token that works by possession. You accept a peer by saved name or inline card:
 
 ```bash
-goose roam peers accept laptop                    # grant control (default)
-goose roam peers accept watcher --scope observe   # read-only (co-drive only, see below)
+goose roam peers accept laptop                    # accept a saved peer
 goose roam peers accept 'goose+roam://…'          # accept an inline card (also saves it)
 
-goose roam peers list                             # see who is accepted, and their scope
+goose roam peers list                             # see who is accepted
 goose roam peers revoke laptop                    # stop accepting (name, card, or raw id)
 ```
+
+An accepted peer gets goose's **full ACP surface** — it can drive its own
+sessions on this machine (new/list/load/prompt), which is effectively remote
+shell access. There are no finer-grained roles: acceptance is all-or-nothing.
 
 Acceptance is **durable** and **live**: it is stored on disk, and a running
 `share` re-reads it on each connection — so `accept`/`revoke` take effect against
 a live share without a restart. Revoking takes effect on the next connection (an
 already-open session continues until it disconnects).
 
-:::note
-`attach`/`observe` scopes only apply when co-driving one live session
-(`roam share --session`, below). A **default** `share` serves the full ACP
-surface, which only makes sense for a `control` peer — it therefore *refuses* an
-`attach`/`observe` peer, directing it to co-drive instead.
-:::
-
 Because trust is keyed on the peer's public key and the transport authenticates
 that key cryptographically, a card can be shared over any channel — it is not a
 secret, and a leaked card lets no one in.
 
 :::warning
-Accepting a peer with `control` grants **full control** — the peer can run the
-agent's tools, including its shell. Only accept machines and people you trust,
-and verify the fingerprint out of band. For a read-only or steer-only peer, grant
-a narrower `--scope` (see below), which only takes effect when co-driving a
-session.
-:::
-
-## Watching and co-driving a session
-
-The default `share` gives each accepted peer its own agent. To instead let
-several peers attach to **one** live session at the same time — for pairing,
-demos, or an over-the-shoulder review — co-drive a specific session with
-`--session`. The scope you granted each peer (`peers accept --scope`) then decides
-what it may do:
-
-```bash
-goose roam sessions                          # list local session ids
-goose roam peers accept watcher --scope observe   # grant a peer read-only
-goose roam share --session <SESSION_ID>      # co-drive that live session
-```
-
-| Granted scope | Can watch updates | Can prompt / steer | Answers tool-permission prompts |
-|-----------|:-----------------:|:------------------:|:-------------------------------:|
-| `control` | ✅ | ✅ | ✅ |
-| `attach` | ✅ | ✅ | ❌ |
-| `observe` | ✅ | ❌ | ❌ |
-
-Only one peer controls the session at a time (the host, or whoever it hands
-control to); everyone else watches the same `session/update` stream live. So you
-can accept yourself/one peer with `control` and others with `observe` so they can
-**listen in**. Observers and attachers connect exactly like a controller —
-`goose roam connect '<card>'` — but their prompts are refused (`observe`) and
-permission prompts are never routed to them; those always go to the controller.
-
-Scope only shapes behaviour in this co-drive mode; a default `share` (no
-`--session`) lets each accepted peer drive its own sessions.
-
-:::note
-Co-drive resumes the session's history into the hosted agent at share time, and
-runs in that session's own working directory (`--cwd` is ignored). A peer that
-connects later sees new activity from the point it attaches.
+Accepting a peer grants **full control** — the peer can run the agent's tools,
+including its shell. Only accept machines and people you trust, and verify the
+fingerprint out of band.
 :::
 
 ## Letting the agent reach other agents

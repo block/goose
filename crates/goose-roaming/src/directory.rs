@@ -14,8 +14,6 @@ use iroh::EndpointId;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::scope::Scope;
-
 /// Which way a connection was established.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,7 +30,6 @@ pub struct PeerEntry {
     pub endpoint_id: String,
     pub label: Option<String>,
     pub direction: Direction,
-    pub scope: Scope,
     /// Best-effort agent id reported during the handshake.
     pub agent_id: Option<String>,
     pub first_seen_ms: u64,
@@ -98,7 +95,6 @@ impl Directory {
         endpoint_id: EndpointId,
         label: Option<String>,
         direction: Direction,
-        scope: Scope,
         agent_id: Option<String>,
         now_ms: u64,
     ) {
@@ -108,7 +104,6 @@ impl Directory {
             .and_modify(|e| {
                 e.last_seen_ms = now_ms;
                 e.connected = true;
-                e.scope = scope;
                 if label.is_some() {
                     e.label = label.clone();
                 }
@@ -120,7 +115,6 @@ impl Directory {
                 endpoint_id: key,
                 label,
                 direction,
-                scope,
                 agent_id,
                 first_seen_ms: now_ms,
                 last_seen_ms: now_ms,
@@ -172,7 +166,6 @@ mod tests {
             peer,
             Some("laptop".into()),
             Direction::Inbound,
-            Scope::Control,
             Some("agent-1".into()),
             1_000,
         )

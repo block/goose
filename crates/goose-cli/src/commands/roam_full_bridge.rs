@@ -1,4 +1,4 @@
-//! The default roaming host adapter: serve goose's **full** ACP surface to each
+//! The roaming host adapter: serve goose's **full** ACP surface to each
 //! connecting peer.
 //!
 //! Roaming is just an authenticated p2p ACP transport. This adapter is the thin
@@ -10,9 +10,7 @@
 //! semantics of its own.
 //!
 //! Each accepted connection gets a **fresh** agent (never one shared across
-//! clients); every client drives its own independent sessions. Co-driving a
-//! single *live* session is a different, app-layer concern handled by
-//! [`super::shared_session_bridge::SharedSessionBridge`].
+//! clients); every client drives its own independent sessions.
 
 use std::sync::Arc;
 
@@ -21,7 +19,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 
 use goose::acp::server::serve;
 use goose::acp::server_factory::AcpServer;
-use goose_roaming::{AcpStreamServer, EndpointId, Scope};
+use goose_roaming::{AcpStreamServer, EndpointId};
 
 /// An [`AcpStreamServer`] that serves goose's full ACP surface, a fresh agent
 /// per connection.
@@ -40,22 +38,9 @@ impl FullAcpBridge {
 }
 
 impl AcpStreamServer for FullAcpBridge {
-    fn admits(&self, scope: Scope) -> Result<(), String> {
-        // The full ACP surface has no per-request gate, so it can only be served
-        // safely to a Control peer. A narrower scope (attach/observe) is only
-        // meaningful when co-driving one live session (`roam share --session`),
-        // where the broker enforces it. Veto here — before the ack — so the peer
-        // gets a clean rejection rather than an accepted-then-closed stream.
-        if scope != Scope::Control {
-            return Err("scope_not_supported".to_string());
-        }
-        Ok(())
-    }
-
     fn serve_stream(
         &self,
         client: EndpointId,
-        _scope: Scope,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
     ) -> BoxFuture<'static, anyhow::Result<()>> {

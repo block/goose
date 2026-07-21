@@ -27,7 +27,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 use goose_cli::commands::roam_client;
 use goose_roaming::{
     AcpStreamServer, Directory, EndpointId, RelaySettings, RoamingConfig, RoamingIdentity,
-    RoamingNode, Scope, TrustBook,
+    RoamingNode, TrustBook,
 };
 
 /// A stub ACP agent serving the session surface the client uses. It reports one
@@ -40,7 +40,6 @@ impl AcpStreamServer for StubAcpAgent {
     fn serve_stream(
         &self,
         _client: EndpointId,
-        _scope: Scope,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
     ) -> BoxFuture<'static, Result<()>> {
@@ -141,10 +140,7 @@ async fn connect_to_stub() -> (Arc<RoamingNode>, goose_roaming::RoamingClientStr
     host.share(Arc::new(StubAcpAgent)).await.expect("share");
 
     let client = bind_node(TrustBook::new()).await;
-    host.trust()
-        .lock()
-        .await
-        .accept(&client.endpoint_id(), Scope::Control);
+    host.trust().lock().await.accept(&client.endpoint_id());
 
     let stream = client
         .connect_with_addr(host.endpoint().addr(), Some("test".into()))

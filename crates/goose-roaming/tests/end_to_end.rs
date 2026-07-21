@@ -1,16 +1,16 @@
 //! End-to-end test: two roaming nodes connect over iroh (direct, relays
 //! disabled) and exchange bytes through an authorized ACP stream.
 //!
-//! This validates the whole seam: bind -> invite -> dial -> handshake ->
-//! authorize -> stream hand-off. It uses a trivial echo "ACP server" in place
-//! of goose's real ACP protocol, since this crate has no dependency on the
-//! agent machinery.
+//! This validates the whole seam: bind -> swap identities -> accept key -> dial
+//! -> handshake -> authorize -> stream hand-off. It uses a trivial echo "ACP
+//! server" in place of goose's real ACP protocol, since this crate has no
+//! dependency on the agent machinery.
 
 use std::sync::Arc;
 
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
+    AcpStreamServer, Directory, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode,
     TrustBook,
 };
 use iroh::EndpointId;
@@ -23,7 +23,6 @@ impl AcpStreamServer for EchoServer {
     fn serve_stream(
         &self,
         _client: EndpointId,
-        _scope: Scope,
         mut recv: Box<dyn AsyncRead + Send + Unpin>,
         mut send: Box<dyn AsyncWrite + Send + Unpin>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
@@ -48,95 +47,6 @@ impl AcpStreamServer for EchoServer {
     }
 }
 
-/// A multi-client fan-out "agent": every connected peer is subscribed via the
-/// broker [`Router`], a single broadcast is delivered to all of them, and an
-/// inbound line from a peer is accepted or refused by role (only a
-/// controller/steerer may steer). Stands in for a real ACP session shared by
-/// several tunnel clients.
-#[derive(Clone)]
-struct FanoutServer {
-    router: Arc<tokio::sync::Mutex<goose_roaming::Router>>,
-    tx: tokio::sync::broadcast::Sender<Vec<u8>>,
-    /// Records "<subscriber>:<verdict>" for each inbound steer attempt.
-    steer_log: Arc<tokio::sync::Mutex<Vec<String>>>,
-}
-
-impl FanoutServer {
-    fn new() -> Self {
-        let (tx, _) = tokio::sync::broadcast::channel(16);
-        Self {
-            router: Arc::new(tokio::sync::Mutex::new(goose_roaming::Router::new())),
-            tx,
-            steer_log: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-        }
-    }
-
-    /// Broadcast a `session/update`-style frame to all attached peers.
-    fn broadcast(&self, msg: &[u8]) {
-        let _ = self.tx.send(msg.to_vec());
-    }
-}
-
-impl AcpStreamServer for FanoutServer {
-    fn serve_stream(
-        &self,
-        _client: EndpointId,
-        scope: Scope,
-        mut recv: Box<dyn AsyncRead + Send + Unpin>,
-        mut send: Box<dyn AsyncWrite + Send + Unpin>,
-    ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-        let this = self.clone();
-        Box::pin(async move {
-            let id = {
-                let mut router = this.router.lock().await;
-                let id = goose_roaming::SubscriberId(router.subscriber_count() as u64);
-                router.attach(id, goose_roaming::Role::from_scope(scope));
-                id
-            };
-            let mut rx = this.tx.subscribe();
-
-            // Fan-out task: deliver every broadcast to this peer.
-            let fanout = async {
-                while let Ok(msg) = rx.recv().await {
-                    let len = (msg.len() as u32).to_be_bytes();
-                    send.write_all(&len).await?;
-                    send.write_all(&msg).await?;
-                    send.flush().await?;
-                }
-                Ok::<(), anyhow::Error>(())
-            };
-
-            // Inbound task: read one steer line, apply the routing policy.
-            let inbound = async {
-                let mut lenbuf = [0u8; 4];
-                if recv.read_exact(&mut lenbuf).await.is_ok() {
-                    let n = u32::from_be_bytes(lenbuf) as usize;
-                    let mut buf = vec![0u8; n];
-                    recv.read_exact(&mut buf).await?;
-                    let verdict = match this.router.lock().await.accept_steer(id) {
-                        Ok(()) => "accepted",
-                        Err(_) => "refused",
-                    };
-                    this.steer_log
-                        .lock()
-                        .await
-                        .push(format!("{}:{verdict}", id.0));
-                }
-                Ok::<(), anyhow::Error>(())
-            };
-
-            tokio::select! {
-                r = fanout => r,
-                r = inbound => r,
-            }
-        })
-    }
-
-    fn agent_id(&self) -> String {
-        "fanout-agent".to_string()
-    }
-}
-
 /// Bind to an ephemeral loopback IPv4 port so relay-disabled tests use a single
 /// local path (avoids iroh's dual-stack MultipathNotNegotiated stall).
 fn loopback() -> std::net::SocketAddr {
@@ -156,13 +66,10 @@ async fn bind_node() -> Arc<RoamingNode> {
     .expect("bind node")
 }
 
-/// Accept `client`'s key into `host`'s allowlist with the given scope — the
-/// out-of-band "I will accept connections from this node" step.
-async fn host_accepts(host: &RoamingNode, client: &RoamingNode, scope: Scope) {
-    host.trust()
-        .lock()
-        .await
-        .accept(&client.endpoint_id(), scope);
+/// Accept `client`'s key into `host`'s allowlist — the out-of-band "I will
+/// accept connections from this node" step.
+async fn host_accepts(host: &RoamingNode, client: &RoamingNode) {
+    host.trust().lock().await.accept(&client.endpoint_id());
 }
 
 /// A running share re-reads its trust file per connection, so acceptance
@@ -194,7 +101,7 @@ async fn trust_file_refresh_takes_effect_on_running_share() {
 
     // Accept out of band by writing the trust file (as the CLI does).
     let mut book = TrustBook::load(&trust_file).unwrap();
-    book.accept(&client.endpoint_id(), Scope::Control);
+    book.accept(&client.endpoint_id());
     book.save(&trust_file).unwrap();
 
     // Now it connects against the SAME running share — no restart.
@@ -213,14 +120,13 @@ async fn accepted_key_connects_and_streams() {
 
     let client = bind_node().await;
     // Host accepts the client's key (mutual, key-based trust).
-    host_accepts(&host, &client, Scope::Control).await;
+    host_accepts(&host, &client).await;
 
     let mut stream = connect_direct(&client, &host)
         .await
         .expect("client connects");
 
     assert_eq!(stream.agent_id, "echo-agent");
-    assert!(matches!(stream.scope, Scope::Control));
 
     {
         stream.send.write_all(b"hello").await.unwrap();
@@ -247,121 +153,18 @@ async fn unaccepted_key_is_rejected() {
     host.shutdown().await.unwrap();
 }
 
-/// A server that only admits Control peers (like `FullAcpBridge`) vetoes a
-/// narrower scope *before* the ack, so the client sees a clean rejection rather
-/// than an accepted handshake followed by an abrupt close.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn admits_vetoes_scope_before_ack() {
-    struct ControlOnly;
-    impl AcpStreamServer for ControlOnly {
-        fn admits(&self, scope: Scope) -> Result<(), String> {
-            if scope == Scope::Control {
-                Ok(())
-            } else {
-                Err("scope_not_supported".to_string())
-            }
-        }
-        fn serve_stream(
-            &self,
-            _client: EndpointId,
-            _scope: Scope,
-            mut recv: Box<dyn AsyncRead + Send + Unpin>,
-            _send: Box<dyn AsyncWrite + Send + Unpin>,
-        ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
-            // Stay alive until the client closes, so the ack is delivered and
-            // the connection isn't torn down mid-handshake.
-            Box::pin(async move {
-                let mut drain = Vec::new();
-                let _ = recv.read_to_end(&mut drain).await;
-                Ok(())
-            })
-        }
-        fn agent_id(&self) -> String {
-            "control-only".to_string()
-        }
-    }
-
-    let host = bind_node().await;
-    host.share(Arc::new(ControlOnly)).await.expect("share");
-
-    let observer = bind_node().await;
-    host_accepts(&host, &observer, Scope::Observe).await;
-    // Key is accepted, but the service refuses the scope → rejected handshake.
-    let result = connect_direct(&observer, &host).await;
-    assert!(result.is_err(), "observe peer should be vetoed by admits()");
-
-    // A Control peer on the same host is admitted.
-    let controller = bind_node().await;
-    host_accepts(&host, &controller, Scope::Control).await;
-    let mut stream = connect_direct(&controller, &host)
-        .await
-        .expect("control peer admitted");
-    stream.send.finish().unwrap();
-
-    host.shutdown().await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn accepted_scope_is_honored() {
+async fn revoked_key_is_rejected() {
     let host = bind_node().await;
     host.share(Arc::new(EchoServer)).await.expect("share");
 
     let client = bind_node().await;
-    host_accepts(&host, &client, Scope::Observe).await;
+    host_accepts(&host, &client).await;
+    // Revoke after accepting: connection must now be refused.
+    host.trust().lock().await.revoke_key(&client.endpoint_id());
 
-    let mut stream = connect_direct(&client, &host).await.expect("connects");
-    // The scope the host granted this key is what the client sees.
-    assert!(matches!(stream.scope, Scope::Observe));
-    stream.send.finish().unwrap();
-
-    host.shutdown().await.unwrap();
-}
-
-/// Two tunnel clients attach to one shared session over real iroh transport;
-/// both receive the same broadcast, and only the controller's steer is accepted.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn multiple_clients_share_one_session() {
-    use futures::io::AsyncReadExt;
-
-    let host = bind_node().await;
-    let server = FanoutServer::new();
-    host.share(Arc::new(server.clone())).await.expect("share");
-
-    // Two independent tunnel clients, both accepted by key.
-    let client_a = bind_node().await;
-    let client_b = bind_node().await;
-    host_accepts(&host, &client_a, Scope::Control).await;
-    host_accepts(&host, &client_b, Scope::Control).await;
-
-    let stream_a = connect_direct(&client_a, &host)
-        .await
-        .expect("client A connects");
-    let stream_b = connect_direct(&client_b, &host)
-        .await
-        .expect("client B connects");
-
-    let (_sa, mut ra, _ca) = stream_a.into_futures_io();
-    let (_sb, mut rb, _cb) = stream_b.into_futures_io();
-
-    // Give both serve_stream tasks time to attach + subscribe before broadcast.
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-    assert_eq!(server.router.lock().await.subscriber_count(), 2);
-
-    server.broadcast(b"hello everyone");
-
-    // Both clients receive the same length-prefixed frame.
-    async fn read_frame<R: futures::io::AsyncRead + Unpin>(r: &mut R) -> Vec<u8> {
-        let mut lenbuf = [0u8; 4];
-        r.read_exact(&mut lenbuf).await.unwrap();
-        let n = u32::from_be_bytes(lenbuf) as usize;
-        let mut buf = vec![0u8; n];
-        r.read_exact(&mut buf).await.unwrap();
-        buf
-    }
-    let got_a = read_frame(&mut ra).await;
-    let got_b = read_frame(&mut rb).await;
-    assert_eq!(got_a, b"hello everyone");
-    assert_eq!(got_b, b"hello everyone");
+    let result = connect_direct(&client, &host).await;
+    assert!(result.is_err(), "revoked client should be rejected");
 
     host.shutdown().await.unwrap();
 }

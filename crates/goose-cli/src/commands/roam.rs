@@ -5,33 +5,29 @@
 //! card** (`roam id`) — a non-secret string carrying its public key and how to
 //! reach it. You swap cards with another node and each side chooses to **accept**
 //! the other's key. A connection only succeeds when the host has accepted the
-//! dialer's key; there is no bearer token that grants access by possession.
+//! dialer's key; there is no bearer token that grants access by possession. An
+//! accepted peer gets goose's full ACP surface.
 //!
 //! Subcommands:
 //! * `id` — print this node's connection card (share it with a peer).
 //! * `share` — serve this node's agent to accepted peers over ACP.
 //! * `peers` — manage saved peer cards and which keys you accept.
 //! * `connect` / `delegate` / `bridge` — reach a peer that has accepted you.
-//! * `sessions` — list local sessions (for `share --session`).
 //! * `connections` (alias `list`) — show live/observed connections.
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use clap::{Subcommand, ValueEnum};
+use clap::Subcommand;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
-use goose::session::SessionManager;
 use goose_roaming::{
     default_key_path, parse_endpoint_id, ConnectionCard, Directory, EndpointId, RelaySettings,
-    RoamingConfig, RoamingIdentity, RoamingNode, Scope, TrustBook,
+    RoamingConfig, RoamingIdentity, RoamingNode, TrustBook,
 };
 
 use crate::commands::roam_full_bridge::FullAcpBridge;
-use crate::commands::shared_session_bridge::{
-    GooseAgentBackend, ResumeTarget, SharedSessionBridge,
-};
 
 const CARD_SCHEME: &str = "goose+roam://";
 
@@ -47,29 +43,6 @@ fn peerbook_path() -> std::path::PathBuf {
     Paths::config_dir().join("roaming_peers.json")
 }
 
-/// CLI surface for the roaming [`Scope`]. Kept separate so `goose-roaming`
-/// stays free of the clap dependency.
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum ShareScope {
-    /// Drive the agent and answer tool-permission prompts (effectively remote
-    /// shell access). Only grant to trusted peers.
-    Control,
-    /// Send prompts/steer a shared session, but never answer permission prompts.
-    Attach,
-    /// Watch session activity read-only.
-    Observe,
-}
-
-impl From<ShareScope> for Scope {
-    fn from(value: ShareScope) -> Self {
-        match value {
-            ShareScope::Control => Scope::Control,
-            ShareScope::Attach => Scope::Attach,
-            ShareScope::Observe => Scope::Observe,
-        }
-    }
-}
-
 #[derive(Debug, Subcommand)]
 pub enum RoamCommand {
     /// Print this node's connection card — the non-secret string you share with
@@ -81,11 +54,8 @@ pub enum RoamCommand {
     /// Serve this node's agent to accepted peers over ACP.
     ///
     /// Only peers whose key you have accepted (`roam peers accept`) can connect.
-    /// Two modes:
-    /// * default: serve the FULL ACP surface — each peer drives its own sessions
-    ///   (new/list/load/prompt).
-    /// * `--session <id>`: CO-DRIVE that one live session; several accepted peers
-    ///   attach to it, each limited by the scope you granted them.
+    /// Each connected peer gets goose's full ACP surface — it drives its own
+    /// sessions (new/list/load/prompt) backed by this node's session store.
     Share {
         /// Builtin extensions to load into the hosted agent.
         #[arg(long = "with-builtin", value_delimiter = ',')]
@@ -93,19 +63,10 @@ pub enum RoamCommand {
 
         /// Working directory the hosted agent runs in. Defaults to the directory
         /// `roam share` was started in. The connecting client's own path is
-        /// always ignored. Ignored when `--session` is given.
+        /// always ignored.
         #[arg(long)]
         cwd: Option<std::path::PathBuf>,
-
-        /// Co-drive an existing local session by id: accepted peers attach to
-        /// this one live session (each limited by its granted scope) rather than
-        /// driving their own. Use `roam sessions` to list ids.
-        #[arg(long, value_name = "SESSION_ID")]
-        session: Option<String>,
     },
-
-    /// List local sessions that can be co-driven with `roam share --session`.
-    Sessions,
 
     /// Open a quick interactive REPL against a remote agent (debug/peek).
     ///
@@ -186,15 +147,12 @@ pub enum PeersCommand {
         /// Friendly nickname (defaults to a short id if omitted).
         name: Option<String>,
     },
-    /// Accept inbound connections from a peer's key, granting it a scope. The
-    /// target is a saved nickname or a `goose+roam://...` card (which is also
-    /// saved to the address book).
+    /// Accept inbound connections from a peer's key. The target is a saved
+    /// nickname or a `goose+roam://...` card (which is also saved to the address
+    /// book). An accepted peer gets goose's full ACP surface.
     Accept {
         /// A saved nickname or a `goose+roam://...` card.
         target: String,
-        /// What the peer may do once connected.
-        #[arg(long, value_enum, default_value_t = ShareScope::Control)]
-        scope: ShareScope,
     },
     /// Stop accepting a peer: a saved nickname, a card, or a raw endpoint id.
     /// A live session continues until it disconnects.
@@ -210,12 +168,7 @@ pub enum PeersCommand {
 pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
     match command {
         RoamCommand::Id => handle_id().await,
-        RoamCommand::Share {
-            builtins,
-            cwd,
-            session,
-        } => handle_share(builtins, cwd, session).await,
-        RoamCommand::Sessions => handle_sessions().await,
+        RoamCommand::Share { builtins, cwd } => handle_share(builtins, cwd).await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate {
             target,
@@ -276,7 +229,7 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             eprintln!("accept connections from it with: goose roam peers accept {name}");
             Ok(())
         }
-        PeersCommand::Accept { target, scope } => {
+        PeersCommand::Accept { target } => {
             // Resolve to a card: a saved name, or an inline card we also save.
             let card = match ConnectionCard::decode(&target) {
                 Ok(card) => {
@@ -296,15 +249,11 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             };
             let path = trust_path();
             let mut trust = TrustBook::load(&path).unwrap_or_default();
-            trust.accept(&card.endpoint_id, scope.into());
+            trust.accept(&card.endpoint_id);
             trust.save(&path)?;
-            eprintln!(
-                "accepting connections from {} (scope {:?})",
-                card.endpoint_id,
-                Scope::from(scope)
-            );
+            eprintln!("accepting connections from {}", card.endpoint_id);
             eprintln!("verify the fingerprint out of band: {}", card.fingerprint());
-            eprintln!("run `goose roam share` (or restart it) to serve to this peer");
+            eprintln!("a running `goose roam share` picks this up on the next connection");
             Ok(())
         }
         PeersCommand::Revoke { target } => {
@@ -332,28 +281,28 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
         }
         PeersCommand::List => {
             let trust = TrustBook::load(&trust_path()).unwrap_or_default();
-            let accepted: std::collections::HashMap<String, Scope> =
+            let accepted: std::collections::HashSet<String> =
                 trust.allowed_keys().into_iter().collect();
             let peers = book.list();
             if peers.is_empty() && accepted.is_empty() {
                 eprintln!("no saved peers; add one with `goose roam peers add '<card>' <name>`");
                 return Ok(());
             }
-            println!("{:<16} {:<10} {:<8} ENDPOINT ID", "NAME", "ACCEPT", "SCOPE");
+            println!("{:<16} {:<8} ENDPOINT ID", "NAME", "ACCEPT");
             for p in &peers {
-                let (accept, scope) = match accepted.get(&p.endpoint_id) {
-                    Some(scope) => ("yes", format!("{scope:?}").to_lowercase()),
-                    None => ("no", "-".to_string()),
+                let accept = if accepted.contains(&p.endpoint_id) {
+                    "yes"
+                } else {
+                    "no"
                 };
-                println!("{:<16} {accept:<10} {scope:<8} {}", p.name, p.endpoint_id);
+                println!("{:<16} {accept:<8} {}", p.name, p.endpoint_id);
             }
             // Accepted keys with no saved card (accepted by raw id).
             let known: std::collections::HashSet<String> =
                 peers.iter().map(|p| p.endpoint_id.clone()).collect();
-            for (id, scope) in &accepted {
+            for id in &accepted {
                 if !known.contains(id) {
-                    let scope = format!("{scope:?}").to_lowercase();
-                    println!("{:<16} {:<10} {scope:<8} {id}", "(unsaved)", "yes");
+                    println!("{:<16} {:<8} {id}", "(unsaved)", "yes");
                 }
             }
             Ok(())
@@ -390,17 +339,13 @@ async fn handle_list() -> Result<()> {
         eprintln!("no roaming peers recorded yet");
         return Ok(());
     }
-    println!(
-        "{:<10} {:<9} {:<8} {:<20} ENDPOINT ID",
-        "STATUS", "DIR", "SCOPE", "AGENT"
-    );
+    println!("{:<10} {:<9} {:<20} ENDPOINT ID", "STATUS", "DIR", "AGENT");
     for e in entries {
         let status = if e.connected { "connected" } else { "seen" };
         let dir = match e.direction {
             goose_roaming::Direction::Inbound => "inbound",
             goose_roaming::Direction::Outbound => "outbound",
         };
-        let scope = format!("{:?}", e.scope).to_lowercase();
         let agent = e.agent_id.unwrap_or_else(|| "-".to_string());
         let agent = if agent.chars().count() > 20 {
             let truncated: String = agent.chars().take(19).collect();
@@ -408,10 +353,7 @@ async fn handle_list() -> Result<()> {
         } else {
             agent
         };
-        println!(
-            "{status:<10} {dir:<9} {scope:<8} {agent:<20} {}",
-            e.endpoint_id
-        );
+        println!("{status:<10} {dir:<9} {agent:<20} {}", e.endpoint_id);
     }
     Ok(())
 }
@@ -423,70 +365,19 @@ fn load_identity() -> Result<RoamingIdentity> {
     RoamingIdentity::load_or_create(&path).context("failed to load roaming identity")
 }
 
-async fn handle_sessions() -> Result<()> {
-    let manager = SessionManager::new(Paths::data_dir());
-    let mut sessions = manager.list_sessions().await?;
-    if sessions.is_empty() {
-        eprintln!("no local sessions found");
-        return Ok(());
-    }
-    sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
-
-    println!("{:<40} {:<20} UPDATED", "SESSION ID", "NAME");
-    for s in sessions {
-        let name = if s.name.chars().count() > 20 {
-            let truncated: String = s.name.chars().take(19).collect();
-            format!("{truncated}…")
-        } else {
-            s.name
-        };
-        println!(
-            "{:<40} {name:<20} {}",
-            s.id,
-            s.updated_at.format("%Y-%m-%d %H:%M")
-        );
-    }
-    eprintln!("\nco-drive one with: goose roam share --session <SESSION ID>");
-    Ok(())
-}
-
-async fn handle_share(
-    builtins: Vec<String>,
-    cwd: Option<std::path::PathBuf>,
-    session: Option<String>,
-) -> Result<()> {
+async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) -> Result<()> {
     let identity = load_identity()?;
 
-    // Two host modes, decided by whether a specific live session is named:
-    // * default: serve goose's FULL ACP surface. Each peer drives its own
-    //   sessions (new/list/load).
-    // * `--session <id>`: CO-DRIVE that one live session; each accepted peer is
-    //   limited by the scope granted to its key.
-    let co_drive = match &session {
-        Some(session_id) => {
-            let manager = SessionManager::new(Paths::data_dir());
-            let session = manager
-                .get_session(session_id, false)
-                .await
-                .with_context(|| format!("no local session with id `{session_id}`"))?;
-            Some(ResumeTarget::Existing {
-                session_id: session_id.clone(),
-                cwd: session.working_dir,
-            })
-        }
-        None => None,
-    };
-    let session_cwd = match &co_drive {
-        Some(ResumeTarget::Existing { cwd, .. }) | Some(ResumeTarget::New { cwd }) => cwd.clone(),
-        None => match &cwd {
-            Some(dir) => std::fs::canonicalize(dir)
-                .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
-            None => std::env::current_dir().context("could not determine current directory")?,
-        },
+    // The hosted agent runs in `--cwd` or the directory `roam share` was started
+    // in; the connecting client's own path is meaningless here and is ignored.
+    let session_cwd = match &cwd {
+        Some(dir) => std::fs::canonicalize(dir)
+            .with_context(|| format!("invalid --cwd: {}", dir.display()))?,
+        None => std::env::current_dir().context("could not determine current directory")?,
     };
 
     // Load the accepted-peer allowlist. Peers are accepted out of band with
-    // `roam peers accept`; this serve loop reads that at startup.
+    // `roam peers accept`; this serve loop re-reads it per connection.
     let trust = TrustBook::load(&trust_path()).unwrap_or_default();
     let accepted_count = trust.allowed_keys().len();
     if accepted_count == 0 {
@@ -524,21 +415,8 @@ async fn handle_share(
         session_cwd: Some(session_cwd.clone()),
     }));
     let agent_id = node.endpoint_id().to_string();
-    match &co_drive {
-        Some(target) => {
-            let backend = Arc::new(GooseAgentBackend::new(acp_server));
-            let bridge = Arc::new(SharedSessionBridge::start(
-                backend,
-                agent_id,
-                target.clone(),
-            ));
-            node.share(bridge).await?;
-        }
-        None => {
-            let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
-            node.share(bridge).await?;
-        }
-    }
+    let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
+    node.share(bridge).await?;
 
     eprintln!("contacting relay...");
     if !node.wait_online(std::time::Duration::from_secs(15)).await {
@@ -547,14 +425,6 @@ async fn handle_share(
 
     eprintln!("roaming agent is live");
     eprintln!("  endpoint id : {}", node.endpoint_id());
-    match &co_drive {
-        Some(ResumeTarget::Existing { session_id, .. }) => {
-            eprintln!("  mode        : co-drive session {session_id}");
-        }
-        _ => {
-            eprintln!("  mode        : full ACP surface (peers drive their own sessions)");
-        }
-    }
     eprintln!("  working dir : {}", session_cwd.display());
     eprintln!("  accepted    : {accepted_count} peer key(s)");
     eprintln!();
@@ -611,7 +481,7 @@ async fn dial_target(
 async fn handle_connect(target: String, label: Option<String>) -> Result<()> {
     let (node, stream) = dial_target(&target, label).await?;
     let agent_label = stream.agent_id.clone();
-    eprintln!("authorized with scope {:?}", stream.scope);
+    eprintln!("connected to `{agent_label}`");
     let result = crate::commands::roam_client::run_interactive(stream, agent_label).await;
     node.shutdown().await?;
     result
@@ -677,7 +547,6 @@ async fn handle_bridge(
     let label = label.or_else(|| Some("bridge".to_string()));
     let (node, stream) = dial_target(&target, label).await?;
     let agent_id = stream.agent_id.clone();
-    let scope = stream.scope;
     // The raw iroh streams carry post-handshake ACP and already implement
     // tokio's AsyncRead/AsyncWrite, so we splice them directly. `conn` must
     // outlive the splice.
@@ -692,7 +561,7 @@ async fn handle_bridge(
         Some(addr) => {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
             let local = listener.local_addr()?;
-            eprintln!("bridging remote agent `{agent_id}` (scope {scope:?}) on tcp://{local}");
+            eprintln!("bridging remote agent `{agent_id}` on tcp://{local}");
             eprintln!("point an ACP client at this address; serving one connection");
             let (socket, peer) = listener.accept().await?;
             eprintln!("ACP client connected from {peer}");
@@ -700,10 +569,7 @@ async fn handle_bridge(
             crate::commands::roam_proxy::splice(lr, lw, remote_send, remote_recv).await
         }
         None => {
-            eprintln!(
-                "bridging remote agent `{agent_id}` (scope {scope:?}) over stdio; \
-                 speak ACP on stdin/stdout"
-            );
+            eprintln!("bridging remote agent `{agent_id}` over stdio; speak ACP on stdin/stdout");
             let stdin = tokio::io::stdin();
             let stdout = tokio::io::stdout();
             crate::commands::roam_proxy::splice(stdin, stdout, remote_send, remote_recv).await

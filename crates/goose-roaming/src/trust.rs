@@ -1,32 +1,28 @@
 //! Local access-control state: which peer keys this node accepts inbound
-//! connections from, what each may do, and which keys are revoked.
+//! connections from, and which are revoked.
 //!
 //! Trust is a **mutual, public-key allowlist**. A peer is identified by the key
 //! iroh's QUIC-TLS handshake authenticated, and is admitted only if that key is
 //! on this node's allowlist. There is no bearer/token mode: sharing a
 //! [`crate::ConnectionCard`] grants nothing until the recipient explicitly
-//! accepts the sender's key.
+//! accepts the sender's key. An accepted peer gets goose's full ACP surface.
 //!
 //! This is deliberately local, unsigned admin state: it lives on the host under
 //! the user's control. Authentication of *who* a peer is comes from the
-//! transport; this layer decides *whether* they are authorized and with what
-//! [`Scope`].
+//! transport; this layer decides *whether* they are authorized.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeSet;
 
 use iroh::EndpointId;
 use serde::{Deserialize, Serialize};
 
-use crate::scope::Scope;
-
-/// Persisted trust state: the inbound allowlist (key -> granted scope) plus
-/// revocations.
+/// Persisted trust state: the inbound allowlist plus revocations.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TrustBook {
-    /// Peer keys allowed to connect, each mapped to the scope they are granted.
-    allowed: BTreeMap<String, Scope>,
+    /// Peer keys allowed to connect.
+    allowed: BTreeSet<String>,
     /// Peer keys that are refused regardless of anything else.
-    revoked_keys: HashSet<String>,
+    revoked_keys: BTreeSet<String>,
 }
 
 impl TrustBook {
@@ -34,14 +30,15 @@ impl TrustBook {
         Self::default()
     }
 
-    /// Accept inbound connections from `key`, granting `scope`. Re-accepting an
-    /// already-allowed key updates its scope.
-    pub fn accept(&mut self, key: &EndpointId, scope: Scope) {
-        self.allowed.insert(key_str(key), scope);
+    /// Accept inbound connections from `key`. Clears any prior revocation.
+    pub fn accept(&mut self, key: &EndpointId) {
+        let s = key_str(key);
+        self.revoked_keys.remove(&s);
+        self.allowed.insert(s);
     }
 
-    /// Stop accepting `key` and record it as revoked so it cannot be re-added by
-    /// a stale card automatically.
+    /// Stop accepting `key` and record it as revoked so a stale card can't
+    /// silently re-add it.
     pub fn revoke_key(&mut self, key: &EndpointId) {
         let s = key_str(key);
         self.allowed.remove(&s);
@@ -51,32 +48,21 @@ impl TrustBook {
     /// Whether `key` is allowed to connect (on the allowlist and not revoked).
     pub fn is_allowed(&self, key: &EndpointId) -> bool {
         let s = key_str(key);
-        !self.revoked_keys.contains(&s) && self.allowed.contains_key(&s)
-    }
-
-    /// The scope granted to `key`, if it is allowed.
-    pub fn scope_for(&self, key: &EndpointId) -> Option<Scope> {
-        let s = key_str(key);
-        if self.revoked_keys.contains(&s) {
-            return None;
-        }
-        self.allowed.get(&s).copied()
+        !self.revoked_keys.contains(&s) && self.allowed.contains(&s)
     }
 
     pub fn is_key_revoked(&self, key: &EndpointId) -> bool {
         self.revoked_keys.contains(&key_str(key))
     }
 
-    /// Allowed peer keys with their granted scope, sorted by key.
-    pub fn allowed_keys(&self) -> Vec<(String, Scope)> {
-        self.allowed.iter().map(|(k, s)| (k.clone(), *s)).collect()
+    /// Allowed peer keys, sorted.
+    pub fn allowed_keys(&self) -> Vec<String> {
+        self.allowed.iter().cloned().collect()
     }
 
     /// Revoked peer keys, sorted.
     pub fn revoked_key_list(&self) -> Vec<String> {
-        let mut keys: Vec<String> = self.revoked_keys.iter().cloned().collect();
-        keys.sort();
-        keys
+        self.revoked_keys.iter().cloned().collect()
     }
 
     pub fn load(path: &std::path::Path) -> Result<Self, std::io::Error> {
@@ -110,30 +96,33 @@ mod tests {
     use iroh::SecretKey;
 
     #[test]
-    fn allowlist_gates_and_carries_scope() {
+    fn allowlist_gates() {
         let mut book = TrustBook::new();
         let key = SecretKey::generate().public();
         assert!(!book.is_allowed(&key));
-        assert_eq!(book.scope_for(&key), None);
 
-        book.accept(&key, Scope::Observe);
+        book.accept(&key);
         assert!(book.is_allowed(&key));
-        assert_eq!(book.scope_for(&key), Some(Scope::Observe));
-
-        // Re-accepting updates the scope.
-        book.accept(&key, Scope::Control);
-        assert_eq!(book.scope_for(&key), Some(Scope::Control));
     }
 
     #[test]
     fn revocation_removes_and_blocks() {
         let mut book = TrustBook::new();
         let key = SecretKey::generate().public();
-        book.accept(&key, Scope::Control);
+        book.accept(&key);
         book.revoke_key(&key);
         assert!(!book.is_allowed(&key));
         assert!(book.is_key_revoked(&key));
-        assert_eq!(book.scope_for(&key), None);
+    }
+
+    #[test]
+    fn accept_clears_prior_revocation() {
+        let mut book = TrustBook::new();
+        let key = SecretKey::generate().public();
+        book.revoke_key(&key);
+        book.accept(&key);
+        assert!(book.is_allowed(&key));
+        assert!(!book.is_key_revoked(&key));
     }
 
     #[test]
@@ -143,10 +132,10 @@ mod tests {
         let key = SecretKey::generate().public();
         {
             let mut book = TrustBook::new();
-            book.accept(&key, Scope::Attach);
+            book.accept(&key);
             book.save(&path).unwrap();
         }
         let reloaded = TrustBook::load(&path).unwrap();
-        assert_eq!(reloaded.scope_for(&key), Some(Scope::Attach));
+        assert!(reloaded.is_allowed(&key));
     }
 }

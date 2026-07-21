@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use goose_roaming::{
-    AcpStreamServer, EndpointId, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, Scope,
+    AcpStreamServer, EndpointId, RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode,
 };
 
 const MSG: &[u8] = b"hello from the client";
@@ -32,7 +32,6 @@ impl AcpStreamServer for EchoServer {
     fn serve_stream(
         &self,
         _client: EndpointId,
-        _scope: Scope,
         mut recv: Box<dyn futures::io::AsyncRead + Send + Unpin>,
         mut send: Box<dyn futures::io::AsyncWrite + Send + Unpin>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>> {
@@ -86,19 +85,12 @@ async fn main() -> anyhow::Result<()> {
 
     // The host accepts the client's key into its allowlist — the mutual,
     // key-based trust step. Without this the connection is refused.
-    host.trust()
-        .lock()
-        .await
-        .accept(&client.endpoint_id(), Scope::Control);
+    host.trust().lock().await.accept(&client.endpoint_id());
 
     let stream = client
         .connect_with_addr(host.endpoint().addr(), Some("example".into()))
         .await?;
-    println!(
-        "connected to `{}` with scope {:?}",
-        stream.agent_id(),
-        stream.scope()
-    );
+    println!("connected to `{}`", stream.agent_id());
 
     // Use the ergonomic helper: no manual tokio-compat dance.
     let (mut send, mut recv, _conn) = stream.into_futures_io();

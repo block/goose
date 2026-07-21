@@ -19,7 +19,6 @@ use crate::frame::{read_frame, write_frame};
 use crate::handshake::{ClientHello, HostAck};
 use crate::identity::RoamingIdentity;
 use crate::relay::RelaySettings;
-use crate::scope::Scope;
 use crate::trust::TrustBook;
 
 /// ALPN identifying the goose ACP-over-iroh protocol.
@@ -34,24 +33,11 @@ const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10
 /// integration layer (e.g. `goose-cli`) so this crate does not depend on the
 /// concrete agent/session machinery.
 pub trait AcpStreamServer: Send + Sync + 'static {
-    /// Whether this service will actually admit a peer granted `scope`.
-    ///
-    /// Called *before* the host sends `HostAck::Accepted`, so a service can veto
-    /// a scope it can't honor (e.g. the full-ACP bridge only serves `Control`)
-    /// and the client sees a clean rejection rather than an accepted handshake
-    /// followed by an abrupt stream close. Returns `Ok(())` to admit, or
-    /// `Err(code)` with a coarse reason code sent to the client. Defaults to
-    /// admitting any authorized scope.
-    fn admits(&self, _scope: Scope) -> Result<(), String> {
-        Ok(())
-    }
-
-    /// Drive the ACP protocol to completion over the given stream, having
-    /// granted `scope` to the connecting peer identified by `client`.
+    /// Drive the ACP protocol to completion over the given stream for the
+    /// accepted peer identified by `client`.
     fn serve_stream(
         &self,
         client: EndpointId,
-        scope: Scope,
         recv: Box<dyn AsyncRead + Send + Unpin>,
         send: Box<dyn AsyncWrite + Send + Unpin>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<()>>;
@@ -320,19 +306,17 @@ impl RoamingNode {
             .map_err(|e| RoamingError::Transport(format!("decode ack: {e}")))?;
 
         match ack {
-            HostAck::Accepted { scope, agent_id } => {
+            HostAck::Accepted { agent_id } => {
                 self.directory
                     .record_connect(
                         conn.remote_id(),
                         None,
                         Direction::Outbound,
-                        scope,
                         Some(agent_id.clone()),
                         now_ms(),
                     )
                     .await;
                 Ok(RoamingClientStream {
-                    scope,
                     agent_id,
                     conn,
                     send,
@@ -346,7 +330,6 @@ impl RoamingNode {
 
 /// A dialed, authorized client stream to a remote agent.
 pub struct RoamingClientStream {
-    pub scope: Scope,
     pub agent_id: String,
     /// Kept alive so the connection isn't dropped while the stream is in use.
     pub conn: Connection,
@@ -355,11 +338,6 @@ pub struct RoamingClientStream {
 }
 
 impl RoamingClientStream {
-    /// Capability the host granted this connection.
-    pub fn scope(&self) -> Scope {
-        self.scope
-    }
-
     /// The host-facing id of the agent on the other end.
     pub fn agent_id(&self) -> &str {
         &self.agent_id
@@ -405,14 +383,8 @@ impl ProtocolHandler for RoamingAcpHandler {
         // instead of parking this task forever (Slowloris guard).
         let handshake = async {
             let (send, mut recv) = connection.accept_bi().await?;
-            // Authenticate/authorize the key, then check the serving service
-            // will actually admit this scope — both *before* acking, so
-            // "Accepted" is truthful and a vetoed peer gets a clean rejection,
-            // not a slammed stream after a successful handshake.
-            let decision = self
-                .authorize(client, &mut recv)
-                .await
-                .and_then(|(scope, label)| self.server.admits(scope).map(|()| (scope, label)));
+            // Authorize the key *before* acking so "Accepted" is truthful.
+            let decision = self.authorize(client, &mut recv).await;
             Ok::<_, AcceptError>((send, recv, decision))
         };
         let (mut send, recv, decision) =
@@ -425,10 +397,9 @@ impl ProtocolHandler for RoamingAcpHandler {
                 }
             };
         match decision {
-            Ok((scope, label)) => {
+            Ok(label) => {
                 let agent_id = self.server.agent_id();
                 let ack = HostAck::Accepted {
-                    scope,
                     agent_id: agent_id.clone(),
                 };
                 if let Err(e) = send_ack(&mut send, &ack).await {
@@ -437,22 +408,11 @@ impl ProtocolHandler for RoamingAcpHandler {
                 }
                 self.node
                     .directory
-                    .record_connect(
-                        client,
-                        label,
-                        Direction::Inbound,
-                        scope,
-                        Some(agent_id),
-                        now_ms(),
-                    )
+                    .record_connect(client, label, Direction::Inbound, Some(agent_id), now_ms())
                     .await;
                 let recv_box: Box<dyn AsyncRead + Send + Unpin> = Box::new(recv.compat());
                 let send_box: Box<dyn AsyncWrite + Send + Unpin> = Box::new(send.compat_write());
-                if let Err(e) = self
-                    .server
-                    .serve_stream(client, scope, recv_box, send_box)
-                    .await
-                {
+                if let Err(e) = self.server.serve_stream(client, recv_box, send_box).await {
                     tracing::warn!("roaming: ACP session ended with error: {e}");
                 }
                 self.node
@@ -475,13 +435,13 @@ impl ProtocolHandler for RoamingAcpHandler {
 impl RoamingAcpHandler {
     /// Authorize a connection purely by the transport-authenticated peer key.
     /// The peer's identity is already proven by QUIC-TLS; this only checks the
-    /// allowlist and reads the granted scope. The [`ClientHello`] carries just a
-    /// display label — nothing trusted for authorization.
+    /// allowlist. The [`ClientHello`] carries just a display label — nothing
+    /// trusted for authorization. Returns the sanitized label on success.
     async fn authorize(
         &self,
         client: EndpointId,
         recv: &mut iroh::endpoint::RecvStream,
-    ) -> Result<(Scope, Option<String>), String> {
+    ) -> Result<Option<String>, String> {
         let hello_bytes = read_frame(recv).await.map_err(|e| e.to_string())?;
         let hello: ClientHello =
             serde_json::from_slice(&hello_bytes).map_err(|e| format!("bad hello: {e}"))?;
@@ -510,9 +470,11 @@ impl RoamingAcpHandler {
         if trust.is_key_revoked(&client) {
             return Err("revoked".to_string());
         }
-        let scope = trust.scope_for(&client).ok_or("not_allowlisted")?;
+        if !trust.is_allowed(&client) {
+            return Err("not_allowlisted".to_string());
+        }
 
-        Ok((scope, hello.label.and_then(sanitize_label)))
+        Ok(hello.label.and_then(sanitize_label))
     }
 }
 

@@ -13,8 +13,8 @@
 //!   public key + relay URLs (plus a short fingerprint for out-of-band
 //!   verification). It never expires and grants nothing on its own.
 //! * [`TrustBook`] — the local, mutual allowlist: which peer keys this node
-//!   accepts and with what [`Scope`], plus revocations. Access exists only by
-//!   accepting a key; there is no bearer token.
+//!   accepts, plus revocations. Access exists only by accepting a key; there is
+//!   no bearer token. An accepted peer gets goose's full ACP surface.
 //! * [`RoamingNode`] — owns the iroh endpoint + router, hosts agents over the
 //!   `goose-acp/1` ALPN, and dials remote agents.
 //!
@@ -23,7 +23,6 @@
 //! implements by calling goose's generic `acp::server::serve`. This keeps the
 //! heavy iroh dependency out of the `goose` core crate entirely.
 
-mod broker;
 mod card;
 mod directory;
 mod error;
@@ -33,10 +32,8 @@ mod identity;
 mod node;
 mod peerbook;
 mod relay;
-mod scope;
 mod trust;
 
-pub use broker::{Refused, Role, Route, Router, SubscriberId};
 pub use card::ConnectionCard;
 pub use directory::{Direction, Directory, PeerEntry};
 #[doc(inline)]
@@ -55,5 +52,4 @@ pub use node::{
 };
 pub use peerbook::{PeerBook, PeerRecord};
 pub use relay::{RelayEntry, RelaySettings};
-pub use scope::Scope;
 pub use trust::TrustBook;

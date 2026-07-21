@@ -18,8 +18,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::scope::Scope;
-
 /// First message a connecting client sends. Carries no credential — the
 /// client's identity is the key the transport authenticated.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -32,8 +30,8 @@ pub struct ClientHello {
 /// Host's response to a [`ClientHello`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HostAck {
-    /// Connection accepted with the granted scope.
-    Accepted { scope: Scope, agent_id: String },
+    /// Connection accepted; the client gets goose's full ACP surface.
+    Accepted { agent_id: String },
     /// Connection refused with a coarse reason code.
     Rejected { code: String },
 }
