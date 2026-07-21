@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r#"(?:^|\s|[;&|(`/"'])(?:format[ \t]+|mkfs\.[a-z][a-z0-9]*[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"|[ \t]+)*?)(?:[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|'[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?'(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|"[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?"(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$))"#,
+        pattern: r#"(?:^|[\s;&|(`/"'])(?P<command>(?:[^\s;&|()`"']*[/\\])?(?:format|mkfs\.[a-z][a-z0-9]*))[ \t]+"#,
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -317,79 +317,176 @@ static COMPILED_PATTERNS: LazyLock<HashMap<&'static str, Regex>> = LazyLock::new
     patterns
 });
 
-fn trim_shell_delimiters(word: &str) -> &str {
-    word.trim_matches(|character: char| {
-        matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
-    })
+#[derive(Debug)]
+struct ShellWord {
+    value: String,
+    end: usize,
 }
 
-fn is_non_writing_ext_format_match(matched_text: &str) -> bool {
-    let mut words = matched_text.split_ascii_whitespace();
-    let is_ext_command = words.any(|word| {
-        let word = trim_shell_delimiters(word);
-        let command = word
-            .rsplit(|character| ['/', '\\'].contains(&character))
-            .next()
-            .unwrap_or(word)
-            .to_ascii_lowercase();
-        matches!(command.as_str(), "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4")
-    });
+fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
+    let mut words = Vec::new();
+    let mut value = String::new();
+    let mut start = None;
+    let mut quote = None;
+    let mut characters = text.char_indices().peekable();
 
-    if !is_ext_command {
-        return false;
+    while let Some((index, character)) = characters.next() {
+        if let Some(active_quote) = quote {
+            if character == active_quote {
+                quote = None;
+            } else if character == '\\' && active_quote == '"' {
+                if let Some((_, escaped)) = characters.next() {
+                    value.push(escaped);
+                }
+            } else {
+                value.push(character);
+            }
+            continue;
+        }
+
+        if character == '\\' {
+            start.get_or_insert(index);
+            if let Some((_, escaped)) = characters.next() {
+                value.push(escaped);
+            }
+            continue;
+        }
+
+        if matches!(character, '\'' | '"') {
+            let remainder = text.get(index + character.len_utf8()..).unwrap_or_default();
+            if start.is_some() && !remainder.contains(character) {
+                break;
+            }
+            start.get_or_insert(index);
+            quote = Some(character);
+            continue;
+        }
+
+        if character == '\n' || matches!(character, ';' | '&' | '|' | '<' | '>' | ')' | '`') {
+            if start.take().is_some() {
+                words.push(ShellWord {
+                    value: std::mem::take(&mut value),
+                    end: index,
+                });
+            }
+            break;
+        }
+
+        if character == '#' && start.is_none() {
+            break;
+        }
+
+        if character.is_ascii_whitespace() {
+            if start.take().is_some() {
+                words.push(ShellWord {
+                    value: std::mem::take(&mut value),
+                    end: index,
+                });
+            }
+            continue;
+        }
+
+        start.get_or_insert(index);
+        value.push(character);
     }
 
+    if start.is_some() {
+        words.push(ShellWord {
+            value,
+            end: text.len(),
+        });
+    }
+
+    words
+}
+
+fn ext_option_takes_value(option: &str) -> bool {
+    matches!(
+        option,
+        "-b" | "-C"
+            | "-d"
+            | "-e"
+            | "-E"
+            | "-g"
+            | "-G"
+            | "-i"
+            | "-I"
+            | "-J"
+            | "-l"
+            | "-L"
+            | "-m"
+            | "-M"
+            | "-N"
+            | "-o"
+            | "-O"
+            | "-r"
+            | "-t"
+            | "-T"
+            | "-U"
+            | "-z"
+    )
+}
+
+fn is_non_writing_ext_option(option: &str) -> bool {
+    if matches!(option, "--help" | "--version") {
+        return true;
+    }
+
+    option
+        .strip_prefix('-')
+        .filter(|flags| !flags.is_empty() && !flags.starts_with('-'))
+        .is_some_and(|flags| {
+            flags
+                .chars()
+                .all(|flag| matches!(flag, 'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'))
+                && flags.chars().any(|flag| matches!(flag, 'n' | 'V'))
+        })
+}
+
+fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
+    let command = words
+        .first()?
+        .value
+        .rsplit(['/', '\\'])
+        .next()?
+        .to_ascii_lowercase();
+    let is_ext = matches!(command.as_str(), "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4");
+    let mut target = None;
     let mut skip_option_value = false;
-    words.any(|word| {
-        let flag = trim_shell_delimiters(word);
+    let mut options_ended = false;
+    let mut non_writing = false;
+
+    for word in &words[1..] {
         if skip_option_value {
             skip_option_value = false;
-            return false;
+            continue;
         }
-        if matches!(
-            flag,
-            "-b" | "-C"
-                | "-d"
-                | "-e"
-                | "-E"
-                | "-g"
-                | "-G"
-                | "-i"
-                | "-I"
-                | "-J"
-                | "-l"
-                | "-L"
-                | "-m"
-                | "-M"
-                | "-N"
-                | "-o"
-                | "-O"
-                | "-r"
-                | "-t"
-                | "-T"
-                | "-U"
-                | "-z"
-        ) {
-            skip_option_value = true;
-            return false;
+        if !options_ended && word.value == "--" {
+            options_ended = true;
+            continue;
         }
-        if matches!(flag, "--help" | "--version") {
-            return true;
+        if !options_ended && word.value.starts_with('-') {
+            if is_ext {
+                non_writing |= is_non_writing_ext_option(&word.value);
+                skip_option_value = ext_option_takes_value(&word.value);
+            }
+            continue;
         }
+        target.get_or_insert(word);
+    }
 
-        flag.strip_prefix('-')
-            .filter(|short_flags| !short_flags.is_empty() && !short_flags.starts_with('-'))
-            .is_some_and(|short_flags| {
-                short_flags.chars().all(|character| {
-                    matches!(
-                        character,
-                        'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'
-                    )
-                }) && short_flags
-                    .chars()
-                    .any(|character| matches!(character, 'n' | 'V'))
-            })
-    })
+    if non_writing {
+        None
+    } else {
+        target
+    }
+}
+
+fn is_system_drive(word: &str) -> bool {
+    static SYSTEM_DRIVE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)^[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?$").expect("valid system drive regex")
+    });
+    SYSTEM_DRIVE.is_match(word)
 }
 
 /// Pattern matcher for detecting security threats
@@ -409,14 +506,37 @@ impl PatternMatcher {
 
         for threat in THREAT_PATTERNS {
             if let Some(regex) = self.patterns.get(threat.name) {
+                if threat.name == "format_drive" {
+                    for captures in regex.captures_iter(text) {
+                        let Some(command_match) = captures.name("command") else {
+                            continue;
+                        };
+                        let Some(command_text) = text.get(command_match.start()..) else {
+                            continue;
+                        };
+                        let words = shell_words_until_boundary(command_text);
+                        let Some(target) = format_drive_target(&words) else {
+                            continue;
+                        };
+                        if !is_system_drive(&target.value) {
+                            continue;
+                        }
+                        let end_pos = command_match.start() + target.end;
+                        matches.push(PatternMatch {
+                            threat: threat.clone(),
+                            matched_text: text
+                                .get(command_match.start()..end_pos)
+                                .unwrap_or_default()
+                                .to_string(),
+                            start_pos: command_match.start(),
+                            end_pos,
+                        });
+                    }
+                    continue;
+                }
                 if regex.is_match(text) {
                     // Find all matches to get position information
                     for regex_match in regex.find_iter(text) {
-                        if threat.name == "format_drive"
-                            && is_non_writing_ext_format_match(regex_match.as_str())
-                        {
-                            continue;
-                        }
                         matches.push(PatternMatch {
                             threat: threat.clone(),
                             matched_text: regex_match.as_str().to_string(),
@@ -521,6 +641,8 @@ mod tests {
         assert!(!matches(pat, "mkfs.ext4 -V /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -Fn /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L -n /dev/sda1"));
+        assert!(matches(pat, r"mkfs.ext4 -L foo\ -n /dev/sda1"));
+        assert!(!matches(pat, "mkfs.ext4 /tmp/image -L /dev/sda"));
         assert!(!matches(pat, "mkfs.ext4 --help\necho /dev/sda1"));
         assert!(!matches(pat, "echo $(mkfs.ext4 --help) /dev/sda"));
         assert!(!matches(pat, "stat --format '%n %s' /dev/sda"));
