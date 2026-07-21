@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r"(format|mkfs\.[a-z]+)\s+[/\\]dev[/\\][sh]d[a-z]",
+        pattern: r"(format|mkfs\.[a-z][a-z0-9]*)\s+[/\\]dev[/\\][sh]d[a-z]",
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -391,6 +391,31 @@ mod tests {
             .scan_for_patterns(input)
             .iter()
             .any(|m| m.threat.name == pattern_name)
+    }
+
+    #[test]
+    fn format_drive_matches_digit_bearing_filesystem_types() {
+        let pat = "format_drive";
+        assert!(matches(pat, "mkfs.ext2 /dev/hda"));
+        assert!(matches(pat, "mkfs.ext3 /dev/sdb"));
+        assert!(matches(pat, "mkfs.ext4 /dev/sda"));
+        assert!(matches(pat, "mkfs.f2fs /dev/sdc"));
+    }
+
+    #[test]
+    fn format_drive_preserves_letter_only_types() {
+        let pat = "format_drive";
+        assert!(matches(pat, "mkfs.xfs /dev/sda"));
+        assert!(matches(pat, "MKFS.EXT4 /dev/sda"));
+    }
+
+    #[test]
+    fn format_drive_ignores_non_drive_targets_and_similar_tools() {
+        let pat = "format_drive";
+        assert!(!matches(pat, "mkfs.ext4 ./disk.img"));
+        assert!(!matches(pat, "mkfs.ext4 /tmp/disk.img"));
+        assert!(!matches(pat, "mkfs.ext4 /dev/null"));
+        assert!(!matches(pat, "mkfs.ext4-image /dev/sda"));
     }
 
     #[test]
