@@ -759,6 +759,14 @@ impl Provider for OpenAiProvider {
                 Ok(super::base::stream_from_single_message(message, usage))
             }
         } else {
+            let thinking_preservation_format =
+                model_config.reasoning.as_ref().and_then(|r| match r {
+                    goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
+                        c.thinking_preservation_format
+                    }
+                    _ => None,
+                });
+
             let payload = create_request_with_options(
                 model_config,
                 system,
@@ -767,15 +775,9 @@ impl Provider for OpenAiProvider {
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
                 OpenAiFormatOptions {
-                    preserve_thinking_context: self.preserve_thinking_context,
-                    thinking_preservation_format: model_config.reasoning.as_ref().and_then(|r| {
-                        match r {
-                            goose_provider_types::base::Reasoning::ReasoningConfig(c) => {
-                                c.thinking_preservation_format
-                            }
-                            _ => None,
-                        }
-                    }),
+                    preserve_thinking_context: self.preserve_thinking_context
+                        || thinking_preservation_format.is_some(),
+                    thinking_preservation_format,
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload, model_config);
