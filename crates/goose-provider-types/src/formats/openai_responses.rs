@@ -389,6 +389,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -436,6 +437,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::ToolResponse(response) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -517,6 +519,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -556,6 +559,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         if !text_items.is_empty() {
             input_items.push(json!({
+                "type": "message",
                 "role": role,
                 "content": text_items
             }));
@@ -581,6 +585,7 @@ pub fn create_responses_request(
 
     if !system.is_empty() {
         input_items.push(json!({
+            "type": "message",
             "role": "system",
             "content": [{
                 "type": "input_text",
@@ -1354,16 +1359,12 @@ mod tests {
 
         let types: Vec<&str> = input
             .iter()
-            .map(|item| {
-                item.get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| item["role"].as_str().unwrap())
-            })
+            .map(|item| item["type"].as_str().unwrap())
             .collect();
 
         assert_eq!(
             types,
-            vec!["assistant", "function_call", "assistant", "function_call"]
+            vec!["message", "function_call", "message", "function_call"]
         );
     }
 

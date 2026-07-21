@@ -37,7 +37,7 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 fn is_meta_provider(provider: &str) -> bool {
     matches!(
         provider,
-        "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure"
+        "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure" | "azure_foundry"
     )
 }
 
@@ -45,7 +45,7 @@ pub fn map_provider_name(provider: &str) -> &str {
     match provider {
         // Goose provider names that differ from models.dev names
         "xai" => "x-ai",
-        "azure_openai" => "azure",
+        "azure_openai" | "azure_foundry" => "azure",
         "aws_bedrock" => "amazon-bedrock",
         "gcp_vertex_ai" => "google-vertex",
         "gemini_oauth" => "google",
@@ -418,6 +418,10 @@ mod tests {
         );
         assert_eq!(
             map_to_canonical_model("azure", "gpt-4o", r),
+            Some("openai/gpt-4o".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("azure_foundry", "gpt-4o", r),
             Some("openai/gpt-4o".to_string())
         );
 

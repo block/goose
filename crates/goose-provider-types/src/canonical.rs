@@ -65,10 +65,10 @@ pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
         .collect()
 }
 
-/// Providers that run models locally — their cost is always zero regardless
-/// of what the canonical registry says for the underlying model architecture.
-fn is_local_provider(provider: &str) -> bool {
-    matches!(provider, "ollama" | "local")
+/// Catalog pricing is not valid for local inference or Azure Foundry deployments.
+/// Azure billing depends on deployment region, SKU, offer, and contract.
+fn should_clear_catalog_pricing(provider: &str) -> bool {
+    matches!(provider, "ollama" | "local" | "azure_foundry")
 }
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
@@ -81,9 +81,7 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
         return None;
     };
 
-    // Local providers run models on the user's own hardware — zero out cloud
-    // pricing so every consumer (CLI, server, etc.) sees the correct cost.
-    if is_local_provider(provider) {
+    if should_clear_catalog_pricing(provider) {
         canonical.cost = Pricing::default();
     }
 
@@ -106,6 +104,15 @@ mod tests {
             canonical.limit.context > 0,
             "context limit should be preserved"
         );
+    }
+
+    #[test]
+    fn azure_foundry_models_retain_limits_without_catalog_pricing() {
+        let canonical = maybe_get_canonical_model("azure_foundry", "gpt-5")
+            .expect("gpt-5 should resolve through the Azure catalog");
+        assert_eq!(canonical.limit.context, 400_000);
+        assert_eq!(canonical.cost.input, None);
+        assert_eq!(canonical.cost.output, None);
     }
 
     #[test]
