@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r"(format|mkfs\.[a-z][a-z0-9]*)\s+[/\\]dev[/\\][sh]d[a-z]([0-9]+)?(\s|[;&|<>]|$)",
+        pattern: r"(format|mkfs\.[a-z][a-z0-9]*)\s+[/\\]dev[/\\][sh]d[a-z]([0-9]+)?(\s|[;&|<>)`]|$)",
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -409,6 +409,8 @@ mod tests {
         assert!(matches(pat, "mkfs.ext4 /dev/hdb12 && reboot"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda1>/tmp/mkfs.log"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda</dev/null"));
+        assert!(matches(pat, "echo $(mkfs.ext4 /dev/sda1)"));
+        assert!(matches(pat, "echo `mkfs.ext4 /dev/sda`"));
         assert!(!matches(pat, "mkfs.ext4 /dev/sda-volume"));
         assert!(!matches(pat, "mkfs.ext4 /dev/sdaa"));
     }
