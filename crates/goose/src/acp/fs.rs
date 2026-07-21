@@ -16,7 +16,9 @@ use agent_client_protocol::{Client, ConnectionTo};
 use agent_client_protocol_schema::v1::TerminalId;
 use async_trait::async_trait;
 use fs_err as fs;
-use rmcp::model::{CallToolResult, ContentBlock as RmcpContent, Tool, ToolAnnotations};
+use rmcp::model::{
+    Annotations, CallToolResult, ContentBlock as RmcpContent, TextContent, Tool, ToolAnnotations,
+};
 use schemars::schema_for;
 use std::path::Path;
 use std::sync::Arc;
@@ -82,8 +84,14 @@ fn create_terminal_request(
         .output_byte_limit(OUTPUT_LIMIT_BYTES as u64)
 }
 
+fn visible_text(text: impl Into<String>) -> RmcpContent {
+    RmcpContent::Text(
+        TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+    )
+}
+
 fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
-    CallToolResult::error(vec![RmcpContent::text(msg.to_string())])
+    CallToolResult::error(vec![visible_text(msg.to_string())])
 }
 
 fn fail(action: &str, path: &str, err: impl std::fmt::Display) -> CallToolResult {
@@ -147,7 +155,7 @@ impl AcpTools {
         );
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
-            Ok(content) => Ok(CallToolResult::success(vec![RmcpContent::text(content)])),
+            Ok(content) => Ok(CallToolResult::success(vec![visible_text(content)])),
             Err(e) => Ok(fail("read", &params.path, e)),
         }
     }
@@ -179,7 +187,7 @@ impl AcpTools {
                 );
                 let line_count = params.content.lines().count();
                 let action = if path.exists() { "Wrote" } else { "Created" };
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
+                Ok(CallToolResult::success(vec![visible_text(format!(
                     "{action} {} ({line_count} lines)",
                     params.path
                 ))]))
@@ -231,7 +239,7 @@ impl AcpTools {
                 );
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
+                Ok(CallToolResult::success(vec![visible_text(format!(
                     "Edited {} ({old_lines} lines -> {new_lines} lines)",
                     params.path
                 ))]))
@@ -295,8 +303,8 @@ impl AcpTools {
             .unwrap_or_default();
 
         let content = vec![
-            RmcpContent::text(format!("exit code: {exit_code}")),
-            RmcpContent::text(output_res.output),
+            visible_text(format!("exit code: {exit_code}")),
+            visible_text(output_res.output),
         ];
 
         if exit_code != 0 {

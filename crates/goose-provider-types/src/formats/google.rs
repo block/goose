@@ -348,9 +348,9 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .get("totalTokenCount")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
-        // promptTokenCount already includes cachedContentBlockTokenCount
+        // promptTokenCount already includes cachedContentTokenCount
         let cached_tokens = usage_meta_data
-            .get("cachedContentBlockTokenCount")
+            .get("cachedContentTokenCount")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
         Ok(Usage::new(input_tokens, output_tokens, total_tokens)
@@ -737,7 +737,7 @@ mod tests {
                 "promptTokenCount": 100,
                 "candidatesTokenCount": 20,
                 "totalTokenCount": 120,
-                "cachedContentBlockTokenCount": 80
+                "cachedContentTokenCount": 80
             }
         });
         let usage = get_usage(&data).unwrap();

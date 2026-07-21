@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -33,6 +33,12 @@ pub struct FileEditParams {
 
 pub struct EditTools;
 
+fn visible_text(text: impl Into<String>) -> ContentBlock {
+    ContentBlock::Text(
+        TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+    )
+}
+
 impl EditTools {
     pub fn new() -> Self {
         Self
@@ -48,9 +54,9 @@ impl EditTools {
         match fs::read_to_string(&path) {
             Ok(content) => {
                 let content = apply_line_limit(&content, params.line, params.limit);
-                CallToolResult::success(vec![ContentBlock::text(content)])
+                CallToolResult::success(vec![visible_text(content)])
             }
-            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
+            Err(error) => CallToolResult::error(vec![visible_text(format!(
                 "Failed to read {}: {}",
                 params.path, error
             ))]),
@@ -71,7 +77,7 @@ impl EditTools {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
                 if let Err(error) = fs::create_dir_all(parent) {
-                    return CallToolResult::error(vec![ContentBlock::text(format!(
+                    return CallToolResult::error(vec![visible_text(format!(
                         "Failed to create directory {}: {}",
                         parent.display(),
                         error
@@ -86,12 +92,12 @@ impl EditTools {
             Ok(()) => {
                 let line_count = params.content.lines().count();
                 let action = if is_new { "Created" } else { "Wrote" };
-                CallToolResult::success(vec![ContentBlock::text(format!(
+                CallToolResult::success(vec![visible_text(format!(
                     "{} {} ({} lines)",
                     action, params.path, line_count
                 ))])
             }
-            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
+            Err(error) => CallToolResult::error(vec![visible_text(format!(
                 "Failed to write {}: {}",
                 params.path, error
             ))]),
@@ -112,7 +118,7 @@ impl EditTools {
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(error) => {
-                return CallToolResult::error(vec![ContentBlock::text(format!(
+                return CallToolResult::error(vec![visible_text(format!(
                     "Failed to read {}: {}",
                     params.path, error
                 ))]);
@@ -122,19 +128,19 @@ impl EditTools {
         let new_content = match string_replace(&content, &params.before, &params.after) {
             Ok(c) => c,
             Err(msg) => {
-                return CallToolResult::error(vec![ContentBlock::text(msg)]);
+                return CallToolResult::error(vec![visible_text(msg)]);
             }
         };
         match fs::write(&path, &new_content) {
             Ok(()) => {
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
-                CallToolResult::success(vec![ContentBlock::text(format!(
+                CallToolResult::success(vec![visible_text(format!(
                     "Edited {} ({} lines -> {} lines)",
                     params.path, old_lines, new_lines
                 ))])
             }
-            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
+            Err(error) => CallToolResult::error(vec![visible_text(format!(
                 "Failed to write {}: {}",
                 params.path, error
             ))]),

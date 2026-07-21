@@ -9,10 +9,9 @@ use reqwest::{Client, Url};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        Annotations, CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation,
-        InitializeResult, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
-        TextContent,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
+        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
+        Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -22,7 +21,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tokio::process::Command;
 
-#[cfg(target_os = "macos")]
 #[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -1201,9 +1199,12 @@ impl ComputerControllerServer {
 
         contents.insert(
             0,
-            ContentBlock::Text(TextContent::new(&text).with_annotations(
-                Annotations::default().with_audience(vec![rmcp::model::Role::Assistant]),
-            )),
+            ContentBlock::Text(
+                rmcp::model::TextContent::new(&text).with_annotations(
+                    rmcp::model::Annotations::default()
+                        .with_audience(vec![rmcp::model::Role::Assistant]),
+                ),
+            ),
         );
 
         Ok(CallToolResult::success(contents))
