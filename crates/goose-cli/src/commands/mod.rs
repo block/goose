@@ -9,8 +9,6 @@ pub mod review;
 #[cfg(feature = "roaming")]
 pub mod roam;
 #[cfg(feature = "roaming")]
-pub mod roam_bridge;
-#[cfg(feature = "roaming")]
 pub mod roam_client;
 #[cfg(feature = "roaming")]
 pub mod roam_proxy;

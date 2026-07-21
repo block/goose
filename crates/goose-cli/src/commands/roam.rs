@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
@@ -29,16 +29,48 @@ fn directory_path() -> std::path::PathBuf {
     Paths::state_dir().join("roaming_directory.json")
 }
 
+/// CLI surface for the roaming [`Scope`]. Kept separate so `goose-roaming`
+/// stays free of the clap dependency.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum ShareScope {
+    /// Drive the agent and answer tool-permission prompts (effectively remote
+    /// shell access). Only grant to trusted peers.
+    Control,
+    /// Send prompts/steer a shared session, but never answer permission prompts.
+    Attach,
+    /// Watch session activity read-only.
+    Observe,
+}
+
+impl From<ShareScope> for Scope {
+    fn from(value: ShareScope) -> Self {
+        match value {
+            ShareScope::Control => Scope::Control,
+            ShareScope::Attach => Scope::Attach,
+            ShareScope::Observe => Scope::Observe,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum RoamCommand {
     /// Host this machine's agent and print an invite token.
     ///
-    /// A shared agent grants full control (the connecting peer can drive the
-    /// agent and approve its tool use — effectively remote shell access), so
-    /// only ever share with peers you trust. Narrower capabilities (observe /
-    /// attach) are deferred until they can be enforced host-side; see the
-    /// roaming design doc.
+    /// By default a shared agent grants full control (the connecting peer can
+    /// drive the agent and approve its tool use — effectively remote shell
+    /// access), so only ever share `control` with peers you trust. Use
+    /// `--scope attach` or `--scope observe` to hand out narrower capabilities
+    /// that are enforced host-side.
     Share {
+        /// What a connecting peer may do:
+        /// `control` (default) drives the agent and answers tool-permission
+        /// prompts; `attach` may send prompts/steer but never answers permission
+        /// prompts; `observe` watches session activity read-only. Multiple peers
+        /// can share one live session — e.g. share `control` for yourself and
+        /// hand out `observe` invites for others to watch.
+        #[arg(long, value_enum, default_value_t = ShareScope::Control)]
+        scope: ShareScope,
+
         /// Invite lifetime in seconds.
         #[arg(long, default_value_t = 3600)]
         ttl: u64,
@@ -157,24 +189,14 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
             Ok(())
         }
         RoamCommand::Share {
+            scope,
             ttl,
             allow_keys,
             pair,
             builtins,
             cwd,
             session,
-        } => {
-            handle_share(
-                Scope::Control,
-                ttl,
-                allow_keys,
-                pair,
-                builtins,
-                cwd,
-                session,
-            )
-            .await
-        }
+        } => handle_share(scope.into(), ttl, allow_keys, pair, builtins, cwd, session).await,
         RoamCommand::Sessions => handle_sessions().await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,

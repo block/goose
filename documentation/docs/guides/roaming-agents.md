@@ -24,7 +24,8 @@ what sits on the connecting side.
 | Interactive | `roam connect` | a built-in terminal chat UI | drive a remote agent yourself |
 | One-shot | `roam delegate` | a non-interactive caller | send one task, get the answer back |
 | Bridge | `roam bridge` | a transparent ACP proxy | point *any* ACP client (goose desktop, Zed, an editor) at a remote agent |
-| Resume | `roam share --session` | (host side) a replayed session | share an existing local session / listen in |
+| Resume | `roam share --session` | (host side) a replayed session | share an existing local session |
+| Watch / co-drive | `roam share --scope observe\|attach` | one or more extra peers | let others listen in on, or help steer, one live session |
 
 :::note
 Roaming is an optional, experimental feature. It's available when goose is built
@@ -156,10 +157,37 @@ it expires (`--ttl <seconds>`, default 1 hour). For tighter control:
 | Limit the window | `goose roam share --ttl 300` |
 
 :::warning
-A shared agent grants **full control** — the connecting peer can run the agent's
-tools, including its shell. Only share with machines and people you trust, and
-prefer `--allow-key` or `--pair` over bearer invites when you can.
+By default a shared agent grants **full control** — the connecting peer can run
+the agent's tools, including its shell. Only share `control` with machines and
+people you trust, and prefer `--allow-key` or `--pair` over bearer invites when
+you can. Use a narrower `--scope` (below) when the peer doesn't need to drive.
 :::
+
+## Watching and co-driving a session
+
+Several peers can attach to **one** live session at the same time. The invite's
+scope decides what each may do:
+
+| `--scope` | Can watch updates | Can prompt / steer | Answers tool-permission prompts |
+|-----------|:-----------------:|:------------------:|:-------------------------------:|
+| `control` (default) | ✅ | ✅ | ✅ |
+| `attach` | ✅ | ✅ | ❌ |
+| `observe` | ✅ | ❌ | ❌ |
+
+Only one peer controls the session at a time (the host, or whoever it hands
+control to); everyone else watches the same `session/update` stream live. So you
+can keep a `control` invite for yourself and hand out `observe` invites for
+others to **listen in**:
+
+```bash
+# Host keeps control for itself and mints a read-only invite to share around:
+goose roam share --scope observe
+```
+
+Observers and attachers connect exactly like a controller — `goose roam connect
+'<token>'` — but their prompts are refused (`observe`) and permission prompts are
+never routed to them; those always go to the controller. This is the natural fit
+for pairing, demos, or an over-the-shoulder review of a running agent.
 
 ## Letting the agent reach other agents
 

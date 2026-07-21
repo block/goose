@@ -1,12 +1,12 @@
 //! Real ACP wire adapter that lets MULTIPLE roaming peers share ONE live goose
 //! session (see the "Wire adapter plan" in `goose_roaming::broker`).
 //!
-//! Unlike [`super::roam_bridge::GooseAcpBridge`], which spawns a fresh agent per
-//! accepted connection, this bridge runs a SINGLE ACP client against one live
-//! local agent (the *agent-facing half*) and re-serves ACP to every roaming
-//! peer (the *peer-facing half*), fanning out `session/update` notifications to
-//! all of them and funnelling prompts back, with only the current controller
-//! able to answer `session/request_permission`.
+//! It runs a SINGLE ACP client against one live local agent (the *agent-facing
+//! half*) and re-serves ACP to every roaming peer (the *peer-facing half*),
+//! fanning out `session/update` notifications to all of them and funnelling
+//! prompts back, with only the current controller able to answer
+//! `session/request_permission`. A single `control` peer is just the degenerate
+//! case of one controller and no observers.
 //!
 //! The transport-neutral routing policy lives in `goose_roaming` (`Router` /
 //! `SessionBroker`); this module is the thin ACP plumbing layered on top. It is
