@@ -493,9 +493,10 @@ fn format_option_takes_next_value(command: &str, option: &str) -> bool {
         return false;
     };
 
-    short_options.char_indices().any(|(index, flag)| {
-        format_option_value_flag(command, flag) && index + flag.len_utf8() == short_options.len()
-    })
+    short_options
+        .char_indices()
+        .find(|(_, flag)| format_option_value_flag(command, *flag))
+        .is_some_and(|(index, flag)| index + flag.len_utf8() == short_options.len())
 }
 
 fn is_non_writing_format_option(command: &str, option: &str) -> bool {
@@ -503,20 +504,22 @@ fn is_non_writing_format_option(command: &str, option: &str) -> bool {
         return true;
     }
 
-    match command {
-        "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => option
-            .strip_prefix('-')
-            .filter(|flags| !flags.is_empty() && !flags.starts_with('-'))
-            .is_some_and(|flags| {
-                flags
-                    .chars()
-                    .all(|flag| matches!(flag, 'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'))
-                    && flags.chars().any(|flag| matches!(flag, 'n' | 'V'))
-            }),
-        "mkfs.f2fs" => option == "-V",
-        "mkfs.xfs" => matches!(option, "-N" | "-V"),
-        _ => false,
-    }
+    let Some(short_options) = option
+        .strip_prefix('-')
+        .filter(|options| !options.is_empty() && !options.starts_with('-'))
+    else {
+        return false;
+    };
+
+    short_options
+        .chars()
+        .take_while(|flag| !format_option_value_flag(command, *flag))
+        .any(|flag| match command {
+            "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => matches!(flag, 'n' | 'V'),
+            "mkfs.f2fs" => flag == 'V',
+            "mkfs.xfs" => matches!(flag, 'N' | 'V'),
+            _ => false,
+        })
 }
 
 fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
@@ -719,7 +722,10 @@ mod tests {
         assert!(!matches(pat, "mkfs.ext4 -n /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -V /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -Fn /dev/sda1"));
+        assert!(!matches(pat, "mkfs.ext4 -nL data /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L -n /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L-n /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -LxN /dev/sda1"));
         assert!(matches(pat, r"mkfs.ext4 -L foo\ -n /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 /tmp/image -L /dev/sda"));
         assert!(!matches(pat, "mkfs.ext4 >/dev/sda1 /tmp/image"));
