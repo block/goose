@@ -1,5 +1,9 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
-import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
+import type {
+  RequestPermissionRequest,
+  SessionConfigOption,
+  SessionNotification,
+} from '@agentclientprotocol/sdk';
 import type { Message } from '../types/message';
 import {
   applyElicitationRequest as applyElicitationRequestToState,
@@ -97,9 +101,37 @@ function applyAcpSessionNotification(
 
       return changes;
     }
+    case 'config_option_update': {
+      const { current, options } = extractThinkingEffort(update.configOptions);
+      return [
+        {
+          type: 'thinkingEffort',
+          thinkingEffort: current,
+          thinkingEffortOptions: options,
+        },
+      ];
+    }
     case 'usage_update':
       return [];
     default:
       return [];
   }
+}
+
+export interface ExtractedThinkingEffort {
+  current: string | null;
+  options: string[] | null;
+}
+
+export function extractThinkingEffort(
+  configOptions: SessionConfigOption[]
+): ExtractedThinkingEffort {
+  const option = configOptions.find((configOption) => configOption.id === 'thinking_effort');
+  if (option?.type !== 'select') {
+    return { current: null, options: null };
+  }
+  const options = option.options
+    .map((selectOption) => ('value' in selectOption ? selectOption.value : null))
+    .filter((value): value is string => value !== null);
+  return { current: option.currentValue, options };
 }

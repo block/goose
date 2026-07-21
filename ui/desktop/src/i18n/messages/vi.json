@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Thư mục gần đây"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Mức độ suy nghĩ đã được đặt thành {effort} cho phiên này"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Mức độ suy nghĩ được đặt thành {effort} cho phiên này"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "cao"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "thấp"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "tối đa"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "trung bình"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Không thể cập nhật mức độ suy nghĩ. Vui lòng thử lại."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Chuyển mức độ suy nghĩ sang {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Gợi ý mức độ suy nghĩ"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Chấp nhận"
   },

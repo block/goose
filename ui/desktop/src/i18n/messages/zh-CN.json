@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目录"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "此会话的思考力度已经是{effort}"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "此会话的思考力度已设为{effort}"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "高"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "低"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "最大"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "中"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "无法更新思考力度,请重试。"
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "将思考力度切换为{effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "思考力度建议"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },

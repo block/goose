@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Cartelle recenti"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Lo sforzo di ragionamento è già impostato su {effort} per questa sessione"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Sforzo di ragionamento impostato su {effort} per questa sessione"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "alto"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "basso"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "massimo"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "medio"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Impossibile aggiornare lo sforzo di ragionamento. Riprova."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Imposta lo sforzo di ragionamento su {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Suggerimento sullo sforzo di ragionamento"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accetta"
   },

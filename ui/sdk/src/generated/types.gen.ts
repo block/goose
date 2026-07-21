@@ -2549,7 +2549,9 @@ export type GooseSessionUpdate = ({
     sessionUpdate: 'status_message';
 } & StatusMessageUpdate) | ({
     sessionUpdate: 'message_usage';
-} & MessageUsageUpdate);
+} & MessageUsageUpdate) | ({
+    sessionUpdate: 'effort_recommendation';
+} & EffortRecommendationUpdate);
 
 /**
  * Streaming context-window usage update for a session.
@@ -2613,6 +2615,34 @@ export type CostSourceData = 'provider_reported' | 'estimated';
 export type MessageUsageUpdate = {
     messageId?: string | null;
     usage: MessageUsageData;
+};
+
+/**
+ * Advisory difficulty estimate for the work remaining after a compaction,
+ * paired with the thinking-effort setting that matches it. Emitted only when
+ * the session's model can act on a thinking-effort setting. Clients may
+ * surface it as a nudge ("this looks hard - raise thinking effort?"); goose
+ * never applies it automatically, and like `StatusMessage` it is not
+ * transcript content and should not be persisted or replayed as history.
+ */
+export type EffortRecommendationUpdate = {
+    /**
+     * Estimated difficulty of the remaining work: "low" | "medium" | "high".
+     */
+    difficulty: string;
+    /**
+     * One-sentence justification from the compaction model.
+     */
+    reason: string;
+    /**
+     * Thinking-effort setting matching the difficulty, valid for the
+     * session's current model: "low" | "medium" | "high".
+     */
+    recommendedEffort: string;
+    /**
+     * The session's provider-effective thinking effort at compaction time.
+     */
+    currentEffort: string;
 };
 
 export type RequestRecipeParams_unstable = {

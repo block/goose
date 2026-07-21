@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "हाल की निर्देशिकाएँ"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "इस सत्र के लिए सोच-प्रयास पहले से ही {effort} पर सेट है"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "इस सत्र के लिए सोच-प्रयास {effort} पर सेट किया गया"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "उच्च"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "निम्न"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "अधिकतम"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "मध्यम"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "सोच-प्रयास अपडेट नहीं हो सका। कृपया फिर से प्रयास करें।"
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "सोच-प्रयास को {effort} पर बदलें"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "सोच-प्रयास का सुझाव"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "स्वीकार करो"
   },

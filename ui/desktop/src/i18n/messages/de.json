@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Zuletzt verwendete Verzeichnisse"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Der Denkaufwand für diese Sitzung ist bereits auf {effort} gesetzt"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Denkaufwand für diese Sitzung auf {effort} gesetzt"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "hoch"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "niedrig"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "maximal"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "mittel"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Der Denkaufwand konnte nicht aktualisiert werden. Bitte erneut versuchen."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Denkaufwand auf {effort} umstellen"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Vorschlag zum Denkaufwand"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Akzeptieren"
   },

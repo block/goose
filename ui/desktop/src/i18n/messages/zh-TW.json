@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近的目錄"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "此工作階段的思考強度已經是{effort}"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "此工作階段的思考強度已設為{effort}"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "高"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "低"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "最大"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "中"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "無法更新思考強度,請再試一次。"
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "將思考強度切換為{effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "思考強度建議"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "接受"
   },

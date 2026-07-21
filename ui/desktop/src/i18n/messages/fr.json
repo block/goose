@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Répertoires récents"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "L'effort de réflexion est déjà défini sur {effort} pour cette session"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Effort de réflexion défini sur {effort} pour cette session"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "élevé"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "faible"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "maximal"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "moyen"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Impossible de mettre à jour l'effort de réflexion. Veuillez réessayer."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Passer l'effort de réflexion à {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Suggestion d'effort de réflexion"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accepter"
   },

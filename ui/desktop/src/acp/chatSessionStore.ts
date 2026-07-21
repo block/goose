@@ -9,6 +9,7 @@ import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
   type AcpSessionNotificationAdapter,
+  type ExtractedThinkingEffort,
 } from './sessionNotificationAdapter';
 import type { ElicitationStatus } from './adapter/elicitations';
 import { cloneMessage } from './adapter/shared';
@@ -25,6 +26,8 @@ export interface AcpChatSessionSnapshot {
   activePromptAttemptId: string | null;
   activeRunId: string | null;
   pendingCancelPromptAttemptId: string | null;
+  thinkingEffort: string | null;
+  thinkingEffortOptions: string[] | null;
 }
 
 type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
@@ -71,7 +74,11 @@ export interface AcpChatSessionActions {
 
   setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
   startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
-  finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
+  finishSessionLoad(
+    sessionId: string,
+    session: Session,
+    thinkingEffort: ExtractedThinkingEffort
+  ): AcpChatSessionSnapshot;
   failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
   setSessionLoadError(
     sessionId: string,
@@ -163,6 +170,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       activePromptAttemptId: null,
       activeRunId: null,
       pendingCancelPromptAttemptId: null,
+      thinkingEffort: null,
+      thinkingEffortOptions: null,
       promptCancellationRestoreState: null,
       pendingUserInputRequestIds: new Set(),
       pendingLocalSteerMessageIds: new Set(),
@@ -199,9 +208,15 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const finishSessionLoad: AcpChatSessionActions['finishSessionLoad'] = (sessionId, session) => {
+  const finishSessionLoad: AcpChatSessionActions['finishSessionLoad'] = (
+    sessionId,
+    session,
+    thinkingEffort
+  ) => {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
+    entry.thinkingEffort = thinkingEffort.current;
+    entry.thinkingEffortOptions = thinkingEffort.options;
     entry.sessionLoadError = undefined;
     entry.progressMessage = undefined;
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
@@ -617,6 +632,10 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
         break;
+      case 'thinkingEffort':
+        entry.thinkingEffort = change.thinkingEffort;
+        entry.thinkingEffortOptions = change.thinkingEffortOptions;
+        break;
     }
   }
 }
@@ -637,6 +656,8 @@ function resetReplayState(entry: StoreEntry): void {
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.progressMessage = undefined;
+  entry.thinkingEffort = null;
+  entry.thinkingEffortOptions = null;
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
   entry.promptCancellationRestoreState = null;
@@ -717,6 +738,8 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     activePromptAttemptId: entry.activePromptAttemptId,
     activeRunId: entry.activeRunId,
     pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,
+    thinkingEffort: entry.thinkingEffort,
+    thinkingEffortOptions: entry.thinkingEffortOptions,
   };
 }
 

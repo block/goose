@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Son dizinler"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Bu oturum için düşünme eforu zaten {effort} olarak ayarlı"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Bu oturum için düşünme eforu {effort} olarak ayarlandı"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "yüksek"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "düşük"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "maksimum"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "orta"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Düşünme eforu güncellenemedi. Lütfen tekrar deneyin."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Düşünme eforunu {effort} olarak değiştir"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Düşünme eforu önerisi"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Kabul et"
   },

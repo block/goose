@@ -13,7 +13,12 @@ export type AcpChatStateChange =
       gooseMode?: string;
     }
   | { type: 'localSteerConfirmed'; messageId: string }
-  | { type: 'notification'; notification: NotificationEvent };
+  | { type: 'notification'; notification: NotificationEvent }
+  | {
+      type: 'thinkingEffort';
+      thinkingEffort: string | null;
+      thinkingEffortOptions: string[] | null;
+    };
 
 export interface AdapterState {
   messages: Message[];

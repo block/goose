@@ -198,6 +198,18 @@ export async function acpSaveThinkingEffort(effort: ThinkingEffort): Promise<voi
   });
 }
 
+export async function acpSetSessionThinkingEffort(
+  sessionId: string,
+  effort: ThinkingEffort
+): Promise<void> {
+  const client = await getAcpClient();
+  await client.setSessionConfigOption({
+    sessionId,
+    configId: 'thinking_effort',
+    value: effort,
+  });
+}
+
 export type AppliedSessionProviderModel = {
   providerId?: string;
   modelId?: string;

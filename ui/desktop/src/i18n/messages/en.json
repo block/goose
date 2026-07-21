@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Recent directories"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Thinking effort is already set to {effort} for this session"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Thinking effort set to {effort} for this session"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "high"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "low"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "max"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "medium"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Could not update the thinking effort. Please try again."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Switch thinking effort to {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Thinking effort suggestion"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Accept"
   },

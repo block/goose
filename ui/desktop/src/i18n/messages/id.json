@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Direktori terbaru"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "Upaya berpikir sudah disetel ke {effort} untuk sesi ini"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Upaya berpikir disetel ke {effort} untuk sesi ini"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "tinggi"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "rendah"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "maksimal"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "sedang"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Tidak dapat memperbarui upaya berpikir. Silakan coba lagi."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Ubah upaya berpikir ke {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Saran upaya berpikir"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Terima"
   },

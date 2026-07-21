@@ -521,6 +521,60 @@ describe('createAcpSessionNotificationAdapter', () => {
         });
       });
     });
+
+    describe('config option updates', () => {
+      it('extracts the current thinking effort from config option updates', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const changes = adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'config_option_update',
+            configOptions: [
+              {
+                type: 'select',
+                id: 'model',
+                name: 'Model',
+                currentValue: 'claude-sonnet-4-5',
+                options: [{ value: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' }],
+              },
+              {
+                type: 'select',
+                id: 'thinking_effort',
+                name: 'Thinking Effort',
+                currentValue: 'high',
+                options: [
+                  { value: 'medium', name: 'Medium' },
+                  { value: 'high', name: 'High' },
+                ],
+              },
+            ],
+          })
+        );
+
+        expect(changes).toEqual([
+          {
+            type: 'thinkingEffort',
+            thinkingEffort: 'high',
+            thinkingEffortOptions: ['medium', 'high'],
+          },
+        ]);
+      });
+
+      it('reports null when the thinking effort option is absent', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const changes = adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'config_option_update',
+            configOptions: [],
+          })
+        );
+
+        expect(changes).toEqual([
+          { type: 'thinkingEffort', thinkingEffort: null, thinkingEffortOptions: null },
+        ]);
+      });
+    });
   });
 
   describe('applyGoose', () => {
@@ -583,9 +637,7 @@ describe('createAcpSessionNotificationAdapter', () => {
           status: { type: 'progress', message: 'Still working' },
         })
       );
-      expect(progressStateChanges).toEqual([
-        { type: 'progressMessage', message: 'Still working' },
-      ]);
+      expect(progressStateChanges).toEqual([{ type: 'progressMessage', message: 'Still working' }]);
     });
   });
 

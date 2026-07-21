@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "最近のディレクトリ"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "このセッションの思考エフォートはすでに{effort}に設定されています"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "このセッションの思考エフォートを{effort}に設定しました"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "高"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "低"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "最大"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "中"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "思考エフォートを更新できませんでした。もう一度お試しください。"
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "思考エフォートを{effort}に切り替える"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "思考エフォートの提案"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "承諾"
   },

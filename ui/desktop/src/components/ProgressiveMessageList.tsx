@@ -26,6 +26,10 @@ import {
   CreditsExhaustedNotification,
   getCreditsExhaustedNotification,
 } from './context_management/CreditsExhaustedNotification';
+import {
+  EffortRecommendationNotification,
+  getEffortRecommendationNotification,
+} from './context_management/EffortRecommendationNotification';
 import type { Message, NotificationEvent, SystemNotificationContent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -127,19 +131,33 @@ export default function ProgressiveMessageList({
   );
 
   const getSystemNotification = (message: Message): SystemNotificationContent | undefined => {
-    return getCreditsExhaustedNotification(message) ?? getInlineSystemNotification(message);
+    return (
+      getCreditsExhaustedNotification(message) ??
+      getEffortRecommendationNotification(message) ??
+      getInlineSystemNotification(message)
+    );
   };
 
-  const renderSystemNotification = (notification: SystemNotificationContent) => {
-    switch (notification.notificationType) {
-      case 'creditsExhausted':
-        return <CreditsExhaustedNotification notification={notification} />;
-      case 'inlineMessage':
-        return <SystemNotificationInline notification={notification} />;
-      default:
-        return null;
-    }
-  };
+  const renderSystemNotification = useCallback(
+    (notification: SystemNotificationContent) => {
+      switch (notification.notificationType) {
+        case 'creditsExhausted':
+          return <CreditsExhaustedNotification notification={notification} />;
+        case 'effortRecommendation':
+          return (
+            <EffortRecommendationNotification
+              notification={notification}
+              sessionId={chat.sessionId}
+            />
+          );
+        case 'inlineMessage':
+          return <SystemNotificationInline notification={notification} />;
+        default:
+          return null;
+      }
+    },
+    [chat.sessionId]
+  );
 
   // Simple progressive loading - start immediately when component mounts if needed
   useEffect(() => {
@@ -324,6 +342,7 @@ export default function ProgressiveMessageList({
     getPreviousResolvedModel,
     getResolvedModel,
     renderModelChangeDisclosure,
+    renderSystemNotification,
   ]);
 
   return (

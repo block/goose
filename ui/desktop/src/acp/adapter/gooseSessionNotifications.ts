@@ -28,9 +28,44 @@ export function applyGooseSessionNotification(
       return applyStatusMessage(state, notification.sessionId, update);
     case 'message_usage':
       return applyMessageUsage(state, update);
+    case 'effort_recommendation':
+      return applyEffortRecommendation(state, notification.sessionId, update);
     default:
       return [];
   }
+}
+
+function applyEffortRecommendation(
+  state: AdapterState,
+  sessionId: string,
+  update: Extract<
+    GooseSessionNotification_unstable['update'],
+    { sessionUpdate: 'effort_recommendation' }
+  >
+): AcpChatStateChange[] {
+  state.messages.push({
+    id: `acp_effort_${sessionId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    role: 'assistant',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'systemNotification',
+        notificationType: 'effortRecommendation',
+        msg: update.reason,
+        data: {
+          difficulty: update.difficulty,
+          recommendedEffort: update.recommendedEffort,
+          currentEffort: update.currentEffort,
+        },
+      },
+    ],
+    metadata: {
+      userVisible: true,
+      agentVisible: false,
+    },
+  });
+
+  return messagesChange(state);
 }
 
 function applyStatusMessage(

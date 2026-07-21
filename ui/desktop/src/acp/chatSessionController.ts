@@ -106,14 +106,18 @@ async function createSession(
   gooseExtensions: GooseExtension[],
   recipe?: AcpRecipeOptions
 ): Promise<Session> {
-  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions, recipe);
+  const { sessionId, sessionInfo, meta, thinkingEffort } = await acpNewSession(
+    cwd,
+    gooseExtensions,
+    recipe
+  );
   const session = sessionInfoToSession(sessionInfo, meta);
 
   showExtensionLoadResults(meta.extensionResults);
   window.dispatchEvent(
     new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
   );
-  acpChatSessionActions.finishSessionLoad(sessionId, session);
+  acpChatSessionActions.finishSessionLoad(sessionId, session, thinkingEffort);
 
   return session;
 }
@@ -144,13 +148,17 @@ async function loadSessionFromServer(
   }
 
   try {
-    const { sessionInfo, meta } = await acpLoadSession(sessionId);
+    const { sessionInfo, meta, thinkingEffort } = await acpLoadSession(sessionId);
 
     showExtensionLoadResults(meta.extensionResults);
     window.dispatchEvent(
       new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
     );
-    acpChatSessionActions.finishSessionLoad(sessionId, sessionInfoToSession(sessionInfo, meta));
+    acpChatSessionActions.finishSessionLoad(
+      sessionId,
+      sessionInfoToSession(sessionInfo, meta),
+      thinkingEffort
+    );
     options.onSessionLoaded?.();
   } catch (error) {
     console.error('Failed to load ACP session:', error);

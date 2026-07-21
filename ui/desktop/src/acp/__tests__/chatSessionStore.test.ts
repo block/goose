@@ -206,7 +206,8 @@ describe('acpChatSessionStore', () => {
 
     const snapshot = acpChatSessionActions.finishSessionLoad(
       currentSessionId,
-      session(currentSessionId)
+      session(currentSessionId),
+      { current: null, options: null }
     );
 
     expect(snapshot.session?.id).toBe(currentSessionId);
@@ -272,7 +273,8 @@ describe('acpChatSessionStore', () => {
 
     const snapshot = acpChatSessionActions.finishSessionLoad(
       currentSessionId,
-      session(currentSessionId)
+      session(currentSessionId),
+      { current: null, options: null }
     );
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');

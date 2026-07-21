@@ -92,6 +92,7 @@ function mockLoadResult() {
     },
     response: {},
     meta: {},
+    thinkingEffort: { current: 'high', options: null },
   } as Awaited<ReturnType<typeof acpLoadSession>>;
 }
 
@@ -114,6 +115,8 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     activePromptAttemptId,
     activeRunId: activePromptAttemptId ? 'run-1' : null,
     pendingCancelPromptAttemptId: null,
+    thinkingEffort: null,
+    thinkingEffortOptions: null,
   };
 }
 
@@ -152,7 +155,8 @@ describe('acpChatSessionController.loadSession', () => {
     expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
     expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
       SESSION_ID,
-      loadedSession()
+      loadedSession(),
+      { current: 'high', options: null }
     );
   });
 
@@ -165,7 +169,8 @@ describe('acpChatSessionController.loadSession', () => {
     expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
     expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
       SESSION_ID,
-      loadedSession()
+      loadedSession(),
+      { current: 'high', options: null }
     );
   });
 
@@ -182,7 +187,8 @@ describe('acpChatSessionController.loadSession', () => {
     expect(acpLoadSession).toHaveBeenCalledWith(SESSION_ID);
     expect(acpChatSessionActions.finishSessionLoad).toHaveBeenCalledWith(
       SESSION_ID,
-      loadedSession()
+      loadedSession(),
+      { current: 'high', options: null }
     );
   });
 });

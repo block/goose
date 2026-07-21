@@ -7,6 +7,10 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
+import {
+  extractThinkingEffort,
+  type ExtractedThinkingEffort,
+} from './sessionNotificationAdapter';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import type { ExtensionLoadResult } from '../types/extensions';
 import type { Session } from '../types/session';
@@ -58,6 +62,7 @@ export interface AcpLoadSessionResult {
   sessionInfo: SessionInfo;
   response: LoadSessionResponse;
   meta: LoadSessionMeta;
+  thinkingEffort: ExtractedThinkingEffort;
 }
 
 const inFlightSessionLoads = new Map<string, Promise<AcpLoadSessionResult>>();
@@ -212,6 +217,7 @@ async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> 
     sessionInfo: sessionInfoResponse.session,
     response,
     meta: parseLoadMeta(response),
+    thinkingEffort: extractThinkingEffort(response.configOptions ?? []),
   };
 }
 
@@ -219,6 +225,7 @@ export interface AcpNewSessionResult {
   sessionId: string;
   sessionInfo: SessionInfo;
   meta: LoadSessionMeta;
+  thinkingEffort: ExtractedThinkingEffort;
 }
 
 export interface AcpRecipeOptions {
@@ -250,6 +257,7 @@ export async function acpNewSession(
     sessionId,
     sessionInfo: sessionInfoResponse.session,
     meta: parseSessionResponseMeta(response._meta),
+    thinkingEffort: extractThinkingEffort(response.configOptions ?? []),
   };
 }
 

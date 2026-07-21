@@ -139,6 +139,43 @@ describe('applyGooseSessionNotification', () => {
     });
   });
 
+  describe('effort_recommendation', () => {
+    it('appends a user-visible effort recommendation notification message', () => {
+      const state = makeState();
+
+      const changes = applyGooseSessionNotification(
+        state,
+        gooseUpdate({
+          sessionUpdate: 'effort_recommendation',
+          difficulty: 'high',
+          reason: 'The remaining work spans several coupled refactors.',
+          recommendedEffort: 'high',
+          currentEffort: 'low',
+        })
+      );
+
+      const messages = expectOnlyMessagesChange(changes);
+      expect(messages).toHaveLength(4);
+
+      const appended = messages[3];
+      expect(appended.role).toBe('assistant');
+      expect(appended.metadata).toEqual({ userVisible: true, agentVisible: false });
+      expect(appended.content).toEqual([
+        {
+          type: 'systemNotification',
+          notificationType: 'effortRecommendation',
+          msg: 'The remaining work spans several coupled refactors.',
+          data: {
+            difficulty: 'high',
+            recommendedEffort: 'high',
+            currentEffort: 'low',
+          },
+        },
+      ]);
+    });
+
+  });
+
   describe('usage_update', () => {
     it('still maps usage updates into token state', () => {
       const changes = applyGooseSessionNotification(

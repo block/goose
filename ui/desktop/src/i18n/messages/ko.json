@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "최근 디렉터리"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "이 세션의 사고 노력이 이미 {effort}(으)로 설정되어 있습니다"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "이 세션의 사고 노력이 {effort}(으)로 설정되었습니다"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "높음"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "낮음"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "최대"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "중간"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "사고 노력을 업데이트하지 못했습니다. 다시 시도해 주세요."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "사고 노력을 {effort}(으)로 전환"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "사고 노력 제안"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "수락"
   },

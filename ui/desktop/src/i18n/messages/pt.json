@@ -929,6 +929,33 @@
   "dirSwitcher.recentDirectories": {
     "defaultMessage": "Diretórios recentes"
   },
+  "effortRecommendationNotification.alreadySet": {
+    "defaultMessage": "O esforço de raciocínio já está definido como {effort} para esta sessão"
+  },
+  "effortRecommendationNotification.applied": {
+    "defaultMessage": "Esforço de raciocínio definido como {effort} para esta sessão"
+  },
+  "effortRecommendationNotification.effortHigh": {
+    "defaultMessage": "alto"
+  },
+  "effortRecommendationNotification.effortLow": {
+    "defaultMessage": "baixo"
+  },
+  "effortRecommendationNotification.effortMax": {
+    "defaultMessage": "máximo"
+  },
+  "effortRecommendationNotification.effortMedium": {
+    "defaultMessage": "médio"
+  },
+  "effortRecommendationNotification.failed": {
+    "defaultMessage": "Não foi possível atualizar o esforço de raciocínio. Tente novamente."
+  },
+  "effortRecommendationNotification.switchEffort": {
+    "defaultMessage": "Mudar o esforço de raciocínio para {effort}"
+  },
+  "effortRecommendationNotification.title": {
+    "defaultMessage": "Sugestão de esforço de raciocínio"
+  },
   "elicitationRequest.accept": {
     "defaultMessage": "Aceitar"
   },

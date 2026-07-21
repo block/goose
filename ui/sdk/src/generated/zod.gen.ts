@@ -2777,6 +2777,21 @@ export const zMessageUsageUpdate = z.object({
 });
 
 /**
+ * Advisory difficulty estimate for the work remaining after a compaction,
+ * paired with the thinking-effort setting that matches it. Emitted only when
+ * the session's model can act on a thinking-effort setting. Clients may
+ * surface it as a nudge ("this looks hard - raise thinking effort?"); goose
+ * never applies it automatically, and like `StatusMessage` it is not
+ * transcript content and should not be persisted or replayed as history.
+ */
+export const zEffortRecommendationUpdate = z.object({
+    difficulty: z.string(),
+    reason: z.string(),
+    recommendedEffort: z.string(),
+    currentEffort: z.string()
+});
+
+/**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
@@ -2793,7 +2808,10 @@ export const zGooseSessionUpdate = z.union([
     }).and(zStatusMessageUpdate),
     z.object({
         sessionUpdate: z.literal('message_usage')
-    }).and(zMessageUsageUpdate)
+    }).and(zMessageUsageUpdate),
+    z.object({
+        sessionUpdate: z.literal('effort_recommendation')
+    }).and(zEffortRecommendationUpdate)
 ]);
 
 /**
