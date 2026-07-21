@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r#"(?:^|\s|[;&|(`/"'])(?:format[ \t]+|mkfs\.[a-z][a-z0-9]*[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"|[ \t]+)*?)(?:[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?(?:[ \t]+(?:[0-9]+|-[^ \t\n;&|<>)`"'#]+))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|'[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?'(?:[ \t]+(?:[0-9]+|-[^ \t\n;&|<>)`"'#]+))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|"[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?"(?:[ \t]+(?:[0-9]+|-[^ \t\n;&|<>)`"'#]+))*[ \t]*(?:\n|[;&|<>)`"'#]|$))"#,
+        pattern: r#"(?:^|\s|[;&|(`/"'])(?:format[ \t]+|mkfs\.[a-z][a-z0-9]*[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"|[ \t]+)*?)(?:[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|'[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?'(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$)|"[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?"(?:(?:[ \t]+[0-9]+)|(?:[ \t]+-[^ \t\n;&|<>)`"'#]+(?:[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"))?))*[ \t]*(?:\n|[;&|<>)`"'#]|$))"#,
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -417,6 +417,8 @@ mod tests {
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1 4096"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda1 -F"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda1 -F -q"));
+        assert!(matches(pat, "mkfs.ext4 /dev/sda1 -L data"));
+        assert!(matches(pat, "mkfs.ext4 /dev/sda1 -L 'x;y'"));
         assert!(matches(pat, "mkfs.ext4 -q -L data /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L 'x;y' /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L \"x|y\" /dev/sda1"));
