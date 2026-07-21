@@ -1,16 +1,20 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::{AgentEvent, ExtensionConfig, SessionConfig};
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::execution::manager::AgentManager;
+use crate::permission::permission_confirmation::PrincipalType;
+use crate::permission::{Permission, PermissionConfirmation};
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
@@ -42,6 +46,9 @@ pub struct GatewayHandler {
     pairing_store: Arc<PairingStore>,
     gateway: Arc<dyn Gateway>,
     config: GatewayConfig,
+    /// Tracks users who have a tool-confirmation prompt awaiting their reply.
+    /// Maps a platform user to the pending confirmation request ID.
+    pending_confirmations: Arc<Mutex<HashMap<PlatformUser, String>>>,
 }
 
 impl GatewayHandler {
@@ -56,6 +63,7 @@ impl GatewayHandler {
             pairing_store,
             gateway,
             config,
+            pending_confirmations: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -117,9 +125,69 @@ impl GatewayHandler {
                 }
             }
             PairingState::Paired { session_id, .. } => {
-                self.relay_to_session(&message, &session_id).await?;
+                if let Some(request_id) = self
+                    .pending_confirmations
+                    .lock()
+                    .await
+                    .remove(&message.user)
+                {
+                    self.handle_pending_confirmation(&message, &session_id, request_id)
+                        .await?;
+                } else {
+                    self.relay_to_session(&message, &session_id).await?;
+                }
             }
         }
+
+        Ok(())
+    }
+
+    /// Handle a user reply to a pending tool-confirmation prompt.
+    async fn handle_pending_confirmation(
+        &self,
+        message: &IncomingMessage,
+        session_id: &str,
+        request_id: String,
+    ) -> anyhow::Result<()> {
+        let text = message.text.trim().to_lowercase();
+        let permission = match text.as_str() {
+            "approve" | "yes" | "y" => Some(Permission::AllowOnce),
+            "approve always" => Some(Permission::AlwaysAllow),
+            "deny" | "no" | "n" => Some(Permission::DenyOnce),
+            "deny always" => Some(Permission::AlwaysDeny),
+            _ => None,
+        };
+
+        let Some(permission) = permission else {
+            self.pending_confirmations
+                .lock()
+                .await
+                .insert(message.user.clone(), request_id);
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Text {
+                        body: "Please reply with: approve, approve always, deny, or deny always."
+                            .into(),
+                    },
+                )
+                .await?;
+            return Ok(());
+        };
+
+        let agent = self
+            .agent_manager
+            .get_or_create_agent(session_id.to_string())
+            .await?;
+        agent
+            .handle_confirmation(
+                request_id,
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission,
+                },
+            )
+            .await;
 
         Ok(())
     }
@@ -473,6 +541,60 @@ impl GatewayHandler {
                                         success = resp.tool_result.is_ok(),
                                         "gateway stream: tool response"
                                     );
+                                }
+                                MessageContent::ActionRequired(action_required) => {
+                                    if let ActionRequiredData::ToolConfirmation {
+                                        id,
+                                        tool_name,
+                                        arguments,
+                                        prompt,
+                                    } = &action_required.data
+                                    {
+                                        // Flush pending text so the user sees context first.
+                                        if !pending_text.is_empty() {
+                                            let _ = self
+                                                .gateway
+                                                .send_message(
+                                                    &message.user,
+                                                    OutgoingMessage::Text {
+                                                        body: std::mem::take(&mut pending_text),
+                                                    },
+                                                )
+                                                .await;
+                                        }
+
+                                        let args_display = serde_json::to_string_pretty(arguments)
+                                            .unwrap_or_default();
+                                        let mut approval_text = format!(
+                                            "🔐 Approval required\n\nTool: {tool_name}\nArguments:\n{args_display}"
+                                        );
+                                        if let Some(p) = prompt {
+                                            approval_text.push_str(&format!("\n\n{p}"));
+                                        }
+                                        approval_text.push_str(
+                                            "\n\nReply with:\n\
+                                             • approve — allow once\n\
+                                             • approve always — always allow\n\
+                                             • deny — deny once\n\
+                                             • deny always — always deny",
+                                        );
+
+                                        let _ = self
+                                            .gateway
+                                            .send_message(
+                                                &message.user,
+                                                OutgoingMessage::Text {
+                                                    body: approval_text,
+                                                },
+                                            )
+                                            .await;
+                                        sent_any = true;
+
+                                        self.pending_confirmations
+                                            .lock()
+                                            .await
+                                            .insert(message.user.clone(), id.clone());
+                                    }
                                 }
                                 _ => {}
                             }
