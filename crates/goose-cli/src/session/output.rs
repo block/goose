@@ -2,6 +2,7 @@ use anstream::println;
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
+use goose::context_mgmt::EffortRecommendation;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
     ToolRequest, ToolResponse,
@@ -380,6 +381,53 @@ pub fn render_message_streaming(
     }
 
     let _ = std::io::stdout().flush();
+}
+
+pub fn render_effort_recommendation(
+    recommendation: &EffortRecommendation,
+    model_config: Option<&goose_providers::model::ModelConfig>,
+) {
+    hide_thinking();
+    let reason = if recommendation.reason.is_empty() {
+        String::new()
+    } else {
+        format!(": {}", recommendation.reason)
+    };
+    println!(
+        "\n{} Remaining work looks {} difficulty{}",
+        style("·").dim(),
+        style(recommendation.difficulty).bold(),
+        reason,
+    );
+    // Suggest a mechanism only when it would actually apply: /model effort
+    // suffixes exist only for OpenAI reasoning models, and GOOSE_THINKING_EFFORT
+    // is overridden by any explicit session effort.
+    let how = model_config.and_then(|config| {
+        if config.is_openai_reasoning_model() {
+            Some(format!(
+                "`/model {}-{}`",
+                config.model_name, recommendation.recommended_effort
+            ))
+        } else if config.thinking_effort().is_none() {
+            Some(format!(
+                "`GOOSE_THINKING_EFFORT={}`",
+                recommendation.recommended_effort
+            ))
+        } else {
+            None
+        }
+    });
+    let hint = match how {
+        Some(how) => format!(
+            "  Consider raising thinking effort to {} ({}).",
+            recommendation.recommended_effort, how
+        ),
+        None => format!(
+            "  Consider raising thinking effort to {}.",
+            recommendation.recommended_effort
+        ),
+    };
+    println!("{}", style(hint).dim());
 }
 
 fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {

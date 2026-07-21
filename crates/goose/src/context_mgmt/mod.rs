@@ -1,6 +1,6 @@
 pub mod structured;
 
-use crate::context_mgmt::structured::StructuredSummary;
+use crate::context_mgmt::structured::{DifficultyLevel, ForwardDifficulty, StructuredSummary};
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
@@ -13,6 +13,7 @@ use anyhow::Result;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
@@ -60,6 +61,84 @@ pub struct CompactionResult {
     /// compaction. Smaller than the billable output when the raw response was
     /// rewritten to the rendered structured summary.
     pub retained_context_tokens: i32,
+    /// The compaction model's estimate of how hard the remaining work is.
+    /// `None` when the model omitted it, produced garbage, or the response
+    /// was unstructured - the summary itself is unaffected either way.
+    pub forward_difficulty: Option<ForwardDifficulty>,
+}
+
+/// Advisory nudge pairing the compaction model's difficulty estimate with the
+/// thinking-effort setting that matches it. Delivered to clients as a signal;
+/// never applied automatically - the user stays in control.
+#[derive(Debug, Clone)]
+pub struct EffortRecommendation {
+    pub difficulty: DifficultyLevel,
+    pub reason: String,
+    pub recommended_effort: ThinkingEffort,
+    /// The provider-effective effort the session runs at, which the
+    /// recommendation is a raise over - not the raw configured value.
+    pub current_effort: ThinkingEffort,
+}
+
+/// A recommendation is made only when the provider's request formatting
+/// actually maps a `thinking_effort` for the session's model
+/// ([`Provider::maps_thinking_effort`]) and the estimate calls for more
+/// effort than the provider actually runs with
+/// ([`Provider::effective_thinking_effort`]). An explicit `Off` (the user
+/// opted out) is second-guessed only by a `High` estimate; sessions pinning
+/// an explicit thinking budget are never nudged (the budget overrides any
+/// effort); downward and `Low` recommendations are never made. Providers may
+/// coalesce adjacent effort levels, so a nudge can still be a behavioral
+/// no-op on some models - acceptable for an advisory hint.
+pub fn build_effort_recommendation(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    difficulty: &ForwardDifficulty,
+    current_effort: Option<ThinkingEffort>,
+) -> Option<EffortRecommendation> {
+    if !model_config.is_reasoning_model() || !provider.maps_thinking_effort(model_config) {
+        return None;
+    }
+    if current_effort == Some(ThinkingEffort::Off) && difficulty.level != DifficultyLevel::High {
+        return None;
+    }
+    // Explicit reasoning request params pin the request's reasoning behavior
+    // directly (each formatter lets them override any effort-derived value),
+    // so an effort nudge would not change the request.
+    const REASONING_PIN_PARAMS: [&str; 4] = [
+        "budget_tokens",
+        "thinking_budget",
+        "reasoning",
+        "reasoning_effort",
+    ];
+    if REASONING_PIN_PARAMS.iter().any(|param| {
+        model_config
+            .request_param::<serde_json::Value>(param)
+            .is_some()
+    }) {
+        return None;
+    }
+    let recommended = match difficulty.level {
+        DifficultyLevel::Low => ThinkingEffort::Low,
+        DifficultyLevel::Medium => ThinkingEffort::Medium,
+        DifficultyLevel::High => ThinkingEffort::High,
+    };
+    let effective_current = provider.effective_thinking_effort(model_config, current_effort);
+    if recommended <= effective_current {
+        return None;
+    }
+    // Only reachable when the model defaults to thinking-off (Gemini 3, most
+    // Claude models): enabling thinking because the remaining work looks easy
+    // is noise.
+    if recommended == ThinkingEffort::Low {
+        return None;
+    }
+    Some(EffortRecommendation {
+        difficulty: difficulty.level,
+        reason: difficulty.reason.clone(),
+        recommended_effort: recommended,
+        current_effort: effective_current,
+    })
 }
 
 /// Compact messages by summarizing them
@@ -133,7 +212,7 @@ pub async fn compact_messages(
 
     let messages_to_compact = messages.as_slice();
 
-    let (summary_message, summarization_usage) =
+    let (summary_message, summarization_usage, forward_difficulty) =
         do_compact(provider, model_config, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
@@ -182,6 +261,7 @@ pub async fn compact_messages(
         conversation,
         usage: summarization_usage,
         retained_context_tokens,
+        forward_difficulty,
     })
 }
 
@@ -319,7 +399,7 @@ async fn do_compact(
     model_config: &ModelConfig,
     session_id: &str,
     messages: &[Message],
-) -> Result<(Message, ProviderUsage), anyhow::Error> {
+) -> Result<(Message, ProviderUsage, Option<ForwardDifficulty>), anyhow::Error> {
     let agent_visible_messages =
         Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
@@ -371,9 +451,9 @@ async fn do_compact(
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-                apply_structured_summary(&mut response);
+                let forward_difficulty = apply_structured_summary(&mut response);
 
-                return Ok((response, provider_usage));
+                return Ok((response, provider_usage, forward_difficulty));
             }
             Err(e) => {
                 if matches!(e, ProviderError::ContextLengthExceeded(_)) {
@@ -397,11 +477,14 @@ async fn do_compact(
 
 /// When the model didn't follow the structured output format (schema-ignoring
 /// models, user-customized prompts), the raw response text is kept unchanged
-/// as the summary.
-fn apply_structured_summary(response: &mut Message) {
-    let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
-        return;
-    };
+/// as the summary. The difficulty estimate is returned even when rendering
+/// falls back to raw output: it parsed fine, and the raw text is still a
+/// complete summary. On these raw-fallback paths any difficulty text the
+/// model emitted remains part of the agent-visible summary, like every other
+/// structured field; only the rendered template excludes it.
+fn apply_structured_summary(response: &mut Message) -> Option<ForwardDifficulty> {
+    let summary = StructuredSummary::parse(&response.as_concat_text())?;
+    let forward_difficulty = summary.forward_difficulty.clone();
     match summary.render() {
         Ok(rendered) if !rendered.trim().is_empty() => {
             response.content = vec![MessageContent::text(rendered)];
@@ -414,6 +497,7 @@ fn apply_structured_summary(response: &mut Message) {
             e
         ),
     }
+    forward_difficulty
 }
 
 pub fn format_message_for_compacting(msg: &Message) -> String {
@@ -808,7 +892,8 @@ mod tests {
   "user_intent": ["Fix the parser bug"],
   "files": [{"path": "src/parser.rs", "summary": "Fixed off-by-one"}],
   "pending_tasks": ["Add a regression test"],
-  "current_work": "Writing the regression test"
+  "current_work": "Writing the regression test",
+  "forward_difficulty": {"reason": "Only a routine regression test remains", "level": "low"}
 }
 ```"#;
         let provider =
@@ -846,6 +931,14 @@ mod tests {
         assert!(
             compaction.usage.usage.output_tokens.is_some(),
             "billable output tokens must survive the rewrite"
+        );
+        let difficulty = compaction
+            .forward_difficulty
+            .expect("difficulty estimate should surface on the compaction result");
+        assert_eq!(difficulty.level, DifficultyLevel::Low);
+        assert!(
+            !summary_text.contains("Only a routine regression test remains"),
+            "difficulty must not leak into the agent-visible summary"
         );
     }
 
@@ -1083,6 +1176,138 @@ mod tests {
             "Should succeed with progressive removal: {:?}",
             result.err()
         );
+    }
+
+    fn estimate(level: DifficultyLevel) -> ForwardDifficulty {
+        ForwardDifficulty {
+            level,
+            reason: "because".to_string(),
+        }
+    }
+
+    fn nudge(
+        model: &ModelConfig,
+        level: DifficultyLevel,
+        current: Option<ThinkingEffort>,
+    ) -> Option<EffortRecommendation> {
+        let provider = MockProvider::new(Message::assistant(), 100_000);
+        build_effort_recommendation(&provider, model, &estimate(level), current)
+    }
+
+    #[test]
+    fn effort_recommendation_requires_a_model_that_maps_thinking_effort() {
+        let non_reasoning = ModelConfig::new("plain-model");
+        assert!(!non_reasoning.is_reasoning_model());
+        assert!(
+            nudge(&non_reasoning, DifficultyLevel::High, None).is_none(),
+            "must never suggest a setting the current model can't use"
+        );
+
+        let mut unmapped = ModelConfig::new("deepseek-reasoner");
+        unmapped.reasoning = Some(true);
+        assert!(
+            nudge(&unmapped, DifficultyLevel::High, None).is_none(),
+            "the OpenAI-compatible formatter drops thinking_effort for this model, \
+             so applying the nudge would change nothing"
+        );
+    }
+
+    #[test]
+    fn effort_recommendation_uses_model_family_defaults_when_effort_is_unset() {
+        let claude = ModelConfig::new("claude-sonnet-4-5-20250929");
+        let recommendation = nudge(&claude, DifficultyLevel::High, None)
+            .expect("a default Anthropic session runs with thinking disabled, so high is a raise");
+        assert_eq!(recommendation.recommended_effort, ThinkingEffort::High);
+        assert_eq!(recommendation.current_effort, ThinkingEffort::Off);
+
+        let always_on = ModelConfig::new("claude-fable-5");
+        assert!(
+            nudge(&always_on, DifficultyLevel::High, None).is_none(),
+            "an always-on adaptive Anthropic session already thinks at high"
+        );
+        assert!(
+            nudge(&always_on, DifficultyLevel::High, Some(ThinkingEffort::Off)).is_none(),
+            "always-on adaptive models ignore Off and still think at high"
+        );
+
+        let budget_pinned = ModelConfig::new("claude-sonnet-4-5-20250929")
+            .with_merged_request_params(std::collections::HashMap::from([(
+                "budget_tokens".to_string(),
+                serde_json::json!(32000),
+            )]));
+        assert!(
+            nudge(&budget_pinned, DifficultyLevel::High, None).is_none(),
+            "an explicit thinking budget overrides effort, so a nudge would be a no-op"
+        );
+
+        let reasoning_pinned = ModelConfig::new("gpt-5").with_merged_request_params(
+            std::collections::HashMap::from([(
+                "reasoning".to_string(),
+                serde_json::json!({"max_tokens": 2000}),
+            )]),
+        );
+        assert!(
+            nudge(&reasoning_pinned, DifficultyLevel::High, None).is_none(),
+            "an explicit reasoning request param overrides effort, so a nudge would be a no-op"
+        );
+
+        let gemini = ModelConfig::new("gemini-3-flash");
+        let recommendation = nudge(&gemini, DifficultyLevel::Medium, None)
+            .expect("default Gemini 3 runs with thinking off, so medium is a raise");
+        assert_eq!(recommendation.recommended_effort, ThinkingEffort::Medium);
+        assert_eq!(recommendation.current_effort, ThinkingEffort::Off);
+        assert!(
+            nudge(&gemini, DifficultyLevel::Low, None).is_none(),
+            "enabling thinking for easy remaining work is noise"
+        );
+        assert!(
+            nudge(&gemini, DifficultyLevel::Medium, Some(ThinkingEffort::Low)).is_none(),
+            "Gemini 3 maps low and medium to the same thinking level, so this changes nothing"
+        );
+
+        let pinned_high = ModelConfig::new("gpt-5-pro");
+        assert!(
+            nudge(
+                &pinned_high,
+                DifficultyLevel::High,
+                Some(ThinkingEffort::Off)
+            )
+            .is_none(),
+            "gpt-5-pro only supports high; Off can't be expressed, so it already runs at high"
+        );
+    }
+
+    #[test]
+    fn effort_recommendation_only_raises_effort() {
+        let model = ModelConfig::new("gpt-5");
+        assert!(model.is_reasoning_model());
+        let build = |level, current| nudge(&model, level, current);
+
+        // Unknown current effort resolves to the OpenAI API default, medium.
+        let nudge = build(DifficultyLevel::High, None).expect("high beats the medium default");
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::High);
+        assert_eq!(nudge.current_effort, ThinkingEffort::Medium);
+        assert_eq!(nudge.difficulty, DifficultyLevel::High);
+        assert_eq!(nudge.reason, "because");
+        assert!(build(DifficultyLevel::Medium, None).is_none());
+        assert!(build(DifficultyLevel::Low, None).is_none());
+
+        let nudge = build(DifficultyLevel::Medium, Some(ThinkingEffort::Low))
+            .expect("medium beats an explicit low");
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
+        assert_eq!(nudge.current_effort, ThinkingEffort::Low);
+
+        // Matching or higher current effort: nothing to nudge, never downward.
+        assert!(build(DifficultyLevel::High, Some(ThinkingEffort::High)).is_none());
+        assert!(build(DifficultyLevel::High, Some(ThinkingEffort::Max)).is_none());
+        assert!(build(DifficultyLevel::Low, Some(ThinkingEffort::Medium)).is_none());
+
+        // An explicit opt-out of thinking is second-guessed only by `high`.
+        assert!(build(DifficultyLevel::Low, Some(ThinkingEffort::Off)).is_none());
+        assert!(build(DifficultyLevel::Medium, Some(ThinkingEffort::Off)).is_none());
+        let nudge = build(DifficultyLevel::High, Some(ThinkingEffort::Off))
+            .expect("high overrides an explicit off");
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::High);
     }
 
     #[test]

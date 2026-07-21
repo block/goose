@@ -552,6 +552,12 @@ impl Provider for GithubCopilotProvider {
         &self.name
     }
 
+    /// Non-OpenAI models go through the OpenAI chat-completions formatter,
+    /// which ignores `thinking_effort` for them.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        model_config.is_openai_reasoning_model()
+    }
+
     async fn complete(
         &self,
         model_config: &ModelConfig,

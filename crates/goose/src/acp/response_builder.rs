@@ -1,5 +1,6 @@
 use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
+use crate::providers::base::Provider;
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::session_manager::SessionUsageTotals;
 use crate::session::Session;
@@ -235,6 +236,7 @@ pub(super) fn build_mode_state(
 pub(super) async fn build_session_setup_config(
     provider_inventory: &ProviderInventoryService,
     session: &Session,
+    provider: Option<&dyn Provider>,
 ) -> Result<(SessionModeState, Option<Vec<SessionConfigOption>>), agent_client_protocol::Error> {
     let mode_state = build_mode_state(session.goose_mode)?;
 
@@ -257,6 +259,7 @@ pub(super) async fn build_session_setup_config(
         &mode_state,
         &model_state,
         model_config,
+        provider,
         provider_selection,
         provider_options,
     );
@@ -267,6 +270,7 @@ pub(super) fn build_config_options(
     mode_state: &SessionModeState,
     model_state: &ModelSelection,
     model_config: &ModelConfig,
+    provider: Option<&dyn Provider>,
     provider_selection: &str,
     provider_options: Vec<SessionConfigSelectOption>,
 ) -> Vec<SessionConfigOption> {
@@ -290,7 +294,7 @@ pub(super) fn build_config_options(
             SessionConfigSelectOption::new(effort.clone(), effort)
         })
         .collect::<Vec<_>>();
-    let current_thinking_effort = current_thinking_effort_value(model_config);
+    let current_thinking_effort = current_thinking_effort_value(model_config, provider);
     vec![
         SessionConfigOption::select(
             "provider",
@@ -337,16 +341,21 @@ fn thinking_effort_values(model_config: &ModelConfig) -> &'static [ThinkingEffor
     }
 }
 
-fn current_thinking_effort_value(model_config: &ModelConfig) -> String {
-    if model_config.is_reasoning_model() {
-        model_config
-            .thinking_effort()
-            .or_else(|| Config::global().get_goose_thinking_effort())
-            .map(|effort| effort.to_string())
-            .unwrap_or_else(|| "off".to_string())
-    } else {
-        "off".to_string()
+fn current_thinking_effort_value(
+    model_config: &ModelConfig,
+    provider: Option<&dyn Provider>,
+) -> String {
+    if !model_config.is_reasoning_model() {
+        return "off".to_string();
     }
+    let configured = model_config
+        .thinking_effort()
+        .or_else(|| Config::global().get_goose_thinking_effort());
+    match provider {
+        Some(provider) => provider.effective_thinking_effort(model_config, configured),
+        None => model_config.effective_thinking_effort(configured),
+    }
+    .to_string()
 }
 
 fn slash_command_meta(entry: &SlashCommandEntry) -> serde_json::Map<String, serde_json::Value> {
@@ -653,6 +662,7 @@ mod tests {
             &mode_state,
             &model_state,
             &model_config,
+            None,
             provider_name,
             provider_options,
         )
@@ -661,8 +671,8 @@ mod tests {
     #[test]
     fn test_build_config_options_uses_current_thinking_effort() {
         let mode_state = build_mode_state(GooseMode::Auto).unwrap();
-        let model_state = model_selection("claude-sonnet-4", &["claude-sonnet-4"]);
-        let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
+        let model_state = model_selection("claude-sonnet-4-5", &["claude-sonnet-4-5"]);
+        let model_config = ModelConfig::new("claude-sonnet-4-5").with_merged_request_params(
             std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("high"),
@@ -673,6 +683,7 @@ mod tests {
             &mode_state,
             &model_state,
             &model_config,
+            None,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
         );
@@ -702,6 +713,7 @@ mod tests {
             &mode_state,
             &model_state,
             &model_config,
+            None,
             "openai",
             vec![SessionConfigSelectOption::new("openai", "openai")],
         );

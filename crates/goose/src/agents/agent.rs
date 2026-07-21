@@ -31,7 +31,8 @@ use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+    build_effort_recommendation, check_if_compaction_needed, compact_messages,
+    EffortRecommendation, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
@@ -274,6 +275,20 @@ pub enum AgentEvent {
     },
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
+    /// Advisory difficulty-based thinking-effort nudge from a compaction.
+    /// Not transcript content; consumers that don't surface it ignore it.
+    EffortRecommendation(EffortRecommendation),
+}
+
+/// The effective thinking effort the session runs with, mirroring how
+/// `reply_parts` resolves it at request time: an explicit model-config value,
+/// else the global config setting.
+fn effective_thinking_effort(
+    model_config: &goose_providers::model::ModelConfig,
+) -> Option<goose_providers::thinking::ThinkingEffort> {
+    model_config
+        .thinking_effort()
+        .or_else(|| Config::global().get_goose_thinking_effort())
 }
 
 fn project_message_for_user_event(message: &Message) -> Message {
@@ -907,6 +922,34 @@ impl Agent {
             .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
         crate::model_config::model_config_from_user_config(&provider_name, &model_name)
             .map_err(|e| anyhow!("Could not resolve model config: {e}"))
+    }
+
+    /// The reply loop captures its model config once per prompt; refresh just
+    /// the thinking effort from the session so a mid-run change (e.g.
+    /// accepting an effort nudge after compaction) applies from the next
+    /// provider call instead of the next prompt.
+    async fn model_config_with_session_thinking_effort(
+        &self,
+        session_id: &str,
+        model_config: &goose_providers::model::ModelConfig,
+    ) -> goose_providers::model::ModelConfig {
+        let session_effort = match self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+        {
+            Ok(session) => session
+                .model_config
+                .and_then(|config| config.thinking_effort()),
+            Err(_) => None,
+        };
+        match session_effort {
+            Some(effort) if model_config.thinking_effort() != Some(effort) => {
+                model_config.clone().with_thinking_effort(effort)
+            }
+            _ => model_config.clone(),
+        }
     }
 
     /// When set, all stdio extensions will be started via `docker exec` in the specified container.
@@ -1800,8 +1843,9 @@ impl Agent {
                 );
 
                 let compact_model_config = self.model_config_for_session(&session_config.id).await?;
+                let compact_provider = self.provider().await?;
                 match compact_messages(
-                    self.provider().await?.as_ref(),
+                    compact_provider.as_ref(),
                     &compact_model_config,
                     &session_config.id,
                     &conversation_to_compact,
@@ -1822,6 +1866,17 @@ impl Agent {
                                 "Compaction complete",
                             )
                         );
+
+                        if let Some(recommendation) = compaction.forward_difficulty.as_ref().and_then(|difficulty| {
+                            build_effort_recommendation(
+                                compact_provider.as_ref(),
+                                &compact_model_config,
+                                difficulty,
+                                effective_thinking_effort(&compact_model_config),
+                            )
+                        }) {
+                            yield AgentEvent::EffortRecommendation(recommendation);
+                        }
 
                         compacted_conversation
                     }
@@ -2033,7 +2088,7 @@ impl Agent {
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
-                    model_config.clone(),
+                    self.model_config_with_session_thinking_effort(&session_config.id, &model_config).await,
                     &session_config.id,
                     &system_prompt,
                     conversation_with_moim.messages(),
@@ -2559,9 +2614,13 @@ impl Agent {
                                 )
                             );
 
+                            let recovery_model_config = self
+                                .model_config_with_session_thinking_effort(&session_config.id, &model_config)
+                                .await;
+                            let recovery_provider = self.provider().await?;
                             match compact_messages(
-                                self.provider().await?.as_ref(),
-                                &model_config,
+                                recovery_provider.as_ref(),
+                                &recovery_model_config,
                                 &session_config.id,
                                 &conversation,
                                 false,
@@ -2574,6 +2633,16 @@ impl Agent {
                                     conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
+                                    if let Some(recommendation) = compaction.forward_difficulty.as_ref().and_then(|difficulty| {
+                                        build_effort_recommendation(
+                                            recovery_provider.as_ref(),
+                                            &recovery_model_config,
+                                            difficulty,
+                                            effective_thinking_effort(&recovery_model_config),
+                                        )
+                                    }) {
+                                        yield AgentEvent::EffortRecommendation(recommendation);
+                                    }
                                     break;
                                 }
                                 Err(e) => {
@@ -4023,7 +4092,8 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 AgentEvent::McpNotification(_)
                 | AgentEvent::HistoryReplaced(_)
                 | AgentEvent::Usage(_)
-                | AgentEvent::MessageUsage { .. } => {}
+                | AgentEvent::MessageUsage { .. }
+                | AgentEvent::EffortRecommendation(_) => {}
             }
         }
         Ok(messages)

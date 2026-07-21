@@ -15,6 +15,7 @@ use crate::{
     model::ModelConfig,
     permission::PermissionConfirmation,
     retry::RetryConfig,
+    thinking::ThinkingEffort,
 };
 
 /// Metadata about a provider's configuration requirements and capabilities
@@ -408,6 +409,25 @@ pub trait Provider: Send + Sync {
     /// session). The default returns the limit derived from the model config.
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         Ok(model_config.context_limit())
+    }
+
+    /// The thinking effort this provider actually runs with for the session's
+    /// configured value. Providers whose unset default differs from the model
+    /// family's (e.g. Codex runs unset sessions at high) override this.
+    fn effective_thinking_effort(
+        &self,
+        model_config: &ModelConfig,
+        configured: Option<ThinkingEffort>,
+    ) -> ThinkingEffort {
+        model_config.effective_thinking_effort(configured)
+    }
+
+    /// Whether this provider's request formatting maps a configured
+    /// `thinking_effort` for the given model. The default assumes the model
+    /// family's native formatter; providers that route every model through a
+    /// single formatter (OpenAI-compatible proxies, OpenRouter) override it.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        model_config.maps_thinking_effort()
     }
 
     fn retry_config(&self) -> RetryConfig {

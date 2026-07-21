@@ -296,6 +296,13 @@ impl Provider for SnowflakeProvider {
         &self.name
     }
 
+    /// The Snowflake Cortex request format carries no thinking/reasoning
+    /// configuration, so a configured `thinking_effort` never reaches the
+    /// wire.
+    fn maps_thinking_effort(&self, _model_config: &ModelConfig) -> bool {
+        false
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(SNOWFLAKE_KNOWN_MODELS
             .iter()

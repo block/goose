@@ -204,6 +204,10 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        model_config.is_openai_reasoning_model()
+    }
+
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         if let Some(limit) = model_config.context_limit {
             return Ok(limit);

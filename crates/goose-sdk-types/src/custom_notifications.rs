@@ -26,13 +26,15 @@ pub struct GooseSessionNotification {
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
         "status_message": "#/$defs/StatusMessageUpdate",
-        "message_usage": "#/$defs/MessageUsageUpdate"
+        "message_usage": "#/$defs/MessageUsageUpdate",
+        "effort_recommendation": "#/$defs/EffortRecommendationUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
     MessageUsage(MessageUsageUpdate),
+    EffortRecommendation(EffortRecommendationUpdate),
 }
 
 impl Default for GooseSessionUpdate {
@@ -100,6 +102,26 @@ pub enum CostSourceData {
     ProviderReported,
     /// Cost computed from the canonical pricing table.
     Estimated,
+}
+
+/// Advisory difficulty estimate for the work remaining after a compaction,
+/// paired with the thinking-effort setting that matches it. Emitted only when
+/// the session's model can act on a thinking-effort setting. Clients may
+/// surface it as a nudge ("this looks hard - raise thinking effort?"); goose
+/// never applies it automatically, and like `StatusMessage` it is not
+/// transcript content and should not be persisted or replayed as history.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EffortRecommendationUpdate {
+    /// Estimated difficulty of the remaining work: "low" | "medium" | "high".
+    pub difficulty: String,
+    /// One-sentence justification from the compaction model.
+    pub reason: String,
+    /// Thinking-effort setting matching the difficulty, valid for the
+    /// session's current model: "low" | "medium" | "high".
+    pub recommended_effort: String,
+    /// The session's provider-effective thinking effort at compaction time.
+    pub current_effort: String,
 }
 
 /// Live UI/session status. This is not conversation transcript content, and
@@ -173,6 +195,35 @@ mod tests {
                         "type": "notice",
                         "message": "Compaction complete"
                     }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn effort_recommendation_serializes_to_expected_wire_shape() {
+        let notification = GooseSessionNotification {
+            session_id: "s1".to_string(),
+            update: GooseSessionUpdate::EffortRecommendation(EffortRecommendationUpdate {
+                difficulty: "high".to_string(),
+                reason: "The failing race condition is still undiagnosed".to_string(),
+                recommended_effort: "high".to_string(),
+                current_effort: "medium".to_string(),
+            }),
+        };
+
+        let value = serde_json::to_value(notification).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "sessionId": "s1",
+                "update": {
+                    "sessionUpdate": "effort_recommendation",
+                    "difficulty": "high",
+                    "reason": "The failing race condition is still undiagnosed",
+                    "recommendedEffort": "high",
+                    "currentEffort": "medium"
                 }
             })
         );

@@ -30,7 +30,11 @@ After the closing `</analysis>` tag, output exactly one ```json code block and n
   "user_messages": ["all user messages, truncating long tool call arguments or results"],
   "pending_tasks": ["all unresolved user requests, most important first"],
   "current_work": "active work at summary request time: filenames, code, alignment to latest instruction",
-  "next_step": "include only if it directly continues a user instruction, otherwise omit"
+  "next_step": "include only if it directly continues a user instruction, otherwise omit",
+  "forward_difficulty": {
+    "reason": "one sentence citing the concrete remaining work that drives the rating",
+    "level": "low | medium | high"
+  }
 }
 ```
 
@@ -43,3 +47,4 @@ Rules for the JSON:
 - Do not exclude any information that might be important to continuing a session working with you
 - Omit a field rather than inventing content for it
 - No new ideas unless user confirmed
+- `forward_difficulty` rates only the work still ahead (`pending_tasks`, `current_work`, `next_step`), never the work already done: pick the lowest level of reasoning effort sufficient to finish it reliably. `low` = what remains is mechanical and fully understood (wrap-up, small localized edits, rerunning a verified fix). `high` = an undiagnosed failure, repeated failed attempts, an open design decision, or large changes whose scope is still unknown. `medium` = neither extreme. Write `reason` before `level`, citing evidence from the conversation; when torn between two levels pick the higher; omit the field if no work remains

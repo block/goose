@@ -235,9 +235,114 @@ impl ModelConfig {
             || Self::is_gemini3_reasoning_model_name(&self.model_name)
     }
 
+    /// Whether the request formatters map a configured `thinking_effort` for
+    /// this model: OpenAI responses models, Claude models that can emit
+    /// thinking (see `claude_thinking_available`), and Gemini 3. A canonical
+    /// `reasoning` flag alone doesn't imply this - other reasoning models
+    /// (Gemini 2.5, DeepSeek, ...) ignore the setting.
+    pub fn maps_thinking_effort(&self) -> bool {
+        self.is_openai_reasoning_model()
+            || (self.model_name.to_lowercase().contains("claude")
+                && self.claude_thinking_available())
+            || Self::is_gemini3_reasoning_model_name(&self.model_name)
+    }
+
+    /// Mirrors `formats::anthropic`: thinking stays off unless the model is
+    /// flagged as reasoning-capable, and budget-based (non-adaptive) thinking
+    /// is dropped when `max_tokens` can't fit the minimum thinking budget
+    /// plus the minimum answer budget.
+    fn claude_thinking_available(&self) -> bool {
+        let canonical = crate::canonical::maybe_get_canonical_model("anthropic", &self.model_name);
+        let reasoning = self
+            .reasoning
+            .or_else(|| canonical.as_ref().and_then(|model| model.reasoning));
+        if reasoning != Some(true) {
+            return false;
+        }
+        let adaptive = matches!(
+            canonical.and_then(|model| model.thinking_mode),
+            Some(
+                crate::canonical::ThinkingMode::Adaptive
+                    | crate::canonical::ThinkingMode::AlwaysOnAdaptive
+            )
+        );
+        adaptive || self.max_output_tokens() >= 2 * crate::formats::anthropic::MIN_ANSWER_TOKENS
+    }
+
     fn is_gemini3_reasoning_model_name(model_name: &str) -> bool {
         let lower = model_name.to_lowercase();
         lower.starts_with("gemini-3") || lower.contains("/gemini-3") || lower.contains("-gemini-3")
+    }
+
+    /// The thinking effort this model runs with when no effort is configured,
+    /// mirroring the per-format fallbacks: Anthropic disables thinking unless
+    /// the canonical model is always-on adaptive
+    /// (`formats::anthropic::thinking_type_for_provider`), Gemini 3 omits
+    /// thinking (`formats::google`), and OpenAI omits the `reasoning` field so
+    /// the API's own default applies: medium for most reasoning models, or
+    /// the only supported level for pinned models like gpt-5-pro.
+    pub fn unset_thinking_effort_default(&self) -> ThinkingEffort {
+        if self.model_name.to_lowercase().contains("claude") {
+            if self.is_always_on_adaptive() {
+                ThinkingEffort::High
+            } else {
+                ThinkingEffort::Off
+            }
+        } else if Self::is_gemini3_reasoning_model_name(&self.model_name) {
+            ThinkingEffort::Off
+        } else {
+            match crate::formats::openai::openai_reasoning_efforts_for_model(&self.model_name) {
+                [only] => only.parse().unwrap_or(ThinkingEffort::Medium),
+                _ => ThinkingEffort::Medium,
+            }
+        }
+    }
+
+    fn is_always_on_adaptive(&self) -> bool {
+        crate::canonical::maybe_get_canonical_model("anthropic", &self.model_name)
+            .and_then(|canonical| canonical.thinking_mode)
+            == Some(crate::canonical::ThinkingMode::AlwaysOnAdaptive)
+    }
+
+    /// The thinking effort the provider will actually run with for a
+    /// configured value: unset resolves to the family default; Claude models
+    /// that can't emit thinking (see `claude_thinking_available`) run at
+    /// `Off` no matter what is configured; always-on
+    /// adaptive Anthropic models ignore `Off`
+    /// (`formats::anthropic::adaptive_output_effort` maps it back to high);
+    /// Gemini 3 exposes only two thinking levels, so low and medium coincide;
+    /// OpenAI models run at the level the request formatter selects from the
+    /// model's supported set, or at the API default when the configured value
+    /// can't be expressed (e.g. `Off` on high-only gpt-5-pro).
+    pub fn effective_thinking_effort(&self, configured: Option<ThinkingEffort>) -> ThinkingEffort {
+        let Some(effort) = configured else {
+            return self.unset_thinking_effort_default();
+        };
+        if self.model_name.to_lowercase().contains("claude") {
+            if !self.claude_thinking_available() {
+                return ThinkingEffort::Off;
+            }
+            if effort == ThinkingEffort::Off && self.is_always_on_adaptive() {
+                return ThinkingEffort::High;
+            }
+            return effort;
+        }
+        if Self::is_gemini3_reasoning_model_name(&self.model_name) {
+            return if effort == ThinkingEffort::Low {
+                ThinkingEffort::Medium
+            } else {
+                effort
+            };
+        }
+        if self.is_openai_reasoning_model() {
+            return crate::formats::openai::openai_reasoning_effort_for_thinking(
+                &self.model_name,
+                effort,
+            )
+            .and_then(|level| level.parse().ok())
+            .unwrap_or_else(|| self.unset_thinking_effort_default());
+        }
+        effort
     }
 
     pub fn max_output_tokens(&self) -> i32 {
@@ -522,6 +627,73 @@ mod tests {
             assert_eq!("max".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Max));
             assert_eq!("xhigh".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Max));
             assert!("invalid".parse::<ThinkingEffort>().is_err());
+        }
+    }
+
+    mod unset_thinking_effort_default_tests {
+        use super::*;
+
+        #[test]
+        fn claude_without_always_on_thinking_defaults_off() {
+            let config = ModelConfig::new("claude-sonnet-4-5-20250929");
+            assert_eq!(config.unset_thinking_effort_default(), ThinkingEffort::Off);
+        }
+
+        #[test]
+        fn always_on_adaptive_claude_defaults_high() {
+            let config = ModelConfig::new("claude-fable-5");
+            assert_eq!(config.unset_thinking_effort_default(), ThinkingEffort::High);
+        }
+
+        #[test]
+        fn gemini3_defaults_off() {
+            let config = ModelConfig::new("gemini-3-pro-preview");
+            assert_eq!(config.unset_thinking_effort_default(), ThinkingEffort::Off);
+        }
+
+        #[test]
+        fn single_supported_level_openai_model_defaults_to_that_level() {
+            let config = ModelConfig::new("gpt-5-pro");
+            assert_eq!(config.unset_thinking_effort_default(), ThinkingEffort::High);
+        }
+
+        #[test]
+        fn openai_reasoning_models_default_medium() {
+            let config = ModelConfig::new("gpt-5.6");
+            assert_eq!(
+                config.unset_thinking_effort_default(),
+                ThinkingEffort::Medium
+            );
+        }
+    }
+
+    mod maps_thinking_effort_tests {
+        use super::*;
+
+        #[test]
+        fn unknown_claude_name_does_not_map() {
+            let config = ModelConfig::new("claude-fictional-99");
+            assert!(!config.maps_thinking_effort());
+            assert_eq!(
+                config.effective_thinking_effort(Some(ThinkingEffort::High)),
+                ThinkingEffort::Off
+            );
+        }
+
+        #[test]
+        fn budget_thinking_claude_with_low_max_tokens_does_not_map() {
+            let config = ModelConfig::new("claude-sonnet-4-5-20250929").with_max_tokens(Some(1000));
+            assert!(!config.maps_thinking_effort());
+            assert_eq!(
+                config.effective_thinking_effort(Some(ThinkingEffort::High)),
+                ThinkingEffort::Off
+            );
+        }
+
+        #[test]
+        fn adaptive_claude_maps_regardless_of_max_tokens() {
+            let config = ModelConfig::new("claude-fable-5").with_max_tokens(Some(1000));
+            assert!(config.maps_thinking_effort());
         }
     }
 

@@ -80,6 +80,18 @@ struct ConverseRequestParts {
 }
 
 impl BedrockProvider {
+    fn normalized_openai_config(model_config: &ModelConfig) -> Option<ModelConfig> {
+        let stripped = model_config.model_name.strip_prefix("openai.")?;
+        let (base_name, _) = extract_reasoning_effort(stripped);
+        if !BEDROCK_KNOWN_MODELS.contains(&format!("openai.{base_name}").as_str()) {
+            return None;
+        }
+        Some(ModelConfig {
+            model_name: base_name,
+            ..model_config.clone()
+        })
+    }
+
     pub async fn from_env(
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -728,6 +740,25 @@ impl Provider for BedrockProvider {
         &self.name
     }
 
+    /// The `openai.` prefix on Bedrock's OpenAI models breaks the
+    /// reasoning-model regex; the stream path strips it before formatting,
+    /// so capability checks must strip it too.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        Self::normalized_openai_config(model_config)
+            .unwrap_or_else(|| model_config.clone())
+            .maps_thinking_effort()
+    }
+
+    fn effective_thinking_effort(
+        &self,
+        model_config: &ModelConfig,
+        configured: Option<goose_providers::thinking::ThinkingEffort>,
+    ) -> goose_providers::thinking::ThinkingEffort {
+        Self::normalized_openai_config(model_config)
+            .unwrap_or_else(|| model_config.clone())
+            .effective_thinking_effort(configured)
+    }
+
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
     }
@@ -943,6 +974,15 @@ mod tests {
                 reasoning: None,
             },
         )
+    }
+
+    #[test]
+    fn maps_thinking_effort_strips_openai_prefix() {
+        let (provider, model) = create_mock_provider_and_model("openai.gpt-5.5");
+        assert!(provider.maps_thinking_effort(&model));
+
+        let (provider, model) = create_mock_provider_and_model("openai.not-a-model");
+        assert!(!provider.maps_thinking_effort(&model));
     }
 
     #[test]

@@ -118,6 +118,10 @@ impl Provider for NanoGptProvider {
         &self.name
     }
 
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        model_config.is_openai_reasoning_model()
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client

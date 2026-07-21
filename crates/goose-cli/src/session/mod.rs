@@ -1382,6 +1382,19 @@ impl CliSession {
                         Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
                             self.messages = updated_conversation;
                         }
+                        Some(Ok(AgentEvent::EffortRecommendation(recommendation))) => {
+                            if !is_json_mode && !is_stream_json_mode {
+                                let model_config = self
+                                    .agent
+                                    .model_config_for_session(&self.session_id)
+                                    .await
+                                    .ok();
+                                output::render_effort_recommendation(
+                                    &recommendation,
+                                    model_config.as_ref(),
+                                );
+                            }
+                        }
                         Some(Err(e)) => {
                             handle_agent_error(&e, is_stream_json_mode);
                             cancel_token_clone.cancel();

@@ -191,8 +191,10 @@ impl GooseAcpAgent {
             .update_working_dir(&session.working_dir)
             .await;
 
+        let provider = agent.provider().await.ok();
         let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &session).await?;
+            build_session_setup_config(&self.provider_inventory, &session, provider.as_deref())
+                .await?;
 
         self.notify_session_setup(cx, &session).await?;
 

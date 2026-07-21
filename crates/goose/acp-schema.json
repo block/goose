@@ -6624,6 +6624,19 @@
           "required": [
             "sessionUpdate"
           ]
+        },
+        {
+          "$ref": "#/$defs/EffortRecommendationUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "effort_recommendation"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -6632,7 +6645,8 @@
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
           "status_message": "#/$defs/StatusMessageUpdate",
-          "message_usage": "#/$defs/MessageUsageUpdate"
+          "message_usage": "#/$defs/MessageUsageUpdate",
+          "effort_recommendation": "#/$defs/EffortRecommendationUpdate"
         }
       }
     },
@@ -6824,6 +6838,34 @@
         "usage"
       ],
       "description": "Per-message token usage/cost/timing, keyed by the message id used for\nchunk matching. Sent live after a turn's messages and on replay."
+    },
+    "EffortRecommendationUpdate": {
+      "type": "object",
+      "properties": {
+        "difficulty": {
+          "type": "string",
+          "description": "Estimated difficulty of the remaining work: \"low\" | \"medium\" | \"high\"."
+        },
+        "reason": {
+          "type": "string",
+          "description": "One-sentence justification from the compaction model."
+        },
+        "recommendedEffort": {
+          "type": "string",
+          "description": "Thinking-effort setting matching the difficulty, valid for the\nsession's current model: \"low\" | \"medium\" | \"high\"."
+        },
+        "currentEffort": {
+          "type": "string",
+          "description": "The session's provider-effective thinking effort at compaction time."
+        }
+      },
+      "required": [
+        "difficulty",
+        "reason",
+        "recommendedEffort",
+        "currentEffort"
+      ],
+      "description": "Advisory difficulty estimate for the work remaining after a compaction,\npaired with the thinking-effort setting that matches it. Emitted only when\nthe session's model can act on a thinking-effort setting. Clients may\nsurface it as a nudge (\"this looks hard - raise thinking effort?\"); goose\nnever applies it automatically, and like `StatusMessage` it is not\ntranscript content and should not be persisted or replayed as history."
     },
     "RequestRecipeParams_unstable": {
       "type": "object",

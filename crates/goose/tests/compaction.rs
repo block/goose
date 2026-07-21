@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::GooseMode;
+use goose::context_mgmt::structured::DifficultyLevel;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::providers::base::{
@@ -13,6 +14,7 @@ use goose::session::Session;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::Tool;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -21,13 +23,20 @@ use tempfile::TempDir;
 struct MockCompactionProvider {
     /// Tracks whether compaction has occurred (for context limit recovery case)
     has_compacted: Arc<AtomicBool>,
+    compaction_response: String,
 }
 
 impl MockCompactionProvider {
     fn new() -> Self {
         Self {
             has_compacted: Arc::new(AtomicBool::new(false)),
+            compaction_response: "<mock summary of conversation>".to_string(),
         }
+    }
+
+    fn with_compaction_response(mut self, response: &str) -> Self {
+        self.compaction_response = response.to_string();
+        self
     }
 
     /// Calculate input tokens based on system prompt and messages
@@ -37,7 +46,8 @@ impl MockCompactionProvider {
         let is_compaction_call = messages.len() == 1
             && messages[0].content.iter().any(|c| {
                 if let MessageContent::Text(text) = c {
-                    text.text.to_lowercase().contains("summarize")
+                    text.text
+                        .contains("Please summarize the conversation history")
                 } else {
                     false
                 }
@@ -105,11 +115,16 @@ impl Provider for MockCompactionProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Check if this is a compaction call (message contains "summarize")
+        // The compaction request is a single user message with this exact text
+        // (see `do_compact`). Substring heuristics like "summarize" are too
+        // loose: the post-compaction continuation message contains
+        // "summarized context", which would make every retry after a recovery
+        // compaction look like another compaction call.
         let is_compaction = messages.iter().any(|msg| {
             msg.content.iter().any(|content| {
                 if let MessageContent::Text(text) = content {
-                    text.text.to_lowercase().contains("summarize")
+                    text.text
+                        .contains("Please summarize the conversation history")
                 } else {
                     false
                 }
@@ -139,7 +154,7 @@ impl Provider for MockCompactionProvider {
 
         // Generate response
         let message = if is_compaction {
-            Message::assistant().with_text("<mock summary of conversation>")
+            Message::assistant().with_text(&self.compaction_response)
         } else {
             let response_text = if messages.iter().any(|msg| {
                 msg.content.iter().any(|c| {
@@ -716,8 +731,8 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
 
     // After compaction, the retry only sees agent-visible messages:
     // Input: system (6000) + summary (~100) + continuation (~100) + user message (~100) = ~6300
-    // Output: 200 (mock detects "summarized" in continuation as compaction)
-    // Total: ~6500
+    // Output: 100 (regular mock response)
+    // Total: ~6400
     assert!(
         (6000..=6600).contains(&final_input),
         "Final input should reflect retry with agent-visible messages (~6300). Got: {}",
@@ -726,8 +741,8 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
 
     assert_eq!(
         final_output,
-        Some(200),
-        "Final output should be 200 (mock detects continuation as compaction). Got: {:?}",
+        Some(100),
+        "Final output should be 100 (regular response on the retry). Got: {:?}",
         final_output
     );
 
@@ -740,12 +755,12 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // Accumulated tokens should include all operations:
     // - Initial: 1000
     // - Compaction: ~6400 input (mock uses system_prompt.len()/4) + 200 output = ~6600
-    // - Reply: ~6500 input + 200 output = ~6700
-    // Total: 1000 + 6600 + 6700 = ~14300
+    // - Reply: ~6400 input + 100 output = ~6500
+    // Total: 1000 + 6600 + 6500 = ~14100
     let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
     assert!(
         (13000..=16000).contains(&accumulated),
-        "Accumulated should be ~14300 (initial + compaction + reply). Got: {}",
+        "Accumulated should be ~14100 (initial + compaction + reply). Got: {}",
         accumulated
     );
 
@@ -754,6 +769,104 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
         .conversation
         .expect("Session should have conversation");
     assert_conversation_compacted(&updated_conversation);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_recovery_compaction_emits_effort_recommendation() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+
+    let messages = vec![
+        Message::user().with_text("Hello"),
+        Message::assistant().with_text("Hi there"),
+        Message::user().with_text("Can you process this long_tool_call result?"),
+        Message::assistant().with_text("Processing..."),
+    ];
+    let session = setup_test_session(&agent, &temp_dir, "effort-nudge-test", messages).await?;
+
+    let structured_response = r#"```json
+{
+  "user_intent": ["Process the long tool call"],
+  "pending_tasks": ["Diagnose the failing pipeline"],
+  "forward_difficulty": {"reason": "The pipeline failure is still undiagnosed", "level": "high"}
+}
+```"#;
+    let provider =
+        Arc::new(MockCompactionProvider::new().with_compaction_response(structured_response));
+    // Explicit reasoning + effort keep the nudge gate independent of the
+    // canonical registry and the developer's global GOOSE_THINKING_EFFORT.
+    let mut model_config =
+        ModelConfig::new("claude-mock").with_thinking_effort(ThinkingEffort::Low);
+    model_config.reasoning = Some(true);
+    agent
+        .update_provider(provider, model_config, &session.id)
+        .await?;
+
+    let session_config = SessionConfig {
+        id: session.id.clone(),
+        schedule_id: None,
+        max_turns: None,
+        retry_config: None,
+    };
+    let reply_stream = agent
+        .reply(
+            Message::user().with_text("Tell me more"),
+            session_config,
+            None,
+        )
+        .await?;
+    tokio::pin!(reply_stream);
+
+    let mut recommendations = vec![];
+    let mut compaction_occurred = false;
+    while let Some(event_result) = reply_stream.next().await {
+        match event_result {
+            Ok(AgentEvent::HistoryReplaced(_)) => compaction_occurred = true,
+            Ok(AgentEvent::EffortRecommendation(recommendation)) => {
+                recommendations.push(recommendation)
+            }
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    assert!(compaction_occurred, "Compaction should have occurred");
+    assert_eq!(
+        recommendations.len(),
+        1,
+        "Exactly one effort recommendation should be emitted per compaction"
+    );
+    let recommendation = &recommendations[0];
+    assert_eq!(recommendation.difficulty, DifficultyLevel::High);
+    assert_eq!(recommendation.recommended_effort, ThinkingEffort::High);
+    assert_eq!(recommendation.current_effort, ThinkingEffort::Low);
+    assert_eq!(
+        recommendation.reason,
+        "The pipeline failure is still undiagnosed"
+    );
+
+    // The difficulty estimate is advisory metadata: it must not leak into the
+    // summary the agent continues from.
+    let updated_session = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    let conversation = updated_session.conversation.expect("has conversation");
+    let summary_text = conversation
+        .messages()
+        .iter()
+        .filter(|m| m.is_agent_visible())
+        .map(Message::as_concat_text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(summary_text.contains("Diagnose the failing pipeline"));
+    assert!(
+        !summary_text.contains("forward_difficulty") && !summary_text.contains("undiagnosed"),
+        "difficulty estimate must not appear in the agent-visible summary: {summary_text}"
+    );
 
     Ok(())
 }

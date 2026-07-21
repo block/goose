@@ -481,6 +481,7 @@ impl GatewayHandler {
                 }
                 Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::MessageUsage { .. }) => {}
+                Ok(AgentEvent::EffortRecommendation(_)) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

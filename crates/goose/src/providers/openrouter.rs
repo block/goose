@@ -233,6 +233,26 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
+    /// Global `OPENROUTER_PARAMETERS` reasoning settings win over the
+    /// session's thinking effort in `apply_reasoning_config`, so treat them
+    /// as a pin.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        let reasoning_pinned = self.configured_parameters.as_ref().is_some_and(|params| {
+            params.contains_key("reasoning") || params.contains_key("reasoning_effort")
+        });
+        !reasoning_pinned && model_config.is_reasoning_model()
+    }
+
+    /// OpenRouter maps configured efforts verbatim (`formats::openrouter::
+    /// apply_reasoning_config`), so no model-family coalescing applies.
+    fn effective_thinking_effort(
+        &self,
+        model_config: &ModelConfig,
+        configured: Option<goose_providers::thinking::ThinkingEffort>,
+    ) -> goose_providers::thinking::ThinkingEffort {
+        configured.unwrap_or_else(|| model_config.unset_thinking_effort_default())
+    }
+
     /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self

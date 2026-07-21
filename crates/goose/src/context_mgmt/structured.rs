@@ -30,11 +30,55 @@ pub struct StructuredSummary {
     pub current_work: Option<String>,
     #[serde(default, deserialize_with = "lenient_string_opt")]
     pub next_step: Option<String>,
+    /// Difficulty of the work remaining after this summary, judged by the
+    /// compaction model while the full conversation is still in view.
+    /// Advisory metadata for clients; the render template does not include it
+    /// in the summary the agent reads, and a missing or malformed estimate
+    /// never invalidates the summary. (When parsing or rendering fails and
+    /// the raw model output is kept verbatim, any difficulty text in that
+    /// output stays visible to the agent, as with every structured field.)
+    #[serde(default, deserialize_with = "lenient_forward_difficulty")]
+    pub forward_difficulty: Option<ForwardDifficulty>,
     /// Unknown top-level fields, kept so a user-customized compaction prompt
     /// that adds fields can still reach them from a customized render
     /// template. Not counted when deciding whether a summary is empty.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ForwardDifficulty {
+    pub level: DifficultyLevel,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DifficultyLevel {
+    Low,
+    Medium,
+    High,
+}
+
+impl DifficultyLevel {
+    fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "low" => Some(Self::Low),
+            "medium" | "med" => Some(Self::Medium),
+            "high" => Some(Self::High),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for DifficultyLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Low => write!(f, "low"),
+            Self::Medium => write!(f, "medium"),
+            Self::High => write!(f, "high"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +138,31 @@ where
         serde_json::Value::Null => None,
         other => Some(stringify_lenient(&other)),
     })
+}
+
+/// The prompt asks for `{"reason": .., "level": "low|medium|high"}`, but a
+/// bare string level is tolerated, and anything without a recognizable level
+/// becomes `None`: a bad estimate costs only the nudge, never the summary.
+fn lenient_forward_difficulty<'de, D>(
+    deserializer: D,
+) -> Result<Option<ForwardDifficulty>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let (level, reason) = match &value {
+        serde_json::Value::Object(map) => (
+            map.get("level").map(stringify_lenient).unwrap_or_default(),
+            map.get("reason").map(stringify_lenient).unwrap_or_default(),
+        ),
+        other => (stringify_lenient(other), String::new()),
+    };
+    Ok(
+        DifficultyLevel::parse(&level).map(|level| ForwardDifficulty {
+            level,
+            reason: reason.trim().to_string(),
+        }),
+    )
 }
 
 /// `files` entries should be objects, but a model that over-applies the
@@ -172,6 +241,8 @@ impl StructuredSummary {
         }
     }
 
+    /// `forward_difficulty` is deliberately not counted: a difficulty rating
+    /// with no summary content must not displace the raw-text fallback.
     fn is_empty(&self) -> bool {
         self.user_intent.is_empty()
             && self.technical_concepts.is_empty()
@@ -441,6 +512,65 @@ in {brace handling} and patched it.
         assert_eq!(summary.user_intent, vec!["Fix the bug"]);
         assert_eq!(summary.files[0].key_code, None);
         assert_eq!(summary.next_step, None);
+    }
+
+    #[test]
+    fn forward_difficulty_parses_and_stays_out_of_the_render() {
+        let text = r#"{
+            "user_intent": ["Fix the flaky pipeline"],
+            "pending_tasks": ["Find the race condition"],
+            "forward_difficulty": {"reason": "Root cause of the race is still unknown", "level": "high"}
+        }"#;
+        let summary = StructuredSummary::parse(text).expect("should parse");
+        let difficulty = summary.forward_difficulty.as_ref().expect("has difficulty");
+        assert_eq!(difficulty.level, DifficultyLevel::High);
+        assert_eq!(difficulty.reason, "Root cause of the race is still unknown");
+
+        let rendered = summary.render().expect("should render");
+        assert!(
+            !rendered.to_lowercase().contains("difficulty")
+                && !rendered.contains("Root cause of the race is still unknown"),
+            "the difficulty estimate is advisory metadata, not summary content: {rendered}"
+        );
+    }
+
+    #[test]
+    fn forward_difficulty_garbage_never_costs_the_summary() {
+        for garbage in [
+            r#""impossible""#,
+            r#"{"level": "extreme", "reason": "made up"}"#,
+            r#"{"reason": "no level at all"}"#,
+            "42",
+            "null",
+            "{}",
+        ] {
+            let text = format!(r#"{{"user_intent": ["Fix it"], "forward_difficulty": {garbage}}}"#);
+            let summary = StructuredSummary::parse(&text)
+                .unwrap_or_else(|| panic!("summary must survive garbage difficulty: {garbage}"));
+            assert_eq!(summary.user_intent, vec!["Fix it"]);
+            assert!(
+                summary.forward_difficulty.is_none(),
+                "garbage difficulty should parse to None: {garbage}"
+            );
+        }
+    }
+
+    #[test]
+    fn forward_difficulty_bare_string_level_is_tolerated() {
+        let text = r#"{"user_intent": ["Fix it"], "forward_difficulty": "Medium"}"#;
+        let summary = StructuredSummary::parse(text).expect("should parse");
+        let difficulty = summary.forward_difficulty.expect("has difficulty");
+        assert_eq!(difficulty.level, DifficultyLevel::Medium);
+        assert_eq!(difficulty.reason, "");
+    }
+
+    #[test]
+    fn forward_difficulty_alone_is_not_a_summary() {
+        let text = r#"{"forward_difficulty": {"level": "high", "reason": "hard"}}"#;
+        assert!(
+            StructuredSummary::parse(text).is_none(),
+            "a difficulty rating with no content must fall back to raw text"
+        );
     }
 
     #[test]

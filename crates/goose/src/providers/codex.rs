@@ -71,12 +71,14 @@ impl CodexProvider {
             })
     }
 
-    fn map_thinking_effort(_model_name: &str, effort: Option<ThinkingEffort>) -> Option<String> {
-        use ThinkingEffort;
-        match effort
+    fn resolved_thinking_effort(effort: Option<ThinkingEffort>) -> ThinkingEffort {
+        effort
             .or_else(Self::legacy_reasoning_effort)
             .unwrap_or(ThinkingEffort::High)
-        {
+    }
+
+    fn map_thinking_effort(_model_name: &str, effort: Option<ThinkingEffort>) -> Option<String> {
+        match Self::resolved_thinking_effort(effort) {
             ThinkingEffort::Off => Some("none".to_string()),
             ThinkingEffort::Low => Some("low".to_string()),
             ThinkingEffort::Medium => Some("medium".to_string()),
@@ -678,6 +680,14 @@ impl ProviderDef for CodexProvider {
 impl Provider for CodexProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn effective_thinking_effort(
+        &self,
+        _model_config: &ModelConfig,
+        configured: Option<ThinkingEffort>,
+    ) -> ThinkingEffort {
+        Self::resolved_thinking_effort(configured)
     }
 
     async fn stream(

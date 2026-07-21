@@ -2118,6 +2118,23 @@ impl GooseAcpAgent {
                         })?;
                     }
                 }
+                Ok(crate::agents::AgentEvent::EffortRecommendation(recommendation)) => {
+                    if self.supports_goose_custom_notifications() {
+                        cx.send_notification(GooseSessionNotification {
+                            session_id: session_id.clone(),
+                            update: GooseSessionUpdate::EffortRecommendation(
+                                EffortRecommendationUpdate {
+                                    difficulty: recommendation.difficulty.to_string(),
+                                    reason: recommendation.reason,
+                                    recommended_effort: recommendation
+                                        .recommended_effort
+                                        .to_string(),
+                                    current_effort: recommendation.current_effort.to_string(),
+                                },
+                            ),
+                        })?;
+                    }
+                }
                 Ok(_) => {}
                 Err(e) => {
                     stream_error = Some(
@@ -2324,6 +2341,7 @@ impl GooseAcpAgent {
             &mode_state,
             &model_state,
             &current_model_config,
+            Some(provider.as_ref()),
             session_provider_selection(&session),
             provider_options,
         );

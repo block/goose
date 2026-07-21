@@ -618,6 +618,7 @@ mod tests {
                     Ok(AgentEvent::McpNotification(_)) => {}
                     Ok(AgentEvent::Usage(_)) => {}
                     Ok(AgentEvent::MessageUsage { .. }) => {}
+                    Ok(AgentEvent::EffortRecommendation(_)) => {}
                     Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
                         // We should update the conversation here, but we're not reading it
                     }
@@ -823,6 +824,177 @@ mod tests {
             assert!(
                 provider.call_count.load(Ordering::SeqCst) >= 2,
                 "provider should have been called again after the bad tool call"
+            );
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod mid_run_effort_refresh_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::conversation::message::Message;
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+        };
+        use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use goose_providers::thinking::ThinkingEffort;
+        use rmcp::model::{ErrorCode, ErrorData, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Mutex;
+        use tempfile::TempDir;
+
+        /// First turn raises the session's thinking effort (as accepting an
+        /// effort nudge does) and returns a failed tool request so the loop
+        /// continues; the second turn must already run at the new effort.
+        struct EffortRefreshProvider {
+            call_count: AtomicUsize,
+            seen_efforts: Mutex<Vec<Option<ThinkingEffort>>>,
+            session_manager: Arc<SessionManager>,
+            session_id: String,
+        }
+
+        impl goose::providers::base::ProviderDescriptor for EffortRefreshProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-effort-refresh".to_string(),
+                    display_name: "Mock Effort Refresh Provider".to_string(),
+                    description: "Mock provider for mid-run effort refresh tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for EffortRefreshProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { unreachable!("constructed directly in tests") })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for EffortRefreshProvider {
+            async fn stream(
+                &self,
+                model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let n = self.call_count.fetch_add(1, Ordering::SeqCst);
+                self.seen_efforts
+                    .lock()
+                    .unwrap()
+                    .push(model_config.thinking_effort());
+
+                let message = if n == 0 {
+                    self.session_manager
+                        .update(&self.session_id)
+                        .model_config(
+                            ModelConfig::new("mock-model")
+                                .with_thinking_effort(ThinkingEffort::High),
+                        )
+                        .apply()
+                        .await
+                        .expect("session effort update should persist");
+                    let error = ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Tool arguments must be a JSON object".to_string(),
+                        None,
+                    );
+                    Message::assistant().with_tool_request("call_bad", Err(error))
+                } else {
+                    Message::assistant().with_text("Finished at the new effort.")
+                };
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-effort-refresh"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_session_effort_change_applies_within_the_same_run() -> Result<()> {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                true,
+                GoosePlatform::GooseCli,
+            ));
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "mid-run-effort-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            let provider = Arc::new(EffortRefreshProvider {
+                call_count: AtomicUsize::new(0),
+                seen_efforts: Mutex::new(Vec::new()),
+                session_manager: session_manager.clone(),
+                session_id: session.id.clone(),
+            });
+
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model").with_thinking_effort(ThinkingEffort::Low),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hello"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                event?;
+            }
+
+            let seen = provider.seen_efforts.lock().unwrap().clone();
+            assert_eq!(
+                seen,
+                vec![Some(ThinkingEffort::Low), Some(ThinkingEffort::High)],
+                "the second provider call should run at the effort set mid-run"
             );
             Ok(())
         }

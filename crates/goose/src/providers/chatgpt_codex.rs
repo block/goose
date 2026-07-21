@@ -16,6 +16,7 @@ use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai_responses::responses_api_to_streaming_message;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use rmcp::model::{RawContent, Role, Tool};
@@ -232,33 +233,34 @@ fn get_reasoning_effort(model_name: &str) -> String {
     }
 }
 
-fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
-    use goose_providers::thinking::ThinkingEffort;
-
-    model_config
-        .thinking_effort()
-        .map(|effort| {
-            let valid_levels = reasoning_levels_for_model(&model_config.model_name);
-            let preferred_levels: &[&str] = match effort {
-                ThinkingEffort::Off => {
-                    return Some(if valid_levels.contains(&"none") {
-                        "none".to_string()
-                    } else {
-                        "low".to_string()
-                    });
-                }
-                ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
-                ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
-                ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
-                ThinkingEffort::Max => &["xhigh", "high", "medium", "low"],
+fn wire_reasoning_effort(model_name: &str, effort: ThinkingEffort) -> Option<String> {
+    let valid_levels = reasoning_levels_for_model(model_name);
+    let preferred_levels: &[&str] = match effort {
+        ThinkingEffort::Off => {
+            let level = if valid_levels.contains(&"none") {
+                "none"
+            } else {
+                "low"
             };
+            return Some(level.to_string());
+        }
+        ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
+        ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
+        ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
+        ThinkingEffort::Max => &["xhigh", "high", "medium", "low"],
+    };
 
-            preferred_levels
-                .iter()
-                .find(|level| valid_levels.contains(level))
-                .map(|level| (*level).to_string())
-        })
-        .unwrap_or_else(|| Some(get_reasoning_effort(&model_config.model_name)))
+    preferred_levels
+        .iter()
+        .find(|level| valid_levels.contains(level))
+        .map(|level| (*level).to_string())
+}
+
+fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
+    match model_config.thinking_effort() {
+        Some(effort) => wire_reasoning_effort(&model_config.model_name, effort),
+        None => Some(get_reasoning_effort(&model_config.model_name)),
+    }
 }
 
 fn create_codex_request(
@@ -978,6 +980,20 @@ impl ProviderDef for ChatGptCodexProvider {
 impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn effective_thinking_effort(
+        &self,
+        model_config: &ModelConfig,
+        configured: Option<ThinkingEffort>,
+    ) -> ThinkingEffort {
+        let level = match configured {
+            Some(effort) => wire_reasoning_effort(&model_config.model_name, effort),
+            None => Some(get_reasoning_effort(&model_config.model_name)),
+        };
+        level
+            .and_then(|level| level.parse().ok())
+            .unwrap_or(ThinkingEffort::Medium)
     }
 
     async fn stream(

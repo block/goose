@@ -130,6 +130,10 @@ impl Provider for TetrateProvider {
         &self.name
     }
 
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        model_config.is_openai_reasoning_model()
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,

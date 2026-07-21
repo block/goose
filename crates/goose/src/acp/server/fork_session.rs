@@ -53,6 +53,7 @@ impl GooseAcpAgent {
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
         self.apply_session_recipe(&agent, &goose_session).await?;
+        let provider = agent.provider().await.ok();
         self.register_acp_session(goose_session.id.clone(), agent, HashMap::new())
             .await;
 
@@ -62,8 +63,12 @@ impl GooseAcpAgent {
             meta.insert("extensionResults".to_string(), v);
         }
 
-        let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &goose_session).await?;
+        let (mode_state, config_options) = build_session_setup_config(
+            &self.provider_inventory,
+            &goose_session,
+            provider.as_deref(),
+        )
+        .await?;
 
         let mut response = ForkSessionResponse::new(acp_session_id.clone())
             .modes(mode_state)
