@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r#"(?:^|[\s;&|(`/"'])(?P<command>(?:[^\s;&|()`"']*[/\\])?(?:format|mkfs\.[a-z][a-z0-9]*))[ \t]+"#,
+        pattern: r#"(?:^|[\s;&|(`/"'])(?P<command>(?:[^\s;&|()`"']*[/\\])?(?:format|mkfs\.[a-z][a-z0-9]*))[ \t<>]+"#,
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -475,7 +475,21 @@ fn format_option_value_flag(command: &str, flag: char) -> bool {
         ),
         "mkfs.f2fs" => matches!(
             flag,
-            'a' | 'c' | 'C' | 'd' | 'e' | 'E' | 'l' | 'o' | 'O' | 'R' | 's' | 't' | 'T' | 'w' | 'z'
+            'a' | 'c'
+                | 'C'
+                | 'd'
+                | 'e'
+                | 'E'
+                | 'g'
+                | 'l'
+                | 'o'
+                | 'O'
+                | 'R'
+                | 's'
+                | 't'
+                | 'T'
+                | 'w'
+                | 'z'
         ),
         "mkfs.xfs" => matches!(
             flag,
@@ -485,18 +499,15 @@ fn format_option_value_flag(command: &str, flag: char) -> bool {
     }
 }
 
-fn format_option_takes_next_value(command: &str, option: &str) -> bool {
-    let Some(short_options) = option
+fn format_option_next_value_flag(command: &str, option: &str) -> Option<char> {
+    let short_options = option
         .strip_prefix('-')
-        .filter(|options| !options.is_empty() && !options.starts_with('-'))
-    else {
-        return false;
-    };
+        .filter(|options| !options.is_empty() && !options.starts_with('-'))?;
 
     short_options
         .char_indices()
         .find(|(_, flag)| format_option_value_flag(command, *flag))
-        .is_some_and(|(index, flag)| index + flag.len_utf8() == short_options.len())
+        .and_then(|(index, flag)| (index + flag.len_utf8() == short_options.len()).then_some(flag))
 }
 
 fn is_non_writing_format_option(command: &str, option: &str) -> bool {
@@ -522,21 +533,25 @@ fn is_non_writing_format_option(command: &str, option: &str) -> bool {
         })
 }
 
-fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
+fn format_drive_targets(words: &[ShellWord]) -> Vec<&ShellWord> {
     let command = words
-        .first()?
+        .first()
+        .expect("format command includes an executable")
         .value
         .rsplit(['/', '\\'])
-        .next()?
+        .next()
+        .expect("format command has a basename")
         .to_ascii_lowercase();
-    let mut target = None;
-    let mut skip_option_value = false;
+    let mut targets = Vec::new();
+    let mut pending_option_value = None;
     let mut options_ended = false;
     let mut non_writing = false;
 
     for word in &words[1..] {
-        if skip_option_value {
-            skip_option_value = false;
+        if let Some(option_flag) = pending_option_value.take() {
+            if command == "mkfs.f2fs" && option_flag == 'c' {
+                targets.push(word);
+            }
             continue;
         }
         if !options_ended && word.value == "--" {
@@ -545,24 +560,26 @@ fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
         }
         if !options_ended && word.value.starts_with('-') {
             non_writing |= is_non_writing_format_option(&command, &word.value);
-            skip_option_value = format_option_takes_next_value(&command, &word.value);
+            pending_option_value = format_option_next_value_flag(&command, &word.value);
             continue;
         }
-        target.get_or_insert(word);
+        if targets.is_empty() || command == "mkfs.f2fs" {
+            targets.push(word);
+        }
     }
 
     if non_writing {
-        None
+        Vec::new()
     } else {
-        target
+        targets
     }
 }
 
-fn is_system_drive(word: &str) -> bool {
+fn contains_system_drive(word: &str) -> bool {
     static SYSTEM_DRIVE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)^[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?$").expect("valid system drive regex")
     });
-    SYSTEM_DRIVE.is_match(word)
+    word.split(',').any(|device| SYSTEM_DRIVE.is_match(device))
 }
 
 /// Pattern matcher for detecting security threats
@@ -591,12 +608,12 @@ impl PatternMatcher {
                             continue;
                         };
                         let words = shell_words_until_boundary(command_text);
-                        let Some(target) = format_drive_target(&words) else {
+                        let Some(target) = format_drive_targets(&words)
+                            .into_iter()
+                            .find(|target| contains_system_drive(&target.value))
+                        else {
                             continue;
                         };
-                        if !is_system_drive(&target.value) {
-                            continue;
-                        }
                         let end_pos = command_match.start() + target.end;
                         matches.push(PatternMatch {
                             threat: threat.clone(),
@@ -677,7 +694,11 @@ mod tests {
         assert!(matches(pat, "mkfs.ext4 /dev/sda"));
         assert!(matches(pat, "mkfs.f2fs /dev/sdc"));
         assert!(matches(pat, "mkfs.f2fs -l data /dev/sdc"));
+        assert!(matches(pat, "mkfs.f2fs -g android /dev/sdc"));
+        assert!(matches(pat, "mkfs.f2fs -c /dev/sdb /dev/loop0"));
+        assert!(matches(pat, "mkfs.f2fs -c /dev/sdb,/dev/loop0 /dev/loop1"));
         assert!(!matches(pat, "mkfs.f2fs -l /dev/sdc /tmp/image"));
+        assert!(!matches(pat, "mkfs.f2fs -c /tmp/image /dev/loop0"));
     }
 
     #[test]
@@ -694,6 +715,7 @@ mod tests {
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -qL data /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 >/tmp/mkfs.log /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4>/tmp/mkfs.log -F /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 2>/tmp/mkfs.log /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 </dev/null /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1 4096"));
