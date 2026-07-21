@@ -731,6 +731,17 @@ impl Agent {
         Some(parts.join("\n\n"))
     }
 
+    /// Append the session's project instructions (if any) to `system_prompt`.
+    /// Used both when building the initial prompt and after any mid-reply tool
+    /// refresh, since `prepare_tools_and_prompt` rebuilds `system_prompt` without
+    /// the project addendum.
+    async fn with_project_addendum(&self, session: &Session, system_prompt: String) -> String {
+        match self.load_project_instructions(session).await {
+            Some(addendum) => format!("{system_prompt}\n\n{addendum}"),
+            None => system_prompt,
+        }
+    }
+
     async fn prepare_reply_context(
         &self,
         session_id: &str,
@@ -1870,9 +1881,7 @@ impl Agent {
         // the next iteration of the *same* reply, not only on the next one.
         let mut tools_cache_version = self.extension_manager.tools_cache_version();
 
-        if let Some(project_addendum) = self.load_project_instructions(&session).await {
-            system_prompt = format!("{system_prompt}\n\n{project_addendum}");
-        }
+        system_prompt = self.with_project_addendum(&session, system_prompt).await;
 
         self.reset_retry_attempts().await;
 
@@ -2678,6 +2687,10 @@ impl Agent {
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
+                    // prepare_tools_and_prompt rebuilds system_prompt without the
+                    // project addendum; re-append it so project instructions survive
+                    // a mid-reply tool refresh.
+                    system_prompt = self.with_project_addendum(&session, system_prompt).await;
                 }
 
                 {
@@ -2689,6 +2702,8 @@ impl Agent {
                     if has_new_hints && !tools_updated {
                         (tools, toolshim_tools, system_prompt, _) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
+                        system_prompt =
+                            self.with_project_addendum(&session, system_prompt).await;
                     }
                 }
 
