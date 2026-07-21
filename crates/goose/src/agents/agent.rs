@@ -757,10 +757,6 @@ impl Agent {
 
         let goose_mode = *self.current_goose_mode.lock().await;
 
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
-        }
-
         let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
         {
             Ok(v) => v,

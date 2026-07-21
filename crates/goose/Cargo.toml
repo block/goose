@@ -217,7 +217,7 @@ aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 
-pctx_code_mode = { version = "0.3", default-features = false, optional = true }
+pctx_code_mode = { version = "0.4.1", default-features = false, optional = true }
 
 # These are needed because temporal_rs 0.1 (a transitive dep via PCTX) enables unstable features on icu_calendar without pinning the dependency version
 # A fix is available in temporal_rs 0.2 but PCTX has not updated

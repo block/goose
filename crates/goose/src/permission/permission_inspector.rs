@@ -169,8 +169,10 @@ impl ToolInspector for PermissionInspector {
                                     InspectionAction::RequireApproval(None)
                                 }
                             }
-                        // 2. Check if the tool is explicitly annotated as read-only
-                        } else if self.is_readonly_annotated_tool(tool_name) {
+                        // 2. Check for a read-only annotation in SmartApprove mode
+                        } else if goose_mode == GooseMode::SmartApprove
+                            && self.is_readonly_annotated_tool(tool_name)
+                        {
                             InspectionAction::Allow
                         // 3. Special case for extension management
                         } else if tool_name == MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE {
@@ -321,6 +323,7 @@ mod tests {
     #[test_case(GooseMode::SmartApprove, false, None, InspectionAction::RequireApproval(None); "smart_approve_unknown_defers")]
     #[test_case(GooseMode::Approve, false, None, InspectionAction::RequireApproval(None); "approve_requires_approval")]
     #[test_case(GooseMode::Approve, false, Some(PermissionLevel::AlwaysAllow), InspectionAction::RequireApproval(None); "approve_ignores_cache")]
+    #[test_case(GooseMode::Approve, true, None, InspectionAction::RequireApproval(None); "approve_ignores_annotation")]
     #[tokio::test]
     async fn test_inspect_action(
         mode: GooseMode,
