@@ -240,7 +240,10 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![ContentBlock::text(output.markdown())])
+        Ok(vec![ContentBlock::text(format!(
+            "Exit Code: {}\n\n# STDOUT\n{}\n\n# STDERR\n{}",
+            output.exit_code, output.stdout, output.stderr
+        ))])
     }
 
     /// Handle the execute typescript tool call

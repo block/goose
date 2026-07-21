@@ -11,7 +11,9 @@ use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use indoc::indoc;
-use rmcp::model::{Annotations, ContentBlock, Role, TextContent};
+use rmcp::model::Role;
+#[cfg(test)]
+use rmcp::model::{Annotations, ContentBlock, TextContent};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::task::JoinHandle;

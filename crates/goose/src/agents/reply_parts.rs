@@ -684,9 +684,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{
-        AnnotateAble, Annotations, RawTextContent, Role, TextContent, ToolAnnotations,
-    };
+    use rmcp::model::{Annotations, Role, TextContent, ToolAnnotations};
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};

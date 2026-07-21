@@ -2823,7 +2823,8 @@ You review code."#;
             .try_recv()
             .expect("subscriber should receive buffered notification");
         if let ServerNotification::LoggingMessageNotification(log) = notif {
-            let data = log.params.data.as_object().unwrap();
+            let params = serde_json::to_value(&log.params).unwrap();
+            let data = params.get("data").and_then(|v| v.as_object()).unwrap();
             assert_eq!(
                 data.get("subagent_id").and_then(|v| v.as_str()),
                 Some("20260204_1")

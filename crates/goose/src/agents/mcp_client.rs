@@ -527,7 +527,6 @@ impl ClientHandler for GooseClient {
             })
     }
 
-    #[allow(deprecated)]
     fn get_info(&self) -> ClientInfo {
         let extensions = self.resolved_extensions();
 

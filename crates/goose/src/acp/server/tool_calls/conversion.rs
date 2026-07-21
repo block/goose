@@ -372,7 +372,7 @@ pub(crate) fn tool_call_update_fields_from_response(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
+    use rmcp::model::{CallToolRequestParams, ContentBlock as RmcpContent};
     use std::path::PathBuf;
     use test_case::test_case;
 
