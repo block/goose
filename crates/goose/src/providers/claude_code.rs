@@ -1535,6 +1535,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cli_result_error_is_propagated_without_retry_opt_in() {
+        use futures::StreamExt;
+
+        let (provider, mut stream, _stdin_reader) = stream_with_canned_stdout(&[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#,
+            r#"{"type":"result","is_error":true,"subtype":"error_during_execution","error":"process failed"}"#,
+        ])
+        .await;
+
+        assert!(!provider.supports_stream_start_retry(&ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)));
+        assert_eq!(
+            stream.next().await.unwrap().unwrap_err(),
+            ProviderError::RequestFailed(
+                "Claude CLI error: error_during_execution: process failed".to_string()
+            )
+        );
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test]
     async fn test_pending_permissions_cleaned_on_new_stream() {
         use futures::StreamExt;
 
