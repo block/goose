@@ -4531,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "已停用自動下載。請點選「立即下載」以手動下載。"
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "無需手動安裝。"
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "檢查更新"
   },
@@ -4564,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "安裝並重新啟動"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "請點選「安裝並重新啟動」以立即更新。"
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "您執行的是最新版本！"
   },
   "updateSection.loading": {
     "defaultMessage": "載入中..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "下載後，您需要手動安裝更新。"
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "此更新方式需要手動安裝。"
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ 更新已就緒。重新啟動 Goose 即可完成安裝，或在您完成後結束。"
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ 更新已就緒！請點選「安裝並重新啟動」以取得安裝指示。"
   },
   "updateSection.upToDate": {
     "defaultMessage": "（為最新版本）"

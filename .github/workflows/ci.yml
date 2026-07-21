@@ -316,3 +316,32 @@ jobs:
       - name: Run Tests
         run: source ../../bin/activate-hermit && pnpm run test:run
         working-directory: ui/desktop
+
+  desktop-updater-install:
+    name: Test Desktop Updater Install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 24.10.0
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.30.3
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ui/desktop
+
+      - name: Run Updater Install Test
+        run: pnpm exec vitest run src/utils/githubUpdater.install.test.ts
+        working-directory: ui/desktop

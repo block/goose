@@ -4531,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "स्वचालित डाउनलोड अक्षम है। मैन्युअल रूप से डाउनलोड करने के लिए \"अभी डाउनलोड करें\" पर क्लिक करें।"
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "जब आप ऐप छोड़ देंगे तो अपडेट अपने आप इंस्टॉल हो जाएगा।"
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "अद्यतनों के लिए जाँच करें"
   },
@@ -4564,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "स्थापित करें और पुनः प्रारंभ करें"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "या अभी अपडेट करने के लिए \"इंस्टॉल करें और पुनरारंभ करें\" पर क्लिक करें।"
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "आप नवीनतम संस्करण चला रहे हैं!"
   },
   "updateSection.loading": {
     "defaultMessage": "लोड हो रहा है..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "डाउनलोड करने के बाद, आपको अपडेट को मैन्युअल रूप से इंस्टॉल करना होगा।"
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "इस अद्यतन विधि के लिए मैन्युअल स्थापना आवश्यक है."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ अपडेट तैयार है! जब आप Goose छोड़ देंगे तो यह इंस्टॉल हो जाएगा।"
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ अपडेट तैयार है! इंस्टॉलेशन निर्देशों के लिए \"इंस्टॉल करें और पुनरारंभ करें\" पर क्लिक करें।"
   },
   "updateSection.upToDate": {
     "defaultMessage": "(अप टू डेट)"

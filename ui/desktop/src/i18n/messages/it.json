@@ -4531,9 +4531,6 @@
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Il download automatico è disabilitato. Fai clic su \"Scarica ora\" per scaricare manualmente."
   },
-  "updateSection.autoInstallNote": {
-    "defaultMessage": "Non è necessaria alcuna installazione manuale."
-  },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Controlla aggiornamenti"
   },
@@ -4564,26 +4561,11 @@
   "updateSection.installAndRestart": {
     "defaultMessage": "Installa e riavvia"
   },
-  "updateSection.installNowHint": {
-    "defaultMessage": "Fai clic su \"Installa e riavvia\" per aggiornare ora."
-  },
   "updateSection.latestVersion": {
     "defaultMessage": "Stai usando la versione più recente!"
   },
   "updateSection.loading": {
     "defaultMessage": "Caricamento..."
-  },
-  "updateSection.manualInstallNote": {
-    "defaultMessage": "Dopo il download, dovrai installare manualmente l'aggiornamento."
-  },
-  "updateSection.manualInstallRequired": {
-    "defaultMessage": "Installazione manuale richiesta per questo metodo di aggiornamento."
-  },
-  "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ L'aggiornamento è pronto. Riavvia Goose per completarne l'installazione, oppure chiudilo quando hai finito."
-  },
-  "updateSection.readyInstallManual": {
-    "defaultMessage": "✓ L'aggiornamento è pronto! Fai clic su \"Installa e riavvia\" per le istruzioni di installazione."
   },
   "updateSection.upToDate": {
     "defaultMessage": "(aggiornato)"
