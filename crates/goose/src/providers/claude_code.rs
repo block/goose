@@ -859,10 +859,32 @@ impl Provider for ClaudeCodeProvider {
                                         .and_then(Value::as_bool)
                                         .unwrap_or(false)
                                     {
-                                        let message = parsed
-                                            .get("result")
+                                        let subtype = parsed
+                                            .get("subtype")
                                             .and_then(Value::as_str)
-                                            .unwrap_or("Unknown error");
+                                            .unwrap_or("error");
+                                        let mut details = Vec::new();
+                                        if let Some(error) =
+                                            parsed.get("error").and_then(Value::as_str)
+                                        {
+                                            details.push(error);
+                                        }
+                                        if let Some(errors) =
+                                            parsed.get("errors").and_then(Value::as_array)
+                                        {
+                                            details.extend(errors.iter().filter_map(Value::as_str));
+                                        }
+                                        if let Some(result) =
+                                            parsed.get("result").and_then(Value::as_str)
+                                        {
+                                            details.push(result);
+                                        }
+                                        let details = details.join("; ");
+                                        let message = match (subtype, details.is_empty()) {
+                                            ("success", false) => details,
+                                            (_, false) => format!("{subtype}: {details}"),
+                                            _ => subtype.to_string(),
+                                        };
                                         stream_error = Some(ProviderError::RequestFailed(format!(
                                             "Claude CLI error: {message}"
                                         )));
