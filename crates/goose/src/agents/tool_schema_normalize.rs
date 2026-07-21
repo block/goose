@@ -1,10 +1,8 @@
 use rmcp::model::JsonObject;
 use serde_json::{Map, Value};
+use std::collections::HashSet;
 
 /// Normalize an rmcp tool `input_schema` in place, returning `true` if changed.
-///
-/// Thin wrapper over [`collapse_const_unions`] that operates on the
-/// `JsonObject` map carried by `rmcp::model::Tool`.
 pub fn normalize_input_schema(schema: &mut JsonObject) -> bool {
     let mut value = Value::Object(std::mem::take(schema));
     let changed = collapse_const_unions(&mut value);
@@ -134,10 +132,8 @@ fn merge_descriptions(existing: Option<String>, variant_descs: Vec<String>) -> O
     }
 }
 
-/// After collapsing, `$defs` entries that became simple string enums and are
-/// referenced from exactly one place can be inlined, then `$defs` dropped if
-/// nothing still references it. Only inlines `$ref`s that resolve to a value
-/// with no remaining `$defs`/`$ref` of its own (i.e. a leaf string enum).
+/// Inline `$defs` entries that are leaf string enums at their `$ref` sites,
+/// then drop defs nothing references anymore.
 fn inline_trivial_defs(schema: &mut Value) -> bool {
     let Some(defs) = schema.get("$defs").and_then(Value::as_object).cloned() else {
         return false;
@@ -219,39 +215,55 @@ fn inline_refs(node: &mut Value, inlinable: &Map<String, Value>, changed: &mut b
     }
 }
 
-fn collect_used_defs(schema: &Value) -> std::collections::HashSet<String> {
-    let mut used = std::collections::HashSet::new();
-    fn walk(node: &Value, in_defs: bool, used: &mut std::collections::HashSet<String>) {
+/// Defs reachable from outside `$defs`, followed transitively through kept
+/// defs - a def referenced only by another live def must survive the prune.
+fn collect_used_defs(schema: &Value) -> HashSet<String> {
+    fn insert_ref(key: &str, value: &Value, used: &mut HashSet<String>) {
+        if key == "$ref" {
+            if let Some(name) = value.as_str().and_then(|r| r.strip_prefix("#/$defs/")) {
+                used.insert(name.to_string());
+            }
+        }
+    }
+    fn add_refs(node: &Value, used: &mut HashSet<String>) {
         match node {
             Value::Object(obj) => {
                 for (k, v) in obj {
-                    if k == "$defs" {
-                        walk(v, true, used);
-                        continue;
-                    }
-                    if k == "$ref" && !in_defs {
-                        if let Some(name) = v.as_str().and_then(|r| r.strip_prefix("#/$defs/")) {
-                            used.insert(name.to_string());
-                        }
-                    }
-                    walk(v, in_defs, used);
+                    insert_ref(k, v, used);
+                    add_refs(v, used);
                 }
             }
             Value::Array(arr) => {
                 for v in arr {
-                    walk(v, in_defs, used);
+                    add_refs(v, used);
                 }
             }
             _ => {}
         }
     }
-    // Only count refs from outside $defs so we can drop defs used by nothing else.
+
+    let mut used = HashSet::new();
     if let Some(obj) = schema.as_object() {
         for (k, v) in obj {
-            if k == "$defs" {
-                continue;
+            insert_ref(k, v, &mut used);
+            if k != "$defs" {
+                add_refs(v, &mut used);
             }
-            walk(v, false, &mut used);
+        }
+    }
+
+    if let Some(defs) = schema.get("$defs").and_then(Value::as_object) {
+        let mut queue: Vec<String> = used.iter().cloned().collect();
+        while let Some(name) = queue.pop() {
+            if let Some(def) = defs.get(&name) {
+                let mut inner = HashSet::new();
+                add_refs(def, &mut inner);
+                for n in inner {
+                    if used.insert(n.clone()) {
+                        queue.push(n);
+                    }
+                }
+            }
         }
     }
     used
@@ -283,7 +295,6 @@ mod tests {
 
         assert!(collapse_const_unions(&mut schema));
 
-        // No oneOf, no $defs, no $ref anywhere.
         let s = serde_json::to_string(&schema).unwrap();
         assert!(!s.contains("oneOf"), "oneOf should be gone: {s}");
         assert!(!s.contains("$defs"), "$defs should be inlined: {s}");
@@ -319,7 +330,7 @@ mod tests {
 
     #[test]
     fn leaves_nullable_enum_ref_untouched() {
-        // Option<TextAlignment>: anyOf: [ {$ref}, {type:null} ] — a real union.
+        // Option<Enum> shape: anyOf: [{$ref}, {type: "null"}] is a real union.
         let mut schema = json!({
             "type": "object",
             "$defs": {
@@ -336,20 +347,15 @@ mod tests {
             }
         });
 
-        let before = schema.clone();
         collapse_const_unions(&mut schema);
-        // The nullable anyOf wrapper must remain (still has a null branch).
         let align = &schema["properties"]["alignment"];
         assert!(
             align.get("anyOf").is_some(),
             "nullable anyOf must be preserved: {align}"
         );
-        // $defs may be inlined into the $ref, but the union shape stays.
         let s = serde_json::to_string(&schema).unwrap();
         assert!(s.contains("null"), "null branch preserved");
-        // Sanity: we did not turn it into a bare string enum.
         assert!(align.get("enum").is_none(), "must not flatten to enum");
-        let _ = before;
     }
 
     #[test]
@@ -370,6 +376,50 @@ mod tests {
         let before = schema.clone();
         collapse_const_unions(&mut schema);
         assert_eq!(schema, before, "data-carrying union must be unchanged");
+    }
+
+    #[test]
+    fn keeps_defs_referenced_only_from_other_kept_defs() {
+        // Real-world shape (computercontroller docx_tool): collapsing/inlining
+        // one unit enum must not prune non-inlinable defs whose only
+        // references live inside other retained defs.
+        let mut schema = json!({
+            "type": "object",
+            "$defs": {
+                "Mode": {
+                    "oneOf": [
+                        {"type": "string", "const": "fast", "description": "Fast"},
+                        {"type": "string", "const": "slow", "description": "Slow"}
+                    ]
+                },
+                "Outer": {
+                    "type": "object",
+                    "properties": {"inner": {"$ref": "#/$defs/Inner"}}
+                },
+                "Inner": {
+                    "type": "object",
+                    "properties": {"x": {"type": "number"}}
+                }
+            },
+            "properties": {
+                "mode": {"$ref": "#/$defs/Mode"},
+                "outer": {"$ref": "#/$defs/Outer"}
+            },
+            "required": ["mode", "outer"]
+        });
+
+        assert!(collapse_const_unions(&mut schema));
+
+        assert_eq!(
+            schema["properties"]["mode"]["enum"],
+            json!(["fast", "slow"])
+        );
+        assert_eq!(schema["properties"]["outer"]["$ref"], "#/$defs/Outer");
+        assert!(
+            schema["$defs"]["Inner"].is_object(),
+            "Inner is referenced from Outer and must survive: {schema}"
+        );
+        assert!(schema["$defs"].get("Mode").is_none(), "Mode was inlined");
     }
 
     #[test]
