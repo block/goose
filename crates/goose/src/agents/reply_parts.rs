@@ -1173,7 +1173,16 @@ mod tests {
             .await?;
         let model_config = ModelConfig::new("test-model").with_toolshim(true);
         agent
-            .update_provider(Arc::new(MockProvider), model_config, &session.id)
+            .update_provider(
+                Arc::new(MockProvider {
+                    attempts: None,
+                    first_error: None,
+                    fail_after_output: false,
+                    supports_stream_start_retry: false,
+                }),
+                model_config,
+                &session.id,
+            )
             .await?;
         agent
             .add_extension(
