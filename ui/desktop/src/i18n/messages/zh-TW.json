@@ -866,8 +866,23 @@
   "dictationSettings.addApiKey": {
     "defaultMessage": "新增 API 金鑰"
   },
+  "dictationSettings.addEndpoint": {
+    "defaultMessage": "Add Endpoint"
+  },
   "dictationSettings.apiKey": {
     "defaultMessage": "API 金鑰"
+  },
+  "dictationSettings.azureServicesKey": {
+    "defaultMessage": "Azure AI Services Key"
+  },
+  "dictationSettings.azureServicesKeyDescription": {
+    "defaultMessage": "Use the key from your Azure AI Services resource. A unified Foundry resource can reuse its Foundry API key. Leave empty to authenticate via Entra ID with az login."
+  },
+  "dictationSettings.azureSpeechEndpoint": {
+    "defaultMessage": "Speech Endpoint"
+  },
+  "dictationSettings.azureSpeechEndpointDescription": {
+    "defaultMessage": "Cognitive services URL from Azure portal → AI Foundry Hub → AI Services resource → Keys and Endpoint"
   },
   "dictationSettings.cancel": {
     "defaultMessage": "取消"
@@ -887,6 +902,12 @@
   "dictationSettings.disabled": {
     "defaultMessage": "已停用"
   },
+  "dictationSettings.endpointConfigured": {
+    "defaultMessage": "Configured: {endpoint}"
+  },
+  "dictationSettings.endpointRequired": {
+    "defaultMessage": "Not set — required to enable speech."
+  },
   "dictationSettings.enterApiKey": {
     "defaultMessage": "輸入您的 API 金鑰"
   },
@@ -896,6 +917,9 @@
   "dictationSettings.removeApiKey": {
     "defaultMessage": "移除 API 金鑰"
   },
+  "dictationSettings.removeEndpoint": {
+    "defaultMessage": "Remove Endpoint"
+  },
   "dictationSettings.requiredForTranscription": {
     "defaultMessage": "轉錄所需"
   },
@@ -904,6 +928,9 @@
   },
   "dictationSettings.updateApiKey": {
     "defaultMessage": "更新 API 金鑰"
+  },
+  "dictationSettings.updateEndpoint": {
+    "defaultMessage": "Update Endpoint"
   },
   "dictationSettings.voiceDictationProvider": {
     "defaultMessage": "語音聽寫供應商"

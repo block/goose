@@ -90,7 +90,9 @@ impl GooseAcpAgent {
 
         for def in all_providers() {
             let provider = def.provider;
-            let host = if let Some(host_key) = def.host_key {
+            let host = if provider == DictationProvider::AzureFoundry {
+                crate::dictation::providers::azure_speech_endpoint(config).ok()
+            } else if let Some(host_key) = def.host_key {
                 config
                     .get(host_key, false)
                     .ok()
@@ -336,6 +338,10 @@ impl GooseAcpAgent {
             DictationProvider::OpenAI => OPENAI_TRANSCRIPTION_MODEL_CONFIG_KEY,
             DictationProvider::Groq => GROQ_TRANSCRIPTION_MODEL_CONFIG_KEY,
             DictationProvider::ElevenLabs => ELEVENLABS_TRANSCRIPTION_MODEL_CONFIG_KEY,
+            DictationProvider::AzureFoundry => {
+                return Err(agent_client_protocol::Error::invalid_params()
+                    .data("Azure Foundry speech transcription does not support model selection"));
+            }
             #[cfg(feature = "local-inference")]
             DictationProvider::Local => {
                 let model = whisper::get_model(&req.model_id).ok_or_else(|| {
@@ -391,6 +397,7 @@ fn dictation_model_config_key(provider: DictationProvider) -> Option<String> {
         DictationProvider::ElevenLabs => {
             Some(ELEVENLABS_TRANSCRIPTION_MODEL_CONFIG_KEY.to_string())
         }
+        DictationProvider::AzureFoundry => None,
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => Some(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY.to_string()),
     }
@@ -403,6 +410,8 @@ fn dictation_transcribe_params(provider: DictationProvider) -> (&'static str, &'
         DictationProvider::OpenAI => ("model", OPENAI_TRANSCRIPTION_MODEL),
         DictationProvider::Groq => ("model", GROQ_TRANSCRIPTION_MODEL),
         DictationProvider::ElevenLabs => ("model_id", ELEVENLABS_TRANSCRIPTION_MODEL),
+        // Azure Foundry is handled before this function is reached in transcribe_with_provider.
+        DictationProvider::AzureFoundry => ("", ""),
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => ("", ""),
     }
@@ -413,6 +422,7 @@ fn dictation_default_model(provider: DictationProvider) -> Option<String> {
         DictationProvider::OpenAI => Some(OPENAI_TRANSCRIPTION_MODEL.to_string()),
         DictationProvider::Groq => Some(GROQ_TRANSCRIPTION_MODEL.to_string()),
         DictationProvider::ElevenLabs => Some(ELEVENLABS_TRANSCRIPTION_MODEL.to_string()),
+        DictationProvider::AzureFoundry => None,
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => Some(whisper::recommend_model().to_string()),
     }
@@ -456,6 +466,7 @@ fn dictation_available_models(provider: DictationProvider) -> Vec<DictationModel
             label: "Scribe v1".to_string(),
             description: "ElevenLabs' hosted speech-to-text model.".to_string(),
         }],
+        DictationProvider::AzureFoundry => vec![],
         #[cfg(feature = "local-inference")]
         DictationProvider::Local => whisper::available_models()
             .iter()

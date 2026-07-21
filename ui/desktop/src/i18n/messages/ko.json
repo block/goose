@@ -866,8 +866,23 @@
   "dictationSettings.addApiKey": {
     "defaultMessage": "API 키 추가"
   },
+  "dictationSettings.addEndpoint": {
+    "defaultMessage": "Add Endpoint"
+  },
   "dictationSettings.apiKey": {
     "defaultMessage": "API 키"
+  },
+  "dictationSettings.azureServicesKey": {
+    "defaultMessage": "Azure AI Services Key"
+  },
+  "dictationSettings.azureServicesKeyDescription": {
+    "defaultMessage": "Use the key from your Azure AI Services resource. A unified Foundry resource can reuse its Foundry API key. Leave empty to authenticate via Entra ID with az login."
+  },
+  "dictationSettings.azureSpeechEndpoint": {
+    "defaultMessage": "Speech Endpoint"
+  },
+  "dictationSettings.azureSpeechEndpointDescription": {
+    "defaultMessage": "Cognitive services URL from Azure portal → AI Foundry Hub → AI Services resource → Keys and Endpoint"
   },
   "dictationSettings.cancel": {
     "defaultMessage": "취소"
@@ -887,6 +902,12 @@
   "dictationSettings.disabled": {
     "defaultMessage": "사용 안 함"
   },
+  "dictationSettings.endpointConfigured": {
+    "defaultMessage": "Configured: {endpoint}"
+  },
+  "dictationSettings.endpointRequired": {
+    "defaultMessage": "Not set — required to enable speech."
+  },
   "dictationSettings.enterApiKey": {
     "defaultMessage": "API 키를 입력하세요"
   },
@@ -896,6 +917,9 @@
   "dictationSettings.removeApiKey": {
     "defaultMessage": "API 키 제거"
   },
+  "dictationSettings.removeEndpoint": {
+    "defaultMessage": "Remove Endpoint"
+  },
   "dictationSettings.requiredForTranscription": {
     "defaultMessage": "텍스트 변환에 필요"
   },
@@ -904,6 +928,9 @@
   },
   "dictationSettings.updateApiKey": {
     "defaultMessage": "API 키 업데이트"
+  },
+  "dictationSettings.updateEndpoint": {
+    "defaultMessage": "Update Endpoint"
   },
   "dictationSettings.voiceDictationProvider": {
     "defaultMessage": "음성 받아쓰기 제공업체"

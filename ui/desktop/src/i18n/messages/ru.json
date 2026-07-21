@@ -866,8 +866,23 @@
   "dictationSettings.addApiKey": {
     "defaultMessage": "Добавить API-ключ"
   },
+  "dictationSettings.addEndpoint": {
+    "defaultMessage": "Add Endpoint"
+  },
   "dictationSettings.apiKey": {
     "defaultMessage": "API-ключ"
+  },
+  "dictationSettings.azureServicesKey": {
+    "defaultMessage": "Azure AI Services Key"
+  },
+  "dictationSettings.azureServicesKeyDescription": {
+    "defaultMessage": "Use the key from your Azure AI Services resource. A unified Foundry resource can reuse its Foundry API key. Leave empty to authenticate via Entra ID with az login."
+  },
+  "dictationSettings.azureSpeechEndpoint": {
+    "defaultMessage": "Speech Endpoint"
+  },
+  "dictationSettings.azureSpeechEndpointDescription": {
+    "defaultMessage": "Cognitive services URL from Azure portal → AI Foundry Hub → AI Services resource → Keys and Endpoint"
   },
   "dictationSettings.cancel": {
     "defaultMessage": "Отмена"
@@ -887,6 +902,12 @@
   "dictationSettings.disabled": {
     "defaultMessage": "Отключено"
   },
+  "dictationSettings.endpointConfigured": {
+    "defaultMessage": "Configured: {endpoint}"
+  },
+  "dictationSettings.endpointRequired": {
+    "defaultMessage": "Not set — required to enable speech."
+  },
   "dictationSettings.enterApiKey": {
     "defaultMessage": "Введите API-ключ"
   },
@@ -896,6 +917,9 @@
   "dictationSettings.removeApiKey": {
     "defaultMessage": "Удалить API-ключ"
   },
+  "dictationSettings.removeEndpoint": {
+    "defaultMessage": "Remove Endpoint"
+  },
   "dictationSettings.requiredForTranscription": {
     "defaultMessage": "Требуется для транскрипции"
   },
@@ -904,6 +928,9 @@
   },
   "dictationSettings.updateApiKey": {
     "defaultMessage": "Обновить API-ключ"
+  },
+  "dictationSettings.updateEndpoint": {
+    "defaultMessage": "Update Endpoint"
   },
   "dictationSettings.voiceDictationProvider": {
     "defaultMessage": "Провайдер голосовой диктовки"
