@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r#"(?:^|\s|[;&|(`/"'])(?:format[ \t]+|mkfs\.[a-z][a-z0-9]*[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"|[ \t]+)*?)(?:[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?(?:\s|[;&|<>)`"']|$)|'[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?'(?:\s|[;&|<>)`"']|$)|"[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?"(?:\s|[;&|<>)`"']|$))"#,
+        pattern: r#"(?:^|\s|[;&|(`/"'])(?:format[ \t]+|mkfs\.[a-z][a-z0-9]*[ \t]+(?:(?:[^;&|)`\s#'"\\]|\\[^\n])(?:[^;&|)`\s'"\\]|\\[^\n])*|'[^'\n]*'|"(?:\\[^\n]|[^"\\\n])*"|[ \t]+)*?)(?:[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?(?:[ \t]+[0-9]+)?[ \t]*(?:\n|[;&|<>)`"'#]|$)|'[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?'(?:[ \t]+[0-9]+)?[ \t]*(?:\n|[;&|<>)`"'#]|$)|"[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?"(?:[ \t]+[0-9]+)?[ \t]*(?:\n|[;&|<>)`"'#]|$))"#,
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -414,6 +414,7 @@ mod tests {
         assert!(matches(pat, "sh -c \"mkfs.ext4 /dev/sda1\""));
         assert!(matches(pat, "sh -c 'mkfs.ext4 /dev/sda1'"));
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -F /dev/sda1 4096"));
         assert!(matches(pat, "mkfs.ext4 -q -L data /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L 'x;y' /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L \"x|y\" /dev/sda1"));
@@ -429,6 +430,9 @@ mod tests {
         assert!(!matches(pat, "mkfs.ext4 # /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -L data # /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -L '/dev/sda not-a-target'"));
+        assert!(!matches(pat, "mkfs.ext4 -F -L /dev/sda /tmp/image"));
+        assert!(!matches(pat, "mkfs.ext4 -F -L '/dev/sda' /tmp/image"));
+        assert!(!matches(pat, "mkfs.ext4 -F -L \"/dev/sda\" /tmp/image"));
         assert!(!matches(pat, "mkfs.ext4 --help\necho /dev/sda1"));
         assert!(!matches(pat, "echo $(mkfs.ext4 --help) /dev/sda"));
         assert!(!matches(pat, "stat --format '%n %s' /dev/sda"));
