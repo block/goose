@@ -317,12 +317,16 @@ static COMPILED_PATTERNS: LazyLock<HashMap<&'static str, Regex>> = LazyLock::new
     patterns
 });
 
+fn trim_shell_delimiters(word: &str) -> &str {
+    word.trim_matches(|character: char| {
+        matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
+    })
+}
+
 fn is_non_writing_ext_format_match(matched_text: &str) -> bool {
     let mut words = matched_text.split_ascii_whitespace();
     let is_ext_command = words.any(|word| {
-        let word = word.trim_matches(|character: char| {
-            matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
-        });
+        let word = trim_shell_delimiters(word);
         let command = word
             .rsplit(|character| ['/', '\\'].contains(&character))
             .next()
@@ -331,21 +335,61 @@ fn is_non_writing_ext_format_match(matched_text: &str) -> bool {
         matches!(command.as_str(), "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4")
     });
 
-    is_ext_command
-        && words.any(|word| {
-            let flag = word.trim_matches(|character: char| {
-                matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
-            });
-            matches!(flag, "--help" | "--version")
-                || flag
-                    .strip_prefix('-')
-                    .filter(|short_flags| !short_flags.starts_with('-'))
-                    .is_some_and(|short_flags| {
-                        short_flags
-                            .chars()
-                            .any(|character| matches!(character, 'n' | 'V'))
-                    })
-        })
+    if !is_ext_command {
+        return false;
+    }
+
+    let mut skip_option_value = false;
+    words.any(|word| {
+        let flag = trim_shell_delimiters(word);
+        if skip_option_value {
+            skip_option_value = false;
+            return false;
+        }
+        if matches!(
+            flag,
+            "-b" | "-C"
+                | "-d"
+                | "-e"
+                | "-E"
+                | "-g"
+                | "-G"
+                | "-i"
+                | "-I"
+                | "-J"
+                | "-l"
+                | "-L"
+                | "-m"
+                | "-M"
+                | "-N"
+                | "-o"
+                | "-O"
+                | "-r"
+                | "-t"
+                | "-T"
+                | "-U"
+                | "-z"
+        ) {
+            skip_option_value = true;
+            return false;
+        }
+        if matches!(flag, "--help" | "--version") {
+            return true;
+        }
+
+        flag.strip_prefix('-')
+            .filter(|short_flags| !short_flags.is_empty() && !short_flags.starts_with('-'))
+            .is_some_and(|short_flags| {
+                short_flags.chars().all(|character| {
+                    matches!(
+                        character,
+                        'c' | 'D' | 'F' | 'j' | 'n' | 'q' | 'S' | 'v' | 'V'
+                    )
+                }) && short_flags
+                    .chars()
+                    .any(|character| matches!(character, 'n' | 'V'))
+            })
+    })
 }
 
 /// Pattern matcher for detecting security threats
@@ -476,6 +520,7 @@ mod tests {
         assert!(!matches(pat, "mkfs.ext4 -n /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -V /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 -Fn /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L -n /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 --help\necho /dev/sda1"));
         assert!(!matches(pat, "echo $(mkfs.ext4 --help) /dev/sda"));
         assert!(!matches(pat, "stat --format '%n %s' /dev/sda"));
