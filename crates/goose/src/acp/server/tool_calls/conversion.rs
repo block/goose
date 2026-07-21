@@ -163,101 +163,29 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
     }
 }
 
-fn extract_tool_locations(
-    tool_request: &ToolRequest,
-    tool_response: &ToolResponse,
-) -> Vec<ToolCallLocation> {
-    let mut locations = Vec::new();
-
-    if let Ok(tool_call) = &tool_request.tool_call {
-        if !is_developer_file_tool(tool_call.name.as_ref()) {
-            return locations;
-        }
-
-        let tool_name = tool_call.name.as_ref();
-        let path_str = tool_call
-            .arguments
-            .as_ref()
-            .and_then(|args| args.get("path"))
-            .and_then(|p| p.as_str());
-
-        if let Some(path_str) = path_str {
-            if matches!(tool_name, "read") {
-                let line = get_requested_line(tool_call.arguments.as_ref());
-                locations.push(ToolCallLocation::new(path_str).line(line));
-                return locations;
-            }
-
-            if matches!(tool_name, "write" | "edit") {
-                locations.push(ToolCallLocation::new(path_str).line(1));
-                return locations;
-            }
-
-            let command = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("command"))
-                .and_then(|c| c.as_str());
-
-            if let Ok(result) = &tool_response.tool_result {
-                for content in &result.content {
-                    if let RawContent::Text(text_content) = &content.raw {
-                        let text = &text_content.text;
-
-                        match command {
-                            Some("view") => {
-                                let line = extract_view_line_range(text)
-                                    .map(|range| range.0 as u32)
-                                    .or(Some(1));
-                                locations.push(ToolCallLocation::new(path_str).line(line));
-                            }
-                            Some("str_replace") | Some("insert") => {
-                                let line = extract_first_line_number(text)
-                                    .map(|l| l as u32)
-                                    .or(Some(1));
-                                locations.push(ToolCallLocation::new(path_str).line(line));
-                            }
-                            Some("write") => {
-                                locations.push(ToolCallLocation::new(path_str).line(1));
-                            }
-                            _ => {
-                                locations.push(ToolCallLocation::new(path_str).line(1));
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if locations.is_empty() {
-                locations.push(ToolCallLocation::new(path_str).line(1));
-            }
-        }
+fn extract_tool_locations(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
+    let Ok(tool_call) = &tool_request.tool_call else {
+        return Vec::new();
+    };
+    if !is_developer_file_tool(tool_call.name.as_ref()) {
+        return Vec::new();
     }
 
-    locations
-}
+    let Some(path) = tool_call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("path"))
+        .and_then(|path| path.as_str())
+    else {
+        return Vec::new();
+    };
 
-fn extract_view_line_range(text: &str) -> Option<(usize, usize)> {
-    let re = regex::Regex::new(r"\(lines (\d+)-(\d+|end)\)").ok()?;
-    if let Some(caps) = re.captures(text) {
-        let start = caps.get(1)?.as_str().parse::<usize>().ok()?;
-        let end = if caps.get(2)?.as_str() == "end" {
-            start
-        } else {
-            caps.get(2)?.as_str().parse::<usize>().ok()?
-        };
-        return Some((start, end));
-    }
-    None
-}
-
-fn extract_first_line_number(text: &str) -> Option<usize> {
-    let re = regex::Regex::new(r"```[^\n]*\n(\d+):").ok()?;
-    if let Some(caps) = re.captures(text) {
-        return caps.get(1)?.as_str().parse::<usize>().ok();
-    }
-    None
+    let line = match tool_call.name.as_ref() {
+        "read" => get_requested_line(tool_call.arguments.as_ref()),
+        "write" | "edit" => Some(1),
+        _ => return Vec::new(),
+    };
+    vec![ToolCallLocation::new(path).line(line)]
 }
 
 pub(crate) fn extract_tool_call_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
@@ -354,11 +282,8 @@ pub(crate) fn tool_call_update_fields_from_response(
     }
 
     if !is_acp_aware {
-        let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
-            tool_request
-                .map(|request| extract_tool_locations(request, tool_response))
-                .unwrap_or_default()
-        });
+        let locations = extract_locations_from_meta(tool_response)
+            .unwrap_or_else(|| tool_request.map(extract_tool_locations).unwrap_or_default());
         if !locations.is_empty() {
             fields = fields.locations(locations);
         }
@@ -482,11 +407,6 @@ mod tests {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
         }
         => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
         ; "read returns requested line"
@@ -496,11 +416,6 @@ mod tests {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
         }
         => vec![(PathBuf::from("/tmp/f.txt"), None)]
         ; "read without line"
@@ -510,11 +425,6 @@ mod tests {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
         }
         => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
         ; "write returns line 1"
@@ -524,11 +434,6 @@ mod tests {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
         }
         => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
         ; "edit returns line 1"
@@ -538,20 +443,12 @@ mod tests {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
         }
         => Vec::<(PathBuf, Option<u32>)>::new()
         ; "non file tool returns empty"
     )]
-    fn test_extract_tool_locations(
-        request: ToolRequest,
-        response: ToolResponse,
-    ) -> Vec<(PathBuf, Option<u32>)> {
-        extract_tool_locations(&request, &response)
+    fn test_extract_tool_locations(request: ToolRequest) -> Vec<(PathBuf, Option<u32>)> {
+        extract_tool_locations(&request)
             .into_iter()
             .map(|loc| (loc.path, loc.line))
             .collect()
