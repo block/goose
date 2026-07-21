@@ -5,46 +5,61 @@ Peer-to-peer transport for goose agents, built on
 traversal).
 
 It lets a goose agent accept connections from a remote ACP client (another
-goose) that drives it, and lets a client dial a remote agent to hold an
-interactive session or delegate a one-shot task, typically without
-port-forwarding.
+goose, the desktop app, or any ACP client) that drives it, and lets a client
+dial a remote agent to hold an interactive session, delegate a one-shot task, or
+bridge it to a local ACP client — typically without port-forwarding.
 
 The crate has no dependency on `goose` core, so the iroh dependency stays out of
 core. The code that bridges the transport to goose's agent machinery lives in
 `goose-cli` behind an optional `roaming` feature; it isn't compiled unless that
 feature is enabled.
 
+## The model: an authenticated ACP transport with mutual key trust
+
+Roaming does one thing: provide an **authenticated peer-to-peer ACP transport**.
+The host runs goose's real ACP server; the connecting side is an ACP client.
+Everything "session-shaped" (list/load/new/prompt) is therefore plain ACP that
+happens to run over a roaming connection — roaming adds no session semantics.
+
+Trust is a **mutual, public-key allowlist** — WireGuard / SSH-known-hosts style,
+not a capability token:
+
+- Each node has **one** ed25519 identity that *is* its iroh `EndpointId`. The
+  QUIC-TLS handshake proves a peer holds the secret for the id it claims, so a
+  key cannot be impersonated. Persisted as hex in a `0600` file in the config dir.
+- A node produces a **connection card** (`ConnectionCard`) — a non-secret string
+  carrying its public key + relay URLs, plus a short fingerprint for out-of-band
+  verification. It never expires and grants nothing on its own.
+- You **swap cards** and each side **accepts** the other's key (with a `Scope`).
+  A connection succeeds only if the host has accepted the dialer's key. A leaked
+  card lets no one in; there is no bearer token that works by possession.
+
 ## Concepts
 
-- **Endpoint identity** — an ed25519 node key that *is* the iroh `EndpointId`.
-  It's self-certifying: the QUIC-TLS handshake proves a peer holds the secret
-  for the id it claims. Persisted as hex in a `0600` file in goose's config dir.
-  Hosts and clients use distinct keys so a node never dials itself.
-- **Invite** — a signed, TTL'd token the host mints and shares. It carries the
-  host's endpoint id, relay URL(s), a capability scope, and an optional
-  client-key allowlist, signed over domain-tagged, length-prefixed canonical
-  bytes so it's offline-verifiable and tamper-evident. No relay credentials are
-  embedded. Can be marked single-use for pairing.
-- **Trust** — how the host authorizes an inbound connection: either *bearer*
-  (anyone holding a valid invite) or an explicit *client-key allowlist*.
-- **Directory** — an out-of-band record of connections that actually happened
+- **`ConnectionCard`** — the shareable, non-secret identity + reachability string
+  (`goose+roam://…`). Encodes public key + relay URLs; exposes `fingerprint()`.
+- **`TrustBook`** — the local, mutual allowlist: peer key → `Scope`, plus
+  revocations. Access exists *only* by accepting a key. Persisted atomically and
+  re-read on each inbound connection, so `accept`/`revoke` take effect against a
+  running `share` without a restart. Reload failure fails **closed**.
+- **`Scope`** — `Control` (full ACP surface), `Attach` (prompt/steer a co-driven
+  session), `Observe` (watch only). Decided host-side per key, never in a token.
+- **`Directory`** — an out-of-band record of connections that actually happened
   (inbound and outbound), built purely from observed connections. No gossip.
-- **PeerBook** — a user-managed address book of remotes you can connect to by
-  nickname; stores the invite as the outbound credential (`0600`).
+- **`PeerBook`** — a user-managed address book of remotes, by nickname; stores
+  the peer's (non-secret) card.
 
 ## Flow
 
 ```
-host:    bind endpoint ──▶ share(agent) ──▶ mint invite ──▶ (give token to peer)
-                                 │
-client:  bind endpoint ──▶ decode invite ──▶ dial via relay ──▶ handshake
-                                 │
-host:    authorize (scope + allowlist) ──▶ hand the bi-stream to ACP serve()
-                                 │
+both:    bind endpoint ──▶ `roam id` prints a connection card ──▶ swap cards
+host:    `roam peers accept <peer>` ──▶ `roam share` (serve to accepted keys)
+client:  `roam peers add <card>` ──▶ dial via relay ──▶ handshake (label only)
+host:    authorize by TLS-authenticated key ──▶ admits(scope) ──▶ ACP serve()
 client:  run an ACP client over the same bi-stream
 ```
 
-An iroh bidirectional stream is used as the byte transport for goose's existing
+An iroh bidirectional stream is the byte transport for goose's existing
 transport-agnostic ACP `serve` / `ByteStreams` seam, so hosting reuses the ACP
 server and the client reuses the ACP client.
 
@@ -54,126 +69,101 @@ Exposed via `goose roam` (in `goose-cli`, feature `roaming`):
 
 | Command | Purpose |
 |---|---|
-| `roam share` | Host this machine's agent, print an invite token |
-| `roam connect <peer\|token>` | Live interactive session onto the host's agent |
-| `roam delegate <peer\|token> "<task>"` | One-shot: send a task, return the response |
-| `roam peers save/remove/rename/list` | Address book of remotes |
+| `roam id` (alias `card`) | Print this node's connection card |
+| `roam peers add <card> [name]` | Save a peer's card to the address book |
+| `roam peers accept <peer\|card> [--scope]` | Accept inbound connections from a key |
+| `roam peers revoke <peer\|card\|id>` | Stop accepting a key |
+| `roam peers list` | Saved peers + which keys are accepted |
+| `roam share [--session <id>] [--cwd] [--with-builtin]` | Host this agent to accepted peers |
+| `roam connect <peer\|card>` | Quick interactive REPL (debug/peek) |
+| `roam delegate <peer\|card> ["<task>"] [--session <id>] [--list-sessions]` | One-shot task, or list/continue remote sessions |
+| `roam bridge <peer\|card> [--listen <addr>]` | Expose the remote agent as a local ACP endpoint |
+| `roam sessions` | Local sessions (for `share --session`) |
 | `roam connections` | Live/observed connections (no gossip) |
-| `roam id` | This machine's host + client endpoint ids |
 
 ## Testing across two disconnected machines
 
-Build both with the roaming feature (`cargo build -p goose-cli --features roaming`,
-or `just` equivalent) — no shared network, VPN, or port-forwarding needed; the
-public n0 relays bridge them. On **machine A** (the host), run `goose roam share`
-(optionally `--cwd <dir>` to choose the directory the agent runs in; it defaults
-to where `share` started, and the connector's own path is always ignored) and
-copy the printed `goose+roam://…` invite token (it embeds A's endpoint id + a
-live relay URL; default TTL 1h). Get that token to **machine B** out of band
-(paste it in chat, etc.). On **machine B**, either drive A interactively with
-`goose roam connect '<token>'` (you'll get a prompt that runs on A's agent — its
-tools, files, shell) or hand it a one-shot task with
-`goose roam delegate '<token>' "what is 2+2?"` and read the reply. Verify it's
-truly A doing the work by asking something machine-specific (e.g. "what's your
-hostname and cwd?"). On the host, `goose roam connections` shows who connected;
-optionally save the peer on B with `goose roam peers save boxA '<token>'` and
-thereafter use the nickname (`goose roam connect boxA`). If session creation
-hangs on macOS, prefix with `GOOSE_DISABLE_KEYRING=1` (see PR #10549 for the fix).
+Build both with the roaming feature (`cargo build -p goose-cli --features
+roaming`) — no shared network, VPN, or port-forwarding needed; the public n0
+relays bridge them. On **each** machine run `goose roam id` and send the printed
+`goose+roam://…` card to the other out of band (paste it in chat, etc.).
+
+On **machine A** (the host): `goose roam peers accept '<B's card>'` then
+`goose roam share` (optionally `--cwd <dir>`; it defaults to where `share`
+started, and the connector's own path is always ignored). On **machine B**:
+`goose roam peers add '<A's card>' boxA`, then either drive A interactively with
+`goose roam connect boxA` (a prompt that runs on A's agent — its tools, files,
+shell), hand it a one-shot task with `goose roam delegate boxA "what is 2+2?"`,
+or `goose roam delegate boxA --list-sessions` / `--session <id> "<task>"` to
+enumerate and continue A's sessions. Verify it's truly A doing the work by asking
+something machine-specific (e.g. "what's your hostname and cwd?"). On the host,
+`goose roam connections` shows who connected. If session creation hangs on
+macOS, prefix with `GOOSE_DISABLE_KEYRING=1`.
 
 ## Design decisions & rationale
 
-**`connect` is a thin ACP client UI onto the host's agent — not a provider
-wrapper.** The host runs the agent loop (its tools, working directory, shell);
-the client just opens an ACP session, sends prompts, and renders
-`session/update` notifications. Wrapping the remote as a *provider* for a second
-local agent loop would double the loop and defeat the point of sharing an agent.
-A fresh agent is created per accepted connection (never shared).
+**Roaming is just an ACP transport.** The host runs the agent loop (its tools,
+working directory, shell); the connecting side is an ACP client. By default each
+connection gets a fresh agent driving its own sessions (`FullAcpBridge` hands the
+stream to goose's real `serve`); co-driving one live session is a separate,
+opt-in mode (see below). `connect` is a thin ACP client UI — not a provider
+wrapper; wrapping the remote as a provider for a second local agent loop would
+double the loop and defeat the point.
 
 **The host controls the working directory.** ACP's `session/new` carries a cwd,
-but the connector's absolute path is meaningless on the host machine — using it
-would fail on a path mismatch or, worse, silently run in an unintended directory
-that happens to exist. So the host ignores the sent cwd and imposes its own:
-the directory `roam share` was started in, or an explicit `--cwd`. The client
-sends only a placeholder.
+but the connector's absolute path is meaningless on the host machine. So the host
+ignores the sent cwd and imposes its own (the directory `roam share` was started
+in, or `--cwd`); the client sends only a placeholder.
 
-**Scope is Control-only for now.** A connected client can drive the agent and
-approve its tool use, which is close to shell access on the host — so only share
-with peers you trust. The `Scope` enum keeps `Observe`/`Attach` variants, but
-they are not offered in the CLI because the host does not yet enforce them
-(that needs a session coordinator). Offering an unenforced scope would be
-misleading, so it's left out.
+**Trust is mutual and key-based, with no bearer path.** A card is non-secret and
+grants nothing; a share admits no one until a key is explicitly accepted, so the
+safe default (admit nobody) is the built-in one. Authorization uses the full
+TLS-authenticated key; the handshake carries only a display label (not trusted).
+Acceptance re-reads per connection (fail-closed) so revoke takes effect on a live
+share.
+
+**Scope is enforced per serving mode.** The default full-ACP share can only
+serve `Control` (the surface has no per-request gate), so it *refuses* narrower
+scopes before acking, directing them to co-drive. `Attach`/`Observe` are enforced
+by the co-drive broker.
 
 **Delegation guardrails are about cost, not authorization.** The peer is already
-trusted, so the concern with agent-to-agent delegation is runaway cost from
-loops (A → B → A …). Any loop/cost guardrails belong wherever delegation is
-surfaced to the model. The current `delegate` path auto-cancels tool-permission
-requests, since there is no human present to answer them.
+trusted, so the concern with agent-to-agent delegation is runaway cost from loops
+(A → B → A …). The `delegate` path auto-cancels tool-permission requests, since
+there is no human present to answer them.
+
+## Co-driving one live session
+
+`roam share --session <id>` lets several accepted peers attach to **one** live
+session, each limited by its granted scope. A `SharedSessionBridge` re-serves ACP
+to N peers and applies three routing rules — fan out `session/update`, funnel
+`session/prompt`/`steer` (serialized), and route `session/request_permission` to
+a single controller. The transport-neutral routing policy is in
+[`broker.rs`](src/broker.rs) (`Router`). This keeps both iroh *and* multi-client
+logic out of goose core.
+
+## What's deferred
+
+- Co-drive turn semantics: the shared-session bridge acks `EndTurn` eagerly and
+  does not yet replay history to late joiners (a phone joining a running laptop
+  session sees activity only from the point it attaches).
+- Controller handoff and durable catch-up cursors for co-drive.
+- Cross-process session ownership: the roaming endpoint must run *inside* the
+  process that owns the live session (a separate `roam share` can't attach to an
+  agent running in the desktop process).
+- Self-hosted relays (public n0 relays are rate-limited).
+- Connection concurrency/rate limits for a publicly-reachable node.
 
 ## Surfacing delegation to the model
 
 The agent can reach other agents with **no new code**: a builtin skill
-(`roam-delegate`) documents how to call `goose roam delegate <peer> "<task>"`
-via the shell. The skill ships in core but is inert unless the `roaming` CLI
-feature is built in. This keeps iroh out of core and adds nothing to maintain;
-a richer tool (e.g. a small MCP server) can come later if warranted.
-
-## Roadmap: multi-client attach & remote steering
-
-A key target use case is a phone joining a session already running on a laptop —
-watching it stream and injecting steering messages: a daemon streams a timeline
-to many clients — one live stream for immediacy, plus an authoritative history
-fetch for catch-up.
-
-goose already speaks the right wire protocol: ACP has `session/update`
-notifications, `session/prompt`, and an unstable `session/steer` for active
-runs. What's missing is a coordinator: today each accepted roaming stream builds
-a **fresh** `GooseAcpAgent`, and several of its fields (sessions, active-run map,
-`client_cx`) are connection-owned, so two clients can't share one live agent by
-construction.
-
-**Chosen shape: a broker in front, not a multi-client agent.** The agent still
-speaks ACP to exactly one client; that one client is a
-**broker** which re-serves ACP to N roaming peers and applies three routing
-rules — fan out `session/update`, funnel `session/prompt`/`steer` (serialized),
-and route `session/request_permission` to a single controller. This keeps both
-iroh *and* multi-client logic out of goose core. The transport-neutral routing
-policy is implemented and unit-tested in [`broker.rs`](src/broker.rs)
-(`Router`/`SessionBroker`); the ACP wire adapter is the remaining work.
-
-The minimal path (expert-reviewed), roughly in order:
-
-1. **Session-bound invites.** Separate *resource* from *access* in invite claims
-   — `InviteTarget::{Agent, Session(id)}` and `Access::{Observe, Steer, Control}`
-   — so a phone invite is capability-bound to exactly one session rather than
-   able to reach any session on the host.
-2. **A session actor/hub in `goose::acp`** (transport-neutral, iroh-free): one
-   live `Agent` per session; serialize prompts/steer; fan out `session/update`
-   to every attached connection; route permission/fs requests to a single
-   designated controller (the laptop), not every subscriber.
-3. **Attach via `session/load`**: a late joiner subscribes, the daemon replays
-   the persisted session, buffered live events flush, then switch to live —
-   subscribe-before-replay avoids the snapshot/live gap. Reconnect = full replay
-   (no cursor protocol yet).
-4. **Steer** uses the existing active-run steer request; idle input uses
-   `session/prompt`.
-
-Deferred until needed: durable `epoch + sequence` cursors and paged catch-up
-(a full timeline), controller handoff, and cross-process session ownership.
-Note the roaming endpoint must run **inside the process that owns the live
-session** — a separate `goose roam share` process can't attach to an agent
-running in the desktop process; for a first demo, either embed sharing in the
-owner process or have `roam share` own the session and let both laptop and phone
-attach to it.
-
-## What's deferred
-- Durable / attachable sessions and a session coordinator (needed before
-  observe/attach scopes and "spawn a subagent that outlives the caller").
-- Self-hosted relays (public n0 relays are rate-limited).
-- Encrypted application-layer envelopes for agent-to-agent messages.
+(`roam-delegate`) documents how to call `goose roam delegate <peer> "<task>"` via
+the shell. It ships in core but is inert unless the `roaming` CLI feature is
+built in, keeping iroh out of core.
 
 ## Prior art
 
 Patterns here were informed by studying a sibling production project that runs
 iroh 1.0 for distributed LLM inference: minimal-preset endpoints with custom
-relay maps, ALPN-based stream dispatch, signed offline-verifiable bootstrap
-tokens over domain-tagged canonical bytes, and a node-key/owner-key separation.
+relay maps, ALPN-based stream dispatch, and reachability via relay-routing by
+node id (a card needs only key + relay, not a fixed address).
