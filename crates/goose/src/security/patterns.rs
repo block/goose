@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r#"(?:^|[\s;&|(`/"'])(?P<command>(?:[^\s;&|()`"']*[/\\])?(?:format|mkfs\.[a-z][a-z0-9]*))(?:[ \t<>]|\\\r?\n)+"#,
+        pattern: r#"(?:^|[\s;&|(`/"'])(?P<command>(?:[^\s;&|()`"']*[/\\])?(?:format|mkfs\.[a-z][a-z0-9]*))(?:[ \t<>'"]|&>>?|\\\r?\n)+"#,
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -404,6 +404,26 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
             continue;
         }
 
+        if character == '&' && characters.peek().is_some_and(|(_, next)| *next == '>') {
+            characters.next();
+            if characters.peek().is_some_and(|(_, next)| *next == '>') {
+                characters.next();
+            }
+            if start.take().is_some() {
+                if !discard_word {
+                    words.push(ShellWord {
+                        value: std::mem::take(&mut value),
+                        end: index,
+                    });
+                } else {
+                    value.clear();
+                }
+            }
+            discard_word = false;
+            awaiting_redirection_target = true;
+            continue;
+        }
+
         if awaiting_redirection_target && character == '&' {
             start = Some(index);
             discard_word = true;
@@ -542,7 +562,7 @@ fn is_non_writing_format_option(command: &str, option: &str) -> bool {
         .take_while(|flag| !format_option_value_flag(command, *flag))
         .any(|flag| match command {
             "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => matches!(flag, 'n' | 'V'),
-            "mkfs.f2fs" => flag == 'V',
+            "mkfs.f2fs" => matches!(flag, 'h' | 'V'),
             "mkfs.xfs" => matches!(flag, 'N' | 'V'),
             _ => false,
         })
@@ -654,7 +674,18 @@ impl PatternMatcher {
                         let Some(command_match) = captures.name("command") else {
                             continue;
                         };
-                        let Some(command_text) = text.get(command_match.start()..) else {
+                        let quoted_command =
+                            command_match
+                                .start()
+                                .checked_sub(1)
+                                .and_then(|quote_index| {
+                                    let quote = *text.as_bytes().get(quote_index)?;
+                                    (matches!(quote, b'\'' | b'"')
+                                        && text.as_bytes().get(command_match.end()) == Some(&quote))
+                                    .then_some(quote_index)
+                                });
+                        let command_start = quoted_command.unwrap_or(command_match.start());
+                        let Some(command_text) = text.get(command_start..) else {
                             continue;
                         };
                         let words = shell_words_until_boundary(command_text);
@@ -664,14 +695,14 @@ impl PatternMatcher {
                         else {
                             continue;
                         };
-                        let end_pos = command_match.start() + target.word.end;
+                        let end_pos = command_start + target.word.end;
                         matches.push(PatternMatch {
                             threat: threat.clone(),
                             matched_text: text
-                                .get(command_match.start()..end_pos)
+                                .get(command_start..end_pos)
                                 .unwrap_or_default()
                                 .to_string(),
-                            start_pos: command_match.start(),
+                            start_pos: command_start,
                             end_pos,
                         });
                     }
@@ -766,10 +797,17 @@ mod tests {
         assert!(matches(pat, "echo `mkfs.ext4 /dev/sda`"));
         assert!(matches(pat, "sh -c \"mkfs.ext4 /dev/sda1\""));
         assert!(matches(pat, "sh -c 'mkfs.ext4 /dev/sda1'"));
+        assert!(matches(pat, "'mkfs.ext4' -F /dev/sda1"));
+        assert!(matches(pat, "\"mkfs.ext4\" -F /dev/sda1"));
+        assert!(matches(pat, "sh -c \"'mkfs.ext4' -F /dev/sda1\""));
+        assert!(matches(pat, "'/sbin/mkfs.ext4' -F /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -qL data /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 >/tmp/mkfs.log /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4>/tmp/mkfs.log -F /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 &>/tmp/mkfs.log /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4&>/tmp/mkfs.log -F /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 &>>/tmp/mkfs.log /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 \\\r\n /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 \\\n /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 2>/tmp/mkfs.log /dev/sda1"));
@@ -823,6 +861,7 @@ mod tests {
         assert!(matches(pat, "mkfs.xfs -L data /dev/sda"));
         assert!(!matches(pat, "mkfs.xfs -L /dev/sda /tmp/image"));
         assert!(!matches(pat, "mkfs.xfs -N /dev/sda"));
+        assert!(!matches(pat, "mkfs.f2fs -h /dev/sda"));
         assert!(!matches(pat, "mkfs.f2fs -V /dev/sda"));
         assert!(matches(pat, "MKFS.EXT4 /dev/sda"));
     }
