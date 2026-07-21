@@ -69,7 +69,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "format_drive",
-        pattern: r"(format|mkfs\.[a-z][a-z0-9]*)\s+[/\\]dev[/\\][sh]d[a-z]",
+        pattern: r"(format|mkfs\.[a-z][a-z0-9]*)\s+[/\\]dev[/\\][sh]d[a-z]([0-9]+)?(\s|[;&|]|$)",
         description: "Formatting system drives",
         risk_level: RiskLevel::Critical,
         category: ThreatCategory::FileSystemDestruction,
@@ -400,6 +400,15 @@ mod tests {
         assert!(matches(pat, "mkfs.ext3 /dev/sdb"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda"));
         assert!(matches(pat, "mkfs.f2fs /dev/sdc"));
+    }
+
+    #[test]
+    fn format_drive_matches_partitions_without_matching_device_prefixes() {
+        let pat = "format_drive";
+        assert!(matches(pat, "mkfs.ext4 /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 /dev/hdb12 && reboot"));
+        assert!(!matches(pat, "mkfs.ext4 /dev/sda-volume"));
+        assert!(!matches(pat, "mkfs.ext4 /dev/sdaa"));
     }
 
     #[test]
