@@ -330,9 +330,48 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
     let mut quote = None;
     let mut discard_word = false;
     let mut awaiting_redirection_target = false;
+    let mut substitution_depth = 0;
+    let mut substitution_quote = None;
+    let mut backtick_substitution = false;
     let mut characters = text.char_indices().peekable();
 
     while let Some((index, character)) = characters.next() {
+        if substitution_depth > 0 {
+            value.push(character);
+            if let Some(active_quote) = substitution_quote {
+                if character == active_quote {
+                    substitution_quote = None;
+                } else if character == '\\' && active_quote == '"' {
+                    if let Some((_, escaped)) = characters.next() {
+                        value.push(escaped);
+                    }
+                }
+            } else if character == '\\' {
+                if let Some((_, escaped)) = characters.next() {
+                    value.push(escaped);
+                }
+            } else if matches!(character, '\'' | '"') {
+                substitution_quote = Some(character);
+            } else if character == '(' {
+                substitution_depth += 1;
+            } else if character == ')' {
+                substitution_depth -= 1;
+            }
+            continue;
+        }
+
+        if backtick_substitution {
+            value.push(character);
+            if character == '\\' {
+                if let Some((_, escaped)) = characters.next() {
+                    value.push(escaped);
+                }
+            } else if character == '`' {
+                backtick_substitution = false;
+            }
+            continue;
+        }
+
         if let Some(active_quote) = quote {
             if character == active_quote {
                 quote = None;
@@ -347,6 +386,35 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
             } else {
                 value.push(character);
             }
+            continue;
+        }
+
+        if character == '$' && characters.peek().is_some_and(|(_, next)| *next == '(') {
+            if start.is_none() {
+                start = Some(index);
+                discard_word = awaiting_redirection_target;
+                awaiting_redirection_target = false;
+            }
+            value.push(character);
+            if let Some((_, open_parenthesis)) = characters.next() {
+                value.push(open_parenthesis);
+            }
+            substitution_depth = 1;
+            continue;
+        }
+
+        if character == '`'
+            && text
+                .get(index + character.len_utf8()..)
+                .is_some_and(|remainder| remainder.contains('`'))
+        {
+            if start.is_none() {
+                start = Some(index);
+                discard_word = awaiting_redirection_target;
+                awaiting_redirection_target = false;
+            }
+            value.push(character);
+            backtick_substitution = true;
             continue;
         }
 
@@ -568,10 +636,27 @@ fn is_non_writing_format_option(command: &str, option: &str) -> bool {
         })
 }
 
+#[derive(Clone, Copy)]
+enum FormatDriveTargetKind {
+    Operand,
+    F2fsDeviceList,
+    XfsLogSuboptions,
+    XfsRealtimeSuboptions,
+}
+
 struct FormatDriveTarget<'a> {
     word: &'a ShellWord,
     value: &'a str,
-    allows_f2fs_alias: bool,
+    kind: FormatDriveTargetKind,
+}
+
+fn format_option_target_kind(command: &str, flag: char) -> Option<FormatDriveTargetKind> {
+    match (command, flag) {
+        ("mkfs.f2fs", 'c') => Some(FormatDriveTargetKind::F2fsDeviceList),
+        ("mkfs.xfs", 'l') => Some(FormatDriveTargetKind::XfsLogSuboptions),
+        ("mkfs.xfs", 'r') => Some(FormatDriveTargetKind::XfsRealtimeSuboptions),
+        _ => None,
+    }
 }
 
 fn format_drive_targets(words: &[ShellWord]) -> Vec<FormatDriveTarget<'_>> {
@@ -590,11 +675,11 @@ fn format_drive_targets(words: &[ShellWord]) -> Vec<FormatDriveTarget<'_>> {
 
     for word in &words[1..] {
         if let Some(option_flag) = pending_option_value.take() {
-            if command == "mkfs.f2fs" && option_flag == 'c' {
+            if let Some(kind) = format_option_target_kind(&command, option_flag) {
                 targets.push(FormatDriveTarget {
                     word,
                     value: &word.value,
-                    allows_f2fs_alias: true,
+                    kind,
                 });
             }
             continue;
@@ -607,14 +692,11 @@ fn format_drive_targets(words: &[ShellWord]) -> Vec<FormatDriveTarget<'_>> {
             non_writing |= is_non_writing_format_option(&command, &word.value);
             if let Some((option_flag, attached_value)) = format_option_value(&command, &word.value)
             {
-                if command == "mkfs.f2fs" && option_flag == 'c' {
-                    if let Some(value) = attached_value {
-                        targets.push(FormatDriveTarget {
-                            word,
-                            value,
-                            allows_f2fs_alias: true,
-                        });
-                    }
+                if let (Some(kind), Some(value)) = (
+                    format_option_target_kind(&command, option_flag),
+                    attached_value,
+                ) {
+                    targets.push(FormatDriveTarget { word, value, kind });
                 }
                 if attached_value.is_none() {
                     pending_option_value = Some(option_flag);
@@ -626,7 +708,7 @@ fn format_drive_targets(words: &[ShellWord]) -> Vec<FormatDriveTarget<'_>> {
             targets.push(FormatDriveTarget {
                 word,
                 value: &word.value,
-                allows_f2fs_alias: false,
+                kind: FormatDriveTargetKind::Operand,
             });
         }
     }
@@ -642,13 +724,26 @@ fn contains_system_drive(target: &FormatDriveTarget<'_>) -> bool {
     static SYSTEM_DRIVE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)^[/\\]dev[/\\][sh]d[a-z](?:[0-9]+)?$").expect("valid system drive regex")
     });
-    target.value.split(',').any(|device| {
-        let device = if target.allows_f2fs_alias {
-            device.split_once('@').map_or(device, |(name, _)| name)
-        } else {
-            device
-        };
-        SYSTEM_DRIVE.is_match(device)
+    match target.kind {
+        FormatDriveTargetKind::Operand => SYSTEM_DRIVE.is_match(target.value),
+        FormatDriveTargetKind::F2fsDeviceList => target.value.split(',').any(|device| {
+            let device = device.split_once('@').map_or(device, |(name, _)| name);
+            SYSTEM_DRIVE.is_match(device)
+        }),
+        FormatDriveTargetKind::XfsLogSuboptions => {
+            contains_xfs_device_suboption(target.value, "logdev", &SYSTEM_DRIVE)
+        }
+        FormatDriveTargetKind::XfsRealtimeSuboptions => {
+            contains_xfs_device_suboption(target.value, "rtdev", &SYSTEM_DRIVE)
+        }
+    }
+}
+
+fn contains_xfs_device_suboption(value: &str, name: &str, system_drive: &Regex) -> bool {
+    value.split(',').any(|suboption| {
+        suboption
+            .split_once('=')
+            .is_some_and(|(key, device)| key == name && system_drive.is_match(device))
     })
 }
 
@@ -823,6 +918,10 @@ mod tests {
         assert!(matches(pat, r"mkfs.ext4 -L x\;y /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L '#data' /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -L data#1 /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L $(hostname) /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L $(printf '%s' data) /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L $((1 + 2)) /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -L `hostname` /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -F '/dev/sda1'"));
         assert!(matches(pat, "mkfs.ext4 \"/dev/sda\""));
         assert!(matches(pat, "/sbin/mkfs.ext4 -F /dev/sda1"));
@@ -859,7 +958,16 @@ mod tests {
         let pat = "format_drive";
         assert!(matches(pat, "mkfs.xfs /dev/sda"));
         assert!(matches(pat, "mkfs.xfs -L data /dev/sda"));
+        assert!(matches(
+            pat,
+            "mkfs.xfs -l logdev=/dev/sdb1,size=32m /dev/loop0"
+        ));
+        assert!(matches(pat, "mkfs.xfs -llogdev=/dev/sdb1 /dev/loop0"));
+        assert!(matches(pat, "mkfs.xfs -r rtdev=/dev/sdc /dev/loop0"));
+        assert!(matches(pat, "mkfs.xfs -rrtdev=/dev/sdc /dev/loop0"));
         assert!(!matches(pat, "mkfs.xfs -L /dev/sda /tmp/image"));
+        assert!(!matches(pat, "mkfs.xfs -l rtdev=/dev/sdb1 /dev/loop0"));
+        assert!(!matches(pat, "mkfs.xfs -L logdev=/dev/sda /tmp/image"));
         assert!(!matches(pat, "mkfs.xfs -N /dev/sda"));
         assert!(!matches(pat, "mkfs.f2fs -h /dev/sda"));
         assert!(!matches(pat, "mkfs.f2fs -V /dev/sda"));
