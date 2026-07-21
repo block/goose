@@ -371,11 +371,15 @@ impl Provider for AnthropicProvider {
     }
 }
 
-fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptions {
+fn format_options_for_provider(
+    preserves_thinking: bool,
+    emit_clear_thinking: bool,
+) -> AnthropicFormatOptions {
     AnthropicFormatOptions {
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
         thinking_disabled: false,
+        emit_clear_thinking,
     }
 }
 
@@ -426,7 +430,8 @@ pub fn from_declarative_config(
         _ => AuthMethod::NoAuth,
     };
 
-    let format_options = format_options_for_provider(config.preserves_thinking);
+    let format_options =
+        format_options_for_provider(config.preserves_thinking, config.emit_clear_thinking);
 
     let timeout_secs = config
         .timeout_seconds

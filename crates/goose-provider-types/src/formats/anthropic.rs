@@ -51,6 +51,10 @@ pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
+    /// Emit `clear_thinking: false` on the thinking object. Z.AI/GLM-only —
+    /// see `apply_thinking_config`. Off for Anthropic and every other
+    /// provider on the shared `anthropic` engine.
+    pub emit_clear_thinking: bool,
 }
 
 impl AnthropicFormatOptions {
@@ -64,11 +68,15 @@ impl AnthropicFormatOptions {
             || preserve_thinking_context;
         let thinking_disabled = model_config.reasoning == Some(false)
             || model_config.thinking_effort() == Some(ThinkingEffort::Off);
+        let emit_clear_thinking = model_config
+            .request_param::<bool>("emit_clear_thinking")
+            .unwrap_or(self.emit_clear_thinking);
 
         Self {
             preserve_unsigned_thinking,
             preserve_thinking_context,
             thinking_disabled,
+            emit_clear_thinking,
         }
     }
 }
@@ -763,17 +771,20 @@ fn apply_thinking_config(
             }
         }
 
-        if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
-            // `clear_thinking` belongs to the manual `type: "enabled"` thinking
-            // shape used by OpenAI-compatible reasoning providers (e.g. Z.AI/GLM),
-            // where `false` preserves prior reasoning across turns. It is not part
-            // of the adaptive thinking interface: an adaptive request carries only
-            // `{"type": "adaptive"}` alongside `output_config.effort`. Emitting
-            // `clear_thinking` inside an adaptive object is rejected by endpoints
-            // that validate the adaptive shape strictly, so only add it when
-            // thinking is not adaptive.
-            let is_adaptive = thinking.get("type").and_then(|t| t.as_str()) == Some("adaptive");
-            if !is_adaptive {
+        // `clear_thinking` is a Z.AI/GLM field — the switch that preserves
+        // prior reasoning across turns (added for #7363). Z.AI runs on the
+        // shared `anthropic` engine, so this formatter serves it too, and it
+        // opts in via `emit_clear_thinking` in its provider config. It is NOT
+        // part of Anthropic's `thinking` schema (`{type: "enabled"|"adaptive",
+        // budget_tokens}` — no `clear_thinking` on either shape), so any other
+        // provider on this engine (real Anthropic, custom Anthropic-compatible
+        // gateways, minimax) must NOT emit it: strict validators reject the
+        // extra field with `thinking.<type>.clear_thinking: Extra inputs are
+        // not permitted`, on the `enabled` shape as well as `adaptive`.
+        // Gated on the explicit opt-in flag rather than a provider-name check
+        // so custom Anthropic-compatible providers are covered by default.
+        if options.emit_clear_thinking {
+            if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
                 thinking.insert("clear_thinking".to_string(), json!(false));
             }
         }
@@ -1388,6 +1399,7 @@ mod tests {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: false,
                 thinking_disabled: false,
+                emit_clear_thinking: false,
             },
         );
 
@@ -1613,6 +1625,7 @@ mod tests {
             Message::user().with_text("Continue"),
         ];
 
+        // Z.AI/GLM opts into `clear_thinking` via `emit_clear_thinking`.
         let payload = create_request_with_options_provider(
             &config,
             "system",
@@ -1622,11 +1635,14 @@ mod tests {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
                 thinking_disabled: false,
+                emit_clear_thinking: true,
             },
         )?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
         assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
+        // With the Z.AI opt-in, `clear_thinking: false` IS present — this is
+        // GLM's cross-turn preservation switch (#7363 regression guard).
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1639,6 +1655,49 @@ mod tests {
     }
 
     #[test]
+    fn test_enabled_thinking_without_optin_omits_clear_thinking() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
+        ]);
+
+        // Same preserved-thinking request WITHOUT the Z.AI opt-in (the
+        // default for real Anthropic / custom Anthropic-compatible gateways):
+        // the `enabled` shape must NOT carry the non-schema `clear_thinking`
+        // field, which strict validators reject with
+        // `thinking.enabled.clear_thinking: Extra inputs are not permitted`.
+        let mut config = cfg("claude-sonnet-4-5-20250929");
+        config.max_tokens = Some(64000);
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::user().with_text("Continue"),
+        ];
+
+        let payload = create_request_with_options_provider(
+            &config,
+            "system",
+            &messages,
+            &[],
+            AnthropicFormatOptions {
+                preserve_unsigned_thinking: true,
+                preserve_thinking_context: true,
+                thinking_disabled: false,
+                emit_clear_thinking: false,
+            },
+        )?;
+
+        assert_eq!(payload["thinking"]["type"], "enabled");
+        assert!(
+            payload["thinking"].get("clear_thinking").is_none(),
+            "Anthropic enabled thinking must not carry clear_thinking, got {}",
+            payload["thinking"]
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_model_params_enable_preserved_thinking_context() -> Result<()> {
         let _guard = env_lock::lock_env([
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
@@ -1646,8 +1705,12 @@ mod tests {
             ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
         ]);
 
+        // Both flags come through model request_params: preserve context AND
+        // the Z.AI `emit_clear_thinking` opt-in. Proves the per-model override
+        // path (mirrors how `preserve_thinking_context` is overridable).
         let mut params = std::collections::HashMap::new();
         params.insert("preserve_thinking_context".to_string(), json!(true));
+        params.insert("emit_clear_thinking".to_string(), json!(true));
 
         let mut config = cfg("glm-4.7");
         config.request_params = Some(params);
@@ -1659,6 +1722,7 @@ mod tests {
 
         let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
+        // Opt-in via request_param → `clear_thinking: false` present.
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
@@ -1675,9 +1739,10 @@ mod tests {
         ]);
 
         // An adaptive-mode Anthropic model with preserved thinking context must
-        // send `{"type": "adaptive"}` without `clear_thinking` — that field is
-        // only valid on the manual `enabled` shape and is rejected by endpoints
-        // that validate the adaptive interface strictly.
+        // send `{"type": "adaptive"}` + `output_config.effort` and NO
+        // `clear_thinking` — that field is not part of Anthropic's thinking
+        // schema in any shape (the sibling `enabled`-shape test asserts the
+        // same absence).
         let mut config = cfg_with_effort("claude-opus-4-8", "high");
         config.max_tokens = Some(64000);
         let messages = vec![
@@ -1694,6 +1759,7 @@ mod tests {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
                 thinking_disabled: false,
+                emit_clear_thinking: false,
             },
         )?;
 

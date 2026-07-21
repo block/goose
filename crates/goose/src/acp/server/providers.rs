@@ -566,6 +566,9 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                // Not surfaced on the ACP request yet; config layer honors it
+                // when set. `None` preserves the default-off behavior.
+                emit_clear_thinking: None,
             },
         )
         .internal_err_ctx("Failed to create custom provider")?;
@@ -635,6 +638,9 @@ impl GooseAcpAgent {
                 catalog_provider_id: provider.catalog_provider_id,
                 base_path: provider.base_path,
                 preserves_thinking: provider.preserves_thinking,
+                // Not surfaced on the ACP request yet; None carries the
+                // existing config value forward in update_custom_provider.
+                emit_clear_thinking: None,
             },
         )
         .internal_err_ctx("Failed to update custom provider")?;
