@@ -328,6 +328,8 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
     let mut value = String::new();
     let mut start = None;
     let mut quote = None;
+    let mut discard_word = false;
+    let mut awaiting_redirection_target = false;
     let mut characters = text.char_indices().peekable();
 
     while let Some((index, character)) = characters.next() {
@@ -345,7 +347,11 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
         }
 
         if character == '\\' {
-            start.get_or_insert(index);
+            if start.is_none() {
+                start = Some(index);
+                discard_word = awaiting_redirection_target;
+                awaiting_redirection_target = false;
+            }
             if let Some((_, escaped)) = characters.next() {
                 value.push(escaped);
             }
@@ -357,13 +363,45 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
             if start.is_some() && !remainder.contains(character) {
                 break;
             }
-            start.get_or_insert(index);
+            if start.is_none() {
+                start = Some(index);
+                discard_word = awaiting_redirection_target;
+                awaiting_redirection_target = false;
+            }
             quote = Some(character);
             continue;
         }
 
-        if character == '\n' || matches!(character, ';' | '&' | '|' | '<' | '>' | ')' | '`') {
+        if matches!(character, '<' | '>') {
             if start.take().is_some() {
+                if !discard_word
+                    && !value
+                        .chars()
+                        .all(|value_character| value_character.is_ascii_digit())
+                {
+                    words.push(ShellWord {
+                        value: std::mem::take(&mut value),
+                        end: index,
+                    });
+                } else {
+                    value.clear();
+                }
+            }
+            discard_word = false;
+            awaiting_redirection_target = true;
+            continue;
+        }
+
+        if awaiting_redirection_target && character == '&' {
+            start = Some(index);
+            discard_word = true;
+            awaiting_redirection_target = false;
+            value.push(character);
+            continue;
+        }
+
+        if character == '\n' || matches!(character, ';' | '&' | '|' | ')' | '`') {
+            if start.take().is_some() && !discard_word {
                 words.push(ShellWord {
                     value: std::mem::take(&mut value),
                     end: index,
@@ -372,25 +410,34 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
             break;
         }
 
-        if character == '#' && start.is_none() {
+        if character == '#' && start.is_none() && !awaiting_redirection_target {
             break;
         }
 
         if character.is_ascii_whitespace() {
             if start.take().is_some() {
-                words.push(ShellWord {
-                    value: std::mem::take(&mut value),
-                    end: index,
-                });
+                if !discard_word {
+                    words.push(ShellWord {
+                        value: std::mem::take(&mut value),
+                        end: index,
+                    });
+                } else {
+                    value.clear();
+                }
+                discard_word = false;
             }
             continue;
         }
 
-        start.get_or_insert(index);
+        if start.is_none() {
+            start = Some(index);
+            discard_word = awaiting_redirection_target;
+            awaiting_redirection_target = false;
+        }
         value.push(character);
     }
 
-    if start.is_some() {
+    if start.is_some() && !discard_word {
         words.push(ShellWord {
             value,
             end: text.len(),
@@ -400,55 +447,55 @@ fn shell_words_until_boundary(text: &str) -> Vec<ShellWord> {
     words
 }
 
-fn format_option_takes_value(command: &str, option: &str) -> bool {
+fn format_option_value_flag(command: &str, flag: char) -> bool {
     match command {
         "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4" => matches!(
-            option,
-            "-b" | "-C"
-                | "-d"
-                | "-e"
-                | "-E"
-                | "-g"
-                | "-G"
-                | "-i"
-                | "-I"
-                | "-J"
-                | "-l"
-                | "-L"
-                | "-m"
-                | "-M"
-                | "-N"
-                | "-o"
-                | "-O"
-                | "-r"
-                | "-t"
-                | "-T"
-                | "-U"
-                | "-z"
+            flag,
+            'b' | 'C'
+                | 'd'
+                | 'e'
+                | 'E'
+                | 'g'
+                | 'G'
+                | 'i'
+                | 'I'
+                | 'J'
+                | 'l'
+                | 'L'
+                | 'm'
+                | 'M'
+                | 'N'
+                | 'o'
+                | 'O'
+                | 'r'
+                | 't'
+                | 'T'
+                | 'U'
+                | 'z'
         ),
         "mkfs.f2fs" => matches!(
-            option,
-            "-a" | "-c"
-                | "-C"
-                | "-d"
-                | "-e"
-                | "-E"
-                | "-l"
-                | "-o"
-                | "-O"
-                | "-R"
-                | "-s"
-                | "-t"
-                | "-T"
-                | "-w"
-                | "-z"
+            flag,
+            'a' | 'c' | 'C' | 'd' | 'e' | 'E' | 'l' | 'o' | 'O' | 'R' | 's' | 't' | 'T' | 'w' | 'z'
         ),
         "mkfs.xfs" => matches!(
-            option,
-            "-b" | "-c" | "-d" | "-i" | "-l" | "-L" | "-m" | "-n" | "-p" | "-r" | "-s"
+            flag,
+            'b' | 'c' | 'd' | 'i' | 'l' | 'L' | 'm' | 'n' | 'p' | 'r' | 's'
         ),
         _ => false,
     }
+}
+
+fn format_option_takes_next_value(command: &str, option: &str) -> bool {
+    let Some(short_options) = option
+        .strip_prefix('-')
+        .filter(|options| !options.is_empty() && !options.starts_with('-'))
+    else {
+        return false;
+    };
+
+    short_options.char_indices().any(|(index, flag)| {
+        format_option_value_flag(command, flag) && index + flag.len_utf8() == short_options.len()
+    })
 }
 
 fn is_non_writing_format_option(command: &str, option: &str) -> bool {
@@ -495,7 +542,7 @@ fn format_drive_target(words: &[ShellWord]) -> Option<&ShellWord> {
         }
         if !options_ended && word.value.starts_with('-') {
             non_writing |= is_non_writing_format_option(&command, &word.value);
-            skip_option_value = format_option_takes_value(&command, &word.value);
+            skip_option_value = format_option_takes_next_value(&command, &word.value);
             continue;
         }
         target.get_or_insert(word);
@@ -642,6 +689,10 @@ mod tests {
         assert!(matches(pat, "sh -c \"mkfs.ext4 /dev/sda1\""));
         assert!(matches(pat, "sh -c 'mkfs.ext4 /dev/sda1'"));
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 -qL data /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 >/tmp/mkfs.log /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 2>/tmp/mkfs.log /dev/sda1"));
+        assert!(matches(pat, "mkfs.ext4 </dev/null /dev/sda1"));
         assert!(matches(pat, "mkfs.ext4 -F /dev/sda1 4096"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda1 -F"));
         assert!(matches(pat, "mkfs.ext4 /dev/sda1 -F -q"));
@@ -671,6 +722,7 @@ mod tests {
         assert!(matches(pat, "mkfs.ext4 -L -n /dev/sda1"));
         assert!(matches(pat, r"mkfs.ext4 -L foo\ -n /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 /tmp/image -L /dev/sda"));
+        assert!(!matches(pat, "mkfs.ext4 >/dev/sda1 /tmp/image"));
         assert!(!matches(pat, "mkfs.ext4 --help\necho /dev/sda1"));
         assert!(!matches(pat, "echo $(mkfs.ext4 --help) /dev/sda"));
         assert!(!matches(pat, "stat --format '%n %s' /dev/sda"));
