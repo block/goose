@@ -317,6 +317,37 @@ static COMPILED_PATTERNS: LazyLock<HashMap<&'static str, Regex>> = LazyLock::new
     patterns
 });
 
+fn is_non_writing_ext_format_match(matched_text: &str) -> bool {
+    let mut words = matched_text.split_ascii_whitespace();
+    let is_ext_command = words.any(|word| {
+        let word = word.trim_matches(|character: char| {
+            matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
+        });
+        let command = word
+            .rsplit(|character| ['/', '\\'].contains(&character))
+            .next()
+            .unwrap_or(word)
+            .to_ascii_lowercase();
+        matches!(command.as_str(), "mkfs.ext2" | "mkfs.ext3" | "mkfs.ext4")
+    });
+
+    is_ext_command
+        && words.any(|word| {
+            let flag = word.trim_matches(|character: char| {
+                matches!(character, '\'' | '"' | '(' | ')' | '`' | ';' | '&' | '|')
+            });
+            matches!(flag, "--help" | "--version")
+                || flag
+                    .strip_prefix('-')
+                    .filter(|short_flags| !short_flags.starts_with('-'))
+                    .is_some_and(|short_flags| {
+                        short_flags
+                            .chars()
+                            .any(|character| matches!(character, 'n' | 'V'))
+                    })
+        })
+}
+
 /// Pattern matcher for detecting security threats
 pub struct PatternMatcher {
     patterns: &'static HashMap<&'static str, Regex>,
@@ -337,6 +368,11 @@ impl PatternMatcher {
                 if regex.is_match(text) {
                     // Find all matches to get position information
                     for regex_match in regex.find_iter(text) {
+                        if threat.name == "format_drive"
+                            && is_non_writing_ext_format_match(regex_match.as_str())
+                        {
+                            continue;
+                        }
                         matches.push(PatternMatch {
                             threat: threat.clone(),
                             matched_text: regex_match.as_str().to_string(),
@@ -437,6 +473,9 @@ mod tests {
         assert!(!matches(pat, "mkfs.ext4 -F -L /dev/sda /tmp/image"));
         assert!(!matches(pat, "mkfs.ext4 -F -L '/dev/sda' /tmp/image"));
         assert!(!matches(pat, "mkfs.ext4 -F -L \"/dev/sda\" /tmp/image"));
+        assert!(!matches(pat, "mkfs.ext4 -n /dev/sda1"));
+        assert!(!matches(pat, "mkfs.ext4 -V /dev/sda1"));
+        assert!(!matches(pat, "mkfs.ext4 -Fn /dev/sda1"));
         assert!(!matches(pat, "mkfs.ext4 --help\necho /dev/sda1"));
         assert!(!matches(pat, "echo $(mkfs.ext4 --help) /dev/sda"));
         assert!(!matches(pat, "stat --format '%n %s' /dev/sda"));
