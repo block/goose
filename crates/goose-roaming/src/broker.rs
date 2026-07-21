@@ -23,21 +23,22 @@
 //! controller slot, and the routing decisions — with no dependency on the ACP
 //! crate or on iroh, so the policy is unit-testable in isolation. The actual
 //! ACP wire plumbing (being a client to the agent, a server to peers) is a thin
-//! adapter layered on top; see [`SessionBroker`]'s method docs for the seams
-//! that adapter drives.
+//! adapter layered on top (goose-cli's `shared_session_bridge`), which drives
+//! this [`Router`] as its policy core.
 //!
 //! # Status
 //!
 //! Routing policy ([`Router`]) is implemented and tested, and multi-client
 //! fan-out is proven over real iroh transport (see the crate's `end_to_end`
-//! test `multiple_clients_share_one_session`). The remaining work is the ACP
-//! wire adapter, planned below.
+//! test `multiple_clients_share_one_session`). The ACP wire adapter that drives
+//! this policy lives in goose-cli's `shared_session_bridge`; its two halves are
+//! described below.
 //!
-//! # Wire adapter plan (the "act as remote ACP" layer)
+//! # Wire adapter shape (the "act as remote ACP" layer)
 //!
-//! The broker lives entirely on top of goose — goose core is untouched; from
-//! goose's view the broker is just another ACP client over a byte stream. The
-//! adapter has two halves:
+//! The adapter lives entirely on top of goose — goose core is untouched; from
+//! goose's view it is just another ACP client over a byte stream. It has two
+//! halves:
 //!
 //! **Agent-facing half — one ACP client to the live local agent.** Runs
 //! `agent_client_protocol::Client` over an in-memory duplex whose other end is
@@ -55,10 +56,9 @@
 //! roaming peer runs `roam connect` (an ACP *client*), so the broker must answer
 //! `initialize` and `session/*` on that stream. It:
 //!   * replies to `initialize` with the shared agent's capabilities,
-//!   * on `session/new`|`session/load`, attaches the peer via
-//!     [`SessionBroker::attach_peer`] and starts subscribe-before-replay:
-//!     register → buffer live updates → replay persisted history → flush buffer
-//!     → go live,
+//!   * on `session/new`|`session/load`, attaches the peer to the [`Router`] and
+//!     (planned) subscribe-before-replay: register → buffer live updates →
+//!     replay persisted history → flush buffer → go live,
 //!   * forwards inbound `session/prompt`/steer to the agent-facing half, gated
 //!     by [`Router::accept_steer`],
 //!   * delivers permission requests only to the controller
@@ -212,61 +212,6 @@ impl Router {
 }
 
 /// The stateful broker that owns one live session and drives the ACP wire on
-/// both sides. Wraps a [`Router`] with the I/O seams a wire adapter implements.
-///
-/// This is the skeleton; the ACP plumbing is intentionally unimplemented and
-/// marked at each seam so the shape is reviewable before we build it.
-pub struct SessionBroker {
-    router: Router,
-    next_id: u64,
-}
-
-impl SessionBroker {
-    pub fn new() -> Self {
-        Self {
-            router: Router::new(),
-            next_id: 0,
-        }
-    }
-
-    pub fn router(&self) -> &Router {
-        &self.router
-    }
-
-    /// Allocate a fresh [`SubscriberId`] for a newly accepted peer.
-    pub fn next_subscriber_id(&mut self) -> SubscriberId {
-        let id = SubscriberId(self.next_id);
-        self.next_id += 1;
-        id
-    }
-
-    /// Seam: attach an accepted roaming peer's ACP client stream to the shared
-    /// session.
-    ///
-    /// The wire adapter will:
-    /// 1. allocate a [`SubscriberId`] and `router.attach(id, Role::from_scope)`,
-    /// 2. run `session/load` against the local agent for the target session and
-    ///    replay it to the peer (subscribe-before-replay: register first, buffer
-    ///    live events, replay history, flush buffer, then go live),
-    /// 3. forward this peer's `session/update`s per [`Router::route_notification`].
-    pub fn attach_peer(&mut self, _scope: Scope) -> SubscriberId {
-        // Skeleton: id + policy only. Wire replay/forwarding is the adapter's job.
-        let id = self.next_subscriber_id();
-        self.router.attach(id, Role::from_scope(_scope));
-        id
-    }
-
-    pub fn detach_peer(&mut self, id: SubscriberId) {
-        self.router.detach(id);
-    }
-}
-
-impl Default for SessionBroker {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,15 +292,5 @@ mod tests {
         r.detach(a);
         assert!(!r.is_attached(a));
         assert_eq!(r.controller(), None);
-    }
-
-    #[test]
-    fn broker_allocates_unique_ids_and_attaches() {
-        let mut b = SessionBroker::new();
-        let first = b.attach_peer(Scope::Control);
-        let second = b.attach_peer(Scope::Observe);
-        assert_ne!(first, second);
-        assert_eq!(b.router().subscriber_count(), 2);
-        assert_eq!(b.router().controller(), Some(first));
     }
 }

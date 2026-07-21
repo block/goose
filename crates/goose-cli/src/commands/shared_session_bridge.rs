@@ -8,8 +8,8 @@
 //! `session/request_permission`. A single `control` peer is just the degenerate
 //! case of one controller and no observers.
 //!
-//! The transport-neutral routing policy lives in `goose_roaming` (`Router` /
-//! `SessionBroker`); this module is the thin ACP plumbing layered on top. It is
+//! The transport-neutral routing policy lives in `goose_roaming` (`Router`);
+//! this module is the thin ACP plumbing layered on top. It is
 //! the only place that couples roaming to the ACP crate, so it lives in the CLI
 //! composition layer, keeping `goose-roaming` ACP-free and goose core iroh-free.
 

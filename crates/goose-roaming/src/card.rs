@@ -92,6 +92,14 @@ impl ConnectionCard {
     pub fn endpoint_addr(&self) -> Result<EndpointAddr, RoamingError> {
         let mut addr = EndpointAddr::new(self.endpoint_id);
         for url in &self.relay_urls {
+            // Relay URLs come from an untrusted card. Constrain the scheme to
+            // http(s) so a malicious card can't smuggle some other URL scheme
+            // into the dialer. (iroh relays are HTTP(S) endpoints.)
+            if !(url.starts_with("https://") || url.starts_with("http://")) {
+                return Err(RoamingError::Card(format!(
+                    "relay url must be http(s): {url}"
+                )));
+            }
             let parsed = url
                 .parse()
                 .map_err(|_| RoamingError::Card(format!("bad relay url {url}")))?;
@@ -129,5 +137,14 @@ mod tests {
     #[test]
     fn rejects_foreign_scheme() {
         assert!(ConnectionCard::decode("https://example./abc").is_err());
+    }
+
+    #[test]
+    fn endpoint_addr_rejects_non_http_relay() {
+        let id = SecretKey::generate().public();
+        let bad = ConnectionCard::new(id, vec!["file:///etc/passwd".to_string()]);
+        assert!(bad.endpoint_addr().is_err());
+        let ok = ConnectionCard::new(id, vec!["https://relay.example./".to_string()]);
+        assert!(ok.endpoint_addr().is_ok());
     }
 }

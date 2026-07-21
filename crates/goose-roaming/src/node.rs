@@ -512,7 +512,7 @@ impl RoamingAcpHandler {
         }
         let scope = trust.scope_for(&client).ok_or("not_allowlisted")?;
 
-        Ok((scope, hello.label))
+        Ok((scope, hello.label.and_then(sanitize_label)))
     }
 }
 
@@ -530,4 +530,44 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+/// The label is attacker-controlled display text (it comes from the connecting
+/// peer's hello) and is surfaced in `roam connections`. Strip control
+/// characters and cap the length so it can't corrupt terminal output; drop it
+/// entirely if nothing printable remains.
+fn sanitize_label(label: String) -> Option<String> {
+    const MAX_LABEL_CHARS: usize = 64;
+    let cleaned: String = label
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_LABEL_CHARS)
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_label;
+
+    #[test]
+    fn sanitize_label_strips_control_chars_and_caps_length() {
+        assert_eq!(sanitize_label("laptop".into()), Some("laptop".into()));
+        // Control chars (incl. ANSI escape) are removed.
+        assert_eq!(
+            sanitize_label("lap\x1b[31mtop\n".into()),
+            Some("lap[31mtop".into())
+        );
+        // Whitespace-only / empty collapses to None.
+        assert_eq!(sanitize_label("   ".into()), None);
+        assert_eq!(sanitize_label("\n\t".into()), None);
+        // Length is capped.
+        let long = "x".repeat(200);
+        assert_eq!(sanitize_label(long).unwrap().chars().count(), 64);
+    }
 }

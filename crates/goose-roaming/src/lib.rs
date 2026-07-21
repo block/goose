@@ -36,7 +36,7 @@ mod relay;
 mod scope;
 mod trust;
 
-pub use broker::{Refused, Role, Route, Router, SessionBroker, SubscriberId};
+pub use broker::{Refused, Role, Route, Router, SubscriberId};
 pub use card::ConnectionCard;
 pub use directory::{Direction, Directory, PeerEntry};
 #[doc(inline)]
