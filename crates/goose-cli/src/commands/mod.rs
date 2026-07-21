@@ -12,6 +12,8 @@ pub mod roam;
 pub mod roam_bridge;
 #[cfg(feature = "roaming")]
 pub mod roam_client;
+#[cfg(feature = "roaming")]
+pub mod roam_proxy;
 pub mod schedule;
 pub mod session;
 #[cfg(feature = "roaming")]

@@ -93,6 +93,29 @@ pub enum RoamCommand {
         task: String,
     },
 
+    /// Expose a remote agent as a local ACP endpoint that any ACP client can drive.
+    ///
+    /// Unlike `connect` (which has its own terminal UI), `bridge` runs no UI and
+    /// no agent: it transparently proxies ACP between a local transport and the
+    /// remote agent. Point the goose desktop app, Zed, or any ACP client at it
+    /// and the remote agent behaves as if it were running locally.
+    ///
+    /// Defaults to stdio (for a client that spawns `goose roam bridge ...` as a
+    /// subprocess). Use `--listen` to accept a single TCP connection instead.
+    Bridge {
+        /// A saved peer nickname (see `roam peers`) or a `goose+roam://...` token.
+        target: String,
+
+        /// Listen for one ACP client on this TCP address (e.g. `127.0.0.1:8900`)
+        /// instead of using stdio.
+        #[arg(long, value_name = "ADDR")]
+        listen: Option<String>,
+
+        /// Optional label reported to the host's directory.
+        #[arg(long)]
+        label: Option<String>,
+    },
+
     /// Manage the address book of remote agents you can connect to.
     Peers {
         #[command(subcommand)]
@@ -155,6 +178,11 @@ pub async fn handle_roam_command(command: RoamCommand) -> Result<()> {
         RoamCommand::Sessions => handle_sessions().await,
         RoamCommand::Connect { target, label } => handle_connect(target, label).await,
         RoamCommand::Delegate { target, task } => handle_delegate(target, task).await,
+        RoamCommand::Bridge {
+            target,
+            listen,
+            label,
+        } => handle_bridge(target, listen, label).await,
         RoamCommand::Peers { command } => handle_peers(command.unwrap_or(PeersCommand::List)).await,
         RoamCommand::Connections => handle_list().await,
     }
@@ -485,4 +513,54 @@ async fn handle_delegate(target: String, task: String) -> Result<()> {
         }
         Err(e) => Err(e),
     }
+}
+
+async fn handle_bridge(
+    target: String,
+    listen: Option<String>,
+    label: Option<String>,
+) -> Result<()> {
+    use tokio::io::AsyncWriteExt;
+
+    let label = label.or_else(|| Some("bridge".to_string()));
+    let (node, stream) = dial_target(&target, label).await?;
+    let agent_id = stream.agent_id.clone();
+    let scope = stream.scope;
+    // The raw iroh streams carry post-handshake ACP and already implement
+    // tokio's AsyncRead/AsyncWrite, so we splice them directly (no ACP-client
+    // wrapper, no futures-io compat). `conn` must outlive the splice.
+    let goose_roaming::RoamingClientStream {
+        conn,
+        send: remote_send,
+        recv: remote_recv,
+        ..
+    } = stream;
+
+    let result = match listen {
+        Some(addr) => {
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
+            let local = listener.local_addr()?;
+            eprintln!("bridging remote agent `{agent_id}` (scope {scope:?}) on tcp://{local}");
+            eprintln!("point an ACP client at this address; serving one connection");
+            let (socket, peer) = listener.accept().await?;
+            eprintln!("ACP client connected from {peer}");
+            let (lr, lw) = socket.into_split();
+            crate::commands::roam_proxy::splice(lr, lw, remote_send, remote_recv).await
+        }
+        None => {
+            eprintln!(
+                "bridging remote agent `{agent_id}` (scope {scope:?}) over stdio; \
+                 speak ACP on stdin/stdout"
+            );
+            let stdin = tokio::io::stdin();
+            let stdout = tokio::io::stdout();
+            crate::commands::roam_proxy::splice(stdin, stdout, remote_send, remote_recv).await
+        }
+    };
+
+    // Flush stdout before tearing down (stdio mode); harmless otherwise.
+    let _ = tokio::io::stdout().flush().await;
+    drop(conn);
+    node.shutdown().await?;
+    result
 }

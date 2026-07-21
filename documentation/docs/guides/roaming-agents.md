@@ -9,8 +9,22 @@ peer-to-peer connection — no open ports, no VPN, no server to host. It's built
 on [iroh](https://iroh.computer) (QUIC), so two machines can connect directly or
 via a public relay, typically without any firewall changes.
 
-Use it to drive your laptop's agent from another device, or hand a one-shot task
-to a remote agent.
+Use it to drive your laptop's agent from another device, hand a one-shot task to
+a remote agent, or expose a remote agent to any local ACP client (like the goose
+desktop app or an editor).
+
+## Remote modes at a glance
+
+All modes share the same foundation: one machine hosts the real agent, and the
+wire protocol between machines is [ACP](/docs/guides/acp-clients). They differ in
+what sits on the connecting side.
+
+| Mode | Command | Connecting side is… | Use it to… |
+|------|---------|--------------------|------------|
+| Interactive | `roam connect` | a built-in terminal chat UI | drive a remote agent yourself |
+| One-shot | `roam delegate` | a non-interactive caller | send one task, get the answer back |
+| Bridge | `roam bridge` | a transparent ACP proxy | point *any* ACP client (goose desktop, Zed, an editor) at a remote agent |
+| Resume | `roam share --session` | (host side) a replayed session | share an existing local session / listen in |
 
 :::note
 Roaming is an optional, experimental feature. It's available when goose is built
@@ -81,6 +95,41 @@ goose roam delegate 'goose+roam://…' "Summarize the last 5 commits in this rep
 
 The remote agent runs the task with its own tools and prints its final response.
 
+## Bridging to any ACP client
+
+`connect` and `delegate` embed goose's own ACP client. `bridge` does the
+opposite: it exposes a remote agent as a **local ACP endpoint**, so any ACP
+client — the goose desktop app, [Zed](/docs/guides/acp-clients), or another
+editor — can drive it as if it were running locally. It runs no UI and no agent
+of its own; it transparently proxies ACP bytes between the local client and the
+remote agent.
+
+Bridge over stdio (the default — for a client that launches goose as a
+subprocess):
+
+```bash
+goose roam bridge 'goose+roam://…'
+```
+
+Configure your ACP client to run `goose roam bridge '<token>'` as its agent
+command. It will speak ACP on the process's stdin/stdout, and every request is
+forwarded to the remote agent.
+
+Or bridge over a local TCP port, for a client that connects to an address:
+
+```bash
+goose roam bridge laptop --listen 127.0.0.1:8900
+```
+
+This accepts a single ACP connection on that address and proxies it to the
+remote agent. Saved peer names work here too.
+
+:::note
+A bridge serves one client connection and inherits the invite's scope — the
+remote host still runs the agent, imposes its own working directory, and
+authorizes the connection.
+:::
+
 ## Saved peers
 
 Save an invite under a nickname so you don't paste tokens each time:
@@ -119,11 +168,18 @@ it to, and it can run `goose roam delegate <peer> "<task>"` via its shell — fo
 example, "delegate this to my work laptop and summarize what it finds." It sends
 one self-contained task and relays the response.
 
+Because saved peers are just an address book, the agent can discover what
+remotes it has available (`goose roam peers list`) and route work to the right
+one — e.g. run a build on the machine that has the toolchain, then bring the
+result back. Each delegation is a self-contained task with a bounded response,
+so this composes into multi-machine workflows without any shared state.
+
 ## Notes and limits
 
 - Peers connect directly when NAT hole-punching succeeds and fall back to
   iroh's public relays otherwise. The default relays are rate-limited and
   best-effort; self-hosting relays is possible but not covered here.
-- `connect` and `delegate` accept either a saved peer name or a raw token.
+- `connect`, `delegate`, and `bridge` all accept either a saved peer name or a
+  raw token.
 - On macOS, if a session still appears to hang on connect, set
   `GOOSE_DISABLE_KEYRING=1` to skip the keychain entirely.
