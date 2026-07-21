@@ -78,8 +78,6 @@ impl ToolTitleEnrichmentContext {
         self,
         request_id: String,
         tool_call: &CallToolRequestParams,
-        identity_meta: Option<Meta>,
-        fallback_title: String,
     ) {
         let args_json = tool_call
             .arguments
@@ -109,8 +107,6 @@ impl ToolTitleEnrichmentContext {
             request_id,
             tool_call_notifier,
             name: tool_call.name.to_string(),
-            identity_meta,
-            fallback_title,
             session_id_for_persist,
             message_id_for_persist,
             session_manager,
@@ -126,8 +122,6 @@ struct ToolTitleEnrichmentJob {
     request_id: String,
     tool_call_notifier: ToolCallNotifier,
     name: String,
-    identity_meta: Option<Meta>,
-    fallback_title: String,
     session_id_for_persist: String,
     message_id_for_persist: Option<String>,
     session_manager: Arc<SessionManager>,
@@ -143,15 +137,13 @@ impl ToolTitleEnrichmentJob {
                 request_id,
                 tool_call_notifier,
                 name,
-                identity_meta,
-                fallback_title,
                 session_id_for_persist,
                 message_id_for_persist,
                 session_manager,
                 args_json,
             } = self;
 
-            let (title, from_llm) = match agent.provider().await {
+            let title = match agent.provider().await {
                 Ok(provider) => {
                     if provider.manages_own_context() {
                         return;
@@ -218,53 +210,41 @@ impl ToolTitleEnrichmentJob {
                         }
                     }
                     match llm_outcome {
-                        Some(summary) => (summary, true),
+                        Some(summary) => summary,
                         None => {
                             warn!(
-                                "tool call summary: falling back to deterministic title for {request_id} ({name}) — replay will not show an LLM summary for this call",
+                                "tool call summary: no summary generated for {request_id} ({name}); keeping the existing title",
                             );
-                            (fallback_title.clone(), false)
+                            return;
                         }
                     }
                 }
                 Err(e) => {
                     warn!("tool call summary: failed to get provider: {e}");
-                    (fallback_title.clone(), false)
+                    return;
                 }
             };
 
             let fields = ToolCallUpdateFields::new().title(title.clone());
-            let _ = tool_call_notifier.send_update(
-                ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields)
-                    .meta(identity_meta),
-            );
+            let _ = tool_call_notifier.send_update(ToolCallUpdate::new(
+                ToolCallId::new(request_id.clone()),
+                fields,
+            ));
 
-            // Best-effort persistence: only persist the LLM-generated title
-            // (not the deterministic fallback) so reload uses fallback_title
-            // for older or failed cases just like today.
-            if from_llm {
-                if let Some(msg_id) = message_id_for_persist {
-                    let patch = json!({
-                        (TOOL_META_TITLE_KEY): title,
-                    });
-                    if let Err(e) = session_manager
-                        .update_tool_request_meta(
-                            &session_id_for_persist,
-                            &msg_id,
-                            &request_id,
-                            patch,
-                        )
-                        .await
-                    {
-                        warn!(
-                            "tool call summary: persist failed for {request_id} in {msg_id}: {e}",
-                        );
-                    }
-                } else {
-                    warn!(
-                        "tool call summary: missing message_id for {request_id} — title will not survive reload",
-                    );
+            if let Some(msg_id) = message_id_for_persist {
+                let patch = json!({
+                    (TOOL_META_TITLE_KEY): title,
+                });
+                if let Err(e) = session_manager
+                    .update_tool_request_meta(&session_id_for_persist, &msg_id, &request_id, patch)
+                    .await
+                {
+                    warn!("tool call summary: persist failed for {request_id} in {msg_id}: {e}",);
                 }
+            } else {
+                warn!(
+                    "tool call summary: missing message_id for {request_id} — title will not survive reload",
+                );
             }
         });
     }
@@ -297,7 +277,7 @@ impl ChainSummaryEnrichmentContext {
         first_tool_call_id: String,
         message_id_for_persist: String,
         steps: Vec<(String, String)>,
-        identity_meta: Option<Meta>,
+        goose_meta: Option<Meta>,
         chain_count: usize,
     ) {
         let Self {
@@ -313,7 +293,7 @@ impl ChainSummaryEnrichmentContext {
             first_tool_call_id,
             message_id_for_persist,
             steps,
-            identity_meta,
+            goose_meta,
             chain_count,
             tool_call_notifier,
             session_manager,
@@ -328,7 +308,7 @@ struct ChainSummaryEnrichmentJob {
     first_tool_call_id: String,
     message_id_for_persist: String,
     steps: Vec<(String, String)>,
-    identity_meta: Option<Meta>,
+    goose_meta: Option<Meta>,
     chain_count: usize,
     tool_call_notifier: ToolCallNotifier,
     session_manager: Arc<SessionManager>,
@@ -343,7 +323,7 @@ impl ChainSummaryEnrichmentJob {
                 first_tool_call_id,
                 message_id_for_persist,
                 steps,
-                identity_meta,
+                goose_meta,
                 chain_count,
                 tool_call_notifier,
                 session_manager,
@@ -456,7 +436,7 @@ impl ChainSummaryEnrichmentJob {
                 );
             }
 
-            let meta = with_tool_chain_summary_meta(identity_meta, &summary, chain_count);
+            let meta = with_tool_chain_summary_meta(goose_meta, &summary, chain_count);
             let fields = ToolCallUpdateFields::new();
             let _ = tool_call_notifier.send_update(
                 ToolCallUpdate::new(ToolCallId::new(first_tool_call_id), fields).meta(meta),
@@ -469,7 +449,7 @@ impl ChainSummaryEnrichmentJob {
 mod tests {
     mod with_tool_chain_summary_meta {
         use super::super::with_tool_chain_summary_meta;
-        use crate::acp::server::tool_calls::conversion::tool_call_identity_meta;
+        use crate::acp::server::tool_calls::conversion::goose_tool_call_meta;
         use crate::conversation::message::ToolRequest;
         use rmcp::model::CallToolRequestParams;
         use serde_json::json;
@@ -488,7 +468,7 @@ mod tests {
 
         #[test]
         fn preserves_existing_tool_call_identity() {
-            let existing = tool_call_identity_meta(&ToolRequest {
+            let existing = goose_tool_call_meta(&ToolRequest {
                 id: "req_1".to_string(),
                 tool_call: Ok(CallToolRequestParams::new("developer__shell")),
                 metadata: None,

@@ -78,8 +78,8 @@ use uuid::Uuid;
 
 use self::tool_calls::chain::{extend_chain_membership, ToolChain};
 use self::tool_calls::conversion::{
-    extract_tool_call_update_meta, format_tool_name, pending_tool_call_from_request,
-    tool_call_identity_meta, tool_call_update_fields_from_response,
+    build_initial_tool_call, extract_tool_call_update_meta, format_tool_name, goose_tool_call_meta,
+    tool_call_update_fields_from_response,
 };
 use self::tool_calls::enrichment::{ChainSummaryEnrichmentContext, ToolTitleEnrichmentContext};
 
@@ -1162,10 +1162,7 @@ impl GooseAcpAgent {
             .tool_requests
             .insert(tool_request.id.clone(), tool_request.clone());
 
-        let pending_tool_call = pending_tool_call_from_request(tool_request);
-        let initial_tool_call = pending_tool_call
-            .tool_call
-            .meta(pending_tool_call.identity_meta.clone());
+        let initial_tool_call = build_initial_tool_call(tool_request);
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
 
@@ -1185,12 +1182,7 @@ impl GooseAcpAgent {
                 session_id_for_persist,
                 message_id,
             )
-            .spawn_title_enrichment(
-                tool_request.id.clone(),
-                tool_call,
-                pending_tool_call.identity_meta.clone(),
-                pending_tool_call.fallback_title.clone(),
-            );
+            .spawn_title_enrichment(tool_request.id.clone(), tool_call);
         }
 
         Ok(())
@@ -1306,10 +1298,10 @@ impl GooseAcpAgent {
             return;
         }
 
-        let identity_meta = session
+        let goose_meta = session
             .tool_requests
             .get(first_id)
-            .and_then(tool_call_identity_meta);
+            .and_then(goose_tool_call_meta);
 
         ChainSummaryEnrichmentContext::new(
             &session.agent,
@@ -1321,7 +1313,7 @@ impl GooseAcpAgent {
             first_id.clone(),
             chain.message_id.clone(),
             steps,
-            identity_meta,
+            goose_meta,
             chain.ids.len(),
         );
     }
@@ -2680,8 +2672,8 @@ print(\"hello, world\")
             })),
         };
 
-        let pending_tool_call = pending_tool_call_from_request(&tool_request);
-        let mut meta = pending_tool_call.identity_meta;
+        let initial_tool_call = build_initial_tool_call(&tool_request);
+        let mut meta = initial_tool_call.meta;
         let chain_summary = tool_request
             .persisted_chain_summary()
             .expect("chain summary should be present");

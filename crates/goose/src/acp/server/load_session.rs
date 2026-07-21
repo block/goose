@@ -1,6 +1,5 @@
 use super::tool_calls::conversion::{
-    extract_tool_call_update_meta, pending_tool_call_from_request,
-    tool_call_update_fields_from_response,
+    build_initial_tool_call, extract_tool_call_update_meta, tool_call_update_fields_from_response,
 };
 use super::tool_calls::enrichment::with_tool_chain_summary_meta;
 use super::*;
@@ -83,8 +82,8 @@ fn replay_conversation_to_client(
                 MessageContent::ToolRequest(tool_request) => {
                     replay_tool_requests.insert(tool_request.id.clone(), tool_request.clone());
 
-                    let pending_tool_call = pending_tool_call_from_request(tool_request);
-                    let mut meta = pending_tool_call.identity_meta;
+                    let mut tool_call = build_initial_tool_call(tool_request);
+                    let mut meta = tool_call.meta.take();
                     if let Some(chain_summary) = tool_request.persisted_chain_summary() {
                         meta = with_tool_chain_summary_meta(
                             meta,
@@ -92,9 +91,7 @@ fn replay_conversation_to_client(
                             chain_summary.count,
                         );
                     }
-                    let tool_call = pending_tool_call
-                        .tool_call
-                        .meta(merge_replay_message_meta(meta, message));
+                    let tool_call = tool_call.meta(merge_replay_message_meta(meta, message));
 
                     tool_call_notifier.send_initial(tool_call)?;
                 }
