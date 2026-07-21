@@ -1,7 +1,7 @@
 use super::tool_calls::conversion::{
-    build_initial_tool_call, extract_tool_call_update_meta, tool_call_update_fields_from_response,
+    build_initial_tool_call, tool_call_update_fields_from_response, trusted_update_meta,
 };
-use super::tool_calls::enrichment::with_tool_chain_summary_meta;
+use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
@@ -85,11 +85,20 @@ fn replay_conversation_to_client(
                     let mut tool_call = build_initial_tool_call(tool_request);
                     let mut meta = tool_call.meta.take();
                     if let Some(chain_summary) = tool_request.persisted_chain_summary() {
-                        meta = with_tool_chain_summary_meta(
-                            meta,
-                            &chain_summary.summary,
-                            chain_summary.count,
-                        );
+                        let goose_meta = meta
+                            .get_or_insert_default()
+                            .entry("goose".to_string())
+                            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+                        if !goose_meta.is_object() {
+                            *goose_meta = serde_json::Value::Object(serde_json::Map::new());
+                        }
+                        goose_meta
+                            .as_object_mut()
+                            .expect("goose metadata was initialized as an object")
+                            .extend([tool_chain_summary(
+                                &chain_summary.summary,
+                                chain_summary.count,
+                            )]);
                     }
                     let tool_call = tool_call.meta(merge_replay_message_meta(meta, message));
 
@@ -104,7 +113,7 @@ fn replay_conversation_to_client(
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
                             .meta(merge_replay_message_meta(
-                                extract_tool_call_update_meta(tool_response),
+                                trusted_update_meta(tool_response),
                                 message,
                             ));
                     tool_call_notifier.send_update(update)?;

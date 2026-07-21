@@ -78,8 +78,8 @@ use uuid::Uuid;
 
 use self::tool_calls::chain::{extend_chain_membership, ToolChain};
 use self::tool_calls::conversion::{
-    build_initial_tool_call, extract_tool_call_update_meta, format_tool_name, goose_tool_call_meta,
-    tool_call_update_fields_from_response,
+    build_initial_tool_call, format_tool_name, tool_call_update_fields_from_response,
+    trusted_update_meta,
 };
 use self::tool_calls::enrichment::{ChainSummaryEnrichmentContext, ToolTitleEnrichmentContext};
 
@@ -1203,7 +1203,7 @@ impl GooseAcpAgent {
         );
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-            .meta(extract_tool_call_update_meta(tool_response));
+            .meta(trusted_update_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 
@@ -1298,11 +1298,6 @@ impl GooseAcpAgent {
             return;
         }
 
-        let goose_meta = session
-            .tool_requests
-            .get(first_id)
-            .and_then(goose_tool_call_meta);
-
         ChainSummaryEnrichmentContext::new(
             &session.agent,
             session_id,
@@ -1313,7 +1308,6 @@ impl GooseAcpAgent {
             first_id.clone(),
             chain.message_id.clone(),
             steps,
-            goose_meta,
             chain.ids.len(),
         );
     }
@@ -2554,7 +2548,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::server::tool_calls::enrichment::with_tool_chain_summary_meta;
+    use crate::acp::server::tool_calls::enrichment::tool_chain_summary;
     use crate::conversation::message::ToolRequest;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
@@ -2672,17 +2666,21 @@ print(\"hello, world\")
             })),
         };
 
-        let initial_tool_call = build_initial_tool_call(&tool_request);
-        let mut meta = initial_tool_call.meta;
+        let mut initial_tool_call = build_initial_tool_call(&tool_request);
+        let goose = initial_tool_call
+            .meta
+            .as_mut()
+            .and_then(|meta| meta.get_mut("goose"))
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("valid initial tool call should contain goose metadata");
         let chain_summary = tool_request
             .persisted_chain_summary()
             .expect("chain summary should be present");
-        meta = with_tool_chain_summary_meta(meta, &chain_summary.summary, chain_summary.count);
+        goose.extend([tool_chain_summary(
+            &chain_summary.summary,
+            chain_summary.count,
+        )]);
 
-        let goose = meta
-            .as_ref()
-            .and_then(|m| m.get("goose"))
-            .expect("replay meta must include a goose namespace");
         assert_eq!(
             goose.get("toolCall"),
             Some(

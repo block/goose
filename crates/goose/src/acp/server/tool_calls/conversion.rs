@@ -58,17 +58,9 @@ pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
     let tool_call = tool_request.tool_call.as_ref().ok()?;
     let tool_name = tool_call.name.to_string();
     let extension_name = tool_request
-        .tool_meta
-        .as_ref()
-        .and_then(|meta| meta.get("goose_extension"))
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            tool_request
-                .tool_name_parts()
-                .and_then(|parts| parts.extension_name)
-                .map(ToString::to_string)
-        });
+        .tool_name_parts()
+        .and_then(|parts| parts.extension_name)
+        .map(ToString::to_string);
 
     let mut tool_call_meta = serde_json::Map::new();
     tool_call_meta.insert("toolName".to_string(), serde_json::Value::String(tool_name));
@@ -122,7 +114,9 @@ fn json_u32(value: &serde_json::Value) -> Option<u32> {
     value.as_u64().and_then(|value| u32::try_from(value).ok())
 }
 
-fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolCallLocation>> {
+fn extract_tool_locations_from_response(
+    tool_response: &ToolResponse,
+) -> Option<Vec<ToolCallLocation>> {
     let result = tool_response.tool_result.as_ref().ok()?;
     let meta = result.meta.as_ref()?;
     let locations_val = meta.get("tool_locations")?;
@@ -142,7 +136,7 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
     }
 }
 
-fn extract_tool_locations(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
+fn extract_tool_locations_from_request(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
     let Some(parts) = tool_request.tool_name_parts() else {
         return Vec::new();
     };
@@ -174,7 +168,7 @@ fn extract_tool_locations(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
     vec![ToolCallLocation::new(path).line(line)]
 }
 
-pub(crate) fn extract_tool_call_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
+pub(crate) fn trusted_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
     let tool_result = tool_response.tool_result.as_ref().ok()?;
     let goose_meta = tool_result
         .meta
@@ -268,8 +262,11 @@ pub(crate) fn tool_call_update_fields_from_response(
     }
 
     if !is_acp_aware {
-        let locations = extract_locations_from_meta(tool_response)
-            .unwrap_or_else(|| tool_request.map(extract_tool_locations).unwrap_or_default());
+        let locations = extract_tool_locations_from_response(tool_response).unwrap_or_else(|| {
+            tool_request
+                .map(extract_tool_locations_from_request)
+                .unwrap_or_default()
+        });
         if !locations.is_empty() {
             fields = fields.locations(locations);
         }
@@ -342,16 +339,14 @@ mod tests {
             let arguments = json_object(vec![("path", serde_json::json!("/src/main.rs"))]);
             let request = ToolRequest {
                 id: "req_1".to_string(),
-                tool_call: Ok(
-                    CallToolRequestParams::new("developer__edit").with_arguments(arguments.clone())
-                ),
+                tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(arguments.clone())),
                 metadata: None,
-                tool_meta: None,
+                tool_meta: Some(serde_json::json!({"goose_extension": "developer"})),
             };
 
             let tool_call = build_initial_tool_call(&request);
 
-            assert_eq!(tool_call.title, "developer: edit · /src/main.rs");
+            assert_eq!(tool_call.title, "edit · /src/main.rs");
             assert_eq!(tool_call.status, ToolCallStatus::Pending);
             assert_eq!(
                 tool_call.raw_input,
@@ -361,7 +356,7 @@ mod tests {
                 tool_call.meta.as_ref().and_then(|meta| meta.get("goose")),
                 Some(&serde_json::json!({
                     "toolCall": {
-                        "toolName": "developer__edit",
+                        "toolName": "edit",
                         "extensionName": "developer",
                     },
                 }))
@@ -409,7 +404,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn uses_goose_extension_metadata() {
+        fn prefers_goose_extension_metadata_over_name_prefix() {
             let request = ToolRequest {
                 id: "req_1".to_string(),
                 tool_call: Ok(CallToolRequestParams::new("other__query-docs")),
@@ -435,7 +430,7 @@ mod tests {
         pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }
 
-    mod extract_tool_locations {
+    mod extract_tool_locations_from_request {
         use super::*;
         use test_case::test_case;
 
@@ -454,7 +449,7 @@ mod tests {
         }
 
         fn locations(request: &ToolRequest) -> Vec<(PathBuf, Option<u32>)> {
-            super::extract_tool_locations(request)
+            super::extract_tool_locations_from_request(request)
                 .into_iter()
                 .map(|location| (location.path, location.line))
                 .collect()
@@ -495,6 +490,17 @@ mod tests {
             );
         }
 
+        #[test]
+        fn accepts_unprefixed_developer_tool_from_metadata() {
+            let mut request = request("write", serde_json::json!({"path": "/tmp/f.txt"}));
+            request.tool_meta = Some(serde_json::json!({"goose_extension": "developer"}));
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+            );
+        }
+
         #[test_case("other__read"; "other extension read")]
         #[test_case("other__write"; "other extension write")]
         #[test_case("other__edit"; "other extension edit")]
@@ -502,7 +508,7 @@ mod tests {
         #[test_case("write"; "unqualified write")]
         #[test_case("edit"; "unqualified edit")]
         #[test_case("developer__shell"; "non file developer tool")]
-        fn rejects_tools_without_a_qualified_developer_file_identity(name: &str) {
+        fn rejects_tools_without_developer_ownership(name: &str) {
             let request = request(name, serde_json::json!({"path": "/tmp/f.txt"}));
 
             assert!(locations(&request).is_empty());
@@ -529,14 +535,14 @@ mod tests {
         => None
         ; "no meta"
     )]
-    fn test_extract_locations_from_meta(
+    fn extracts_tool_locations_from_response(
         response: ToolResponse,
     ) -> Option<Vec<(PathBuf, Option<u32>)>> {
-        extract_locations_from_meta(&response)
+        extract_tool_locations_from_response(&response)
             .map(|locs| locs.into_iter().map(|loc| (loc.path, loc.line)).collect())
     }
 
-    mod extract_tool_call_update_meta {
+    mod trusted_update_meta {
         use super::*;
 
         #[test]
@@ -549,7 +555,7 @@ mod tests {
                 },
             })));
 
-            assert_eq!(extract_tool_call_update_meta(&response), None);
+            assert_eq!(trusted_update_meta(&response), None);
         }
 
         #[test]
@@ -569,8 +575,7 @@ mod tests {
                 },
             })));
 
-            let extracted =
-                extract_tool_call_update_meta(&response).expect("expected trusted meta");
+            let extracted = trusted_update_meta(&response).expect("expected trusted meta");
             assert_eq!(
                 extracted.get("goose"),
                 Some(&serde_json::json!({
@@ -602,7 +607,7 @@ mod tests {
                 ])),
             ),
             metadata: None,
-            tool_meta: None,
+            tool_meta: Some(serde_json::json!({"goose_extension": "developer"})),
         }
     }
 

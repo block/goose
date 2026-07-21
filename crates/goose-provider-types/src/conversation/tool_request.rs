@@ -21,7 +21,14 @@ impl<'a> From<&'a str> for ToolNameParts<'a> {
 impl ToolRequest {
     pub fn tool_name_parts(&self) -> Option<ToolNameParts<'_>> {
         let tool_call = self.tool_call.as_ref().ok()?;
-        Some(ToolNameParts::from(tool_call.name.as_ref()))
+        let mut parts = ToolNameParts::from(tool_call.name.as_ref());
+        parts.extension_name = self
+            .tool_meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose_extension"))
+            .and_then(serde_json::Value::as_str)
+            .or(parts.extension_name);
+        Some(parts)
     }
 
     pub fn to_readable_string(&self) -> String {
@@ -131,6 +138,20 @@ mod tests {
                 Some(ToolNameParts {
                     extension_name: None,
                     tool_name: "read",
+                })
+            );
+        }
+
+        #[test]
+        fn resolves_unprefixed_extension_from_metadata() {
+            let mut request = make_named_tool_request("write");
+            request.tool_meta = Some(serde_json::json!({"goose_extension": "developer"}));
+
+            assert_eq!(
+                request.tool_name_parts(),
+                Some(ToolNameParts {
+                    extension_name: Some("developer"),
+                    tool_name: "write",
                 })
             );
         }

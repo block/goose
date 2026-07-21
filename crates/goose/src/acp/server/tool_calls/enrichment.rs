@@ -11,39 +11,28 @@ use agent_client_protocol::schema::v1::{
     Meta, SessionId, ToolCallId, ToolCallUpdate, ToolCallUpdateFields,
 };
 use rmcp::model::CallToolRequestParams;
-use serde_json::{json, to_string, Map, Number, Value};
+use serde_json::{json, to_string, Map, Value};
 use std::slice::from_ref;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::{spawn, time::sleep};
 use tracing::warn;
 
-/// Add `goose.toolChainSummary = { summary, count }` to a `Meta` blob,
-/// preserving any existing `goose.*` keys such as `goose.toolCall`.
-pub(crate) fn with_tool_chain_summary_meta(
-    base: Option<Meta>,
-    summary: &str,
-    count: usize,
-) -> Option<Meta> {
-    let mut meta = base.unwrap_or_default();
-    let goose_entry = meta
-        .entry("goose".to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let goose_obj = match goose_entry {
-        Value::Object(obj) => obj,
-        other => {
-            *other = Value::Object(Map::new());
-            match other {
-                Value::Object(obj) => obj,
-                _ => unreachable!(),
-            }
-        }
-    };
-    let mut chain = Map::new();
-    chain.insert("summary".to_string(), Value::String(summary.to_string()));
-    chain.insert("count".to_string(), Value::Number(Number::from(count)));
-    goose_obj.insert("toolChainSummary".to_string(), Value::Object(chain));
-    Some(meta)
+pub(crate) fn tool_chain_summary(summary: &str, count: usize) -> (String, Value) {
+    (
+        "toolChainSummary".to_string(),
+        json!({
+            "summary": summary,
+            "count": count,
+        }),
+    )
+}
+
+fn build_chain_summary_update(tool_call_id: String, summary: &str, count: usize) -> ToolCallUpdate {
+    let goose_meta = Map::from_iter([tool_chain_summary(summary, count)]);
+    let mut meta = Meta::default();
+    meta.insert("goose".to_string(), Value::Object(goose_meta));
+    ToolCallUpdate::new(ToolCallId::new(tool_call_id), ToolCallUpdateFields::new()).meta(Some(meta))
 }
 
 pub(crate) struct ToolTitleEnrichmentContext {
@@ -277,7 +266,6 @@ impl ChainSummaryEnrichmentContext {
         first_tool_call_id: String,
         message_id_for_persist: String,
         steps: Vec<(String, String)>,
-        goose_meta: Option<Meta>,
         chain_count: usize,
     ) {
         let Self {
@@ -293,7 +281,6 @@ impl ChainSummaryEnrichmentContext {
             first_tool_call_id,
             message_id_for_persist,
             steps,
-            goose_meta,
             chain_count,
             tool_call_notifier,
             session_manager,
@@ -308,7 +295,6 @@ struct ChainSummaryEnrichmentJob {
     first_tool_call_id: String,
     message_id_for_persist: String,
     steps: Vec<(String, String)>,
-    goose_meta: Option<Meta>,
     chain_count: usize,
     tool_call_notifier: ToolCallNotifier,
     session_manager: Arc<SessionManager>,
@@ -323,7 +309,6 @@ impl ChainSummaryEnrichmentJob {
                 first_tool_call_id,
                 message_id_for_persist,
                 steps,
-                goose_meta,
                 chain_count,
                 tool_call_notifier,
                 session_manager,
@@ -436,57 +421,38 @@ impl ChainSummaryEnrichmentJob {
                 );
             }
 
-            let meta = with_tool_chain_summary_meta(goose_meta, &summary, chain_count);
-            let fields = ToolCallUpdateFields::new();
-            let _ = tool_call_notifier.send_update(
-                ToolCallUpdate::new(ToolCallId::new(first_tool_call_id), fields).meta(meta),
-            );
+            let _ = tool_call_notifier.send_update(build_chain_summary_update(
+                first_tool_call_id,
+                &summary,
+                chain_count,
+            ));
         });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    mod with_tool_chain_summary_meta {
-        use super::super::with_tool_chain_summary_meta;
-        use crate::acp::server::tool_calls::conversion::goose_tool_call_meta;
-        use crate::conversation::message::ToolRequest;
-        use rmcp::model::CallToolRequestParams;
+    mod build_chain_summary_update {
+        use super::super::build_chain_summary_update;
         use serde_json::json;
 
         #[test]
-        fn creates_fresh_when_none() {
-            let meta = with_tool_chain_summary_meta(None, "applied dark mode", 4)
-                .expect("meta should be created");
-            assert_eq!(
-                meta.get("goose"),
-                Some(&json!({
-                    "toolChainSummary": { "summary": "applied dark mode", "count": 4 },
-                })),
-            );
-        }
+        fn contains_only_the_chain_summary_delta() {
+            let update = build_chain_summary_update("req_1".to_string(), "applied dark mode", 4);
 
-        #[test]
-        fn preserves_existing_tool_call_identity() {
-            let existing = goose_tool_call_meta(&ToolRequest {
-                id: "req_1".to_string(),
-                tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-                metadata: None,
-                tool_meta: None,
-            });
-            let meta = with_tool_chain_summary_meta(existing, "ran two commands", 2)
-                .expect("meta should be created");
-            let goose = meta.get("goose").expect("goose key");
             assert_eq!(
-                goose.get("toolCall"),
-                Some(&json!({
-                    "toolName": "developer__shell",
-                    "extensionName": "developer",
-                })),
-            );
-            assert_eq!(
-                goose.get("toolChainSummary"),
-                Some(&json!({ "summary": "ran two commands", "count": 2 })),
+                serde_json::to_value(update).expect("update should serialize"),
+                json!({
+                    "toolCallId": "req_1",
+                    "_meta": {
+                        "goose": {
+                            "toolChainSummary": {
+                                "summary": "applied dark mode",
+                                "count": 4,
+                            },
+                        },
+                    },
+                }),
             );
         }
     }
