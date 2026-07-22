@@ -383,6 +383,19 @@ export function AppInner() {
       if (archived === false) return;
 
       setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
+
+      // If the archived chat is the one currently open, filtering activeSessions is
+      // not enough: the resumeSessionId still in the URL makes PairRouteWrapper
+      // re-add it and ChatSessionsContainer re-render it. Leave the route entirely.
+      const hash = window.location.hash;
+      const queryIndex = hash.indexOf('?');
+      const currentSessionId =
+        queryIndex >= 0
+          ? new URLSearchParams(hash.slice(queryIndex + 1)).get('resumeSessionId')
+          : null;
+      if (currentSessionId === sessionId) {
+        navigate('/');
+      }
     };
 
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
@@ -395,7 +408,7 @@ export function AppInner() {
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
       window.removeEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
     };
-  }, []);
+  }, [navigate]);
 
   const { addExtension } = useConfig();
 
