@@ -170,7 +170,6 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 /// below is keyed by session ID.
 struct GooseAcpSession {
     agent: Arc<Agent>,
-    tool_requests: HashMap<String, crate::conversation::message::ToolRequest>,
 }
 
 struct ActivePromptRun {
@@ -900,16 +899,8 @@ impl GooseAcpAgent {
         Ok(extension_data)
     }
 
-    async fn register_acp_session(
-        &self,
-        session_id: String,
-        agent: Arc<Agent>,
-        tool_requests: HashMap<String, ToolRequest>,
-    ) {
-        let acp_session = GooseAcpSession {
-            agent,
-            tool_requests,
-        };
+    async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
+        let acp_session = GooseAcpSession { agent };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
 
@@ -917,10 +908,9 @@ impl GooseAcpAgent {
         &self,
         cx: &ConnectionTo<Client>,
         session: &Session,
-        tool_requests: HashMap<String, ToolRequest>,
     ) -> Result<(Arc<Agent>, Vec<ExtensionLoadResult>), agent_client_protocol::Error> {
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, session).await?;
-        self.register_acp_session(session.id.clone(), agent.clone(), tool_requests)
+        self.register_acp_session(session.id.clone(), agent.clone())
             .await;
 
         Ok((agent, extension_results))
@@ -1009,7 +999,7 @@ impl GooseAcpAgent {
         role: &Role,
         steer: bool,
         agent: &Arc<Agent>,
-        session: &mut GooseAcpSession,
+        tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
         match content_item {
@@ -1029,14 +1019,19 @@ impl GooseAcpAgent {
                     session_id,
                     session_id_str,
                     message_id,
-                    session,
+                    agent,
                     cx,
                 )
                 .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
-                self.handle_tool_response(tool_response, session_id, session, cx)
-                    .await?;
+                self.handle_tool_response(
+                    tool_response,
+                    tool_requests.get(&tool_response.id),
+                    session_id,
+                    cx,
+                )
+                .await?;
             }
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
@@ -1145,17 +1140,13 @@ impl GooseAcpAgent {
 
     async fn handle_tool_request(
         &self,
-        tool_request: &crate::conversation::message::ToolRequest,
+        tool_request: &ToolRequest,
         session_id: &SessionId,
         session_id_for_persist: &str,
         message_id: Option<&str>,
-        session: &mut GooseAcpSession,
+        agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        session
-            .tool_requests
-            .insert(tool_request.id.clone(), tool_request.clone());
-
         let initial_tool_call = build_initial_tool_call(tool_request);
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
@@ -1169,7 +1160,7 @@ impl GooseAcpAgent {
 
         if tool_request.tool_call.is_ok() {
             spawn_tool_title_enrichment(
-                &session.agent,
+                agent,
                 tool_call_notifier,
                 &self.session_manager,
                 session_id_for_persist,
@@ -1184,14 +1175,11 @@ impl GooseAcpAgent {
     async fn handle_tool_response(
         &self,
         tool_response: &ToolResponse,
+        tool_request: Option<&ToolRequest>,
         session_id: &SessionId,
-        session: &mut GooseAcpSession,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let fields = tool_call_update_fields_from_response(
-            tool_response,
-            session.tool_requests.get(&tool_response.id),
-        );
+        let fields = tool_call_update_fields_from_response(tool_response, tool_request);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
             .meta(trusted_update_meta(tool_response));
@@ -1527,9 +1515,7 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                     .data(format!("Session not found: {}", session_id))
             })?;
-        let (agent, _) = self
-            .activate_acp_session(cx, &session, HashMap::new())
-            .await?;
+        let (agent, _) = self.activate_acp_session(cx, &session).await?;
         Ok(agent)
     }
 
@@ -1826,6 +1812,7 @@ impl GooseAcpAgent {
         let mut was_cancelled = false;
         let mut first_event_logged = false;
         let mut event_count: u32 = 0;
+        let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
 
@@ -1850,19 +1837,23 @@ impl GooseAcpAgent {
                     // Agent persists messages via session_manager.add_message() internally.
                     let stored_message_id = message.id.clone();
 
-                    let mut sessions = self.sessions.lock().await;
-                    let Some(session) = sessions.get_mut(&session_id) else {
+                    let sessions = self.sessions.lock().await;
+                    if !sessions.contains_key(&session_id) {
                         stream_error = Some(
                             agent_client_protocol::Error::invalid_params()
                                 .data(format!("Session not found: {}", session_id)),
                         );
                         break;
-                    };
+                    }
 
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
                             stream_error = Some(error);
                             break;
+                        }
+
+                        if let MessageContent::ToolRequest(tool_request) = content_item {
+                            tool_requests.insert(tool_request.id.clone(), tool_request.clone());
                         }
 
                         if let Err(error) = self
@@ -1875,7 +1866,7 @@ impl GooseAcpAgent {
                                 &message.role,
                                 message.metadata.steer,
                                 &agent,
-                                session,
+                                &tool_requests,
                                 cx,
                             )
                             .await

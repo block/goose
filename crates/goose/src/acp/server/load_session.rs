@@ -73,8 +73,7 @@ fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
     supports_goose_custom_notifications: bool,
-) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
-{
+) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
     let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
     let sid = sid_short(session_id.0.as_ref());
@@ -91,8 +90,7 @@ fn replay_conversation_to_client(
             "perf: load_session messages loaded"
     );
 
-    let mut replay_tool_requests =
-        HashMap::<String, crate::conversation::message::ToolRequest>::new();
+    let mut replay_tool_requests = HashMap::new();
 
     for message in &messages {
         for content_item in &message.content {
@@ -183,7 +181,7 @@ fn replay_conversation_to_client(
         }
     }
 
-    Ok(replay_tool_requests)
+    Ok(())
 }
 
 impl GooseAcpAgent {
@@ -212,14 +210,10 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(
-            cx,
-            &session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        replay_conversation_to_client(cx, &session, self.supports_goose_custom_notifications())?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
-        self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
+        self.register_acp_session(session_id_str.clone(), agent.clone())
             .await;
 
         session = self
