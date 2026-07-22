@@ -247,14 +247,13 @@ run_model() {
     my $pid = fork();
     die "fork failed: $!" unless defined $pid;
     if ($pid == 0) {
-      setpgrp(0, 0);
       exec @ARGV;
       die "exec failed: $!";
     }
     local $SIG{ALRM} = sub {
-      kill "TERM", -$pid;
+      kill "TERM", $pid;
       sleep 2;
-      kill "KILL", -$pid;
+      kill "KILL", $pid;
       exit 124;
     };
     alarm $timeout;
