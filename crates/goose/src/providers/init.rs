@@ -304,11 +304,10 @@ mod tests {
         assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
         assert_eq!(meta.display_name, "Hugging Face");
         assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
-        assert!(
-            meta.config_keys
-                .iter()
-                .any(|key| key.name == "HF_TOKEN" && key.secret)
-        );
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "HF_TOKEN" && key.secret));
     }
 
     #[tokio::test]
