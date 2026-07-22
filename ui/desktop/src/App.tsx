@@ -369,12 +369,27 @@ export function AppInner() {
       });
     };
 
+    // Removing a session (delete or archive) only filters activeSessions; if the
+    // removed chat is the one open at /pair?resumeSessionId=..., the URL still carries
+    // it so PairRouteWrapper re-adds and ChatSessionsContainer re-renders it against a
+    // now-gone server session. Leave the route when that session is the current one.
+    const leaveRouteIfCurrent = (sessionId: string) => {
+      const hash = window.location.hash;
+      const queryIndex = hash.indexOf('?');
+      const currentSessionId =
+        queryIndex >= 0
+          ? new URLSearchParams(hash.slice(queryIndex + 1)).get('resumeSessionId')
+          : null;
+      if (currentSessionId === sessionId) {
+        navigate('/');
+      }
+    };
+
     const handleSessionDeleted = (event: Event) => {
       const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
 
-      setActiveSessions((prev) => {
-        return prev.filter((session) => session.sessionId !== sessionId);
-      });
+      setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
+      leaveRouteIfCurrent(sessionId);
     };
 
     // Archiving removes the loaded agent on the server, so unmount the chat
@@ -394,18 +409,7 @@ export function AppInner() {
       cancelAcpElicitationRequestsForSession(sessionId);
       acpChatSessionActions.deleteSnapshot(sessionId);
 
-      // If the archived chat is the one currently open, filtering activeSessions is
-      // not enough: the resumeSessionId still in the URL makes PairRouteWrapper
-      // re-add it and ChatSessionsContainer re-render it. Leave the route entirely.
-      const hash = window.location.hash;
-      const queryIndex = hash.indexOf('?');
-      const currentSessionId =
-        queryIndex >= 0
-          ? new URLSearchParams(hash.slice(queryIndex + 1)).get('resumeSessionId')
-          : null;
-      if (currentSessionId === sessionId) {
-        navigate('/');
-      }
+      leaveRouteIfCurrent(sessionId);
     };
 
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
