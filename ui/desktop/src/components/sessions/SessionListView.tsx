@@ -66,7 +66,9 @@ import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 // deliberately hidden session remains findable; the Archived view is scoped.
 function archivedFilterFor(keyword: string, archivedView: boolean): ArchivedFilter {
   if (archivedView) return 'archived';
-  return keyword ? 'all' : 'active';
+  // Match acpListSessions, which trims the keyword and omits an empty query — a
+  // whitespace-only term must not widen the Active view to archived sessions.
+  return keyword.trim() ? 'all' : 'active';
 }
 
 const i18n = defineMessages({
