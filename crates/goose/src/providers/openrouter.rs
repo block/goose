@@ -282,7 +282,7 @@ impl Provider for OpenRouterProvider {
                 let supports_tools = model
                     .get("supported_parameters")
                     .and_then(|v| v.as_array())
-                    .map_or(false, |params| {
+                    .is_some_and(|params| {
                         params.iter().any(|p| p.as_str() == Some("tools"))
                     });
                 if supports_tools {
