@@ -2008,6 +2008,7 @@ fn find_elicitation_request(message: &Message) -> Option<(String, String, Value)
 }
 
 /// Handle MCP notification event (logging or progress)
+#[expect(deprecated)]
 fn handle_mcp_notification(
     extension_id: &str,
     notification: &ServerNotification,

@@ -1,9 +1,12 @@
 use agent_client_protocol::schema::v1::{
     Meta, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
 };
-use rmcp::model::{LoggingMessageNotificationParam, ProgressNotificationParam, ServerNotification};
+#[expect(deprecated)]
+use rmcp::model::LoggingMessageNotificationParam;
+use rmcp::model::{ProgressNotificationParam, ServerNotification};
 use serde::Serialize;
 
+#[expect(deprecated)]
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ToolNotification {
@@ -59,14 +62,16 @@ mod tests {
     use super::tool_notification_update;
     use agent_client_protocol::schema::v1::SessionUpdate;
     use rmcp::model::{
-        CancelledNotificationParam, CustomNotification, LoggingLevel,
-        LoggingMessageNotificationParam, Notification, NumberOrString, ProgressNotificationParam,
-        ProgressToken, ServerNotification,
+        CancelledNotificationParam, CustomNotification, Notification, NumberOrString,
+        ProgressNotificationParam, ProgressToken, ServerNotification,
     };
+    #[expect(deprecated)]
+    use rmcp::model::{LoggingLevel, LoggingMessageNotificationParam};
     use serde_json::json;
     use std::sync::Arc;
 
     #[test]
+    #[expect(deprecated)]
     fn maps_logging_message_notification_to_tool_update_meta() {
         let notification = ServerNotification::LoggingMessageNotification(Notification::new(
             LoggingMessageNotificationParam::new(

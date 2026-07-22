@@ -9,10 +9,9 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
-use rmcp::model::{
-    ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotificationParam, Notification,
-    ServerNotification,
-};
+use rmcp::model::{ErrorCode, ErrorData, Notification, ServerNotification};
+#[expect(deprecated)]
+use rmcp::model::{LoggingLevel, LoggingMessageNotificationParam};
 use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
@@ -275,6 +274,7 @@ async fn get_final_output(agent: &Agent, has_response_schema: bool) -> Option<St
     }
 }
 
+#[expect(deprecated)]
 pub fn create_tool_notification(
     content: &MessageContent,
     subagent_id: &str,
@@ -311,6 +311,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    #[expect(deprecated)]
     fn create_tool_notification_for_tool_request() {
         let tool_call = CallToolRequestParams::new("developer__shell".to_string())
             .with_arguments(json!({"command": "ls"}).as_object().unwrap().clone());

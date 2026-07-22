@@ -2,21 +2,25 @@ use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
+#[expect(deprecated)]
 use rmcp::model::{
-    CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
-    ExtensionCapabilities, Extensions, JsonObject, ListRootsResult, LoggingMessageNotification,
-    Meta, Root, SamplingMessageContent,
+    CreateElicitationRequestParams, CreateElicitationResult, ListRootsResult,
+    LoggingMessageNotification, Root, SamplingMessageContent,
 };
 /// MCP client implementation for Goose
+#[expect(deprecated)]
+use rmcp::model::{CreateMessageRequestParams, CreateMessageResult, SamplingMessage};
+use rmcp::model::{
+    ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, Meta,
+};
 use rmcp::{
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
-        ClientInfo, ClientRequest, CreateMessageRequestParams, CreateMessageResult,
-        GetPromptRequestParams, GetPromptResult, Implementation, InitializeRequestParams,
-        InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult, Notification,
-        PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams, ReadResourceResult,
-        Request, RequestId, RequestOptionalParam, Role, SamplingMessage, ServerNotification,
-        ServerResult,
+        ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
+        InitializeRequestParams, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, Notification, PaginatedRequestParams, ProtocolVersion,
+        ReadResourceRequestParams, ReadResourceResult, Request, RequestId, RequestOptionalParam,
+        Role, ServerNotification, ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -325,6 +329,7 @@ impl GooseClient {
     }
 }
 
+#[expect(deprecated)]
 fn working_dir_roots(dir: &std::path::Path) -> ListRootsResult {
     let uri = url::Url::from_file_path(dir)
         .map(|u| u.to_string())
@@ -333,6 +338,7 @@ fn working_dir_roots(dir: &std::path::Path) -> ListRootsResult {
 }
 
 impl ClientHandler for GooseClient {
+    #[expect(deprecated)]
     async fn list_roots(
         &self,
         _context: RequestContext<RoleClient>,
@@ -356,6 +362,7 @@ impl ClientHandler for GooseClient {
             });
     }
 
+    #[expect(deprecated)]
     async fn on_logging_message(
         &self,
         params: rmcp::model::LoggingMessageNotificationParam,
@@ -373,6 +380,7 @@ impl ClientHandler for GooseClient {
             });
     }
 
+    #[expect(deprecated)]
     async fn create_message(
         &self,
         params: CreateMessageRequestParams,
@@ -459,6 +467,7 @@ impl ClientHandler for GooseClient {
         .with_stop_reason(CreateMessageResult::STOP_REASON_END_TURN))
     }
 
+    #[expect(deprecated)]
     async fn create_elicitation(
         &self,
         request: CreateElicitationRequestParams,
@@ -527,6 +536,7 @@ impl ClientHandler for GooseClient {
             })
     }
 
+    #[expect(deprecated)]
     fn get_info(&self) -> ClientInfo {
         let extensions = self.resolved_extensions();
 
@@ -1437,6 +1447,7 @@ mod tests {
     }
 
     #[test]
+    #[expect(deprecated)]
     fn test_working_dir_roots_returns_current_dir_as_root() {
         let dir = PathBuf::from("/tmp/test-project");
         let result = working_dir_roots(&dir);
