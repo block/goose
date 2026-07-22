@@ -158,6 +158,10 @@ pub struct AcpProvider {
     /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
+    /// Latest `used` reported by the ACP server in a `session/update` →
+    /// `usage_update` notification — tokens currently occupying the context
+    /// window. 0 means no real update has arrived yet.
+    context_used: Arc<AtomicU64>,
 
     /// Config option id used to select the model, if this agent supports it.
     model_config_option_id: Option<String>,
@@ -245,11 +249,13 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let context_used = Arc::new(AtomicU64::new(0));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
+            context_used.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -282,6 +288,7 @@ impl AcpProvider {
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
+            context_used,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
@@ -419,6 +426,11 @@ impl Provider for AcpProvider {
             return Ok(size as usize);
         }
         Ok(model_config.context_limit())
+    }
+
+    async fn get_context_used(&self) -> Option<u64> {
+        let used = self.context_used.load(Ordering::Relaxed);
+        (used > 0).then_some(used)
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
@@ -698,6 +710,7 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
+    context_used: Arc<AtomicU64>,
 }
 
 impl AcpClientLoop {
@@ -706,6 +719,7 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
+        context_used: Arc<AtomicU64>,
     ) -> Self {
         Self {
             config,
@@ -713,6 +727,7 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
+            context_used,
         }
     }
 
@@ -767,6 +782,7 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
+            context_used,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -780,6 +796,7 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
+                    let context_used = context_used.clone();
                     async move |notification: SessionNotification, _cx| {
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
@@ -815,6 +832,7 @@ impl AcpClientLoop {
                             }
                             SessionUpdate::UsageUpdate(usage) => {
                                 context_size.store(usage.size, Ordering::Relaxed);
+                                context_used.store(usage.used, Ordering::Relaxed);
                             }
                             _ => {}
                         }
@@ -1702,6 +1720,7 @@ mod tests {
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
+                context_used: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
@@ -2001,6 +2020,15 @@ mod tests {
 
         provider.context_size.store(200_000, Ordering::Relaxed);
         assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
+    }
+
+    #[tokio::test]
+    async fn get_context_used_surfaces_captured_used() {
+        let (provider, _model) = test_provider();
+        assert_eq!(provider.get_context_used().await, None);
+
+        provider.context_used.store(53_000, Ordering::Relaxed);
+        assert_eq!(provider.get_context_used().await, Some(53_000));
     }
 
     #[tokio::test]

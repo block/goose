@@ -497,8 +497,15 @@ pub(super) fn build_usage_updates(
     session: &Session,
     totals: &SessionUsageTotals,
     context_limit_override: Option<u64>,
+    used_override: Option<u64>,
 ) -> Option<UsageUpdates> {
-    let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
+    // Providers can report the tokens currently in context (e.g. AcpProvider
+    // captures `used` from the CLI's usage updates). Accumulated session usage
+    // is a cumulative billing total, not the current context occupancy.
+    let used = match used_override {
+        Some(used) => used,
+        None => session.usage.total_tokens.unwrap_or(0).max(0) as u64,
+    };
     // Providers can report a more accurate context limit than the static model
     // config (e.g. AcpProvider captures the size from the CLI's usage updates).
     let ctx_limit = match context_limit_override {
@@ -572,6 +579,7 @@ impl GooseAcpAgent {
             &totals,
             self.supports_goose_custom_notifications(),
             self.provider_context_limit(&session.id).await,
+            self.provider_context_used(&session.id).await,
         )
     }
 
@@ -587,6 +595,16 @@ impl GooseAcpAgent {
             .await
             .ok()
             .map(|limit| limit as u64)
+    }
+
+    /// Ask the session's provider for the tokens currently in context, which
+    /// reflects the live context window rather than the cumulative billing
+    /// total accumulated in session usage (e.g. AcpProvider surfaces the `used`
+    /// value captured from the CLI's own usage updates).
+    pub(super) async fn provider_context_used(&self, session_id: &str) -> Option<u64> {
+        let agent = self.get_session_agent(session_id).await.ok()?;
+        let provider = agent.provider().await.ok()?;
+        provider.get_context_used().await
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -1930,7 +1948,10 @@ impl GooseAcpAgent {
             .await
             .unwrap_or_default();
         let context_limit_override = self.provider_context_limit(&session_id).await;
-        if let Some(updates) = build_usage_updates(&session, &totals, context_limit_override) {
+        let used_override = self.provider_context_used(&session_id).await;
+        if let Some(updates) =
+            build_usage_updates(&session, &totals, context_limit_override, used_override)
+        {
             if self.supports_goose_custom_notifications() {
                 cx.send_notification(updates.custom)?;
             }
@@ -2592,8 +2613,8 @@ print(\"hello, world\")
             accumulated_usage: session.accumulated_usage,
             accumulated_cost: session.accumulated_cost,
         };
-        let updates =
-            build_usage_updates(&session, &totals, None).expect("usage updates should be present");
+        let updates = build_usage_updates(&session, &totals, None, None)
+            .expect("usage updates should be present");
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -2611,7 +2632,9 @@ print(\"hello, world\")
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        assert!(build_usage_updates(&session, &SessionUsageTotals::default(), None).is_none());
+        assert!(
+            build_usage_updates(&session, &SessionUsageTotals::default(), None, None).is_none()
+        );
     }
 
     #[test]
@@ -2624,9 +2647,13 @@ print(\"hello, world\")
             goose_providers::model::ModelConfig::new("test-model")
                 .with_context_limit(Some(128_000)),
         );
-        let updates =
-            build_usage_updates(&session, &SessionUsageTotals::default(), Some(1_000_000))
-                .expect("usage updates should be present");
+        let updates = build_usage_updates(
+            &session,
+            &SessionUsageTotals::default(),
+            Some(1_000_000),
+            None,
+        )
+        .expect("usage updates should be present");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
             other => panic!("expected usage update, got {other:?}"),
@@ -2636,13 +2663,48 @@ print(\"hello, world\")
     }
 
     #[test]
+    fn test_build_usage_update_prefers_provider_used() {
+        // Accumulated session usage is a cumulative billing total (here 10M),
+        // not the current context occupancy. When the provider reports `used`,
+        // that value must drive the numerator instead.
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(9_000_000), Some(1_000_000), Some(10_000_000)),
+            TokenUsage::default(),
+        );
+        session.model_config = Some(
+            goose_providers::model::ModelConfig::new("test-model")
+                .with_context_limit(Some(200_000)),
+        );
+        let updates = build_usage_updates(
+            &session,
+            &SessionUsageTotals::default(),
+            Some(1_000_000),
+            Some(53_000),
+        )
+        .expect("usage updates should be present");
+        let usage = match updates.custom.update {
+            GooseSessionUpdate::UsageUpdate(usage) => usage,
+            other => panic!("expected usage update, got {other:?}"),
+        };
+        assert_eq!(usage.used, 53_000);
+        assert_eq!(usage.context_limit, 1_000_000);
+        assert_eq!(updates.standard.used, 53_000);
+        assert_eq!(updates.standard.size, 1_000_000);
+    }
+
+    #[test]
     fn test_build_usage_update_override_works_without_model_config() {
         let session = make_session_with_usage(
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        let updates = build_usage_updates(&session, &SessionUsageTotals::default(), Some(200_000))
-            .expect("override should not require model config");
+        let updates = build_usage_updates(
+            &session,
+            &SessionUsageTotals::default(),
+            Some(200_000),
+            None,
+        )
+        .expect("override should not require model config");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
             other => panic!("expected usage update, got {other:?}"),

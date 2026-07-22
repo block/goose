@@ -426,6 +426,16 @@ pub trait Provider: Send + Sync {
         Ok(model_config.context_limit())
     }
 
+    /// Provider-reported count of tokens currently occupying the context window.
+    ///
+    /// Returns `None` unless the provider surfaces a live figure (e.g.
+    /// AcpProvider captures it from the CLI's own usage updates). Callers fall
+    /// back to accumulated session usage, which for pass-through providers is a
+    /// cumulative billing total rather than the current context occupancy.
+    async fn get_context_used(&self) -> Option<u64> {
+        None
+    }
+
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
     }
