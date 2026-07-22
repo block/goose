@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "कौशल"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "संग्रहित करें"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "सत्र संग्रहित नहीं किया जा सका: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” संग्रहित किया गया"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "चैट"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "हटाएँ"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "हटाएँ"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "सत्र हटाया नहीं जा सका: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "क्या आप वाकई “{name}” को हटाना चाहते हैं? इसे पूर्ववत नहीं किया जा सकता।"
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "चैट हटाई गई"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "चैट हटाएँ"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "बनाया गया"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "कोई हालिया चैट नहीं"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "नाम बदलें"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "सत्र क्रियाएँ"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "त्रुटि"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "स्ट्रीमिंग"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "सत्र संग्रहित करें"
+  },
   "sessions.action.delete": {
     "defaultMessage": "सत्र हटाएँ"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "एन्क्रिप्टेड नोस्ट्र लिंक साझा करें"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "संग्रह से पुनर्स्थापित करें"
   },
   "sessions.cancel": {
     "defaultMessage": "रद्द करें"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "अधिक सत्र लोड हो रहे हैं..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "कोई संग्रहित सत्र नहीं"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "आपके द्वारा संग्रहित किए गए सत्र यहाँ दिखाई देंगे।"
+  },
   "sessions.save": {
     "defaultMessage": "सहेजें"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "एन्क्रिप्टेड नोस्ट्र शेयर लिंक"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "सक्रिय"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "संग्रहित"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "सत्र संग्रहित नहीं किया जा सका: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "सत्र संग्रहित किया गया"
   },
   "sessions.toast.copied": {
     "defaultMessage": "क्लिपबोर्ड पर कॉपी किया गया"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr शेयर लिंक बनाने में विफल: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "सत्र पुनर्स्थापित नहीं किया जा सका: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "सत्र पुनर्स्थापित किया गया"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "सत्र विवरण अद्यतन करने में विफल: {error}"

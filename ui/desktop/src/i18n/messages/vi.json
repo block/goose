@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Kỹ năng"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Lưu trữ"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Không thể lưu trữ phiên: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "Đã lưu trữ “{name}”"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Cuộc trò chuyện"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Xóa"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Hủy"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Xóa"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Không thể xóa phiên: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Bạn có chắc muốn xóa “{name}”? Hành động này không thể hoàn tác."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Đã xóa cuộc trò chuyện"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Xóa cuộc trò chuyện"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Đã tạo"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Không có cuộc trò chuyện gần đây"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Đổi tên"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Tác vụ phiên"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Lỗi"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Đang truyền phát"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Lưu trữ phiên"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Chia sẻ liên kết Nostr được mã hóa"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Khôi phục từ kho lưu trữ"
   },
   "sessions.cancel": {
     "defaultMessage": "Hủy"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Đang tải thêm phiên..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Không có phiên đã lưu trữ"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Các phiên bạn lưu trữ sẽ xuất hiện ở đây."
+  },
   "sessions.save": {
     "defaultMessage": "Lưu"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Liên kết chia sẻ Nostr được mã hóa"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Đang hoạt động"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Đã lưu trữ"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Không thể lưu trữ phiên: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Đã lưu trữ phiên"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Đã sao chép vào bộ nhớ tạm"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Không thể tạo liên kết chia sẻ Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Không thể khôi phục phiên: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Đã khôi phục phiên"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Không thể cập nhật mô tả phiên làm việc: {error}"

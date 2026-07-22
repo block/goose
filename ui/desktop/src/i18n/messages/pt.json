@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Competências"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Arquivar"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Falha ao arquivar a sessão: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” arquivada"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Conversas"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Eliminar"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Cancelar"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Eliminar"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Falha ao eliminar a sessão: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Tem a certeza de que pretende eliminar “{name}”? Esta ação não pode ser anulada."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Conversa eliminada"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Eliminar conversa"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Criado"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Sem conversas recentes"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Mudar o nome"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Ações da sessão"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Erro"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Em transmissão"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Arquivar sessão"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Eliminar sessão"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Partilhar ligação Nostr encriptada"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Restaurar do arquivo"
   },
   "sessions.cancel": {
     "defaultMessage": "Cancelar"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "A carregar mais sessões..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Sem sessões arquivadas"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "As sessões que arquivar aparecerão aqui."
+  },
   "sessions.save": {
     "defaultMessage": "Guardar"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Link de Partilha Nostr Criptografado"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Ativas"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Arquivadas"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Falha ao arquivar a sessão: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Sessão arquivada"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Copiado para a área de transferência"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Falha ao criar o link de partilha Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Falha ao restaurar a sessão: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Sessão restaurada"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Falha ao atualizar a descrição da sessão: {error}"

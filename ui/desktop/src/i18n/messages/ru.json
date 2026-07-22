@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Навыки"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Архивировать"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Не удалось архивировать сеанс: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "«{name}» архивирован"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Удалить"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Отмена"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Удалить"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Не удалось удалить сеанс: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Вы уверены, что хотите удалить «{name}»? Это действие нельзя отменить."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Чат удалён"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Удалить чат"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Создано"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Переименовать"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Действия с сеансом"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Ошибка"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Архивировать сеанс"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Удалить сеанс"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Поделиться зашифрованной ссылкой Nostr"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Восстановить из архива"
   },
   "sessions.cancel": {
     "defaultMessage": "Отмена"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Загрузка дополнительных сеансов..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Нет архивированных сеансов"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Здесь будут отображаться архивированные вами сеансы."
+  },
   "sessions.save": {
     "defaultMessage": "Сохранить"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Зашифрованная ссылка общего доступа Nostr"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Активные"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Архивированные"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Не удалось архивировать сеанс: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Сеанс архивирован"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Скопировано в буфер обмена"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Не удалось создать ссылку Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Не удалось восстановить сеанс: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Сеанс восстановлен"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Не удалось обновить описание сеанса: {error}"

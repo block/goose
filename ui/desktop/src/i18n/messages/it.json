@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Competenze"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Archivia"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Impossibile archiviare la sessione: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” archiviata"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Chat"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Elimina"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Annulla"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Elimina"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Impossibile eliminare la sessione: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Vuoi davvero eliminare “{name}”? L’operazione non può essere annullata."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Chat eliminata"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Elimina chat"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Creato"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Nessuna chat recente"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Rinomina"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Azioni sessione"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Errore"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Archivia sessione"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Elimina sessione"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Condividi link Nostr crittografato"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Ripristina dall’archivio"
   },
   "sessions.cancel": {
     "defaultMessage": "Annulla"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Caricamento di altre sessioni..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Nessuna sessione archiviata"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Le sessioni che archivi appariranno qui."
+  },
   "sessions.save": {
     "defaultMessage": "Salva"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Link di condivisione Nostr crittografato"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Attive"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Archiviate"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Impossibile archiviare la sessione: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Sessione archiviata"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Copiato negli appunti"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Impossibile creare il link di condivisione Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Impossibile ripristinare la sessione: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Sessione ripristinata"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Impossibile aggiornare la descrizione della sessione: {error}"

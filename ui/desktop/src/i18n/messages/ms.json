@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Kemahiran"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Arkibkan"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Gagal mengarkibkan sesi: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” diarkibkan"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Sembang"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Padam"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Batal"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Padam"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Gagal memadam sesi: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Adakah anda pasti mahu memadam “{name}”? Tindakan ini tidak boleh dibuat asal."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Sembang dipadam"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Padam sembang"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Dicipta"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Tiada sembang terkini"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Namakan semula"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Tindakan sesi"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Ralat"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Arkibkan sesi"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Kongsi pautan Nostr tersulit"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Pulihkan daripada arkib"
   },
   "sessions.cancel": {
     "defaultMessage": "Batal"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Memuatkan lebih banyak sesi..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Tiada sesi diarkibkan"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Sesi yang anda arkibkan akan dipaparkan di sini."
+  },
   "sessions.save": {
     "defaultMessage": "Simpan"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Pautan Kongsi Nostr Tersulit"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Aktif"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Diarkibkan"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Gagal mengarkibkan sesi: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Sesi diarkibkan"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Disalin ke papan keratan"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Gagal mencipta pautan kongsi Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Gagal memulihkan sesi: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Sesi dipulihkan"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Gagal mengemas kini penerangan sesi: {error}"

@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "스킬"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "보관"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "세션을 보관하지 못했습니다: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” 보관됨"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "채팅"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "삭제"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "취소"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "삭제"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "세션을 삭제하지 못했습니다: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "“{name}”을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "채팅이 삭제됨"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "채팅 삭제"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "생성됨"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "최근 채팅 없음"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "이름 변경"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "세션 작업"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "오류"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "스트리밍"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "세션 보관"
+  },
   "sessions.action.delete": {
     "defaultMessage": "세션 삭제"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "암호화된 Nostr 링크 공유"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "보관함에서 복원"
   },
   "sessions.cancel": {
     "defaultMessage": "취소"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "추가 세션 로드 중..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "보관된 세션 없음"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "보관한 세션이 여기에 표시됩니다."
+  },
   "sessions.save": {
     "defaultMessage": "저장"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "암호화된 Nostr 공유 링크"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "활성"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "보관됨"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "세션을 보관하지 못했습니다: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "세션이 보관됨"
   },
   "sessions.toast.copied": {
     "defaultMessage": "클립보드에 복사됨"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr 공유 링크 생성 실패: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "세션을 복원하지 못했습니다: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "세션이 복원됨"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "세션 설명 업데이트 실패: {error}"

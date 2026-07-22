@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Skills"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Archivieren"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Sitzung konnte nicht archiviert werden: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "„{name}“ archiviert"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Löschen"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Abbrechen"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Löschen"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Sitzung konnte nicht gelöscht werden: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Möchten Sie „{name}“ wirklich löschen? Dies kann nicht rückgängig gemacht werden."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Chat gelöscht"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Chat löschen"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Erstellt"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Keine aktuellen Chats"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Umbenennen"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Sitzungsaktionen"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Fehler"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Sitzung archivieren"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Sitzung löschen"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Verschlüsselten Nostr-Link teilen"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Aus Archiv wiederherstellen"
   },
   "sessions.cancel": {
     "defaultMessage": "Abbrechen"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Weitere Sitzungen werden geladen..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Keine archivierten Sitzungen"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Von Ihnen archivierte Sitzungen werden hier angezeigt."
+  },
   "sessions.save": {
     "defaultMessage": "Speichern"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Verschlüsselter Nostr-Freigabelink"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Aktiv"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Archiviert"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Sitzung konnte nicht archiviert werden: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Sitzung archiviert"
   },
   "sessions.toast.copied": {
     "defaultMessage": "In die Zwischenablage kopiert"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr-Freigabelink konnte nicht erstellt werden: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Sitzung konnte nicht wiederhergestellt werden: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Sitzung wiederhergestellt"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Sitzungsbeschreibung konnte nicht aktualisiert werden: {error}"

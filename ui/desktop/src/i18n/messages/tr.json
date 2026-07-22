@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Beceriler"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Arşivle"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Oturum arşivlenemedi: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” arşivlendi"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Sohbetler"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Sil"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "İptal"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Sil"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Oturum silinemedi: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "“{name}” sohbetini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Sohbet silindi"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Sohbeti sil"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Oluşturuldu"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Son sohbet yok"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Yeniden adlandır"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Oturum işlemleri"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Hata"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Oturumu arşivle"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Şifrelenmiş Nostr bağlantısını paylaşın"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Arşivden geri yükle"
   },
   "sessions.cancel": {
     "defaultMessage": "İptal"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Daha fazla oturum yükleniyor..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Arşivlenmiş oturum yok"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Arşivlediğiniz oturumlar burada görünecek."
+  },
   "sessions.save": {
     "defaultMessage": "Kaydet"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Şifreli Nostr Paylaşım Bağlantısı"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Etkin"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Arşivlenmiş"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Oturum arşivlenemedi: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Oturum arşivlendi"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Panoya kopyalandı"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr paylaşım bağlantısı oluşturulamadı: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Oturum geri yüklenemedi: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Oturum geri yüklendi"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Oturum açıklaması güncellenemedi: {error}"

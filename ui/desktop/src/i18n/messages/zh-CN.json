@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "技能"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "归档"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "归档会话失败：{error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "已归档“{name}”"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "删除"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "取消"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "删除"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "删除会话失败：{error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "确定要删除“{name}”吗？此操作无法撤消。"
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "聊天已删除"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "删除聊天"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "创建时间"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "重命名"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "会话操作"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "错误"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "归档会话"
+  },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "分享加密的 Nostr 链接"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "从归档恢复"
   },
   "sessions.cancel": {
     "defaultMessage": "取消"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "正在加载更多会话…"
   },
+  "sessions.noArchived": {
+    "defaultMessage": "没有已归档的会话"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "您归档的会话将显示在此处。"
+  },
   "sessions.save": {
     "defaultMessage": "保存"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "加密的 Nostr 分享链接"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "活跃"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "已归档"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "归档会话失败：{error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "会话已归档"
   },
   "sessions.toast.copied": {
     "defaultMessage": "已复制到剪贴板"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "创建 Nostr 分享链接失败：{error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "恢复会话失败：{error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "会话已恢复"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "更新会话描述失败：{error}"

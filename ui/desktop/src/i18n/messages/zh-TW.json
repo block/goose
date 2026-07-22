@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "技能"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "封存"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "封存工作階段失敗：{error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "已封存「{name}」"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "交談"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "刪除"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "取消"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "刪除"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "刪除工作階段失敗：{error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "確定要刪除「{name}」嗎？此操作無法復原。"
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "已刪除聊天"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "刪除聊天"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "建立時間"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "沒有最近的交談"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "重新命名"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "工作階段動作"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "錯誤"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "串流中"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "封存工作階段"
+  },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "分享加密的 Nostr 連結"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "從封存還原"
   },
   "sessions.cancel": {
     "defaultMessage": "取消"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "正在載入更多工作階段…"
   },
+  "sessions.noArchived": {
+    "defaultMessage": "沒有已封存的工作階段"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "您封存的工作階段將顯示在此處。"
+  },
   "sessions.save": {
     "defaultMessage": "儲存"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "加密的 Nostr 分享連結"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "使用中"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "已封存"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "封存工作階段失敗：{error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "工作階段已封存"
   },
   "sessions.toast.copied": {
     "defaultMessage": "已複製到剪貼簿"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "無法建立 Nostr 分享連結：{error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "還原工作階段失敗：{error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "工作階段已還原"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "無法更新工作階段描述：{error}"

@@ -2366,8 +2366,38 @@
   "navigation.itemSkills": {
     "defaultMessage": "Keterampilan"
   },
+  "navigationPanel.archive": {
+    "defaultMessage": "Arsipkan"
+  },
+  "navigationPanel.archiveFailed": {
+    "defaultMessage": "Gagal mengarsipkan sesi: {error}"
+  },
+  "navigationPanel.archiveSuccess": {
+    "defaultMessage": "“{name}” diarsipkan"
+  },
   "navigationPanel.chats": {
     "defaultMessage": "Obrolan"
+  },
+  "navigationPanel.delete": {
+    "defaultMessage": "Hapus"
+  },
+  "navigationPanel.deleteCancel": {
+    "defaultMessage": "Batal"
+  },
+  "navigationPanel.deleteConfirm": {
+    "defaultMessage": "Hapus"
+  },
+  "navigationPanel.deleteFailed": {
+    "defaultMessage": "Gagal menghapus sesi: {error}"
+  },
+  "navigationPanel.deleteMessage": {
+    "defaultMessage": "Yakin ingin menghapus “{name}”? Tindakan ini tidak dapat dibatalkan."
+  },
+  "navigationPanel.deleteSuccess": {
+    "defaultMessage": "Obrolan dihapus"
+  },
+  "navigationPanel.deleteTitle": {
+    "defaultMessage": "Hapus obrolan"
   },
   "navigationPanel.metaCreated": {
     "defaultMessage": "Dibuat"
@@ -2386,6 +2416,12 @@
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Tidak ada obrolan terbaru"
+  },
+  "navigationPanel.rename": {
+    "defaultMessage": "Ganti nama"
+  },
+  "navigationPanel.sessionActions": {
+    "defaultMessage": "Tindakan sesi"
   },
   "navigationPanel.statusError": {
     "defaultMessage": "Kesalahan"
@@ -3767,6 +3803,9 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Arsipkan sesi"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Hapus sesi"
   },
@@ -3790,6 +3829,9 @@
   },
   "sessions.action.shareNostr": {
     "defaultMessage": "Bagikan tautan Nostr terenkripsi"
+  },
+  "sessions.action.unarchive": {
+    "defaultMessage": "Pulihkan dari arsip"
   },
   "sessions.cancel": {
     "defaultMessage": "Batal"
@@ -3848,6 +3890,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Memuat lebih banyak sesi..."
   },
+  "sessions.noArchived": {
+    "defaultMessage": "Tidak ada sesi terarsip"
+  },
+  "sessions.noArchivedDesc": {
+    "defaultMessage": "Sesi yang Anda arsipkan akan muncul di sini."
+  },
   "sessions.save": {
     "defaultMessage": "Simpan"
   },
@@ -3868,6 +3916,18 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Tautan Berbagi Nostr Terenkripsi"
+  },
+  "sessions.tab.active": {
+    "defaultMessage": "Aktif"
+  },
+  "sessions.tab.archived": {
+    "defaultMessage": "Terarsip"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Gagal mengarsipkan sesi: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Sesi diarsipkan"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Disalin ke papan klip"
@@ -3901,6 +3961,12 @@
   },
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Gagal membuat tautan berbagi Nostr: {error}"
+  },
+  "sessions.toast.unarchiveFailed": {
+    "defaultMessage": "Gagal memulihkan sesi: {error}"
+  },
+  "sessions.toast.unarchived": {
+    "defaultMessage": "Sesi dipulihkan"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Gagal memperbarui deskripsi sesi: {error}"
