@@ -43,15 +43,34 @@ az login
 
 The access token is requested for `https://cognitiveservices.azure.com`.
 
-## Optional locale
+## Language and locale
 
-Set a locale to improve recognition for a known language:
+`AZURE_SPEECH_LOCALE` optionally selects one [locale supported by Azure Speech](https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=stt). Set it when dictation is primarily in a known language to make recognition more consistent:
 
 ```sh
 export AZURE_SPEECH_LOCALE="fr-FR"
 ```
 
-If it is omitted, Azure detects the locale according to the Speech service behavior.
+You can also add it at the root of `~/.config/goose/config.yaml`:
+
+```yaml
+AZURE_SPEECH_LOCALE: fr-FR
+```
+
+An environment variable takes precedence over the value in `config.yaml`.
+
+Common examples include:
+
+| Language | Locale |
+|---|---|
+| French (France) | `fr-FR` |
+| French (Canada) | `fr-CA` |
+| English (United States) | `en-US` |
+| English (United Kingdom) | `en-GB` |
+
+When `AZURE_SPEECH_LOCALE` is omitted or empty, goose does not send a locale and Azure determines the spoken language according to the Speech service behavior. Automatic detection is useful when the language changes between recordings; an explicit locale is recommended when most recordings use the same language.
+
+The Desktop settings do not currently include a language selector. Configure the locale through `config.yaml` or the environment before starting goose.
 
 ## Desktop setup
 
