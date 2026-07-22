@@ -12,6 +12,9 @@ import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
+import { acpChatSessionActions } from './acp/chatSessionStore';
+import { cancelAcpPermissionRequestsForSession } from './acp/permissionRequests';
+import { cancelAcpElicitationRequestsForSession } from './acp/elicitationRequests';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -383,6 +386,13 @@ export function AppInner() {
       if (archived === false) return;
 
       setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
+
+      // The archive server path drops the loaded agent, and loadSession short-circuits
+      // on a cached snapshot, so clear the session-scoped ACP state like delete does —
+      // otherwise reopening a restored chat reuses stale pending/waiting state.
+      cancelAcpPermissionRequestsForSession(sessionId);
+      cancelAcpElicitationRequestsForSession(sessionId);
+      acpChatSessionActions.deleteSnapshot(sessionId);
 
       // If the archived chat is the one currently open, filtering activeSessions is
       // not enough: the resumeSessionId still in the URL makes PairRouteWrapper
