@@ -2072,9 +2072,19 @@ impl SessionStorage {
     }
 
     async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {
+        // `types: None` is the explicit all-sessions path (`list_all_sessions`), which
+        // `goose session remove --name` relies on to find a session by name — it must
+        // include archived rows. Type-scoped queries keep the Active default so archived
+        // chats stay hidden from the orchestrator/scheduler listings.
+        let archived = if types.is_none() {
+            ArchivedFilter::All
+        } else {
+            ArchivedFilter::Active
+        };
         self.list_sessions_matching(SessionListQuery {
             filters: SessionListFilters {
                 types,
+                archived,
                 ..Default::default()
             },
             ..Default::default()
@@ -3878,6 +3888,46 @@ mod tests {
         let mut expected = vec![active, archived];
         expected.sort();
         assert_eq!(all, expected);
+    }
+
+    #[tokio::test]
+    async fn test_list_all_sessions_includes_archived() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let active =
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "active session").await;
+        let archived =
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "archived session")
+                .await;
+        sm.update(&archived)
+            .archived_at(Some(chrono::Utc::now()))
+            .apply()
+            .await
+            .unwrap();
+
+        // The explicit all-sessions path (used by `goose session remove --name`) must
+        // still surface archived sessions.
+        let mut all = sm
+            .list_all_sessions()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>();
+        all.sort();
+        let mut expected = vec![active.clone(), archived.clone()];
+        expected.sort();
+        assert_eq!(all, expected);
+
+        // Type-scoped listings hide archived sessions by default.
+        let active_only = sm
+            .list_sessions_by_types(&[SessionType::User])
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>();
+        assert_eq!(active_only, vec![active]);
     }
 
     #[tokio::test]

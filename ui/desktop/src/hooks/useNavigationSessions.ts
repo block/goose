@@ -87,6 +87,9 @@ export function useNavigationSessions() {
 
     acpGetSessionListItem(activeSessionId)
       .then((item) => {
+        // Viewing an archived chat must not resurface it in the sidebar; it stays
+        // hidden until the user explicitly restores it.
+        if (item.archivedAt) return;
         setRecentSessions((prev) => prependUnique(prev, item));
       })
       .catch((error) => {
