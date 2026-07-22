@@ -1173,16 +1173,15 @@ impl GooseAcpAgent {
             return Ok(());
         }
 
-        if let Ok(tool_call) = &tool_request.tool_call {
+        if tool_request.tool_call.is_ok() {
             ToolTitleEnrichmentContext::new(
                 &session.agent,
-                session_id,
                 &tool_call_notifier,
                 &self.session_manager,
                 session_id_for_persist,
                 message_id,
             )
-            .spawn_title_enrichment(tool_request.id.clone(), tool_call);
+            .spawn_title_enrichment(tool_request);
         }
 
         Ok(())

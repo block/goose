@@ -1,17 +1,16 @@
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::agents::Agent;
 use crate::conversation::message::{
-    Message, MessageContent, TOOL_META_CHAIN_SUMMARY_KEY, TOOL_META_TITLE_KEY,
+    Message, MessageContent, ToolRequest, TOOL_META_CHAIN_SUMMARY_KEY,
 };
 use crate::model_config::get_fast_model;
 use crate::session::SessionManager;
 use crate::session_context::with_session_id;
-use crate::utils::safe_truncate;
+use crate::tool_call_labels::generate_tool_title;
 use agent_client_protocol::schema::v1::{
     Meta, SessionId, ToolCallId, ToolCallUpdate, ToolCallUpdateFields,
 };
-use rmcp::model::CallToolRequestParams;
-use serde_json::{json, to_string, Map, Value};
+use serde_json::{json, Map, Value};
 use std::slice::from_ref;
 use std::sync::Arc;
 use std::time::Duration;
@@ -37,203 +36,46 @@ fn build_chain_summary_update(tool_call_id: String, summary: &str, count: usize)
 
 pub(crate) struct ToolTitleEnrichmentContext {
     agent: Arc<Agent>,
-    session_id: SessionId,
     tool_call_notifier: ToolCallNotifier,
     session_manager: Arc<SessionManager>,
-    session_id_for_persist: String,
+    session_id: String,
     message_id_for_persist: Option<String>,
 }
 
 impl ToolTitleEnrichmentContext {
     pub(crate) fn new(
         agent: &Arc<Agent>,
-        session_id: &SessionId,
         tool_call_notifier: &ToolCallNotifier,
         session_manager: &Arc<SessionManager>,
-        session_id_for_persist: &str,
+        session_id: &str,
         message_id_for_persist: Option<&str>,
     ) -> Self {
         Self {
             agent: agent.clone(),
-            session_id: session_id.clone(),
             tool_call_notifier: tool_call_notifier.clone(),
             session_manager: session_manager.clone(),
-            session_id_for_persist: session_id_for_persist.to_string(),
+            session_id: session_id.to_string(),
             message_id_for_persist: message_id_for_persist.map(str::to_string),
         }
     }
 
-    pub(crate) fn spawn_title_enrichment(
-        self,
-        request_id: String,
-        tool_call: &CallToolRequestParams,
-    ) {
-        let args_json = tool_call
-            .arguments
-            .as_ref()
-            .map(|a| {
-                let s = to_string(a).unwrap_or_default();
-                if s.len() > 300 {
-                    format!("{}…", safe_truncate(&s, 300))
-                } else {
-                    s
-                }
-            })
-            .unwrap_or_default();
+    pub(crate) fn spawn_title_enrichment(self, tool_request: &ToolRequest) {
+        let tool_request = tool_request.clone();
 
-        let Self {
-            agent,
-            session_id,
-            tool_call_notifier,
-            session_manager,
-            session_id_for_persist,
-            message_id_for_persist,
-        } = self;
-
-        ToolTitleEnrichmentJob {
-            agent,
-            sid: session_id,
-            request_id,
-            tool_call_notifier,
-            name: tool_call.name.to_string(),
-            session_id_for_persist,
-            message_id_for_persist,
-            session_manager,
-            args_json,
-        }
-        .spawn();
-    }
-}
-
-struct ToolTitleEnrichmentJob {
-    agent: Arc<Agent>,
-    sid: SessionId,
-    request_id: String,
-    tool_call_notifier: ToolCallNotifier,
-    name: String,
-    session_id_for_persist: String,
-    message_id_for_persist: Option<String>,
-    session_manager: Arc<SessionManager>,
-    args_json: String,
-}
-
-impl ToolTitleEnrichmentJob {
-    fn spawn(self) {
         spawn(async move {
-            let Self {
-                agent,
-                sid,
-                request_id,
-                tool_call_notifier,
-                name,
-                session_id_for_persist,
-                message_id_for_persist,
-                session_manager,
-                args_json,
-            } = self;
-
-            let title = match agent.provider().await {
-                Ok(provider) => {
-                    if provider.manages_own_context() {
-                        return;
-                    }
-
-                    let system =
-                        "Summarize this tool call in a short lowercase phrase (3-8 words). \
-                         No punctuation. No quotes. Examples: reading project configuration, \
-                         checking network connectivity, listing files in src directory";
-                    let user_text = format!("Tool: {name}\nArguments: {args_json}");
-                    let message = Message::user().with_text(&user_text);
-                    let model_config = match agent.model_config_for_session(&sid.0).await {
-                        Ok(config) => config,
-                        Err(_) => return,
-                    };
-                    let fast_model_config =
-                        match get_fast_model(provider.get_name(), &model_config).await {
-                            Ok(config) => config,
-                            Err(_) => return,
-                        };
-                    // The fast model occasionally returns an empty response
-                    // under load (rate limiting, transient network). One
-                    // retry with a short backoff is enough to recover the
-                    // common cases without paying for the regular model.
-                    let mut llm_outcome: Option<String> = None;
-                    for attempt in 0..2 {
-                        match with_session_id(
-                            Some(sid.0.to_string()),
-                            provider.complete(&fast_model_config, system, from_ref(&message), &[]),
-                        )
-                        .await
-                        {
-                            Ok((response, _)) => {
-                                let summary: String = response
-                                    .content
-                                    .iter()
-                                    .filter_map(|c: &MessageContent| c.as_text())
-                                    .collect::<String>()
-                                    .trim()
-                                    .to_string();
-                                if !summary.is_empty() {
-                                    llm_outcome = Some(summary);
-                                    break;
-                                }
-                                if attempt == 0 {
-                                    warn!(
-                                        "tool call summary: fast_complete returned empty for {request_id} ({name}), retrying once",
-                                    );
-                                    sleep(Duration::from_millis(150)).await;
-                                }
-                            }
-                            Err(e) => {
-                                if attempt == 0 {
-                                    warn!(
-                                        "tool call summary: fast_complete errored for {request_id} ({name}): {e}, retrying once",
-                                    );
-                                    sleep(Duration::from_millis(150)).await;
-                                } else {
-                                    warn!(
-                                        "tool call summary: fast_complete errored for {request_id} ({name}) after retry: {e}",
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    match llm_outcome {
-                        Some(summary) => summary,
-                        None => {
-                            warn!(
-                                "tool call summary: no summary generated for {request_id} ({name}); keeping the existing title",
-                            );
-                            return;
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("tool call summary: failed to get provider: {e}");
-                    return;
-                }
-            };
-
-            let fields = ToolCallUpdateFields::new().title(title.clone());
-            let _ = tool_call_notifier.send_update(ToolCallUpdate::new(
-                ToolCallId::new(request_id.clone()),
-                fields,
-            ));
-
-            if let Some(msg_id) = message_id_for_persist {
-                let patch = json!({
-                    (TOOL_META_TITLE_KEY): title,
-                });
-                if let Err(e) = session_manager
-                    .update_tool_request_meta(&session_id_for_persist, &msg_id, &request_id, patch)
-                    .await
-                {
-                    warn!("tool call summary: persist failed for {request_id} in {msg_id}: {e}",);
-                }
-            } else {
-                warn!(
-                    "tool call summary: missing message_id for {request_id} — title will not survive reload",
-                );
+            if let Some(title) = generate_tool_title(
+                self.agent.as_ref(),
+                self.session_manager.as_ref(),
+                &self.session_id,
+                self.message_id_for_persist.as_deref(),
+                &tool_request,
+            )
+            .await
+            {
+                let _ = self.tool_call_notifier.send_update(ToolCallUpdate::new(
+                    ToolCallId::new(tool_request.id),
+                    ToolCallUpdateFields::new().title(title),
+                ));
             }
         });
     }
