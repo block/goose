@@ -693,6 +693,18 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
+    let wire_model_name = model_config.model_name.clone();
+    let capability_model_config;
+    let model_config = if model_config.capability_model_name() != model_config.model_name {
+        capability_model_config = {
+            let mut config = model_config.clone();
+            config.model_name = model_config.capability_model_name().to_string();
+            config
+        };
+        &capability_model_config
+    } else {
+        model_config
+    };
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
@@ -704,7 +716,7 @@ pub fn create_request(
 
     let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": wire_model_name,
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });

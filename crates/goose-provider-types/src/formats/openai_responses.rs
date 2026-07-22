@@ -596,7 +596,13 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let capability_model_name = model_config.capability_model_name();
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
+    let wire_model_name = if capability_model_name == model_config.model_name {
+        &model_name
+    } else {
+        &model_config.model_name
+    };
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
     // effort suffix was provided.
@@ -641,7 +647,7 @@ pub fn create_responses_request(
         ));
     }
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "input": input_items,
         "store": store,
     });

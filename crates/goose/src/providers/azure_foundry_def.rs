@@ -36,6 +36,11 @@ impl AuthProvider for AzureFoundryAuthProvider {
             )),
         }
     }
+
+    async fn refresh_credentials(&self) -> Result<()> {
+        self.auth.invalidate_token().await;
+        Ok(())
+    }
 }
 
 pub struct AzureFoundryProviderDef;

@@ -1412,7 +1412,13 @@ pub fn create_request_with_options(
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let capability_model_name = model_config.capability_model_name();
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
+    let wire_model_name = if capability_model_name == model_config.model_name {
+        &model_name
+    } else {
+        &model_config.model_name
+    };
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         model_config
@@ -1438,7 +1444,7 @@ pub fn create_request_with_options(
     messages_array.extend(messages_spec);
 
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "messages": messages_array
     });
 
@@ -1481,7 +1487,10 @@ pub fn create_request_with_options(
     if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
-                if key != "thinking_effort" && !is_reserved_request_param_key(key) {
+                if key != "thinking_effort"
+                    && key != "capability_model"
+                    && !is_reserved_request_param_key(key)
+                {
                     obj.insert(key.clone(), value.clone());
                 }
             }

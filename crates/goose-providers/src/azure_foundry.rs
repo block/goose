@@ -244,35 +244,6 @@ impl AzureFoundryProvider {
         Ok((models, deployments))
     }
 
-    async fn publisher_for(&self, model: &str) -> ModelPublisher {
-        if let Some(publisher) = self
-            .deployments
-            .lock()
-            .expect("Azure Foundry deployment cache poisoned")
-            .get(model)
-            .map(|deployment| deployment.publisher)
-        {
-            return publisher;
-        }
-
-        if self.responses.is_some() {
-            if let Ok((_, deployments)) = self.fetch_deployments().await {
-                let publisher = deployments
-                    .get(model)
-                    .map(|deployment| deployment.publisher);
-                *self
-                    .deployments
-                    .lock()
-                    .expect("Azure Foundry deployment cache poisoned") = deployments;
-                if let Some(publisher) = publisher {
-                    return publisher;
-                }
-            }
-        }
-
-        ModelPublisher::from_model_name(model)
-    }
-
     async fn deployment_for(&self, deployment_name: &str) -> Option<DeploymentMetadata> {
         if let Some(deployment) = self
             .deployments
@@ -353,6 +324,13 @@ impl Provider for AzureFoundryProvider {
         true
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        self.deployments_client
+            .refresh_credentials()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if !is_project_endpoint(&self.endpoint) {
             return Ok(AZURE_FOUNDRY_KNOWN_MODELS
@@ -360,19 +338,12 @@ impl Provider for AzureFoundryProvider {
                 .map(ToString::to_string)
                 .collect());
         }
-        match self.fetch_deployments().await {
-            Ok((models, deployments)) if !models.is_empty() => {
-                *self
-                    .deployments
-                    .lock()
-                    .expect("Azure Foundry deployment cache poisoned") = deployments;
-                Ok(models)
-            }
-            _ => Ok(AZURE_FOUNDRY_KNOWN_MODELS
-                .iter()
-                .map(ToString::to_string)
-                .collect()),
-        }
+        let (models, deployments) = self.fetch_deployments().await?;
+        *self
+            .deployments
+            .lock()
+            .expect("Azure Foundry deployment cache poisoned") = deployments;
+        Ok(models)
     }
 
     async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
@@ -382,27 +353,20 @@ impl Provider for AzureFoundryProvider {
                 .map(|model| model_info_for_deployment(model, model))
                 .collect());
         }
-        match self.fetch_deployments().await {
-            Ok((models, deployments)) if !models.is_empty() => {
-                let model_info = models
-                    .iter()
-                    .filter_map(|name| {
-                        deployments.get(name).map(|deployment| {
-                            model_info_for_deployment(name, &deployment.model_name)
-                        })
-                    })
-                    .collect();
-                *self
-                    .deployments
-                    .lock()
-                    .expect("Azure Foundry deployment cache poisoned") = deployments;
-                Ok(model_info)
-            }
-            _ => Ok(AZURE_FOUNDRY_KNOWN_MODELS
-                .iter()
-                .map(|model| model_info_for_deployment(model, model))
-                .collect()),
-        }
+        let (models, deployments) = self.fetch_deployments().await?;
+        let model_info = models
+            .iter()
+            .filter_map(|name| {
+                deployments
+                    .get(name)
+                    .map(|deployment| model_info_for_deployment(name, &deployment.model_name))
+            })
+            .collect();
+        *self
+            .deployments
+            .lock()
+            .expect("Azure Foundry deployment cache poisoned") = deployments;
+        Ok(model_info)
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
@@ -434,24 +398,42 @@ impl Provider for AzureFoundryProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        match self.publisher_for(&model_config.model_name).await {
+        let deployment = if self.responses.is_some() {
+            self.deployment_for(&model_config.model_name).await
+        } else {
+            None
+        };
+        let publisher = deployment
+            .as_ref()
+            .map(|deployment| deployment.publisher)
+            .unwrap_or_else(|| ModelPublisher::from_model_name(&model_config.model_name));
+        let capability_config = deployment
+            .filter(|deployment| deployment.model_name != model_config.model_name)
+            .map(|deployment| {
+                model_config
+                    .clone()
+                    .with_capability_model_name(deployment.model_name)
+            });
+        let request_config = capability_config.as_ref().unwrap_or(model_config);
+
+        match publisher {
             ModelPublisher::OpenAi if self.responses.is_some() => {
                 self.responses
                     .as_ref()
                     .expect("checked above")
-                    .stream(model_config, system, messages, tools)
+                    .stream(request_config, system, messages, tools)
                     .await
             }
             ModelPublisher::Anthropic if self.anthropic.is_some() => {
                 self.anthropic
                     .as_ref()
                     .expect("checked above")
-                    .stream(model_config, system, messages, tools)
+                    .stream(request_config, system, messages, tools)
                     .await
             }
             _ => {
                 self.chat
-                    .stream(model_config, system, messages, tools)
+                    .stream(request_config, system, messages, tools)
                     .await
             }
         }
@@ -462,7 +444,7 @@ impl Provider for AzureFoundryProvider {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::matchers::{method, path, query_param};
+    use wiremock::matchers::{body_partial_json, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn project_endpoint(server: &MockServer) -> String {
@@ -665,6 +647,66 @@ mod tests {
                 .unwrap(),
             400_000
         );
+    }
+
+    #[tokio::test]
+    async fn project_inventory_failure_is_propagated() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+                "error": {"message": "expired"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        assert!(provider.fetch_supported_models().await.is_err());
+        assert!(provider.fetch_supported_model_info().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn custom_openai_deployment_uses_alias_and_underlying_capabilities() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "value": [{
+                    "type": "ModelDeployment",
+                    "name": "production-chat",
+                    "modelName": "gpt-5",
+                    "modelPublisher": "OpenAI"
+                }]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/projects/test/openai/v1/responses"))
+            .and(body_partial_json(json!({"model": "production-chat"})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(responses_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        let config = ModelConfig::new("production-chat").with_temperature(Some(0.7));
+        provider
+            .complete(&config, "system", &[], &[])
+            .await
+            .unwrap();
+        let requests = server.received_requests().await.unwrap();
+        let payload: serde_json::Value = requests
+            .iter()
+            .find(|request| request.url.path().ends_with("/responses"))
+            .unwrap()
+            .body_json()
+            .unwrap();
+        assert_eq!(payload["model"], "production-chat");
+        assert!(payload.get("temperature").is_none());
     }
 
     #[tokio::test]

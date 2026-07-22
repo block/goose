@@ -162,6 +162,22 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_capability_model_name(mut self, model_name: impl Into<String>) -> Self {
+        self.request_params.get_or_insert_with(HashMap::new).insert(
+            "capability_model".to_string(),
+            Value::String(model_name.into()),
+        );
+        self
+    }
+
+    pub fn capability_model_name(&self) -> &str {
+        self.request_params
+            .as_ref()
+            .and_then(|params| params.get("capability_model"))
+            .and_then(Value::as_str)
+            .unwrap_or(&self.model_name)
+    }
+
     pub fn with_merged_request_params(mut self, params: HashMap<String, Value>) -> Self {
         match self.request_params.as_mut() {
             Some(existing) => {

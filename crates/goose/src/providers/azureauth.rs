@@ -104,6 +104,10 @@ impl AzureAuth {
         &self.credentials
     }
 
+    pub async fn invalidate_token(&self) {
+        *self.cached_token.write().await = None;
+    }
+
     /// Retrieves a valid authentication token.
     ///
     /// This method implements an efficient token management strategy:
