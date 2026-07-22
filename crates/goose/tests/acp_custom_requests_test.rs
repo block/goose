@@ -1042,6 +1042,110 @@ fn test_custom_dictation_secret_save_delete() {
 
 #[test]
 #[serial]
+fn test_custom_dictation_config_reports_azure_setting_actions() {
+    let _env = env_lock::lock_env([
+        ("AZURE_SPEECH_ENDPOINT", None::<&str>),
+        ("AZURE_SPEECH_KEY", None::<&str>),
+        ("AZURE_FOUNDRY_ENDPOINT", None::<&str>),
+    ]);
+    let config_dir = write_acp_global_config(
+        "GOOSE_MODEL: gpt-4o
+GOOSE_PROVIDER: openai
+GOOSE_DISABLE_KEYRING: true
+AZURE_FOUNDRY_ENDPOINT: https://shared.services.ai.azure.com/api/projects/project
+",
+    );
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let config = TestConnectionConfig {
+            data_root: config_dir,
+            ..Default::default()
+        };
+        let conn = AcpServerConnection::new(config, openai).await;
+        let response = send_custom(
+            conn.cx(),
+            "_goose/unstable/dictation/config",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("dictation config should succeed");
+        let azure = response
+            .pointer("/providers/azure_foundry")
+            .expect("missing Azure dictation provider");
+
+        assert_eq!(
+            azure.get("host"),
+            Some(&serde_json::json!(
+                "https://shared.cognitiveservices.azure.com"
+            ))
+        );
+        assert_eq!(azure.get("hostCanOverride"), Some(&serde_json::json!(true)));
+        assert_eq!(azure.get("hostCanRemove"), Some(&serde_json::json!(false)));
+        assert_eq!(
+            azure.get("secretConfigured"),
+            Some(&serde_json::json!(false))
+        );
+        assert_eq!(
+            azure.get("secretCanOverride"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            azure.get("secretCanRemove"),
+            Some(&serde_json::json!(false))
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_dictation_config_marks_environment_values_read_only() {
+    let _env = env_lock::lock_env([
+        (
+            "AZURE_SPEECH_ENDPOINT",
+            Some("https://speech-only.cognitiveservices.azure.com"),
+        ),
+        ("AZURE_SPEECH_KEY", Some("speech-key")),
+        ("AZURE_FOUNDRY_ENDPOINT", None::<&str>),
+    ]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+        let response = send_custom(
+            conn.cx(),
+            "_goose/unstable/dictation/config",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("dictation config should succeed");
+        let azure = response
+            .pointer("/providers/azure_foundry")
+            .expect("missing Azure dictation provider");
+
+        assert_eq!(
+            azure.get("hostCanOverride"),
+            Some(&serde_json::json!(false))
+        );
+        assert_eq!(azure.get("hostCanRemove"), Some(&serde_json::json!(false)));
+        assert_eq!(
+            azure.get("secretConfigured"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            azure.get("secretCanOverride"),
+            Some(&serde_json::json!(false))
+        );
+        assert_eq!(
+            azure.get("secretCanRemove"),
+            Some(&serde_json::json!(false))
+        );
+    });
+}
+
+#[test]
+#[serial]
 fn test_raw_config_and_secret_methods_are_removed() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {

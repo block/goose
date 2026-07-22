@@ -872,17 +872,17 @@
   "dictationSettings.apiKey": {
     "defaultMessage": "API 密钥"
   },
-  "dictationSettings.azureServicesKey": {
-    "defaultMessage": "Azure AI Services Key"
-  },
-  "dictationSettings.azureServicesKeyDescription": {
-    "defaultMessage": "Use the key from your Azure AI Services resource. A unified Foundry resource can reuse its Foundry API key. Leave empty to authenticate via Entra ID with az login."
-  },
   "dictationSettings.azureSpeechEndpoint": {
     "defaultMessage": "Speech Endpoint"
   },
   "dictationSettings.azureSpeechEndpointDescription": {
     "defaultMessage": "Cognitive services URL from Azure portal → AI Foundry Hub → AI Services resource → Keys and Endpoint"
+  },
+  "dictationSettings.azureSpeechKey": {
+    "defaultMessage": "Azure Speech Key"
+  },
+  "dictationSettings.azureSpeechKeyDescription": {
+    "defaultMessage": "Optional Speech-specific key. Compatible unified Foundry credentials are used automatically; otherwise leave empty to authenticate with the Azure CLI."
   },
   "dictationSettings.cancel": {
     "defaultMessage": "取消"
@@ -896,6 +896,9 @@
   "dictationSettings.configured": {
     "defaultMessage": "（已配置）"
   },
+  "dictationSettings.configuredFromEnvironment": {
+    "defaultMessage": "Configured by an environment variable. Change it outside Goose."
+  },
   "dictationSettings.configuredIn": {
     "defaultMessage": "✓ 已在 {settingsPath} 中配置"
   },
@@ -904,6 +907,9 @@
   },
   "dictationSettings.endpointConfigured": {
     "defaultMessage": "Configured: {endpoint}"
+  },
+  "dictationSettings.endpointDerived": {
+    "defaultMessage": "Derived from the Azure Foundry endpoint. You can override it here."
   },
   "dictationSettings.endpointRequired": {
     "defaultMessage": "Not set — required to enable speech."
@@ -4633,5 +4639,11 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "用编辑过的消息创建新会话"
+  },
+  "dictationSettings.removeStoredApiKey": {
+    "defaultMessage": "Remove Stored API Key"
+  },
+  "dictationSettings.removeStoredEndpoint": {
+    "defaultMessage": "Remove Stored Endpoint"
   }
 }

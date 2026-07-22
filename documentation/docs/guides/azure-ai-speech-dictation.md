@@ -1,15 +1,15 @@
 ---
 title: Azure AI Speech Dictation
-description: Configure Azure AI Services Fast Transcription for voice dictation in goose
+description: Configure Azure AI Speech Fast Transcription for voice dictation in goose
 ---
 
 # Azure AI Speech Dictation
 
-The `azure_foundry` dictation provider uses the Azure AI Services Fast Transcription API. This is separate from the Azure AI Foundry LLM inference provider: you can configure either feature independently.
+The `azure_foundry` dictation provider uses the Azure AI Speech Fast Transcription API. This is separate from the Azure AI Foundry LLM inference provider: you can configure either feature independently.
 
 ## Required endpoint
 
-Set `AZURE_SPEECH_ENDPOINT` to the endpoint of the Azure AI Services resource that provides Speech:
+Set `AZURE_SPEECH_ENDPOINT` to the HTTPS origin of your Azure AI Speech resource. Do not include an API path, query string, fragment, or credentials:
 
 ```sh
 export AZURE_SPEECH_ENDPOINT="https://<resource>.cognitiveservices.azure.com"
@@ -28,12 +28,12 @@ A MaaS endpoint ending in `.models.ai.azure.com` cannot be used to derive a Spee
 goose selects credentials in this order:
 
 1. `AZURE_SPEECH_AD_TOKEN`
-2. `AZURE_FOUNDRY_AD_TOKEN`
-3. `AZURE_SPEECH_KEY`
-4. `AZURE_FOUNDRY_API_KEY`
+2. `AZURE_SPEECH_KEY`
+3. `AZURE_FOUNDRY_AD_TOKEN`, when the Speech endpoint is derived from Foundry or explicitly matches the derived resource
+4. `AZURE_FOUNDRY_API_KEY`, with the same compatibility requirement
 5. Azure CLI credentials
 
-A unified Azure AI Foundry resource can use its Foundry key. A separate Azure AI Services resource requires that resource's key in `AZURE_SPEECH_KEY`.
+A unified Azure AI Foundry resource can reuse its Foundry credentials. A separate Azure AI Speech resource requires Speech-specific credentials or Azure CLI authentication; Goose never sends Foundry credentials to an unrelated Speech endpoint.
 
 To use Azure CLI credentials instead of a key:
 
@@ -57,8 +57,8 @@ If it is omitted, Azure detects the locale according to the Speech service behav
 
 1. Open **Settings** → **Chat** → **Voice Dictation Provider**.
 2. Select **Azure_foundry**.
-3. Enter the Speech endpoint.
-4. Enter the Azure AI Services key, or leave it empty to use Microsoft Entra ID.
+3. Enter the Speech endpoint, or keep the endpoint derived from a compatible Foundry resource.
+4. Optionally enter a Speech-specific key. Otherwise Goose uses compatible unified Foundry credentials or Azure CLI authentication.
 
 The provider calls:
 

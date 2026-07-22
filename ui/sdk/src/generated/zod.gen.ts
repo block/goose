@@ -2259,11 +2259,23 @@ export const zDictationProviderStatusEntry = z.object({
         z.string(),
         z.null()
     ]).optional(),
-    hostExplicit: z.union([
+    hostCanOverride: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
+    hostCanRemove: z.union([
         z.boolean(),
         z.null()
     ]).optional(),
     secretConfigured: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
+    secretCanOverride: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
+    secretCanRemove: z.union([
         z.boolean(),
         z.null()
     ]).optional(),

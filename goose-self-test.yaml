@@ -8,6 +8,7 @@ activities:
   - Initialize test workspace and logging infrastructure
   - Test file operations (create, read, update, delete, undo)
   - Validate shell command execution and error handling
+  - Validate Azure Speech endpoint and credential configuration
   - Analyze code structure and parsing capabilities
   - Test extension discovery and management
   - Test load tool for knowledge injection and discovery
@@ -155,6 +156,15 @@ prompt: |
   3. Test directory-wide analysis
   4. Test symbol focus and call graphs
   5. Verify LOC, function, and class counting
+
+  ### Azure Speech Dictation Validation
+  When running from a goose source checkout:
+  1. Run `cargo test -p goose dictation::providers::tests`.
+  2. Verify unified Foundry project endpoints derive the matching Cognitive Services Speech origin.
+  3. Verify separate Speech resources ignore Foundry keys and use Speech-specific credentials or Azure CLI authentication.
+  4. Verify explicit Speech endpoints reject paths, query strings, non-HTTPS schemes, and credentials.
+  5. Verify ACP dictation status distinguishes environment-managed, derived, and persisted settings before enabling update or removal actions.
+  If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
 
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
   {% endif %}

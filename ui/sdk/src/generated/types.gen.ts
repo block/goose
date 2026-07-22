@@ -2182,7 +2182,7 @@ export type DictationTranscribeRequest_unstable = {
      */
     mimeType: string;
     /**
-     * Provider to use: "openai", "groq", "elevenlabs", or "local"
+     * Provider to use: "openai", "groq", "elevenlabs", "azure_foundry", or "local"
      */
     provider: string;
 };
@@ -2216,8 +2216,11 @@ export type DictationConfigResponse_unstable = {
 export type DictationProviderStatusEntry = {
     configured: boolean;
     host?: string | null;
-    hostExplicit?: boolean | null;
+    hostCanOverride?: boolean | null;
+    hostCanRemove?: boolean | null;
     secretConfigured?: boolean | null;
+    secretCanOverride?: boolean | null;
+    secretCanRemove?: boolean | null;
     description: string;
     usesProviderConfig: boolean;
     settingsPath?: string | null;

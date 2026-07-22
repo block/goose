@@ -90,30 +90,51 @@ impl GooseAcpAgent {
 
         for def in all_providers() {
             let provider = def.provider;
-            let host = if provider == DictationProvider::AzureFoundry {
-                crate::dictation::providers::azure_speech_endpoint(config).ok()
-            } else if let Some(host_key) = def.host_key {
-                config
-                    .get(host_key, false)
-                    .ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            } else {
-                None
-            };
+            let (
+                host,
+                host_can_override,
+                host_can_remove,
+                secret_configured,
+                secret_can_override,
+                secret_can_remove,
+            ) = if provider == DictationProvider::AzureFoundry {
+                use crate::dictation::providers::AzureSpeechEndpointKind;
 
-            let (host_explicit, secret_configured) = if provider == DictationProvider::AzureFoundry
-            {
-                let explicit_host = config
-                    .get_param::<String>("AZURE_SPEECH_ENDPOINT")
-                    .ok()
-                    .is_some_and(|endpoint| !endpoint.trim().is_empty());
-                let explicit_secret = config
+                let endpoint = crate::dictation::providers::azure_speech_endpoint(config).ok();
+                let host_from_environment = config
+                    .environment_value("AZURE_SPEECH_ENDPOINT")
+                    .is_some_and(|value| !value.trim().is_empty());
+                let host_in_storage = config
+                    .has_writable_value("AZURE_SPEECH_ENDPOINT", false)
+                    .unwrap_or(false);
+                let secret_from_environment = config
+                    .environment_value("AZURE_SPEECH_KEY")
+                    .is_some_and(|value| !value.trim().is_empty());
+                let secret_in_storage = config
+                    .has_writable_value("AZURE_SPEECH_KEY", true)
+                    .unwrap_or(false);
+                let speech_key_configured = config
                     .get_secret::<String>("AZURE_SPEECH_KEY")
-                    .ok()
-                    .is_some_and(|key| !key.is_empty());
-                (Some(explicit_host), Some(explicit_secret))
+                    .is_ok_and(|key| !key.trim().is_empty());
+                let explicit_host_in_storage = endpoint.as_ref().is_some_and(|endpoint| {
+                    endpoint.kind == AzureSpeechEndpointKind::Explicit && host_in_storage
+                });
+                (
+                    endpoint.as_ref().map(|endpoint| endpoint.url.clone()),
+                    Some(!host_from_environment),
+                    Some(explicit_host_in_storage),
+                    Some(speech_key_configured),
+                    Some(!secret_from_environment),
+                    Some(secret_in_storage),
+                )
             } else {
-                (None, None)
+                let host = def.host_key.and_then(|host_key| {
+                    config
+                        .get(host_key, false)
+                        .ok()
+                        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+                });
+                (host, None, None, None, None, None)
             };
 
             let provider_key = serde_json::to_value(provider)
@@ -125,8 +146,11 @@ impl GooseAcpAgent {
                 DictationProviderStatusEntry {
                     configured: is_configured(provider),
                     host,
-                    host_explicit,
+                    host_can_override,
+                    host_can_remove,
                     secret_configured,
+                    secret_can_override,
+                    secret_can_remove,
                     description: def.description.to_string(),
                     uses_provider_config: def.uses_provider_config,
                     settings_path: def.settings_path.map(|s| s.to_string()),

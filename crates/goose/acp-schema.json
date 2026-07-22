@@ -5372,7 +5372,7 @@
         },
         "provider": {
           "type": "string",
-          "description": "Provider to use: \"openai\", \"groq\", \"elevenlabs\", or \"local\""
+          "description": "Provider to use: \"openai\", \"groq\", \"elevenlabs\", \"azure_foundry\", or \"local\""
         }
       },
       "required": [
@@ -5433,13 +5433,31 @@
             "null"
           ]
         },
-        "hostExplicit": {
+        "hostCanOverride": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "hostCanRemove": {
           "type": [
             "boolean",
             "null"
           ]
         },
         "secretConfigured": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "secretCanOverride": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "secretCanRemove": {
           "type": [
             "boolean",
             "null"

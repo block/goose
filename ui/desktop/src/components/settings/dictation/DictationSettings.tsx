@@ -68,6 +68,10 @@ const i18n = defineMessages({
     id: 'dictationSettings.removeApiKey',
     defaultMessage: 'Remove API Key',
   },
+  removeStoredApiKey: {
+    id: 'dictationSettings.removeStoredApiKey',
+    defaultMessage: 'Remove Stored API Key',
+  },
   enterApiKey: {
     id: 'dictationSettings.enterApiKey',
     defaultMessage: 'Enter your API key',
@@ -109,14 +113,26 @@ const i18n = defineMessages({
     id: 'dictationSettings.removeEndpoint',
     defaultMessage: 'Remove Endpoint',
   },
-  azureServicesKey: {
-    id: 'dictationSettings.azureServicesKey',
-    defaultMessage: 'Azure AI Services Key',
+  removeStoredEndpoint: {
+    id: 'dictationSettings.removeStoredEndpoint',
+    defaultMessage: 'Remove Stored Endpoint',
   },
-  azureServicesKeyDescription: {
-    id: 'dictationSettings.azureServicesKeyDescription',
+  azureSpeechKey: {
+    id: 'dictationSettings.azureSpeechKey',
+    defaultMessage: 'Azure Speech Key',
+  },
+  azureSpeechKeyDescription: {
+    id: 'dictationSettings.azureSpeechKeyDescription',
     defaultMessage:
-      'Use the key from your Azure AI Services resource. A unified Foundry resource can reuse its Foundry API key. Leave empty to authenticate via Entra ID with az login.',
+      'Optional Speech-specific key. Compatible unified Foundry credentials are used automatically; otherwise leave empty to authenticate with the Azure CLI.',
+  },
+  configuredFromEnvironment: {
+    id: 'dictationSettings.configuredFromEnvironment',
+    defaultMessage: 'Configured by an environment variable. Change it outside Goose.',
+  },
+  endpointDerived: {
+    id: 'dictationSettings.endpointDerived',
+    defaultMessage: 'Derived from the Azure Foundry endpoint. You can override it here.',
   },
 });
 
@@ -319,6 +335,18 @@ export const DictationSettings = () => {
                         https://&lt;name&gt;.cognitiveservices.azure.com/
                       </code>
                       ).{' '}
+                      {providerStatuses[provider]?.hostCanOverride === false && (
+                        <span className="text-amber-600">
+                          {intl.formatMessage(i18n.configuredFromEnvironment)}{' '}
+                        </span>
+                      )}
+                      {providerStatuses[provider]?.hostCanOverride &&
+                        !providerStatuses[provider]?.hostCanRemove &&
+                        providerStatuses[provider]?.host && (
+                          <span className="text-text-secondary">
+                            {intl.formatMessage(i18n.endpointDerived)}{' '}
+                          </span>
+                        )}
                       {providerStatuses[provider]?.host ? (
                         <span className="text-green-600">
                           {intl.formatMessage(i18n.endpointConfigured, {
@@ -334,21 +362,27 @@ export const DictationSettings = () => {
                   </div>
                   {!isEditingEndpoint ? (
                     <div className="flex gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEndpointValue(providerStatuses[provider]?.host ?? '');
-                          setIsEditingEndpoint(true);
-                        }}
-                      >
-                        {providerStatuses[provider]?.host
-                          ? intl.formatMessage(i18n.updateEndpoint)
-                          : intl.formatMessage(i18n.addEndpoint)}
-                      </Button>
-                      {providerStatuses[provider]?.hostExplicit && (
+                      {providerStatuses[provider]?.hostCanOverride !== false && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEndpointValue(providerStatuses[provider]?.host ?? '');
+                            setIsEditingEndpoint(true);
+                          }}
+                        >
+                          {providerStatuses[provider]?.host
+                            ? intl.formatMessage(i18n.updateEndpoint)
+                            : intl.formatMessage(i18n.addEndpoint)}
+                        </Button>
+                      )}
+                      {providerStatuses[provider]?.hostCanRemove && (
                         <Button variant="destructive" size="sm" onClick={handleRemoveEndpoint}>
-                          {intl.formatMessage(i18n.removeEndpoint)}
+                          {intl.formatMessage(
+                            providerStatuses[provider]?.hostCanOverride === false
+                              ? i18n.removeStoredEndpoint
+                              : i18n.removeEndpoint
+                          )}
                         </Button>
                       )}
                     </div>
@@ -379,13 +413,18 @@ export const DictationSettings = () => {
                 <div className="mb-2">
                   <h4 className="text-text-primary text-sm">
                     {provider === 'azure_foundry'
-                      ? intl.formatMessage(i18n.azureServicesKey)
+                      ? intl.formatMessage(i18n.azureSpeechKey)
                       : intl.formatMessage(i18n.apiKey)}
                   </h4>
                   <p className="text-xs text-text-secondary mt-[2px]">
                     {provider === 'azure_foundry' ? (
                       <>
-                        {intl.formatMessage(i18n.azureServicesKeyDescription)}
+                        {intl.formatMessage(i18n.azureSpeechKeyDescription)}
+                        {providerStatuses[provider]?.secretCanOverride === false && (
+                          <span className="text-amber-600 ml-2">
+                            {intl.formatMessage(i18n.configuredFromEnvironment)}
+                          </span>
+                        )}
                         {providerStatuses[provider]?.secretConfigured && (
                           <span className="text-green-600 ml-2">
                             {intl.formatMessage(i18n.configured)}
@@ -407,20 +446,28 @@ export const DictationSettings = () => {
 
                 {!isEditingKey ? (
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
-                      {(
-                        provider === 'azure_foundry'
-                          ? providerStatuses[provider]?.secretConfigured
-                          : providerStatuses[provider]?.configured
-                      )
-                        ? intl.formatMessage(i18n.updateApiKey)
-                        : intl.formatMessage(i18n.addApiKey)}
-                    </Button>
+                    {(provider !== 'azure_foundry' ||
+                      providerStatuses[provider]?.secretCanOverride !== false) && (
+                      <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
+                        {(
+                          provider === 'azure_foundry'
+                            ? providerStatuses[provider]?.secretConfigured
+                            : providerStatuses[provider]?.configured
+                        )
+                          ? intl.formatMessage(i18n.updateApiKey)
+                          : intl.formatMessage(i18n.addApiKey)}
+                      </Button>
+                    )}
                     {(provider === 'azure_foundry'
-                      ? providerStatuses[provider]?.secretConfigured
+                      ? providerStatuses[provider]?.secretCanRemove
                       : providerStatuses[provider]?.configured) && (
                       <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
-                        {intl.formatMessage(i18n.removeApiKey)}
+                        {intl.formatMessage(
+                          provider === 'azure_foundry' &&
+                            providerStatuses[provider]?.secretCanOverride === false
+                            ? i18n.removeStoredApiKey
+                            : i18n.removeApiKey
+                        )}
                       </Button>
                     )}
                   </div>

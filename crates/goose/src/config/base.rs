@@ -693,6 +693,20 @@ impl Config {
         Ok(Value::String(val.to_string()))
     }
 
+    /// Return the raw environment override for this key, if present.
+    pub fn environment_value(&self, key: &str) -> Option<String> {
+        env::var(key.to_uppercase()).ok()
+    }
+
+    /// Whether this key has a value in the writable parameter or secret storage.
+    pub fn has_writable_value(&self, key: &str, is_secret: bool) -> Result<bool, ConfigError> {
+        if is_secret {
+            Ok(self.all_secrets()?.contains_key(key))
+        } else {
+            Ok(self.load_write_config()?.contains_key(key))
+        }
+    }
+
     // check all possible places for a parameter
     pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
         if is_secret {
@@ -1946,6 +1960,53 @@ mod tests {
         let result = config.get_secrets("TEST_PRIMARY", &[]);
 
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
+    }
+
+    #[test]
+    fn reports_environment_and_writable_parameter_sources() {
+        let _guard = env_lock::lock_env([("SOURCE_TEST_PARAM", Some("environment"))]);
+        let config = new_test_config();
+        config.set_param("SOURCE_TEST_PARAM", "stored").unwrap();
+
+        assert_eq!(
+            config.environment_value("source_test_param").as_deref(),
+            Some("environment")
+        );
+        assert!(config
+            .has_writable_value("SOURCE_TEST_PARAM", false)
+            .unwrap());
+    }
+
+    #[test]
+    fn reports_environment_and_writable_secret_sources() {
+        let _guard = env_lock::lock_env([("SOURCE_TEST_SECRET", Some("environment"))]);
+        let config = new_test_config();
+        config.set_secret("SOURCE_TEST_SECRET", &"stored").unwrap();
+
+        assert_eq!(
+            config.environment_value("source_test_secret").as_deref(),
+            Some("environment")
+        );
+        assert!(config
+            .has_writable_value("SOURCE_TEST_SECRET", true)
+            .unwrap());
+    }
+
+    #[test]
+    fn reports_missing_writable_values() {
+        let _guard = env_lock::lock_env([
+            ("SOURCE_TEST_PARAM", None::<&str>),
+            ("SOURCE_TEST_SECRET", None::<&str>),
+        ]);
+        let config = new_test_config();
+
+        assert!(config.environment_value("SOURCE_TEST_PARAM").is_none());
+        assert!(!config
+            .has_writable_value("SOURCE_TEST_PARAM", false)
+            .unwrap());
+        assert!(!config
+            .has_writable_value("SOURCE_TEST_SECRET", true)
+            .unwrap());
     }
 
     fn new_test_config() -> Config {
