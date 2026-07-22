@@ -31,6 +31,9 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { acpChatSessionActions } from '../../acp/chatSessionStore';
+import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
+import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { errorMessage } from '../../utils/conversionUtils';
 import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
@@ -463,6 +466,9 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: id } })
       );
+      cancelAcpPermissionRequestsForSession(id);
+      cancelAcpElicitationRequestsForSession(id);
+      acpChatSessionActions.deleteSnapshot(id);
       toast.success(intl.formatMessage(i18n.deleteSuccess));
     } catch (error) {
       toast.error(

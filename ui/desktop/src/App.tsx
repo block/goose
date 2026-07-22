@@ -374,13 +374,26 @@ export function AppInner() {
       });
     };
 
+    // Archiving removes the loaded agent on the server, so unmount the chat
+    // like a delete does; otherwise the open tab keeps talking to a hidden session.
+    const handleSessionArchived = (event: Event) => {
+      const { sessionId, archived } = (
+        event as CustomEvent<{ sessionId: string; archived?: boolean }>
+      ).detail;
+      if (archived === false) return;
+
+      setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
+    };
+
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
     window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
     window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
     return () => {
       window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
       window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
     };
   }, []);
 

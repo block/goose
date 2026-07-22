@@ -332,11 +332,15 @@ pub(crate) struct SessionListPage {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ArchivedFilter {
     /// Only sessions that have not been archived (`archived_at IS NULL`).
+    ///
+    /// This is the default so callers using `SessionListFilters::default()`
+    /// (the orchestrator `list_sessions` tool, scheduler listings, etc.) hide
+    /// archived chats just like the UI does; opt in to archived rows explicitly.
+    #[default]
     Active,
     /// Only archived sessions (`archived_at IS NOT NULL`).
     Archived,
     /// Both active and archived sessions (no filtering).
-    #[default]
     All,
 }
 
