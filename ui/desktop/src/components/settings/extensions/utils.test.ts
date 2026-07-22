@@ -7,6 +7,7 @@ import {
   extractCommand,
   extractExtensionName,
   splitCmdAndArgs,
+  combineCmdAndArgs,
   DEFAULT_EXTENSION_TIMEOUT,
 } from './utils';
 import type { FixedExtensionEntry } from '../../ConfigContext';
@@ -211,7 +212,7 @@ describe('Extension Utils', () => {
 
       const formData = extensionToFormData(extension);
       expect(formData.cmd).toBe(
-        '"/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java" -classpath "/path/with spaces/lib.jar" Main'
+        "'/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java' -classpath '/path/with spaces/lib.jar' Main"
       );
     });
 
@@ -262,6 +263,32 @@ describe('Extension Utils', () => {
       const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
       expect(cmd).toBe('node');
       expect(args).toEqual(['/My "Project"/bin/run']);
+    });
+
+    it.each([
+      ['-"c"', 'touch /tmp/pwned'],
+      ['--flag=value;next', '|', '>', '*'],
+      ['', 'both\'and"quotes', '$HOME', '`command`'],
+      ['line one\nline two', 'trailing\\', 'café'],
+    ])('faithfully roundtrips metacharacter-bearing argv %#', (...args) => {
+      const combined = combineCmdAndArgs('npx', args);
+      expect(splitCmdAndArgs(combined)).toEqual({ cmd: 'npx', args });
+    });
+
+    it('does not synthesize a blocked npx flag through the extension form', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'quoted-flag',
+        description: 'quoted flag regression',
+        cmd: 'npx',
+        args: ['-"c"', 'touch /tmp/pwned'],
+        enabled: true,
+      };
+
+      expect(createExtensionConfig(extensionToFormData(extension))).toMatchObject({
+        cmd: 'npx',
+        args: ['-"c"', 'touch /tmp/pwned'],
+      });
     });
   });
 
@@ -464,11 +491,38 @@ describe('Extension Utils', () => {
         });
       });
 
+      it('treats apostrophes as literal Windows command-line characters', () => {
+        expect(splitCmdAndArgs("node C:\\Users\\O'Connor\\ext.js --owner=O'Connor")).toEqual({
+          cmd: 'node',
+          args: ["C:\\Users\\O'Connor\\ext.js", "--owner=O'Connor"],
+        });
+      });
+
       it('handles a quoted Windows path containing spaces', () => {
         expect(splitCmdAndArgs('"C:\\Program Files\\app\\ext.js"')).toEqual({
           cmd: 'C:\\Program Files\\app\\ext.js',
           args: [],
         });
+      });
+
+      it('preserves a quoted UNC path', () => {
+        expect(splitCmdAndArgs(String.raw`node "\\server\share with space\extension.js"`)).toEqual({
+          cmd: 'node',
+          args: [String.raw`\\server\share with space\extension.js`],
+        });
+      });
+
+      it('preserves a quoted path ending in a backslash', () => {
+        expect(splitCmdAndArgs(String.raw`node "C:\dir with space\\"`)).toEqual({
+          cmd: 'node',
+          args: ['C:\\dir with space\\'],
+        });
+      });
+
+      it('roundtrips quoted Windows paths and metacharacters', () => {
+        const cmd = 'C:\\Program Files\\nodejs\\npx.cmd';
+        const args = ["C:\\Users\\O'Connor\\extension.js", '-"c"', 'a&b', 'quoted "value"\\'];
+        expect(splitCmdAndArgs(combineCmdAndArgs(cmd, args))).toEqual({ cmd, args });
       });
     });
   });

@@ -1,3 +1,8 @@
+use super::tool_calls::conversion::{
+    extract_tool_call_update_meta, pending_tool_call_from_request,
+    tool_call_update_fields_from_response,
+};
+use super::tool_calls::enrichment::with_tool_chain_summary_meta;
 use super::*;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
@@ -33,6 +38,7 @@ fn replay_conversation_to_client(
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
+    let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
     let sid = sid_short(session_id.0.as_ref());
 
     let messages = session
@@ -90,44 +96,13 @@ fn replay_conversation_to_client(
                         .tool_call
                         .meta(merge_replay_message_meta(meta, message));
 
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCall(tool_call),
-                    ))?;
+                    tool_call_notifier.send_initial(tool_call)?;
                 }
                 MessageContent::ToolResponse(tool_response) => {
-                    let status = match &tool_response.tool_result {
-                        Ok(result) if result.is_error == Some(true) => ToolCallStatus::Failed,
-                        Ok(_) => ToolCallStatus::Completed,
-                        Err(_) => ToolCallStatus::Failed,
-                    };
-
-                    let mut fields = ToolCallUpdateFields::new().status(status);
-                    if let Some(raw_output) = extract_tool_raw_output(&tool_response.tool_result) {
-                        fields = fields.raw_output(raw_output);
-                    }
-                    if !tool_response
-                        .tool_result
-                        .as_ref()
-                        .is_ok_and(|r| r.is_acp_aware())
-                    {
-                        let content = build_tool_call_content(&tool_response.tool_result);
-                        fields = fields.content(content);
-
-                        let locations =
-                            extract_locations_from_meta(tool_response).unwrap_or_else(|| {
-                                if let Some(tool_request) =
-                                    replay_tool_requests.get(&tool_response.id)
-                                {
-                                    extract_tool_locations(tool_request, tool_response)
-                                } else {
-                                    Vec::new()
-                                }
-                            });
-                        if !locations.is_empty() {
-                            fields = fields.locations(locations);
-                        }
-                    }
+                    let fields = tool_call_update_fields_from_response(
+                        tool_response,
+                        replay_tool_requests.get(&tool_response.id),
+                    );
 
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
@@ -135,10 +110,7 @@ fn replay_conversation_to_client(
                                 extract_tool_call_update_meta(tool_response),
                                 message,
                             ));
-                    cx.send_notification(SessionNotification::new(
-                        session_id.clone(),
-                        SessionUpdate::ToolCallUpdate(update),
-                    ))?;
+                    tool_call_notifier.send_update(update)?;
                 }
                 MessageContent::Thinking(thinking) => {
                     cx.send_notification(SessionNotification::new(

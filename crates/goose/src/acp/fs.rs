@@ -1,3 +1,4 @@
+use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
 use crate::agents::platform_extensions::developer::edit::{
@@ -7,9 +8,9 @@ use crate::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_L
 use crate::agents::platform_extensions::developer::DeveloperClient;
 use agent_client_protocol::schema::v1::{
     CreateTerminalRequest, Diff, EnvVariable, KillTerminalRequest, ReadTextFileRequest,
-    ReleaseTerminalRequest, SessionId, SessionNotification, SessionUpdate, Terminal,
-    TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind, WaitForTerminalExitRequest, WriteTextFileRequest,
+    ReleaseTerminalRequest, SessionId, Terminal, TerminalOutputRequest, ToolCallContent,
+    ToolCallId, ToolCallLocation, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use agent_client_protocol_schema::v1::TerminalId;
@@ -64,6 +65,7 @@ pub(crate) struct AcpTools {
     pub(crate) inner: Arc<dyn McpClientTrait>,
     pub(crate) cx: ConnectionTo<Client>,
     pub(crate) session_id: SessionId,
+    pub(crate) tool_call_notifier: ToolCallNotifier,
     pub(crate) fs_read: bool,
     pub(crate) fs_write: bool,
     pub(crate) terminal: bool,
@@ -107,14 +109,8 @@ impl AcpTools {
     fn update_tool_call(&self, ctx: &crate::agents::ToolCallContext, fields: ToolCallUpdateFields) {
         if let Some(ref req_id) = ctx.tool_call_request_id {
             let _ = self
-                .cx
-                .send_notification(SessionNotification::new(
-                    self.session_id.clone(),
-                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-                        ToolCallId::new(req_id.clone()),
-                        fields,
-                    )),
-                ))
+                .tool_call_notifier
+                .send_update(ToolCallUpdate::new(ToolCallId::new(req_id.clone()), fields))
                 .inspect_err(|e| tracing::error!("error updating tool call with client: {}", e));
         }
     }

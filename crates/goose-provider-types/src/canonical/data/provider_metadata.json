@@ -96,7 +96,7 @@
     "env": [
       "ALIBABA_TOKEN_PLAN_API_KEY"
     ],
-    "model_count": 18
+    "model_count": 19
   },
   {
     "id": "alibaba-token-plan-cn",
@@ -107,7 +107,7 @@
     "env": [
       "ALIBABA_TOKEN_PLAN_API_KEY"
     ],
-    "model_count": 18
+    "model_count": 19
   },
   {
     "id": "ambient",
@@ -118,7 +118,7 @@
     "env": [
       "AMBIENT_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 9
   },
   {
     "id": "anyapi",
@@ -173,7 +173,7 @@
     "env": [
       "BASETEN_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 14
   },
   {
     "id": "berget",
@@ -284,7 +284,7 @@
     "env": [
       "CROSSMODEL_API_KEY"
     ],
-    "model_count": 40
+    "model_count": 44
   },
   {
     "id": "daoxe",
@@ -373,7 +373,7 @@
     "env": [
       "EMPIRIOLABS_API_KEY"
     ],
-    "model_count": 36
+    "model_count": 37
   },
   {
     "id": "evroc",
@@ -384,7 +384,7 @@
     "env": [
       "EVROC_API_KEY"
     ],
-    "model_count": 15
+    "model_count": 16
   },
   {
     "id": "fastrouter",
@@ -555,7 +555,7 @@
     "id": "inferx",
     "display_name": "InferX",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://model.inferx.net/v1",
+    "api": "https://model.inferx.net/endpoints/v1",
     "doc": "https://model.inferx.net/endpoints",
     "env": [
       "INFERX_API_KEY"
@@ -615,7 +615,7 @@
     "env": [
       "KIMI_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 3
   },
   {
     "id": "kuae-cloud-coding-plan",
@@ -648,7 +648,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 178
+    "model_count": 172
   },
   {
     "id": "llmtr",
@@ -835,7 +835,7 @@
     "env": [
       "MOONSHOT_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 10
   },
   {
     "id": "moonshotai-cn",
@@ -846,7 +846,7 @@
     "env": [
       "MOONSHOT_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 10
   },
   {
     "id": "morph",
@@ -890,7 +890,7 @@
     "env": [
       "NEBIUS_API_KEY"
     ],
-    "model_count": 30
+    "model_count": 32
   },
   {
     "id": "neon",
@@ -935,7 +935,7 @@
     "env": [
       "NOVITA_API_KEY"
     ],
-    "model_count": 105
+    "model_count": 107
   },
   {
     "id": "nvidia",
@@ -957,7 +957,7 @@
     "env": [
       "OLLAMA_API_KEY"
     ],
-    "model_count": 43
+    "model_count": 18
   },
   {
     "id": "opencode",
@@ -979,7 +979,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 19
+    "model_count": 21
   },
   {
     "id": "orcarouter",
@@ -1314,6 +1314,17 @@
     "model_count": 9
   },
   {
+    "id": "thinkingmachines",
+    "display_name": "Thinking Machines",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
+    "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/openai/",
+    "env": [
+      "TINKER_API_KEY"
+    ],
+    "model_count": 1
+  },
+  {
     "id": "tinfoil",
     "display_name": "Tinfoil",
     "npm": "@ai-sdk/openai-compatible",
@@ -1531,7 +1542,7 @@
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 118
+    "model_count": 120
   },
   {
     "id": "zhipuai",

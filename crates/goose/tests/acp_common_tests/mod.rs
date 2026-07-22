@@ -415,8 +415,22 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+
+    let updates = session.session_updates();
+    let initial_tool_call_id = updates
+        .iter()
+        .find_map(|update| match update {
+            SessionUpdate::ToolCall(tool_call) => Some(&tool_call.tool_call_id),
+            _ => None,
+        })
+        .expect("expected an initial tool call");
+    for update in &updates {
+        if let SessionUpdate::ToolCallUpdate(update) = update {
+            assert_eq!(&update.tool_call_id, initial_tool_call_id);
+        }
+    }
     assert_notifications(
-        &session.notifications(),
+        &fixtures::to_notifications(&updates),
         &[
             Notification::ToolCall,
             Notification::ToolCallKind(ToolKind::Edit),

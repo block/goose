@@ -294,6 +294,7 @@ pub async fn ensure_featured_models_current() -> Result<()> {
                 .map_err(|_| anyhow!("Failed to acquire registry lock"))?;
             if let Some(existing) = registry.get_model(&model_id) {
                 let needs_backfill = existing.mmproj_path.is_none() && featured.mmproj.is_some();
+                let needs_size = existing.size_bytes == 0 && !existing.is_downloaded();
                 let needs_download = existing.is_downloaded()
                     && featured.mmproj.is_some()
                     && !existing.mmproj_path.as_ref().is_some_and(|p| p.exists());
@@ -309,7 +310,7 @@ pub async fn ensure_featured_models_current() -> Result<()> {
                     }
                 }
 
-                if !needs_backfill {
+                if !needs_backfill && !needs_size {
                     continue;
                 }
             }

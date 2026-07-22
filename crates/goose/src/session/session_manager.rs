@@ -891,12 +891,6 @@ impl SessionStorage {
         Ok(&self.pool)
     }
 
-    pub async fn create(session_dir: &Path) -> Result<Self> {
-        let storage = Self::new(session_dir.to_path_buf());
-        Self::create_schema(&storage.pool).await?;
-        Ok(storage)
-    }
-
     async fn create_schema(pool: &Pool<Sqlite>) -> Result<()> {
         // Run schema creation under `BEGIN IMMEDIATE` so SQLite serializes
         // writers across processes. Combined with `IF NOT EXISTS` on every
@@ -1031,12 +1025,9 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        tx.commit().await?;
+        crate::providers::inventory::create_tables(&mut tx).await?;
 
-        // The inventory tables already use `CREATE TABLE IF NOT EXISTS`
-        // and run on the shared pool, so they don't need to be inside
-        // the same transaction.
-        crate::providers::inventory::create_tables(pool).await?;
+        tx.commit().await?;
 
         Ok(())
     }
@@ -1390,7 +1381,7 @@ impl SessionStorage {
                     .await?;
             }
             11 => {
-                crate::providers::inventory::create_tables_in_tx(tx).await?;
+                crate::providers::inventory::create_tables(tx).await?;
             }
             12 => {
                 // Add archived_at, project_id columns to sessions.
