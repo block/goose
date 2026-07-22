@@ -497,11 +497,11 @@ impl McpClientTrait for CodeExecutionClient {
                         schema::<ExecuteBashInput>(),
                     )
                     .annotate(ToolAnnotations::from_raw(
-                        Some("Get function details".to_string()),
-                        Some(true),
+                        Some("Execute Bash".to_string()),
                         Some(false),
                         Some(true),
                         Some(false),
+                        Some(true),
                     )),
                     McpTool::new(
                         "execute_typescript".to_string(),
@@ -872,6 +872,40 @@ mod tests {
         assert!(moim.contains("get_function_details"));
         assert!(!moim.contains("extract_relations"));
         assert!(!moim.contains("ask_heimdall"));
+    }
+
+    #[tokio::test]
+    async fn execute_bash_annotations_require_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = CodeExecutionClient::new(
+            PlatformExtensionContext {
+                extension_manager: None,
+                session_manager: Arc::new(crate::session::SessionManager::new(
+                    temp.path().join("sessions"),
+                )),
+                session: None,
+                use_login_shell_path: false,
+            },
+            ToolDisclosure::Filesystem,
+        )
+        .unwrap();
+
+        let tools = client
+            .list_tools("test", None, CancellationToken::new())
+            .await
+            .unwrap()
+            .tools;
+        let execute_bash = tools
+            .iter()
+            .find(|tool| tool.name == "execute_bash")
+            .unwrap();
+        let annotations = execute_bash.annotations.as_ref().unwrap();
+
+        assert_eq!(annotations.title.as_deref(), Some("Execute Bash"));
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.destructive_hint, Some(true));
+        assert_eq!(annotations.idempotent_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
     }
 
     fn self_referential_any_schema() -> Value {

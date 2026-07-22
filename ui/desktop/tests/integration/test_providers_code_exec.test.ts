@@ -6,7 +6,7 @@
  * that the code_execution tool was invoked.
  */
 
-import { expect, beforeAll } from 'vitest';
+import { beforeAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,7 +22,7 @@ beforeAll(() => {
 
 const { testAll } = providerTest(discoverTestCases({ skipAgentic: true }));
 
-testAll('invokes code_execution tool', async (tc) => {
+testAll('invokes code_execution tool', async (tc, { expect }) => {
   const testdir = fs.mkdtempSync(path.join(os.tmpdir(), 'goose-codeexec-'));
   try {
     const output = await runGoose(

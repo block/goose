@@ -1,3 +1,6 @@
+pub mod structured;
+
+use crate::context_mgmt::structured::StructuredSummary;
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
@@ -48,6 +51,17 @@ struct SummarizeContext {
     messages: String,
 }
 
+pub struct CompactionResult {
+    pub conversation: Conversation,
+    /// Billable usage of the summarization call, counting the raw model
+    /// output even when it is rewritten to the rendered structured summary.
+    pub usage: ProviderUsage,
+    /// Estimated tokens of the agent-visible context retained after
+    /// compaction. Smaller than the billable output when the raw response was
+    /// rewritten to the rendered structured summary.
+    pub retained_context_tokens: i32,
+}
+
 /// Compact messages by summarizing them
 ///
 /// This function performs the actual compaction by summarizing messages and updating
@@ -59,18 +73,13 @@ struct SummarizeContext {
 /// * `session_id` - The session to use for summarization
 /// * `conversation` - The current conversation history
 /// * `manual_compact` - If true, this is a manual compaction (don't preserve user message)
-///
-/// # Returns
-/// * A tuple containing:
-///   - `Conversation`: The compacted messages
-///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     provider: &dyn Provider,
     model_config: &ModelConfig,
     session_id: &str,
     conversation: &Conversation,
     manual_compact: bool,
-) -> Result<(Conversation, ProviderUsage)> {
+) -> Result<CompactionResult> {
     info!("Performing message compaction");
 
     let messages = conversation.messages();
@@ -163,10 +172,41 @@ pub async fn compact_messages(
         final_messages.push(user_msg);
     }
 
-    Ok((
-        Conversation::new_unvalidated(final_messages),
-        summarization_usage,
-    ))
+    let conversation = Conversation::new_unvalidated(final_messages);
+    let retained_context_tokens = count_retained_context_tokens(&conversation)
+        .await
+        .or(summarization_usage.usage.output_tokens)
+        .unwrap_or(0);
+
+    Ok(CompactionResult {
+        conversation,
+        usage: summarization_usage,
+        retained_context_tokens,
+    })
+}
+
+/// Estimate the tokens of the agent-visible conversation retained after
+/// compaction, counted the same way as the fallback estimation in
+/// `check_if_compaction_needed`.
+async fn count_retained_context_tokens(conversation: &Conversation) -> Option<i32> {
+    match create_token_counter().await {
+        Ok(counter) => {
+            let total: usize = conversation
+                .messages()
+                .iter()
+                .filter(|m| m.is_agent_visible())
+                .map(|msg| counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                .sum();
+            Some(total as i32)
+        }
+        Err(e) => {
+            warn!(
+                "Failed to count retained context tokens, using billable output tokens: {}",
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Check if messages exceed the auto-compaction threshold
@@ -318,6 +358,9 @@ async fn do_compact(
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
 
+                // Usage must reflect the raw model output (billable tokens),
+                // so estimate before the response is rewritten to the smaller
+                // rendered summary.
                 crate::providers::usage_estimator::ensure_usage_tokens(
                     &mut provider_usage,
                     &system_prompt,
@@ -327,6 +370,8 @@ async fn do_compact(
                 )
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+
+                apply_structured_summary(&mut response);
 
                 return Ok((response, provider_usage));
             }
@@ -348,6 +393,27 @@ async fn do_compact(
     Err(anyhow::anyhow!(
         "Unexpected: exhausted all attempts without returning"
     ))
+}
+
+/// When the model didn't follow the structured output format (schema-ignoring
+/// models, user-customized prompts), the raw response text is kept unchanged
+/// as the summary.
+fn apply_structured_summary(response: &mut Message) {
+    let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
+        return;
+    };
+    match summary.render() {
+        Ok(rendered) if !rendered.trim().is_empty() => {
+            response.content = vec![MessageContent::text(rendered)];
+        }
+        Ok(_) => warn!(
+            "Structured compaction summary rendered empty (broken template override?), keeping raw output"
+        ),
+        Err(e) => warn!(
+            "Failed to render structured compaction summary, keeping raw output: {}",
+            e
+        ),
+    }
 }
 
 pub fn format_message_for_compacting(msg: &Message) -> String {
@@ -718,7 +784,7 @@ mod tests {
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
         let model_config = provider.config.clone();
-        let (compacted_conversation, _usage) = compact_messages(
+        let compaction = compact_messages(
             &provider,
             &model_config,
             "test-session-id",
@@ -728,10 +794,90 @@ mod tests {
         .await
         .unwrap();
 
-        let agent_conversation = compacted_conversation.agent_visible_messages();
+        let agent_conversation = compaction.conversation.agent_visible_messages();
 
         let _ = Conversation::new(agent_conversation)
             .expect("compaction should produce a valid conversation");
+    }
+
+    #[tokio::test]
+    async fn test_structured_summary_is_rendered() {
+        let structured_response = r#"<analysis>User asked to fix a bug; I patched parser.rs.</analysis>
+```json
+{
+  "user_intent": ["Fix the parser bug"],
+  "files": [{"path": "src/parser.rs", "summary": "Fixed off-by-one"}],
+  "pending_tasks": ["Add a regression test"],
+  "current_work": "Writing the regression test"
+}
+```"#;
+        let provider =
+            MockProvider::new(Message::assistant().with_text(structured_response), 100_000);
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("fix the parser bug"),
+            Message::assistant().with_text("Looking into it"),
+        ]);
+
+        let model_config = provider.config.clone();
+        let compaction = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            true,
+        )
+        .await
+        .unwrap();
+
+        let summary_text = compaction.conversation.agent_visible_messages()[0].as_concat_text();
+        assert!(summary_text.contains("# Conversation Summary"));
+        assert!(summary_text.contains("## User Intent"));
+        assert!(summary_text.contains("- Fix the parser bug"));
+        assert!(summary_text.contains("### src/parser.rs"));
+        assert!(
+            !summary_text.contains("```json"),
+            "raw JSON should be replaced"
+        );
+        assert!(
+            !summary_text.contains("<analysis>"),
+            "analysis scratchpad should be dropped"
+        );
+        assert!(compaction.retained_context_tokens > 0);
+        assert!(
+            compaction.usage.usage.output_tokens.is_some(),
+            "billable output tokens must survive the rewrite"
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_context_counts_preserved_user_message() {
+        async fn retained(final_user_text: &str) -> i32 {
+            let provider =
+                MockProvider::new(Message::assistant().with_text("<mock summary>"), 100_000);
+            let conversation = Conversation::new_unvalidated(vec![
+                Message::user().with_text("start"),
+                Message::assistant().with_text("ok"),
+                Message::user().with_text(final_user_text),
+            ]);
+            let model_config = provider.config.clone();
+            compact_messages(
+                &provider,
+                &model_config,
+                "test-session-id",
+                &conversation,
+                false,
+            )
+            .await
+            .unwrap()
+            .retained_context_tokens
+        }
+
+        let short = retained("continue").await;
+        let long = retained(&"long preserved user message ".repeat(200)).await;
+        assert!(
+            long > short,
+            "the preserved user message must be part of the retained context ({short} vs {long})"
+        );
     }
 
     #[tokio::test]
@@ -762,7 +908,7 @@ mod tests {
         ]);
         let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
 
-        let (compacted, _) = compact_messages(
+        let compacted = compact_messages(
             &provider,
             &provider.config,
             "test-session-id",
@@ -770,7 +916,8 @@ mod tests {
             false,
         )
         .await
-        .unwrap();
+        .unwrap()
+        .conversation;
 
         let preserved_copies = compacted
             .messages()

@@ -5,7 +5,7 @@
  * allowed-failure list, agentic-provider list, and environment detection.
  */
 
-import { test } from 'vitest';
+import { test, type TestContext } from 'vitest';
 import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -299,7 +299,7 @@ export function discoverTestCases(options?: { skipAgentic?: boolean }): TestCase
 // Test registration helpers
 // ---------------------------------------------------------------------------
 
-type ProviderTestFn = (tc: TestCase) => Promise<void>;
+type ProviderTestFn = (tc: TestCase, context: TestContext) => Promise<void>;
 
 function registerTests(label: string, cases: TestCase[], fn: ProviderTestFn): void {
   const available = cases.filter((tc) => tc.available && !tc.flaky);
@@ -307,24 +307,24 @@ function registerTests(label: string, cases: TestCase[], fn: ProviderTestFn): vo
   const skipped = cases.filter((tc) => !tc.available);
 
   if (available.length > 0) {
-    test.each(available)(`${label} — $provider / $model`, async (tc) => {
-      await fn(tc);
+    test.concurrent.for(available)(`${label} — $provider / $model`, async (tc, context) => {
+      await fn(tc, context);
     });
   }
 
   if (flaky.length > 0) {
     // Use a longer vitest timeout (90s) so the internal runGoose timeout (55s)
     // fires first — that rejection is catchable and the test passes as "allowed".
-    test.each(flaky)(
+    test.concurrent.for(flaky)(
       `${label} — $provider / $model (flaky)`,
-      async (tc) => {
+      { timeout: 90_000 },
+      async (tc, context) => {
         try {
-          await fn(tc);
+          await fn(tc, context);
         } catch (err) {
           console.warn(`Flaky test ${tc.provider}/${tc.model} failed (allowed): ${err}`);
         }
-      },
-      90_000
+      }
     );
   }
 
@@ -373,7 +373,7 @@ export function runGoose(
       ['run', '--text', prompt, '--with-builtin', builtins],
       {
         cwd,
-        env: { ...process.env, ...env },
+        env: { ...process.env, ...env, GOOSE_MODE: 'auto' },
         stdio: ['ignore', 'pipe', 'pipe'],
       }
     );

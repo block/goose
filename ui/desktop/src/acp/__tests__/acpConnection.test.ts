@@ -136,6 +136,29 @@ describe('ACP connection ownership', () => {
     expect(getAcpUrl).toHaveBeenCalledOnce();
   });
 
+  it('does not cache terminal recovery failures across caller retries', async () => {
+    const { getAcpClient } = await import('../acpConnection');
+    await getAcpClient();
+
+    const getAcpUrl = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(`Error invoking remote method 'get-acp-url': ${GOOSE_SERVE_EXITED_USER_MESSAGE}`)
+      );
+    window.electron.getAcpUrl = getAcpUrl;
+    sdk.instances[0].resolveClosed();
+    await Promise.resolve();
+
+    const failedRecovery = expect(getAcpClient()).rejects.toThrow(GOOSE_SERVE_EXITED_USER_MESSAGE);
+    await vi.advanceTimersByTimeAsync(250);
+    await failedRecovery;
+
+    await expect(getAcpClient()).rejects.toThrow(GOOSE_SERVE_EXITED_USER_MESSAGE);
+
+    expect(getAcpUrl).toHaveBeenCalledTimes(2);
+    expect(sdk.instances).toHaveLength(1);
+  });
+
   it('reconnects immediately after system resume', async () => {
     const { getAcpClient, reconnectAcpAfterSystemResume } = await import('../acpConnection');
     await getAcpClient();
