@@ -581,8 +581,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     const handleToggleArchive = useCallback(
       async (session: SessionListItem) => {
         const isArchived = !!session.archivedAt;
-        // Optimistically drop the row: it leaves the current view either way.
-        setSessions((prev) => prev.filter((s) => s.id !== session.id));
+        const nextArchivedAt = isArchived ? undefined : new Date().toISOString();
+        // The `all` filter (Active tab with a search) shows both states, so the row
+        // still matches after toggling — update it in place. In the scoped `active`
+        // or `archived` views the toggled row leaves the filter, so drop it.
+        const staysInView = archivedFilterRef.current === 'all';
+        setSessions((prev) =>
+          staysInView
+            ? prev.map((s) => (s.id === session.id ? { ...s, archivedAt: nextArchivedAt } : s))
+            : prev.filter((s) => s.id !== session.id)
+        );
         try {
           if (isArchived) {
             await acpUnarchiveSession(session.id);
