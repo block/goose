@@ -256,12 +256,14 @@ pub(crate) fn tool_call_update_fields_from_response(
         .tool_result
         .as_ref()
         .is_ok_and(|result| result.is_acp_aware());
+    let include_content = is_failed || !is_acp_aware;
+    let include_locations = !is_acp_aware;
 
-    if is_failed || !is_acp_aware {
+    if include_content {
         fields = fields.content(build_tool_call_content(&tool_response.tool_result));
     }
 
-    if !is_acp_aware {
+    if include_locations {
         let locations = extract_tool_locations_from_response(tool_response).unwrap_or_else(|| {
             tool_request
                 .map(extract_tool_locations_from_request)
