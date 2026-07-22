@@ -1,8 +1,8 @@
 use agent_client_protocol::schema::v1::{
-    Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
-    ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
-    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
-    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    Annotations as AcpAnnotations, CancelNotification, ClientCapabilities, CloseSessionRequest,
+    ContentBlock, ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest,
+    InitializeResponse, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
+    NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, Role as AcpRole, SessionConfigKind,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, OnceLock,
 };
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
@@ -167,6 +167,13 @@ pub struct AcpProvider {
 
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
+
+    /// Connection handle to the ACP agent, populated once the client loop has
+    /// connected. Used to send `session/cancel` out-of-band — the serial
+    /// request loop is blocked awaiting the in-flight prompt response, so a
+    /// cancel routed through `tx` could not be delivered until the turn it is
+    /// meant to interrupt has already finished.
+    agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
 }
 
 impl std::fmt::Debug for AcpProvider {
@@ -245,11 +252,13 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let agent_cx: Arc<OnceLock<ConnectionTo<Agent>>> = Arc::new(OnceLock::new());
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
+            agent_cx.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -286,6 +295,7 @@ impl AcpProvider {
             applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
             loop_thread: Some(loop_thread),
+            agent_cx,
         })
     }
 
@@ -457,6 +467,15 @@ impl Provider for AcpProvider {
 
     fn manages_own_context(&self) -> bool {
         true
+    }
+
+    async fn cancel(&self, _session_id: &str) {
+        let Some(cx) = self.agent_cx.get() else {
+            return;
+        };
+        if let Err(e) = cx.send_notification(CancelNotification::new(self.acp_session_id())) {
+            tracing::warn!(error = %e, "failed to send ACP session/cancel");
+        }
     }
 
     async fn handle_permission_confirmation(
@@ -698,6 +717,7 @@ struct AcpClientLoop {
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
+    agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
 }
 
 impl AcpClientLoop {
@@ -706,6 +726,7 @@ impl AcpClientLoop {
         goose_mode: Arc<Mutex<GooseMode>>,
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
+        agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
     ) -> Self {
         Self {
             config,
@@ -713,6 +734,7 @@ impl AcpClientLoop {
             prompt_response_tx: Arc::new(Mutex::new(None)),
             pending_tool_updates,
             context_size,
+            agent_cx,
         }
     }
 
@@ -767,6 +789,7 @@ impl AcpClientLoop {
             prompt_response_tx,
             pending_tool_updates,
             context_size,
+            agent_cx,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -974,6 +997,7 @@ impl AcpClientLoop {
                 agent_client_protocol::on_receive_request!(),
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
+                let _ = agent_cx.set(cx.clone());
                 handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
             })
             .await?;
@@ -1706,6 +1730,7 @@ mod tests {
                 applied_model: Arc::new(Mutex::new(None)),
                 tx,
                 loop_thread: None,
+                agent_cx: Arc::new(OnceLock::new()),
             },
             ModelConfig::new("test-model"),
         )

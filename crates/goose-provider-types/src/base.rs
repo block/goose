@@ -620,6 +620,15 @@ pub trait Provider: Send + Sync {
     ) -> bool {
         false
     }
+
+    /// Cancel the in-flight turn for the given session.
+    ///
+    /// Providers that drive a turn on a remote backend (e.g. ACP agents)
+    /// override this to forward an out-of-band cancellation so the backend
+    /// stops promptly instead of running the whole turn to completion. The
+    /// default is a no-op, appropriate for providers whose turn ends as soon
+    /// as goose stops polling the response stream.
+    async fn cancel(&self, _session_id: &str) {}
 }
 
 #[cfg(test)]

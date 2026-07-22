@@ -66,6 +66,16 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
+/// Resolves when the token is cancelled; stays pending forever when there is
+/// no token, so it can be raced against a stream in `tokio::select!` without
+/// affecting the no-token path.
+async fn await_cancellation(cancel_token: &Option<CancellationToken>) {
+    match cancel_token {
+        Some(token) => token.cancelled().await,
+        None => std::future::pending().await,
+    }
+}
+
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
@@ -2239,7 +2249,26 @@ impl Agent {
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
 
-                while let Some(next) = stream.next().await {
+                loop {
+                    // Race the provider stream against cancellation. A provider
+                    // that drives a remote turn (ACP) may go silent for minutes
+                    // mid-turn, so waiting on `stream.next()` alone would leave
+                    // the reply future — and the UI — stuck until the backend
+                    // finishes on its own. On cancel, forward it to the provider
+                    // so the backend stops promptly, then break like end-of-stream.
+                    let next = tokio::select! {
+                        biased;
+                        () = await_cancellation(&cancel_token) => {
+                            if let Ok(provider) = self.provider().await {
+                                provider.cancel(&session_config.id).await;
+                            }
+                            break;
+                        }
+                        item = stream.next() => item,
+                    };
+                    let Some(next) = next else {
+                        break;
+                    };
                     if is_token_cancelled(&cancel_token) || exit_chat {
                         break;
                     }
@@ -4297,6 +4326,109 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let emitted_refusal_id =
             emitted_refusal_id.expect("refusal message should be emitted with an ID");
         assert!(emitted_refusal_id.starts_with("msg_"));
+        Ok(())
+    }
+
+    /// Provider whose stream never yields and never ends, mimicking an ACP
+    /// backend that goes silent mid-turn. Records whether `cancel` was called.
+    struct HangingProvider {
+        stream_entered: Arc<tokio::sync::Notify>,
+        cancel_calls: AtomicUsize,
+        cancelled_session: std::sync::Mutex<Option<String>>,
+    }
+
+    impl HangingProvider {
+        fn new() -> Self {
+            Self {
+                stream_entered: Arc::new(tokio::sync::Notify::new()),
+                cancel_calls: AtomicUsize::new(0),
+                cancelled_session: std::sync::Mutex::new(None),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for HangingProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.stream_entered.notify_one();
+            Ok(Box::pin(futures::stream::pending::<
+                Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
+            >()))
+        }
+
+        fn get_name(&self) -> &str {
+            "hanging"
+        }
+
+        async fn cancel(&self, session_id: &str) {
+            self.cancel_calls.fetch_add(1, Ordering::SeqCst);
+            *self.cancelled_session.lock().unwrap() = Some(session_id.to_string());
+        }
+    }
+
+    #[tokio::test]
+    async fn cancellation_interrupts_a_stalled_provider_stream() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(HangingProvider::new());
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+
+        // Cancel only once the reply loop is actually parked on the stalled
+        // stream, so the test exercises the mid-stream cancel path rather than
+        // the top-of-loop cancel check.
+        let cancel_token = CancellationToken::new();
+        let cancel_for_task = cancel_token.clone();
+        let stream_entered = provider.stream_entered.clone();
+        let canceller = tokio::spawn(async move {
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(5), stream_entered.notified())
+                    .await;
+            cancel_for_task.cancel();
+        });
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                Some(cancel_token),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Some(event) = reply_stream.next().await {
+                let _ = event;
+            }
+        })
+        .await
+        .expect("reply did not stop promptly after cancellation");
+
+        canceller.await.expect("canceller task panicked");
+
+        assert_eq!(
+            provider.cancel_calls.load(Ordering::SeqCst),
+            1,
+            "cancellation must be forwarded to the provider exactly once"
+        );
+        assert_eq!(
+            provider.cancelled_session.lock().unwrap().as_deref(),
+            Some(session_id.as_str()),
+            "provider cancel must receive the active session id"
+        );
         Ok(())
     }
 
