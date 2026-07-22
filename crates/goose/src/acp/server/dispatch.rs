@@ -158,7 +158,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 Ok(update) => update,
                                 Err(e) => {
                                     warn!(
-                                        sid = %sid,
+                                        session_id = %session_id.0,
                                         config_id = %config_id,
                                         error = ?e,
                                         "failed to build config update after config change"
