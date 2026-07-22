@@ -21,13 +21,20 @@ impl<'a> From<&'a str> for ToolNameParts<'a> {
 impl ToolRequest {
     pub fn tool_name_parts(&self) -> Option<ToolNameParts<'_>> {
         let tool_call = self.tool_call.as_ref().ok()?;
-        let mut parts = ToolNameParts::from(tool_call.name.as_ref());
-        parts.extension_name = self
+        let name = tool_call.name.as_ref();
+        let mut parts = ToolNameParts::from(name);
+        if let Some(extension_name) = self
             .tool_meta
             .as_ref()
             .and_then(|meta| meta.get("goose_extension"))
             .and_then(serde_json::Value::as_str)
-            .or(parts.extension_name);
+        {
+            parts.extension_name = Some(extension_name);
+            parts.tool_name = name
+                .strip_prefix(extension_name)
+                .and_then(|name| name.strip_prefix("__"))
+                .unwrap_or(parts.tool_name);
+        }
         Some(parts)
     }
 
@@ -143,6 +150,20 @@ mod tests {
                 Some(ToolNameParts {
                     extension_name: Some("developer"),
                     tool_name: "write",
+                })
+            );
+        }
+
+        #[test]
+        fn strips_exact_extension_prefix_from_metadata() {
+            let mut request = make_named_tool_request("__cli__ent____tool");
+            request.tool_meta = Some(serde_json::json!({"goose_extension": "__cli__ent__"}));
+
+            assert_eq!(
+                request.tool_name_parts(),
+                Some(ToolNameParts {
+                    extension_name: Some("__cli__ent__"),
+                    tool_name: "tool",
                 })
             );
         }
