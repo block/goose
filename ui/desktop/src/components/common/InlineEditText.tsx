@@ -34,6 +34,12 @@ interface InlineEditTextProps {
   onEditEnd?: () => void;
   allowEmpty?: boolean;
   singleClickEdit?: boolean;
+  /**
+   * Monotonically increasing signal used to start editing programmatically
+   * (e.g. from a context-menu "Rename" action). Editing begins whenever this
+   * value changes to a new number.
+   */
+  editRequestSignal?: number;
 }
 
 export const InlineEditText: React.FC<InlineEditTextProps> = ({
@@ -48,6 +54,7 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
   onEditEnd,
   allowEmpty = false,
   singleClickEdit = true,
+  editRequestSignal,
 }) => {
   const intl = useIntl();
   const resolvedPlaceholder = placeholder ?? intl.formatMessage(i18n.enterText);
@@ -77,6 +84,14 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
     setEditValue(value);
     onEditStart?.();
   }, [disabled, isSaving, value, onEditStart]);
+
+  const lastEditSignal = useRef(editRequestSignal);
+  useEffect(() => {
+    if (editRequestSignal !== undefined && editRequestSignal !== lastEditSignal.current) {
+      lastEditSignal.current = editRequestSignal;
+      handleStartEdit();
+    }
+  }, [editRequestSignal, handleStartEdit]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);

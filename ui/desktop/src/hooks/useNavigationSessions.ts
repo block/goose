@@ -159,6 +159,30 @@ export function useNavigationSessions() {
         .catch((error) => console.error('Failed to fetch sessions:', error));
     };
 
+    const handleSessionArchived = (event: Event) => {
+      const { sessionId, archived } = (
+        event as CustomEvent<{ sessionId: string; archived?: boolean }>
+      ).detail;
+
+      // Archiving hides a session from the sidebar; unarchiving may bring a
+      // recent one back, so refetch to reflect the current active set.
+      if (archived === false) {
+        const version = ++fetchVersion;
+        acpListRecentSessions(MAX_RECENT_SESSIONS)
+          .then((sessions) => {
+            if (version !== fetchVersion) return;
+            setRecentSessions(sessions);
+          })
+          .catch((error) => console.error('Failed to fetch sessions:', error));
+        return;
+      }
+
+      setRecentSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      if (lastSessionIdRef.current === sessionId) {
+        lastSessionIdRef.current = null;
+      }
+    };
+
     const handleSessionRenamed = (event: Event) => {
       const { sessionId, newName, userInitiated } = (
         event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>
@@ -174,10 +198,12 @@ export function useNavigationSessions() {
     };
 
     window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
     window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
 
     return () => {
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
       window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
     };
   }, []);

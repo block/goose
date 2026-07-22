@@ -130,8 +130,17 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
   };
 }
 
+/**
+ * Which archived state to include when listing sessions.
+ * - `active` (default): only sessions that have not been archived.
+ * - `archived`: only archived sessions.
+ * - `all`: both — used so archived sessions still surface in keyword search.
+ */
+export type ArchivedFilter = 'active' | 'archived' | 'all';
+
 export interface SessionListFilter {
   keyword?: string;
+  archived?: ArchivedFilter;
 }
 
 const SESSION_LIST_TYPES = ['user', 'scheduled'] as const;
@@ -150,6 +159,9 @@ export async function acpListSessions(
   if (keyword) {
     meta.query = keyword;
   }
+  if (filter?.archived) {
+    meta.archived = filter.archived;
+  }
   request._meta = meta;
   const response = await client.listSessions(request);
   return {
@@ -164,7 +176,9 @@ export async function acpListRecentSessions(maxSessions: number): Promise<Sessio
   }
 
   const client = await getAcpClient();
-  const response = await client.listSessions({ _meta: { types: SESSION_LIST_TYPES } });
+  const response = await client.listSessions({
+    _meta: { types: SESSION_LIST_TYPES, archived: 'active' },
+  });
   return response.sessions.slice(0, maxSessions).map(sessionInfoToListItem);
 }
 
@@ -269,6 +283,16 @@ export async function acpCloseSession(sessionId: string): Promise<void> {
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionRename_unstable({ sessionId, title });
+}
+
+export async function acpArchiveSession(sessionId: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionArchive_unstable({ sessionId });
+}
+
+export async function acpUnarchiveSession(sessionId: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionUnarchive_unstable({ sessionId });
 }
 
 export async function acpUpdateWorkingDir(sessionId: string, workingDir: string): Promise<void> {

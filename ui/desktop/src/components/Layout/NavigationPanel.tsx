@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Archive, ChevronDown, ChevronRight, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { toast } from 'react-toastify';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
@@ -14,9 +15,23 @@ import {
 import { AppEvents } from '../../constants/events';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
+import {
+  acpArchiveSession,
+  acpDeleteSession,
+  acpRenameSession,
+  type SessionListItem,
+} from '../../acp/sessions';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { errorMessage } from '../../utils/conversionUtils';
 import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
@@ -77,6 +92,54 @@ const i18n = defineMessages({
     id: 'navigationPanel.statusIdle',
     defaultMessage: 'Idle',
   },
+  sessionActions: {
+    id: 'navigationPanel.sessionActions',
+    defaultMessage: 'Session actions',
+  },
+  rename: {
+    id: 'navigationPanel.rename',
+    defaultMessage: 'Rename',
+  },
+  archive: {
+    id: 'navigationPanel.archive',
+    defaultMessage: 'Archive',
+  },
+  delete: {
+    id: 'navigationPanel.delete',
+    defaultMessage: 'Delete',
+  },
+  archiveSuccess: {
+    id: 'navigationPanel.archiveSuccess',
+    defaultMessage: 'Archived “{name}”',
+  },
+  archiveFailed: {
+    id: 'navigationPanel.archiveFailed',
+    defaultMessage: 'Failed to archive session: {error}',
+  },
+  deleteTitle: {
+    id: 'navigationPanel.deleteTitle',
+    defaultMessage: 'Delete chat',
+  },
+  deleteMessage: {
+    id: 'navigationPanel.deleteMessage',
+    defaultMessage: 'Are you sure you want to delete “{name}”? This cannot be undone.',
+  },
+  deleteConfirm: {
+    id: 'navigationPanel.deleteConfirm',
+    defaultMessage: 'Delete',
+  },
+  deleteCancel: {
+    id: 'navigationPanel.deleteCancel',
+    defaultMessage: 'Cancel',
+  },
+  deleteSuccess: {
+    id: 'navigationPanel.deleteSuccess',
+    defaultMessage: 'Chat deleted',
+  },
+  deleteFailed: {
+    id: 'navigationPanel.deleteFailed',
+    defaultMessage: 'Failed to delete session: {error}',
+  },
 });
 
 const navItemClass = (active: boolean) =>
@@ -114,6 +177,7 @@ interface SessionRowProps {
   status: SessionStatus | undefined;
   onClick: () => void;
   onRenamed: () => void;
+  onRequestDelete: (session: SessionListItem) => void;
 }
 
 const formatTimestamp = (value?: string): string | null => {
@@ -163,10 +227,20 @@ const SessionTooltipContent: React.FC<SessionTooltipContentProps> = ({ session, 
   );
 };
 
-const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClick, onRenamed }) => {
+const SessionRow: React.FC<SessionRowProps> = ({
+  session,
+  active,
+  status,
+  onClick,
+  onRenamed,
+  onRequestDelete,
+}) => {
   const intl = useIntl();
   const [isEditing, setIsEditing] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editSignal, setEditSignal] = useState(0);
+  const renameRequested = useRef(false);
   const isStreaming = status?.streamState === 'streaming';
   const hasError = status?.streamState === 'error';
   const hasUnread = status?.hasUnreadActivity ?? false;
@@ -179,13 +253,37 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
         ? intl.formatMessage(i18n.statusUnread)
         : intl.formatMessage(i18n.statusIdle);
 
+  const handleArchive = useCallback(async () => {
+    try {
+      await acpArchiveSession(session.id);
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_ARCHIVED, {
+          detail: { sessionId: session.id, archived: true },
+        })
+      );
+      toast.success(intl.formatMessage(i18n.archiveSuccess, { name: session.name }));
+    } catch (error) {
+      toast.error(
+        intl.formatMessage(i18n.archiveFailed, { error: errorMessage(error, 'Unknown error') })
+      );
+    }
+  }, [session.id, session.name, intl]);
+
   return (
-    <Tooltip open={tooltipOpen && !isEditing} onOpenChange={setTooltipOpen} delayDuration={400}>
+    <Tooltip
+      open={tooltipOpen && !isEditing && !menuOpen}
+      onOpenChange={setTooltipOpen}
+      delayDuration={400}
+    >
       <TooltipTrigger asChild>
         <div
           onClick={() => !isEditing && onClick()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenuOpen(true);
+          }}
           className={cn(
-            'flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer text-sm',
+            'group flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer text-sm',
             'hover:bg-background-tertiary/60 transition-colors',
             active && 'bg-background-tertiary'
           )}
@@ -204,12 +302,60 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
             placeholder={intl.formatMessage(i18n.untitledSession)}
             disabled={isStreaming}
             singleClickEdit={false}
+            editRequestSignal={editSignal}
             className="truncate text-text-primary flex-1 !px-0 !py-0 hover:bg-transparent"
             editClassName="!text-sm"
             onEditStart={() => setIsEditing(true)}
             onEditEnd={() => setIsEditing(false)}
           />
           <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={intl.formatMessage(i18n.sessionActions)}
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  'flex-shrink-0 rounded p-0.5 text-text-secondary hover:text-text-primary hover:bg-background-tertiary transition-opacity',
+                  'opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100'
+                )}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e) => e.stopPropagation()}
+              onCloseAutoFocus={(e) => {
+                // Keep focus on the rename input we are about to reveal instead of
+                // letting Radix return focus to the trigger.
+                if (renameRequested.current) {
+                  e.preventDefault();
+                  renameRequested.current = false;
+                }
+              }}
+            >
+              <DropdownMenuItem
+                disabled={isStreaming}
+                onSelect={() => {
+                  renameRequested.current = true;
+                  setEditSignal((v) => v + 1);
+                }}
+              >
+                <Pencil className="w-4 h-4" />
+                {intl.formatMessage(i18n.rename)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleArchive()}>
+                <Archive className="w-4 h-4" />
+                {intl.formatMessage(i18n.archive)}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => onRequestDelete(session)}>
+                <Trash2 className="w-4 h-4" />
+                {intl.formatMessage(i18n.delete)}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </TooltipTrigger>
       <TooltipContent side="right" align="start" className="max-w-xs text-left">
@@ -302,6 +448,32 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     });
   }, []);
 
+  const [sessionPendingDelete, setSessionPendingDelete] = useState<SessionListItem | null>(null);
+
+  const handleRequestDelete = useCallback((session: SessionListItem) => {
+    setSessionPendingDelete(session);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!sessionPendingDelete) return;
+    const { id, name } = sessionPendingDelete;
+    setSessionPendingDelete(null);
+    try {
+      await acpDeleteSession(id);
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: id } })
+      );
+      toast.success(intl.formatMessage(i18n.deleteSuccess));
+    } catch (error) {
+      toast.error(
+        intl.formatMessage(i18n.deleteFailed, {
+          name,
+          error: errorMessage(error, 'Unknown error'),
+        })
+      );
+    }
+  }, [sessionPendingDelete, intl]);
+
   if (!isNavExpanded) return null;
 
   return (
@@ -375,6 +547,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
                             handleSessionClick(session.id);
                           }}
                           onRenamed={fetchSessions}
+                          onRequestDelete={handleRequestDelete}
                         />
                       ))}
                   </React.Fragment>
@@ -392,6 +565,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
                     handleSessionClick(session.id);
                   }}
                   onRenamed={fetchSessions}
+                  onRequestDelete={handleRequestDelete}
                 />
               ))
             )}
@@ -406,6 +580,17 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
           onClick={() => handleNavClick(SETTINGS_NAV_ITEM.path)}
         />
       </div>
+
+      <ConfirmationModal
+        isOpen={sessionPendingDelete !== null}
+        title={intl.formatMessage(i18n.deleteTitle)}
+        message={intl.formatMessage(i18n.deleteMessage, { name: sessionPendingDelete?.name ?? '' })}
+        confirmLabel={intl.formatMessage(i18n.deleteConfirm)}
+        cancelLabel={intl.formatMessage(i18n.deleteCancel)}
+        confirmVariant="destructive"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setSessionPendingDelete(null)}
+      />
     </motion.div>
   );
 };
