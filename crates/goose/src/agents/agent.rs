@@ -3076,9 +3076,16 @@ impl Agent {
                 }
 
                 if is_token_cancelled(&cancel_token) {
+                    // Cancelled mid-turn: end the reply immediately instead of
+                    // running post-turn work — tool-pair summarization, final
+                    // output, message persistence, and (on exit) stop hooks,
+                    // which run shell commands with their own timeouts. The
+                    // outer loop's top-of-iteration cancel check would otherwise
+                    // only fire after all of that completes.
                     if let Some(ref task) = tool_pair_summarization_task {
                         task.abort();
                     }
+                    break;
                 }
 
                 if let Some(task) = tool_pair_summarization_task {
