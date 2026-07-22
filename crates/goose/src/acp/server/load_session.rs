@@ -84,7 +84,7 @@ fn replay_conversation_to_client(
 
                     let mut tool_call = build_initial_tool_call(tool_request);
                     let mut meta = tool_call.meta.take();
-                    if let Some(chain_summary) = tool_request.persisted_chain_summary() {
+                    if let Some(chain_summary) = tool_request.generated_chain_summary() {
                         let goose_meta = meta
                             .get_or_insert_default()
                             .entry("goose".to_string())

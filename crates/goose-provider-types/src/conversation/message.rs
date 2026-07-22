@@ -95,7 +95,7 @@ pub struct ToolNameParts<'a> {
 
 /// A chain summary persisted on the first tool request of a chain.
 #[derive(Debug, Clone, PartialEq)]
-pub struct PersistedChainSummary {
+pub struct ToolChainSummary {
     pub summary: String,
     pub count: usize,
 }

@@ -422,7 +422,7 @@ mod tests {
             .flat_map(|message| &message.content)
             .find_map(|content| match content {
                 MessageContent::ToolRequest(request) if request.id == "request-1" => {
-                    request.persisted_title()
+                    request.generated_title()
                 }
                 _ => None,
             });

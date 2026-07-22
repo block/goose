@@ -2673,7 +2673,7 @@ print(\"hello, world\")
             .and_then(serde_json::Value::as_object_mut)
             .expect("valid initial tool call should contain goose metadata");
         let chain_summary = tool_request
-            .persisted_chain_summary()
+            .generated_chain_summary()
             .expect("chain summary should be present");
         goose.extend([tool_chain_summary(
             &chain_summary.summary,
@@ -2703,7 +2703,7 @@ print(\"hello, world\")
             tool_meta: None,
         };
 
-        let chain_summary = tool_request.persisted_chain_summary();
+        let chain_summary = tool_request.generated_chain_summary();
         assert!(
             chain_summary.is_none(),
             "non-first tool requests must not carry chain summaries",

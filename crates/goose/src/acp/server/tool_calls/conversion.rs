@@ -97,7 +97,7 @@ pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
     let goose_meta = goose_tool_call_meta(tool_request);
 
     let initial_title = tool_request
-        .persisted_title()
+        .generated_title()
         .map(|s| s.to_string())
         .unwrap_or(default_tool_call_title);
 
@@ -366,7 +366,7 @@ mod tests {
         }
 
         #[test]
-        fn uses_persisted_title() {
+        fn uses_generated_title() {
             let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
             let request = ToolRequest {
                 id: "req_1".to_string(),
