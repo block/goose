@@ -324,6 +324,18 @@
     "environmentVariables": []
   },
   {
+    "id": "glif",
+    "name": "Glif",
+    "description": "Generate images, video, and audio with Glif's media-generation agent",
+    "url": "https://glif.app/api/mcp",
+    "link": "https://glif.app/mcp",
+    "installation_notes": "Hosted remote server. Sign in with your Glif account via OAuth on first connect.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "github-mcp",
     "name": "GitHub",
     "description": "GitHub repository management and operations",
