@@ -95,10 +95,7 @@ fn replay_conversation_to_client(
                         goose_meta
                             .as_object_mut()
                             .expect("goose metadata was initialized as an object")
-                            .extend([tool_chain_summary(
-                                &chain_summary.summary,
-                                chain_summary.count,
-                            )]);
+                            .extend([tool_chain_summary(&chain_summary)]);
                     }
                     let tool_call = tool_call.meta(merge_replay_message_meta(meta, message));
 

@@ -1272,30 +1272,11 @@ impl GooseAcpAgent {
             return;
         }
 
-        // Snapshot (name, args_json) for each step in document order.
-        let steps: Vec<(String, String)> = chain
+        let tool_requests: Vec<ToolRequest> = chain
             .ids
             .iter()
-            .filter_map(|id| {
-                let req = session.tool_requests.get(id)?;
-                let tool_call = req.tool_call.as_ref().ok()?;
-                let name = tool_call.name.to_string();
-                let args = tool_call
-                    .arguments
-                    .as_ref()
-                    .map(|a| serde_json::to_string(a).unwrap_or_default())
-                    .unwrap_or_default();
-                let args = if args.len() > 200 {
-                    format!("{}…", crate::utils::safe_truncate(&args, 200))
-                } else {
-                    args
-                };
-                Some((name, args))
-            })
+            .filter_map(|id| session.tool_requests.get(id).cloned())
             .collect();
-        if steps.len() < 2 {
-            return;
-        }
 
         ChainSummaryEnrichmentContext::new(
             &session.agent,
@@ -1303,12 +1284,7 @@ impl GooseAcpAgent {
             tool_call_notifier,
             &self.session_manager,
         )
-        .spawn_chain_summary(
-            first_id.clone(),
-            chain.message_id.clone(),
-            steps,
-            chain.ids.len(),
-        );
+        .spawn_chain_summary(chain.message_id.clone(), tool_requests);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2675,10 +2651,7 @@ print(\"hello, world\")
         let chain_summary = tool_request
             .generated_chain_summary()
             .expect("chain summary should be present");
-        goose.extend([tool_chain_summary(
-            &chain_summary.summary,
-            chain_summary.count,
-        )]);
+        goose.extend([tool_chain_summary(&chain_summary)]);
 
         assert_eq!(
             goose.get("toolCall"),
