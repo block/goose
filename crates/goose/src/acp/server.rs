@@ -213,13 +213,6 @@ pub struct GooseAcpAgent {
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
-/// Shorten a session/thread id for perf log correlation.
-/// All `perf:` logs use `sid=<8-char-prefix>` so a single session's activity
-/// can be extracted with `grep 'perf:' <log> | grep 'sid=abc12345'`.
-pub(super) fn sid_short(id: &str) -> String {
-    id.chars().take(8).collect()
-}
-
 fn meta_string(
     meta: Option<&Meta>,
     key: &str,
@@ -1737,8 +1730,6 @@ impl GooseAcpAgent {
     ) -> Result<PromptResponse, agent_client_protocol::Error> {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
-        let sid = sid_short(&session_id);
-        let t_start = std::time::Instant::now();
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
@@ -1825,8 +1816,6 @@ impl GooseAcpAgent {
         };
 
         let mut was_cancelled = false;
-        let mut first_event_logged = false;
-        let mut event_count: u32 = 0;
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
@@ -1835,16 +1824,6 @@ impl GooseAcpAgent {
             if cancel_token.is_cancelled() {
                 was_cancelled = true;
                 break;
-            }
-            event_count += 1;
-            if !first_event_logged {
-                debug!(
-                    target: "perf",
-                    sid = %sid,
-                    ttft_ms = t_start.elapsed().as_millis() as u64,
-                    "perf: prompt first stream event (time-to-first-token from prompt start)"
-                );
-                first_event_logged = true;
             }
 
             match event {
@@ -1980,14 +1959,6 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        debug!(
-            target: "perf",
-            sid = %sid,
-            ms = t_start.elapsed().as_millis() as u64,
-            events = event_count,
-            cancelled = was_cancelled,
-            "perf: prompt done"
-        );
         let stop_reason = if was_cancelled {
             StopReason::Cancelled
         } else {

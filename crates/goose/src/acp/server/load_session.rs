@@ -76,19 +76,12 @@ fn replay_conversation_to_client(
 ) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
     let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
-    let sid = sid_short(session_id.0.as_ref());
 
     let messages = session
         .conversation
         .as_ref()
         .map(|c| c.user_visible_messages())
         .unwrap_or_default();
-    debug!(
-        target: "perf",
-        sid = %sid,
-        messages = messages.len(),
-            "perf: load_session messages loaded"
-    );
 
     let mut replay_tool_requests = HashMap::new();
 
@@ -194,8 +187,6 @@ impl GooseAcpAgent {
         validate_absolute_cwd(&args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
-        let sid = sid_short(&session_id_str);
-        let t_start = std::time::Instant::now();
 
         let mut session = self
             .session_manager
@@ -239,12 +230,6 @@ impl GooseAcpAgent {
 
         response = response.meta(session_response_meta(&session, &extension_results));
 
-        debug!(
-            target: "perf",
-            sid = %sid,
-            ms = t_start.elapsed().as_millis() as u64,
-            "perf: load_session_refactor done"
-        );
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
     }
