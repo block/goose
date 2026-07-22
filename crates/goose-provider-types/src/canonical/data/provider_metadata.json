@@ -44,6 +44,17 @@
     "model_count": 5
   },
   {
+    "id": "aki-io",
+    "display_name": "AKI.IO",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://aki.io/v1",
+    "doc": "https://aki.io/docs/",
+    "env": [
+      "AKI_IO_API_KEY"
+    ],
+    "model_count": 6
+  },
+  {
     "id": "alibaba",
     "display_name": "Alibaba",
     "npm": "@ai-sdk/openai-compatible",
@@ -229,6 +240,17 @@
       "CLAUDINIO_API_KEY"
     ],
     "model_count": 2
+  },
+  {
+    "id": "cline-pass",
+    "display_name": "ClinePass",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.cline.bot/api/v1",
+    "doc": "https://docs.cline.bot/getting-started/clinepass",
+    "env": [
+      "CLINE_API_KEY"
+    ],
+    "model_count": 10
   },
   {
     "id": "cloudferro-sherlock",
@@ -648,7 +670,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 172
+    "model_count": 174
   },
   {
     "id": "llmtr",
@@ -968,7 +990,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 79
+    "model_count": 82
   },
   {
     "id": "opencode-go",
@@ -1432,7 +1454,7 @@
     "env": [
       "WANDB_API_KEY"
     ],
-    "model_count": 29
+    "model_count": 30
   },
   {
     "id": "xiaomi",
