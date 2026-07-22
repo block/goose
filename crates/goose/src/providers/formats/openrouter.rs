@@ -113,6 +113,9 @@ pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
         let clamped_effort = obj
             .remove("reasoning_effort")
             .and_then(|value| value.as_str().map(str::to_owned));
+        if effort == ThinkingEffort::Off {
+            return;
+        }
         if clamped_effort.is_none() && !model_config.is_reasoning_model() {
             return;
         }
@@ -309,5 +312,24 @@ mod tests {
         apply_reasoning_config(&mut payload, &model_config);
 
         assert!(payload.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_off_ignores_clamped_effort() {
+        let mut payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning_effort": "low"
+        });
+        let mut model_config = ModelConfig::new("openai/gpt-5");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+        model_config.reasoning = Some(true);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert!(payload.get("reasoning").is_none());
+        assert!(payload.get("reasoning_effort").is_none());
     }
 }
