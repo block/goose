@@ -15,6 +15,7 @@ show_usage() {
   echo "      --quant TEXT         Forwarded to goose lm search"
   echo "      --download-retries N Retry model downloads after HF rate limits (default: 3)"
   echo "      --retry-delay SEC    Initial retry delay for HF rate limits (default: 60)"
+  echo "      --run-timeout SEC    Kill a model run after this many seconds (default: 600, 0 disables)"
   echo "      --keep-downloads     Do not delete models after testing"
   echo "  -h, --help               Show this help message"
   echo ""
@@ -33,6 +34,7 @@ REPO_SUFFIX=""
 QUANT="Q4"
 DOWNLOAD_RETRIES=3
 RETRY_DELAY=60
+RUN_TIMEOUT=600
 KEEP_DOWNLOADS=false
 
 while [[ $# -gt 0 ]]; do
@@ -77,6 +79,10 @@ while [[ $# -gt 0 ]]; do
       RETRY_DELAY="$2"
       shift 2
       ;;
+    --run-timeout)
+      RUN_TIMEOUT="$2"
+      shift 2
+      ;;
     --keep-downloads)
       KEEP_DOWNLOADS=true
       shift
@@ -105,6 +111,11 @@ fi
 
 if ! [[ "$RETRY_DELAY" =~ ^[0-9]+$ ]]; then
   echo "Error: --retry-delay must be a non-negative integer"
+  exit 1
+fi
+
+if ! [[ "$RUN_TIMEOUT" =~ ^[0-9]+$ ]]; then
+  echo "Error: --run-timeout must be a non-negative integer"
   exit 1
 fi
 
@@ -222,6 +233,22 @@ download_model() {
   done
 }
 
+run_model() {
+  local model_id="$1"
+  local log_file="$2"
+
+  if [[ "$RUN_TIMEOUT" -eq 0 ]]; then
+    GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$log_file"
+    return ${PIPESTATUS[0]}
+  fi
+
+  perl -e 'alarm shift; exec @ARGV' \
+    "$RUN_TIMEOUT" \
+    env GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
+    "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$log_file"
+  return ${PIPESTATUS[0]}
+}
+
 echo "Testing ${#MODELS[@]} model(s)"
 echo ""
 
@@ -258,13 +285,17 @@ for row in "${MODELS[@]}"; do
 
   if [[ "$downloaded" = true ]]; then
     set +e
-    GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$run_log"
-    run_status=${PIPESTATUS[0]}
+    run_model "$model_id" "$run_log"
+    run_status=$?
     set -e
 
     if [[ ! -s "$run_log" ]]; then
       echo "Run produced no output for $model_id"
       RESULTS+=("FAIL $model_id - empty output")
+      OVERALL_SUCCESS=false
+    elif [[ "$run_status" -eq 142 ]]; then
+      echo "Run timed out after ${RUN_TIMEOUT}s for $model_id"
+      RESULTS+=("FAIL $model_id - run timed out")
       OVERALL_SUCCESS=false
     elif [[ "$run_status" -eq 0 ]]; then
       echo "Run passed for $model_id"
