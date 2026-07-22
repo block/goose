@@ -10,6 +10,8 @@ use serde_json::{json, Map, Value};
 use std::sync::Arc;
 use tokio::spawn;
 
+use super::chain::ReadyToolChain;
+
 const TOOL_CHAIN_SUMMARY_META_KEY: &str = "toolChainSummary";
 
 pub(crate) fn tool_chain_summary(chain_summary: &ToolChainSummary) -> (String, Value) {
@@ -29,97 +31,71 @@ fn build_chain_summary_update(
     ToolCallUpdate::new(ToolCallId::new(tool_call_id), ToolCallUpdateFields::new()).meta(Some(meta))
 }
 
-pub(crate) struct ToolTitleEnrichmentContext {
-    agent: Arc<Agent>,
+pub(crate) fn spawn_tool_title_enrichment(
+    agent: &Arc<Agent>,
     tool_call_notifier: ToolCallNotifier,
-    session_manager: Arc<SessionManager>,
-    session_id: String,
-    message_id: Option<String>,
-}
+    session_manager: &Arc<SessionManager>,
+    session_id: &str,
+    message_id: Option<&str>,
+    tool_request: &ToolRequest,
+) {
+    let agent = agent.clone();
+    let session_manager = session_manager.clone();
+    let session_id = session_id.to_string();
+    let message_id = message_id.map(str::to_string);
+    let tool_request = tool_request.clone();
 
-impl ToolTitleEnrichmentContext {
-    pub(crate) fn new(
-        agent: &Arc<Agent>,
-        tool_call_notifier: &ToolCallNotifier,
-        session_manager: &Arc<SessionManager>,
-        session_id: &str,
-        message_id: Option<&str>,
-    ) -> Self {
-        Self {
-            agent: agent.clone(),
-            tool_call_notifier: tool_call_notifier.clone(),
-            session_manager: session_manager.clone(),
-            session_id: session_id.to_string(),
-            message_id: message_id.map(str::to_string),
+    spawn(async move {
+        if let Some(title) = generate_tool_title(
+            agent.as_ref(),
+            session_manager.as_ref(),
+            &session_id,
+            message_id.as_deref(),
+            &tool_request,
+        )
+        .await
+        {
+            let _ = tool_call_notifier.send_update(ToolCallUpdate::new(
+                ToolCallId::new(tool_request.id),
+                ToolCallUpdateFields::new().title(title),
+            ));
         }
-    }
-
-    pub(crate) fn spawn_title_enrichment(self, tool_request: &ToolRequest) {
-        let tool_request = tool_request.clone();
-
-        spawn(async move {
-            if let Some(title) = generate_tool_title(
-                self.agent.as_ref(),
-                self.session_manager.as_ref(),
-                &self.session_id,
-                self.message_id.as_deref(),
-                &tool_request,
-            )
-            .await
-            {
-                let _ = self.tool_call_notifier.send_update(ToolCallUpdate::new(
-                    ToolCallId::new(tool_request.id),
-                    ToolCallUpdateFields::new().title(title),
-                ));
-            }
-        });
-    }
+    });
 }
 
-pub(crate) struct ChainSummaryEnrichmentContext {
-    agent: Arc<Agent>,
-    session_id: SessionId,
+pub(crate) fn spawn_chain_summary_enrichment(
+    agent: &Arc<Agent>,
+    session_id: &SessionId,
     tool_call_notifier: ToolCallNotifier,
-    session_manager: Arc<SessionManager>,
-}
+    session_manager: &Arc<SessionManager>,
+    chain: ReadyToolChain,
+) {
+    let agent = agent.clone();
+    let session_id = session_id.clone();
+    let session_manager = session_manager.clone();
 
-impl ChainSummaryEnrichmentContext {
-    pub(crate) fn new(
-        agent: &Arc<Agent>,
-        session_id: &SessionId,
-        tool_call_notifier: &ToolCallNotifier,
-        session_manager: &Arc<SessionManager>,
-    ) -> Self {
-        Self {
-            agent: agent.clone(),
-            session_id: session_id.clone(),
-            tool_call_notifier: tool_call_notifier.clone(),
-            session_manager: session_manager.clone(),
-        }
-    }
+    spawn(async move {
+        let ReadyToolChain {
+            message_id,
+            tool_requests,
+        } = chain;
+        let first_tool_call_id = tool_requests[0].id.clone();
 
-    pub(crate) fn spawn_chain_summary(self, message_id: String, tool_requests: Vec<ToolRequest>) {
-        spawn(async move {
-            let Some(first_tool_call_id) = tool_requests.first().map(|request| request.id.clone())
-            else {
-                return;
-            };
-            let Some(chain_summary) = generate_tool_chain_summary(
-                self.agent.as_ref(),
-                self.session_manager.as_ref(),
-                &self.session_id.0,
-                &message_id,
-                &tool_requests,
-            )
-            .await
-            else {
-                return;
-            };
+        let Some(summary) = generate_tool_chain_summary(
+            agent.as_ref(),
+            session_manager.as_ref(),
+            &session_id.0,
+            &message_id,
+            &tool_requests,
+        )
+        .await
+        else {
+            return;
+        };
 
-            let update = build_chain_summary_update(first_tool_call_id, &chain_summary);
-            let _ = self.tool_call_notifier.send_update(update);
-        });
-    }
+        let update = build_chain_summary_update(first_tool_call_id, &summary);
+        let _ = tool_call_notifier.send_update(update);
+    });
 }
 
 #[cfg(test)]

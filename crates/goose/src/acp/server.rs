@@ -76,12 +76,12 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use self::tool_calls::chain::{extend_chain_membership, ToolChain};
+use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
     build_initial_tool_call, format_tool_name, tool_call_update_fields_from_response,
     trusted_update_meta,
 };
-use self::tool_calls::enrichment::{ChainSummaryEnrichmentContext, ToolTitleEnrichmentContext};
+use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
@@ -172,18 +172,6 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 struct GooseAcpSession {
     agent: Arc<Agent>,
     tool_requests: HashMap<String, crate::conversation::message::ToolRequest>,
-    /// For each tool_call_id that belongs to a multi-tool chain (run of
-    /// consecutive ToolRequest blocks within one assistant message), the chain
-    /// it belongs to. Populated when the assistant message is processed.
-    /// Used by `handle_tool_response` to detect when a chain has fully
-    /// completed and fire a single LLM summary covering the run.
-    chain_membership: HashMap<String, Arc<ToolChain>>,
-    /// Set of tool_call_ids whose ToolResponse has already been processed.
-    /// Drives the "all responses present" check for chain completion.
-    responded_tool_ids: HashSet<String>,
-    /// Tool_call_ids of chains that have already had a summary task fired.
-    /// Idempotence guard so we summarize each chain at most once.
-    summarized_chains: HashSet<String>,
 }
 
 struct ActivePromptRun {
@@ -922,9 +910,6 @@ impl GooseAcpAgent {
         let acp_session = GooseAcpSession {
             agent,
             tool_requests,
-            chain_membership: HashMap::new(),
-            responded_tool_ids: HashSet::new(),
-            summarized_chains: HashSet::new(),
         };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
@@ -1051,15 +1036,8 @@ impl GooseAcpAgent {
                 .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
-                self.handle_tool_response(
-                    tool_response,
-                    session_id,
-                    session_id_str,
-                    message_id,
-                    session,
-                    cx,
-                )
-                .await?;
+                self.handle_tool_response(tool_response, session_id, session, cx)
+                    .await?;
             }
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
@@ -1149,6 +1127,23 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    fn spawn_ready_chain_summary(
+        &self,
+        chain: ReadyToolChain,
+        agent: &Arc<Agent>,
+        session_id: &SessionId,
+        cx: &ConnectionTo<Client>,
+    ) {
+        let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
+        spawn_chain_summary_enrichment(
+            agent,
+            session_id,
+            tool_call_notifier,
+            &self.session_manager,
+            chain,
+        );
+    }
+
     async fn handle_tool_request(
         &self,
         tool_request: &crate::conversation::message::ToolRequest,
@@ -1174,14 +1169,14 @@ impl GooseAcpAgent {
         }
 
         if tool_request.tool_call.is_ok() {
-            ToolTitleEnrichmentContext::new(
+            spawn_tool_title_enrichment(
                 &session.agent,
-                &tool_call_notifier,
+                tool_call_notifier,
                 &self.session_manager,
                 session_id_for_persist,
                 message_id,
-            )
-            .spawn_title_enrichment(tool_request);
+                tool_request,
+            );
         }
 
         Ok(())
@@ -1191,8 +1186,6 @@ impl GooseAcpAgent {
         &self,
         tool_response: &ToolResponse,
         session_id: &SessionId,
-        session_id_str: &str,
-        message_id: Option<&str>,
         session: &mut GooseAcpSession,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
@@ -1206,85 +1199,7 @@ impl GooseAcpAgent {
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 
-        // Chain summarization: when this response completes a multi-tool
-        // chain, fire one LLM summary covering the run.
-        session.responded_tool_ids.insert(tool_response.id.clone());
-        self.maybe_summarize_chain(
-            &tool_response.id,
-            session_id,
-            session_id_str,
-            session,
-            &tool_call_notifier,
-        );
-        let _ = message_id;
-
         Ok(())
-    }
-
-    /// If `tool_call_id` belongs to a multi-tool chain and every step in that
-    /// chain has now had its response processed, spawn a single LLM
-    /// summarization task that persists the chain summary on the first tool
-    /// request and notifies the client. Idempotent — fires at most once per
-    /// chain.
-    fn maybe_summarize_chain(
-        &self,
-        tool_call_id: &str,
-        session_id: &SessionId,
-        _session_id_str: &str,
-        session: &mut GooseAcpSession,
-        tool_call_notifier: &ToolCallNotifier,
-    ) {
-        let Some(chain) = session.chain_membership.get(tool_call_id).cloned() else {
-            warn!(
-                "tool chain summary: skipped — no chain registered for tool_call_id {tool_call_id}",
-            );
-            return;
-        };
-        if !chain
-            .ids
-            .iter()
-            .all(|id| session.responded_tool_ids.contains(id))
-        {
-            let total = chain.ids.len();
-            let responded = chain
-                .ids
-                .iter()
-                .filter(|id| session.responded_tool_ids.contains(*id))
-                .count();
-            let missing: Vec<&String> = chain
-                .ids
-                .iter()
-                .filter(|id| !session.responded_tool_ids.contains(*id))
-                .collect();
-            warn!(
-                "tool chain summary: waiting on {pending}/{total} responses for chain anchored at {anchor:?} (missing: {missing:?})",
-                pending = total - responded,
-                anchor = chain.ids.first(),
-            );
-            return;
-        }
-        let Some(first_id) = chain.ids.first() else {
-            warn!("tool chain summary: skipped — empty chain.ids for tool_call_id {tool_call_id}");
-            return;
-        };
-        if !session.summarized_chains.insert(first_id.clone()) {
-            debug!("tool chain summary: chain anchored at {first_id} already summarized; skipping");
-            return;
-        }
-
-        let tool_requests: Vec<ToolRequest> = chain
-            .ids
-            .iter()
-            .filter_map(|id| session.tool_requests.get(id).cloned())
-            .collect();
-
-        ChainSummaryEnrichmentContext::new(
-            &session.agent,
-            session_id,
-            tool_call_notifier,
-            &self.session_manager,
-        )
-        .spawn_chain_summary(chain.message_id.clone(), tool_requests);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1962,17 +1877,7 @@ impl GooseAcpAgent {
         let mut was_cancelled = false;
         let mut first_event_logged = false;
         let mut event_count: u32 = 0;
-        // Streaming chain buffer: tracks consecutive tool requests across
-        // `AgentEvent::Message` events so chains that span multiple rows are
-        // still registered. Sequential tool use (Bedrock/Anthropic) yields
-        // request → response → request → response across separate
-        // assistant/user messages, so tool responses are chain-neutral; only
-        // non-tool content (text, thinking, image, etc.) breaks the run.
-        // Holds `(tool_call_id, message_id_of_owning_row)` in arrival order;
-        // re-registered eagerly each time a request arrives so
-        // `handle_tool_response` finds the chain when subsequent responses
-        // are processed.
-        let mut chain_buffer: Vec<(String, String)> = Vec::new();
+        let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
 
         while let Some(event) = stream.next().await {
@@ -2011,33 +1916,6 @@ impl GooseAcpAgent {
                             break;
                         }
 
-                        match content_item {
-                            MessageContent::ToolRequest(tr) => {
-                                if let Some(msg_id) = stored_message_id.as_deref() {
-                                    chain_buffer.push((tr.id.clone(), msg_id.to_string()));
-                                    // Re-register eagerly so the chain is in
-                                    // place by the time the matching
-                                    // `tool_response` triggers
-                                    // `maybe_summarize_chain` (sequential
-                                    // tool use interleaves request/response
-                                    // events).
-                                    extend_chain_membership(
-                                        &chain_buffer,
-                                        &mut session.chain_membership,
-                                    );
-                                }
-                            }
-                            MessageContent::ToolResponse(_) => {
-                                // Chain-neutral: a response between two
-                                // requests doesn't break the run, matching
-                                // the frontend's `groupContentSections`.
-                            }
-                            _ => {
-                                // Text, thinking, image, etc. end the run.
-                                chain_buffer.clear();
-                            }
-                        }
-
                         if let Err(error) = self
                             .handle_message_content(
                                 content_item,
@@ -2055,6 +1933,29 @@ impl GooseAcpAgent {
                         {
                             stream_error = Some(error);
                             break;
+                        }
+
+                        let ready_chain = match content_item {
+                            MessageContent::ToolRequest(tool_request) => {
+                                if let Some(message_id) = stored_message_id.as_deref() {
+                                    chain_tracker.record_request(
+                                        tool_request.clone(),
+                                        message_id.to_string(),
+                                    );
+                                }
+                                None
+                            }
+                            MessageContent::ToolResponse(tool_response) => {
+                                chain_tracker.record_response(&tool_response.id)
+                            }
+                            content if breaks_consecutive_tool_calls(content) => {
+                                chain_tracker.close_current_chain()
+                            }
+                            _ => None,
+                        };
+
+                        if let Some(chain) = ready_chain {
+                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
                         }
                     }
                     if stream_error.is_some() {
@@ -2090,14 +1991,9 @@ impl GooseAcpAgent {
             }
         }
 
-        {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                // Final safety net: in case the stream ended without any
-                // chain-breaking content, make sure a multi-tool buffer is
-                // registered. (Eager registration during the loop usually
-                // covers this.)
-                extend_chain_membership(&chain_buffer, &mut session.chain_membership);
+        if !was_cancelled && stream_error.is_none() {
+            if let Some(chain) = chain_tracker.close_current_chain() {
+                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
             }
         }
         self.clear_active_run(&session_id, &run_id).await;
