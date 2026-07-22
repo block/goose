@@ -76,6 +76,43 @@ async fn await_cancellation(cancel_token: &Option<CancellationToken>) {
     }
 }
 
+/// Forwards a cancellation to the provider from a detached task, so a
+/// remote-backed turn (e.g. an ACP agent) still receives `session/cancel` even
+/// when the reply-stream consumer drops the stream on cancel instead of polling
+/// it to completion (the CLI Ctrl-C path does exactly this). The task fires as
+/// soon as the token is cancelled, independent of stream lifecycle.
+///
+/// The guard lives inside the reply stream: dropping the stream aborts the
+/// forwarder unless cancellation is already in flight, so a turn that ends
+/// normally does not leave a task waiting on a token that never fires.
+struct CancelForwarder {
+    handle: tokio::task::JoinHandle<()>,
+    token: CancellationToken,
+}
+
+impl CancelForwarder {
+    fn spawn(
+        token: CancellationToken,
+        provider: Arc<dyn crate::providers::base::Provider>,
+        session_id: String,
+    ) -> Self {
+        let watch_token = token.clone();
+        let handle = tokio::spawn(async move {
+            watch_token.cancelled().await;
+            provider.cancel(&session_id).await;
+        });
+        Self { handle, token }
+    }
+}
+
+impl Drop for CancelForwarder {
+    fn drop(&mut self) {
+        if !self.token.is_cancelled() {
+            self.handle.abort();
+        }
+    }
+}
+
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
@@ -2074,7 +2111,13 @@ impl Agent {
                 );
             }
         }
+        let cancel_forwarder = cancel_token.as_ref().map(|token| {
+            CancelForwarder::spawn(token.clone(), provider.clone(), session_config.id.clone())
+        });
         let inner = Box::pin(async_stream::try_stream! {
+            // Kept alive for the stream's lifetime; dropping the stream (e.g. a
+            // consumer that drops us on cancel) tears the forwarder down.
+            let _cancel_forwarder = cancel_forwarder;
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
                 Config::global()
@@ -2254,16 +2297,12 @@ impl Agent {
                     // that drives a remote turn (ACP) may go silent for minutes
                     // mid-turn, so waiting on `stream.next()` alone would leave
                     // the reply future — and the UI — stuck until the backend
-                    // finishes on its own. On cancel, forward it to the provider
-                    // so the backend stops promptly, then break like end-of-stream.
+                    // finishes on its own. Stop polling promptly on cancel; the
+                    // detached `CancelForwarder` delivers `session/cancel` to the
+                    // provider so it runs regardless of who drops the stream.
                     let next = tokio::select! {
                         biased;
-                        () = await_cancellation(&cancel_token) => {
-                            if let Ok(provider) = self.provider().await {
-                                provider.cancel(&session_config.id).await;
-                            }
-                            break;
-                        }
+                        () = await_cancellation(&cancel_token) => break,
                         item = stream.next() => item,
                     };
                     let Some(next) = next else {
@@ -4330,9 +4369,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     /// Provider whose stream never yields and never ends, mimicking an ACP
-    /// backend that goes silent mid-turn. Records whether `cancel` was called.
+    /// backend that goes silent mid-turn. Signals when its stream is polled and
+    /// records `cancel` calls.
     struct HangingProvider {
         stream_entered: Arc<tokio::sync::Notify>,
+        cancel_called: Arc<tokio::sync::Notify>,
         cancel_calls: AtomicUsize,
         cancelled_session: std::sync::Mutex<Option<String>>,
     }
@@ -4341,6 +4382,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         fn new() -> Self {
             Self {
                 stream_entered: Arc::new(tokio::sync::Notify::new()),
+                cancel_called: Arc::new(tokio::sync::Notify::new()),
                 cancel_calls: AtomicUsize::new(0),
                 cancelled_session: std::sync::Mutex::new(None),
             }
@@ -4369,7 +4411,32 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         async fn cancel(&self, session_id: &str) {
             self.cancel_calls.fetch_add(1, Ordering::SeqCst);
             *self.cancelled_session.lock().unwrap() = Some(session_id.to_string());
+            self.cancel_called.notify_one();
         }
+    }
+
+    fn stalled_reply_session_config(session_id: &str) -> SessionConfig {
+        SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        }
+    }
+
+    /// Cancels `token` once the provider stream has actually been polled, so
+    /// tests exercise the mid-stream cancel path rather than the top-of-loop
+    /// cancel check.
+    fn cancel_once_stream_is_stalled(
+        token: CancellationToken,
+        stream_entered: Arc<tokio::sync::Notify>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let _ =
+                tokio::time::timeout(std::time::Duration::from_secs(5), stream_entered.notified())
+                    .await;
+            token.cancel();
+        })
     }
 
     #[tokio::test]
@@ -4380,35 +4447,21 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let (agent, session_id) =
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
 
-        let session_config = SessionConfig {
-            id: session_id.clone(),
-            schedule_id: None,
-            max_turns: Some(10),
-            retry_config: None,
-        };
-
-        // Cancel only once the reply loop is actually parked on the stalled
-        // stream, so the test exercises the mid-stream cancel path rather than
-        // the top-of-loop cancel check.
         let cancel_token = CancellationToken::new();
-        let cancel_for_task = cancel_token.clone();
-        let stream_entered = provider.stream_entered.clone();
-        let canceller = tokio::spawn(async move {
-            let _ =
-                tokio::time::timeout(std::time::Duration::from_secs(5), stream_entered.notified())
-                    .await;
-            cancel_for_task.cancel();
-        });
+        let canceller =
+            cancel_once_stream_is_stalled(cancel_token.clone(), provider.stream_entered.clone());
 
         let reply_stream = agent
             .reply(
                 Message::user().with_text("hi"),
-                session_config,
+                stalled_reply_session_config(&session_id),
                 Some(cancel_token),
             )
             .await?;
         tokio::pin!(reply_stream);
 
+        // A consumer that polls to completion (e.g. the ACP server) must see the
+        // reply end promptly on cancel rather than blocking on the silent stream.
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             while let Some(event) = reply_stream.next().await {
                 let _ = event;
@@ -4419,16 +4472,64 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         canceller.await.expect("canceller task panicked");
 
-        assert_eq!(
-            provider.cancel_calls.load(Ordering::SeqCst),
-            1,
-            "cancellation must be forwarded to the provider exactly once"
-        );
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            provider.cancel_called.notified(),
+        )
+        .await
+        .expect("cancellation was not forwarded to the provider");
+        assert_eq!(provider.cancel_calls.load(Ordering::SeqCst), 1);
         assert_eq!(
             provider.cancelled_session.lock().unwrap().as_deref(),
             Some(session_id.as_str()),
             "provider cancel must receive the active session id"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cancellation_forwards_to_provider_even_when_stream_is_dropped() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(HangingProvider::new());
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let cancel_token = CancellationToken::new();
+        let canceller =
+            cancel_once_stream_is_stalled(cancel_token.clone(), provider.stream_entered.clone());
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                stalled_reply_session_config(&session_id),
+                Some(cancel_token.clone()),
+            )
+            .await?;
+
+        // Mimic the CLI Ctrl-C path: the consumer drops the reply stream on
+        // cancel instead of polling it to completion. The detached forwarder
+        // must still deliver the cancellation to the provider.
+        let mut reply_stream = reply_stream;
+        tokio::select! {
+            _ = cancel_token.cancelled() => {}
+            _ = async {
+                while let Some(event) = reply_stream.next().await {
+                    let _ = event;
+                }
+            } => {}
+        }
+        drop(reply_stream);
+
+        canceller.await.expect("canceller task panicked");
+
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            provider.cancel_called.notified(),
+        )
+        .await
+        .expect("cancellation was not forwarded after the stream was dropped");
+        assert_eq!(provider.cancel_calls.load(Ordering::SeqCst), 1);
         Ok(())
     }
 

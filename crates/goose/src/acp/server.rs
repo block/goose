@@ -1898,6 +1898,14 @@ impl GooseAcpAgent {
             return Err(error);
         }
 
+        // A cancel that lands while the provider stream is quiet ends the reply
+        // stream cleanly (EOF) rather than surfacing an event, so the in-loop
+        // check above never runs. Re-check the token so the turn is still
+        // reported as cancelled instead of a normal completion.
+        if cancel_token.is_cancelled() {
+            was_cancelled = true;
+        }
+
         let session = self
             .session_manager
             .get_session(&session_id, false)
