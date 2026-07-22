@@ -13,6 +13,8 @@ show_usage() {
   echo "      --repo-prefix TEXT   Forwarded to goose lm search"
   echo "      --repo-suffix TEXT   Forwarded to goose lm search"
   echo "      --quant TEXT         Forwarded to goose lm search"
+  echo "      --download-retries N Retry model downloads after HF rate limits (default: 3)"
+  echo "      --retry-delay SEC    Initial retry delay for HF rate limits (default: 60)"
   echo "      --keep-downloads     Do not delete models after testing"
   echo "  -h, --help               Show this help message"
   echo ""
@@ -29,6 +31,8 @@ INSTRUCTION="Say hello in one short sentence. Do not use tools."
 REPO_PREFIX="unsloth/"
 REPO_SUFFIX=""
 QUANT="Q4"
+DOWNLOAD_RETRIES=3
+RETRY_DELAY=60
 KEEP_DOWNLOADS=false
 
 while [[ $# -gt 0 ]]; do
@@ -65,6 +69,14 @@ while [[ $# -gt 0 ]]; do
       QUANT="$2"
       shift 2
       ;;
+    --download-retries)
+      DOWNLOAD_RETRIES="$2"
+      shift 2
+      ;;
+    --retry-delay)
+      RETRY_DELAY="$2"
+      shift 2
+      ;;
     --keep-downloads)
       KEEP_DOWNLOADS=true
       shift
@@ -83,6 +95,16 @@ done
 
 if ! [[ "$TOP_N" =~ ^[0-9]+$ ]] || [[ "$TOP_N" -eq 0 ]]; then
   echo "Error: --top-n must be a positive integer"
+  exit 1
+fi
+
+if ! [[ "$DOWNLOAD_RETRIES" =~ ^[0-9]+$ ]]; then
+  echo "Error: --download-retries must be a non-negative integer"
+  exit 1
+fi
+
+if ! [[ "$RETRY_DELAY" =~ ^[0-9]+$ ]]; then
+  echo "Error: --retry-delay must be a non-negative integer"
   exit 1
 fi
 
@@ -171,6 +193,35 @@ fi
 RESULTS=()
 OVERALL_SUCCESS=true
 
+download_model() {
+  local download_id="$1"
+  local log_file="$2"
+  local attempt=1
+  local delay="$RETRY_DELAY"
+
+  while true; do
+    : > "$log_file"
+    if "$GOOSE_BIN" lm download "$download_id" 2>&1 | tee "$log_file"; then
+      return 0
+    fi
+
+    if ! grep -q "429 Too Many Requests" "$log_file"; then
+      return 1
+    fi
+
+    if [[ "$attempt" -gt "$DOWNLOAD_RETRIES" ]]; then
+      return 2
+    fi
+
+    echo "Hugging Face rate limit hit. Retrying in ${delay}s ($attempt/$DOWNLOAD_RETRIES)..."
+    sleep "$delay"
+    attempt=$((attempt + 1))
+    if [[ "$delay" -gt 0 ]]; then
+      delay=$((delay * 2))
+    fi
+  done
+}
+
 echo "Testing ${#MODELS[@]} model(s)"
 echo ""
 
@@ -189,8 +240,16 @@ for row in "${MODELS[@]}"; do
   echo "=========================================================="
 
   downloaded=false
-  if "$GOOSE_BIN" lm download "$download_id" 2>&1 | tee "$download_log"; then
+  set +e
+  download_model "$download_id" "$download_log"
+  download_status=$?
+  set -e
+  if [[ "$download_status" -eq 0 ]]; then
     downloaded=true
+  elif [[ "$download_status" -eq 2 ]]; then
+    echo "Download rate limited for $model_id"
+    RESULTS+=("FAIL $model_id - Hugging Face rate limited")
+    OVERALL_SUCCESS=false
   else
     echo "Download failed for $model_id"
     RESULTS+=("FAIL $model_id - download failed")
