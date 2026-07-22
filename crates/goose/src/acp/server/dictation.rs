@@ -101,9 +101,8 @@ impl GooseAcpAgent {
                 use crate::dictation::providers::AzureSpeechEndpointKind;
 
                 let endpoint = crate::dictation::providers::azure_speech_endpoint(config).ok();
-                let host_from_environment = config
-                    .environment_value("AZURE_SPEECH_ENDPOINT")
-                    .is_some_and(|value| !value.trim().is_empty());
+                let host_from_environment =
+                    config.environment_value("AZURE_SPEECH_ENDPOINT").is_some();
                 let host_in_storage = config
                     .has_writable_value("AZURE_SPEECH_ENDPOINT", false)
                     .unwrap_or(false);

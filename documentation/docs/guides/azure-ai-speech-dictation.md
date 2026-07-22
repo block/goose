@@ -33,7 +33,7 @@ goose selects credentials in this order:
 4. `AZURE_FOUNDRY_API_KEY`, with the same compatibility requirement
 5. Azure CLI credentials
 
-A unified Azure AI Foundry resource can reuse its Foundry credentials. A separate Azure AI Speech resource requires Speech-specific credentials or Azure CLI authentication; Goose never sends Foundry credentials to an unrelated Speech endpoint.
+A unified Azure AI Foundry resource can reuse its Foundry credentials. A separate Azure AI Speech resource requires Speech-specific credentials or Azure CLI authentication; goose never sends Foundry credentials to an unrelated Speech endpoint.
 
 To use Azure CLI credentials instead of a key:
 
@@ -77,7 +77,7 @@ The Desktop settings do not currently include a language selector. Configure the
 1. Open **Settings** → **Chat** → **Voice Dictation Provider**.
 2. Select **Azure_foundry**.
 3. Enter the Speech endpoint, or keep the endpoint derived from a compatible Foundry resource.
-4. Optionally enter a Speech-specific key. Otherwise Goose uses compatible unified Foundry credentials or Azure CLI authentication.
+4. Optionally enter a Speech-specific key. Otherwise goose uses compatible unified Foundry credentials or Azure CLI authentication.
 
 The provider calls:
 

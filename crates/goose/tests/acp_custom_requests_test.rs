@@ -1146,6 +1146,35 @@ fn test_custom_dictation_config_marks_environment_values_read_only() {
 
 #[test]
 #[serial]
+fn test_custom_dictation_config_marks_blank_environment_endpoint_read_only() {
+    let _env = env_lock::lock_env([
+        ("AZURE_SPEECH_ENDPOINT", Some("   ")),
+        ("AZURE_SPEECH_KEY", None::<&str>),
+        ("AZURE_FOUNDRY_ENDPOINT", None::<&str>),
+    ]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+        let response = send_custom(
+            conn.cx(),
+            "_goose/unstable/dictation/config",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("dictation config should succeed");
+        let azure = response
+            .pointer("/providers/azure_foundry")
+            .expect("missing Azure dictation provider");
+        assert_eq!(
+            azure.get("hostCanOverride"),
+            Some(&serde_json::json!(false))
+        );
+    });
+}
+
+#[test]
+#[serial]
 fn test_raw_config_and_secret_methods_are_removed() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
