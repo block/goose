@@ -96,20 +96,9 @@ impl RetryManager {
         *self.attempts.lock().await
     }
 
-    /// Reset status for retry: clear message history and final output tool state
-    async fn reset_status_for_retry(
-        messages: &mut Conversation,
-        initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
-    ) {
+    async fn reset_status_for_retry(messages: &mut Conversation, initial_messages: &[Message]) {
         *messages = Conversation::new_unvalidated(initial_messages.to_vec());
         info!("Reset message history to initial state for retry");
-
-        let mut guard = final_output_tool.lock().await;
-        if let Some(fot) = guard.as_mut() {
-            fot.final_output = None;
-            info!("Cleared final output tool state for retry");
-        }
     }
 
     pub async fn handle_retry_logic(
@@ -117,7 +106,6 @@ impl RetryManager {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-        final_output_tool: &Arc<Mutex<Option<crate::agents::final_output_tool::FinalOutputTool>>>,
     ) -> Result<RetryResult> {
         let Some(retry_config) = &session_config.retry_config else {
             return Ok(RetryResult::Skipped);
@@ -153,7 +141,7 @@ impl RetryManager {
             execute_on_failure_command(on_failure_cmd, retry_config).await?;
         }
 
-        Self::reset_status_for_retry(messages, initial_messages, final_output_tool).await;
+        Self::reset_status_for_retry(messages, initial_messages).await;
 
         let new_attempts = self.increment_attempts().await;
         info!("Incrementing retry attempts to {}", new_attempts);

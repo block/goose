@@ -1,44 +1,474 @@
-use std::collections::HashSet;
+//! Exposes extension capabilities and executes requests that belong to them.
+
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
-use rmcp::model::{CallToolResult, Content, Role};
+use futures::{FutureExt, StreamExt};
+use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorData, Role, Tool};
 
-use crate::agents::agent::{tool_stream, ToolStreamItem};
+use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult};
+use crate::agents::state_machine::operation::{
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
+    SlashCommand, TurnEffect,
+};
 use crate::agents::state_machine::ops_tool_approval::request_executable;
-use crate::agents::tool_execution::ToolCallResult;
-use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::{Agent, AgentEvent};
+use crate::agents::tool_execution::{
+    tool_stream, ToolCallResult, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
+};
+use crate::agents::AgentEvent;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::session::Session;
+use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
+use crate::session::{EnabledExtensionsState, ExtensionState, Session, SessionManager};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
-pub struct ToolExecutionOperation<'a> {
-    agent: &'a Agent,
+#[derive(Clone, Copy)]
+enum ToolCategory {
+    Shell,
+    Read,
+    Write,
+    Other,
 }
 
-impl<'a> ToolExecutionOperation<'a> {
-    pub fn new(agent: &'a Agent) -> Self {
-        Self { agent }
+fn categorize_tool(tool_name: &str) -> ToolCategory {
+    match tool_name.rsplit("__").next().unwrap_or(tool_name) {
+        "shell" | "bash" | "exec" | "run" => ToolCategory::Shell,
+        "read" | "view" | "cat" | "read_file" => ToolCategory::Read,
+        "write" | "edit" | "patch" | "write_file" | "edit_file" => ToolCategory::Write,
+        _ => ToolCategory::Other,
     }
 }
 
-pub(crate) fn current_request_start(messages: &[Message]) -> usize {
-    messages
-        .iter()
-        .rposition(|m| m.role == Role::User && !m.is_tool_response() && m.is_agent_visible())
-        .unwrap_or(0)
+fn string_argument(input: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    let arguments = input.as_object()?;
+    keys.iter().find_map(|key| {
+        arguments
+            .get(*key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    })
 }
 
-fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolDisposition)> {
+pub struct ToolExecutionOperation<'a> {
+    goose_mode: &'a Mutex<GooseMode>,
+    session_manager: Arc<SessionManager>,
+    extension_manager: Arc<ExtensionManager>,
+    hook_manager: HookManager,
+}
+
+impl<'a> ToolExecutionOperation<'a> {
+    pub fn new(
+        goose_mode: &'a Mutex<GooseMode>,
+        session_manager: Arc<SessionManager>,
+        extension_manager: Arc<ExtensionManager>,
+        hook_manager: HookManager,
+    ) -> Self {
+        Self {
+            goose_mode,
+            session_manager,
+            extension_manager,
+            hook_manager,
+        }
+    }
+
+    async fn emit_with_matcher(
+        &self,
+        event: HookEvent,
+        session: &Session,
+        matcher: String,
+        tool_name: &str,
+        tool_input: Option<serde_json::Value>,
+    ) {
+        if !self.hook_manager.has_hooks(event) {
+            return;
+        }
+        let mut context = HookContext::new(event, &session.id)
+            .with_tool(tool_name.to_string(), tool_input)
+            .with_working_dir(session.working_dir.to_string_lossy().to_string());
+        context.matcher_context = Some(matcher);
+        self.hook_manager.emit(event, context).await;
+    }
+
+    async fn emit_extended_pre_hooks(
+        &self,
+        tool_name: &str,
+        tool_input: Option<&serde_json::Value>,
+        session: &Session,
+    ) {
+        let (event, matcher) = match categorize_tool(tool_name) {
+            ToolCategory::Shell => (
+                HookEvent::BeforeShellExecution,
+                tool_input.and_then(|input| string_argument(input, &["command"])),
+            ),
+            ToolCategory::Read => (
+                HookEvent::BeforeReadFile,
+                tool_input.and_then(|input| string_argument(input, &["path", "file", "file_path"])),
+            ),
+            ToolCategory::Write | ToolCategory::Other => return,
+        };
+        if let Some(matcher) = matcher {
+            self.emit_with_matcher(event, session, matcher, tool_name, tool_input.cloned())
+                .await;
+        }
+    }
+
+    fn with_post_hooks(
+        &self,
+        result: ToolCallResult,
+        tool_call: &CallToolRequestParams,
+        session: &Session,
+    ) -> ToolCallResult {
+        let hook_manager = self.hook_manager.clone();
+        let session_id = session.id.clone();
+        let working_dir = session.working_dir.to_string_lossy().to_string();
+        let tool_name = tool_call.name.to_string();
+        let tool_input = tool_call
+            .arguments
+            .as_ref()
+            .map(|arguments| serde_json::Value::Object(arguments.clone()));
+        let category = categorize_tool(&tool_name);
+        let future = async move {
+            let result =
+                crate::agents::large_response_handler::process_tool_response(result.result.await);
+            let event = match &result {
+                Ok(result) if result.is_error != Some(true) => HookEvent::PostToolUse,
+                _ => HookEvent::PostToolUseFailure,
+            };
+            if hook_manager.has_hooks(event) {
+                let context = HookContext::new(event, &session_id)
+                    .with_tool(tool_name.clone(), tool_input.clone())
+                    .with_working_dir(working_dir.clone());
+                hook_manager.emit(event, context).await;
+            }
+
+            if event == HookEvent::PostToolUse {
+                let extended = match category {
+                    ToolCategory::Shell => Some((
+                        HookEvent::AfterShellExecution,
+                        tool_input
+                            .as_ref()
+                            .and_then(|input| string_argument(input, &["command"])),
+                    )),
+                    ToolCategory::Write => Some((
+                        HookEvent::AfterFileEdit,
+                        tool_input.as_ref().and_then(|input| {
+                            string_argument(input, &["path", "file", "file_path"])
+                        }),
+                    )),
+                    ToolCategory::Read | ToolCategory::Other => None,
+                };
+                if let Some((event, Some(matcher))) = extended {
+                    if hook_manager.has_hooks(event) {
+                        let mut context = HookContext::new(event, &session_id)
+                            .with_tool(tool_name, tool_input)
+                            .with_working_dir(working_dir);
+                        context.matcher_context = Some(matcher);
+                        hook_manager.emit(event, context).await;
+                    }
+                }
+            }
+            result
+        };
+        ToolCallResult {
+            notification_stream: result.notification_stream,
+            action_required_stream: result.action_required_stream,
+            result: Box::new(future.boxed()),
+        }
+    }
+
+    async fn dispatch_tool_call(
+        &self,
+        tool_call: CallToolRequestParams,
+        request_id: String,
+        cancellation_token: CancellationToken,
+        session: &Session,
+    ) -> std::result::Result<ToolCallResult, ErrorData> {
+        let tool_input = tool_call
+            .arguments
+            .as_ref()
+            .map(|arguments| serde_json::Value::Object(arguments.clone()));
+        if self.hook_manager.has_hooks(HookEvent::PreToolUse) {
+            let context = HookContext::new(HookEvent::PreToolUse, &session.id)
+                .with_tool(tool_call.name.to_string(), tool_input.clone())
+                .with_working_dir(session.working_dir.to_string_lossy().to_string());
+            if let HookDecision::Deny { reason, plugin } = self
+                .hook_manager
+                .emit_blocking(HookEvent::PreToolUse, context)
+                .await
+            {
+                return Err(ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    format!(
+                        "Tool call denied by policy hook `{plugin}`: {reason}. \
+                         Do not retry; this is a policy denial, not a transient failure."
+                    ),
+                    None,
+                ));
+            }
+        }
+        self.emit_extended_pre_hooks(&tool_call.name, tool_input.as_ref(), session)
+            .await;
+
+        let context = crate::agents::tool_execution::ToolCallContext::new(
+            session.id.clone(),
+            Some(session.working_dir.clone()),
+            Some(request_id),
+        );
+        let result = self
+            .extension_manager
+            .dispatch_tool_call(&context, tool_call.clone(), cancellation_token)
+            .await;
+        let result = result.unwrap_or_else(|error| {
+            #[cfg(feature = "telemetry")]
+            crate::posthog::emit_error(
+                "tool_execution_failed",
+                &format!("{}: {}", tool_call.name, error),
+            );
+            ToolCallResult::from(Err(error))
+        });
+        Ok(self.with_post_hooks(result, &tool_call, session))
+    }
+
+    async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
+        let session = self.session_manager.get_session(session_id, false).await?;
+        let mut extension_data = session.extension_data;
+        extensions_state.to_extension_data(&mut extension_data)?;
+        self.session_manager
+            .update(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await
+    }
+
+    async fn command_response(
+        conversation: &Conversation,
+        message: String,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let command = messages_since_kickoff(conversation)?
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow!("prompt command conversation has no kickoff message"))?;
+        let message_id = command
+            .id
+            .clone()
+            .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
+        let command = command.with_visibility(true, false);
+        let response = Message::assistant()
+            .with_text(message)
+            .with_visibility(true, false);
+        emit.emit(AgentEvent::Message(command)).await;
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        applied([
+            TurnEffect::SetMessageVisibility {
+                message_id,
+                user_visible: true,
+                agent_visible: false,
+            },
+            response.into(),
+            TurnEffect::YieldToClient,
+        ])
+    }
+
+    async fn list_prompts(
+        &self,
+        command: &SlashCommand<'_>,
+        session: &Session,
+        conversation: &Conversation,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let prompts = match self
+            .extension_manager
+            .list_prompts(&session.id, emit.cancel_token().clone())
+            .await
+        {
+            Ok(prompts) => prompts,
+            Err(error) => {
+                return Self::command_response(
+                    conversation,
+                    format!("Failed to list prompts: {}", error.message),
+                    emit,
+                )
+                .await;
+            }
+        };
+        let extension_filter = command.params_str.split_whitespace().next();
+        if let Some(filter) = extension_filter {
+            if !prompts.contains_key(filter) {
+                return Self::command_response(
+                    conversation,
+                    format!("Extension '{filter}' not found"),
+                    emit,
+                )
+                .await;
+            }
+        }
+
+        let filtered: HashMap<_, _> = prompts
+            .into_iter()
+            .filter(|(extension, _)| extension_filter.is_none_or(|filter| extension == filter))
+            .collect();
+        let mut output = String::new();
+        if filtered.is_empty() {
+            output.push_str("No prompts available.\n");
+        } else {
+            output.push_str("Available prompts:\n\n");
+            for (extension, prompts) in filtered {
+                output.push_str(&format!("**{extension}**:\n"));
+                for prompt in prompts {
+                    output.push_str(&format!("  - {}\n", prompt.name));
+                }
+                output.push('\n');
+            }
+        }
+        Self::command_response(conversation, output, emit).await
+    }
+
+    async fn run_prompt(
+        &self,
+        command: &SlashCommand<'_>,
+        session: &Session,
+        conversation: &Conversation,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let params: Vec<_> = command.params_str.split_whitespace().collect();
+        let Some(prompt_name) = params.first() else {
+            return Self::command_response(
+                conversation,
+                "Prompt name argument is required".to_string(),
+                emit,
+            )
+            .await;
+        };
+        let prompts = match self
+            .extension_manager
+            .list_prompts(&session.id, emit.cancel_token().clone())
+            .await
+        {
+            Ok(prompts) => prompts,
+            Err(error) => {
+                return Self::command_response(
+                    conversation,
+                    format!("Failed to list prompts: {}", error.message),
+                    emit,
+                )
+                .await;
+            }
+        };
+        let found = prompts.iter().find_map(|(extension, prompts)| {
+            prompts
+                .iter()
+                .find(|prompt| prompt.name == *prompt_name)
+                .map(|prompt| (extension.clone(), prompt.clone()))
+        });
+        let Some((extension, prompt)) = found else {
+            return Self::command_response(
+                conversation,
+                format!("Prompt '{prompt_name}' not found"),
+                emit,
+            )
+            .await;
+        };
+
+        if params.get(1) == Some(&"--info") {
+            let mut output = format!("**Prompt: {}**\n\n", prompt.name);
+            if let Some(description) = &prompt.description {
+                output.push_str(&format!("Description: {description}\n\n"));
+            }
+            output.push_str(&format!("Extension: {extension}\n\n"));
+            if let Some(arguments) = &prompt.arguments {
+                output.push_str("Arguments:\n");
+                for argument in arguments {
+                    output.push_str(&format!("  - {}", argument.name));
+                    if let Some(description) = &argument.description {
+                        output.push_str(&format!(": {description}"));
+                    }
+                    output.push('\n');
+                }
+            }
+            return Self::command_response(conversation, output, emit).await;
+        }
+
+        let arguments: HashMap<_, _> = params
+            .iter()
+            .skip(1)
+            .filter_map(|param| param.split_once('='))
+            .map(|(key, value)| (key.to_string(), value.trim_matches('"').to_string()))
+            .collect();
+        let result = match self
+            .extension_manager
+            .get_prompt(
+                &session.id,
+                &extension,
+                prompt_name,
+                serde_json::to_value(arguments)?,
+                emit.cancel_token().clone(),
+            )
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                return Self::command_response(conversation, error.to_string(), emit).await;
+            }
+        };
+
+        let command_message = messages_since_kickoff(conversation)?
+            .first()
+            .ok_or_else(|| anyhow!("prompt command conversation has no kickoff message"))?;
+        let message_id = command_message
+            .id
+            .clone()
+            .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
+        let mut effects = vec![TurnEffect::SetMessageVisibility {
+            message_id,
+            user_visible: true,
+            agent_visible: false,
+        }];
+        for (index, prompt_message) in result.messages.into_iter().enumerate() {
+            let message = Message::from(prompt_message);
+            let expected_role = if index % 2 == 0 {
+                Role::User
+            } else {
+                Role::Assistant
+            };
+            if message.role != expected_role {
+                return Self::command_response(
+                    conversation,
+                    format!(
+                        "Expected {expected_role:?} message at position {index}, but found {:?}",
+                        message.role
+                    ),
+                    emit,
+                )
+                .await;
+            }
+            effects.push(message.with_visibility(false, true).into());
+        }
+        if effects.len() == 1 {
+            return Self::command_response(
+                conversation,
+                format!("Prompt '{prompt_name}' returned no messages"),
+                emit,
+            )
+            .await;
+        }
+        applied(effects)
+    }
+}
+
+pub(super) fn pending_tool_requests(messages: &[Message]) -> Vec<(ToolRequest, ToolDisposition)> {
     let mut answered = HashSet::new();
     let mut approval_requests = HashSet::new();
     let mut approvals = std::collections::HashMap::new();
-    for message in conversation.messages() {
+    for message in messages {
         for content in &message.content {
             match content {
                 MessageContent::ToolResponse(response) => {
@@ -58,8 +488,7 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
         }
     }
 
-    let start = current_request_start(conversation.messages());
-    conversation.messages()[start..]
+    messages
         .iter()
         .filter(|message| message.role == Role::Assistant)
         .flat_map(|message| {
@@ -91,7 +520,7 @@ fn pending_tool_requests(conversation: &Conversation) -> Vec<(ToolRequest, ToolD
 }
 
 #[derive(Clone, Eq, PartialEq)]
-enum ToolDisposition {
+pub(super) enum ToolDisposition {
     Execute,
     Decline,
     ParseError(String),
@@ -114,19 +543,117 @@ impl Operation for ToolExecutionOperation<'_> {
         "tool_execution"
     }
 
+    async fn run_command(
+        &self,
+        command: &SlashCommand<'_>,
+        session: &Session,
+        conversation: &Conversation,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        match command.command {
+            "prompts" => {
+                self.list_prompts(command, session, conversation, emit)
+                    .await
+            }
+            "prompt" => self.run_prompt(command, session, conversation, emit).await,
+            _ => not_applicable(emit),
+        }
+    }
+
+    async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools_excluding(&session.id, crate::skills::EXTENSION_NAME)
+            .await
+            .unwrap_or_default();
+        Ok(tools)
+    }
+
+    async fn moim_parts(
+        &self,
+        session: &Session,
+        _conversation: &Conversation,
+    ) -> Result<Vec<String>> {
+        Ok(self.extension_manager.collect_moim_parts(&session.id).await)
+    }
+
+    async fn prompt_parts(
+        &self,
+        session: &Session,
+        _conversation: &Conversation,
+    ) -> Result<Vec<(String, String)>> {
+        // TODO: Scan prior tool calls for accessed paths and contribute matching
+        // subdirectory AGENTS.md files here instead of tracking paths during dispatch.
+        #[cfg(feature = "code-mode")]
+        if self
+            .extension_manager
+            .is_extension_enabled(
+                crate::agents::platform_extensions::code_execution::EXTENSION_NAME,
+            )
+            .await
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut extensions = self
+            .extension_manager
+            .get_extensions_info(&session.working_dir)
+            .await;
+        extensions.retain(|extension| extension.name != crate::skills::EXTENSION_NAME);
+        if extensions.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut lines = vec![
+            "# Extensions".to_string(),
+            "Extensions provide additional tools and context from different data sources and applications.\n\
+             You can dynamically enable or disable extensions as needed to help complete tasks.\n\n\
+             Because you dynamically load extensions, your conversation history may refer to interactions with extensions that are not currently active. The currently active extensions are below. Each of these extensions provides tools that are in your tool specification."
+                .to_string(),
+        ];
+        for extension in extensions {
+            lines.push(format!("## {}", extension.name));
+            if extension.has_resources {
+                lines.push(format!("{} supports resources.", extension.name));
+            }
+            if !extension.instructions.is_empty() {
+                lines.push(format!("### Instructions\n{}", extension.instructions));
+            }
+        }
+        Ok(vec![("extensions".to_string(), lines.join("\n\n"))])
+    }
+
     async fn run(
         &self,
         session: &Session,
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        let pending = pending_tool_requests(conversation);
-        let requests: Vec<_> = pending.iter().map(|(request, _)| request.clone()).collect();
-        if requests.is_empty() {
-            return Ok(OperationResult::NotApplicable(emit));
+        let mut pending = pending_tool_requests(messages_since_kickoff(conversation)?);
+        if pending.is_empty() {
+            return not_applicable(emit);
         }
 
-        if self.agent.goose_mode().await == GooseMode::Chat {
+        let known_tools: HashSet<_> = self
+            .extension_manager
+            .get_prefixed_tools_excluding(&session.id, crate::skills::EXTENSION_NAME)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .collect();
+        pending.retain(|(request, _)| {
+            request
+                .tool_call
+                .as_ref()
+                .is_ok_and(|tool_call| known_tools.contains(tool_call.name.as_ref()))
+        });
+        let requests: Vec<_> = pending.iter().map(|(request, _)| request.clone()).collect();
+        if requests.is_empty() {
+            return not_applicable(emit);
+        }
+
+        if *self.goose_mode.lock().await == GooseMode::Chat {
             let mut response = Message::user().with_generated_id();
             for (request, disposition) in &pending {
                 let result = match disposition {
@@ -146,7 +673,7 @@ impl Operation for ToolExecutionOperation<'_> {
                 );
             }
             emit.emit(AgentEvent::Message(response.clone())).await;
-            return Ok(OperationResult::Applied(vec![response.into()]));
+            return applied([response.into()]);
         }
 
         let manage_extensions_ids: HashSet<&str> = pending
@@ -169,12 +696,11 @@ impl Operation for ToolExecutionOperation<'_> {
                 .tool_call
                 .clone()
                 .map_err(|e| anyhow!("tool call could not be parsed: {e}"))?;
-            let (_, result) = self
-                .agent
+            let result = self
                 .dispatch_tool_call(
                     tool_call,
                     request.id.clone(),
-                    Some(emit.cancel_token().clone()),
+                    emit.cancel_token().clone(),
                     session,
                 )
                 .await;
@@ -248,13 +774,7 @@ impl Operation for ToolExecutionOperation<'_> {
                             if msg.id.is_none() {
                                 msg = msg.with_generated_id();
                             }
-                            if let Err(e) = self
-                                .agent
-                                .config
-                                .session_manager
-                                .add_message(&session.id, &msg)
-                                .await
-                            {
+                            if let Err(e) = self.session_manager.add_message(&session.id, &msg).await {
                                 tracing::warn!("Failed to persist action-required message: {e}");
                             }
                             emit.emit(AgentEvent::Message(msg)).await;
@@ -282,12 +802,12 @@ impl Operation for ToolExecutionOperation<'_> {
         }
 
         if !manage_extensions_ids.is_empty() && !extension_change_failed {
-            if let Err(e) = self.agent.persist_extension_state(&session.id).await {
+            if let Err(e) = self.persist_extension_state(&session.id).await {
                 tracing::warn!("Failed to save extension state after runtime changes: {e}");
             }
         }
 
         emit.emit(AgentEvent::Message(response.clone())).await;
-        Ok(OperationResult::Applied(vec![response.into()]))
+        applied([response.into()])
     }
 }

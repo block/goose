@@ -1,15 +1,30 @@
-use anyhow::Result;
-use async_trait::async_trait;
-use rmcp::model::Role;
+//! Ends the turn when the agent has used its autonomous turn budget.
 
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
+use crate::agents::state_machine::operation::{
+    applied, assistant_turn_count, messages_since_kickoff, not_applicable, Emitter, Operation,
+    OperationResult, TurnEffect,
+};
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
+use anyhow::Result;
+use async_trait::async_trait;
+
+pub(super) const DEFAULT_MAX_TURNS: u32 = 1000;
 
 pub struct MaxTurnsOperation {
     max_turns: u32,
+}
+
+fn turn_budget_part(turns_taken: u32, max_turns: u32) -> Option<String> {
+    if max_turns == 0 || turns_taken.saturating_mul(2) < max_turns {
+        return None;
+    }
+
+    Some(format!(
+        "<turn-budget>{turns_taken}/{max_turns} used</turn-budget>"
+    ))
 }
 
 impl MaxTurnsOperation {
@@ -18,29 +33,21 @@ impl MaxTurnsOperation {
     }
 }
 
-pub(crate) fn turns_taken_this_request(conversation: &Conversation) -> u32 {
-    let mut turns = 0u32;
-    let mut in_assistant_block = false;
-    for message in conversation.messages().iter().rev() {
-        if message.role == Role::User && !message.is_tool_response() && message.is_user_visible() {
-            break;
-        }
-        if message.role == Role::Assistant {
-            if !in_assistant_block {
-                turns += 1;
-                in_assistant_block = true;
-            }
-        } else {
-            in_assistant_block = false;
-        }
-    }
-    turns
-}
-
 #[async_trait]
 impl Operation for MaxTurnsOperation {
     fn name(&self) -> &'static str {
         "max_turns"
+    }
+
+    async fn moim_parts(
+        &self,
+        _session: &Session,
+        conversation: &Conversation,
+    ) -> Result<Vec<String>> {
+        let turns_taken = assistant_turn_count(messages_since_kickoff(conversation)?);
+        Ok(turn_budget_part(turns_taken, self.max_turns)
+            .into_iter()
+            .collect())
     }
 
     async fn run(
@@ -49,8 +56,9 @@ impl Operation for MaxTurnsOperation {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        if turns_taken_this_request(conversation) < self.max_turns {
-            return Ok(OperationResult::NotApplicable(emit));
+        let messages = messages_since_kickoff(conversation)?;
+        if assistant_turn_count(messages) < self.max_turns {
+            return not_applicable(emit);
         }
 
         let message = Message::assistant().with_text(
@@ -58,9 +66,6 @@ impl Operation for MaxTurnsOperation {
              Would you like me to continue?",
         );
         emit.emit(AgentEvent::Message(message.clone())).await;
-        Ok(OperationResult::Applied(vec![
-            message.into(),
-            TurnEffect::YieldToClient,
-        ]))
+        applied([message.into(), TurnEffect::YieldToClient])
     }
 }

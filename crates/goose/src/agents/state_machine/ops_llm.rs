@@ -1,93 +1,33 @@
+//! Builds a provider request and streams the next assistant response.
+
 use std::sync::Arc;
 
-use anyhow::Result;
+use crate::agents::state_machine::operation::{
+    applied, messages_since_kickoff, not_applicable, trailing_error, Emitter, Inference,
+    InferenceInput, Operation, OperationResult, SlashCommand, TurnEffect, TurnOutcome,
+};
+use crate::agents::AgentEvent;
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::{effective_role, Conversation, EffectiveRole};
+use crate::providers::base::Provider;
+use crate::session::Session;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
-use rmcp::model::{Role, Tool};
-
-use crate::agents::agent::attach_turn_usage;
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnOutcome};
-use crate::agents::state_machine::ops_maxturns::turns_taken_this_request;
-use crate::agents::state_machine::ops_toolcalling::current_request_start;
-use crate::agents::{Agent, AgentEvent};
-use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::Conversation;
-use crate::providers::base::{Provider, ProviderUsage};
-use crate::session::Session;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 
-struct PromptState {
-    system_prompt: String,
-    tools: Vec<Tool>,
-    toolshim_tools: Vec<Tool>,
-    tools_version: u64,
-}
-
-pub struct LlmOperation<'a> {
-    agent: &'a Agent,
+pub struct InferenceRunner {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
-    prompt_state: tokio::sync::Mutex<PromptState>,
-    schedule_id: Option<String>,
-    max_turns: u32,
 }
 
-impl<'a> LlmOperation<'a> {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        agent: &'a Agent,
-        provider: Arc<dyn Provider>,
-        model_config: ModelConfig,
-        system_prompt: String,
-        tools: Vec<Tool>,
-        toolshim_tools: Vec<Tool>,
-        schedule_id: Option<String>,
-        max_turns: u32,
-    ) -> Self {
-        let tools_version = agent.extension_manager.tools_version();
+impl InferenceRunner {
+    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
         Self {
-            agent,
             provider,
             model_config,
-            prompt_state: tokio::sync::Mutex::new(PromptState {
-                system_prompt,
-                tools,
-                toolshim_tools,
-                tools_version,
-            }),
-            schedule_id,
-            max_turns,
         }
-    }
-
-    async fn current_prompt_and_tools(
-        &self,
-        session: &Session,
-    ) -> Result<(String, Vec<Tool>, Vec<Tool>)> {
-        let mut state = self.prompt_state.lock().await;
-        let current_version = self.agent.extension_manager.tools_version();
-        let has_new_hints = self
-            .agent
-            .prompt_manager
-            .lock()
-            .await
-            .load_subdirectory_hints(&session.working_dir);
-        if state.tools_version != current_version || has_new_hints {
-            let (tools, toolshim_tools, system_prompt, _model_config) = self
-                .agent
-                .prepare_tools_and_prompt(&session.id, &session.working_dir)
-                .await?;
-            state.tools = tools;
-            state.toolshim_tools = toolshim_tools;
-            state.system_prompt = system_prompt;
-            state.tools_version = current_version;
-        }
-        Ok((
-            state.system_prompt.clone(),
-            state.tools.clone(),
-            state.toolshim_tools.clone(),
-        ))
     }
 
     async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> TurnOutcome {
@@ -101,19 +41,89 @@ impl<'a> LlmOperation<'a> {
 }
 
 #[async_trait]
-impl Operation for LlmOperation<'_> {
+impl Operation for InferenceRunner {
     fn name(&self) -> &'static str {
         "llm"
     }
 
-    async fn run(
+    async fn run_command(
         &self,
+        command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        if conversation.last().and_then(|m| m.error_kind()).is_some() {
-            return Ok(OperationResult::NotApplicable(emit));
+        if command.command != "status" {
+            return not_applicable(emit);
+        }
+
+        let context_limit = self
+            .provider
+            .get_context_limit(&self.model_config)
+            .await
+            .unwrap_or_else(|_| self.model_config.context_limit());
+        let context_tokens = session.usage.total_tokens.unwrap_or(0).max(0) as usize;
+        let lifetime_tokens = session.accumulated_usage.total_tokens.unwrap_or(0).max(0) as usize;
+        let context_pct = if context_limit > 0 {
+            let pct = ((context_tokens as f64 / context_limit as f64) * 100.0).round() as usize;
+            format!("{}%", pct.min(100))
+        } else {
+            "N/A".to_string()
+        };
+        let response = Message::assistant()
+            .with_text(format!(
+                "**Session status**\n\n\
+                 - Model: {}\n\
+                 - Provider: {}\n\
+                 - Mode: {}\n\
+                 - Tokens (lifetime): {}\n\
+                 - Context: {} / {} tokens ({})",
+                self.model_config.model_name,
+                self.provider.get_name(),
+                session.goose_mode,
+                lifetime_tokens,
+                context_tokens,
+                context_limit,
+                context_pct,
+            ))
+            .with_visibility(true, false);
+        let command_message = messages_since_kickoff(conversation)?
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow!("status command conversation has no kickoff message"))?;
+        let message_id = command_message
+            .id
+            .clone()
+            .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
+        emit.emit(AgentEvent::Message(
+            command_message.with_visibility(true, false),
+        ))
+        .await;
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        applied([
+            TurnEffect::SetMessageVisibility {
+                message_id,
+                user_visible: true,
+                agent_visible: false,
+            },
+            response.into(),
+            TurnEffect::YieldToClient,
+        ])
+    }
+}
+
+#[async_trait]
+impl Inference for InferenceRunner {
+    async fn infer(
+        &self,
+        session: &Session,
+        conversation: &Conversation,
+        input: InferenceInput,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let messages = messages_since_kickoff(conversation)?;
+        if trailing_error(conversation).is_some() {
+            return not_applicable(emit);
         }
 
         let answered: std::collections::HashSet<&str> = conversation
@@ -122,7 +132,7 @@ impl Operation for LlmOperation<'_> {
             .flat_map(|m| m.get_tool_response_ids())
             .collect();
 
-        let start = current_request_start(conversation.messages());
+        let start = conversation.len() - messages.len();
         let messages_for_provider: Vec<_> = conversation
             .messages()
             .iter()
@@ -143,47 +153,45 @@ impl Operation for LlmOperation<'_> {
             .filter(|m| !m.content.is_empty())
             .collect();
 
-        if !matches!(
-            messages_for_provider.last().map(|m| &m.role),
-            Some(Role::User)
-        ) {
-            return Ok(OperationResult::NotApplicable(emit));
+        if !messages_for_provider.last().is_some_and(|message| {
+            matches!(
+                effective_role(message),
+                EffectiveRole::User | EffectiveRole::Tool
+            )
+        }) {
+            return not_applicable(emit);
         }
 
-        let (system_prompt, tools, toolshim_tools) = self.current_prompt_and_tools(session).await?;
-
-        let turns_taken = turns_taken_this_request(conversation);
-        let conversation_for_provider = crate::agents::moim::inject_moim(
-            &session.id,
+        let context_limit = self
+            .provider
+            .get_context_limit(&self.model_config)
+            .await
+            .unwrap_or_else(|_| self.model_config.context_limit());
+        let conversation_for_provider = crate::agents::moim::inject_moim_parts(
             Conversation::new_unvalidated(messages_for_provider),
-            &self.agent.extension_manager,
-            turns_taken,
-            self.max_turns,
-        )
-        .await;
+            &session.working_dir,
+            Some(context_limit),
+            input.moim_parts,
+        );
 
-        let stream = Agent::stream_response_from_provider(
+        let stream = crate::agents::reply_parts::stream_response_from_provider(
             self.provider.clone(),
             self.model_config.clone(),
             &session.id,
-            &system_prompt,
+            &input.system_prompt,
             conversation_for_provider.messages(),
-            &tools,
-            &toolshim_tools,
+            &input.tools,
+            &input.toolshim_tools,
         )
         .await;
 
         let mut stream = match stream {
             Ok(stream) => stream,
-            Err(err) => {
-                return Ok(OperationResult::Applied(
-                    self.error_outcome(&err, &emit).await,
-                ))
-            }
+            Err(err) => return applied(self.error_outcome(&err, &emit).await),
         };
 
         let mut accumulator = Conversation::empty();
-        let mut turn_usage: Option<ProviderUsage> = None;
+        let mut usage_effects = Vec::new();
         loop {
             tokio::select! {
                 biased;
@@ -192,15 +200,16 @@ impl Operation for LlmOperation<'_> {
                     let Some(result) = next else { break };
                     let (msg_opt, usage_opt) = match result {
                         Ok(chunk) => chunk,
-                        Err(err) => return Ok(OperationResult::Applied(self.error_outcome(&err, &emit).await)),
+                        Err(err) => {
+                            usage_effects.extend(self.error_outcome(&err, &emit).await);
+                            return applied(usage_effects);
+                        }
                     };
                     if let Some(usage) = usage_opt {
-                        let enriched = self
-                            .agent
-                            .update_session_metrics(&session.id, self.schedule_id.clone(), &usage, false)
-                            .await?;
-                        emit.emit(AgentEvent::Usage(enriched.clone())).await;
-                        turn_usage = Some(enriched);
+                        usage_effects.push(TurnEffect::RecordUsage {
+                            usage,
+                            is_compaction: false,
+                        });
                     }
                     if let Some(chunk) = msg_opt {
                         emit.emit(AgentEvent::Message(chunk.clone())).await;
@@ -210,18 +219,11 @@ impl Operation for LlmOperation<'_> {
             }
         }
 
-        if let Some(usage) = turn_usage {
-            if let Some((message_id, message_usage)) = attach_turn_usage(&mut accumulator, &usage) {
-                emit.emit(AgentEvent::MessageUsage {
-                    message_id,
-                    usage: message_usage,
-                })
-                .await;
-            }
+        if accumulator.is_empty() {
+            return not_applicable(emit);
         }
 
-        Ok(OperationResult::Applied(
-            accumulator.into_iter().map(Into::into).collect(),
-        ))
+        usage_effects.extend(accumulator.into_iter().map(Into::into));
+        applied(usage_effects)
     }
 }

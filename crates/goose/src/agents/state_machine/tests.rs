@@ -100,6 +100,33 @@ async fn llm_requests_tool_then_replies() -> Result<()> {
 }
 
 #[tokio::test]
+async fn unknown_tool_is_returned_to_the_llm_as_an_error() -> Result<()> {
+    let harness = TestHarness::with_steps([
+        Step::ToolCall {
+            id: "call_1".to_string(),
+            name: "missing__tool".to_string(),
+            args: serde_json::json!({}),
+        },
+        Step::Text("recovered".to_string()),
+    ])
+    .await;
+
+    let messages = harness.run("try the missing tool", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 2);
+    assert_eq!(messages.len(), 3, "events: {messages:#?}");
+    assert!(messages[1].is_tool_response());
+    assert!(
+        tool_response_text(&messages[1]).contains("Tool 'missing__tool' is not available"),
+        "tool response: {}",
+        tool_response_text(&messages[1])
+    );
+    assert_eq!(messages[2].as_concat_text(), "recovered");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn stops_at_max_turns() -> Result<()> {
     let calls = std::sync::atomic::AtomicUsize::new(0);
     let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, _tools| {
@@ -459,7 +486,7 @@ async fn old_tool_pairs_are_summarized_away() -> Result<()> {
     session_manager
         .add_message(&harness.session_id, &Message::user().with_text("old work"))
         .await?;
-    for n in 0..26 {
+    for n in 0..46 {
         let id = format!("call_{n}");
         session_manager
             .add_message(
@@ -493,7 +520,7 @@ async fn old_tool_pairs_are_summarized_away() -> Result<()> {
         .iter()
         .filter(|m| m.is_agent_visible() && m.is_tool_call())
         .count();
-    assert_eq!(visible_requests, 16, "persisted: {persisted:#?}");
+    assert_eq!(visible_requests, 36, "persisted: {persisted:#?}");
     let summaries = persisted
         .iter()
         .filter(|m| {
@@ -503,6 +530,48 @@ async fn old_tool_pairs_are_summarized_away() -> Result<()> {
         })
         .count();
     assert_eq!(summaries, 10);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn tool_pairs_from_the_current_turn_are_not_summarized() -> Result<()> {
+    let turns = std::sync::atomic::AtomicUsize::new(0);
+    let provider = Arc::new(ScriptedProvider::from_fn(move |_messages, tools| {
+        if tools.is_empty() {
+            return vec![Message::assistant().with_text("summary of the pair")];
+        }
+
+        let turn = turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if turn < 21 {
+            vec![Message::assistant().with_tool_request(
+                format!("call_{turn}"),
+                Ok(rmcp::model::CallToolRequestParams::new("test__echo")
+                    .with_arguments(serde_json::Map::new())),
+            )]
+        } else {
+            vec![Message::assistant().with_text("done")]
+        }
+    }));
+    let harness = TestHarness::with_provider(provider)
+        .await
+        .with_default_extension()
+        .await;
+
+    harness.run("do a lot of work", 30).await?;
+
+    assert_eq!(harness.provider.call_count(), 22);
+    let persisted = harness.persisted_messages().await?;
+    assert_eq!(
+        persisted
+            .iter()
+            .filter(|message| message.is_agent_visible() && message.is_tool_call())
+            .count(),
+        21
+    );
+    assert!(!persisted
+        .iter()
+        .any(|message| message.as_concat_text() == "summary of the pair"));
 
     Ok(())
 }
@@ -795,7 +864,7 @@ async fn retry_resets_conversation_until_attempts_exhausted() -> Result<()> {
 #[tokio::test]
 async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
     use crate::agents::final_output_tool::FINAL_OUTPUT_CONTINUATION_MESSAGE;
-    use crate::recipe::Response;
+    use crate::recipe::{Recipe, Response};
 
     let harness = TestHarness::with_steps([
         Step::Text("thinking about it".to_string()),
@@ -807,16 +876,27 @@ async fn final_output_is_nudged_recorded_and_consumed() -> Result<()> {
         Step::Text("wrapped up".to_string()),
     ])
     .await;
-    harness
-        .agent
-        .add_final_output_tool(Response {
+    let recipe = Recipe::builder()
+        .title("Structured output")
+        .description("Return structured output")
+        .instructions("Compute the answer")
+        .response(Response {
             json_schema: Some(serde_json::json!({
                 "type": "object",
                 "properties": { "result": { "type": "string" } },
                 "required": ["result"]
             })),
         })
-        .await;
+        .build()
+        .unwrap();
+    harness
+        .agent
+        .config
+        .session_manager
+        .update(&harness.session_id)
+        .recipe(Some(recipe))
+        .apply()
+        .await?;
 
     let messages = harness.run("compute the answer", 10).await?;
 
@@ -1213,6 +1293,26 @@ async fn compacts_when_over_token_threshold() -> Result<()> {
 }
 
 #[tokio::test]
+async fn compaction_operation_contributes_remaining_context_to_moim() -> Result<()> {
+    let provider = Arc::new(ScriptedProvider::from_fn(|messages, _tools| {
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.as_concat_text().contains("<compaction>")),
+            "messages: {messages:#?}"
+        );
+        vec![Message::assistant().with_text("ok")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+    harness.set_total_tokens(60_000).await;
+
+    harness.run("hello", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 1);
+    Ok(())
+}
+
+#[tokio::test]
 async fn llm_turn_records_usage_on_session_and_message() -> Result<()> {
     let harness = TestHarness::with_steps([Step::Text("hi there".to_string())]).await;
 
@@ -1243,6 +1343,48 @@ async fn llm_turn_records_usage_on_session_and_message() -> Result<()> {
         .expect("an assistant message");
     let usage = assistant.metadata.usage.as_ref().expect("message usage");
     assert_eq!(usage.total_tokens, Some(15));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn usage_before_a_stream_error_is_recorded() -> Result<()> {
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage as ProviderTokenUsage};
+    use goose_providers::errors::ProviderError;
+
+    let usage = ProviderUsage::new(
+        "scripted-model".to_string(),
+        ProviderTokenUsage::new(Some(10), Some(5), Some(15)),
+    );
+    let provider = Arc::new(ScriptedProvider::from_stream(vec![
+        Ok((
+            Some(Message::assistant().with_text("partial response")),
+            Some(usage),
+        )),
+        Err(ProviderError::ServerError("boom".to_string())),
+    ]));
+    let harness = TestHarness::with_provider(provider).await;
+
+    let events = harness.run_events("hello", 10).await?;
+
+    let reloaded = harness.reload().await?;
+    assert_eq!(reloaded.usage.total_tokens, Some(15));
+    assert!(events.iter().any(
+        |event| matches!(event, AgentEvent::Usage(usage) if usage.usage.total_tokens == Some(15))
+    ));
+    assert!(!events
+        .iter()
+        .any(|event| matches!(event, AgentEvent::MessageUsage { .. })));
+
+    let persisted = harness.persisted_messages().await?;
+    assert!(!persisted
+        .iter()
+        .any(|message| message.as_concat_text() == "partial response"));
+    let error = persisted
+        .iter()
+        .find(|message| message.error_kind().is_some())
+        .expect("a persisted error message");
+    assert!(error.metadata.usage.is_none());
 
     Ok(())
 }
@@ -1304,6 +1446,7 @@ async fn slash_command_yields_without_calling_provider() -> Result<()> {
     assert_eq!(persisted.len(), 2);
     assert!(persisted.iter().all(|m| m.is_user_visible()));
     assert!(persisted.iter().all(|m| !m.is_agent_visible()));
+    assert_eq!(harness.reload().await?.usage.total_tokens, Some(0));
 
     Ok(())
 }
@@ -1368,6 +1511,7 @@ async fn history_slash_command_replaces_history_and_yields() -> Result<()> {
         "should not run".to_string(),
     )]));
     let harness = TestHarness::with_provider(provider).await;
+    harness.set_total_tokens(100).await;
 
     let events = harness.run_events("/clear", 10).await?;
 
@@ -1394,6 +1538,84 @@ async fn history_slash_command_replaces_history_and_yields() -> Result<()> {
     assert_eq!(persisted.len(), 2);
     assert!(persisted.iter().all(|m| m.is_user_visible()));
     assert!(persisted.iter().all(|m| !m.is_agent_visible()));
+    assert_eq!(harness.reload().await?.usage.total_tokens, Some(0));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn skill_slash_command_adds_the_skill_to_the_turn() -> Result<()> {
+    let working_dir = tempfile::tempdir()?;
+    let skill_dir = working_dir.path().join(".agents/skills/review");
+    std::fs::create_dir_all(&skill_dir)?;
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: review\ndescription: Review code\n---\nReview $ARGUMENTS carefully.",
+    )?;
+    let provider = Arc::new(ScriptedProvider::from_fn(|messages, _tools| {
+        assert!(messages.iter().any(|message| message
+            .as_concat_text()
+            .contains("Review src/lib.rs carefully.")));
+        vec![Message::assistant().with_text("reviewed")]
+    }));
+    let harness = TestHarness::with_provider(provider).await;
+    harness
+        .agent
+        .config
+        .session_manager
+        .update(&harness.session_id)
+        .working_dir(working_dir.path().to_path_buf())
+        .apply()
+        .await?;
+
+    harness.run("/review src/lib.rs", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 1);
+    let persisted = harness.persisted_messages().await?;
+    assert_eq!(persisted[0].as_concat_text(), "/review src/lib.rs");
+    assert!(!persisted[0].is_agent_visible());
+    assert!(persisted[1]
+        .as_concat_text()
+        .contains("Review src/lib.rs carefully."));
+    assert!(persisted[1].is_agent_visible());
+    assert!(!persisted[1].is_user_visible());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn skill_operation_advertises_and_executes_load_skill() -> Result<()> {
+    let working_dir = tempfile::tempdir()?;
+    let skill_dir = working_dir.path().join(".agents/skills/review");
+    std::fs::create_dir_all(&skill_dir)?;
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: review\ndescription: Review code\n---\nReview carefully.",
+    )?;
+    let harness = TestHarness::with_steps([
+        Step::ToolCall {
+            id: "call_1".to_string(),
+            name: "load_skill".to_string(),
+            args: serde_json::json!({ "name": "review" }),
+        },
+        Step::Text("done".to_string()),
+    ])
+    .await;
+    harness
+        .agent
+        .config
+        .session_manager
+        .update(&harness.session_id)
+        .working_dir(working_dir.path().to_path_buf())
+        .apply()
+        .await?;
+
+    let messages = harness.run("use the review skill", 10).await?;
+
+    assert_eq!(harness.provider.call_count(), 2);
+    assert!(messages[1].is_tool_response());
+    assert!(tool_response_text(&messages[1]).contains("Review carefully."));
+    assert_eq!(messages.last().unwrap().as_concat_text(), "done");
 
     Ok(())
 }
@@ -1435,7 +1657,8 @@ async fn repeated_context_length_errors_stop_after_capped_retries() -> Result<()
 }
 
 #[tokio::test]
-async fn successful_turns_reset_the_compact_retry_budget() -> Result<()> {
+async fn successful_turns_do_not_reset_the_compact_retry_budget() -> Result<()> {
+    use crate::conversation::message::MessageErrorKind;
     use goose_providers::errors::ProviderError;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1446,8 +1669,7 @@ async fn successful_turns_reset_the_compact_retry_budget() -> Result<()> {
             let n = calls_for_fn.fetch_add(1, Ordering::SeqCst);
             match n {
                 0 | 3 | 6 => Err(ProviderError::ContextLengthExceeded("too long".to_string())),
-                1 | 4 | 7 => Ok(vec![Message::assistant().with_text("summary")]),
-                8 => Ok(vec![Message::assistant().with_text("done")]),
+                1 | 4 => Ok(vec![Message::assistant().with_text("summary")]),
                 _ => Ok(vec![Message::assistant().with_tool_request(
                     format!("call_{n}"),
                     Ok(rmcp::model::CallToolRequestParams::new("test__echo")
@@ -1467,14 +1689,17 @@ async fn successful_turns_reset_the_compact_retry_budget() -> Result<()> {
         .iter()
         .filter(|e| matches!(e, AgentEvent::HistoryReplaced(_)))
         .count();
-    assert_eq!(replaced, 3, "events: {events:#?}");
+    assert_eq!(replaced, 2, "events: {events:#?}");
 
-    assert_eq!(harness.provider.call_count(), 9);
+    assert_eq!(harness.provider.call_count(), 7);
 
     let persisted = harness.persisted_messages().await?;
     let last = persisted.last().expect("a persisted message");
-    assert!(last.error_kind().is_none(), "tail still an error: {last:?}");
-    assert_eq!(last.as_concat_text(), "done");
+    assert_eq!(
+        last.error_kind(),
+        Some(MessageErrorKind::ContextLengthExceeded),
+        "tail: {last:?}"
+    );
 
     Ok(())
 }
@@ -1505,6 +1730,15 @@ async fn context_length_error_triggers_compaction_recovery() -> Result<()> {
     let persisted = harness.persisted_messages().await?;
     let last = persisted.last().expect("a persisted message");
     assert!(last.error_kind().is_none(), "tail still an error: {last:?}");
+    let context_errors: Vec<_> = persisted
+        .iter()
+        .filter(|message| {
+            message.error_kind()
+                == Some(crate::conversation::message::MessageErrorKind::ContextLengthExceeded)
+        })
+        .collect();
+    assert_eq!(context_errors.len(), 1);
+    assert!(!context_errors[0].is_agent_visible());
 
     assert_eq!(calls.load(Ordering::SeqCst), 3);
 

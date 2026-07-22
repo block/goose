@@ -1,18 +1,30 @@
+//! Adds queued user guidance when the agent is between model and tool turns.
+
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::{ends_turn, Emitter, Operation, OperationResult};
-use crate::agents::{Agent, AgentEvent};
-use crate::conversation::Conversation;
+use crate::agents::state_machine::operation::{
+    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
+    Operation, OperationResult,
+};
+use crate::agents::steering::PendingSteers;
+use crate::agents::AgentEvent;
+use crate::conversation::message::Message;
+use crate::conversation::{Conversation, EffectiveRole};
+use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::Session;
 
 pub struct SteerOperation<'a> {
-    agent: &'a Agent,
+    pending_steers: &'a PendingSteers,
+    hook_manager: HookManager,
 }
 
 impl<'a> SteerOperation<'a> {
-    pub fn new(agent: &'a Agent) -> Self {
-        Self { agent }
+    pub(super) fn new(pending_steers: &'a PendingSteers, hook_manager: HookManager) -> Self {
+        Self {
+            pending_steers,
+            hook_manager,
+        }
     }
 }
 
@@ -28,23 +40,26 @@ impl Operation for SteerOperation<'_> {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
+        let messages = messages_since_kickoff(conversation)?;
         let between_turns =
-            ends_turn(conversation) || conversation.last().is_some_and(|m| m.is_tool_response());
-        if !between_turns || !self.agent.has_pending_steers(&session.id).await {
-            return Ok(OperationResult::NotApplicable(emit));
+            ends_turn(messages) || last_effective_role(messages)? == EffectiveRole::Tool;
+        if !between_turns {
+            return not_applicable(emit);
         }
 
         let mut effects = Vec::new();
-        for message in self.agent.drain_pending_steers(&session.id).await {
-            self.agent
-                .emit_user_prompt_submit_hook(&session.id, &message.as_concat_text())
+        for message in self.pending_steers.drain(&session.id).await {
+            let context = HookContext::new(HookEvent::UserPromptSubmit, &session.id)
+                .with_message(message.as_concat_text());
+            self.hook_manager
+                .emit(HookEvent::UserPromptSubmit, context)
                 .await;
             emit.emit(AgentEvent::Message(message.clone())).await;
             effects.push(message.into());
         }
         if effects.is_empty() {
-            return Ok(OperationResult::NotApplicable(emit));
+            return not_applicable(emit);
         }
-        Ok(OperationResult::Applied(effects))
+        applied(effects)
     }
 }

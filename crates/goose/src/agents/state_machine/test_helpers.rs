@@ -68,9 +68,15 @@ impl Step {
 }
 
 type ScriptFn = dyn Fn(&[Message], &[Tool]) -> Result<Vec<Message>, ProviderError> + Send + Sync;
+pub type ScriptStreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+
+enum Script {
+    Messages(Box<ScriptFn>),
+    Stream(Mutex<Option<Vec<ScriptStreamItem>>>),
+}
 
 pub struct ScriptedProvider {
-    script: Box<ScriptFn>,
+    script: Script,
     calls: AtomicUsize,
 }
 
@@ -104,7 +110,14 @@ impl ScriptedProvider {
             + 'static,
     ) -> Self {
         Self {
-            script: Box::new(script),
+            script: Script::Messages(Box::new(script)),
+            calls: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn from_stream(items: Vec<ScriptStreamItem>) -> Self {
+        Self {
+            script: Script::Stream(Mutex::new(Some(items))),
             calls: AtomicUsize::new(0),
         }
     }
@@ -124,7 +137,13 @@ impl Provider for ScriptedProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        let messages = (self.script)(messages, tools)?;
+        let messages = match &self.script {
+            Script::Messages(script) => script(messages, tools)?,
+            Script::Stream(items) => {
+                let items = items.lock().unwrap().take().unwrap_or_default();
+                return Ok(Box::pin(futures::stream::iter(items)));
+            }
+        };
         let usage = ProviderUsage::new(
             "scripted-model".to_string(),
             ProviderTokenUsage::new(Some(10), Some(5), Some(15)),

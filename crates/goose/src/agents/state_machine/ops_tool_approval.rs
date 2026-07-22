@@ -1,26 +1,42 @@
+//! Resolves approval requirements for pending tool requests.
+
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
-use crate::agents::{Agent, AgentEvent};
+use crate::agents::state_machine::operation::{
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
+    TurnEffect,
+};
+use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
+use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::permission::Permission;
 use crate::session::Session;
-use crate::tool_inspection::{get_security_finding_id_from_results, InspectionAction};
+use crate::tool_inspection::{
+    get_security_finding_id_from_results, InspectionAction, ToolInspectionManager,
+};
+use tokio::sync::Mutex;
 
 pub const TOOL_EXECUTABLE_KEY: &str = "goose.executable";
 
 pub struct ToolApprovalOperation<'a> {
-    agent: &'a Agent,
+    goose_mode: &'a Mutex<GooseMode>,
+    tool_inspection_manager: &'a ToolInspectionManager,
 }
 
 impl<'a> ToolApprovalOperation<'a> {
-    pub fn new(agent: &'a Agent) -> Self {
-        Self { agent }
+    pub fn new(
+        goose_mode: &'a Mutex<GooseMode>,
+        tool_inspection_manager: &'a ToolInspectionManager,
+    ) -> Self {
+        Self {
+            goose_mode,
+            tool_inspection_manager,
+        }
     }
 }
 
@@ -36,11 +52,12 @@ impl Operation for ToolApprovalOperation<'_> {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        if self.agent.goose_mode().await == crate::config::GooseMode::Chat {
-            return Ok(OperationResult::NotApplicable(emit));
+        let goose_mode = *self.goose_mode.lock().await;
+        if goose_mode == GooseMode::Chat {
+            return not_applicable(emit);
         }
 
-        let state = ApprovalState::from_messages(conversation.messages());
+        let state = ApprovalState::from_messages(messages_since_kickoff(conversation)?);
         let mut effects = Vec::new();
 
         for pending in state.pending_responses() {
@@ -53,13 +70,11 @@ impl Operation for ToolApprovalOperation<'_> {
 
             if let Some(tool_name) = pending.tool_name {
                 if pending.permission == Permission::AlwaysAllow {
-                    self.agent
-                        .tool_inspection_manager
+                    self.tool_inspection_manager
                         .update_permission_manager(&tool_name, PermissionLevel::AlwaysAllow)
                         .await;
                 } else if pending.permission == Permission::AlwaysDeny {
-                    self.agent
-                        .tool_inspection_manager
+                    self.tool_inspection_manager
                         .update_permission_manager(&tool_name, PermissionLevel::NeverAllow)
                         .await;
                 }
@@ -68,9 +83,7 @@ impl Operation for ToolApprovalOperation<'_> {
 
         let pending_requests = state.pending_requests();
         if !pending_requests.is_empty() {
-            let goose_mode = self.agent.goose_mode().await;
             let inspection_results = self
-                .agent
                 .tool_inspection_manager
                 .inspect_tools(
                     &session.id,
@@ -80,7 +93,6 @@ impl Operation for ToolApprovalOperation<'_> {
                 )
                 .await?;
             let permission_check_result = self
-                .agent
                 .tool_inspection_manager
                 .process_inspection_results_with_permission_inspector(
                     &pending_requests,
@@ -143,9 +155,9 @@ impl Operation for ToolApprovalOperation<'_> {
         }
 
         if effects.is_empty() {
-            Ok(OperationResult::NotApplicable(emit))
+            not_applicable(emit)
         } else {
-            Ok(OperationResult::Applied(effects))
+            applied(effects)
         }
     }
 }
@@ -171,18 +183,15 @@ impl ApprovalState {
         let mut approval_responses = HashMap::new();
         let mut tool_requests = Vec::new();
 
-        let start = crate::agents::state_machine::ops_toolcalling::current_request_start(messages);
-        for (idx, message) in messages.iter().enumerate() {
+        for message in messages {
             for content in &message.content {
                 match content {
                     MessageContent::ToolResponse(response) => {
                         answered.insert(response.id.clone());
                     }
                     MessageContent::ToolRequest(request) => {
-                        if idx >= start {
-                            if let Some(message_id) = &message.id {
-                                tool_requests.push((message_id.clone(), request.clone()));
-                            }
+                        if let Some(message_id) = &message.id {
+                            tool_requests.push((message_id.clone(), request.clone()));
                         }
                     }
                     MessageContent::ActionRequired(action) => match &action.data {
@@ -271,9 +280,6 @@ fn permission_allows(permission: &Permission) -> bool {
 }
 
 fn mark_executable(message_id: &str, tool_call_id: &str, executable: bool) -> TurnEffect {
-    if message_id.is_empty() {
-        panic!("tool request message id is required");
-    }
     TurnEffect::PatchToolRequestMeta {
         message_id: message_id.to_string(),
         tool_call_id: tool_call_id.to_string(),

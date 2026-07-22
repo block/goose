@@ -1,7 +1,4 @@
-//! Schedule tool handlers for the goose agent
-//!
-//! This module contains all the handlers for the schedule management platform tool,
-//! including job creation, execution, monitoring, and session management.
+//! Schedule management tool business logic.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -11,12 +8,12 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
-use super::Agent;
 use crate::recipe::Recipe;
 use crate::scheduler::{
     open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
 };
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::SessionManager;
 
 fn recipe_file_error(message: &str) -> ErrorData {
     ErrorData::new(ErrorCode::INTERNAL_ERROR, message.to_string(), None)
@@ -62,21 +59,20 @@ fn read_schedule_recipe(path: &Path) -> Result<(String, PathBuf), ErrorData> {
     Ok((content, canonical_path))
 }
 
-impl Agent {
-    /// Handle schedule management tool calls
-    pub async fn handle_schedule_management(
-        &self,
-        arguments: serde_json::Value,
-        _request_id: String,
-    ) -> ToolResult<Vec<Content>> {
-        let scheduler = self.config.scheduler_service.clone().ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Scheduler not available".to_string(),
-                None,
-            )
-        })?;
+pub struct ScheduleTool {
+    scheduler: Arc<dyn SchedulerTrait>,
+    session_manager: Arc<SessionManager>,
+}
 
+impl ScheduleTool {
+    pub fn new(scheduler: Arc<dyn SchedulerTrait>, session_manager: Arc<SessionManager>) -> Self {
+        Self {
+            scheduler,
+            session_manager,
+        }
+    }
+
+    pub async fn execute(&self, arguments: serde_json::Value) -> ToolResult<Vec<Content>> {
         let action = arguments
             .get("action")
             .and_then(|v| v.as_str())
@@ -89,15 +85,36 @@ impl Agent {
             })?;
 
         match action {
-            "list" => self.handle_list_jobs(scheduler).await,
-            "create" => self.handle_create_job(scheduler, arguments).await,
-            "run_now" => self.handle_run_now(scheduler, arguments).await,
-            "pause" => self.handle_pause_job(scheduler, arguments).await,
-            "unpause" => self.handle_unpause_job(scheduler, arguments).await,
-            "delete" => self.handle_delete_job(scheduler, arguments).await,
-            "kill" => self.handle_kill_job(scheduler, arguments).await,
-            "inspect" => self.handle_inspect_job(scheduler, arguments).await,
-            "sessions" => self.handle_list_sessions(scheduler, arguments).await,
+            "list" => self.handle_list_jobs(self.scheduler.clone()).await,
+            "create" => {
+                self.handle_create_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "run_now" => self.handle_run_now(self.scheduler.clone(), arguments).await,
+            "pause" => {
+                self.handle_pause_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "unpause" => {
+                self.handle_unpause_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "delete" => {
+                self.handle_delete_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "kill" => {
+                self.handle_kill_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "inspect" => {
+                self.handle_inspect_job(self.scheduler.clone(), arguments)
+                    .await
+            }
+            "sessions" => {
+                self.handle_list_sessions(self.scheduler.clone(), arguments)
+                    .await
+            }
             "session_content" => self.handle_session_content(arguments).await,
             _ => Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -465,12 +482,7 @@ impl Agent {
                 )
             })?;
 
-        let session = match self
-            .config
-            .session_manager
-            .get_session(session_id, true)
-            .await
-        {
+        let session = match self.session_manager.get_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(

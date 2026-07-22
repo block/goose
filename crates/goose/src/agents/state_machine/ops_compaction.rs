@@ -1,55 +1,65 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+//! Compacts conversation history when it is too large for the configured context window.
+
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
-use crate::agents::{Agent, AgentEvent};
-use crate::config::Config;
-use crate::context_mgmt::{compact_messages, DEFAULT_COMPACTION_THRESHOLD};
+use crate::agents::state_machine::operation::{
+    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, Emitter,
+    Operation, OperationResult, SlashCommand, TurnEffect,
+};
+use crate::agents::AgentEvent;
+use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
-use crate::conversation::Conversation;
+use crate::conversation::{Conversation, EffectiveRole};
 use crate::providers::base::Provider;
 use crate::session::Session;
 use goose_providers::model::ModelConfig;
 
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
-const MAX_CONTEXT_ERROR_RETRIES: usize = 2;
+const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
 
-pub struct CompactionOperation<'a> {
-    agent: &'a Agent,
+fn compaction_part(
+    total_tokens: Option<i32>,
+    context_limit: usize,
+    threshold: f64,
+) -> Option<String> {
+    let total_tokens = total_tokens?;
+    if total_tokens <= 0 || context_limit == 0 || threshold <= 0.0 || threshold >= 1.0 {
+        return None;
+    }
+
+    let compaction_at = (context_limit as f64 * threshold) as i32;
+    if compaction_at <= 0 || (total_tokens as f64 / compaction_at as f64) < 0.5 {
+        return None;
+    }
+
+    Some(format!(
+        "<compaction>~{}k tokens remaining</compaction>",
+        compaction_at.saturating_sub(total_tokens) / 1000
+    ))
+}
+
+pub struct CompactionOperation {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
-    schedule_id: Option<String>,
     context_limit: usize,
     threshold: f64,
     manages_own_context: bool,
-    failed_compact_retries: AtomicUsize,
 }
 
-impl<'a> CompactionOperation<'a> {
-    pub fn new(
-        agent: &'a Agent,
-        provider: Arc<dyn Provider>,
-        model_config: ModelConfig,
-        schedule_id: Option<String>,
-    ) -> Self {
+impl CompactionOperation {
+    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig, threshold: f64) -> Self {
         let context_limit = model_config.context_limit();
         let manages_own_context = provider.manages_own_context();
-        let threshold = Config::global()
-            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
         Self {
-            agent,
             provider,
             model_config,
-            schedule_id,
             context_limit,
             threshold,
             manages_own_context,
-            failed_compact_retries: AtomicUsize::new(0),
         }
     }
 
@@ -59,12 +69,128 @@ impl<'a> CompactionOperation<'a> {
         }
         (tokens as f64 / self.context_limit as f64) > self.threshold
     }
+
+    async fn command_error(
+        conversation: &Conversation,
+        message: String,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let command = messages_since_kickoff(conversation)?
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow!("compact command conversation has no kickoff message"))?;
+        let message_id = command
+            .id
+            .clone()
+            .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
+        let command = command.with_visibility(true, false);
+        let response = Message::assistant()
+            .with_text(message)
+            .with_visibility(true, false);
+        emit.emit(AgentEvent::Message(command)).await;
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        applied([
+            TurnEffect::SetMessageVisibility {
+                message_id,
+                user_visible: true,
+                agent_visible: false,
+            },
+            response.into(),
+            TurnEffect::YieldToClient,
+        ])
+    }
+
+    async fn clear(conversation: &Conversation, emit: Emitter) -> Result<OperationResult> {
+        let command = messages_since_kickoff(conversation)?
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow!("clear command conversation has no kickoff message"))?
+            .with_visibility(true, false);
+        let response = Message::assistant()
+            .with_text("Conversation cleared")
+            .with_visibility(true, false);
+        emit.emit(AgentEvent::Message(command.clone())).await;
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        applied([
+            TurnEffect::ResetContextUsage,
+            Conversation::default().into(),
+            command.into(),
+            response.into(),
+            TurnEffect::YieldToClient,
+        ])
+    }
 }
 
 #[async_trait]
-impl Operation for CompactionOperation<'_> {
+impl Operation for CompactionOperation {
     fn name(&self) -> &'static str {
         "compaction"
+    }
+
+    async fn run_command(
+        &self,
+        command: &SlashCommand<'_>,
+        session: &Session,
+        conversation: &Conversation,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        match command.command {
+            "clear" => return Self::clear(conversation, emit).await,
+            "compact" => {}
+            _ => return not_applicable(emit),
+        }
+
+        let (compacted, usage) = match compact_messages(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            conversation,
+            true,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                return Self::command_error(conversation, error.to_string(), emit).await;
+            }
+        };
+
+        let command = messages_since_kickoff(conversation)?
+            .first()
+            .cloned()
+            .ok_or_else(|| anyhow!("compact command conversation has no kickoff message"))?
+            .with_visibility(true, false);
+        let response = Message::assistant()
+            .with_text("Compaction complete")
+            .with_visibility(true, false);
+        emit.emit(AgentEvent::Message(command)).await;
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        applied([
+            TurnEffect::RecordUsage {
+                usage,
+                is_compaction: true,
+            },
+            compacted.into(),
+            response.into(),
+            TurnEffect::YieldToClient,
+        ])
+    }
+
+    async fn moim_parts(
+        &self,
+        session: &Session,
+        _conversation: &Conversation,
+    ) -> Result<Vec<String>> {
+        if self.manages_own_context {
+            return Ok(Vec::new());
+        }
+        Ok(compaction_part(
+            session.usage.total_tokens,
+            self.context_limit,
+            self.threshold,
+        )
+        .into_iter()
+        .collect())
     }
 
     async fn run(
@@ -74,46 +200,45 @@ impl Operation for CompactionOperation<'_> {
         emit: Emitter,
     ) -> Result<OperationResult> {
         if self.manages_own_context {
-            return Ok(OperationResult::NotApplicable(emit));
+            return not_applicable(emit);
         }
 
-        let last = conversation.last();
-
-        if last.is_some_and(|m| m.role == rmcp::model::Role::Assistant && m.error_kind().is_none())
-        {
-            self.failed_compact_retries.store(0, Ordering::Relaxed);
-        }
-
+        let messages = messages_since_kickoff(conversation)?;
         let reactive_context_error = matches!(
-            last.and_then(|m| m.error_kind()),
+            trailing_error(conversation),
             Some(MessageErrorKind::ContextLengthExceeded)
         );
 
         if reactive_context_error {
-            if self.failed_compact_retries.load(Ordering::Relaxed) >= MAX_CONTEXT_ERROR_RETRIES {
-                return Ok(OperationResult::NotApplicable(emit));
+            let prior_compactions = messages
+                .iter()
+                .filter(|message| {
+                    message.error_kind() == Some(MessageErrorKind::ContextLengthExceeded)
+                        && !message.is_agent_visible()
+                })
+                .count();
+            if prior_compactions >= MAX_CONTEXT_ERROR_COMPACTIONS {
+                return not_applicable(emit);
             }
-            self.failed_compact_retries.fetch_add(1, Ordering::Relaxed);
         } else {
-            let last_is_user = conversation
-                .last()
-                .map(|m| m.role == rmcp::model::Role::User && !m.is_tool_response())
-                .unwrap_or(false);
-            if !last_is_user {
-                return Ok(OperationResult::NotApplicable(emit));
+            if last_effective_role(messages)? != EffectiveRole::User {
+                return not_applicable(emit);
             }
             match session.usage.total_tokens {
                 Some(tokens) if tokens > 0 && self.over_threshold(tokens as usize) => {}
-                _ => return Ok(OperationResult::NotApplicable(emit)),
+                _ => return not_applicable(emit),
             }
         }
 
-        let trimmed;
+        let conversation_with_hidden_error;
         let conversation = if reactive_context_error {
             let mut messages = conversation.messages().to_vec();
-            messages.pop();
-            trimmed = Conversation::new_unvalidated(messages);
-            &trimmed
+            let Some(last) = messages.last_mut() else {
+                return not_applicable(emit);
+            };
+            last.metadata.agent_visible = false;
+            conversation_with_hidden_error = Conversation::new_unvalidated(messages);
+            &conversation_with_hidden_error
         } else {
             conversation
         };
@@ -147,9 +272,6 @@ impl Operation for CompactionOperation<'_> {
         .await
         {
             Ok((compacted, usage)) => {
-                self.agent
-                    .update_session_metrics(&session.id, self.schedule_id.clone(), &usage, true)
-                    .await?;
                 emit.emit(AgentEvent::Message(
                     Message::assistant().with_system_notification(
                         SystemNotificationType::InlineMessage,
@@ -157,7 +279,13 @@ impl Operation for CompactionOperation<'_> {
                     ),
                 ))
                 .await;
-                Ok(OperationResult::Applied(vec![compacted.into()]))
+                applied([
+                    TurnEffect::RecordUsage {
+                        usage,
+                        is_compaction: true,
+                    },
+                    compacted.into(),
+                ])
             }
             Err(e) => {
                 emit.emit(AgentEvent::Message(Message::assistant().with_text(
@@ -167,7 +295,7 @@ impl Operation for CompactionOperation<'_> {
                     ),
                 )))
                 .await;
-                Ok(OperationResult::Applied(vec![TurnEffect::YieldToClient]))
+                applied([TurnEffect::YieldToClient])
             }
         }
     }

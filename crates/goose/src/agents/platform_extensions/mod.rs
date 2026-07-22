@@ -6,6 +6,7 @@ pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
 pub mod orchestrator;
+pub mod scheduler;
 pub mod summarize;
 pub mod summon;
 pub mod todo;
@@ -96,6 +97,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 unprefixed_tools: false,
                 hidden: false,
                 client_factory: |ctx| Box::new(ext_manager::ExtensionManagerClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            scheduler::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: scheduler::EXTENSION_NAME,
+                display_name: "Scheduler",
+                description: "Create and manage scheduled recipe execution",
+                default_enabled: true,
+                unprefixed_tools: false,
+                hidden: true,
+                client_factory: |ctx| Box::new(scheduler::SchedulerClient::new(ctx)),
             },
         );
 
@@ -211,6 +225,7 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+    pub scheduler: Option<std::sync::Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
     pub session: Option<std::sync::Arc<Session>>,
     pub use_login_shell_path: bool,
 }

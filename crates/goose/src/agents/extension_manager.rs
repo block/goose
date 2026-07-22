@@ -889,6 +889,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        scheduler: Option<Arc<dyn crate::scheduler_trait::SchedulerTrait>>,
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
@@ -898,6 +899,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                scheduler,
                 session: None,
                 use_login_shell_path,
             },
@@ -914,6 +916,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
+            None,
             "goose-cli".to_string(),
             ExtensionManagerCapabilities {
                 mcpui: false,
@@ -1409,10 +1412,6 @@ impl ExtensionManager {
         *self.tools_cache.lock().await = None;
     }
 
-    pub(crate) fn tools_version(&self) -> u64 {
-        self.tools_cache_version.load(Ordering::SeqCst)
-    }
-
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
             .extensions
@@ -1813,7 +1812,7 @@ impl ExtensionManager {
         ctx: &super::tool_execution::ToolCallContext,
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult> {
+    ) -> std::result::Result<ToolCallResult, ErrorData> {
         let tool_name_str = tool_call.name.to_string();
         let resolved = self.resolve_tool(&ctx.session_id, &tool_name_str).await?;
 
@@ -1829,8 +1828,7 @@ impl ExtensionManager {
                         resolved.actual_tool_name, resolved.extension_name
                     ),
                     None,
-                )
-                .into());
+                ));
             }
         }
 
@@ -2352,8 +2350,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2365,8 +2362,7 @@ mod tests {
             .dispatch_tool_call(&ctx, invalid_tool_call, CancellationToken::default())
             .await;
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
@@ -2470,8 +2466,7 @@ mod tests {
             .await;
 
         if let Err(err) = result {
-            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
-            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+            assert_eq!(err.code, ErrorCode::RESOURCE_NOT_FOUND);
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }

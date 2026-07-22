@@ -1,15 +1,16 @@
+//! Replaces one batch of old tool request and response pairs with compact summaries.
+
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::Role;
 
-use crate::agents::state_machine::operation::{Emitter, Operation, OperationResult, TurnEffect};
-use crate::config::Config;
-use crate::context_mgmt::{
-    compute_tool_call_cutoff, summarize_tool_call, tool_ids_to_summarize,
-    tool_pair_summarization_enabled, DEFAULT_COMPACTION_THRESHOLD,
+use crate::agents::state_machine::operation::{
+    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
+    TurnEffect,
 };
+use crate::context_mgmt::{summarize_tool_call, tool_ids_to_summarize};
 use crate::conversation::message::MessageContent;
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
@@ -21,45 +22,24 @@ pub struct ToolPairCompactionOperation {
     model_config: ModelConfig,
     cutoff: usize,
     enabled: bool,
+    batch_attempted: AtomicBool,
 }
 
 impl ToolPairCompactionOperation {
-    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
-        let enabled = tool_pair_summarization_enabled() && !provider.manages_own_context();
-        let cutoff = Config::global()
-            .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-            .unwrap_or_else(|_| {
-                let threshold = Config::global()
-                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                compute_tool_call_cutoff(model_config.context_limit(), threshold)
-            });
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        cutoff: usize,
+        enabled: bool,
+    ) -> Self {
         Self {
             provider,
             model_config,
             cutoff,
             enabled,
+            batch_attempted: AtomicBool::new(false),
         }
     }
-}
-
-fn trailing_tool_requests(conversation: &Conversation) -> usize {
-    let mut count = 0;
-    for message in conversation.messages().iter().rev() {
-        let is_tool_activity = match message.role {
-            Role::Assistant => message.is_tool_call(),
-            Role::User => message.is_tool_response() || !message.is_user_visible(),
-        };
-        if !is_tool_activity {
-            break;
-        }
-        count += message
-            .content
-            .iter()
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-            .count();
-    }
-    count
 }
 
 #[async_trait]
@@ -74,15 +54,20 @@ impl Operation for ToolPairCompactionOperation {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        if !self.enabled {
-            return Ok(OperationResult::NotApplicable(emit));
+        if !self.enabled || self.batch_attempted.load(Ordering::Relaxed) {
+            return not_applicable(emit);
         }
 
-        let protected = trailing_tool_requests(conversation);
+        let protected = messages_since_kickoff(conversation)?
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter(|content| matches!(content, MessageContent::ToolRequest(_)))
+            .count();
         let tool_ids = tool_ids_to_summarize(conversation, self.cutoff, protected);
         if tool_ids.is_empty() {
-            return Ok(OperationResult::NotApplicable(emit));
+            return not_applicable(emit);
         }
+        self.batch_attempted.store(true, Ordering::Relaxed);
 
         let mut effects: Vec<TurnEffect> = Vec::new();
         let mut hidden_messages: std::collections::HashSet<String> = Default::default();
@@ -112,10 +97,12 @@ impl Operation for ToolPairCompactionOperation {
             // Hiding is per message, so the pair is summarized as a group: the
             // summary formats both messages wholesale, covering every sibling
             // call — which then must not be summarized (or hidden) again.
-            if pair
-                .iter()
-                .any(|message| hidden_messages.contains(message.id.as_ref().unwrap()))
-            {
+            if pair.iter().any(|message| {
+                message
+                    .id
+                    .as_ref()
+                    .is_some_and(|id| hidden_messages.contains(id))
+            }) {
                 continue;
             }
             let request_ids: std::collections::HashSet<&str> = pair
@@ -150,7 +137,9 @@ impl Operation for ToolPairCompactionOperation {
             };
 
             for message in pair {
-                let message_id = message.id.clone().expect("filtered on id presence");
+                let Some(message_id) = message.id.clone() else {
+                    continue;
+                };
                 hidden_messages.insert(message_id.clone());
                 effects.push(TurnEffect::SetMessageVisibility {
                     message_id,
@@ -162,9 +151,9 @@ impl Operation for ToolPairCompactionOperation {
         }
 
         if effects.is_empty() {
-            Ok(OperationResult::NotApplicable(emit))
+            not_applicable(emit)
         } else {
-            Ok(OperationResult::Applied(effects))
+            applied(effects)
         }
     }
 }

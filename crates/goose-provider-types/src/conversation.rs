@@ -597,13 +597,30 @@ pub fn is_turn_context_text(text: &str) -> bool {
         && text.trim_end().ends_with(&format!("</{TURN_CONTEXT_TAG}>"))
 }
 
-pub fn effective_role(message: &Message) -> String {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectiveRole {
+    User,
+    Assistant,
+    Tool,
+}
+
+impl std::fmt::Display for EffectiveRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => write!(f, "user"),
+            Self::Assistant => write!(f, "assistant"),
+            Self::Tool => write!(f, "tool"),
+        }
+    }
+}
+
+pub fn effective_role(message: &Message) -> EffectiveRole {
     if message.role == Role::User && has_tool_response(message) {
-        "tool".to_string()
+        EffectiveRole::Tool
     } else {
         match message.role {
-            Role::User => "user".to_string(),
-            Role::Assistant => "assistant".to_string(),
+            Role::User => EffectiveRole::User,
+            Role::Assistant => EffectiveRole::Assistant,
         }
     }
 }

@@ -2,16 +2,20 @@ mod machine;
 mod operation;
 mod ops_bang_shell;
 mod ops_compaction;
+mod ops_doctor;
 mod ops_exit_on_error;
 mod ops_llm;
 mod ops_maxturns;
+mod ops_recipe;
 mod ops_retry;
+mod ops_skills;
 mod ops_slash_command;
 mod ops_steer;
 mod ops_stop_hook;
 mod ops_tool_approval;
 mod ops_tool_pair_compaction;
 mod ops_toolcalling;
+mod ops_unknown_tool;
 
 pub mod test_helpers;
 

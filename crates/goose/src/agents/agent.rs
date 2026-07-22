@@ -1,7 +1,5 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -13,9 +11,12 @@ use uuid::Uuid;
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::mcp_client::GooseMcpHostInfo;
-use super::platform_tools;
+use super::steering::PendingSteers;
 use super::tool_confirmation_router::ToolConfirmationRouter;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{
+    tool_stream, ToolCallResult, ToolStream, ToolStreamItem, CHAT_MODE_TOOL_SKIPPED_RESPONSE,
+    DECLINED_RESPONSE,
+};
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
@@ -23,7 +24,6 @@ use crate::agents::extension_manager::{
 };
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
-use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
@@ -66,7 +66,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
-pub(crate) const DEFAULT_MAX_TURNS: u32 = 1000;
+const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
 const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
@@ -257,11 +257,11 @@ pub struct Agent {
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
     #[cfg(test)]
-    stop_hook_block_cap_override: Option<u32>,
+    pub(super) stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
-    goal: Mutex<Option<String>>,
-    grind: Mutex<Option<String>>,
-    pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
+    pub(super) goal: Mutex<Option<String>>,
+    pub(super) grind: Mutex<Option<String>>,
+    pub(super) pending_steers: PendingSteers,
 }
 
 #[derive(Clone, Debug)]
@@ -305,47 +305,6 @@ impl Default for Agent {
     }
 }
 
-pub enum ToolStreamItem<T> {
-    ActionRequired(Message),
-    Message(ServerNotification),
-    Result(T),
-}
-
-pub type ToolStream =
-    Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<CallToolResult>>> + Send>>;
-
-// tool_stream combines a stream of ServerNotifications with a future representing the
-// final result of the tool call. MCP notifications are not request-scoped, but
-// this lets us capture all notifications emitted during the tool call for
-// simpler consumption
-pub fn tool_stream<S, A, F>(rx: S, action_required_rx: A, done: F) -> ToolStream
-where
-    S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
-    A: Stream<Item = Message> + Send + Unpin + 'static,
-    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
-{
-    Box::pin(async_stream::stream! {
-        tokio::pin!(done);
-        let mut rx = rx;
-        let mut action_required_rx = action_required_rx;
-
-        loop {
-            tokio::select! {
-                Some(msg) = action_required_rx.next() => {
-                    yield ToolStreamItem::ActionRequired(msg);
-                }
-                Some(msg) = rx.next() => {
-                    yield ToolStreamItem::Message(msg);
-                }
-                r = &mut done => {
-                    yield ToolStreamItem::Result(r);
-                    break;
-                }
-            }
-        }
-    })
-}
-
 impl Agent {
     pub fn new() -> Self {
         let config = Config::global();
@@ -383,6 +342,7 @@ impl Agent {
             .and_then(|host_info| host_info.client_name.clone())
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
+        let scheduler = config.scheduler_service.clone();
         let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
@@ -393,6 +353,7 @@ impl Agent {
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
                 session_manager,
+                scheduler,
                 client_name,
                 capabilities,
                 use_login_shell_path,
@@ -420,7 +381,7 @@ impl Agent {
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
-            pending_steers: Mutex::new(HashMap::new()),
+            pending_steers: PendingSteers::default(),
         }
     }
 
@@ -505,33 +466,19 @@ impl Agent {
     }
 
     pub async fn steer(&self, session_id: &str, message: Message) {
-        self.pending_steers
-            .lock()
-            .await
-            .entry(session_id.to_string())
-            .or_default()
-            .push_back(message);
+        self.pending_steers.push(session_id, message).await;
     }
 
     pub async fn discard_pending_steers(&self, session_id: &str) {
-        self.pending_steers.lock().await.remove(session_id);
+        self.pending_steers.discard(session_id).await;
     }
 
     pub(crate) async fn has_pending_steers(&self, session_id: &str) -> bool {
-        self.pending_steers
-            .lock()
-            .await
-            .get(session_id)
-            .is_some_and(|messages| !messages.is_empty())
+        self.pending_steers.has_pending(session_id).await
     }
 
     pub(crate) async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
-        self.pending_steers
-            .lock()
-            .await
-            .remove(session_id)
-            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
-            .unwrap_or_default()
+        self.pending_steers.drain(session_id).await
     }
 
     async fn emit_pre_tool_extended_hooks(
@@ -715,14 +662,16 @@ impl Agent {
         session_config: &SessionConfig,
         initial_messages: &[Message],
     ) -> Result<RetryResult> {
-        self.retry_manager
-            .handle_retry_logic(
-                messages,
-                session_config,
-                initial_messages,
-                &self.final_output_tool,
-            )
-            .await
+        let result = self
+            .retry_manager
+            .handle_retry_logic(messages, session_config, initial_messages)
+            .await?;
+        if matches!(result, RetryResult::Retried) {
+            if let Some(tool) = self.final_output_tool.lock().await.as_mut() {
+                tool.final_output = None;
+            }
+        }
+        Ok(result)
     }
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
@@ -1129,26 +1078,6 @@ impl Agent {
         )
         .await;
 
-        if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let result = self
-                .handle_schedule_management(arguments, request_id.clone())
-                .await;
-            let wrapped_result = result.map(CallToolResult::success);
-            return (
-                request_id,
-                Ok(self.with_post_tool_hook(
-                    ToolCallResult::from(wrapped_result),
-                    &tool_call,
-                    session,
-                )),
-            );
-        }
-
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
             return if let Some(final_output_tool) = self.final_output_tool.lock().await.as_mut() {
                 let result = final_output_tool.execute_tool_call(tool_call.clone()).await;
@@ -1190,15 +1119,12 @@ impl Agent {
                     cancellation_token.unwrap_or_default(),
                 )
                 .await;
-            result.unwrap_or_else(|e| {
+            result.unwrap_or_else(|error_data| {
                 #[cfg(feature = "telemetry")]
                 crate::posthog::emit_error(
                     "tool_execution_failed",
-                    &format!("{}: {}", tool_call.name, e),
+                    &format!("{}: {}", tool_call.name, error_data),
                 );
-                let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
-                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
-                });
                 ToolCallResult::from(Err(error_data))
             })
         };
@@ -1471,12 +1397,6 @@ impl Agent {
             self.frontend_tools_for_extension(extension_name.as_deref())
                 .await,
         );
-
-        if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
-            && self.config.scheduler_service.is_some()
-        {
-            prefixed_tools.push(platform_tools::manage_schedule_tool());
-        }
 
         if extension_name.is_none() {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
@@ -2047,7 +1967,7 @@ impl Agent {
                     max_turns,
                 ).await;
 
-                let mut stream = Self::stream_response_from_provider(
+                let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,
                     model_config.clone(),
                     &session_config.id,

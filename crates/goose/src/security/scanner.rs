@@ -380,7 +380,9 @@ impl PromptInjectionScanner {
         messages
             .iter()
             .rev()
-            .filter(|m| crate::conversation::effective_role(m) == "user")
+            .filter(|m| {
+                crate::conversation::effective_role(m) == crate::conversation::EffectiveRole::User
+            })
             .take(limit)
             .map(|m| {
                 m.content

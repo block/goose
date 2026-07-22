@@ -1,8 +1,8 @@
 use crate::agents::extension_manager::ExtensionManager;
 use crate::conversation::message::MessageContent;
 use crate::conversation::{
-    effective_role, fix_conversation, Conversation, CURRENT_TIME_TAG, TURN_CONTEXT_TAG,
-    WORKING_DIRECTORY_TAG,
+    effective_role, fix_conversation, Conversation, EffectiveRole, CURRENT_TIME_TAG,
+    TURN_CONTEXT_TAG, WORKING_DIRECTORY_TAG,
 };
 use std::path::{Path, PathBuf};
 
@@ -84,20 +84,32 @@ pub async fn inject_moim(
         .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
         .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
     let extension_parts = extension_manager.collect_moim_parts(session_id).await;
-    let moim = compose_moim(
-        &working_dir,
+    let mut parts = extension_parts;
+    parts.extend(compaction_part(
         total_tokens,
         context_limit,
         compaction_threshold,
-        turns_taken,
-        max_turns,
-        extension_parts,
-    );
+    ));
+    parts.extend(turn_budget_part(turns_taken, max_turns));
+    inject_moim_parts(conversation, &working_dir, context_limit, parts)
+}
+
+pub(crate) fn inject_moim_parts(
+    conversation: Conversation,
+    working_dir: &Path,
+    context_limit: Option<usize>,
+    parts: Vec<String>,
+) -> Conversation {
+    if SKIP.with(|f| f.get()) || should_skip_moim(context_limit) {
+        return conversation;
+    }
+
+    let moim = compose_moim(working_dir, parts);
 
     let mut messages = conversation.messages().clone();
     let Some(idx) = messages
         .iter()
-        .rposition(|m| m.is_agent_visible() && effective_role(m) == "user")
+        .rposition(|m| m.is_agent_visible() && effective_role(m) == EffectiveRole::User)
     else {
         return conversation;
     };
@@ -133,15 +145,7 @@ fn should_skip_moim(context_limit: Option<usize>) -> bool {
     context_limit.is_some_and(|limit| limit < MIN_CONTEXT_FOR_MOIM)
 }
 
-fn compose_moim(
-    working_dir: &Path,
-    total_tokens: Option<i32>,
-    context_limit: Option<usize>,
-    compaction_threshold: f64,
-    turns_taken: u32,
-    max_turns: u32,
-    extension_parts: Vec<String>,
-) -> String {
+fn compose_moim(working_dir: &Path, parts: Vec<String>) -> String {
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00 %:z");
     let mut lines = vec![
         open_tag(TURN_CONTEXT_TAG),
@@ -149,16 +153,7 @@ fn compose_moim(
         tag(WORKING_DIRECTORY_TAG, &working_dir.display().to_string()),
     ];
 
-    if let Some(value) =
-        compaction_remaining_line(total_tokens, context_limit, compaction_threshold)
-    {
-        lines.push(tag("compaction", &value));
-    }
-    if let Some(value) = turn_budget_line(turns_taken, max_turns) {
-        lines.push(tag("turn-budget", &value));
-    }
-
-    for part in extension_parts {
+    for part in parts {
         if !part.trim().is_empty() {
             lines.push(String::new());
             lines.push(part);
@@ -188,7 +183,7 @@ fn escape_xml_text(value: &str) -> String {
         .replace('>', "&gt;")
 }
 
-fn compaction_remaining_line(
+fn compaction_part(
     total_tokens: Option<i32>,
     context_limit: Option<usize>,
     threshold: f64,
@@ -205,18 +200,24 @@ fn compaction_remaining_line(
         return None;
     }
 
-    Some(format!(
-        "~{}k tokens remaining",
-        compaction_at.saturating_sub(total_tokens) / 1000
+    Some(tag(
+        "compaction",
+        &format!(
+            "~{}k tokens remaining",
+            compaction_at.saturating_sub(total_tokens) / 1000
+        ),
     ))
 }
 
-fn turn_budget_line(turns_taken: u32, max_turns: u32) -> Option<String> {
+fn turn_budget_part(turns_taken: u32, max_turns: u32) -> Option<String> {
     if max_turns == 0 || turns_taken.saturating_mul(2) < max_turns {
         return None;
     }
 
-    Some(format!("{turns_taken}/{max_turns} used"))
+    Some(tag(
+        "turn-budget",
+        &format!("{turns_taken}/{max_turns} used"),
+    ))
 }
 
 #[cfg(test)]
@@ -376,17 +377,11 @@ mod tests {
             context_limit: Option<usize>,
             turns_taken: u32,
             max_turns: u32,
-            extension_parts: Vec<String>,
+            mut parts: Vec<String>,
         ) -> String {
-            compose_moim(
-                Path::new("/Users/me/code/goose"),
-                total_tokens,
-                context_limit,
-                0.8,
-                turns_taken,
-                max_turns,
-                extension_parts,
-            )
+            parts.extend(compaction_part(total_tokens, context_limit, 0.8));
+            parts.extend(turn_budget_part(turns_taken, max_turns));
+            compose_moim(Path::new("/Users/me/code/goose"), parts)
         }
 
         #[test]

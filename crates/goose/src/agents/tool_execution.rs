@@ -4,6 +4,7 @@ use futures::{Stream, StreamExt};
 use rmcp::model::CallToolResult;
 use std::collections::HashMap;
 use std::future::Future;
+use std::pin::Pin;
 use tokio_util::sync::CancellationToken;
 
 use std::path::PathBuf;
@@ -58,11 +59,47 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
     }
 }
 
-use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
 use crate::conversation::message::ToolRequest;
 use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
+
+pub(super) enum ToolStreamItem<T> {
+    ActionRequired(Message),
+    Message(ServerNotification),
+    Result(T),
+}
+
+pub(super) type ToolStream =
+    Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<CallToolResult>>> + Send>>;
+
+pub(super) fn tool_stream<S, A, F>(rx: S, action_required_rx: A, done: F) -> ToolStream
+where
+    S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
+    A: Stream<Item = Message> + Send + Unpin + 'static,
+    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
+{
+    Box::pin(async_stream::stream! {
+        tokio::pin!(done);
+        let mut rx = rx;
+        let mut action_required_rx = action_required_rx;
+
+        loop {
+            tokio::select! {
+                Some(msg) = action_required_rx.next() => {
+                    yield ToolStreamItem::ActionRequired(msg);
+                }
+                Some(msg) = rx.next() => {
+                    yield ToolStreamItem::Message(msg);
+                }
+                r = &mut done => {
+                    yield ToolStreamItem::Result(r);
+                    break;
+                }
+            }
+        }
+    })
+}
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
     DO NOT attempt to call this tool again. \
