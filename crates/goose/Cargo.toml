@@ -84,6 +84,7 @@ workspace = true
 
 [dependencies]
 lru = { workspace = true }
+blake3 = { version = "1", default-features = false, features = ["std"] }
 rmcp = { workspace = true, features = [
     "client",
     "transport-child-process",
@@ -110,7 +111,6 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 include_dir = { workspace = true }
-tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
@@ -163,7 +163,6 @@ aws-sdk-sagemakerruntime = { version = "1.104", default-features = false, featur
 # For GCP Vertex AI provider auth
 jsonwebtoken = { version = "10.2", default-features = false, features = ["use_pem"] }
 
-blake3 = { version = "1", default-features = false, features = ["std"] }
 fs2 = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }

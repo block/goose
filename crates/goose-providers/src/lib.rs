@@ -8,6 +8,7 @@ pub use goose_provider_types::{
     base, canonical, conversation, errors, formats, goose_mode, images, json, model, permission,
     request_log, retry, thinking, utils,
 };
+pub mod context_mgmt;
 pub mod declarative;
 pub mod http_status;
 #[cfg(feature = "local-inference")]
@@ -15,6 +16,8 @@ pub mod local_inference;
 pub mod ollama;
 pub mod openai;
 pub mod openai_compatible;
+pub mod token_counter;
+pub mod usage_estimator;
 
 pub use declarative::declarative_providers::*;
 

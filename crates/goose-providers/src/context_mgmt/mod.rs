@@ -3,33 +3,26 @@ pub mod structured;
 use crate::context_mgmt::structured::StructuredSummary;
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::token_usage::ProviderUsage;
 use crate::conversation::{merge_consecutive_messages, Conversation};
-use crate::prompt_template::render_template;
-use crate::providers::base::Provider;
-#[cfg(test)]
-use crate::providers::base::{stream_from_single_message, MessageStream};
-use crate::{config::Config, token_counter::create_token_counter};
+use crate::errors::ProviderError;
+use crate::token_counter::create_token_counter;
 use anyhow::Result;
-use goose_providers::conversation::token_usage::ProviderUsage;
-use goose_providers::errors::ProviderError;
-use goose_providers::model::ModelConfig;
+use async_trait::async_trait;
 use indoc::indoc;
-use rmcp::model::Role;
+use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
+use rmcp::model::{Role, Tool};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
-use tracing::info;
-use tracing::log::warn;
+use tracing::{info, warn};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
-const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
+pub const COMPACTION_PROMPT_TEMPLATE: &str = include_str!("prompts/compaction.md");
+pub const COMPACTION_SUMMARY_TEMPLATE: &str = include_str!("prompts/compaction_summary.md");
 
-fn tool_pair_summarization_enabled() -> bool {
-    Config::global()
-        .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
-        .unwrap_or(true)
-}
+const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
@@ -45,6 +38,73 @@ const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
     "Your context was compacted at the user's request. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
 Just continue the conversation naturally based on the summarized context.";
+
+/// The LLM call used for summarization, injected by the caller so that model
+/// selection (e.g. a fast model with fallback), session attribution, and any
+/// configuration reads stay in the application layer.
+#[async_trait]
+pub trait CompactionModel: Send + Sync {
+    async fn complete(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+}
+
+/// Caller-provided compaction configuration. Template overrides replace the
+/// built-in `COMPACTION_PROMPT_TEMPLATE` / `COMPACTION_SUMMARY_TEMPLATE`.
+#[derive(Debug, Clone, Default)]
+pub struct CompactionSettings {
+    pub compaction_prompt_override: Option<String>,
+    pub summary_template_override: Option<String>,
+}
+
+impl CompactionSettings {
+    fn compaction_prompt(&self) -> &str {
+        self.compaction_prompt_override
+            .as_deref()
+            .unwrap_or(COMPACTION_PROMPT_TEMPLATE)
+    }
+
+    fn summary_template(&self) -> &str {
+        self.summary_template_override
+            .as_deref()
+            .unwrap_or(COMPACTION_SUMMARY_TEMPLATE)
+    }
+}
+
+/// Wrap code in a markdown fence longer than any backtick run it contains,
+/// so embedded fences cannot close the block early.
+fn code_fence(code: String) -> String {
+    let longest_run = code
+        .chars()
+        .fold((0usize, 0usize), |(max, run), c| {
+            if c == '`' {
+                (max.max(run + 1), run + 1)
+            } else {
+                (max, 0)
+            }
+        })
+        .0;
+    let fence = "`".repeat((longest_run + 1).max(3));
+    format!("{fence}\n{}\n{fence}", code.trim_end_matches('\n'))
+}
+
+pub(crate) fn render_template_str<T: Serialize>(
+    template_str: &str,
+    context: &T,
+) -> Result<String, MiniJinjaError> {
+    let mut env = Environment::new();
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
+    env.add_filter("code_fence", code_fence);
+    env.add_template("template", template_str)?;
+    let tmpl = env.get_template("template")?;
+    let ctx = MJValue::from_serialize(context);
+    let rendered = tmpl.render(ctx)?;
+    Ok(rendered.trim().to_string())
+}
 
 #[derive(Serialize)]
 struct SummarizeContext {
@@ -69,14 +129,13 @@ pub struct CompactionResult {
 /// first to determine if compaction is necessary.
 ///
 /// # Arguments
-/// * `provider` - The provider to use for summarization
-/// * `session_id` - The session to use for summarization
+/// * `model` - The summarization completion to use
+/// * `settings` - Template overrides and other compaction configuration
 /// * `conversation` - The current conversation history
 /// * `manual_compact` - If true, this is a manual compaction (don't preserve user message)
 pub async fn compact_messages(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
+    settings: &CompactionSettings,
     conversation: &Conversation,
     manual_compact: bool,
 ) -> Result<CompactionResult> {
@@ -134,7 +193,7 @@ pub async fn compact_messages(
     let messages_to_compact = messages.as_slice();
 
     let (summary_message, summarization_usage) =
-        do_compact(provider, model_config, session_id, messages_to_compact).await?;
+        do_compact(model, settings, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -209,59 +268,41 @@ async fn count_retained_context_tokens(conversation: &Conversation) -> Option<i3
     }
 }
 
-/// Check if messages exceed the auto-compaction threshold
+/// Check if messages exceed the auto-compaction threshold.
+///
+/// * `context_limit` - the effective context limit for the current model
+/// * `known_total_tokens` - the session's tracked token count, if available;
+///   when absent the agent-visible conversation is estimated with a token counter
+/// * `threshold` - the auto-compaction threshold ratio; values outside (0, 1)
+///   disable auto-compaction
 pub async fn check_if_compaction_needed(
-    provider: &dyn Provider,
     conversation: &Conversation,
-    threshold_override: Option<f64>,
-    session: &crate::session::Session,
+    context_limit: usize,
+    known_total_tokens: Option<usize>,
+    threshold: f64,
 ) -> Result<bool> {
-    if provider.manages_own_context() {
-        return Ok(false);
+    if threshold <= 0.0 || threshold >= 1.0 {
+        return Ok(false); // Auto-compact is disabled.
     }
 
-    let messages = conversation.messages();
-    let config = Config::global();
-    let threshold = threshold_override.unwrap_or_else(|| {
-        config
-            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
-    });
-
-    let model_config = session
-        .model_config
-        .clone()
-        .unwrap_or_else(|| ModelConfig::new("unknown"));
-    let context_limit = provider
-        .get_context_limit(&model_config)
-        .await
-        .unwrap_or_else(|_| model_config.context_limit());
-
-    let (current_tokens, _token_source) = match session.usage.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
+    let current_tokens = match known_total_tokens {
+        Some(tokens) => tokens,
         None => {
             let token_counter = create_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
-            let token_counts: Vec<_> = messages
+            conversation
+                .messages()
                 .iter()
                 .filter(|m| m.is_agent_visible())
                 .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .collect();
-
-            (token_counts.iter().sum(), "estimated")
+                .sum()
         }
     };
 
     let usage_ratio = current_tokens as f64 / context_limit as f64;
-
-    let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false // Auto-compact is disabled.
-    } else {
-        usage_ratio > threshold
-    };
-    Ok(needs_compaction)
+    Ok(usage_ratio > threshold)
 }
 
 fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Message> {
@@ -315,9 +356,8 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
 }
 
 async fn do_compact(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
+    settings: &CompactionSettings,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
     let agent_visible_messages =
@@ -339,21 +379,15 @@ async fn do_compact(
             messages: messages_text,
         };
 
-        let system_prompt = render_template("compaction.md", &context)?;
+        let system_prompt = render_template_str(settings.compaction_prompt(), &context)?;
 
         let user_message = Message::user()
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match crate::model_config::complete_fast(
-            provider,
-            model_config,
-            session_id,
-            &system_prompt,
-            &summarization_request,
-            &[],
-        )
-        .await
+        match model
+            .complete(&system_prompt, &summarization_request, &[])
+            .await
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
@@ -361,7 +395,7 @@ async fn do_compact(
                 // Usage must reflect the raw model output (billable tokens),
                 // so estimate before the response is rewritten to the smaller
                 // rendered summary.
-                crate::providers::usage_estimator::ensure_usage_tokens(
+                crate::usage_estimator::ensure_usage_tokens(
                     &mut provider_usage,
                     &system_prompt,
                     &summarization_request,
@@ -371,7 +405,7 @@ async fn do_compact(
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-                apply_structured_summary(&mut response);
+                apply_structured_summary(&mut response, settings);
 
                 return Ok((response, provider_usage));
             }
@@ -398,11 +432,11 @@ async fn do_compact(
 /// When the model didn't follow the structured output format (schema-ignoring
 /// models, user-customized prompts), the raw response text is kept unchanged
 /// as the summary.
-fn apply_structured_summary(response: &mut Message) {
+fn apply_structured_summary(response: &mut Message, settings: &CompactionSettings) {
     let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
         return;
     };
-    match summary.render() {
+    match summary.render(settings.summary_template()) {
         Ok(rendered) if !rendered.trim().is_empty() => {
             response.content = vec![MessageContent::text(rendered)];
         }
@@ -574,9 +608,7 @@ fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result
 }
 
 pub async fn summarize_tool_call(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
     conversation: &Conversation,
     tool_id: &str,
 ) -> Result<Message> {
@@ -604,15 +636,9 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = crate::model_config::complete_fast(
-        provider,
-        model_config,
-        session_id,
-        system_prompt,
-        &summarization_request,
-        &[],
-    )
-    .await?;
+    let (mut response, _) = model
+        .complete(system_prompt, &summarization_request, &[])
+        .await?;
 
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
@@ -622,17 +648,11 @@ pub async fn summarize_tool_call(
 }
 
 pub fn maybe_summarize_tool_pairs(
-    provider: Arc<dyn Provider>,
-    model_config: ModelConfig,
-    session_id: String,
+    model: Arc<dyn CompactionModel>,
     conversation: Conversation,
     cutoff: usize,
     protect_last_n: usize,
 ) -> Option<JoinHandle<Vec<(Message, String)>>> {
-    if !tool_pair_summarization_enabled() || provider.manages_own_context() {
-        return None;
-    }
-
     let tool_ids = tool_ids_to_summarize(&conversation, cutoff, protect_last_n);
     if tool_ids.is_empty() {
         return None;
@@ -641,15 +661,7 @@ pub fn maybe_summarize_tool_pairs(
     Some(tokio::spawn(async move {
         let mut results = Vec::new();
         for tool_id in tool_ids {
-            match summarize_tool_call(
-                provider.as_ref(),
-                &model_config,
-                &session_id,
-                &conversation,
-                &tool_id,
-            )
-            .await
-            {
+            match summarize_tool_call(model.as_ref(), &conversation, &tool_id).await {
                 Ok(summary) => results.push((summary, tool_id)),
                 Err(e) => {
                     warn!("Failed to summarize tool pair: {}", e);
@@ -663,8 +675,9 @@ pub fn maybe_summarize_tool_pairs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
-    use goose_providers::conversation::token_usage::Usage;
+    use crate::base::{stream_from_single_message, MessageStream, Provider};
+    use crate::conversation::token_usage::Usage;
+    use crate::model::ModelConfig;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     fn create_tool_pair(
@@ -766,6 +779,18 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl CompactionModel for MockProvider {
+        async fn complete(
+            &self,
+            system: &str,
+            messages: &[Message],
+            tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Provider::complete(self, &self.config, system, messages, tools).await
+        }
+    }
+
     #[tokio::test]
     async fn test_keeps_tool_request() {
         let response_message = Message::assistant().with_text("<mock summary>");
@@ -783,11 +808,9 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let model_config = provider.config.clone();
         let compaction = compact_messages(
             &provider,
-            &model_config,
-            "test-session-id",
+            &CompactionSettings::default(),
             &conversation,
             false,
         )
@@ -818,11 +841,9 @@ mod tests {
             Message::assistant().with_text("Looking into it"),
         ]);
 
-        let model_config = provider.config.clone();
         let compaction = compact_messages(
             &provider,
-            &model_config,
-            "test-session-id",
+            &CompactionSettings::default(),
             &conversation,
             true,
         )
@@ -859,11 +880,9 @@ mod tests {
                 Message::assistant().with_text("ok"),
                 Message::user().with_text(final_user_text),
             ]);
-            let model_config = provider.config.clone();
             compact_messages(
                 &provider,
-                &model_config,
-                "test-session-id",
+                &CompactionSettings::default(),
                 &conversation,
                 false,
             )
@@ -910,8 +929,7 @@ mod tests {
 
         let compacted = compact_messages(
             &provider,
-            &provider.config,
-            "test-session-id",
+            &CompactionSettings::default(),
             &conversation,
             false,
         )
@@ -961,6 +979,8 @@ mod tests {
 
     #[tokio::test]
     async fn tool_pair_summary_projects_nested_audiences_before_provider_input() {
+        use rmcp::model::Role;
+
         let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
         let conversation = Conversation::new_unvalidated([
             Message::assistant()
@@ -1006,15 +1026,9 @@ mod tests {
             .join("\n");
         assert!(!user_only_formatted.contains("user-only secret"));
 
-        summarize_tool_call(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            "tool_0",
-        )
-        .await
-        .unwrap();
+        summarize_tool_call(&provider, &conversation, "tool_0")
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1033,15 +1047,9 @@ mod tests {
                 .with_metadata(MessageMetadata::user_only()),
         ]);
 
-        let error = summarize_tool_call(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            "tool_0",
-        )
-        .await
-        .unwrap_err();
+        let error = summarize_tool_call(&provider, &conversation, "tool_0")
+            .await
+            .unwrap_err();
 
         assert!(error.to_string().contains("No agent-visible tool pair"));
     }
@@ -1068,11 +1076,9 @@ mod tests {
         }
 
         let conversation = Conversation::new_unvalidated(messages);
-        let model_config = provider.config.clone();
         let result = compact_messages(
             &provider,
-            &model_config,
-            "test-session-id",
+            &CompactionSettings::default(),
             &conversation,
             false,
         )
