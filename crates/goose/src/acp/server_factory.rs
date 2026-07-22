@@ -1,4 +1,6 @@
-use crate::acp::server::{AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions};
+use crate::acp::server::{
+    AcpBuiltinSelection, AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions,
+};
 use crate::agents::GoosePlatform;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
@@ -9,7 +11,7 @@ use tokio::sync::OnceCell;
 use tracing::info;
 
 pub struct AcpServerFactoryConfig {
-    pub builtins: Vec<String>,
+    pub builtin_selection: AcpBuiltinSelection,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub goose_platform: GoosePlatform,
@@ -69,7 +71,7 @@ impl AcpServer {
 
         let agent = GooseAcpAgent::new(GooseAcpAgentOptions {
             provider_factory,
-            builtins: self.config.builtins.clone(),
+            builtin_selection: self.config.builtin_selection.clone(),
             data_dir: self.config.data_dir.clone(),
             config_dir: self.config.config_dir.clone(),
             disable_session_naming,
