@@ -70,7 +70,7 @@ Exposed via `goose roam` (in `goose-cli`, feature `roaming`):
 |---|---|
 | `roam id` (alias `card`) | Print this node's connection card |
 | `roam peers add <card> [name]` | Save a peer's card to the address book |
-| `roam peers accept <peer\|card>` | Accept inbound connections from a key |
+| `roam peers accept <peer\|card> [name]` | Accept inbound connections from a key (names an inline card) |
 | `roam peers revoke <peer\|card\|id>` | Stop accepting a key |
 | `roam peers list` | Saved peers + which keys are accepted |
 | `roam share [--cwd] [--with-builtin]` | Host this agent to accepted peers |

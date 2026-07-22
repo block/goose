@@ -190,6 +190,7 @@ token that works by possession. You accept a peer by saved name or inline card:
 ```bash
 goose roam peers accept laptop                    # accept a saved peer
 goose roam peers accept 'goose+roam://…'          # accept an inline card (also saves it)
+goose roam peers accept 'goose+roam://…' laptop   # accept + save under a nickname in one go
 
 goose roam peers list                             # see who is accepted
 goose roam peers revoke laptop                    # stop accepting (name, card, or raw id)

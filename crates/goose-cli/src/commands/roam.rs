@@ -153,6 +153,9 @@ pub enum PeersCommand {
     Accept {
         /// A saved nickname or a `goose+roam://...` card.
         target: String,
+        /// Nickname to save an inline card under (defaults to a short id).
+        /// Ignored when the target is already a saved nickname.
+        name: Option<String>,
     },
     /// Stop accepting a peer: a saved nickname, a card, or a raw endpoint id.
     /// A live session continues until it disconnects.
@@ -229,15 +232,18 @@ async fn handle_peers(command: PeersCommand) -> Result<()> {
             eprintln!("accept connections from it with: goose roam peers accept {name}");
             Ok(())
         }
-        PeersCommand::Accept { target } => {
+        PeersCommand::Accept { target, name } => {
             // Resolve to a card: a saved name, or an inline card we also save.
             let card = match ConnectionCard::decode(&target) {
                 Ok(card) => {
-                    let name = short_id(&card.endpoint_id.to_string());
+                    let name = name.unwrap_or_else(|| short_id(&card.endpoint_id.to_string()));
                     book.save(&name, &target, now_ms())?;
                     card
                 }
                 Err(_) => {
+                    if name.is_some() {
+                        eprintln!("note: `{target}` is a saved peer; ignoring the extra name arg");
+                    }
                     let rec = book.get(&target).ok_or_else(|| {
                         anyhow::anyhow!(
                             "no saved peer `{target}` and it is not a card; add it first with \
@@ -569,6 +575,9 @@ async fn handle_bridge(
             crate::commands::roam_proxy::splice(lr, lw, remote_send, remote_recv).await
         }
         None => {
+            // stdio is a pure ACP transport: ONLY the splice may touch stdout.
+            // All status goes to stderr so an ACP client reading stdout sees a
+            // clean protocol stream.
             eprintln!("bridging remote agent `{agent_id}` over stdio; speak ACP on stdin/stdout");
             let stdin = tokio::io::stdin();
             let stdout = tokio::io::stdout();
@@ -576,7 +585,7 @@ async fn handle_bridge(
         }
     };
 
-    let _ = tokio::io::stdout().flush().await;
+    let _ = tokio::io::stderr().flush().await;
     drop(conn);
     node.shutdown().await?;
     result
