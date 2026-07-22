@@ -174,6 +174,10 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 /// below is keyed by session ID.
 struct GooseAcpSession {
     agent: Arc<Agent>,
+    /// Hot-reloads the provider/model when the config file changes. `None` if
+    /// the watcher could not be started. Dropping the session stops the watch.
+    #[allow(dead_code)]
+    config_watcher: Option<crate::config::watcher::ConfigWatcher>,
 }
 
 struct ActivePromptRun {
@@ -946,7 +950,12 @@ impl GooseAcpAgent {
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
-        let acp_session = GooseAcpSession { agent };
+        let config_watcher =
+            crate::config::watcher::ConfigWatcher::start(agent.clone(), session_id.clone()).ok();
+        let acp_session = GooseAcpSession {
+            agent,
+            config_watcher,
+        };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
 
