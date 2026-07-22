@@ -2259,6 +2259,14 @@ export const zDictationProviderStatusEntry = z.object({
         z.string(),
         z.null()
     ]).optional(),
+    hostExplicit: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
+    secretConfigured: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
     description: z.string(),
     usesProviderConfig: z.boolean(),
     settingsPath: z.union([

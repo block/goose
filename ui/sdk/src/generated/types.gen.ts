@@ -2216,6 +2216,8 @@ export type DictationConfigResponse_unstable = {
 export type DictationProviderStatusEntry = {
     configured: boolean;
     host?: string | null;
+    hostExplicit?: boolean | null;
+    secretConfigured?: boolean | null;
     description: string;
     usesProviderConfig: boolean;
     settingsPath?: string | null;

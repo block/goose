@@ -1621,6 +1621,10 @@ pub struct DictationProviderStatusEntry {
     pub configured: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_explicit: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_configured: Option<bool>,
     pub description: String,
     pub uses_provider_config: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

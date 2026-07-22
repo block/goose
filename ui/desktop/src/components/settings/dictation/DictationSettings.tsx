@@ -346,7 +346,7 @@ export const DictationSettings = () => {
                           ? intl.formatMessage(i18n.updateEndpoint)
                           : intl.formatMessage(i18n.addEndpoint)}
                       </Button>
-                      {providerStatuses[provider]?.host && (
+                      {providerStatuses[provider]?.hostExplicit && (
                         <Button variant="destructive" size="sm" onClick={handleRemoveEndpoint}>
                           {intl.formatMessage(i18n.removeEndpoint)}
                         </Button>
@@ -386,7 +386,7 @@ export const DictationSettings = () => {
                     {provider === 'azure_foundry' ? (
                       <>
                         {intl.formatMessage(i18n.azureServicesKeyDescription)}
-                        {providerStatuses[provider]?.configured && (
+                        {providerStatuses[provider]?.secretConfigured && (
                           <span className="text-green-600 ml-2">
                             {intl.formatMessage(i18n.configured)}
                           </span>
@@ -408,11 +408,17 @@ export const DictationSettings = () => {
                 {!isEditingKey ? (
                   <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
-                      {providerStatuses[provider]?.configured
+                      {(
+                        provider === 'azure_foundry'
+                          ? providerStatuses[provider]?.secretConfigured
+                          : providerStatuses[provider]?.configured
+                      )
                         ? intl.formatMessage(i18n.updateApiKey)
                         : intl.formatMessage(i18n.addApiKey)}
                     </Button>
-                    {providerStatuses[provider]?.configured && (
+                    {(provider === 'azure_foundry'
+                      ? providerStatuses[provider]?.secretConfigured
+                      : providerStatuses[provider]?.configured) && (
                       <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
                         {intl.formatMessage(i18n.removeApiKey)}
                       </Button>

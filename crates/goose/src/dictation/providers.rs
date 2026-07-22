@@ -2,13 +2,12 @@ use crate::config::tls::provider_tls_config_from_config;
 use crate::config::Config;
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
-use crate::providers::api_client::{ApiClient, AuthMethod};
+use crate::providers::api_client::{ApiClient, AuthMethod, TlsConfig};
 use crate::providers::azureauth::AzureAuth;
 use crate::providers::openai::parse_openai_base_url;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "local-inference")]
-use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -220,6 +219,17 @@ fn resolve_openai_base_url_target(raw_url: Option<&str>) -> Result<Option<OpenAi
 const AZURE_SPEECH_API_VERSION: &str = "2024-11-15";
 const AZURE_SPEECH_PATH: &str = "speechtotext/transcriptions:transcribe";
 
+#[derive(Clone, PartialEq, Eq)]
+struct AzureSpeechCredentials {
+    api_key: Option<String>,
+    ad_token: Option<String>,
+}
+
+type CachedAzureSpeechAuth = Option<(AzureSpeechCredentials, Arc<AzureAuth>)>;
+
+static AZURE_SPEECH_AUTH: LazyLock<Mutex<CachedAzureSpeechAuth>> =
+    LazyLock::new(|| Mutex::new(None));
+
 fn derive_cognitive_services_from_foundry(foundry_endpoint: &str) -> Option<String> {
     let url = url::Url::parse(foundry_endpoint).ok()?;
     let name = url.host_str()?.strip_suffix(".services.ai.azure.com")?;
@@ -266,6 +276,37 @@ fn azure_speech_key(config: &Config) -> Option<String> {
         })
 }
 
+fn azure_speech_auth(config: &Config) -> Result<Arc<AzureAuth>> {
+    let credentials = AzureSpeechCredentials {
+        api_key: azure_speech_key(config),
+        ad_token: config
+            .get_secret::<String>("AZURE_SPEECH_AD_TOKEN")
+            .ok()
+            .filter(|token| !token.is_empty())
+            .or_else(|| {
+                config
+                    .get_secret::<String>("AZURE_FOUNDRY_AD_TOKEN")
+                    .ok()
+                    .filter(|token| !token.is_empty())
+            }),
+    };
+    let mut cached = AZURE_SPEECH_AUTH
+        .lock()
+        .map_err(|error| anyhow::anyhow!("Azure speech auth cache poisoned: {error}"))?;
+    if let Some((cached_credentials, auth)) = cached.as_ref() {
+        if cached_credentials == &credentials {
+            return Ok(Arc::clone(auth));
+        }
+    }
+
+    let auth = Arc::new(
+        AzureAuth::new(credentials.api_key.clone(), credentials.ad_token.clone())
+            .map_err(anyhow::Error::from)?,
+    );
+    *cached = Some((credentials, Arc::clone(&auth)));
+    Ok(auth)
+}
+
 async fn azure_auth_header(auth: &AzureAuth) -> Result<(String, String)> {
     let token = auth.get_token().await.map_err(anyhow::Error::from)?;
     Ok(match auth.credential_type() {
@@ -287,17 +328,7 @@ async fn transcribe_with_azure_foundry(
 ) -> Result<String> {
     let config = Config::global();
     let endpoint = azure_speech_endpoint(config)?;
-    let ad_token = config
-        .get_secret::<String>("AZURE_SPEECH_AD_TOKEN")
-        .ok()
-        .filter(|token| !token.is_empty())
-        .or_else(|| {
-            config
-                .get_secret::<String>("AZURE_FOUNDRY_AD_TOKEN")
-                .ok()
-                .filter(|token| !token.is_empty())
-        });
-    let auth = AzureAuth::new(azure_speech_key(config), ad_token).map_err(anyhow::Error::from)?;
+    let auth = azure_speech_auth(config)?;
     let (auth_header_name, auth_header_value) = azure_auth_header(&auth).await?;
     let locale = config
         .get_param::<String>("AZURE_SPEECH_LOCALE")
@@ -312,10 +343,12 @@ async fn transcribe_with_azure_foundry(
         extension,
         mime_type,
         locale.as_deref(),
+        provider_tls_config_from_config(config)?,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn transcribe_speech_request(
     speech_url: &str,
     auth_header_name: &str,
@@ -324,6 +357,7 @@ async fn transcribe_speech_request(
     extension: &str,
     mime_type: &str,
     locale: Option<&str>,
+    tls_config: Option<TlsConfig>,
 ) -> Result<String> {
     let audio_part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{extension}"))
@@ -335,13 +369,19 @@ async fn transcribe_speech_request(
     let form = reqwest::multipart::Form::new()
         .part("audio", audio_part)
         .text("definition", definition);
-    let response = reqwest::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .build()?
-        .post(speech_url)
-        .header(auth_header_name, auth_header_value)
-        .multipart(form)
-        .send()
+    let speech_url = url::Url::parse(speech_url)?;
+    let host = speech_url.origin().ascii_serialization();
+    let mut path = speech_url.path().trim_start_matches('/').to_string();
+    if let Some(query) = speech_url.query() {
+        path.push('?');
+        path.push_str(query);
+    }
+    let client =
+        ApiClient::with_timeout_and_tls(host, AuthMethod::NoAuth, REQUEST_TIMEOUT, tls_config)?;
+    let response = client
+        .request(&path)
+        .header(auth_header_name, auth_header_value)?
+        .multipart_post(form)
         .await?;
 
     if !response.status().is_success() {
@@ -588,6 +628,7 @@ mod tests {
             "wav",
             "audio/wav",
             Some("fr-FR"),
+            None,
         )
         .await
         .unwrap();

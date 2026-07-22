@@ -101,6 +101,21 @@ impl GooseAcpAgent {
                 None
             };
 
+            let (host_explicit, secret_configured) = if provider == DictationProvider::AzureFoundry
+            {
+                let explicit_host = config
+                    .get_param::<String>("AZURE_SPEECH_ENDPOINT")
+                    .ok()
+                    .is_some_and(|endpoint| !endpoint.trim().is_empty());
+                let explicit_secret = config
+                    .get_secret::<String>("AZURE_SPEECH_KEY")
+                    .ok()
+                    .is_some_and(|key| !key.is_empty());
+                (Some(explicit_host), Some(explicit_secret))
+            } else {
+                (None, None)
+            };
+
             let provider_key = serde_json::to_value(provider)
                 .ok()
                 .and_then(|v| v.as_str().map(|s| s.to_string()))
@@ -110,6 +125,8 @@ impl GooseAcpAgent {
                 DictationProviderStatusEntry {
                     configured: is_configured(provider),
                     host,
+                    host_explicit,
+                    secret_configured,
                     description: def.description.to_string(),
                     uses_provider_config: def.uses_provider_config,
                     settings_path: def.settings_path.map(|s| s.to_string()),
