@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Back"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "This chat is archived and hidden from your recent chats."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Restore"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Failed to restore session: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Session restored"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Failed to Load Session"
   },

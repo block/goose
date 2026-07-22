@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Kembali"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Sembang ini diarkibkan dan disembunyikan daripada sembang terkini anda."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Pulihkan"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Gagal memulihkan sesi: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Sesi dipulihkan"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Gagal Memuatkan Sesi"
   },

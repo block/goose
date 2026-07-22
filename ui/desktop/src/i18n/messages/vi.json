@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Quay lại"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Cuộc trò chuyện này đã được lưu trữ và ẩn khỏi các cuộc trò chuyện gần đây."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Khôi phục"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Không thể khôi phục phiên: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Đã khôi phục phiên"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Không thể tải phiên"
   },

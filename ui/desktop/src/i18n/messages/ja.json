@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "戻る"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "このチャットはアーカイブされ、最近のチャットには表示されません。"
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "復元"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "セッションを復元できませんでした: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "セッションを復元しました"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "セッションの読み込みに失敗しました"
   },

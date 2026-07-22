@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Indietro"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Questa chat è archiviata e nascosta dalle chat recenti."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Ripristina"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Impossibile ripristinare la sessione: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Sessione ripristinata"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Impossibile caricare la sessione"
   },

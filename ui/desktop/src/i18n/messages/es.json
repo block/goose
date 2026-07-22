@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Atrás"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Este chat está archivado y oculto de tus chats recientes."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Restaurar"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "No se pudo restaurar la sesión: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Sesión restaurada"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "No se pudo cargar la sesión"
   },

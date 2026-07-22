@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "返回"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "此聊天已封存，並從最近的聊天中隱藏。"
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "還原"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "還原工作階段失敗：{error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "工作階段已還原"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "無法載入工作階段"
   },

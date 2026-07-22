@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "वापस"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "यह चैट संग्रहित है और आपकी हाल की चैट से छिपी हुई है।"
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "पुनर्स्थापित करें"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "सत्र पुनर्स्थापित नहीं किया जा सका: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "सत्र पुनर्स्थापित किया गया"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "सत्र लोड करने में विफल"
   },

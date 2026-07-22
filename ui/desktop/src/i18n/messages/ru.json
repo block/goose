@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Назад"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Этот чат архивирован и скрыт из недавних чатов."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Восстановить"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Не удалось восстановить сеанс: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Сеанс восстановлен"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Не удалось загрузить сеанс"
   },

@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Zurück"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Dieser Chat ist archiviert und in Ihren letzten Chats ausgeblendet."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Wiederherstellen"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Sitzung konnte nicht wiederhergestellt werden: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Sitzung wiederhergestellt"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Sitzung konnte nicht geladen werden"
   },

@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "返回"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "此聊天已归档，并从最近的聊天中隐藏。"
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "恢复"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "恢复会话失败：{error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "会话已恢复"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "加载会话失败"
   },

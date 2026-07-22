@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "Geri"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "Bu sohbet arşivlendi ve son sohbetlerinizden gizlendi."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "Geri yükle"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "Oturum geri yüklenemedi: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "Oturum geri yüklendi"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Oturum Yüklenemedi"
   },

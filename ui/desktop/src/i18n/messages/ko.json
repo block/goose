@@ -125,6 +125,18 @@
   "backButton.back": {
     "defaultMessage": "뒤로"
   },
+  "baseChat.archivedNotice": {
+    "defaultMessage": "이 채팅은 보관되어 최근 채팅에서 숨겨져 있습니다."
+  },
+  "baseChat.archivedRestore": {
+    "defaultMessage": "복원"
+  },
+  "baseChat.archivedRestoreFailed": {
+    "defaultMessage": "세션을 복원하지 못했습니다: {error}"
+  },
+  "baseChat.archivedRestored": {
+    "defaultMessage": "세션이 복원됨"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "세션을 로드하지 못했습니다."
   },
