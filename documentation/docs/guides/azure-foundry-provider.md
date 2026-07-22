@@ -59,11 +59,11 @@ Project endpoints request a token for `https://ai.azure.com`. MaaS endpoints req
 
 For a project endpoint, goose routes each deployment using metadata returned by Azure:
 
-- publisher `OpenAI` → `/openai/v1/responses`
+- publisher `OpenAI` with a Responses-compatible model (`gpt-5*` and the supported o-series) → `/openai/v1/responses`
 - publisher `Anthropic` → `/anthropic/v1/messages`
-- all other publishers → `/openai/v1/chat/completions`
+- older OpenAI models and all other publishers → `/openai/v1/chat/completions`
 
-If deployment discovery is temporarily unavailable, recognizable `gpt-*`, `o1*`, `o3*`, `o4*`, and `claude-*` names use their native surfaces. Other names use Chat Completions.
+If deployment discovery is temporarily unavailable, recognizable Responses-compatible OpenAI and `claude-*` names use their native surfaces. Other names use Chat Completions.
 
 MaaS endpoints always use `/chat/completions`.
 

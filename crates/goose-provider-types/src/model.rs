@@ -23,6 +23,8 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
+    #[serde(skip)]
+    pub capability_model: Option<String>,
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
@@ -57,6 +59,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
         let raw = RawModelConfig::deserialize(deserializer)?;
         let mut config = Self {
             model_name: raw.model_name,
+            capability_model: None,
             context_limit: raw.context_limit,
             temperature: raw.temperature,
             max_tokens: raw.max_tokens,
@@ -74,6 +77,7 @@ impl ModelConfig {
     pub fn new(model_name: impl AsRef<str>) -> Self {
         let mut config = Self {
             model_name: model_name.as_ref().to_string(),
+            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -163,19 +167,12 @@ impl ModelConfig {
     }
 
     pub fn with_capability_model_name(mut self, model_name: impl Into<String>) -> Self {
-        self.request_params.get_or_insert_with(HashMap::new).insert(
-            "capability_model".to_string(),
-            Value::String(model_name.into()),
-        );
+        self.capability_model = Some(model_name.into());
         self
     }
 
     pub fn capability_model_name(&self) -> &str {
-        self.request_params
-            .as_ref()
-            .and_then(|params| params.get("capability_model"))
-            .and_then(Value::as_str)
-            .unwrap_or(&self.model_name)
+        self.capability_model.as_deref().unwrap_or(&self.model_name)
     }
 
     pub fn with_merged_request_params(mut self, params: HashMap<String, Value>) -> Self {
@@ -238,7 +235,7 @@ impl ModelConfig {
     }
 
     pub fn is_openai_reasoning_model(&self) -> bool {
-        is_openai_responses_model(&self.model_name)
+        is_openai_responses_model(self.capability_model_name())
     }
 
     pub fn is_reasoning_model(&self) -> bool {
@@ -247,8 +244,11 @@ impl ModelConfig {
         }
 
         self.is_openai_reasoning_model()
-            || self.model_name.to_lowercase().contains("claude")
-            || Self::is_gemini3_reasoning_model_name(&self.model_name)
+            || self
+                .capability_model_name()
+                .to_lowercase()
+                .contains("claude")
+            || Self::is_gemini3_reasoning_model_name(self.capability_model_name())
     }
 
     fn is_gemini3_reasoning_model_name(model_name: &str) -> bool {
@@ -315,6 +315,38 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capability_model_is_runtime_only() {
+        let config = ModelConfig::new("production-chat")
+            .with_capability_model_name("gpt-5")
+            .with_merged_request_params(HashMap::from([(
+                "store".to_string(),
+                serde_json::json!(true),
+            )]));
+        assert_eq!(config.model_name, "production-chat");
+        assert_eq!(config.capability_model_name(), "gpt-5");
+        assert!(config.is_openai_reasoning_model());
+        assert!(!config
+            .request_params
+            .as_ref()
+            .unwrap()
+            .contains_key("capability_model"));
+        let serialized = serde_json::to_value(&config).unwrap();
+        assert!(serialized.get("capability_model").is_none());
+        assert_eq!(serialized["model_name"], "production-chat");
+    }
+
+    #[test]
+    fn deserialization_initializes_capability_model_from_wire_name() {
+        let config: ModelConfig = serde_json::from_value(serde_json::json!({
+            "model_name": "gpt-4o", "context_limit": null, "temperature": null,
+            "max_tokens": null, "toolshim": false, "toolshim_model": null
+        }))
+        .unwrap();
+        assert_eq!(config.capability_model, None);
+        assert_eq!(config.capability_model_name(), "gpt-4o");
+    }
 
     mod thinking_effort_tests {
         use super::*;

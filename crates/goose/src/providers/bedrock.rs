@@ -762,6 +762,7 @@ impl Provider for BedrockProvider {
         if is_mantle_model {
             let mut normalized_config = ModelConfig {
                 model_name: base_name,
+                capability_model: None,
                 ..model_config.clone()
             };
             // `ModelConfig::new` cannot normalize the effort suffix for `openai.gpt-*` names
@@ -934,6 +935,7 @@ mod tests {
             },
             ModelConfig {
                 model_name: model_name.to_string(),
+                capability_model: None,
                 context_limit: None,
                 temperature: None,
                 max_tokens: None,

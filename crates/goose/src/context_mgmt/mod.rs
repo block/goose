@@ -703,6 +703,7 @@ mod tests {
                 message,
                 config: ModelConfig {
                     model_name: "test".to_string(),
+                    capability_model: None,
                     context_limit: Some(context_limit),
                     temperature: None,
                     max_tokens: None,

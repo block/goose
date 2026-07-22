@@ -12,6 +12,7 @@ use crate::base::{
 };
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
+use crate::formats::openai::is_openai_responses_model;
 use crate::model::ModelConfig;
 use crate::openai::{OpenAiProvider, OpenAiProviderBuilder};
 use crate::openai_compatible::{handle_response_openai_compat, OpenAiCompatibleProvider};
@@ -55,6 +56,31 @@ struct DeploymentMetadata {
     model_name: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InferenceRoute {
+    MaasChatCompletions,
+    ProjectChatCompletions,
+    ProjectResponses,
+    AnthropicMessages,
+}
+
+fn inference_route(
+    project_endpoint: bool,
+    publisher: ModelPublisher,
+    underlying_model: &str,
+) -> InferenceRoute {
+    if !project_endpoint {
+        return InferenceRoute::MaasChatCompletions;
+    }
+    match publisher {
+        ModelPublisher::Anthropic => InferenceRoute::AnthropicMessages,
+        ModelPublisher::OpenAi if is_openai_responses_model(underlying_model) => {
+            InferenceRoute::ProjectResponses
+        }
+        ModelPublisher::OpenAi | ModelPublisher::Partner => InferenceRoute::ProjectChatCompletions,
+    }
+}
+
 impl ModelPublisher {
     fn from_azure(value: &str) -> Self {
         match value.to_ascii_lowercase().as_str() {
@@ -68,14 +94,7 @@ impl ModelPublisher {
         let value = value.to_ascii_lowercase();
         if value.starts_with("claude") {
             Self::Anthropic
-        } else if value.starts_with("gpt-")
-            || value == "o1"
-            || value.starts_with("o1-")
-            || value == "o3"
-            || value.starts_with("o3-")
-            || value == "o4"
-            || value.starts_with("o4-")
-        {
+        } else if is_openai_responses_model(&value) {
             Self::OpenAi
         } else {
             Self::Partner
@@ -407,6 +426,11 @@ impl Provider for AzureFoundryProvider {
             .as_ref()
             .map(|deployment| deployment.publisher)
             .unwrap_or_else(|| ModelPublisher::from_model_name(&model_config.model_name));
+        let underlying_model = deployment
+            .as_ref()
+            .map(|deployment| deployment.model_name.as_str())
+            .unwrap_or(&model_config.model_name);
+        let route = inference_route(self.responses.is_some(), publisher, underlying_model);
         let capability_config = deployment
             .filter(|deployment| deployment.model_name != model_config.model_name)
             .map(|deployment| {
@@ -416,22 +440,22 @@ impl Provider for AzureFoundryProvider {
             });
         let request_config = capability_config.as_ref().unwrap_or(model_config);
 
-        match publisher {
-            ModelPublisher::OpenAi if self.responses.is_some() => {
+        match route {
+            InferenceRoute::ProjectResponses => {
                 self.responses
                     .as_ref()
                     .expect("checked above")
                     .stream(request_config, system, messages, tools)
                     .await
             }
-            ModelPublisher::Anthropic if self.anthropic.is_some() => {
+            InferenceRoute::AnthropicMessages => {
                 self.anthropic
                     .as_ref()
                     .expect("checked above")
                     .stream(request_config, system, messages, tools)
                     .await
             }
-            _ => {
+            InferenceRoute::MaasChatCompletions | InferenceRoute::ProjectChatCompletions => {
                 self.chat
                     .stream(request_config, system, messages, tools)
                     .await
@@ -497,20 +521,35 @@ mod tests {
     }
 
     #[test]
-    fn publisher_routing_covers_all_surfaces() {
-        assert_eq!(ModelPublisher::from_azure("OpenAI"), ModelPublisher::OpenAi);
+    fn routing_matrix_uses_endpoint_publisher_and_underlying_model() {
+        use InferenceRoute::*;
         assert_eq!(
-            ModelPublisher::from_azure("Anthropic"),
-            ModelPublisher::Anthropic
+            inference_route(false, ModelPublisher::OpenAi, "gpt-5"),
+            MaasChatCompletions
         );
         assert_eq!(
-            ModelPublisher::from_azure("MistralAI"),
-            ModelPublisher::Partner
+            inference_route(false, ModelPublisher::Anthropic, "claude-sonnet-4-6"),
+            MaasChatCompletions
         );
-        assert_eq!(ModelPublisher::from_azure("Zhipu"), ModelPublisher::Partner);
         assert_eq!(
-            ModelPublisher::from_azure("Moonshot AI"),
-            ModelPublisher::Partner
+            inference_route(true, ModelPublisher::OpenAi, "gpt-5"),
+            ProjectResponses
+        );
+        assert_eq!(
+            inference_route(true, ModelPublisher::OpenAi, "o3-mini"),
+            ProjectResponses
+        );
+        assert_eq!(
+            inference_route(true, ModelPublisher::OpenAi, "gpt-4o"),
+            ProjectChatCompletions
+        );
+        assert_eq!(
+            inference_route(true, ModelPublisher::Partner, "gpt-5"),
+            ProjectChatCompletions
+        );
+        assert_eq!(
+            inference_route(true, ModelPublisher::Anthropic, "gpt-5"),
+            AnthropicMessages
         );
     }
 
@@ -707,6 +746,42 @@ mod tests {
             .unwrap();
         assert_eq!(payload["model"], "production-chat");
         assert!(payload.get("temperature").is_none());
+        assert!(payload.get("capability_model").is_none());
+        assert!(config.request_params.is_none());
+        assert!(serde_json::to_value(&config)
+            .unwrap()
+            .get("capability_model")
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn maas_uses_root_chat_completions_path() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(chat_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let provider = AzureFoundryProvider::create(
+            server.uri(),
+            None,
+            AuthMethod::NoAuth,
+            AuthMethod::NoAuth,
+            AuthMethod::NoAuth,
+            AuthMethod::NoAuth,
+            None,
+            None,
+        )
+        .unwrap();
+        provider
+            .complete(&ModelConfig::new("Phi-4"), "system", &[], &[])
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
