@@ -162,7 +162,7 @@ prompt: |
   1. Run the goose-providers Azure Foundry test module.
   2. Verify project deployments route Responses-compatible OpenAI models to Responses, Anthropic models to Messages, and partner or older OpenAI models to Chat Completions.
   3. Verify a custom deployment alias remains the wire model while the underlying Azure model controls reasoning capabilities.
-  4. Verify MaaS uses its mono-model /chat/completions endpoint.
+  4. Verify MaaS requires its bound model and uses /v1/chat/completions.
   If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
 
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md

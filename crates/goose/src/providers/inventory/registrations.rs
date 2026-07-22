@@ -78,6 +78,9 @@ pub fn azure_foundry_inventory() -> InventoryRegistration {
         if let Ok(api_version) = config.get_param::<String>("AZURE_FOUNDRY_API_VERSION") {
             identity = identity.with_public("api_version", api_version);
         }
+        if let Ok(model) = config.get_param::<String>("AZURE_FOUNDRY_MODEL") {
+            identity = identity.with_public("model", model);
+        }
         if let Some(api_key) = config_secret_value(config, "AZURE_FOUNDRY_API_KEY") {
             identity = identity.with_secret("api_key", api_key);
         }

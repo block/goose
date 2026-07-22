@@ -20,6 +20,7 @@ For project endpoints, goose discovers deployments with `GET /deployments`. Depl
 |---|---:|---|
 | `AZURE_FOUNDRY_ENDPOINT` | Yes | Full Foundry project or MaaS endpoint |
 | `AZURE_FOUNDRY_API_KEY` | No | API key; omit it to use Azure CLI credentials |
+| `AZURE_FOUNDRY_MODEL` | MaaS only | Model bound to the configured MaaS endpoint |
 | `AZURE_FOUNDRY_AD_TOKEN` | No | Pre-acquired Microsoft Entra access token; takes precedence over the API key |
 | `AZURE_FOUNDRY_API_VERSION` | No | Deployment discovery API version; project endpoints default to `v1` |
 
@@ -36,8 +37,11 @@ For a MaaS endpoint:
 ```sh
 export AZURE_FOUNDRY_ENDPOINT="https://my-deployment.eastus.models.ai.azure.com"
 export AZURE_FOUNDRY_API_KEY="<key>"
+export AZURE_FOUNDRY_MODEL="<model-bound-to-this-endpoint>"
 goose session
 ```
+
+MaaS endpoints expose a single deployed model. `AZURE_FOUNDRY_MODEL` is required for these endpoints.
 
 ## Authentication
 
@@ -65,7 +69,7 @@ For a project endpoint, goose routes each deployment using metadata returned by 
 
 If deployment discovery is temporarily unavailable, recognizable Responses-compatible OpenAI and `claude-*` names use their native surfaces. Other names use Chat Completions.
 
-MaaS endpoints always use `/chat/completions`.
+MaaS endpoints always use `/v1/chat/completions`.
 
 ## Model metadata and pricing
 

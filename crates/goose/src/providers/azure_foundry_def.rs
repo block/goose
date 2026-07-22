@@ -66,6 +66,10 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
     let config = Config::global();
     let endpoint: String = config.get_param("AZURE_FOUNDRY_ENDPOINT")?;
     let api_version = config.get_param("AZURE_FOUNDRY_API_VERSION").ok();
+    let maas_model = config
+        .get_param::<String>("AZURE_FOUNDRY_MODEL")
+        .ok()
+        .filter(|model| !model.trim().is_empty());
     let api_key = config
         .get_secret::<String>("AZURE_FOUNDRY_API_KEY")
         .ok()
@@ -110,6 +114,7 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
     AzureFoundryProvider::create(
         endpoint,
         api_version,
+        maas_model,
         auth_method(chat_auth_header),
         auth_method(api_key_auth_header()),
         anthropic_auth,

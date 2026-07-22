@@ -109,6 +109,7 @@ pub struct AzureFoundryProvider {
     deployments_client: ApiClient,
     endpoint: String,
     api_version: Option<String>,
+    maas_model: Option<String>,
     deployments: Mutex<HashMap<String, DeploymentMetadata>>,
 }
 
@@ -125,6 +126,7 @@ impl ProviderDescriptor for AzureFoundryProvider {
                 ConfigKey::new("AZURE_FOUNDRY_ENDPOINT", true, false, None, true),
                 ConfigKey::new("AZURE_FOUNDRY_API_KEY", false, true, Some(""), true),
                 ConfigKey::new("AZURE_FOUNDRY_AD_TOKEN", false, true, Some(""), false),
+                ConfigKey::new("AZURE_FOUNDRY_MODEL", false, false, None, true),
                 ConfigKey::new("AZURE_FOUNDRY_API_VERSION", false, false, None, false),
             ],
         )
@@ -136,6 +138,7 @@ impl AzureFoundryProvider {
     pub fn create(
         endpoint: String,
         api_version: Option<String>,
+        maas_model: Option<String>,
         chat_auth: AuthMethod,
         responses_auth: AuthMethod,
         anthropic_auth: AuthMethod,
@@ -145,7 +148,20 @@ impl AzureFoundryProvider {
     ) -> Result<Self> {
         let endpoint = endpoint.trim_end_matches('/').to_string();
         let project = is_project_endpoint(&endpoint);
-        let chat_prefix = if project { "openai/v1/" } else { "" };
+        let maas_model = if project {
+            None
+        } else {
+            Some(
+                maas_model
+                    .filter(|model| !model.trim().is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("AZURE_FOUNDRY_MODEL is required for MaaS endpoints")
+                    })?
+                    .trim()
+                    .to_string(),
+            )
+        };
+        let chat_prefix = if project { "openai/v1/" } else { "v1/" };
 
         let chat_client = configured_client(
             endpoint.clone(),
@@ -203,6 +219,7 @@ impl AzureFoundryProvider {
             deployments_client,
             endpoint,
             api_version,
+            maas_model,
             deployments: Mutex::new(HashMap::new()),
         })
     }
@@ -351,11 +368,8 @@ impl Provider for AzureFoundryProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        if !is_project_endpoint(&self.endpoint) {
-            return Ok(AZURE_FOUNDRY_KNOWN_MODELS
-                .iter()
-                .map(ToString::to_string)
-                .collect());
+        if let Some(model) = &self.maas_model {
+            return Ok(vec![model.clone()]);
         }
         let (models, deployments) = self.fetch_deployments().await?;
         *self
@@ -366,11 +380,8 @@ impl Provider for AzureFoundryProvider {
     }
 
     async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        if !is_project_endpoint(&self.endpoint) {
-            return Ok(AZURE_FOUNDRY_KNOWN_MODELS
-                .iter()
-                .map(|model| model_info_for_deployment(model, model))
-                .collect());
+        if let Some(model) = &self.maas_model {
+            return Ok(vec![model_info_for_deployment(model, model)]);
         }
         let (models, deployments) = self.fetch_deployments().await?;
         let model_info = models
@@ -389,13 +400,13 @@ impl Provider for AzureFoundryProvider {
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
-        let resolved_model = if is_project_endpoint(&self.endpoint) {
+        let resolved_model = if let Some(model) = &self.maas_model {
+            model.clone()
+        } else {
             self.deployment_for(model_name)
                 .await
                 .map(|deployment| deployment.model_name)
                 .unwrap_or_else(|| model_name.to_string())
-        } else {
-            model_name.to_string()
         };
         Ok(model_info_for_deployment(model_name, &resolved_model))
     }
@@ -417,6 +428,12 @@ impl Provider for AzureFoundryProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let maas_config = self.maas_model.as_ref().map(|model| {
+            let mut config = model_config.clone();
+            config.model_name = model.clone();
+            config
+        });
+        let model_config = maas_config.as_ref().unwrap_or(model_config);
         let deployment = if self.responses.is_some() {
             self.deployment_for(&model_config.model_name).await
         } else {
@@ -478,6 +495,7 @@ mod tests {
     fn project_provider(server: &MockServer) -> AzureFoundryProvider {
         AzureFoundryProvider::create(
             project_endpoint(server),
+            None,
             None,
             AuthMethod::NoAuth,
             AuthMethod::NoAuth,
@@ -755,10 +773,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn maas_uses_root_chat_completions_path() {
+    async fn maas_uses_v1_chat_completions_path_and_bound_model() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/chat/completions"))
+            .and(path("/v1/chat/completions"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_string(chat_stream())
@@ -770,6 +788,7 @@ mod tests {
         let provider = AzureFoundryProvider::create(
             server.uri(),
             None,
+            Some("bound-model".to_string()),
             AuthMethod::NoAuth,
             AuthMethod::NoAuth,
             AuthMethod::NoAuth,
@@ -779,9 +798,18 @@ mod tests {
         )
         .unwrap();
         provider
-            .complete(&ModelConfig::new("Phi-4"), "system", &[], &[])
+            .complete(&ModelConfig::new("wrong-model"), "system", &[], &[])
             .await
             .unwrap();
+        let request = server.received_requests().await.unwrap().pop().unwrap();
+        assert_eq!(
+            request.body_json::<serde_json::Value>().unwrap()["model"],
+            "bound-model"
+        );
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["bound-model"]
+        );
     }
 
     #[tokio::test]
