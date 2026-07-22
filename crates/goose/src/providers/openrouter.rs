@@ -237,8 +237,7 @@ impl Provider for OpenRouterProvider {
         true
     }
 
-    /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request("api/v1/models")
@@ -277,6 +276,9 @@ impl Provider for OpenRouterProvider {
             .iter()
             .filter_map(|model| {
                 let id = model.get("id").and_then(|v| v.as_str())?;
+                if toolshim {
+                    return Some(id.to_string());
+                }
                 let supports_tools = model
                     .get("supported_parameters")
                     .and_then(|v| v.as_array())
@@ -290,7 +292,6 @@ impl Provider for OpenRouterProvider {
                 }
             })
             .collect();
-
         models.sort();
         Ok(models)
     }
