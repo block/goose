@@ -78,7 +78,7 @@ use uuid::Uuid;
 
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
-    build_initial_tool_call, format_tool_name, tool_call_update_fields_from_response,
+    build_initial_tool_call, default_tool_title, tool_call_update_fields_from_response,
     trusted_update_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
@@ -1217,13 +1217,13 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = session_id.clone();
 
-        let formatted_name = format_tool_name(&tool_name);
+        let arguments = serde_json::Value::Object(arguments);
 
         let mut fields = ToolCallUpdateFields::new()
-            .title(formatted_name)
+            .title(default_tool_title(&tool_name, Some(&arguments)))
             .kind(ToolKind::default())
             .status(ToolCallStatus::Pending)
-            .raw_input(serde_json::Value::Object(arguments));
+            .raw_input(arguments);
         if let Some(p) = prompt {
             fields = fields.content(vec![ToolCallContent::Content(Content::new(
                 ContentBlock::Text(TextContent::new(p)),

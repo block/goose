@@ -22,7 +22,7 @@ pub(crate) fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
-fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
+pub(crate) fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
     let base = format_tool_name(tool_name);
 
     let detail = arguments.and_then(|args| {
