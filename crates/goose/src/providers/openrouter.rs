@@ -1,8 +1,8 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -14,7 +14,7 @@ use crate::providers::formats::openrouter as openrouter_format;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -233,6 +233,10 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
+    fn skip_canonical_filtering(&self) -> bool {
+        true
+    }
+
     /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
@@ -379,10 +383,12 @@ mod tests {
     fn metadata_includes_openrouter_parameters_config_key() {
         let metadata = OpenRouterProvider::metadata();
 
-        assert!(metadata
-            .config_keys
-            .iter()
-            .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY));
+        assert!(
+            metadata
+                .config_keys
+                .iter()
+                .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY)
+        );
     }
 
     #[test]
@@ -412,9 +418,10 @@ mod tests {
     fn parse_openrouter_parameters_rejects_non_object_json_string() {
         let err = parse_openrouter_parameters(json!(r#"["web"]"#)).unwrap_err();
 
-        assert!(err
-            .to_string()
-            .contains("OPENROUTER_PARAMETERS must be a JSON object"));
+        assert!(
+            err.to_string()
+                .contains("OPENROUTER_PARAMETERS must be a JSON object")
+        );
     }
 
     #[test]
