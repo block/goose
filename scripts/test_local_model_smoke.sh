@@ -242,7 +242,27 @@ run_model() {
     return ${PIPESTATUS[0]}
   fi
 
-  perl -e 'alarm shift; exec @ARGV' \
+  perl -e '
+    my $timeout = shift;
+    my $pid = fork();
+    die "fork failed: $!" unless defined $pid;
+    if ($pid == 0) {
+      setpgrp(0, 0);
+      exec @ARGV;
+      die "exec failed: $!";
+    }
+    local $SIG{ALRM} = sub {
+      kill "TERM", -$pid;
+      sleep 2;
+      kill "KILL", -$pid;
+      exit 124;
+    };
+    alarm $timeout;
+    waitpid($pid, 0);
+    my $status = $?;
+    alarm 0;
+    exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
+  ' \
     "$RUN_TIMEOUT" \
     env GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
     "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$log_file"
@@ -293,7 +313,7 @@ for row in "${MODELS[@]}"; do
       echo "Run produced no output for $model_id"
       RESULTS+=("FAIL $model_id - empty output")
       OVERALL_SUCCESS=false
-    elif [[ "$run_status" -eq 142 ]]; then
+    elif [[ "$run_status" -eq 124 || "$run_status" -eq 142 ]]; then
       echo "Run timed out after ${RUN_TIMEOUT}s for $model_id"
       RESULTS+=("FAIL $model_id - run timed out")
       OVERALL_SUCCESS=false
