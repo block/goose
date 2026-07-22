@@ -5,7 +5,7 @@ use crate::mcp_utils::ToolResult;
 use agent_client_protocol::schema::v1::{
     BlobResourceContents, Content, ContentBlock, EmbeddedResource, EmbeddedResourceResource,
     ImageContent, Meta, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
-    ToolCallLocation, ToolCallStatus, ToolCallUpdateFields,
+    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use rmcp::model::{CallToolResult, RawContent, ResourceContents};
 
@@ -22,7 +22,7 @@ pub(crate) fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
-pub(crate) fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
+fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
     let base = format_tool_name(tool_name);
 
     let detail = arguments.and_then(|args| {
@@ -108,6 +108,28 @@ pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
     }
 
     tool_call.meta(goose_meta)
+}
+
+pub(crate) fn build_permission_tool_call_update(
+    request_id: &str,
+    tool_name: &str,
+    arguments: serde_json::Map<String, serde_json::Value>,
+    prompt: Option<String>,
+) -> ToolCallUpdate {
+    let arguments = serde_json::Value::Object(arguments);
+    let mut fields = ToolCallUpdateFields::new()
+        .title(default_tool_title(tool_name, Some(&arguments)))
+        .kind(ToolKind::default())
+        .status(ToolCallStatus::Pending)
+        .raw_input(arguments);
+
+    if let Some(prompt) = prompt {
+        fields = fields.content(vec![ToolCallContent::Content(Content::new(
+            ContentBlock::Text(TextContent::new(prompt)),
+        ))]);
+    }
+
+    ToolCallUpdate::new(ToolCallId::new(request_id), fields)
 }
 
 fn json_u32(value: &serde_json::Value) -> Option<u32> {
@@ -399,6 +421,41 @@ mod tests {
             assert_eq!(tool_call.status, ToolCallStatus::Pending);
             assert_eq!(tool_call.raw_input, None);
             assert_eq!(tool_call.meta, None);
+        }
+    }
+
+    mod build_permission_tool_call_update {
+        use super::*;
+
+        #[test]
+        fn matches_initial_request_presentation() {
+            let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("developer__shell")
+                    .with_arguments(arguments.clone())),
+                metadata: None,
+                tool_meta: None,
+            };
+            let initial = build_initial_tool_call(&request);
+
+            let permission = build_permission_tool_call_update(
+                &request.id,
+                "developer__shell",
+                arguments,
+                Some("Allow this command?".to_string()),
+            );
+
+            assert_eq!(
+                permission.fields.title.as_deref(),
+                Some(initial.title.as_str())
+            );
+            assert_eq!(permission.fields.raw_input, initial.raw_input);
+            assert_eq!(permission.fields.status, Some(ToolCallStatus::Pending));
+            assert_eq!(
+                first_tool_call_text(&permission.fields),
+                Some("Allow this command?")
+            );
         }
     }
 

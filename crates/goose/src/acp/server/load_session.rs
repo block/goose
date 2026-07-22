@@ -4,6 +4,45 @@ use super::tool_calls::conversion::{
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
 
+fn replay_message_meta(message: &Message) -> Meta {
+    let mut meta = serde_json::Map::new();
+    meta.insert(
+        "goose".to_string(),
+        serde_json::Value::Object(replay_message_goose_meta(message)),
+    );
+    meta
+}
+
+fn replay_message_goose_meta(message: &Message) -> serde_json::Map<String, serde_json::Value> {
+    let mut goose = serde_json::Map::new();
+    goose.insert("created".to_string(), serde_json::json!(message.created));
+    if let Some(id) = &message.id {
+        goose.insert("messageId".to_string(), serde_json::json!(id));
+    }
+    if message.metadata.steer {
+        goose.insert("steer".to_string(), serde_json::json!(true));
+    }
+    goose
+}
+
+fn merge_replay_message_meta(meta: Option<Meta>, message: &Message) -> Meta {
+    let replay_goose = replay_message_goose_meta(message);
+    let mut meta = meta.unwrap_or_default();
+    let goose_value = meta
+        .entry("goose".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+
+    if let serde_json::Value::Object(goose) = goose_value {
+        for (key, value) in replay_goose {
+            goose.insert(key, value);
+        }
+    } else {
+        *goose_value = serde_json::Value::Object(replay_goose);
+    }
+
+    meta
+}
+
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     Annotations::new().audience(
         audience
@@ -214,5 +253,97 @@ impl GooseAcpAgent {
         );
         self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_replay_message_meta_preserves_existing_goose_meta() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
+        let existing = serde_json::from_value(serde_json::json!({
+            "goose": {
+                "mcpApp": {
+                    "resourceUri": "ui://trusted/app",
+                    "extensionName": "weather",
+                    "toolName": "weather__render",
+                },
+            }
+        }))
+        .unwrap();
+
+        let merged = merge_replay_message_meta(Some(existing), &message);
+
+        assert_eq!(
+            merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_1",
+                "mcpApp": {
+                    "resourceUri": "ui://trusted/app",
+                    "extensionName": "weather",
+                    "toolName": "weather__render",
+                },
+            })),
+        );
+    }
+
+    #[test]
+    fn merge_replay_message_meta_creates_fresh_when_none() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_2");
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(
+            merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_2",
+            })),
+        );
+    }
+
+    #[test]
+    fn merge_replay_message_meta_includes_steer_marker() {
+        let message = Message::new(Role::User, 1_700_000_000, vec![])
+            .with_id("msg_steer")
+            .with_steer();
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(
+            merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_steer",
+                "steer": true,
+            })),
+            "replay must carry the steer marker so the boundary survives reload"
+        );
+    }
+
+    #[test]
+    fn merge_replay_message_meta_omits_steer_when_not_set() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_plain");
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(merged.get("goose").and_then(|g| g.get("steer")), None);
+    }
+
+    #[test]
+    fn merge_replay_message_meta_omits_message_id_when_none() {
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
+
+        let merged = merge_replay_message_meta(None, &message);
+
+        assert_eq!(
+            merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+            })),
+        );
     }
 }

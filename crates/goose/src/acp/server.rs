@@ -41,7 +41,7 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
+    ConfigOptionUpdate, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
     EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse,
     ImageContent, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
     ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
@@ -51,8 +51,7 @@ use agent_client_protocol::schema::v1::{
     SessionConfigOption, SessionId, SessionInfoUpdate, SessionListCapabilities,
     SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
-    ToolKind, Usage, UsageUpdate,
+    TextContent, ToolCallId, ToolCallUpdate, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -78,8 +77,8 @@ use uuid::Uuid;
 
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
-    build_initial_tool_call, default_tool_title, tool_call_update_fields_from_response,
-    trusted_update_meta,
+    build_initial_tool_call, build_permission_tool_call_update,
+    tool_call_update_fields_from_response, trusted_update_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
@@ -1217,19 +1216,8 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = session_id.clone();
 
-        let arguments = serde_json::Value::Object(arguments);
-
-        let mut fields = ToolCallUpdateFields::new()
-            .title(default_tool_title(&tool_name, Some(&arguments)))
-            .kind(ToolKind::default())
-            .status(ToolCallStatus::Pending)
-            .raw_input(arguments);
-        if let Some(p) = prompt {
-            fields = fields.content(vec![ToolCallContent::Content(Content::new(
-                ContentBlock::Text(TextContent::new(p)),
-            ))]);
-        }
-        let tool_call_update = ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields);
+        let tool_call_update =
+            build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
 
         fn option(kind: PermissionOptionKind) -> PermissionOption {
             let id = serde_json::to_value(kind)
@@ -1443,45 +1431,6 @@ fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> M
 
     let mut meta = serde_json::Map::new();
     meta.insert("goose".to_string(), serde_json::Value::Object(goose));
-    meta
-}
-
-fn replay_message_meta(message: &Message) -> Meta {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "goose".to_string(),
-        serde_json::Value::Object(replay_message_goose_meta(message)),
-    );
-    meta
-}
-
-fn replay_message_goose_meta(message: &Message) -> serde_json::Map<String, serde_json::Value> {
-    let mut goose = serde_json::Map::new();
-    goose.insert("created".to_string(), serde_json::json!(message.created));
-    if let Some(id) = &message.id {
-        goose.insert("messageId".to_string(), serde_json::json!(id));
-    }
-    if message.metadata.steer {
-        goose.insert("steer".to_string(), serde_json::json!(true));
-    }
-    goose
-}
-
-fn merge_replay_message_meta(meta: Option<Meta>, message: &Message) -> Meta {
-    let replay_goose = replay_message_goose_meta(message);
-    let mut meta = meta.unwrap_or_default();
-    let goose_value = meta
-        .entry("goose".to_string())
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-
-    if let serde_json::Value::Object(goose) = goose_value {
-        for (key, value) in replay_goose {
-            goose.insert(key, value);
-        }
-    } else {
-        *goose_value = serde_json::Value::Object(replay_goose);
-    }
-
     meta
 }
 
@@ -2617,79 +2566,6 @@ print(\"hello, world\")
     }
 
     #[test]
-    fn test_merge_replay_message_meta_preserves_existing_goose_meta() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
-        let existing = serde_json::from_value(serde_json::json!({
-            "goose": {
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            },
-        }))
-        .unwrap();
-
-        let merged = merge_replay_message_meta(Some(existing), &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_1",
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            })),
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_creates_fresh_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_2");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_2",
-            })),
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_includes_steer_marker() {
-        let message = Message::new(Role::User, 1_700_000_000, vec![])
-            .with_id("msg_steer")
-            .with_steer();
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_steer",
-                "steer": true,
-            })),
-            "replay must carry the steer marker so the boundary survives reload"
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_omits_steer_when_not_set() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_plain");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(merged.get("goose").and_then(|g| g.get("steer")), None);
-    }
-
-    #[test]
     fn test_message_update_meta_includes_created_and_message_id() {
         let meta = message_update_meta(Some("msg_live"), 1_700_000_000, false);
 
@@ -2738,20 +2614,6 @@ print(\"hello, world\")
         });
 
         assert!(prompt_error_from_message_content(&content).is_none());
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_omits_message_id_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-            })),
-        );
     }
 
     fn make_session_with_usage(usage: TokenUsage, accumulated_usage: TokenUsage) -> Session {
