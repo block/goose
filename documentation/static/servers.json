@@ -648,6 +648,23 @@
     "environmentVariables": []
   },
   {
+    "id": "serpdive",
+    "name": "SERPdive Web Search",
+    "description": "Real-time web search returning extracted, answer-ready page content \u2014 20.2% fewer tokens and 60.7% of decided quality duels won on a public benchmark",
+    "command": "npx -y serpdive-mcp",
+    "link": "https://github.com/serpdive/serpdive-mcp",
+    "installation_notes": "Install using npx package manager. Requires a SERPdive API key (free tier, no card).",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "SERPDIVE_API_KEY",
+        "description": "API key for the SERPdive web search service",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
