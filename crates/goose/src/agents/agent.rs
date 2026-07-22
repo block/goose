@@ -2910,6 +2910,24 @@ impl Agent {
                         }
                     }
                 }
+                // Cancelled mid-turn: end the reply immediately, before any
+                // post-stream work runs. When cancellation wins the select!
+                // above, the inner loop breaks and falls through to recipe
+                // retry checks / on_failure shell commands, final-output and
+                // goal/grind handling, tool-pair summarization, message
+                // persistence, and the exit-path stop hooks — several of which
+                // spawn shell commands with their own timeouts and can mutate
+                // history. Guarding here, immediately after the provider-stream
+                // loop and before that handling, keeps a cancelled (e.g. quiet
+                // ACP) turn from blocking the UI on that work. Mirrors the outer
+                // loop's top-of-iteration cancel check, a turn earlier.
+                if is_token_cancelled(&cancel_token) {
+                    if let Some(ref task) = tool_pair_summarization_task {
+                        task.abort();
+                    }
+                    break;
+                }
+
                 can_drain_pending_steers = true;
 
                 if tools_updated {
@@ -3073,19 +3091,6 @@ impl Agent {
                             }
                         }
                     }
-                }
-
-                if is_token_cancelled(&cancel_token) {
-                    // Cancelled mid-turn: end the reply immediately instead of
-                    // running post-turn work — tool-pair summarization, final
-                    // output, message persistence, and (on exit) stop hooks,
-                    // which run shell commands with their own timeouts. The
-                    // outer loop's top-of-iteration cancel check would otherwise
-                    // only fire after all of that completes.
-                    if let Some(ref task) = tool_pair_summarization_task {
-                        task.abort();
-                    }
-                    break;
                 }
 
                 if let Some(task) = tool_pair_summarization_task {
@@ -4537,6 +4542,67 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         .await
         .expect("cancellation was not forwarded after the stream was dropped");
         assert_eq!(provider.cancel_calls.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    /// A cancel that lands while the provider stream is quiet must skip the
+    /// post-stream turn handling — including recipe retry success checks, which
+    /// run shell commands with their own timeouts. Regression guard for the
+    /// cancel-guard placement: the check sits immediately after the
+    /// provider-stream loop, before `handle_retry_logic`, so a cancelled turn
+    /// never executes the check. (Before the fix the guard sat after the retry
+    /// call, so the check ran during a cancelled turn.)
+    #[tokio::test]
+    async fn cancellation_skips_recipe_retry_success_checks() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let sentinel = temp_dir.path().join("retry_check_ran");
+        let provider = Arc::new(HangingProvider::new());
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        // A recipe retry whose success check touches a sentinel file. If the
+        // cancelled turn reached handle_retry_logic, the file would appear.
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: Some(crate::agents::types::RetryConfig {
+                max_retries: 3,
+                checks: vec![crate::agents::types::SuccessCheck::Shell {
+                    command: format!("touch '{}'", sentinel.display()),
+                }],
+                on_failure: None,
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            }),
+        };
+
+        let cancel_token = CancellationToken::new();
+        let canceller =
+            cancel_once_stream_is_stalled(cancel_token.clone(), provider.stream_entered.clone());
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                Some(cancel_token),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Some(event) = reply_stream.next().await {
+                let _ = event;
+            }
+        })
+        .await
+        .expect("reply did not stop promptly after cancellation");
+        canceller.await.expect("canceller task panicked");
+
+        assert!(
+            !sentinel.exists(),
+            "recipe retry success check ran during a cancelled turn"
+        );
         Ok(())
     }
 
