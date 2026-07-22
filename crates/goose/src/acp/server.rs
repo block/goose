@@ -201,6 +201,7 @@ pub struct GooseAcpAgent {
     client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
     client_supports_recipe_param_requests: OnceCell<bool>,
+    client_supports_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     config_dir: std::path::PathBuf,
@@ -308,6 +309,8 @@ struct GooseClientCapabilities {
     custom_notifications: Option<bool>,
     #[serde(rename = "recipeParameterRequests", default)]
     recipe_parameter_requests: Option<bool>,
+    #[serde(rename = "toolCallLabelEnrichment", default)]
+    tool_call_label_enrichment: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -621,6 +624,7 @@ impl GooseAcpAgent {
             client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
             client_supports_recipe_param_requests: OnceCell::new(),
+            client_supports_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             config_dir: options.config_dir,
@@ -1285,6 +1289,14 @@ fn extract_client_supports_recipe_param_requests(
         .unwrap_or(false)
 }
 
+fn extract_client_supports_tool_call_label_enrichment(
+    goose_client_capabilities: Option<&GooseClientCapabilities>,
+) -> bool {
+    goose_client_capabilities
+        .and_then(|goose| goose.tool_call_label_enrichment)
+        .unwrap_or(false)
+}
+
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
@@ -1444,6 +1456,9 @@ impl GooseAcpAgent {
         );
         let _ = self.client_supports_recipe_param_requests.set(
             extract_client_supports_recipe_param_requests(goose_client_capabilities.as_ref()),
+        );
+        let _ = self.client_supports_tool_call_label_enrichment.set(
+            extract_client_supports_tool_call_label_enrichment(goose_client_capabilities.as_ref()),
         );
         let _ = self
             .client_supports_acp_elicitation
@@ -2724,6 +2739,35 @@ print(\"hello, world\")
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
 
         assert!(extract_client_supports_goose_custom_notifications(
+            goose_client_capabilities.as_ref()
+        ));
+    }
+
+    #[test]
+    fn test_tool_call_label_enrichment_capability() {
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
+        assert!(!extract_client_supports_tool_call_label_enrichment(
+            goose_client_capabilities.as_ref()
+        ));
+
+        let mut goose_meta = serde_json::Map::new();
+        goose_meta.insert(
+            "toolCallLabelEnrichment".to_string(),
+            serde_json::Value::Bool(true),
+        );
+        let mut meta = serde_json::Map::new();
+        meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
+                .client_capabilities(
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+                );
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
+        assert!(extract_client_supports_tool_call_label_enrichment(
             goose_client_capabilities.as_ref()
         ));
     }
