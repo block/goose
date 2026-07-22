@@ -804,6 +804,23 @@
       "required": false
     }
   ]
-}
+},
+  {
+    "id": "livetennisapi-mcp",
+    "name": "Live Tennis",
+    "description": "Real-time tennis scores, players and fixtures for ATP, WTA, Challenger and ITF",
+    "command": "npx -y livetennisapi-mcp",
+    "link": "https://github.com/livetennisapi/livetennisapi-mcp",
+    "installation_notes": "Install using npx package manager. A free API key (no card) is available at https://livetennisapi.com/subscribe/free",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "LIVETENNISAPI_KEY",
+        "description": "Live Tennis API key",
+        "required": true
+      }
+    ]
+  }
 
 ]
