@@ -914,6 +914,7 @@ mod tests {
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
@@ -1073,6 +1074,7 @@ mod tests {
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
