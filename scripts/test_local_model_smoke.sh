@@ -141,7 +141,9 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 EXISTING_MODELS_FILE="$OUTPUT_DIR/existing-models.txt"
+RESULTS_FILE="$OUTPUT_DIR/results.tsv"
 "$GOOSE_BIN" lm list | awk 'NR > 2 && $4 == "✓" { print $1 }' > "$EXISTING_MODELS_FILE"
+printf "status\tmodel_id\tdetail\n" > "$RESULTS_FILE"
 
 MODELS=()
 if [[ -n "$MODEL_LIST" ]]; then
@@ -203,6 +205,14 @@ fi
 
 RESULTS=()
 OVERALL_SUCCESS=true
+
+record_result() {
+  local status="$1"
+  local model_id="$2"
+  local detail="$3"
+  RESULTS+=("$status $model_id${detail:+ - $detail}")
+  printf "%s\t%s\t%s\n" "$status" "$model_id" "$detail" >> "$RESULTS_FILE"
+}
 
 download_model() {
   local download_id="$1"
@@ -294,11 +304,11 @@ for row in "${MODELS[@]}"; do
     downloaded=true
   elif [[ "$download_status" -eq 2 ]]; then
     echo "Download rate limited for $model_id"
-    RESULTS+=("FAIL $model_id - Hugging Face rate limited")
+    record_result "FAIL" "$model_id" "Hugging Face rate limited"
     OVERALL_SUCCESS=false
   else
     echo "Download failed for $model_id"
-    RESULTS+=("FAIL $model_id - download failed")
+    record_result "FAIL" "$model_id" "download failed"
     OVERALL_SUCCESS=false
   fi
 
@@ -310,18 +320,18 @@ for row in "${MODELS[@]}"; do
 
     if [[ ! -s "$run_log" ]]; then
       echo "Run produced no output for $model_id"
-      RESULTS+=("FAIL $model_id - empty output")
+      record_result "FAIL" "$model_id" "empty output"
       OVERALL_SUCCESS=false
     elif [[ "$run_status" -eq 124 || "$run_status" -eq 142 ]]; then
       echo "Run timed out after ${RUN_TIMEOUT}s for $model_id"
-      RESULTS+=("FAIL $model_id - run timed out")
+      record_result "FAIL" "$model_id" "run timed out"
       OVERALL_SUCCESS=false
     elif [[ "$run_status" -eq 0 ]]; then
       echo "Run passed for $model_id"
-      RESULTS+=("PASS $model_id")
+      record_result "PASS" "$model_id" ""
     else
       echo "Run replied but exited with status $run_status for $model_id"
-      RESULTS+=("FAIL $model_id - replied but exited $run_status")
+      record_result "FAIL" "$model_id" "replied but exited $run_status"
       OVERALL_SUCCESS=false
     fi
   fi
@@ -336,7 +346,7 @@ for row in "${MODELS[@]}"; do
       echo "Deleted $model_id"
     else
       echo "Delete failed for $model_id"
-      RESULTS+=("FAIL $model_id - delete failed")
+      record_result "FAIL" "$model_id" "delete failed"
       OVERALL_SUCCESS=false
     fi
   elif [[ "$KEEP_DOWNLOADS" = false && "$downloaded" = true ]]; then
