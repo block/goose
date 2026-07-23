@@ -837,6 +837,13 @@ const parseArgs = () => {
     }
   }
 
+  if (!dirPath && process.stdin.isTTY) {
+    const cwd = process.cwd();
+    if (path.parse(cwd).root !== cwd) {
+      dirPath = cwd;
+    }
+  }
+
   return { dirPath };
 };
 
