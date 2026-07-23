@@ -1,13 +1,11 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
-use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
@@ -15,6 +13,7 @@ use uuid::Uuid;
 
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 use std::ops::Deref;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
@@ -55,17 +54,26 @@ fn maybe_insert_signature_from_metadata(
     }
 }
 
-fn build_function_response_part(name: &str, text: String) -> Map<String, Value> {
+fn build_function_response_part(
+    id: &str,
+    name: &str,
+    text: String,
+    media: Vec<Value>,
+) -> Map<String, Value> {
     let mut part = Map::new();
     let mut function_response = Map::new();
+    function_response.insert("id".to_string(), json!(id));
     function_response.insert("name".to_string(), json!(name));
     function_response.insert("response".to_string(), json!({"content": {"text": text}}));
+    if !media.is_empty() {
+        function_response.insert("parts".to_string(), json!(media));
+    }
     part.insert("functionResponse".to_string(), json!(function_response));
     part
 }
 
 /// Convert internal Message format to Google's API message specification
-pub fn format_messages(messages: &[Message]) -> Vec<Value> {
+pub fn format_messages(messages: &[Message], nested_function_response_media: bool) -> Vec<Value> {
     let filtered: Vec<_> = messages
         .iter()
         .filter(|m| m.is_agent_visible())
@@ -76,6 +84,19 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
                 )
             })
+        })
+        .collect();
+
+    let tool_names: HashMap<_, _> = filtered
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(|content| match content {
+            MessageContent::ToolRequest(request) => request
+                .tool_call
+                .as_ref()
+                .ok()
+                .map(|tool_call| (request.id.as_str(), sanitize_function_name(&tool_call.name))),
+            _ => None,
         })
         .collect();
 
@@ -111,6 +132,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::ToolRequest(request) => match &request.tool_call {
                         Ok(tool_call) => {
                             let mut function_call_part = Map::new();
+                            function_call_part.insert("id".to_string(), json!(request.id));
                             function_call_part.insert(
                                 "name".to_string(),
                                 json!(sanitize_function_name(&tool_call.name)),
@@ -147,47 +169,37 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
-
+                            let mut media = Vec::new();
                             for content in result.content.iter().map(|c| c.raw.clone()) {
-                                match &content {
+                                match content {
                                     RawContent::Image(image) => {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": image.mime_type,
-                                                "data": image.data,
-                                            }
-                                        }));
+                                        if nested_function_response_media {
+                                            media.push(json!({
+                                                "inlineData": {
+                                                    "mimeType": image.mime_type,
+                                                    "data": image.data,
+                                                }
+                                            }));
+                                        } else {
+                                            parts.push(json!({
+                                                "inline_data": {
+                                                    "mime_type": image.mime_type,
+                                                    "data": image.data,
+                                                }
+                                            }));
+                                        }
                                     }
-                                    RawContent::Resource(embedded) => match &embedded.resource {
-                                        ResourceContents::BlobResourceContents {
-                                            blob,
-                                            mime_type,
-                                            ..
-                                        } => match mime_type.as_deref().filter(|m| !m.is_empty()) {
-                                            Some(mime) => {
-                                                parts.push(json!({
-                                                    "inline_data": {
-                                                        "mime_type": mime,
-                                                        "data": blob,
-                                                    }
-                                                }));
-                                            }
-                                            // No MIME type: cannot be inlined; falls
-                                            // through to text extraction below.
-                                            None => tool_content.push(content.no_annotation()),
-                                        },
-                                        _ => tool_content.push(content.no_annotation()),
-                                    },
-                                    _ => tool_content.push(content.no_annotation()),
+                                    _ => {
+                                        tool_content.push(content.no_annotation());
+                                    }
                                 }
                             }
-
                             let mut text = tool_content
                                 .iter()
                                 .filter_map(|c| match c.deref() {
                                     RawContent::Text(t) => Some(t.text.clone()),
                                     RawContent::Resource(raw_embedded_resource) => Some(
-                                        extract_text_from_resource(&raw_embedded_resource.resource),
+                                        raw_embedded_resource.clone().no_annotation().get_text(),
                                     ),
                                     _ => None,
                                 })
@@ -197,15 +209,28 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             if text.is_empty() {
                                 text = "Tool call is done.".to_string();
                             }
-                            let mut part = build_function_response_part(&response.id, text);
+                            let name = tool_names
+                                .get(response.id.as_str())
+                                .map(String::as_str)
+                                .unwrap_or(response.id.as_str());
+                            let mut part =
+                                build_function_response_part(&response.id, name, text, media);
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
                             parts.push(json!(part));
                         }
                         Err(e) => {
-                            let mut part =
-                                build_function_response_part(&response.id, format!("Error: {}", e));
+                            let name = tool_names
+                                .get(response.id.as_str())
+                                .map(String::as_str)
+                                .unwrap_or(response.id.as_str());
+                            let mut part = build_function_response_part(
+                                &response.id,
+                                name,
+                                format!("Error: {}", e),
+                                Vec::new(),
+                            );
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
@@ -290,7 +315,11 @@ fn process_response_part_impl(
         );
         None
     } else if let Some(function_call) = part.get("functionCall") {
-        let id = Uuid::new_v4().to_string();
+        let id = function_call
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
         let name = function_call["name"].as_str().unwrap_or_default();
 
         if !is_valid_function_name(name) {
@@ -534,7 +563,9 @@ struct GenerationConfig {
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 enum ThinkingLevel {
+    Minimal,
     Low,
+    Medium,
     High,
 }
 
@@ -566,6 +597,14 @@ fn get_thinking_config(
     if model_config.reasoning == Some(false)
         || model_config.thinking_effort() == Some(ThinkingEffort::Off)
     {
+        let model_name = model_config.model_name.to_lowercase();
+        if model_name.starts_with("gemini-3.5") || model_name.starts_with("gemini-3.6") {
+            return Some(ThinkingConfig {
+                thinking_level: Some(ThinkingLevel::Minimal),
+                thinking_budget: None,
+                include_thoughts: false,
+            });
+        }
         // Gemini 2.5 Flash defaults to dynamic thinking; only an explicit budget
         // of 0 turns it off. Other families can't be disabled, so leave them unset.
         if model_config
@@ -596,9 +635,9 @@ fn get_thinking_config(
             return None;
         }
         let thinking_level = match effort {
-            ThinkingEffort::Off | ThinkingEffort::Low | ThinkingEffort::Medium => {
-                ThinkingLevel::Low
-            }
+            ThinkingEffort::Off | ThinkingEffort::Low => ThinkingLevel::Low,
+            ThinkingEffort::Medium if model_name.starts_with("gemini-3-pro") => ThinkingLevel::Low,
+            ThinkingEffort::Medium => ThinkingLevel::Medium,
             ThinkingEffort::High | ThinkingEffort::Max => ThinkingLevel::High,
         };
 
@@ -667,9 +706,15 @@ fn create_request_impl(
     };
 
     let thinking_config = get_thinking_config(model_config, thinking_budget);
+    let temperature = (!model_config
+        .model_name
+        .to_lowercase()
+        .starts_with("gemini-3"))
+    .then(|| model_config.temperature.map(|t| t as f64))
+    .flatten();
 
     let generation_config = Some(GenerationConfig {
-        temperature: model_config.temperature.map(|t| t as f64),
+        temperature,
         max_output_tokens: Some(model_config.max_output_tokens()),
         thinking_config,
     });
@@ -678,7 +723,13 @@ fn create_request_impl(
         system_instruction: SystemInstruction {
             parts: [TextPart { text: system }],
         },
-        contents: format_messages(messages),
+        contents: format_messages(
+            messages,
+            model_config
+                .model_name
+                .to_lowercase()
+                .starts_with("gemini-3"),
+        ),
         tools: tools_wrapper,
         generation_config,
     };
@@ -772,7 +823,7 @@ mod tests {
             set_up_text_message("Hello", Role::User),
             set_up_text_message("World", Role::Assistant),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 2);
         assert_eq!(payload[0]["role"], "user");
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
@@ -797,7 +848,7 @@ mod tests {
                 MessageContent::Image(image.no_annotation()),
             ],
         )];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
@@ -827,9 +878,10 @@ mod tests {
                 CallToolRequestParams::new("tool_name_2").with_arguments(object(arguments.clone())),
             ),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
+        assert_eq!(payload[0]["parts"][0]["functionCall"]["id"], "id");
         assert_eq!(payload[0]["parts"][0]["functionCall"]["args"], arguments);
     }
 
@@ -837,7 +889,7 @@ mod tests {
     fn test_message_to_google_spec_tool_result_message() {
         let tool_result: Vec<Content> = vec![Content::text("Hello")];
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "model");
         assert_eq!(
@@ -845,8 +897,63 @@ mod tests {
             "response_id"
         );
         assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["id"],
+            "response_id"
+        );
+        assert_eq!(
             payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
             "Hello"
+        );
+    }
+
+    #[test]
+    fn test_function_response_matches_function_call() {
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),
+            set_up_tool_response_message("call_123", vec![Content::text("contents")]),
+        ];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"],
+            json!({
+                "id": "call_123",
+                "name": "read_file",
+                "response": {"content": {"text": "contents"}}
+            })
+        );
+    }
+
+    #[test]
+    fn test_image_tool_result_is_nested_in_function_response() {
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message(
+                "call_123",
+                vec![
+                    Content::text("Screenshot captured"),
+                    Content::image("base64encodeddata", "image/png"),
+                ],
+            ),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(payload[1]["parts"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"],
+            json!({
+                "id": "call_123",
+                "name": "screenshot",
+                "response": {"content": {"text": "Screenshot captured"}},
+                "parts": [{
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": "base64encodeddata"
+                    }
+                }]
+            })
         );
     }
 
@@ -859,13 +966,14 @@ mod tests {
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
@@ -878,63 +986,6 @@ mod tests {
         })];
 
         assert_eq!(payload, expected_payload);
-    }
-
-    #[test]
-    fn test_tool_result_forwards_blob_resource_as_inline_data() {
-        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
-
-        let resource = ResourceContents::BlobResourceContents {
-            uri: "file:///shot.png".to_string(),
-            mime_type: Some("image/png".to_string()),
-            blob: "aGVsbG8=".to_string(),
-            meta: None,
-        };
-        let blob = RawContent::Resource(RawEmbeddedResource {
-            resource,
-            meta: None,
-        })
-        .no_annotation();
-
-        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
-        let payload = format_messages(&messages);
-
-        assert_eq!(
-            payload[0]["parts"][0]["inline_data"]["mime_type"],
-            "image/png"
-        );
-        assert_eq!(payload[0]["parts"][0]["inline_data"]["data"], "aGVsbG8=");
-    }
-
-    #[test]
-    fn test_tool_result_untyped_blob_not_emitted_as_inline_data() {
-        use base64::Engine;
-        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
-
-        // Serializer contract: a blob without a MIME type cannot be inlined, so no
-        // `inline_data` part is emitted (its content is carried in the
-        // functionResponse text). The text extraction itself is covered by
-        // `extract_text_from_resource`.
-        let binary: Vec<u8> = vec![0xFF, 0xFE, 0x00, 0x01];
-        let blob_b64 = base64::engine::general_purpose::STANDARD.encode(&binary);
-        let resource = ResourceContents::BlobResourceContents {
-            uri: "file:///opaque.bin".to_string(),
-            mime_type: None,
-            blob: blob_b64,
-            meta: None,
-        };
-        let blob = RawContent::Resource(RawEmbeddedResource {
-            resource,
-            meta: None,
-        })
-        .no_annotation();
-
-        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
-        let payload = format_messages(&messages);
-
-        assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
-        assert!(payload[0]["parts"][0].get("inline_data").is_none());
-        assert!(payload[0]["parts"][0]["functionResponse"].is_object());
     }
 
     #[test]
@@ -1041,6 +1092,7 @@ mod tests {
                 "content": {
                     "parts": [{
                         "functionCall": {
+                            "id": "call_123",
                             "name": "valid_name",
                             "args": {
                                 "param": "value"
@@ -1053,6 +1105,7 @@ mod tests {
         let message = response_to_message(response).unwrap();
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
+        assert_eq!(message.content[0].as_tool_request().unwrap().id, "call_123");
         if let Ok(tool_call) = &message.content[0].as_tool_request().unwrap().tool_call {
             assert_eq!(tool_call.name, "valid_name");
             assert_eq!(
@@ -1073,13 +1126,14 @@ mod tests {
         let tool_result: Vec<Content> = Vec::new();
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
             "parts": [
                 {
                     "functionResponse": {
+                        "id": "response_id",
                         "name": "response_id",
                         "response": {
                             "content": {
@@ -1159,8 +1213,10 @@ mod tests {
             req1.metadata.as_ref(),
         );
         let user_prompt = set_up_text_message("List files", Role::User);
-        let google_out =
-            format_messages(&[user_prompt.clone(), native.clone(), tool_response.clone()]);
+        let google_out = format_messages(
+            &[user_prompt.clone(), native.clone(), tool_response.clone()],
+            false,
+        );
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_out[2]["parts"][0]["thoughtSignature"], SIG);
 
@@ -1169,7 +1225,10 @@ mod tests {
             "thoughtSignature": "sig_456"
         })]))
         .unwrap();
-        let google_multi = format_messages(&[user_prompt, native, tool_response, second_assistant]);
+        let google_multi = format_messages(
+            &[user_prompt, native, tool_response, second_assistant],
+            false,
+        );
         assert_eq!(google_multi[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[3]["parts"][0]["thoughtSignature"], "sig_456");
@@ -1212,7 +1271,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only]);
+        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only], false);
         assert_eq!(formatted.len(), 1);
         assert_eq!(formatted[0]["role"], "user");
         assert_eq!(formatted[0]["parts"][0]["text"], "hello");
@@ -1226,7 +1285,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, assistant_tool]);
+        let formatted = format_messages(&[user_prompt, assistant_tool], false);
         assert_eq!(
             formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
             SYNTHETIC_THOUGHT_SIGNATURE
@@ -1525,6 +1584,15 @@ data: [DONE]"#;
 
         let config = ModelConfig::new("gemini-2.5-pro").with_thinking_effort(ThinkingEffort::Off);
         assert!(get_thinking_config(&config, None).is_none());
+
+        let config =
+            ModelConfig::new("gemini-3.5-flash-lite").with_thinking_effort(ThinkingEffort::Off);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Minimal)
+        ));
+        assert!(!thinking_config.include_thoughts);
     }
 
     #[test]
@@ -1542,6 +1610,22 @@ data: [DONE]"#;
         assert!(thinking_config.thinking_level.is_some());
         assert!(thinking_config.thinking_budget.is_none());
         assert!(thinking_config.include_thoughts);
+
+        let config =
+            ModelConfig::new("gemini-3.6-flash").with_thinking_effort(ThinkingEffort::Medium);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Medium)
+        ));
+
+        let config =
+            ModelConfig::new("gemini-3-pro-preview").with_thinking_effort(ThinkingEffort::Medium);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Low)
+        ));
 
         // Test 2: Gemini 3 model with high thinking effort
         let mut params = std::collections::HashMap::new();
@@ -1593,5 +1677,13 @@ data: [DONE]"#;
         let config = ModelConfig::new("gpt-4o");
         let result = get_thinking_config(&config, None);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_gemini_3_request_omits_temperature() {
+        let config = ModelConfig::new("gemini-3.6-flash").with_temperature(Some(0.2));
+        let payload = create_request(&config, "system", &[], &[]).unwrap();
+
+        assert!(payload["generationConfig"].get("temperature").is_none());
     }
 }

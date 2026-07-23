@@ -7,9 +7,16 @@ public fun Provider.streamFlow(
     model: ProviderModelConfig,
     system: String,
     messages: List<ProviderMessage>,
-): Flow<ProviderStreamChunk> = flow {
-    val stream = stream(model, system, messages)
+    tools: List<ProviderTool> = emptyList(),
+): Flow<StreamChunk> = flow {
+    val stream = stream(model, system, messages, tools)
     while (true) {
-        emit(stream.next() ?: break)
+        emit(stream.nextChunk() ?: break)
     }
 }
+
+public suspend fun Provider.complete(
+    model: ProviderModelConfig,
+    system: String,
+    messages: List<ProviderMessage>,
+): ProviderCompletion = complete(model, system, messages, emptyList())

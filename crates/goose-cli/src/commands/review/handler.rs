@@ -6,6 +6,7 @@ use std::process::Command;
 use crate::session::{build_session, SessionBuilderConfig};
 
 use goose::checks::{discover, DiscoveredReview};
+use goose::subprocess::git_command;
 
 use super::orchestrator::{
     emit_findings, run_checks_in_parallel, run_main_pass_in_parallel, Severity,
@@ -312,7 +313,7 @@ fn print_discovered_summary(d: &DiscoveredReview) {
 }
 
 fn find_repo_root() -> Result<PathBuf> {
-    let out = Command::new("git")
+    let out = git_command()
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .context("failed to invoke git")?;
@@ -331,15 +332,15 @@ fn find_repo_root() -> Result<PathBuf> {
 /// C-style escapes (`"dir/\303\251.txt"`), which downstream parsers
 /// would have to round-trip-decode just to spell the filename. We turn
 /// it off everywhere so callers always get clean UTF-8 paths.
-fn git_command(repo_root: &Path) -> Command {
-    let mut cmd = Command::new("git");
+fn review_git_command(repo_root: &Path) -> Command {
+    let mut cmd = git_command();
     cmd.current_dir(repo_root)
         .args(["-c", "core.quotePath=off"]);
     cmd
 }
 
 fn touched_files(repo_root: &Path, range: Option<&str>, files: &[String]) -> Result<Vec<String>> {
-    let mut cmd = git_command(repo_root);
+    let mut cmd = review_git_command(repo_root);
     cmd.arg("diff").arg("--name-only");
     match range {
         Some(r) => {
@@ -370,7 +371,7 @@ fn touched_files(repo_root: &Path, range: Option<&str>, files: &[String]) -> Res
 }
 
 fn collect_diff(repo_root: &Path, range: Option<&str>, files: &[String]) -> Result<String> {
-    let mut cmd = git_command(repo_root);
+    let mut cmd = review_git_command(repo_root);
     cmd.arg("diff");
     match range {
         Some(r) => {
@@ -394,7 +395,7 @@ fn collect_diff(repo_root: &Path, range: Option<&str>, files: &[String]) -> Resu
 }
 
 fn collect_diff_stat(repo_root: &Path, range: Option<&str>, files: &[String]) -> Result<String> {
-    let mut cmd = git_command(repo_root);
+    let mut cmd = review_git_command(repo_root);
     cmd.arg("diff").arg("--stat");
     match range {
         Some(r) => {
@@ -425,7 +426,7 @@ fn collect_diff_stat(repo_root: &Path, range: Option<&str>, files: &[String]) ->
 /// brand-new files to the review when no `--range` is given (default
 /// `git diff HEAD` would silently drop them).
 fn untracked_files(repo_root: &Path, files: &[String]) -> Result<Vec<String>> {
-    let mut cmd = git_command(repo_root);
+    let mut cmd = review_git_command(repo_root);
     cmd.args(["ls-files", "--others", "--exclude-standard"]);
     if !files.is_empty() {
         cmd.arg("--");

@@ -279,6 +279,7 @@ impl GcpVertexAIProvider {
 
     async fn send_request_with_retry(
         &self,
+        model: &ModelConfig,
         url: Url,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
@@ -314,11 +315,17 @@ impl GcpVertexAIProvider {
                 }
             };
 
-            let request = self
+            let mut request = self
                 .client
                 .post(url.clone())
                 .json(payload)
                 .header("Authorization", auth_header);
+
+            if let Some(headers) = &model.request_headers {
+                for (key, value) in headers {
+                    request = request.header(key, value);
+                }
+            }
 
             let response = (self.request_builder)(request)
                 .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
@@ -400,7 +407,7 @@ impl GcpVertexAIProvider {
             .build_request_url(model, context.provider(), location, true)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        self.send_request_with_retry(url, payload).await
+        self.send_request_with_retry(model, url, payload).await
     }
 
     async fn post_stream(

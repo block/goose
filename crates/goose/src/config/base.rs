@@ -1138,7 +1138,6 @@ config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
-config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
 
 impl Config {
     pub fn get_goose_context_limit(&self) -> Result<Option<usize>, ConfigError> {

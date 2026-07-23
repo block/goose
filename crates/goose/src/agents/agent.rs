@@ -459,19 +459,26 @@ impl Agent {
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookContext {
         crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
             .with_last_assistant_message(last_assistant_message.to_string())
+            .with_working_dir(working_dir.to_string())
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
+    async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+    ) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await;
     }
@@ -480,11 +487,12 @@ impl Agent {
         &self,
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookDecision {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await
     }
@@ -748,10 +756,6 @@ impl Agent {
             .await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
-
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
-        }
 
         let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
         {
@@ -1805,9 +1809,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1979,7 +1984,7 @@ impl Agent {
                     conversation.push(message);
 
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2081,7 +2086,7 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
                                 pending_turn_usage = Some(enriched);
                             }
@@ -2563,10 +2568,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2836,7 +2841,7 @@ impl Agent {
 
                             if matching_ids.len() == 2 {
                                 for id in &matching_ids {
-                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    session_manager.update_message_metadata(&session_config.id, id, |metadata| {
                                         metadata.with_agent_invisible()
                                     }).await?;
                                 }
@@ -2885,7 +2890,7 @@ impl Agent {
 
                 if exit_chat {
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2918,7 +2923,7 @@ impl Agent {
             }
 
             if !stop_hook_handled_for_exit {
-                self.emit_stop_hook(&session_config.id, &last_assistant_text).await;
+                self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
         Ok(inner)
