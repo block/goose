@@ -1,4 +1,5 @@
 use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
+use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
@@ -27,7 +28,10 @@ use rmcp::{
 };
 use serde_json::Value;
 use std::{
-    collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, time::Duration,
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex as StdMutex, Weak},
+    time::Duration,
 };
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -181,15 +185,20 @@ pub struct GooseClient {
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
+    /// Weak so the extension's own `McpClient` (which owns this `GooseClient` via
+    /// `RunningService`) never keeps the owning `ExtensionManager` alive.
+    extension_manager: Option<Weak<ExtensionManager>>,
 }
 
 impl GooseClient {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        extension_manager: Option<Weak<ExtensionManager>>,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
@@ -199,6 +208,7 @@ impl GooseClient {
             client_name,
             capabilities,
             working_dir: Arc::new(tokio::sync::RwLock::new(working_dir)),
+            extension_manager,
         }
     }
 
@@ -371,6 +381,17 @@ impl ClientHandler for GooseClient {
                 let _ =
                     handler.try_send(ServerNotification::LoggingMessageNotification(notification));
             });
+    }
+
+    async fn on_tool_list_changed(
+        &self,
+        _context: rmcp::service::NotificationContext<RoleClient>,
+    ) {
+        if let Some(extension_manager) =
+            self.extension_manager.as_ref().and_then(Weak::upgrade)
+        {
+            extension_manager.invalidate_tools_cache_and_bump_version().await;
+        }
     }
 
     async fn create_message(
@@ -560,6 +581,7 @@ pub struct McpClient {
 }
 
 impl McpClient {
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
@@ -567,6 +589,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        extension_manager: Option<Weak<ExtensionManager>>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -580,10 +603,12 @@ impl McpClient {
             client_name,
             capabilities,
             working_dir,
+            extension_manager,
         )
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,
@@ -592,6 +617,7 @@ impl McpClient {
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
+        extension_manager: Option<Weak<ExtensionManager>>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -606,6 +632,7 @@ impl McpClient {
             client_name.clone(),
             capabilities.clone(),
             working_dir,
+            extension_manager,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
@@ -1014,6 +1041,7 @@ mod tests {
             platform.to_string(),
             capabilities,
             std::env::current_dir().unwrap_or_default(),
+            None,
         )
     }
 
@@ -1366,6 +1394,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            None,
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1397,6 +1426,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            None,
         );
 
         let info = ClientHandler::get_info(&client);
@@ -1425,6 +1455,7 @@ mod tests {
                 }),
             },
             std::env::current_dir().unwrap_or_default(),
+            None,
         );
 
         let info = ClientHandler::get_info(&client);

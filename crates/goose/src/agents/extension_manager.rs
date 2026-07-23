@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
@@ -402,6 +402,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -410,6 +411,7 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    extension_manager: Option<Weak<ExtensionManager>>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -448,6 +450,7 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        extension_manager,
     )
     .await;
 
@@ -618,6 +621,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Option<Weak<ExtensionManager>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -652,6 +656,7 @@ async fn connect_with_auth(
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            extension_manager,
         )
         .await?,
     ))
@@ -669,6 +674,7 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Option<Weak<ExtensionManager>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -682,6 +688,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            extension_manager,
         )
         .await;
     }
@@ -737,6 +744,7 @@ async fn create_streamable_http_client(
                     client_name.clone(),
                     capabilities.clone(),
                     roots_dir,
+                    extension_manager.clone(),
                 )
                 .await;
 
@@ -775,6 +783,7 @@ async fn create_streamable_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager.clone(),
     )
     .await;
 
@@ -790,6 +799,7 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    extension_manager,
                 )
                 .await
             }
@@ -812,6 +822,7 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    extension_manager: Option<Weak<ExtensionManager>>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -849,6 +860,7 @@ async fn create_unix_socket_http_client(
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        extension_manager,
     )
     .await;
 
@@ -993,6 +1005,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    Some(Arc::downgrade(self)),
                 )
                 .await?
             }
@@ -1050,6 +1063,7 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            Some(Arc::downgrade(self)),
                         )
                         .await?;
                         Box::new(client)
@@ -1066,6 +1080,7 @@ impl ExtensionManager {
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                Some(Arc::downgrade(self)),
                             )
                             .await?,
                         )
@@ -1127,6 +1142,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Some(Arc::downgrade(self)),
                 )
                 .await?;
                 Box::new(client)
@@ -1159,6 +1175,7 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Some(Arc::downgrade(self)),
                 )
                 .await?;
 
@@ -1383,7 +1400,7 @@ impl ExtensionManager {
         Some(attachment)
     }
 
-    async fn invalidate_tools_cache_and_bump_version(&self) {
+    pub(crate) async fn invalidate_tools_cache_and_bump_version(&self) {
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
         *self.tools_cache.lock().await = None;
     }
@@ -3134,6 +3151,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3169,6 +3187,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3215,6 +3234,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3296,6 +3316,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -3314,5 +3335,170 @@ mod tests {
             header_found,
             "custom header x-api-key was not forwarded through the OAuth connection path"
         );
+    }
+
+    /// A minimal MCP server that starts with a single `alpha` tool and, the
+    /// first time `alpha` is called, both starts serving a second `beta` tool
+    /// and sends `notifications/tools/list_changed` — mirroring the reproducer
+    /// in https://github.com/block/goose/issues/10433.
+    struct DynamicToolsServer {
+        unlocked: std::sync::atomic::AtomicBool,
+    }
+
+    impl DynamicToolsServer {
+        fn new() -> Self {
+            Self {
+                unlocked: std::sync::atomic::AtomicBool::new(false),
+            }
+        }
+
+        fn tools(&self) -> Vec<Tool> {
+            use serde_json::json;
+            let mut tools = vec![Tool::new(
+                "alpha".to_string(),
+                "Always present. Call me once to unlock beta.".to_string(),
+                Arc::new(json!({}).as_object().unwrap().clone()),
+            )];
+            if self.unlocked.load(Ordering::SeqCst) {
+                tools.push(Tool::new(
+                    "beta".to_string(),
+                    "Only appears after alpha is called and tools/list is re-fetched."
+                        .to_string(),
+                    Arc::new(json!({}).as_object().unwrap().clone()),
+                ));
+            }
+            tools
+        }
+    }
+
+    impl rmcp::ServerHandler for DynamicToolsServer {
+        fn get_info(&self) -> ServerInfo {
+            InitializeResult::new(rmcp::model::ServerCapabilities::builder().enable_tools().build())
+                .with_server_info(rmcp::model::Implementation::new("dynamic-tools", "0.1.0"))
+        }
+
+        async fn list_tools(
+            &self,
+            _request: Option<rmcp::model::PaginatedRequestParams>,
+            _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> Result<ListToolsResult, ErrorData> {
+            Ok(ListToolsResult {
+                tools: self.tools(),
+                next_cursor: None,
+                meta: None,
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            request: CallToolRequestParams,
+            context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> Result<CallToolResult, ErrorData> {
+            if request.name == "alpha" && !self.unlocked.swap(true, Ordering::SeqCst) {
+                context
+                    .peer
+                    .notify_tool_list_changed()
+                    .await
+                    .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+            }
+            Ok(CallToolResult::success(vec![]))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_tool_list_changed_notification_invalidates_cache() {
+        use rmcp::ServiceExt;
+
+        let (server_read, client_write) = tokio::io::duplex(65536);
+        let (client_read, server_write) = tokio::io::duplex(65536);
+
+        tokio::spawn(async move {
+            let service = DynamicToolsServer::new()
+                .serve((server_read, server_write))
+                .await
+                .expect("fake MCP server should start");
+            let _ = service.waiting().await;
+        });
+
+        let temp_dir = tempdir().unwrap();
+        let extension_manager = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        let mcp_client = McpClient::connect(
+            (client_read, client_write),
+            Duration::from_secs(5),
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path().to_path_buf(),
+            Some(Arc::downgrade(&extension_manager)),
+        )
+        .await
+        .expect("client should connect to the fake server");
+        let mcp_client: McpClientBox = Arc::new(mcp_client);
+
+        let config = ExtensionConfig::Builtin {
+            name: "dynamic".to_string(),
+            display_name: Some("dynamic".to_string()),
+            description: "built-in".to_string(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        extension_manager
+            .add_client(
+                "dynamic".to_string(),
+                config,
+                mcp_client.clone(),
+                None,
+                None,
+            )
+            .await;
+
+        let session_id = "test-session";
+        let tools_before = extension_manager
+            .get_prefixed_tools(session_id, None)
+            .await
+            .unwrap();
+        assert!(
+            tools_before.iter().any(|t| t.name.ends_with("alpha")),
+            "alpha should be visible before any tool call"
+        );
+        assert!(
+            !tools_before.iter().any(|t| t.name.ends_with("beta")),
+            "beta should not be visible before the server unlocks it"
+        );
+
+        let ctx = ToolCallContext::new(session_id.to_string(), None, Some("req-1".to_string()));
+        mcp_client
+            .call_tool(&ctx, "alpha", None, CancellationToken::new())
+            .await
+            .expect("alpha call should succeed");
+
+        let mut tools_after = None;
+        for _ in 0..100 {
+            let tools = extension_manager
+                .get_prefixed_tools(session_id, None)
+                .await
+                .unwrap();
+            if tools.iter().any(|t| t.name.ends_with("beta")) {
+                tools_after = Some(tools);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        let tools_after = tools_after.expect(
+            "notifications/tools/list_changed should invalidate the tools cache so the \
+             next get_prefixed_tools call re-fetches tools/list and surfaces `beta`",
+        );
+        assert!(tools_after.iter().any(|t| t.name.ends_with("beta")));
     }
 }
