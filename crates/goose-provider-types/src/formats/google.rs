@@ -1,11 +1,13 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
@@ -171,27 +173,37 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                             let mut tool_content = Vec::new();
                             let mut media = Vec::new();
                             for content in result.content.iter().map(|c| c.raw.clone()) {
-                                match content {
+                                // Images and embedded-resource blobs with a mime
+                                // type are forwarded as inline media.
+                                let inline = match &content {
                                     RawContent::Image(image) => {
-                                        if nested_function_response_media {
-                                            media.push(json!({
-                                                "inlineData": {
-                                                    "mimeType": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        } else {
-                                            parts.push(json!({
-                                                "inline_data": {
-                                                    "mime_type": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        }
+                                        Some((image.mime_type.clone(), image.data.clone()))
                                     }
-                                    _ => {
-                                        tool_content.push(content.no_annotation());
+                                    RawContent::Resource(embedded) => match &embedded.resource {
+                                        ResourceContents::BlobResourceContents {
+                                            blob,
+                                            mime_type,
+                                            ..
+                                        } => mime_type
+                                            .clone()
+                                            .filter(|m| !m.is_empty())
+                                            .map(|mime| (mime, blob.clone())),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                };
+                                match inline {
+                                    Some((mime, data)) if nested_function_response_media => {
+                                        media.push(json!({
+                                            "inlineData": {"mimeType": mime, "data": data}
+                                        }));
                                     }
+                                    Some((mime, data)) => {
+                                        parts.push(json!({
+                                            "inline_data": {"mime_type": mime, "data": data}
+                                        }));
+                                    }
+                                    None => tool_content.push(content.no_annotation()),
                                 }
                             }
                             let mut text = tool_content
@@ -199,7 +211,7 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                                 .filter_map(|c| match c.deref() {
                                     RawContent::Text(t) => Some(t.text.clone()),
                                     RawContent::Resource(raw_embedded_resource) => Some(
-                                        raw_embedded_resource.clone().no_annotation().get_text(),
+                                        extract_text_from_resource(&raw_embedded_resource.resource),
                                     ),
                                     _ => None,
                                 })
@@ -954,6 +966,34 @@ mod tests {
                     }
                 }]
             })
+        );
+    }
+
+    #[test]
+    fn test_blob_resource_tool_result_is_forwarded_as_media() {
+        use rmcp::model::{RawEmbeddedResource, ResourceContents};
+
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///shot.png".to_string(),
+            mime_type: Some("image/png".to_string()),
+            blob: "aGVsbG8=".to_string(),
+            meta: None,
+        };
+        let blob = RawContent::Resource(RawEmbeddedResource {
+            resource,
+            meta: None,
+        })
+        .no_annotation();
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message("call_123", vec![blob]),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"]["parts"],
+            json!([{"inlineData": {"mimeType": "image/png", "data": "aGVsbG8="}}])
         );
     }
 
