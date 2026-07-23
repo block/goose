@@ -16,6 +16,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "Prompt for summarizing conversation history when context limits are reached",
     ),
     (
+        "compaction_summary.md",
+        "Renders the structured compaction output into the post-compaction context",
+    ),
+    (
         "subagent_system.md",
         "System prompt for subagents spawned to handle specific tasks",
     ),
@@ -68,6 +72,23 @@ fn is_registered(name: &str) -> bool {
     TEMPLATE_REGISTRY.iter().any(|(n, _)| *n == name)
 }
 
+/// Wrap code in a markdown fence longer than any backtick run it contains,
+/// so embedded fences cannot close the block early.
+fn code_fence(code: String) -> String {
+    let longest_run = code
+        .chars()
+        .fold((0usize, 0usize), |(max, run), c| {
+            if c == '`' {
+                (max.max(run + 1), run + 1)
+            } else {
+                (max, 0)
+            }
+        })
+        .0;
+    let fence = "`".repeat((longest_run + 1).max(3));
+    format!("{fence}\n{}\n{fence}", code.trim_end_matches('\n'))
+}
+
 pub fn render_string<T: Serialize>(
     template_str: &str,
     context: &T,
@@ -75,6 +96,7 @@ pub fn render_string<T: Serialize>(
     let mut env = Environment::new();
     env.set_trim_blocks(true);
     env.set_lstrip_blocks(true);
+    env.add_filter("code_fence", code_fence);
     env.add_template("template", template_str)?;
     let tmpl = env.get_template("template")?;
     let ctx = MJValue::from_serialize(context);

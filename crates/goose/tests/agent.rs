@@ -832,14 +832,15 @@ mod tests {
     mod tool_pair_summarization_tests {
         use super::*;
         use async_trait::async_trait;
-        use goose::agents::SessionConfig;
+        use goose::agents::{AgentConfig, SessionConfig};
         use goose::config::base::Config;
+        use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
-        use goose::session::session_manager::SessionType;
+        use goose::session::{SessionManager, SessionType};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -935,8 +936,16 @@ mod tests {
                 .set_param("GOOSE_TOOL_CALL_CUTOFF", 2)
                 .unwrap();
 
-            let agent = Agent::new();
-            let session_manager = agent.config.session_manager.clone();
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().join("data")));
+            let agent = Agent::with_config(AgentConfig::new(
+                Arc::clone(&session_manager),
+                Arc::new(PermissionManager::new(temp_dir.path().join("config"))),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
             let provider = Arc::new(SummarizationTestProvider::new());
 
             let session = session_manager

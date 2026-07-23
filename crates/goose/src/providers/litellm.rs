@@ -136,10 +136,16 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        model_config: &ModelConfig,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(&self.base_path, payload)
+            .request(&self.base_path)
+            .model_headers(model_config)?
+            .response_post(payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -248,7 +254,7 @@ impl Provider for LiteLLMProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(model_config, &payload_clone).await
             })
             .await?;
 

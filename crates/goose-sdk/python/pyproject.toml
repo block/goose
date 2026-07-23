@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "goose-sdk"
-version = "0.1.0a0"
+version = "0.1.0a5"
 description = "Python bindings for the Goose SDK"
 readme = "README.md"
 requires-python = ">=3.9"

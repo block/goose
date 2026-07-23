@@ -18,6 +18,7 @@ pub static EXTENSION_NAME: &str = "skills";
 pub struct SkillsClient {
     info: InitializeResult,
     working_dir: PathBuf,
+    exclude_builtin_skills: bool,
 }
 
 impl SkillsClient {
@@ -31,7 +32,27 @@ impl SkillsClient {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Skills"));
 
-        Ok(Self { info, working_dir })
+        Ok(Self {
+            info,
+            working_dir,
+            exclude_builtin_skills: false,
+        })
+    }
+
+    /// Controls whether Goose's bundled skills are exposed by this client.
+    /// Bundled skills are enabled by default.
+    pub fn with_builtin_skills(mut self, enabled: bool) -> Self {
+        self.exclude_builtin_skills = !enabled;
+        self
+    }
+
+    fn discover_skills(&self) -> Vec<SourceEntry> {
+        discover_skills(Some(&self.working_dir))
+            .into_iter()
+            .filter(|skill| {
+                !self.exclude_builtin_skills || skill.source_type != SourceType::BuiltinSkill
+            })
+            .collect()
     }
 }
 
@@ -108,7 +129,7 @@ impl McpClientTrait for SkillsClient {
             .and_then(|args| args.get("args"))
             .and_then(|v| v.as_str());
 
-        let skills = discover_skills(Some(&self.working_dir));
+        let skills = self.discover_skills();
 
         if let Some(skill) = skills.iter().find(|s| s.name == skill_name) {
             return match loaded_skill_context_with_args(skill, args) {
@@ -222,7 +243,7 @@ impl McpClientTrait for SkillsClient {
     }
 
     fn get_instructions(&self) -> Option<String> {
-        let sources = discover_skills(Some(&self.working_dir));
+        let sources = self.discover_skills();
         let mut skills: Vec<&SourceEntry> = sources
             .iter()
             .filter(|s| {
@@ -258,7 +279,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn test_load_skill_from_filesystem() {
+    async fn test_load_filesystem_skill_without_builtin_skills() {
         let temp_dir = TempDir::new().unwrap();
         let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
         fs::create_dir_all(&skill_dir).unwrap();
@@ -278,7 +299,13 @@ mod tests {
             session: Some(session),
             use_login_shell_path: false,
         })
-        .unwrap();
+        .unwrap()
+        .with_builtin_skills(false);
+
+        assert!(client
+            .discover_skills()
+            .iter()
+            .all(|skill| skill.source_type != SourceType::BuiltinSkill));
 
         let ctx = ToolCallContext::new("test".to_string(), None, None);
         let args: JsonObject =

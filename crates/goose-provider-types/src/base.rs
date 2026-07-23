@@ -358,13 +358,21 @@ pub async fn collect_stream(
         }
     }
 
-    match final_message {
-        Some(msg) => {
-            let usage = final_usage
+    match (final_message, final_usage) {
+        (Some(msg), usage) => {
+            let usage = usage
                 .unwrap_or_else(|| ProviderUsage::new("unknown".to_string(), Usage::default()));
             Ok((msg, usage))
         }
-        None => Err(ProviderError::ExecutionError(
+        (None, Some(usage)) => Ok((
+            Message::new(
+                rmcp::model::Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                Vec::new(),
+            ),
+            usage,
+        )),
+        (None, None) => Err(ProviderError::ExecutionError(
             "Stream yielded no message".to_string(),
         )),
     }
@@ -660,6 +668,22 @@ mod tests {
         let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
         assert_eq!(content_to_strings(&msg), vec!["Hello"]);
         assert_eq!(usage.model, "unknown");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_usage_only_yields_empty_message() {
+        let usage = ProviderUsage::new("claude-sonnet-4".to_string(), Usage::default());
+        let stream = futures::stream::once(async move { Ok((None, Some(usage))) });
+        let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
+        assert!(msg.content.is_empty());
+        assert_eq!(usage.model, "claude-sonnet-4");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_no_message_no_usage_errors() {
+        let stream = futures::stream::empty();
+        let result = collect_stream(Box::pin(stream)).await;
+        assert!(matches!(result, Err(ProviderError::ExecutionError(_))));
     }
 
     #[tokio::test]

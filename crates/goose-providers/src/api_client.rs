@@ -408,6 +408,17 @@ impl<'a> ApiRequestBuilder<'a> {
         self
     }
 
+    /// Apply per-request headers from a model config, overriding any static
+    /// client headers on key collision.
+    pub fn model_headers(self, model_config: &crate::model::ModelConfig) -> Result<Self> {
+        match &model_config.request_headers {
+            Some(headers) => headers
+                .iter()
+                .try_fold(self, |builder, (key, value)| builder.header(key, value)),
+            None => Ok(self),
+        }
+    }
+
     pub async fn api_post(self, payload: &Value) -> Result<ApiResponse> {
         let response = self.response_post(payload).await?;
         ApiResponse::from_response(response).await
@@ -597,6 +608,67 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_model_headers_applied_and_override_static_headers() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let client = ApiClient::new_with_tls(
+                "http://localhost:8080".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap()
+            .with_header("x-static", "static-value")
+            .unwrap()
+            .with_header("queue_threshold", "1000")
+            .unwrap();
+
+            let model_config = crate::model::ModelConfig::new("test-model").with_request_headers(
+                Some(std::collections::HashMap::from([
+                    ("queue_threshold".to_string(), "500".to_string()),
+                    ("Idempotency-Key".to_string(), "abc-123".to_string()),
+                ])),
+            );
+
+            let request = client
+                .request("/test")
+                .model_headers(&model_config)
+                .unwrap()
+                .send_request(|url, client| client.get(url))
+                .await
+                .unwrap();
+
+            let headers = request.build().unwrap().headers().clone();
+            let get = |name: &str| {
+                headers
+                    .get(name)
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_string)
+            };
+            assert_eq!(get("queue_threshold"), Some("500".to_string()));
+            assert_eq!(get("Idempotency-Key"), Some("abc-123".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_model_headers_rejects_invalid_header_name() {
+        let client = ApiClient::new_with_tls(
+            "http://localhost:8080".to_string(),
+            AuthMethod::NoAuth,
+            None,
+        )
+        .unwrap();
+
+        let model_config = crate::model::ModelConfig::new("test-model").with_request_headers(Some(
+            std::collections::HashMap::from([("bad header name".to_string(), "value".to_string())]),
+        ));
+
+        assert!(client
+            .request("/test")
+            .model_headers(&model_config)
+            .is_err());
+    }
 
     #[test]
     fn test_request_builder_decorator() {
