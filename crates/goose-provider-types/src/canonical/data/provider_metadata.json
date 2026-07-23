@@ -250,7 +250,7 @@
     "env": [
       "CLINE_API_KEY"
     ],
-    "model_count": 10
+    "model_count": 11
   },
   {
     "id": "cloudferro-sherlock",
@@ -284,7 +284,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 56
+    "model_count": 57
   },
   {
     "id": "crof",
@@ -527,7 +527,7 @@
     "env": [
       "HF_TOKEN"
     ],
-    "model_count": 51
+    "model_count": 52
   },
   {
     "id": "iflowcn",
@@ -615,7 +615,7 @@
     "env": [
       "KENARI_API_KEY"
     ],
-    "model_count": 23
+    "model_count": 38
   },
   {
     "id": "kilo",
@@ -670,7 +670,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 174
+    "model_count": 182
   },
   {
     "id": "llmtr",
@@ -971,6 +971,17 @@
     "model_count": 84
   },
   {
+    "id": "ofox",
+    "display_name": "Ofox",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.ofox.ai/v1",
+    "doc": "https://ofox.ai/docs",
+    "env": [
+      "OFOX_API_KEY"
+    ],
+    "model_count": 13
+  },
+  {
     "id": "ollama-cloud",
     "display_name": "Ollama Cloud",
     "npm": "@ai-sdk/openai-compatible",
@@ -1001,7 +1012,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 21
+    "model_count": 22
   },
   {
     "id": "orcarouter",
@@ -1338,13 +1349,13 @@
   {
     "id": "thinkingmachines",
     "display_name": "Thinking Machines",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
-    "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/openai/",
+    "npm": "@ai-sdk/anthropic",
+    "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/anthropic/api/v1",
+    "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/anthropic/",
     "env": [
       "TINKER_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 2
   },
   {
     "id": "tinfoil",

@@ -27222,6 +27222,37 @@
     }
   },
   {
+    "id": "cline-pass/cline-pass/kimi-k3",
+    "name": "Kimi K3",
+    "family": "kimi-k3",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "release_date": "2026-07-16",
+    "last_updated": "2026-07-16",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 131072
+    }
+  },
+  {
     "id": "cline-pass/cline-pass/mimo-v2.5",
     "name": "MiMo-V2.5",
     "family": "mimo",
@@ -31859,6 +31890,35 @@
     "limit": {
       "context": 128000,
       "output": 128000
+    }
+  },
+  {
+    "id": "cortecs/hy3",
+    "name": "Hy3",
+    "family": "Hy",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-06",
+    "last_updated": "2026-07-06",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.41,
+      "output": 1.025,
+      "cache_read": 0.103
+    },
+    "limit": {
+      "context": 262144,
+      "output": 64000
     }
   },
   {
@@ -49661,6 +49721,74 @@
     }
   },
   {
+    "id": "google-vertex/gemini-3.5-flash-lite",
+    "name": "Gemini 3.5 Flash Lite",
+    "family": "gemini-flash-lite",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-03",
+    "release_date": "2026-07-21",
+    "last_updated": "2026-07-21",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.3,
+      "output": 2.5,
+      "cache_read": 0.03
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "google-vertex/gemini-3.6-flash",
+    "name": "Gemini 3.6 Flash",
+    "family": "gemini-flash",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-03",
+    "release_date": "2026-07-21",
+    "last_updated": "2026-07-21",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.5,
+      "output": 7.5,
+      "cache_read": 0.15
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
     "id": "google-vertex/gemini-embedding-001",
     "name": "Gemini Embedding 001",
     "family": "gemini",
@@ -54789,6 +54917,35 @@
     }
   },
   {
+    "id": "huggingface/XiaomiMiMo/MiMo-V2.5",
+    "name": "MiMo-V2.5",
+    "family": "mimo",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-12",
+    "release_date": "2026-04-22",
+    "last_updated": "2026-04-22",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.4,
+      "output": 2.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 131072
+    }
+  },
+  {
     "id": "huggingface/XiaomiMiMo/MiMo-V2.5-Pro",
     "name": "MiMo-V2.5-Pro",
     "family": "mimo",
@@ -58916,6 +59073,37 @@
     }
   },
   {
+    "id": "kenari/claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-09",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "kenari/claude-opus-4.7",
     "name": "Claude Opus 4.7",
     "family": "claude-opus",
@@ -58978,16 +59166,16 @@
     }
   },
   {
-    "id": "kenari/claude-sonnet-4.6",
-    "name": "Claude Sonnet 4.6",
+    "id": "kenari/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-08-31",
-    "release_date": "2026-02-17",
-    "last_updated": "2026-03-13",
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
     "modalities": {
       "input": [
         "text",
@@ -59005,7 +59193,7 @@
     },
     "limit": {
       "context": 1000000,
-      "output": 64000
+      "output": 128000
     }
   },
   {
@@ -59096,32 +59284,102 @@
     }
   },
   {
-    "id": "kenari/deepseek-v4-pro:free",
-    "name": "DeepSeek V4 Pro (Free)",
-    "family": "deepseek-thinking",
-    "attachment": false,
+    "id": "kenari/gemini-2.5-flash",
+    "name": "Gemini 2.5 Flash",
+    "family": "gemini-flash",
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "knowledge": "2025-05",
-    "release_date": "2026-04-24",
-    "last_updated": "2026-04-24",
+    "knowledge": "2025-01",
+    "release_date": "2025-06-17",
+    "last_updated": "2025-06-17",
     "modalities": {
       "input": [
-        "text"
+        "text",
+        "image",
+        "audio",
+        "video",
+        "pdf"
       ],
       "output": [
         "text"
       ]
     },
-    "open_weights": true,
+    "open_weights": false,
     "cost": {
       "input": 0.0,
       "output": 0.0
     },
     "limit": {
-      "context": 1000000,
-      "output": 384000
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "kenari/gemini-2.5-flash-lite",
+    "name": "Gemini 2.5 Flash-Lite",
+    "family": "gemini-flash-lite",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2025-06-17",
+    "last_updated": "2025-06-17",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "kenari/gemini-3.1-flash-lite",
+    "name": "Gemini 3.1 Flash Lite",
+    "family": "gemini-flash-lite",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-05-07",
+    "last_updated": "2026-05-07",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -59151,6 +59409,35 @@
     "limit": {
       "context": 262144,
       "output": 32768
+    }
+  },
+  {
+    "id": "kenari/glm-4.7-flash:free",
+    "name": "GLM-4.7-Flash (Free)",
+    "family": "glm-flash",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-04",
+    "release_date": "2026-01-19",
+    "last_updated": "2026-01-19",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 200000,
+      "output": 131072
     }
   },
   {
@@ -59271,6 +59558,99 @@
     }
   },
   {
+    "id": "kenari/gpt-5.6-luna",
+    "name": "GPT-5.6 Luna",
+    "family": "gpt-luna",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "kenari/gpt-5.6-sol",
+    "name": "GPT-5.6 Sol",
+    "family": "gpt-sol",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "kenari/gpt-5.6-terra",
+    "name": "GPT-5.6 Terra",
+    "family": "gpt-terra",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
     "id": "kenari/gpt-image-2",
     "name": "GPT-Image-2",
     "family": "gpt-image",
@@ -59355,20 +59735,19 @@
     }
   },
   {
-    "id": "kenari/grok-4.3",
-    "name": "Grok 4.3",
+    "id": "kenari/grok-4.5",
+    "name": "Grok 4.5",
     "family": "grok",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "release_date": "2026-04-17",
-    "last_updated": "2026-04-17",
+    "release_date": "2026-07-08",
+    "last_updated": "2026-07-08",
     "modalities": {
       "input": [
         "text",
-        "image",
-        "pdf"
+        "image"
       ],
       "output": [
         "text"
@@ -59380,8 +59759,8 @@
       "output": 0.0
     },
     "limit": {
-      "context": 1000000,
-      "output": 30000
+      "context": 500000,
+      "output": 500000
     }
   },
   {
@@ -59446,6 +59825,37 @@
     }
   },
   {
+    "id": "kenari/kimi-k2-6:free",
+    "name": "Kimi K2.6 (Free)",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-04-21",
+    "last_updated": "2026-04-21",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
     "id": "kenari/kimi-k2-7-code",
     "name": "Kimi K2.7 Code",
     "family": "kimi-k2",
@@ -59474,6 +59884,67 @@
     "limit": {
       "context": 262144,
       "output": 262144
+    }
+  },
+  {
+    "id": "kenari/kimi-k2-7-code:free",
+    "name": "Kimi K2.7 Code (Free)",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-01",
+    "release_date": "2026-06-12",
+    "last_updated": "2026-06-12",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "kenari/kimi-k3",
+    "name": "Kimi K3",
+    "family": "kimi-k3",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "release_date": "2026-07-16",
+    "last_updated": "2026-07-16",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 131072
     }
   },
   {
@@ -59538,6 +60009,38 @@
     }
   },
   {
+    "id": "kenari/mimo-v2-5:free",
+    "name": "MiMo-V2.5 (Free)",
+    "family": "mimo",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-12",
+    "release_date": "2026-04-22",
+    "last_updated": "2026-04-22",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 131072
+    }
+  },
+  {
     "id": "kenari/minimax-m3",
     "name": "MiniMax-M3",
     "family": "minimax",
@@ -59564,6 +60067,118 @@
     },
     "limit": {
       "context": 512000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "kenari/nemotron-3-nano-30b-a3b",
+    "name": "Nemotron 3 Nano 30B A3B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-12-15",
+    "last_updated": "2025-12-15",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "kenari/nemotron-3-super-120b-a12b",
+    "name": "Nemotron 3 Super 120B A12B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-03-11",
+    "last_updated": "2026-03-11",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "kenari/nemotron-3-super-120b-a12b:free",
+    "name": "Nemotron 3 Super 120B A12B (Free)",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-03-11",
+    "last_updated": "2026-03-11",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "kenari/nemotron-3-ultra-550b-a55b",
+    "name": "Nemotron 3 Ultra 550B A55B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-06-04",
+    "last_updated": "2026-06-04",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 1000000,
       "output": 128000
     }
   },
@@ -69779,6 +70394,34 @@
     }
   },
   {
+    "id": "llmgateway/cosmos3-super-reasoner",
+    "name": "Cosmos 3 Super Reasoner",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-06-01",
+    "last_updated": "2026-06-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.1,
+      "output": 0.3
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
     "id": "llmgateway/custom",
     "name": "Custom Model",
     "family": "auto",
@@ -70296,6 +70939,35 @@
     }
   },
   {
+    "id": "llmgateway/gemma-3-27b",
+    "name": "Gemma 3 27B",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-03-12",
+    "last_updated": "2025-03-12",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.1,
+      "output": 0.3
+    },
+    "limit": {
+      "context": 110000,
+      "output": 110000
+    }
+  },
+  {
     "id": "llmgateway/gemma-4-26b-a4b-it",
     "name": "Gemma 4 26B A4B IT",
     "family": "gemma",
@@ -70805,7 +71477,7 @@
       "cache_write": 0.0
     },
     "limit": {
-      "context": 1024000,
+      "context": 1048576,
       "output": 131072
     }
   },
@@ -72198,6 +72870,62 @@
     }
   },
   {
+    "id": "llmgateway/hermes-4-405b",
+    "name": "Hermes 4 405B",
+    "family": "hermes",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-08-26",
+    "last_updated": "2025-08-26",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.0,
+      "output": 3.0
+    },
+    "limit": {
+      "context": 131072,
+      "output": 131072
+    }
+  },
+  {
+    "id": "llmgateway/hermes-4-70b",
+    "name": "Hermes 4 70B",
+    "family": "hermes",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-08-26",
+    "last_updated": "2025-08-26",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.13,
+      "output": 0.4
+    },
+    "limit": {
+      "context": 131072,
+      "output": 131072
+    }
+  },
+  {
     "id": "llmgateway/kimi-k2",
     "name": "Kimi K2",
     "family": "kimi-k2",
@@ -72311,9 +73039,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.4,
-      "output": 2.2,
-      "cache_read": 0.08
+      "input": 0.22,
+      "output": 1.137,
+      "cache_read": 0.048
     },
     "limit": {
       "context": 262144,
@@ -72706,6 +73434,34 @@
     }
   },
   {
+    "id": "llmgateway/minicpm-v-4.5",
+    "name": "MiniCPM-V 4.5",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-08-26",
+    "last_updated": "2025-08-26",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.658,
+      "output": 1.11
+    },
+    "limit": {
+      "context": 32000,
+      "output": 32000
+    }
+  },
+  {
     "id": "llmgateway/minimax-m2",
     "name": "MiniMax-M2",
     "family": "minimax",
@@ -72870,9 +73626,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.3,
-      "output": 1.2,
-      "cache_read": 0.06,
+      "input": 0.08,
+      "output": 0.32,
+      "cache_read": 0.017,
       "cache_write": 0.375
     },
     "limit": {
@@ -72937,7 +73693,7 @@
       "cache_read": 0.06
     },
     "limit": {
-      "context": 524288,
+      "context": 1048576,
       "output": 128000
     }
   },
@@ -73149,6 +73905,91 @@
     }
   },
   {
+    "id": "llmgateway/nemotron-3-nano-30b",
+    "name": "Nemotron 3 Nano 30B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-12-15",
+    "last_updated": "2025-12-15",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.06,
+      "output": 0.24
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "llmgateway/nemotron-3-nano-omni",
+    "name": "Nemotron 3 Nano Omni",
+    "family": "nemotron",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-04-28",
+    "last_updated": "2026-04-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.06,
+      "output": 0.24
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "llmgateway/nemotron-3-super-120b",
+    "name": "Nemotron 3 Super 120B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-03-11",
+    "last_updated": "2026-03-11",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.3,
+      "output": 0.9
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
     "id": "llmgateway/nemotron-3-ultra-550b",
     "name": "Nemotron 3 Ultra 550B A55B",
     "family": "nemotron",
@@ -73173,7 +74014,7 @@
       "cache_read": 0.15
     },
     "limit": {
-      "context": 262144,
+      "context": 1048576,
       "output": 128000
     }
   },
@@ -73505,11 +74346,11 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.4
+      "input": 0.25,
+      "output": 0.75
     },
     "limit": {
-      "context": 32768,
+      "context": 32000,
       "output": 8192
     }
   },
@@ -73589,8 +74430,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.2,
-      "output": 0.6
+      "input": 0.3,
+      "output": 3.0
     },
     "limit": {
       "context": 262000,
@@ -73650,7 +74491,7 @@
       "output": 0.3
     },
     "limit": {
-      "context": 32768,
+      "context": 40960,
       "output": 16384
     }
   },
@@ -107189,6 +108030,422 @@
     }
   },
   {
+    "id": "ofox/anthropic/claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-09",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/anthropic/claude-opus-4.8",
+    "name": "Claude Opus 4.8",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01",
+    "release_date": "2026-05-28",
+    "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/anthropic/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/bailian/qwen3.7-max",
+    "name": "Qwen3.7 Max",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-05-21",
+    "last_updated": "2026-05-21",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 7.5,
+      "cache_read": 0.5,
+      "cache_write": 3.125
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 65536
+    }
+  },
+  {
+    "id": "ofox/deepseek/deepseek-v4-pro",
+    "name": "DeepSeek V4 Pro",
+    "family": "deepseek-thinking",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-04-24",
+    "last_updated": "2026-04-24",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.45,
+      "output": 0.88,
+      "cache_read": 0.0037
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 384000
+    }
+  },
+  {
+    "id": "ofox/google/gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "ofox/moonshotai/kimi-k2.6",
+    "name": "Kimi K2.6",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-04-21",
+    "last_updated": "2026-04-21",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.95,
+      "output": 4.0,
+      "cache_read": 0.16
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "ofox/openai/gpt-5.5",
+    "name": "GPT-5.5",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-12-01",
+    "release_date": "2026-04-23",
+    "last_updated": "2026-04-23",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read": 0.5
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/openai/gpt-5.6-luna",
+    "name": "GPT-5.6 Luna",
+    "family": "gpt-luna",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.0,
+      "output": 6.0,
+      "cache_read": 0.1,
+      "cache_write": 1.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/openai/gpt-5.6-sol",
+    "name": "GPT-5.6 Sol",
+    "family": "gpt-sol",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/openai/gpt-5.6-terra",
+    "name": "GPT-5.6 Terra",
+    "family": "gpt-terra",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-02-16",
+    "release_date": "2026-07-09",
+    "last_updated": "2026-07-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.25,
+      "cache_write": 3.125
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "ofox/x-ai/grok-4.3",
+    "name": "Grok 4.3",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-04-17",
+    "last_updated": "2026-04-17",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.25,
+      "output": 2.5,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 30000
+    }
+  },
+  {
+    "id": "ofox/z-ai/glm-5.2",
+    "name": "GLM-5.2",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-06-13",
+    "last_updated": "2026-06-13",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 131072
+    }
+  },
+  {
     "id": "ollama-cloud/deepseek-v4-flash",
     "name": "deepseek-v4-flash",
     "family": "deepseek-flash",
@@ -109445,6 +110702,35 @@
     "limit": {
       "context": 500000,
       "output": 500000
+    }
+  },
+  {
+    "id": "opencode-go/hy3",
+    "name": "Hy3",
+    "family": "Hy",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-06",
+    "last_updated": "2026-07-06",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.14,
+      "output": 0.58,
+      "cache_read": 0.035
+    },
+    "limit": {
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -114028,9 +115314,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.0938,
-      "output": 0.1876,
-      "cache_read": 0.01876
+      "input": 0.098,
+      "output": 0.196,
+      "cache_read": 0.0196
     },
     "limit": {
       "context": 1048576,
@@ -114500,7 +115786,7 @@
     },
     "limit": {
       "context": 65536,
-      "output": 65536
+      "output": 66000
     }
   },
   {
@@ -114883,12 +116169,13 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.07,
-      "output": 0.34
+      "input": 0.12,
+      "output": 0.35,
+      "cache_read": 0.05
     },
     "limit": {
       "context": 262144,
-      "output": 16384
+      "output": 262144
     }
   },
   {
@@ -114944,11 +116231,12 @@
     "open_weights": true,
     "cost": {
       "input": 0.12,
-      "output": 0.37
+      "output": 0.35,
+      "cache_read": 0.09
     },
     "limit": {
       "context": 262144,
-      "output": 16384
+      "output": 262144
     }
   },
   {
@@ -115552,12 +116840,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.0509,
-      "output": 0.335
+      "input": 0.05,
+      "output": 0.33
     },
     "limit": {
       "context": 131072,
-      "output": 80000
+      "output": 131072
     }
   },
   {
@@ -117101,9 +118389,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.6,
-      "output": 3.6,
-      "cache_read": 0.2
+      "input": 0.5,
+      "output": 2.2,
+      "cache_read": 0.1
     },
     "limit": {
       "context": 512288,
@@ -119834,12 +121122,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.12,
-      "output": 0.24
+      "input": 0.2275,
+      "output": 0.91
     },
     "limit": {
       "context": 131072,
-      "output": 16384
+      "output": 8192
     }
   },
   {
@@ -120275,9 +121563,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 1.1,
-      "cache_read": 0.07
+      "input": 0.15,
+      "output": 1.2
     },
     "limit": {
       "context": 262144,
@@ -120396,12 +121683,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.15,
+      "output": 0.6
     },
     "limit": {
       "context": 262144,
-      "output": 32768
+      "output": 16384
     }
   },
   {
@@ -120785,12 +122072,13 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.45,
-      "output": 2.7
+      "input": 0.6,
+      "output": 3.6,
+      "cache_read": 0.12
     },
     "limit": {
       "context": 262144,
-      "output": 65536
+      "output": 262144
     }
   },
   {
@@ -121299,7 +122587,7 @@
   {
     "id": "openrouter/tencent/hy3",
     "name": "Hy3",
-    "family": "hy3",
+    "family": "Hy",
     "attachment": false,
     "reasoning": true,
     "tool_call": true,
@@ -121495,7 +122783,7 @@
       "cache_read": 0.17
     },
     "limit": {
-      "context": 524288,
+      "context": 1048576,
       "output": 1048576
     }
   },
@@ -122008,12 +123296,13 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.0605,
-      "output": 0.4
+      "input": 0.06,
+      "output": 0.4,
+      "cache_read": 0.01
     },
     "limit": {
       "context": 202752,
-      "output": 131072
+      "output": 16384
     }
   },
   {
@@ -122123,9 +123412,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.8204,
-      "output": 2.5784,
-      "cache_read": 0.15236
+      "input": 0.7756,
+      "output": 2.4376,
+      "cache_read": 0.14404
     },
     "limit": {
       "context": 1048576,
@@ -132265,15 +133554,15 @@
     }
   },
   {
-    "id": "poolside/poolside/laguna-xs-2.1",
-    "name": "Laguna XS 2.1",
+    "id": "poolside/poolside/laguna-s-2.1",
+    "name": "Laguna S 2.1",
     "family": "laguna",
     "attachment": false,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "release_date": "2026-07-02",
-    "last_updated": "2026-07-02",
+    "release_date": "2026-07-21",
+    "last_updated": "2026-07-21",
     "modalities": {
       "input": [
         "text"
@@ -132290,20 +133579,20 @@
       "cache_write": 0.0
     },
     "limit": {
-      "context": 262144,
+      "context": 1048576,
       "output": 32768
     }
   },
   {
-    "id": "poolside/poolside/laguna-xs.2",
-    "name": "Laguna XS.2",
+    "id": "poolside/poolside/laguna-xs-2.1",
+    "name": "Laguna XS 2.1",
     "family": "laguna",
     "attachment": false,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "release_date": "2026-04-28",
-    "last_updated": "2026-06-13",
+    "release_date": "2026-07-02",
+    "last_updated": "2026-07-02",
     "modalities": {
       "input": [
         "text"
@@ -144066,7 +145355,7 @@
     }
   },
   {
-    "id": "thinkingmachines/inkling",
+    "id": "thinkingmachines/thinkingmachines/Inkling",
     "name": "Inkling",
     "family": "ling",
     "attachment": true,
@@ -144078,9 +145367,37 @@
     "modalities": {
       "input": [
         "text",
-        "image",
-        "audio",
-        "pdf"
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 1.87,
+      "output": 4.68,
+      "cache_read": 0.374
+    },
+    "limit": {
+      "context": 65536,
+      "output": 65536
+    }
+  },
+  {
+    "id": "thinkingmachines/thinkingmachines/Inkling:peft:262144",
+    "name": "Inkling",
+    "family": "ling",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-15",
+    "last_updated": "2026-07-15",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
       ],
       "output": [
         "text"
@@ -144093,8 +145410,8 @@
       "cache_read": 0.748
     },
     "limit": {
-      "context": 256000,
-      "output": 256000
+      "context": 262144,
+      "output": 262144
     }
   },
   {
@@ -148857,7 +150174,7 @@
     "id": "venice/qwen3-6-35b-a3b",
     "name": "Qwen 3.6 35B A3B",
     "family": "qwen",
-    "attachment": false,
+    "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
@@ -148865,7 +150182,8 @@
     "last_updated": "2026-07-22",
     "modalities": {
       "input": [
-        "text"
+        "text",
+        "image"
       ],
       "output": [
         "text"
@@ -152833,6 +154151,33 @@
     }
   },
   {
+    "id": "vercel/inclusionai/ling-3.0-flash-free",
+    "name": "Ling 3.0 Flash",
+    "family": "ling",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-07-23",
+    "last_updated": "2026-07-23",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 256000,
+      "output": 256000
+    }
+  },
+  {
     "id": "vercel/interfaze/interfaze-beta",
     "name": "Interfaze Beta",
     "attachment": false,
@@ -156383,6 +157728,63 @@
     }
   },
   {
+    "id": "vercel/poolside/laguna-s-2.1",
+    "name": "Laguna S 2.1",
+    "family": "laguna-s",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-20",
+    "last_updated": "2026-07-21",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.2,
+      "cache_read": 0.01
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 131072
+    }
+  },
+  {
+    "id": "vercel/poolside/laguna-s-2.1-free",
+    "name": "Laguna S 2.1 Free",
+    "family": "laguna-s",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-21",
+    "last_updated": "2026-07-21",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 256000,
+      "output": 32768
+    }
+  },
+  {
     "id": "vercel/prodia/flux-fast-schnell",
     "name": "Flux Schnell",
     "family": "flux",
@@ -156721,6 +158123,35 @@
     "limit": {
       "context": 256000,
       "output": 256000
+    }
+  },
+  {
+    "id": "vercel/tencent/hy3",
+    "name": "Hy3",
+    "family": "hy3",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-07-06",
+    "last_updated": "2026-07-06",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.14,
+      "output": 0.58,
+      "cache_read": 0.035
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
     }
   },
   {
