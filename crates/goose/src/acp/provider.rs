@@ -157,6 +157,39 @@ struct HandoffContextClaim {
     include_context: bool,
 }
 
+struct HandoffContextClaimGuard {
+    handoff_context_sent: Arc<AtomicBool>,
+    pending: bool,
+}
+
+impl HandoffContextClaimGuard {
+    fn new(handoff_context_sent: Arc<AtomicBool>, first_prompt: bool) -> Self {
+        Self {
+            handoff_context_sent,
+            pending: first_prompt,
+        }
+    }
+
+    fn commit(&mut self) {
+        self.pending = false;
+    }
+
+    fn rollback(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
+            self.pending = false;
+        }
+    }
+}
+
+impl Drop for HandoffContextClaimGuard {
+    fn drop(&mut self) {
+        if self.pending {
+            self.handoff_context_sent.store(false, Ordering::Release);
+        }
+    }
+}
+
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -167,7 +200,9 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    handoff_context_sent: AtomicBool,
+    /// True after the first ACP prompt completes with the handoff context committed.
+    /// Failed or abandoned first prompts reset this so the next prompt can retry it.
+    handoff_context_sent: Arc<AtomicBool>,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
     /// in which case `get_context_limit()` falls back to the supplied model
@@ -295,7 +330,7 @@ impl AcpProvider {
             session: Mutex::new(session),
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent: AtomicBool::new(false),
+            handoff_context_sent: Arc::new(AtomicBool::new(false)),
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
@@ -556,6 +591,8 @@ impl Provider for AcpProvider {
         }
 
         let claim = self.claim_handoff_context(messages);
+        let mut handoff_claim_guard =
+            HandoffContextClaimGuard::new(self.handoff_context_sent.clone(), claim.first_prompt);
         let prompt_blocks = if claim.include_context {
             messages_to_prompt(messages, true)
         } else {
@@ -569,9 +606,6 @@ impl Provider for AcpProvider {
         let mut rx = match self.prompt(session_id, prompt_blocks).await {
             Ok(rx) => rx,
             Err(e) => {
-                if claim.first_prompt {
-                    self.handoff_context_sent.store(false, Ordering::Release);
-                }
                 return Err(ProviderError::RequestFailed(format!(
                     "Failed to send ACP prompt: {e}"
                 )));
@@ -716,7 +750,15 @@ impl Provider for AcpProvider {
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
-                    AcpUpdate::Complete(_reason, usage) => {
+                    AcpUpdate::Complete(reason, usage) => {
+                        // Prefer retrying context over silently losing it. A harness may have
+                        // ingested the memo before cancelling or refusing, so a retry can duplicate
+                        // it, but treating an unprocessed handoff as delivered is unrecoverable.
+                        if matches!(reason, StopReason::Cancelled | StopReason::Refusal) {
+                            handoff_claim_guard.rollback();
+                        } else {
+                            handoff_claim_guard.commit();
+                        }
                         if let Some(usage) = usage {
                             let provider_usage = ProviderUsage::new(
                                 model_name.clone(),
@@ -731,6 +773,9 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
+                        // Reset before yielding so an immediate retry can include the handoff even
+                        // while the failed stream value is still alive.
+                        handoff_claim_guard.rollback();
                         Err(provider_error_from_acp(e))?;
                     }
                 }
@@ -1902,7 +1947,7 @@ mod tests {
                 }),
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                handoff_context_sent: AtomicBool::new(false),
+                handoff_context_sent: Arc::new(AtomicBool::new(false)),
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
@@ -2278,6 +2323,154 @@ mod tests {
 
         provider.context_size.store(200_000, Ordering::Relaxed);
         assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
+    }
+
+    #[tokio::test]
+    async fn streamed_error_on_first_prompt_resends_handoff_context() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let (retry_content_tx, retry_content_rx) = oneshot::channel();
+
+        // Serve the first prompt like a harness that accepts the request but
+        // fails while processing it (e.g. because the prompt is too large),
+        // then capture the retry.
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Error(
+                        agent_client_protocol::Error::internal_error().data("prompt too large"),
+                    ))
+                    .await;
+            }
+            if let Some(ClientRequest::Prompt {
+                content,
+                response_tx,
+                ..
+            }) = rx.recv().await
+            {
+                let _ = retry_content_tx.send(content);
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut first_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let first = first_stream.next().await;
+        assert!(
+            matches!(first, Some(Err(ProviderError::RequestFailed(_)))),
+            "expected streamed error, got {first:?}"
+        );
+
+        let mut retry_stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let retry_content = retry_content_rx.await.unwrap();
+        assert_eq!(retry_content.len(), 2);
+        assert!(prompt_text(&retry_content[0]).contains("[assistant]: prior answer"));
+        assert_eq!(prompt_text(&retry_content[1]), "current request");
+        assert!(retry_stream.next().await.is_none());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelled_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Cancelled, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn refused_first_prompt_rolls_back_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::Refusal, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn completed_first_prompt_commits_handoff_context_claim() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+        let server = tokio::spawn(async move {
+            if let Some(ClientRequest::Prompt { response_tx, .. }) = rx.recv().await {
+                let _ = response_tx
+                    .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+                    .await;
+            }
+        });
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        server.await.unwrap();
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(!next_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn dropped_first_prompt_stream_rolls_back_handoff_context_claim() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        let stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let request = rx.recv().await;
+        assert!(matches!(request, Some(ClientRequest::Prompt { .. })));
+        drop(stream);
+
+        let next_claim = provider.claim_handoff_context(&messages);
+        assert!(next_claim.include_context);
     }
 
     #[tokio::test]
