@@ -35,6 +35,8 @@ fn main() -> Result<()> {
     #[cfg(windows)]
     enable_windows_vt_processing();
 
+    goose::crypto::install_default_tls_provider();
+
     let handle = std::thread::Builder::new()
         .name("goose-cli-main".to_string())
         .stack_size(8 * 1024 * 1024)
