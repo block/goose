@@ -379,7 +379,7 @@ impl Provider for KimiCodeProvider {
     }
 
     fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
-        !model_config.request_param::<bool>("store").unwrap_or(false)
+        !model_config.stores_responses()
     }
 
     async fn stream(

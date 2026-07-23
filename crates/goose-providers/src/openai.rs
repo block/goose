@@ -576,7 +576,7 @@ impl Provider for OpenAiProvider {
     }
 
     fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
-        !model_config.request_param::<bool>("store").unwrap_or(false)
+        !model_config.stores_responses()
     }
 
     fn skip_canonical_filtering(&self) -> bool {

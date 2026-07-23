@@ -305,11 +305,45 @@ impl ModelConfig {
             .and_then(|params| params.get(request_key))
             .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
+
+    /// Whether the effective request may persist a response server-side.
+    /// Unknown values fail closed so replay safety never depends on permissive parsing.
+    pub fn stores_responses(&self) -> bool {
+        match self
+            .request_params
+            .as_ref()
+            .and_then(|params| params.get("store"))
+        {
+            None | Some(Value::Bool(false)) => false,
+            Some(_) => true,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stores_responses_fails_closed() {
+        assert!(!ModelConfig::new("test-model").stores_responses());
+
+        for value in [
+            serde_json::json!(true),
+            serde_json::json!(null),
+            serde_json::json!("true"),
+        ] {
+            let config = ModelConfig::new("test-model")
+                .with_merged_request_params(HashMap::from([("store".to_string(), value)]));
+            assert!(config.stores_responses());
+        }
+
+        let config = ModelConfig::new("test-model").with_merged_request_params(HashMap::from([(
+            "store".to_string(),
+            serde_json::json!(false),
+        )]));
+        assert!(!config.stores_responses());
+    }
 
     #[test]
     fn request_headers_never_serialize_into_bodies() {

@@ -729,7 +729,7 @@ impl Provider for BedrockProvider {
     }
 
     fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
-        !model_config.request_param::<bool>("store").unwrap_or(false)
+        !model_config.stores_responses()
     }
 
     fn retry_config(&self) -> RetryConfig {

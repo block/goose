@@ -186,15 +186,15 @@ fn merge_openrouter_parameters(model: &mut ModelConfig, params: HashMap<String, 
     merge_request_params(&mut model.request_params, params);
 }
 
-fn stores_responses(
+fn effective_model_config(
     model_config: &ModelConfig,
     configured_parameters: Option<&HashMap<String, Value>>,
-) -> bool {
-    configured_parameters
-        .and_then(|params| params.get("store"))
-        .and_then(Value::as_bool)
-        .or_else(|| model_config.request_param::<bool>("store"))
-        .unwrap_or(false)
+) -> ModelConfig {
+    let mut effective = model_config.clone();
+    if let Some(params) = configured_parameters {
+        merge_openrouter_parameters(&mut effective, params.clone());
+    }
+    effective
 }
 
 impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
@@ -245,7 +245,8 @@ impl Provider for OpenRouterProvider {
     }
 
     fn supports_stream_start_retry(&self, model_config: &ModelConfig) -> bool {
-        !stores_responses(model_config, self.configured_parameters.as_ref())
+        !effective_model_config(model_config, self.configured_parameters.as_ref())
+            .stores_responses()
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
@@ -305,14 +306,9 @@ impl Provider for OpenRouterProvider {
     ) -> Result<MessageStream, ProviderError> {
         let session_id = crate::session_context::current_session_id().unwrap_or_default();
 
-        let mut merged_model;
-        let model_config = if let Some(params) = &self.configured_parameters {
-            merged_model = model_config.clone();
-            merge_openrouter_parameters(&mut merged_model, params.clone());
-            &merged_model
-        } else {
-            model_config
-        };
+        let effective_model =
+            effective_model_config(model_config, self.configured_parameters.as_ref());
+        let model_config = &effective_model;
 
         let mut payload = create_request(
             model_config,
@@ -394,11 +390,12 @@ mod tests {
     fn configured_store_setting_controls_stream_start_retry() {
         let model = model_config("openai/gpt-5");
 
-        assert!(!stores_responses(&model, None));
-        assert!(stores_responses(
+        assert!(!effective_model_config(&model, None).stores_responses());
+        assert!(effective_model_config(
             &model,
             Some(&HashMap::from([("store".to_string(), json!(true))]))
-        ));
+        )
+        .stores_responses());
     }
 
     #[test]
@@ -406,10 +403,22 @@ mod tests {
         let mut model = model_config("openai/gpt-5");
         model.request_params = Some(HashMap::from([("store".to_string(), json!(true))]));
 
-        assert!(!stores_responses(
+        assert!(!effective_model_config(
             &model,
             Some(&HashMap::from([("store".to_string(), json!(false))]))
-        ));
+        )
+        .stores_responses());
+    }
+
+    #[test]
+    fn malformed_configured_store_fails_closed() {
+        let model = model_config("openai/gpt-5");
+
+        assert!(effective_model_config(
+            &model,
+            Some(&HashMap::from([("store".to_string(), json!("true"))]))
+        )
+        .stores_responses());
     }
 
     #[test]
