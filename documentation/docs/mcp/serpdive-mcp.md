@@ -64,7 +64,7 @@ This tutorial covers how to add the [SERPdive MCP Server](https://github.com/ser
 
 ## Example Usage
 
-The SERPdive MCP server gives goose a single `serpdive_search` tool. Instead of a list of links, each result carries the extracted, answer-ready content of the source page, sized for a model's context window, with automatic localization and an optional synthesized answer.
+The SERPdive MCP server gives goose a single `serpdive_search` tool. Instead of a list of links, each result carries the extracted, answer-ready content of the source page, sized for a model's context window, with automatic localization. goose reads that content and writes the answer itself.
 
 ### goose Prompt
 
@@ -101,5 +101,5 @@ and their URLs?
 ```
 
 :::tip
-`serpdive_search` accepts a retrieval depth (`mako` for the fact-carrying sentences of each source, `moby` for the full readable page) and an optional written answer built from the sources at no extra credits. See the [SERPdive docs](https://serpdive.com/docs) for the full parameter list.
+`serpdive_search` takes `query`, an optional retrieval depth (`mako` for the fact-carrying sentences of each source, `moby` for the full readable page), and an optional `max_results` cap (1-10). Over MCP there is no written-answer argument — goose synthesizes the answer from the extracted content itself. See the [SERPdive docs](https://serpdive.com/docs) for the full API.
 :::
