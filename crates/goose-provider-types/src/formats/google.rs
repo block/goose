@@ -636,6 +636,7 @@ fn get_thinking_config(
         }
         let thinking_level = match effort {
             ThinkingEffort::Off | ThinkingEffort::Low => ThinkingLevel::Low,
+            ThinkingEffort::Medium if model_name.starts_with("gemini-3-pro") => ThinkingLevel::Low,
             ThinkingEffort::Medium => ThinkingLevel::Medium,
             ThinkingEffort::High | ThinkingEffort::Max => ThinkingLevel::High,
         };
@@ -1616,6 +1617,14 @@ data: [DONE]"#;
         assert!(matches!(
             thinking_config.thinking_level,
             Some(ThinkingLevel::Medium)
+        ));
+
+        let config =
+            ModelConfig::new("gemini-3-pro-preview").with_thinking_effort(ThinkingEffort::Medium);
+        let thinking_config = get_thinking_config(&config, None).unwrap();
+        assert!(matches!(
+            thinking_config.thinking_level,
+            Some(ThinkingLevel::Low)
         ));
 
         // Test 2: Gemini 3 model with high thinking effort
