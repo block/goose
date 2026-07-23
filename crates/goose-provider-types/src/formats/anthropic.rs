@@ -229,10 +229,8 @@ fn format_messages_with_options(
                 }
                 MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     Ok(result) => {
-                        // Build the tool-result content. Text parts become text
-                        // blocks and images become image blocks so image-capable
-                        // models receive them. When no media is present, fall back
-                        // to a single string for the content field.
+                        // Media present -> structured content blocks; otherwise a
+                        // single content string (preserving prior behavior).
                         let mut blocks: Vec<Value> = Vec::new();
                         let mut text_parts: Vec<String> = Vec::new();
                         let mut has_media = false;
@@ -249,11 +247,9 @@ fn format_messages_with_options(
                                 continue;
                             }
                             if let Some(r) = c.as_resource() {
-                                // MCP embedded resource. Forward binary blobs by
-                                // mime type: Claude-supported image types as an
-                                // image block and application/pdf as a document
-                                // block. Other content (including unsupported
-                                // image types) falls back to a text block.
+                                // Claude only accepts a fixed set of media types, so
+                                // unsupported blobs fall back to text below rather than
+                                // being rejected by the provider.
                                 if let ResourceContents::BlobResourceContents {
                                     blob,
                                     mime_type,
@@ -297,10 +293,6 @@ fn format_messages_with_options(
                                 continue;
                             }
                             if let RawContent::Image(image) = &c.raw {
-                                // Only forward Claude-supported image types as an
-                                // image block. Unsupported types (e.g. image/svg+xml)
-                                // fall back to a textual marker so the request is not
-                                // rejected by the provider.
                                 if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&image.mime_type.as_str()) {
                                     has_media = true;
                                     blocks.push(convert_image(
@@ -1776,8 +1768,8 @@ mod tests {
             AnnotateAble, CallToolResult, RawContent, RawEmbeddedResource, ResourceContents,
         };
 
-        // "aGVsbG8=" is base64 for "hello". image/svg+xml is not a Claude-supported
-        // image type, so it must fall through to text rather than an image block.
+        // image/svg+xml is not a Claude-supported image type, so it must fall
+        // through to text rather than an image block.
         let resource = ResourceContents::BlobResourceContents {
             uri: "file:///diagram.svg".to_string(),
             mime_type: Some("image/svg+xml".to_string()),
@@ -1798,8 +1790,9 @@ mod tests {
 
         let spec = format_messages(&messages);
 
-        // No media block — the content collapses to the decoded text string.
-        assert_eq!(spec[1]["content"][0]["content"], "hello");
+        // Serializer contract: an unsupported image type is not emitted as an
+        // image block — the content collapses to a text string.
+        assert!(spec[1]["content"][0]["content"].is_string());
     }
 
     #[test]

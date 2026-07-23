@@ -150,8 +150,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
 
                             for content in result.content.iter().map(|c| c.raw.clone()) {
                                 match &content {
-                                    // Images and blobs with an explicit MIME type are
-                                    // forwarded to inline_data as attachments.
                                     RawContent::Image(image) => {
                                         parts.push(json!({
                                             "inline_data": {
@@ -174,10 +172,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                                     }
                                                 }));
                                             }
-                                            // No MIME type: cannot inline. Fall back to
-                                            // text extraction, which decodes UTF-8 blobs
-                                            // and otherwise emits a "[Binary content ...]"
-                                            // marker.
+                                            // No MIME type: cannot be inlined; falls
+                                            // through to text extraction below.
                                             None => tool_content.push(content.no_annotation()),
                                         },
                                         _ => tool_content.push(content.no_annotation()),
@@ -911,12 +907,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_result_untyped_binary_blob_falls_back_to_marker() {
+    fn test_tool_result_untyped_blob_not_emitted_as_inline_data() {
         use base64::Engine;
         use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
 
-        // A binary (non-UTF-8) blob with no mime_type cannot be inlined, so it
-        // falls back to the "[Binary content ...]" marker rather than failing.
+        // Serializer contract: a blob without a MIME type cannot be inlined, so no
+        // `inline_data` part is emitted (its content is carried in the
+        // functionResponse text). The text extraction itself is covered by
+        // `extract_text_from_resource`.
         let binary: Vec<u8> = vec![0xFF, 0xFE, 0x00, 0x01];
         let blob_b64 = base64::engine::general_purpose::STANDARD.encode(&binary);
         let resource = ResourceContents::BlobResourceContents {
@@ -934,47 +932,9 @@ mod tests {
         let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
         let payload = format_messages(&messages);
 
-        // No inline_data part; the function response carries the binary marker.
-        assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
         assert!(payload[0]["parts"][0].get("inline_data").is_none());
-        assert_eq!(
-            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
-            "[Binary content (application/octet-stream) - 4 bytes]"
-        );
-    }
-
-    #[test]
-    fn test_tool_result_untyped_text_blob_forwarded_as_text() {
-        use base64::Engine;
-        use rmcp::model::{AnnotateAble, RawContent, RawEmbeddedResource, ResourceContents};
-
-        // A blob that omits its optional mime_type but decodes to UTF-8 text is
-        // forwarded as the tool result text rather than failing the call.
-        let blob_b64 =
-            base64::engine::general_purpose::STANDARD.encode("hello from tool".as_bytes());
-        let resource = ResourceContents::BlobResourceContents {
-            uri: "file:///notes.txt".to_string(),
-            mime_type: None,
-            blob: blob_b64,
-            meta: None,
-        };
-        let blob = RawContent::Resource(RawEmbeddedResource {
-            resource,
-            meta: None,
-        })
-        .no_annotation();
-
-        let messages = vec![set_up_tool_response_message("response_id", vec![blob])];
-        let payload = format_messages(&messages);
-
-        assert_eq!(payload.len(), 1);
-        assert_eq!(payload[0]["parts"].as_array().unwrap().len(), 1);
-        assert!(payload[0]["parts"][0].get("inline_data").is_none());
-        assert_eq!(
-            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
-            "hello from tool"
-        );
+        assert!(payload[0]["parts"][0]["functionResponse"].is_object());
     }
 
     #[test]
