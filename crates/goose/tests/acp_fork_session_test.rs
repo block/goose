@@ -92,6 +92,36 @@ fn conversation_before_meta(timestamp: i64) -> serde_json::Map<String, serde_jso
 }
 
 #[test]
+fn fork_session_rejects_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session =
+            seed_session_with_messages(&session_manager, cwd.path(), &[("first", 1_718_000_000)])
+                .await;
+        let conn = new_connection(data_root.path()).await;
+
+        let missing_dir = tempfile::tempdir().unwrap();
+        let missing_path = missing_dir.path().to_path_buf();
+        missing_dir.close().unwrap();
+
+        let error = fork_session_request(
+            &conn,
+            ForkSessionRequest::new(SessionId::new(session.id.clone()), missing_path.as_path()),
+        )
+        .await
+        .expect_err("fork_session must reject a working dir that does not exist");
+
+        let acp_error = error.downcast::<agent_client_protocol::Error>().unwrap();
+        assert_eq!(
+            acp_error.code,
+            agent_client_protocol::ErrorCode::InvalidParams
+        );
+    });
+}
+
+#[test]
 fn fork_session_conversation_before_matches_rest_cutoff() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();

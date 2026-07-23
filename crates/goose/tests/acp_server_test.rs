@@ -2,9 +2,9 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
-    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest,
+    ContentBlock, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
+    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionId,
+    SessionInfo, SessionUpdate, SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
@@ -117,6 +117,81 @@ async fn get_session_info_request(
 fn assert_invalid_params(error: anyhow::Error) {
     let acp_error = error.downcast::<agent_client_protocol::Error>().unwrap();
     assert_eq!(acp_error.code, ErrorCode::InvalidParams);
+}
+
+fn deleted_absolute_dir() -> std::path::PathBuf {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().to_path_buf();
+    dir.close().unwrap();
+    path
+}
+
+#[test]
+fn test_load_session_tolerates_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("remember this"))
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                SessionId::new(session.id.clone()),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        let replayed_text = conn
+            .drain_session_updates()
+            .into_iter()
+            .filter_map(|update| match update {
+                SessionUpdate::UserMessageChunk(chunk) => match chunk.content {
+                    ContentBlock::Text(text) => Some(text.text),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            replayed_text.iter().any(|text| text == "remember this"),
+            "expected the transcript to replay despite the missing working dir, got {replayed_text:?}"
+        );
+    });
+}
+
+#[test]
+fn test_new_session_rejects_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        let error = conn
+            .cx()
+            .send_request(NewSessionRequest::new(deleted_absolute_dir().as_path()))
+            .block_task()
+            .await
+            .expect_err("new_session must reject a working dir that does not exist");
+
+        assert_invalid_params(error.into());
+    });
 }
 
 fn include_last_message_snippet_meta(
