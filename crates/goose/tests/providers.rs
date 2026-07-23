@@ -343,7 +343,7 @@ impl ProviderFixture {
         };
 
         // Provider already executed an externally-dispatched tool — don't redispatch.
-        if tool_req.is_externally_dispatched() {
+        if tool_req.was_executed_externally() {
             return Ok(response1);
         }
 

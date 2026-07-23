@@ -4,7 +4,7 @@ use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest, ToolResponse,
+    ToolNameParts, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -844,31 +844,25 @@ fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
-fn split_tool_name(tool_name: &str) -> (String, String) {
-    let parts: Vec<_> = tool_name.rsplit("__").collect();
-    let tool = parts.first().copied().unwrap_or("unknown");
-    let extension = parts
-        .split_first()
-        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-        .unwrap_or_default();
-    (tool.to_string(), extension_display_name(&extension))
-}
-
-fn extension_display_name(name: &str) -> String {
+fn extension_display_name(name: &str) -> &str {
     match name {
-        "code_execution" => "Code Mode".to_string(),
-        _ => name.to_string(),
+        "code_execution" => "Code Mode",
+        _ => name,
     }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
     let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
-    let (tool, extension) = split_tool_name(tool_name);
+    let parts = ToolNameParts::from(tool_name);
 
-    if extension.is_empty() {
-        format!("[subagent:{}] {}", short_id, tool)
-    } else {
-        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+    match parts.extension_name {
+        Some(extension_name) => format!(
+            "[subagent:{}] {} | {}",
+            short_id,
+            parts.tool_name,
+            extension_display_name(extension_name)
+        ),
+        None => format!("[subagent:{}] {}", short_id, parts.tool_name),
     }
 }
 
@@ -948,16 +942,17 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParams) {
-    let (tool, extension) = split_tool_name(&call.name);
-    let tool_header = if extension.is_empty() {
-        format!("  {} {}", style("▸").dim(), style(&tool).dim())
-    } else {
-        format!(
+    let parts = ToolNameParts::from(call.name.as_ref());
+    let tool_header = match parts.extension_name {
+        Some(extension_name) => format!(
             "  {} {} {}",
             style("▸").dim(),
-            style(&tool).dim(),
-            style(extension).magenta().dim(),
-        )
+            style(parts.tool_name).dim(),
+            style(extension_display_name(extension_name))
+                .magenta()
+                .dim(),
+        ),
+        None => format!("  {} {}", style("▸").dim(), style(parts.tool_name).dim()),
     };
     println!();
     println!("  {}", style("─".repeat(40)).dim());
@@ -1527,6 +1522,26 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::env;
+
+    #[test]
+    fn formats_subagent_tool_call_names() {
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "read"),
+            "[subagent:42] read"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "developer__shell"),
+            "[subagent:42] shell | developer"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "code_execution__execute_typescript"),
+            "[subagent:42] execute_typescript | Code Mode"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "calendar__events__list"),
+            "[subagent:42] events__list | calendar"
+        );
+    }
 
     #[test]
     fn test_short_paths_unchanged() {

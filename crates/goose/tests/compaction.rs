@@ -380,20 +380,16 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
     // - Single "summarize" message: 100 tokens
     // - Total input observed: ~6100 tokens
     //
-    // After compaction:
-    // - current input_tokens = summary output (200) - the new compact context
-    // - current output_tokens = None (compaction doesn't produce new output)
-    // - current total_tokens = 200
-    // - accumulated_total = initial (1000) + compaction cost
-    let expected_summary_output = 200; // compact summary
-
-    // Verify the key invariants after manual compaction:
-    // After compaction, the current context is ONLY the summary (200 tokens)
-    // This is the new agent-visible input context
-    assert_eq!(
-        updated_session.usage.input_tokens,
-        Some(expected_summary_output),
-        "Input tokens should be exactly the summary output (200 tokens)"
+    // After compaction the baseline is the estimated retained conversation
+    // (summary + continuation), not the provider-reported output count
+    let input_after = updated_session
+        .usage
+        .input_tokens
+        .expect("Input tokens should be set after compaction");
+    assert!(
+        input_after > 0 && input_after < 200,
+        "Input tokens should be the estimated retained context (smaller than the mock's claimed 200 output tokens). Got: {}",
+        input_after
     );
     assert_eq!(
         updated_session.usage.output_tokens, None,
@@ -401,19 +397,20 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
     );
     assert_eq!(
         updated_session.usage.total_tokens,
-        Some(expected_summary_output),
-        "Total should equal input (200 tokens) after compaction"
+        Some(input_after),
+        "Total should equal input after compaction"
     );
 
     // Accumulated tokens increased by the compaction cost
     // Initial: 1000
-    // Compaction input: ~6400 (system 6000 + 4 messages ~400)
+    // Compaction input: ~6700 (system 6000 + compaction prompt + 4 messages;
+    // the mock derives input tokens from the rendered prompt length, so the
+    // band must absorb compaction.md wording changes)
     // Compaction output: 200
-    // Expected accumulated: 1000 + 6400 + 200 = 7600
     let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
     assert!(
-        (7300..=7900).contains(&accumulated),
-        "Accumulated should be ~7600 (1000 initial + 6400 input + 200 output). Got: {}",
+        (7300..=8600).contains(&accumulated),
+        "Accumulated should be ~7900 (1000 initial + ~6700 input + 200 output). Got: {}",
         accumulated
     );
 
@@ -686,22 +683,20 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // 1. Initial attempt: >20000 tokens -> Context limit exceeded
     // 2. Compaction triggered:
     //    - Input: system prompt + messages (including long_tool_call with 15k tokens)
-    //    - Output: 200 tokens (summary)
-    //    - New context size: 200 tokens
+    //    - Output: 200 tokens (summary, as claimed by the mock)
+    //    - New context size: estimated tokens of the retained conversation
     // 3. Retry with compacted context:
-    //    - Input: system prompt + summary (200) + new message
+    //    - Input: system prompt + summary + new message
     //    - Output: 100 tokens (response)
 
     // Verify that current input context is dramatically reduced after compaction
     let tokens_after =
         input_tokens_after_compaction.expect("Should have captured tokens after compaction");
 
-    // After compaction, the input context should be ONLY the summary: 200 tokens
     // Before: system (6000) + long_tool_call messages (~15,400) = 21,400 (exceeded limit!)
-    // After: only summary (200 tokens)
-    assert_eq!(
-        tokens_after, 200,
-        "Input tokens after compaction should be exactly 200 (summary only). Got: {}",
+    assert!(
+        tokens_after > 0 && tokens_after < 200,
+        "Input tokens after compaction should be the estimated retained context (under the mock's claimed 200). Got: {}",
         tokens_after
     );
 

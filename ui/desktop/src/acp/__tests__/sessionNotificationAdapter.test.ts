@@ -633,4 +633,47 @@ describe('createAcpSessionNotificationAdapter', () => {
       });
     });
   });
+
+  describe('session_info_update with queuedSteer', () => {
+    it('emits localSteerConfirmed when queuedSteer meta is present', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(
+        acpUpdate({
+          sessionUpdate: 'session_info_update',
+          _meta: {
+            goose: {
+              queuedSteer: { messageId: 'steer-msg-1', runId: 'run-1' },
+            },
+          },
+        })
+      );
+
+      expect(changes).toEqual([{ type: 'localSteerConfirmed', messageId: 'steer-msg-1' }]);
+    });
+
+    it('emits both sessionInfo and localSteerConfirmed when both are present', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(
+        acpUpdate({
+          sessionUpdate: 'session_info_update',
+          title: 'New Title',
+          _meta: {
+            goose: {
+              queuedSteer: { messageId: 'steer-msg-2', runId: 'run-2' },
+            },
+          },
+        })
+      );
+
+      expect(changes).toHaveLength(2);
+      expect(changes[0]).toEqual({ type: 'sessionInfo', name: 'New Title' });
+      expect(changes[1]).toEqual({ type: 'localSteerConfirmed', messageId: 'steer-msg-2' });
+    });
+
+    it('returns empty array when session_info_update has no relevant fields', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+      const changes = adapter.apply(acpUpdate({ sessionUpdate: 'session_info_update' }));
+      expect(changes).toEqual([]);
+    });
+  });
 });

@@ -854,6 +854,42 @@ impl Provider for ClaudeCodeProvider {
                                 }
                                 Some("result") => {
                                     process.needs_drain = false;
+                                    if parsed
+                                        .get("is_error")
+                                        .and_then(Value::as_bool)
+                                        .unwrap_or(false)
+                                    {
+                                        let subtype = parsed
+                                            .get("subtype")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("error");
+                                        let mut details = Vec::new();
+                                        if let Some(error) =
+                                            parsed.get("error").and_then(Value::as_str)
+                                        {
+                                            details.push(error);
+                                        }
+                                        if let Some(errors) =
+                                            parsed.get("errors").and_then(Value::as_array)
+                                        {
+                                            details.extend(errors.iter().filter_map(Value::as_str));
+                                        }
+                                        if let Some(result) =
+                                            parsed.get("result").and_then(Value::as_str)
+                                        {
+                                            details.push(result);
+                                        }
+                                        let details = details.join("; ");
+                                        let message = match (subtype, details.is_empty()) {
+                                            ("success", false) => details,
+                                            (_, false) => format!("{subtype}: {details}"),
+                                            _ => subtype.to_string(),
+                                        };
+                                        stream_error = Some(ProviderError::RequestFailed(format!(
+                                            "Claude CLI error: {message}"
+                                        )));
+                                        break;
+                                    }
                                     if let Some(usage_info) = parsed.get("usage") {
                                         let new = extract_usage_tokens(usage_info);
                                         let reports_own_cache = new.cache_read_input_tokens.is_some()

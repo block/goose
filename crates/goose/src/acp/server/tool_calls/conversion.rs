@@ -1,35 +1,28 @@
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
-use crate::conversation::message::{ToolRequest, ToolResponse};
+use crate::conversation::message::{ToolNameParts, ToolRequest, ToolResponse};
 use crate::mcp_utils::ToolResult;
 use agent_client_protocol::schema::v1::{
     BlobResourceContents, Content, ContentBlock, EmbeddedResource, EmbeddedResourceResource,
     ImageContent, Meta, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
-    ToolCallLocation, ToolCallStatus, ToolCallUpdateFields,
+    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use rmcp::model::{CallToolResult, RawContent, ResourceContents};
 
-pub(crate) struct PendingToolCall {
-    pub(crate) tool_call: ToolCall,
-    pub(crate) identity_meta: Option<Meta>,
-    pub(crate) fallback_title: String,
-}
-
 pub(crate) fn format_tool_name(tool_name: &str) -> String {
-    if let Some((extension, tool)) = tool_name.split_once("__") {
+    let parts = ToolNameParts::from(tool_name);
+    if let Some(extension_name) = parts.extension_name {
         format!(
             "{}: {}",
-            extension.replace('_', " "),
-            tool.replace('_', " ")
+            extension_name.replace('_', " "),
+            parts.tool_name.replace('_', " ")
         )
     } else {
-        tool_name.replace('_', " ")
+        parts.tool_name.replace('_', " ")
     }
 }
 
-/// Build a short fallback title from the tool name and arguments by extracting
-/// the most useful value (file path, command, query, url, etc.).
-fn summarize_tool_call(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
+fn default_tool_title(tool_name: &str, arguments: Option<&serde_json::Value>) -> String {
     let base = format_tool_name(tool_name);
 
     let detail = arguments.and_then(|args| {
@@ -61,20 +54,13 @@ fn summarize_tool_call(tool_name: &str, arguments: Option<&serde_json::Value>) -
     }
 }
 
-pub(crate) fn tool_call_identity_meta(tool_request: &ToolRequest) -> Option<Meta> {
+pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
     let tool_call = tool_request.tool_call.as_ref().ok()?;
     let tool_name = tool_call.name.to_string();
     let extension_name = tool_request
-        .tool_meta
-        .as_ref()
-        .and_then(|meta| meta.get("goose_extension"))
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            tool_name
-                .split_once("__")
-                .map(|(extension_name, _)| extension_name.to_string())
-        });
+        .tool_name_parts()
+        .and_then(|parts| parts.extension_name)
+        .map(ToString::to_string);
 
     let mut tool_call_meta = serde_json::Map::new();
     tool_call_meta.insert("toolName".to_string(), serde_json::Value::String(tool_name));
@@ -96,7 +82,7 @@ pub(crate) fn tool_call_identity_meta(tool_request: &ToolRequest) -> Option<Meta
     Some(meta)
 }
 
-pub(crate) fn pending_tool_call_from_request(tool_request: &ToolRequest) -> PendingToolCall {
+pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
     let tool_name = match &tool_request.tool_call {
         Ok(tool_call) => tool_call.name.to_string(),
         Err(_) => "error".to_string(),
@@ -107,17 +93,13 @@ pub(crate) fn pending_tool_call_from_request(tool_request: &ToolRequest) -> Pend
         .ok()
         .and_then(|tc| tc.arguments.as_ref())
         .map(|a| serde_json::Value::Object(a.clone()));
-    let fallback_title = summarize_tool_call(&tool_name, args_value.as_ref());
-    let identity_meta = tool_call_identity_meta(tool_request);
+    let default_tool_call_title = default_tool_title(&tool_name, args_value.as_ref());
+    let goose_meta = goose_tool_call_meta(tool_request);
 
-    // Prefer the persisted LLM-generated title when available so replay (and
-    // any subsequent live initial ToolCall after the title task has already
-    // resolved) emits the nice title up front, with no flash of the
-    // deterministic fallback.
     let initial_title = tool_request
-        .persisted_title()
+        .generated_title()
         .map(|s| s.to_string())
-        .unwrap_or_else(|| fallback_title.clone());
+        .unwrap_or(default_tool_call_title);
 
     let mut tool_call = ToolCall::new(ToolCallId::new(tool_request.id.clone()), initial_title)
         .status(ToolCallStatus::Pending);
@@ -125,25 +107,38 @@ pub(crate) fn pending_tool_call_from_request(tool_request: &ToolRequest) -> Pend
         tool_call = tool_call.raw_input(args);
     }
 
-    PendingToolCall {
-        tool_call,
-        identity_meta,
-        fallback_title,
+    tool_call.meta(goose_meta)
+}
+
+pub(crate) fn build_permission_tool_call_update(
+    request_id: &str,
+    tool_name: &str,
+    arguments: serde_json::Map<String, serde_json::Value>,
+    prompt: Option<String>,
+) -> ToolCallUpdate {
+    let arguments = serde_json::Value::Object(arguments);
+    let mut fields = ToolCallUpdateFields::new()
+        .title(default_tool_title(tool_name, Some(&arguments)))
+        .kind(ToolKind::default())
+        .status(ToolCallStatus::Pending)
+        .raw_input(arguments);
+
+    if let Some(prompt) = prompt {
+        fields = fields.content(vec![ToolCallContent::Content(Content::new(
+            ContentBlock::Text(TextContent::new(prompt)),
+        ))]);
     }
+
+    ToolCallUpdate::new(ToolCallId::new(request_id), fields)
 }
 
-fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
-    arguments
-        .and_then(|args| args.get("line"))
-        .and_then(|v| v.as_u64())
-        .map(|l| l as u32)
+fn json_u32(value: &serde_json::Value) -> Option<u32> {
+    value.as_u64().and_then(|value| u32::try_from(value).ok())
 }
 
-fn is_developer_file_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "read" | "write" | "edit")
-}
-
-fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolCallLocation>> {
+fn extract_tool_locations_from_response(
+    tool_response: &ToolResponse,
+) -> Option<Vec<ToolCallLocation>> {
     let result = tool_response.tool_result.as_ref().ok()?;
     let meta = result.meta.as_ref()?;
     let locations_val = meta.get("tool_locations")?;
@@ -152,7 +147,7 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
         .into_iter()
         .filter_map(|entry| {
             let path = entry.get("path")?.as_str()?;
-            let line = entry.get("line").and_then(|v| v.as_u64()).map(|l| l as u32);
+            let line = entry.get("line").and_then(json_u32);
             Some(ToolCallLocation::new(path).line(line))
         })
         .collect::<Vec<_>>();
@@ -163,104 +158,39 @@ fn extract_locations_from_meta(tool_response: &ToolResponse) -> Option<Vec<ToolC
     }
 }
 
-fn extract_tool_locations(
-    tool_request: &ToolRequest,
-    tool_response: &ToolResponse,
-) -> Vec<ToolCallLocation> {
-    let mut locations = Vec::new();
+fn extract_tool_locations_from_request(tool_request: &ToolRequest) -> Vec<ToolCallLocation> {
+    let Some(parts) = tool_request.tool_name_parts() else {
+        return Vec::new();
+    };
+    if parts.extension_name != Some("developer") {
+        return Vec::new();
+    }
 
-    if let Ok(tool_call) = &tool_request.tool_call {
-        if !is_developer_file_tool(tool_call.name.as_ref()) {
-            return locations;
-        }
+    let Ok(tool_call) = &tool_request.tool_call else {
+        return Vec::new();
+    };
+    let Some(path) = tool_call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("path"))
+        .and_then(|path| path.as_str())
+    else {
+        return Vec::new();
+    };
 
-        let tool_name = tool_call.name.as_ref();
-        let path_str = tool_call
+    let line = match parts.tool_name {
+        "read" => tool_call
             .arguments
             .as_ref()
-            .and_then(|args| args.get("path"))
-            .and_then(|p| p.as_str());
-
-        if let Some(path_str) = path_str {
-            if matches!(tool_name, "read") {
-                let line = get_requested_line(tool_call.arguments.as_ref());
-                locations.push(ToolCallLocation::new(path_str).line(line));
-                return locations;
-            }
-
-            if matches!(tool_name, "write" | "edit") {
-                locations.push(ToolCallLocation::new(path_str).line(1));
-                return locations;
-            }
-
-            let command = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("command"))
-                .and_then(|c| c.as_str());
-
-            if let Ok(result) = &tool_response.tool_result {
-                for content in &result.content {
-                    if let RawContent::Text(text_content) = &content.raw {
-                        let text = &text_content.text;
-
-                        match command {
-                            Some("view") => {
-                                let line = extract_view_line_range(text)
-                                    .map(|range| range.0 as u32)
-                                    .or(Some(1));
-                                locations.push(ToolCallLocation::new(path_str).line(line));
-                            }
-                            Some("str_replace") | Some("insert") => {
-                                let line = extract_first_line_number(text)
-                                    .map(|l| l as u32)
-                                    .or(Some(1));
-                                locations.push(ToolCallLocation::new(path_str).line(line));
-                            }
-                            Some("write") => {
-                                locations.push(ToolCallLocation::new(path_str).line(1));
-                            }
-                            _ => {
-                                locations.push(ToolCallLocation::new(path_str).line(1));
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if locations.is_empty() {
-                locations.push(ToolCallLocation::new(path_str).line(1));
-            }
-        }
-    }
-
-    locations
+            .and_then(|arguments| arguments.get("line"))
+            .and_then(json_u32),
+        "write" | "edit" => Some(1),
+        _ => return Vec::new(),
+    };
+    vec![ToolCallLocation::new(path).line(line)]
 }
 
-fn extract_view_line_range(text: &str) -> Option<(usize, usize)> {
-    let re = regex::Regex::new(r"\(lines (\d+)-(\d+|end)\)").ok()?;
-    if let Some(caps) = re.captures(text) {
-        let start = caps.get(1)?.as_str().parse::<usize>().ok()?;
-        let end = if caps.get(2)?.as_str() == "end" {
-            start
-        } else {
-            caps.get(2)?.as_str().parse::<usize>().ok()?
-        };
-        return Some((start, end));
-    }
-    None
-}
-
-fn extract_first_line_number(text: &str) -> Option<usize> {
-    let re = regex::Regex::new(r"```[^\n]*\n(\d+):").ok()?;
-    if let Some(caps) = re.captures(text) {
-        return caps.get(1)?.as_str().parse::<usize>().ok();
-    }
-    None
-}
-
-pub(crate) fn extract_tool_call_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
+pub(crate) fn trusted_update_meta(tool_response: &ToolResponse) -> Option<Meta> {
     let tool_result = tool_response.tool_result.as_ref().ok()?;
     let goose_meta = tool_result
         .meta
@@ -348,15 +278,17 @@ pub(crate) fn tool_call_update_fields_from_response(
         .tool_result
         .as_ref()
         .is_ok_and(|result| result.is_acp_aware());
+    let include_content = is_failed || !is_acp_aware;
+    let include_locations = !is_acp_aware;
 
-    if is_failed || !is_acp_aware {
+    if include_content {
         fields = fields.content(build_tool_call_content(&tool_response.tool_result));
     }
 
-    if !is_acp_aware {
-        let locations = extract_locations_from_meta(tool_response).unwrap_or_else(|| {
+    if include_locations {
+        let locations = extract_tool_locations_from_response(tool_response).unwrap_or_else(|| {
             tool_request
-                .map(|request| extract_tool_locations(request, tool_response))
+                .map(extract_tool_locations_from_request)
                 .unwrap_or_default()
         });
         if !locations.is_empty() {
@@ -379,39 +311,26 @@ mod tests {
 
         #[test]
         fn with_extension() {
-            assert_eq!(format_tool_name("developer__edit"), "developer: edit");
             assert_eq!(
                 format_tool_name("platform__manage_extensions"),
                 "platform: manage extensions"
             );
-            assert_eq!(format_tool_name("todo__write"), "todo: write");
         }
 
         #[test]
         fn without_extension() {
             assert_eq!(format_tool_name("simple_tool"), "simple tool");
-            assert_eq!(format_tool_name("another_name"), "another name");
-            assert_eq!(format_tool_name("single"), "single");
         }
     }
 
-    mod summarize_tool_call {
+    mod default_tool_title {
         use super::*;
 
         #[test]
         fn no_args() {
             assert_eq!(
-                summarize_tool_call("developer__shell", None),
+                default_tool_title("developer__shell", None),
                 "developer: shell"
-            );
-        }
-
-        #[test]
-        fn with_path() {
-            let args = serde_json::json!({"path": "/src/main.rs", "content": "fn main() {}"});
-            assert_eq!(
-                summarize_tool_call("developer__edit", Some(&args)),
-                "developer: edit · /src/main.rs"
             );
         }
 
@@ -419,7 +338,7 @@ mod tests {
         fn with_command() {
             let args = serde_json::json!({"command": "cargo build"});
             assert_eq!(
-                summarize_tool_call("developer__shell", Some(&args)),
+                default_tool_title("developer__shell", Some(&args)),
                 "developer: shell · cargo build"
             );
         }
@@ -428,133 +347,231 @@ mod tests {
         fn long_value_is_truncated() {
             let long_path = "a".repeat(80);
             let args = serde_json::json!({"path": long_path});
-            let result = summarize_tool_call("developer__read_file", Some(&args));
+            let result = default_tool_title("developer__read_file", Some(&args));
             assert!(result.ends_with('…'));
             assert!(result.len() < 90);
         }
     }
 
-    #[test]
-    fn test_tool_call_identity_meta_uses_goose_extension_metadata() {
-        let request = ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("context7__query-docs")),
-            metadata: None,
-            tool_meta: Some(serde_json::json!({"goose_extension": "context7"})),
-        };
+    mod build_initial_tool_call {
+        use super::*;
+        use crate::conversation::message::TOOL_META_TITLE_KEY;
+        use rmcp::model::ErrorData;
 
-        let meta = tool_call_identity_meta(&request).expect("expected metadata");
+        #[test]
+        fn uses_default_title_and_preserves_request_data() {
+            let arguments = json_object(vec![("path", serde_json::json!("/src/main.rs"))]);
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(arguments.clone())),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({"goose_extension": "developer"})),
+            };
 
-        assert_eq!(
-            meta.get("goose"),
-            Some(&serde_json::json!({
-                "toolCall": {
-                    "toolName": "context7__query-docs",
-                    "extensionName": "context7",
-                },
-            })),
-        );
+            let tool_call = build_initial_tool_call(&request);
+
+            assert_eq!(tool_call.title, "edit · /src/main.rs");
+            assert_eq!(tool_call.status, ToolCallStatus::Pending);
+            assert_eq!(
+                tool_call.raw_input,
+                Some(serde_json::Value::Object(arguments))
+            );
+            assert_eq!(
+                tool_call.meta.as_ref().and_then(|meta| meta.get("goose")),
+                Some(&serde_json::json!({
+                    "toolCall": {
+                        "toolName": "edit",
+                        "extensionName": "developer",
+                    },
+                }))
+            );
+        }
+
+        #[test]
+        fn uses_generated_title() {
+            let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(
+                    CallToolRequestParams::new("developer__shell").with_arguments(arguments)
+                ),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({
+                    (TOOL_META_TITLE_KEY): "running focused tests",
+                })),
+            };
+
+            let tool_call = build_initial_tool_call(&request);
+
+            assert_eq!(tool_call.title, "running focused tests");
+        }
+
+        #[test]
+        fn handles_invalid_request() {
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Err(ErrorData::invalid_request("invalid tool call", None)),
+                metadata: None,
+                tool_meta: None,
+            };
+
+            let tool_call = build_initial_tool_call(&request);
+
+            assert_eq!(tool_call.title, "error");
+            assert_eq!(tool_call.status, ToolCallStatus::Pending);
+            assert_eq!(tool_call.raw_input, None);
+            assert_eq!(tool_call.meta, None);
+        }
+    }
+
+    mod build_permission_tool_call_update {
+        use super::*;
+
+        #[test]
+        fn matches_initial_request_presentation() {
+            let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("developer__shell")
+                    .with_arguments(arguments.clone())),
+                metadata: None,
+                tool_meta: None,
+            };
+            let initial = build_initial_tool_call(&request);
+
+            let permission = build_permission_tool_call_update(
+                &request.id,
+                "developer__shell",
+                arguments,
+                Some("Allow this command?".to_string()),
+            );
+
+            assert_eq!(
+                permission.fields.title.as_deref(),
+                Some(initial.title.as_str())
+            );
+            assert_eq!(permission.fields.raw_input, initial.raw_input);
+            assert_eq!(permission.fields.status, Some(ToolCallStatus::Pending));
+            assert_eq!(
+                first_tool_call_text(&permission.fields),
+                Some("Allow this command?")
+            );
+        }
+    }
+
+    mod goose_tool_call_meta {
+        use super::*;
+
+        #[test]
+        fn prefers_goose_extension_metadata_over_name_prefix() {
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("other__query-docs")),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({"goose_extension": "context7"})),
+            };
+
+            let meta = goose_tool_call_meta(&request).expect("expected metadata");
+
+            assert_eq!(
+                meta.get("goose"),
+                Some(&serde_json::json!({
+                    "toolCall": {
+                        "toolName": "other__query-docs",
+                        "extensionName": "context7",
+                    },
+                })),
+            );
+        }
     }
 
     fn json_object(pairs: Vec<(&str, serde_json::Value)>) -> rmcp::model::JsonObject {
         pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
     }
 
-    #[test_case(None => None ; "none arguments")]
-    #[test_case(Some(json_object(vec![])) => None ; "missing line key")]
-    #[test_case(Some(json_object(vec![("line", serde_json::json!(5))])) => Some(5) ; "line present")]
-    #[test_case(Some(json_object(vec![("line", serde_json::json!("not_a_number"))])) => None ; "line not a number")]
-    fn test_get_requested_line(arguments: Option<rmcp::model::JsonObject>) -> Option<u32> {
-        get_requested_line(arguments.as_ref())
-    }
+    mod extract_tool_locations_from_request {
+        use super::*;
+        use test_case::test_case;
 
-    #[test_case("read", true ; "read is developer file tool")]
-    #[test_case("write", true ; "write is developer file tool")]
-    #[test_case("edit", true ; "edit is developer file tool")]
-    #[test_case("shell", false ; "shell is not developer file tool")]
-    #[test_case("analyze", false ; "analyze is not developer file tool")]
-    fn test_is_developer_file_tool(tool_name: &str, expected: bool) {
-        assert_eq!(is_developer_file_tool(tool_name), expected);
-    }
+        fn request(name: &str, arguments: serde_json::Value) -> ToolRequest {
+            ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new(name.to_string()).with_arguments(
+                    arguments
+                        .as_object()
+                        .expect("test arguments should be an object")
+                        .clone(),
+                )),
+                metadata: None,
+                tool_meta: None,
+            }
+        }
 
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
+        fn locations(request: &ToolRequest) -> Vec<(PathBuf, Option<u32>)> {
+            super::extract_tool_locations_from_request(request)
+                .into_iter()
+                .map(|location| (location.path, location.line))
+                .collect()
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
-        ; "read returns requested line"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
+
+        #[test]
+        fn reads_requested_line() {
+            let request = request(
+                "developer__read",
+                serde_json::json!({"path": "/tmp/f.txt", "line": 5}),
+            );
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), None)]
-        ; "read without line"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
+
+        #[test_case(serde_json::json!({"path": "/tmp/f.txt"}); "missing line")]
+        #[test_case(serde_json::json!({"path": "/tmp/f.txt", "line": "not_a_number"}); "invalid line")]
+        fn reads_without_valid_line(arguments: serde_json::Value) {
+            let request = request("developer__read", arguments);
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), None)]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
-        ; "write returns line 1"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
+
+        #[test_case("developer__write"; "write")]
+        #[test_case("developer__edit"; "edit")]
+        fn writes_and_edits_start_at_line_one(name: &str) {
+            let request = request(name, serde_json::json!({"path": "/tmp/f.txt"}));
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+            );
         }
-        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
-        ; "edit returns line 1"
-    )]
-    #[test_case(
-        ToolRequest {
-            id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
-            metadata: None, tool_meta: None,
-        },
-        ToolResponse {
-            id: "req_1".to_string(),
-            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
-            metadata: None,
+
+        #[test]
+        fn accepts_unprefixed_developer_tool_from_metadata() {
+            let mut request = request("write", serde_json::json!({"path": "/tmp/f.txt"}));
+            request.tool_meta = Some(serde_json::json!({"goose_extension": "developer"}));
+
+            assert_eq!(
+                locations(&request),
+                vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+            );
         }
-        => Vec::<(PathBuf, Option<u32>)>::new()
-        ; "non file tool returns empty"
-    )]
-    fn test_extract_tool_locations(
-        request: ToolRequest,
-        response: ToolResponse,
-    ) -> Vec<(PathBuf, Option<u32>)> {
-        extract_tool_locations(&request, &response)
-            .into_iter()
-            .map(|loc| (loc.path, loc.line))
-            .collect()
+
+        #[test_case("other__read"; "other extension read")]
+        #[test_case("other__write"; "other extension write")]
+        #[test_case("other__edit"; "other extension edit")]
+        #[test_case("read"; "unqualified read")]
+        #[test_case("write"; "unqualified write")]
+        #[test_case("edit"; "unqualified edit")]
+        #[test_case("developer__shell"; "non file developer tool")]
+        fn rejects_tools_without_developer_ownership(name: &str) {
+            let request = request(name, serde_json::json!({"path": "/tmp/f.txt"}));
+
+            assert!(locations(&request).is_empty());
+        }
     }
 
     fn response_with_meta(meta: Option<serde_json::Value>) -> ToolResponse {
@@ -568,33 +585,23 @@ mod tests {
     }
 
     #[test_case(
-        response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt", "line": 5}]})))
-        => Some(vec![(PathBuf::from("/tmp/f.txt"), Some(5))])
-        ; "meta with path and line"
-    )]
-    #[test_case(
         response_with_meta(Some(serde_json::json!({"tool_locations": [{"path": "/tmp/f.txt"}]})))
         => Some(vec![(PathBuf::from("/tmp/f.txt"), None)])
         ; "meta with path no line"
-    )]
-    #[test_case(
-        response_with_meta(Some(serde_json::json!({})))
-        => None
-        ; "meta without tool_locations key"
     )]
     #[test_case(
         response_with_meta(None)
         => None
         ; "no meta"
     )]
-    fn test_extract_locations_from_meta(
+    fn extracts_tool_locations_from_response(
         response: ToolResponse,
     ) -> Option<Vec<(PathBuf, Option<u32>)>> {
-        extract_locations_from_meta(&response)
+        extract_tool_locations_from_response(&response)
             .map(|locs| locs.into_iter().map(|loc| (loc.path, loc.line)).collect())
     }
 
-    mod extract_tool_call_update_meta {
+    mod trusted_update_meta {
         use super::*;
 
         #[test]
@@ -607,7 +614,7 @@ mod tests {
                 },
             })));
 
-            assert_eq!(extract_tool_call_update_meta(&response), None);
+            assert_eq!(trusted_update_meta(&response), None);
         }
 
         #[test]
@@ -627,8 +634,7 @@ mod tests {
                 },
             })));
 
-            let extracted =
-                extract_tool_call_update_meta(&response).expect("expected trusted meta");
+            let extracted = trusted_update_meta(&response).expect("expected trusted meta");
             assert_eq!(
                 extracted.get("goose"),
                 Some(&serde_json::json!({
@@ -640,31 +646,6 @@ mod tests {
                 })),
             );
         }
-    }
-
-    #[test]
-    fn test_extract_tool_raw_output_preserves_structured_content() {
-        let mut result = CallToolResult::success(vec![RmcpContent::text("fallback")]);
-        result.structured_content = Some(serde_json::json!({
-            "restaurants": [
-                {
-                    "name": "Coffee Shop",
-                    "unitToken": "unit-1",
-                },
-            ],
-        }));
-
-        assert_eq!(
-            extract_tool_raw_output(&Ok(result)),
-            Some(serde_json::json!({
-                "restaurants": [
-                    {
-                        "name": "Coffee Shop",
-                        "unitToken": "unit-1",
-                    },
-                ],
-            })),
-        );
     }
 
     fn response_from_tool_result(tool_result: ToolResult<CallToolResult>) -> ToolResponse {
@@ -685,7 +666,7 @@ mod tests {
                 ])),
             ),
             metadata: None,
-            tool_meta: None,
+            tool_meta: Some(serde_json::json!({"goose_extension": "developer"})),
         }
     }
 

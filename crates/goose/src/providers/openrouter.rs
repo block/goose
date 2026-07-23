@@ -335,7 +335,9 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("api/v1/chat/completions", &payload)
+                    .request("api/v1/chat/completions")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -369,6 +371,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         }
     }
 
