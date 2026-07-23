@@ -252,7 +252,17 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
 
     execFile(
       'git',
-      ['-C', dir, 'worktree', 'list', '--porcelain'],
+      [
+        '-c',
+        'safe.bareRepository=explicit',
+        '-c',
+        'core.fsmonitor=false',
+        '-C',
+        dir,
+        'worktree',
+        'list',
+        '--porcelain',
+      ],
       { timeout: 3000 },
       (error, stdout) => {
         if (error) {
