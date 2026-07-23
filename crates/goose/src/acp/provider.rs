@@ -2502,7 +2502,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(out.len(), 4, "all four block kinds should produce output");
+        assert_eq!(out.len(), 3, "terminal blocks produce no output");
         let serialized: Vec<String> = out
             .iter()
             .map(|c| serde_json::to_string(c).unwrap())
@@ -2520,13 +2520,24 @@ mod tests {
             "diff body lost: {serialized:?}"
         );
         assert!(
-            serialized[2].contains("term-7"),
-            "terminal id lost: {serialized:?}"
-        );
-        assert!(
-            serialized[3].contains("base64data"),
+            serialized[2].contains("base64data"),
             "image data lost: {serialized:?}"
         );
+    }
+
+    #[test]
+    fn acp_tool_call_terminal_falls_back_to_raw_output() {
+        use agent_client_protocol::schema::v1::{Terminal, TerminalId};
+
+        let terminal_block = ToolCallContent::Terminal(Terminal::new(TerminalId::new("term-1")));
+        let raw_output = serde_json::Value::String("hello from shell".to_string());
+
+        let out = acp_tool_call_content_to_rmcp(Some(vec![terminal_block]), Some(raw_output));
+
+        assert_eq!(out.len(), 1);
+        let text = out[0].as_text().unwrap();
+        assert_eq!(text.text, "hello from shell");
+        assert_eq!(out[0].priority(), Some(0.0));
     }
 
     #[test]
