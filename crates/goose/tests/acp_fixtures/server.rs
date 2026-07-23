@@ -1,7 +1,8 @@
 use super::{
-    map_permission_response, spawn_acp_server_in_process, Connection, ModelStateFixture,
-    PermissionDecision, Session, SessionData, TestConnectionConfig, TestOutput,
+    Connection, ModelStateFixture, PermissionDecision, Session, SessionData, TestConnectionConfig,
+    TestOutput, map_permission_response, spawn_acp_server_in_process,
 };
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, CloseSessionRequest, ContentBlock, CreateTerminalRequest,
     FileSystemCapabilities, ImageContent, InitializeRequest, KillTerminalRequest,
@@ -12,7 +13,6 @@ use agent_client_protocol::schema::v1::{
     SetSessionModeRequest, StopReason, TerminalOutputRequest, TextContent, ToolCallStatus,
     WaitForTerminalExitRequest, WriteTextFileRequest,
 };
-use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use async_trait::async_trait;
 use goose::config::PermissionManager;

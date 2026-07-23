@@ -243,7 +243,7 @@ impl ClassificationClient {
     }
 
     pub async fn classify_chunked(&self, text: &str) -> ChunkedScan {
-        use crate::security::command_chunker::{chunk_command, MAX_WINDOWS};
+        use crate::security::command_chunker::{MAX_WINDOWS, chunk_command};
 
         const COMMAND_SCAN_CONCURRENCY: usize = 3;
 

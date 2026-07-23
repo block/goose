@@ -1,7 +1,7 @@
 use goose_test_support::mcp::McpFixtureServer;
 use rmcp::service::ServiceExt;
 use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 
 #[tokio::main]

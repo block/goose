@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -94,9 +94,11 @@ mod tests {
     fn test_read_parameter_file_content_nonexistent_file() {
         let result = read_parameter_file_content("/nonexistent/path/file.txt");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to read parameter file"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to read parameter file")
+        );
     }
 }

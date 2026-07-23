@@ -3,9 +3,9 @@ pub mod image;
 pub mod shell;
 pub mod tree;
 
+use crate::agents::ToolCallContext;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use edit::{EditTools, FileEditParams, FileWriteParams};
@@ -15,9 +15,9 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde_json::Value;
-use shell::{shell_display_name, ShellOutput, ShellParams, ShellTool};
+use shell::{ShellOutput, ShellParams, ShellTool, shell_display_name};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tree::{TreeParams, TreeTool};
@@ -205,39 +205,34 @@ impl McpClientTrait for DeveloperClient {
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(CallToolResult::error(vec![
+                    Content::text(format!("Error: {error}")).with_priority(0.0),
+                ])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(CallToolResult::error(vec![
+                    Content::text(format!("Error: {error}")).with_priority(0.0),
+                ])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
                 Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(CallToolResult::error(vec![
+                    Content::text(format!("Error: {error}")).with_priority(0.0),
+                ])),
             },
             "read_image" => match Self::parse_args::<ImageReadParams>(arguments) {
                 Ok(params) => Ok(self
                     .image_tool
                     .image_read_with_cwd(params, working_dir)
                     .await),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(CallToolResult::error(vec![
+                    Content::text(format!("Error: {error}")).with_priority(0.0),
+                ])),
             },
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: Unknown tool: {name}"
-            ))
-            .with_priority(0.0)])),
+            _ => Ok(CallToolResult::error(vec![
+                Content::text(format!("Error: Unknown tool: {name}")).with_priority(0.0),
+            ])),
         }
     }
 

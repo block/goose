@@ -26,7 +26,7 @@ use goose::session::{SessionManager, SessionType};
 use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose_providers::errors::ProviderError;
 use goose_test_support::{
-    EnforceSessionId, ExpectedSessionId, IgnoreSessionId, McpFixture, FAKE_CODE,
+    EnforceSessionId, ExpectedSessionId, FAKE_CODE, IgnoreSessionId, McpFixture,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -393,10 +393,12 @@ impl ProviderFixture {
         .await?;
 
         assert!(!response.content.is_empty());
-        assert!(response
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::Text(_))));
+        assert!(
+            response
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Text(_)))
+        );
 
         println!(
             "=== {}::basic_response === {}",
@@ -483,10 +485,12 @@ impl ProviderFixture {
         )
         .await?;
 
-        assert!(response
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::Text(_))));
+        assert!(
+            response
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Text(_)))
+        );
         println!(
             "=== {}::model_switch ({} -> {}) === {}",
             self.name,
@@ -507,13 +511,17 @@ impl ProviderFixture {
         assert!(!models.is_empty());
         let resolved = &self.model_config.model_name;
         assert_ne!(resolved.as_str(), ACP_CURRENT_MODEL);
-        assert!(models
-            .iter()
-            .any(|m| m == resolved || m.contains(resolved) || resolved.contains(m)));
-        if let Some(alt) = &self.model_switch_name {
-            assert!(models
+        assert!(
+            models
                 .iter()
-                .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str())));
+                .any(|m| m == resolved || m.contains(resolved) || resolved.contains(m))
+        );
+        if let Some(alt) = &self.model_switch_name {
+            assert!(
+                models
+                    .iter()
+                    .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str()))
+            );
         }
         Ok(())
     }

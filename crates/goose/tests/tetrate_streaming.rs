@@ -241,7 +241,7 @@ mod tetrate_streaming_tests {
     #[serial]
     async fn test_tetrate_streaming_error_handling() -> Result<()> {
         // Test with invalid API key to ensure error handling works
-        std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing");
+        unsafe { std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing") };
 
         let provider = TetrateProvider::from_env(None).await?;
 
@@ -262,7 +262,7 @@ mod tetrate_streaming_tests {
         assert!(result.is_err(), "Should fail with invalid API key");
 
         // Clean up
-        std::env::remove_var("TETRATE_API_KEY");
+        unsafe { std::env::remove_var("TETRATE_API_KEY") };
 
         Ok(())
     }

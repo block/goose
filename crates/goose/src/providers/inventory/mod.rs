@@ -2,15 +2,15 @@ pub mod registrations;
 mod resolver;
 
 pub use resolver::{
-    default_inventory_identity_resolver, InventoryConfiguredResolver, InventoryIdentityResolver,
-    InventoryRegistration, InventoryResolvers,
+    InventoryConfiguredResolver, InventoryIdentityResolver, InventoryRegistration,
+    InventoryResolvers, default_inventory_identity_resolver,
 };
 
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
-use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
+use super::canonical::{CanonicalModelRegistry, map_provider_name, map_to_canonical_model};
 use super::catalog::ProviderSetupCategory;
-use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
+use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::session::session_manager::SessionStorage;
 use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
@@ -634,37 +634,43 @@ impl ProviderInventoryService {
                         };
                     match fetch_result {
                         Ok(models) => {
-                            if let Err(error) = self
+                            match self
                                 .store_refreshed_models_for_identity(&refresh_job.identity, &models)
                                 .await
                             {
-                                warn!(
-                                    provider = %provider_id,
-                                    context = %context,
-                                    error = %error,
-                                    "failed to store refreshed provider inventory"
-                                );
-                            } else {
-                                refresh_guard.complete();
+                                Err(error) => {
+                                    warn!(
+                                        provider = %provider_id,
+                                        context = %context,
+                                        error = %error,
+                                        "failed to store refreshed provider inventory"
+                                    );
+                                }
+                                _ => {
+                                    refresh_guard.complete();
+                                }
                             }
                         }
                         Err(error) => {
                             let error_message = error.to_string();
-                            if let Err(store_error) = self
+                            match self
                                 .store_refresh_error_for_identity(
                                     &refresh_job.identity,
                                     error_message.clone(),
                                 )
                                 .await
                             {
-                                warn!(
-                                    provider = %provider_id,
-                                    context = %context,
-                                    error = %store_error,
-                                    "failed to store provider inventory refresh error"
-                                );
-                            } else {
-                                refresh_guard.complete();
+                                Err(store_error) => {
+                                    warn!(
+                                        provider = %provider_id,
+                                        context = %context,
+                                        error = %store_error,
+                                        "failed to store provider inventory refresh error"
+                                    );
+                                }
+                                _ => {
+                                    refresh_guard.complete();
+                                }
                             }
                             warn!(
                                 provider = %provider_id,
@@ -1254,15 +1260,19 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(plan_time_snapshot
-            .models
-            .iter()
-            .any(|model| model.id == sentinel_model));
-        assert!(service
-            .read_snapshot(&current_identity)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            plan_time_snapshot
+                .models
+                .iter()
+                .any(|model| model.id == sentinel_model)
+        );
+        assert!(
+            service
+                .read_snapshot(&current_identity)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

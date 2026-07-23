@@ -3,14 +3,14 @@ use crate::recipes::print_recipe::{
     print_required_parameters_for_template,
 };
 use crate::recipes::search_recipe::load_recipe_file;
-use crate::recipes::secret_discovery::{discover_recipe_secrets, SecretRequirement};
+use crate::recipes::secret_discovery::{SecretRequirement, discover_recipe_secrets};
 use anyhow::Result;
 use goose::config::Config;
+use goose::recipe::Recipe;
 use goose::recipe::build_recipe::{
-    apply_values_to_parameters, build_recipe_from_template, RecipeError,
+    RecipeError, apply_values_to_parameters, build_recipe_from_template,
 };
 use goose::recipe::validate_recipe::parse_and_validate_parameters;
-use goose::recipe::Recipe;
 
 fn create_user_prompt_callback() -> impl Fn(&str, &str) -> Result<String> {
     |key: &str, description: &str| -> Result<String> {
@@ -98,7 +98,10 @@ pub fn collect_missing_secrets(requirements: &[SecretRequirement]) -> Result<()>
 
         if !value.trim().is_empty() {
             if let Err(e) = config.set_secret(&req.key, &value) {
-                println!("⚠️  Failed to store secret in secure storage: {}. Secret available for this session only.", e);
+                println!(
+                    "⚠️  Failed to store secret in secure storage: {}. Secret available for this session only.",
+                    e
+                );
                 println!(
                     "   Consider setting {} as an environment variable for future use.",
                     req.key

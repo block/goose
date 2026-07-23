@@ -434,12 +434,16 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(haystack.total_matches, 1);
-        assert!(haystack.results[0].messages[0]
-            .content
-            .contains("haystack visible"));
-        assert!(!haystack.results[0].messages[0]
-            .content
-            .contains("needle secret-only"));
+        assert!(
+            haystack.results[0].messages[0]
+                .content
+                .contains("haystack visible")
+        );
+        assert!(
+            !haystack.results[0].messages[0]
+                .content
+                .contains("needle secret-only")
+        );
 
         let hidden_only =
             ChatHistorySearch::new(&pool, "secret-only", Some(10), None, None, None, vec![])

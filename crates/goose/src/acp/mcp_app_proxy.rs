@@ -1,9 +1,9 @@
 use axum::{
+    Json, Router,
     extract::{ConnectInfo, DefaultBodyLimit, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -396,7 +396,7 @@ mod tests {
     use axum::{
         body::Body,
         extract::ConnectInfo,
-        http::{header, Request, StatusCode},
+        http::{Request, StatusCode, header},
     };
     use std::net::SocketAddr;
     use tower::ServiceExt;

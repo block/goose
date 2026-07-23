@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use nostr::nips::nip19::{FromBech32, Nip19Event, ToBech32};
 use nostr::nips::nip44;

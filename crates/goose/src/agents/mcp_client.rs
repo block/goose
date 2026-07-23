@@ -9,6 +9,7 @@ use rmcp::model::{
 };
 /// MCP client implementation for Goose
 use rmcp::{
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, CreateMessageRequestParams, CreateMessageResult,
@@ -23,15 +24,14 @@ use rmcp::{
         ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{
     collections::HashMap, path::PathBuf, sync::Arc, sync::Mutex as StdMutex, time::Duration,
 };
 use tokio::sync::{
-    mpsc::{self, Sender},
     Mutex,
+    mpsc::{self, Sender},
 };
 use tokio_util::sync::CancellationToken;
 

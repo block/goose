@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::{paths::Paths, Config};
+use crate::config::{Config, paths::Paths};
 use crate::plugins::plugin_install_dir;
 
 const PLUGINS_CONFIG_KEY: &str = "plugins";

@@ -16,7 +16,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -104,11 +104,10 @@ impl AnalyzeClient {
 
     fn analyze(&self, params: AnalyzeParams, path: PathBuf) -> CallToolResult {
         if !path.exists() {
-            return CallToolResult::error(vec![Content::text(format!(
-                "Error: path not found: {}",
-                path.display()
-            ))
-            .with_priority(0.0)]);
+            return CallToolResult::error(vec![
+                Content::text(format!("Error: path not found: {}", path.display()))
+                    .with_priority(0.0),
+            ]);
         }
 
         if let Some(ref focus) = params.focus {
@@ -165,11 +164,13 @@ impl AnalyzeClient {
                 let output = format::format_semantic(&analysis, root);
                 Self::finish(output, force)
             }
-            None => CallToolResult::error(vec![Content::text(format!(
-                "Error: could not analyze {} (unsupported language or binary file)",
-                path.display()
-            ))
-            .with_priority(0.0)]),
+            None => CallToolResult::error(vec![
+                Content::text(format!(
+                    "Error: could not analyze {} (unsupported language or binary file)",
+                    path.display()
+                ))
+                .with_priority(0.0),
+            ]),
         }
     }
 
@@ -252,15 +253,13 @@ impl McpClientTrait for AnalyzeClient {
                     let path = Self::resolve_path(&params.path, working_dir);
                     Ok(self.analyze(params, path))
                 }
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(CallToolResult::error(vec![
+                    Content::text(format!("Error: {error}")).with_priority(0.0),
+                ])),
             },
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: Unknown tool: {name}"
-            ))
-            .with_priority(0.0)])),
+            _ => Ok(CallToolResult::error(vec![
+                Content::text(format!("Error: Unknown tool: {name}")).with_priority(0.0),
+            ])),
         }
     }
 

@@ -6,7 +6,7 @@ mod arguments;
 mod builtin;
 pub mod client;
 
-pub use client::{SkillsClient, EXTENSION_NAME};
+pub use client::{EXTENSION_NAME, SkillsClient};
 
 use crate::config::paths::Paths;
 use crate::plugins::installed_plugin_skill_dirs;

@@ -540,7 +540,7 @@ impl MessageContent {
     }
 
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
-        if let MessageContent::SystemNotification(ref notification) = self {
+        if let MessageContent::SystemNotification(notification) = self {
             Some(notification)
         } else {
             None
@@ -548,7 +548,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
-        if let MessageContent::ToolRequest(ref tool_request) = self {
+        if let MessageContent::ToolRequest(tool_request) = self {
             Some(tool_request)
         } else {
             None
@@ -556,7 +556,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
-        if let MessageContent::ToolResponse(ref tool_response) = self {
+        if let MessageContent::ToolResponse(tool_response) = self {
             Some(tool_response)
         } else {
             None
@@ -564,7 +564,7 @@ impl MessageContent {
     }
 
     pub fn as_action_required(&self) -> Option<&ActionRequired> {
-        if let MessageContent::ActionRequired(ref action_required) = self {
+        if let MessageContent::ActionRequired(action_required) = self {
             Some(action_required)
         } else {
             None
@@ -1413,14 +1413,18 @@ mod tests {
         let projected = message.user_visible_content();
 
         assert_eq!(projected.as_concat_text(), "shared text");
-        assert!(projected
-            .content
-            .iter()
-            .any(|content| matches!(content, MessageContent::Thinking(_))));
-        assert!(!projected
-            .content
-            .iter()
-            .any(|content| matches!(content, MessageContent::Image(_))));
+        assert!(
+            projected
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::Thinking(_)))
+        );
+        assert!(
+            !projected
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::Image(_)))
+        );
         let tool_response = projected
             .content
             .iter()

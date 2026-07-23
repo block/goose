@@ -1,6 +1,7 @@
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::formatdoc;
 use rmcp::{
+    RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult,
@@ -8,10 +9,10 @@ use rmcp::{
         ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router, RoleServer, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 /// MIME type for MCP Apps (SEP-1865)
@@ -1379,9 +1380,10 @@ mod tests {
 
         let err = result.unwrap_err();
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err
-            .message
-            .contains("must be a JSON object, not a JSON string"));
+        assert!(
+            err.message
+                .contains("must be a JSON object, not a JSON string")
+        );
         assert!(err.message.contains("without comments"));
     }
 

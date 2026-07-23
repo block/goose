@@ -12,7 +12,7 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use aws_sdk_bedrockruntime::{Client, types as bedrock};
 use base64::Engine;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -20,9 +20,9 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
 use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
-use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Tool};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
+use reqwest::header::{AUTHORIZATION, HeaderName, HeaderValue};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, Tool, object};
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
@@ -92,7 +92,7 @@ impl BedrockProvider {
                 map.into_iter()
                     .filter(|(key, _)| key.starts_with("AWS_"))
                     .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
-                    .for_each(|(key, s)| std::env::set_var(key, s));
+                    .for_each(|(key, s)| unsafe { std::env::set_var(key, s) });
             }
         };
 
@@ -109,11 +109,7 @@ impl BedrockProvider {
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
-                if token.is_empty() {
-                    None
-                } else {
-                    Some(token)
-                }
+                if token.is_empty() { None } else { Some(token) }
             }
             Err(_) => None,
         };
@@ -1019,7 +1015,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_caching_enabled_for_claude_model() {
-        std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
+        unsafe { std::env::set_var("BEDROCK_ENABLE_CACHING", "true") };
 
         let (provider, model) =
             create_mock_provider_and_model("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
@@ -1027,8 +1023,7 @@ mod tests {
             provider.should_enable_caching(&model),
             "Caching should be enabled for Claude models when BEDROCK_ENABLE_CACHING=true"
         );
-
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
+        unsafe { std::env::remove_var("BEDROCK_ENABLE_CACHING") };
     }
 
     #[tokio::test]

@@ -11,8 +11,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use goose::providers::create_with_named_model;
 use goose_providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
-    ModelMapping, Pricing, ThinkingMode,
+    CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality, ModelMapping, Pricing,
+    ThinkingMode, canonical_name,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

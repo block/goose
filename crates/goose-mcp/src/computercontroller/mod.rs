@@ -1,12 +1,13 @@
+use crate::subprocess::SubprocessExt;
 #[cfg(not(windows))]
 use crate::subprocess::merged_path;
-use crate::subprocess::SubprocessExt;
 #[cfg(target_os = "macos")]
 use base64::Engine;
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use rmcp::{
+    RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
@@ -16,7 +17,7 @@ use rmcp::{
     },
     schemars::JsonSchema,
     service::RequestContext,
-    tool, tool_handler, tool_router, RoleServer, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
@@ -35,7 +36,7 @@ mod pdf_tool;
 mod xlsx_tool;
 
 mod platform;
-use platform::{create_system_automation, SystemAutomation};
+use platform::{SystemAutomation, create_system_automation};
 
 /// Enum for save_as parameter in web_scrape tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]

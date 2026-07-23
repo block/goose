@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 version = "1.44.0"
 rust-version = "1.94.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
@@ -18,6 +18,9 @@ description = "An AI agent"
 [workspace.lints.clippy]
 uninlined_format_args = "allow"
 string_slice = "warn"
+# Rust 2024 expands the syntax supported in `if` conditions. Existing nested
+# conditions remain valid; defer this broad, non-edition-specific cleanup.
+collapsible_if = "allow"
 
 [workspace.dependencies]
 rmcp = { version = "1.4", default-features = false, features = ["schemars", "auth"] }

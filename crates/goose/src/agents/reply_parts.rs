@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::debug;
 
 use super::super::agents::Agent;
@@ -13,7 +13,7 @@ use super::super::agents::Agent;
 use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
-use crate::conversation::{fix_conversation, Conversation};
+use crate::conversation::{Conversation, fix_conversation};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
@@ -69,10 +69,10 @@ fn coerce_value(s: &str, schema: &Value) -> Value {
                 if let Value::String(type_name) = t {
                     match type_name.as_str() {
                         "number" | "integer" if s.parse::<f64>().is_ok() => {
-                            return try_coerce_number(s)
+                            return try_coerce_number(s);
                         }
                         "boolean" if matches!(s.to_lowercase().as_str(), "true" | "false") => {
-                            return try_coerce_boolean(s)
+                            return try_coerce_boolean(s);
                         }
                         _ => continue,
                     }
@@ -974,12 +974,14 @@ mod tests {
                 crate::agents::extension::ExtensionConfig::Frontend {
                     name: "frontend".to_string(),
                     description: "desc".to_string(),
-                    tools: vec![Tool::new(
-                        "frontend__write_tool",
-                        "Write tool",
-                        object!({ "type": "object", "properties": { } }),
-                    )
-                    .annotate(ToolAnnotations::new().read_only(false))],
+                    tools: vec![
+                        Tool::new(
+                            "frontend__write_tool",
+                            "Write tool",
+                            object!({ "type": "object", "properties": { } }),
+                        )
+                        .annotate(ToolAnnotations::new().read_only(false)),
+                    ],
                     instructions: None,
                     bundled: None,
                     available_tools: vec![],
@@ -993,9 +995,11 @@ mod tests {
             .await?;
 
         assert!(tools.is_empty());
-        assert!(toolshim_tools
-            .iter()
-            .any(|tool| tool.name == "frontend__write_tool"));
+        assert!(
+            toolshim_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__write_tool")
+        );
         assert_eq!(
             permission_manager.get_smart_approve_permission("frontend__write_tool"),
             Some(PermissionLevel::AskBefore)
@@ -1109,10 +1113,12 @@ mod tests {
 
         assert_eq!(response.as_concat_text(), "assistant-only\nuser-visible");
         assert_eq!(filtered_message.as_concat_text(), "user-visible");
-        assert!(filtered_message
-            .content
-            .iter()
-            .any(|content| matches!(content, MessageContent::Thinking(_))));
+        assert!(
+            filtered_message
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::Thinking(_)))
+        );
     }
 
     #[tokio::test]

@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, FnArg, GenericArgument, ImplItem, ItemImpl, Pat, PathArguments, ReturnType,
-    Type,
+    FnArg, GenericArgument, ImplItem, ItemImpl, Pat, PathArguments, ReturnType, Type,
+    parse_macro_input,
 };
 
 /// Marks an impl block as containing `#[custom_method(RequestType)]`-annotated handlers.

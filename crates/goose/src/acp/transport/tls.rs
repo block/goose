@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use rcgen::{CertificateParams, DnType, KeyPair, SanType};
 use std::path::Path;
 

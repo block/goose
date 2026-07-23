@@ -1,14 +1,14 @@
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    ConfigKey, DEFAULT_PROVIDER_TIMEOUT_SECS, MessageStream, Provider, ProviderDef,
+    ProviderMetadata,
 };
 use super::huggingface_auth;
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
@@ -373,10 +373,12 @@ mod tests {
         assert_eq!(metadata.name, "huggingface");
         assert_eq!(metadata.display_name, "Hugging Face");
         assert_eq!(metadata.default_model, HUGGINGFACE_DEFAULT_MODEL);
-        assert!(metadata
-            .config_keys
-            .iter()
-            .any(|key| key.name == "HF_TOKEN" && key.secret));
+        assert!(
+            metadata
+                .config_keys
+                .iter()
+                .any(|key| key.name == "HF_TOKEN" && key.secret)
+        );
     }
 
     #[test]

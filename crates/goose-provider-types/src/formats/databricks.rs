@@ -1,7 +1,7 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
-    thinking_type_for_provider, ThinkingType,
+    ThinkingType, adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
+    thinking_type_for_provider,
 };
 use crate::model::ModelConfig;
 
@@ -9,14 +9,14 @@ use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
     openai_reasoning_effort_for_thinking, sanitize_function_name, validate_tool_schemas,
 };
-use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use anyhow::{anyhow, Error};
+use crate::images::{ImageFormat, convert_image, detect_image_path, load_image_file};
+use anyhow::{Error, anyhow};
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
+    ResourceContents, Role, Tool, object,
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::borrow::Cow;
 
 pub const DATABRICKS_PROVIDER_NAME: &str = "databricks";
@@ -81,11 +81,13 @@ fn format_tool_response(
                 }
             }
 
-            let tool_response_content: Value = json!(tool_content
-                .iter()
-                .filter_map(|c| c.as_text().map(|t| t.text.clone()))
-                .collect::<Vec<String>>()
-                .join(" "));
+            let tool_response_content: Value = json!(
+                tool_content
+                    .iter()
+                    .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            );
 
             result.push(DatabricksMessage {
                 content: tool_response_content,
@@ -803,10 +805,14 @@ mod tests {
 
     #[test]
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
-        let mut messages = vec![Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
-        )];
+        let mut messages =
+            vec![
+                Message::assistant().with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("example")
+                        .with_arguments(object!({"param1": "value1"}))),
+                ),
+            ];
 
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
             &request.id
@@ -867,10 +873,12 @@ mod tests {
 
         let result = format_tools(&[tool1, tool2], "gpt-4o");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Duplicate tool name"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate tool name")
+        );
 
         Ok(())
     }
@@ -902,10 +910,12 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
         assert_eq!(content[1]["type"], "image_url");
-        assert!(content[1]["image_url"]["url"]
-            .as_str()
-            .unwrap()
-            .starts_with("data:image/png;base64,"));
+        assert!(
+            content[1]["image_url"]["url"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/png;base64,")
+        );
 
         Ok(())
     }

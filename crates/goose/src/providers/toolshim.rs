@@ -34,8 +34,8 @@
 use super::local_inference::LOCAL_LLM_MODEL_CONFIG_KEY;
 use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
-use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent};
 use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
 use anyhow::Result;
@@ -44,8 +44,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
-use serde_json::{json, Value};
+use rmcp::model::{CallToolRequestParams, RawContent, Tool, object};
+use serde_json::{Value, json};
 use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
@@ -1210,10 +1210,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(augmented
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
+        assert!(
+            augmented
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+        );
         assert!(!augmented.as_concat_text().contains("<|tool_call_begin|>"));
     }
 
@@ -1268,10 +1270,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(augmented
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_))));
+        assert!(
+            augmented
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+        );
     }
 
     // ── Regression tests: malformed marker leakage ──────────────────────

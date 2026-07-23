@@ -12,7 +12,7 @@ pub const LOCAL_WHISPER_MODEL_CONFIG_KEY: &str = "LOCAL_WHISPER_MODEL";
 use anyhow::{Context, Result};
 use candle_core::{Device, IndexOp, Tensor};
 use candle_nn::ops::log_softmax;
-use candle_transformers::models::whisper::{self as m, audio, Config, N_FRAMES};
+use candle_transformers::models::whisper::{self as m, Config, N_FRAMES, audio};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -204,15 +204,21 @@ impl WhisperTranscriber {
     ) -> Result<Self> {
         tracing::debug!(model_id, "initializing whisper transcriber");
 
-        let device = if let Ok(device) = Device::new_cuda(0) {
-            tracing::debug!("using CUDA device");
-            device
-        } else if let Ok(device) = Device::new_metal(0) {
-            tracing::debug!("using Metal device");
-            device
-        } else {
-            tracing::debug!("using CPU device");
-            Device::Cpu
+        let device = match Device::new_cuda(0) {
+            Ok(device) => {
+                tracing::debug!("using CUDA device");
+                device
+            }
+            _ => match Device::new_metal(0) {
+                Ok(device) => {
+                    tracing::debug!("using Metal device");
+                    device
+                }
+                _ => {
+                    tracing::debug!("using CPU device");
+                    Device::Cpu
+                }
+            },
         };
 
         let model_path_ref = model_path.as_ref();
@@ -830,7 +836,7 @@ fn detect_repetition_impl(
     let text_tokens: Vec<(usize, u32)> = tokens[sample_begin..]
         .iter()
         .enumerate()
-        .filter(|(_, &t)| t < timestamp_begin)
+        .filter(|&(_, &t)| t < timestamp_begin)
         .map(|(i, &t)| (i + sample_begin, t))
         .collect();
 

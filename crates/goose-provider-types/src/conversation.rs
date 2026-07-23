@@ -68,16 +68,14 @@ impl Conversation {
                 last.metadata.inference = message.metadata.inference.clone();
             }
             match (last.content.last_mut(), message.content.last()) {
-                (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
+                (Some(MessageContent::Text(last)), Some(MessageContent::Text(new)))
                     if message.content.len() == 1 && last.audience() == new.audience() =>
                 {
                     last.text.push_str(&new.text);
                 }
-                (
-                    Some(MessageContent::Thinking(ref mut last)),
-                    Some(MessageContent::Thinking(new)),
-                ) if message.content.len() == 1
-                    && (last.signature.is_empty() || new.signature == last.signature) =>
+                (Some(MessageContent::Thinking(last)), Some(MessageContent::Thinking(new)))
+                    if message.content.len() == 1
+                        && (last.signature.is_empty() || new.signature == last.signature) =>
                 {
                     // Merge cases:
                     //   - `last` is still unsigned (block in progress) — append
@@ -382,7 +380,7 @@ fn fix_empty_tool_results(messages: Vec<Message>) -> (Vec<Message>, Vec<String>)
         .into_iter()
         .map(|mut message| {
             for content in &mut message.content {
-                if let MessageContent::ToolResponse(ref mut tool_response) = content {
+                if let MessageContent::ToolResponse(tool_response) = content {
                     if let Ok(ref mut result) = tool_response.tool_result {
                         if !has_tool_result_content(&result.content) {
                             // Add a placeholder text content so the tool result isn't empty
@@ -675,12 +673,12 @@ pub fn debug_conversation_fix(
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{Message, MessageContent};
-    use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+    use crate::conversation::{Conversation, debug_conversation_fix, fix_conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
 
     macro_rules! assert_has_issues_unordered {
-        ($fixed:expr, $issues:expr, $($expected:expr),+ $(,)?) => {
+        ($fixed:expr_2021, $issues:expr_2021, $($expected:expr_2021),+ $(,)?) => {
             {
                 let mut expected: Vec<&str> = vec![$($expected),+];
                 let mut actual: Vec<&str> = $issues.iter().map(|s| s.as_str()).collect();
@@ -1307,15 +1305,21 @@ mod tests {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
         // Should have merged consecutive assistants, removed leading, and removed trailing
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Merged consecutive assistant")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed leading assistant")));
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed trailing assistant")));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("Merged consecutive assistant"))
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("Removed leading assistant"))
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("Removed trailing assistant"))
+        );
 
         let fixed_messages = fixed.messages();
 
@@ -1358,9 +1362,11 @@ mod tests {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
         // Should have removed the assistant and added placeholder
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Removed leading assistant")));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("Removed leading assistant"))
+        );
         assert!(issues.iter().any(|i| i.contains("Added placeholder")));
 
         let fixed_messages = fixed.messages();
@@ -1408,9 +1414,11 @@ mod tests {
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
         // Should have added a placeholder
-        assert!(issues
-            .iter()
-            .any(|i| i.contains("Added placeholder to empty tool result")));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("Added placeholder to empty tool result"))
+        );
 
         // Find the tool response and verify it has content now
         let tool_response_msg = fixed

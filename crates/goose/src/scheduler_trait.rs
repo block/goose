@@ -37,7 +37,7 @@ pub trait SchedulerTrait: Send + Sync {
         limit: usize,
     ) -> Result<Vec<(String, Session)>, SchedulerError>;
     async fn update_schedule(&self, sched_id: &str, new_cron: String)
-        -> Result<(), SchedulerError>;
+    -> Result<(), SchedulerError>;
     async fn kill_running_job(&self, sched_id: &str) -> Result<(), SchedulerError>;
     async fn get_running_job_info(
         &self,

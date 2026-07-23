@@ -3,14 +3,14 @@ use futures::future::BoxFuture;
 use goose_providers::base::ProviderDescriptor;
 use std::collections::HashMap;
 
-use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
-use crate::providers::base::{ProviderDef, DEFAULT_PROVIDER_TIMEOUT_SECS};
+use crate::config::declarative_providers::DeclarativeProviderConfig;
+use crate::providers::base::{DEFAULT_PROVIDER_TIMEOUT_SECS, ProviderDef};
 use crate::providers::custom_provider_config::ConfigKeyResolver;
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::openai::{
-    parse_custom_headers, parse_openai_base_url, OpenAiProvider, OpenAiProviderBuilder,
     OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_VERSIONLESS_BASE_PATH,
+    OpenAiProvider, OpenAiProviderBuilder, parse_custom_headers, parse_openai_base_url,
 };
 
 pub struct OpenAiProviderDef;

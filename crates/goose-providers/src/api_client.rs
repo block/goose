@@ -1,11 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Client, Response, StatusCode,
-};
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 use reqwest::{Certificate, Identity};
+use reqwest::{
+    Client, Response, StatusCode,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
 use serde_json::Value;
 use std::fmt;
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
@@ -581,10 +581,12 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
             "-----BEGIN DSA PRIVATE KEY-----\nMIIBuwIBAAKB\n-----END DSA PRIVATE KEY-----";
         let result = convert_key_to_pkcs8_pem(bad_pem);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported key format"),);
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unsupported key format"),
+        );
     }
 
     #[test]

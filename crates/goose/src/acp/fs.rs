@@ -1,11 +1,11 @@
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
-use crate::agents::platform_extensions::developer::edit::{
-    resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
-};
-use crate::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
 use crate::agents::platform_extensions::developer::DeveloperClient;
+use crate::agents::platform_extensions::developer::edit::{
+    FileEditParams, FileReadParams, FileWriteParams, resolve_path, string_replace,
+};
+use crate::agents::platform_extensions::developer::shell::{OUTPUT_LIMIT_BYTES, ShellParams};
 use agent_client_protocol::schema::v1::{
     CreateTerminalRequest, Diff, EnvVariable, KillTerminalRequest, ReadTextFileRequest,
     ReleaseTerminalRequest, SessionId, Terminal, TerminalOutputRequest, ToolCallContent,
@@ -148,7 +148,7 @@ impl AcpTools {
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {
             Ok(content) => Ok(CallToolResult::success(vec![
-                RmcpContent::text(content).with_priority(0.0)
+                RmcpContent::text(content).with_priority(0.0),
             ])),
             Err(e) => Ok(fail("read", &params.path, e)),
         }
@@ -181,11 +181,10 @@ impl AcpTools {
                 );
                 let line_count = params.content.lines().count();
                 let action = if path.exists() { "Wrote" } else { "Created" };
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
-                    "{action} {} ({line_count} lines)",
-                    params.path
-                ))
-                .with_priority(0.0)]))
+                Ok(CallToolResult::success(vec![
+                    RmcpContent::text(format!("{action} {} ({line_count} lines)", params.path))
+                        .with_priority(0.0),
+                ]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }
@@ -234,11 +233,13 @@ impl AcpTools {
                 );
                 let old_lines = params.before.lines().count();
                 let new_lines = params.after.lines().count();
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
-                    "Edited {} ({old_lines} lines -> {new_lines} lines)",
-                    params.path
-                ))
-                .with_priority(0.0)]))
+                Ok(CallToolResult::success(vec![
+                    RmcpContent::text(format!(
+                        "Edited {} ({old_lines} lines -> {new_lines} lines)",
+                        params.path
+                    ))
+                    .with_priority(0.0),
+                ]))
             }
             Err(e) => Ok(fail("write", &params.path, e)),
         }

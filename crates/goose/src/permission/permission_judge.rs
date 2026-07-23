@@ -1,5 +1,5 @@
-use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use chrono::Utc;

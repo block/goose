@@ -3,8 +3,8 @@ use goose::config::Config;
 use goose::recipe::read_recipe_file_content::RecipeFile;
 
 use super::github_recipe::{
-    list_github_recipes, retrieve_recipe_from_github, RecipeInfo, RecipeSource,
-    GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY,
+    GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY, RecipeInfo, RecipeSource, list_github_recipes,
+    retrieve_recipe_from_github,
 };
 use goose::recipe::local_recipes::{list_local_recipes, load_local_recipe_file};
 

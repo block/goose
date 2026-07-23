@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use crate::config;
+use crate::config::Config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
-use crate::config::Config;
+use rmcp::ServiceError as ClientError;
 use rmcp::model::Tool;
 use rmcp::service::ClientInitializeError;
-use rmcp::ServiceError as ClientError;
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
 
 pub use crate::agents::platform_extensions::{
-    PlatformExtensionContext, PlatformExtensionDef, PLATFORM_EXTENSIONS,
+    PLATFORM_EXTENSIONS, PlatformExtensionContext, PlatformExtensionDef,
 };
 
 #[derive(Error, Debug)]

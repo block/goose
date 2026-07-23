@@ -8,7 +8,7 @@ use goose::config::Config;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
 use goose::session::{
-    generate_diagnostics, DiagnosticsLevel, Session, SessionManager, SessionType,
+    DiagnosticsLevel, Session, SessionManager, SessionType, generate_diagnostics,
 };
 use goose::utils::safe_truncate;
 use regex::Regex;
@@ -491,8 +491,8 @@ pub async fn prompt_interactive_session_selection(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::conversation::message::Message;
     use goose::conversation::Conversation;
+    use goose::conversation::message::Message;
     use rmcp::model::{Content, Role};
 
     #[test]

@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config::paths::Paths;
-use crate::recipe::read_recipe_file_content::{read_recipe_file, RecipeFile};
-use crate::recipe::Recipe;
 use crate::recipe::RECIPE_FILE_EXTENSIONS;
+use crate::recipe::Recipe;
+use crate::recipe::read_recipe_file_content::{RecipeFile, read_recipe_file};
 
 const GOOSE_RECIPE_PATH_ENV_VAR: &str = "GOOSE_RECIPE_PATH";
 

@@ -3,7 +3,7 @@
 mod common_tests;
 
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, send_custom, Connection, TestConnectionConfig};
+use common_tests::fixtures::{Connection, TestConnectionConfig, run_test, send_custom};
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::declarative_providers::load_provider;
 use goose::config::paths::Paths;
@@ -204,9 +204,11 @@ fn acp_catalog_and_custom_provider_methods_use_core_provider_store() {
         );
 
         Config::global().invalidate_secrets_cache();
-        assert!(Config::global()
-            .get_secret::<String>("CUSTOM_STARK_ACP_PROVIDER_API_KEY")
-            .is_err());
+        assert!(
+            Config::global()
+                .get_secret::<String>("CUSTOM_STARK_ACP_PROVIDER_API_KEY")
+                .is_err()
+        );
 
         let created = send_custom(
             conn.cx(),

@@ -2,19 +2,19 @@ mod persist;
 
 pub use persist::GooseCredentialStore;
 
+use axum::Router;
 use axum::extract::{Query, State};
 use axum::response::Html;
 use axum::routing::get;
-use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
+use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tracing::warn;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");

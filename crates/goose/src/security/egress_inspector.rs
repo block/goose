@@ -473,9 +473,11 @@ mod tests {
     #[test]
     fn test_generic_network_catchall() {
         let dests = extract_destinations("nc data.exfil.io 9999");
-        assert!(dests
-            .iter()
-            .any(|d| d.kind == "generic_network" && d.domain == "data.exfil.io"));
+        assert!(
+            dests
+                .iter()
+                .any(|d| d.kind == "generic_network" && d.domain == "data.exfil.io")
+        );
 
         let dests = extract_destinations("curl https://example.com/api/data");
         assert!(!dests.iter().any(|d| d.kind == "generic_network"));

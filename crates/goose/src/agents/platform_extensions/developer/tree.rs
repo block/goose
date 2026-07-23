@@ -46,19 +46,17 @@ impl TreeTool {
 
     fn tree_at(&self, root: PathBuf, depth: u32) -> CallToolResult {
         if !root.exists() {
-            return CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                root.display()
-            ))
-            .with_priority(0.0)]);
+            return CallToolResult::error(vec![
+                Content::text(format!("Path does not exist: {}", root.display()))
+                    .with_priority(0.0),
+            ]);
         }
 
         if !root.is_dir() {
-            return CallToolResult::error(vec![Content::text(format!(
-                "Path is not a directory: {}",
-                root.display()
-            ))
-            .with_priority(0.0)]);
+            return CallToolResult::error(vec![
+                Content::text(format!("Path is not a directory: {}", root.display()))
+                    .with_priority(0.0),
+            ]);
         }
 
         let max_depth = if depth == 0 {

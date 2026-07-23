@@ -3,7 +3,7 @@ use crate::agents::types::SharedProvider;
 use crate::config::permission::PermissionLevel;
 use crate::config::{GooseMode, PermissionManager};
 use crate::conversation::message::{Message, ToolRequest};
-use crate::permission::permission_judge::{detect_read_only_requests, PermissionCheckResult};
+use crate::permission::permission_judge::{PermissionCheckResult, detect_read_only_requests};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;

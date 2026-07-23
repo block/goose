@@ -111,7 +111,7 @@ impl Default for RateLimitedTelemetrySender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{timeout, Duration as TokioDuration};
+    use tokio::time::{Duration as TokioDuration, timeout};
 
     #[tokio::test]
     async fn test_rate_limited_sender() {

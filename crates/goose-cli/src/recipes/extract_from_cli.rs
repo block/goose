@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use goose::recipe::{Recipe, SubRecipe};
 
 use crate::cli::InputConfig;
@@ -97,10 +97,12 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(recipe
-            .extensions
-            .as_ref()
-            .is_none_or(|e| e.iter().all(|ext| ext.name() == "summon")));
+        assert!(
+            recipe
+                .extensions
+                .as_ref()
+                .is_none_or(|e| e.iter().all(|ext| ext.name() == "summon"))
+        );
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -165,10 +167,12 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(recipe
-            .extensions
-            .as_ref()
-            .is_none_or(|e| e.iter().all(|ext| ext.name() == "summon")));
+        assert!(
+            recipe
+                .extensions
+                .as_ref()
+                .is_none_or(|e| e.iter().all(|ext| ext.name() == "summon"))
+        );
 
         assert!(settings.is_some());
         let settings = settings.unwrap();

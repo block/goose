@@ -1,6 +1,6 @@
 use super::completion::GooseCompleter;
 use super::paste::{
-    read_paste_aware_input, PasteAwareEnterHandler, PasteCaptureHandler, PasteState,
+    PasteAwareEnterHandler, PasteCaptureHandler, PasteState, read_paste_aware_input,
 };
 use super::{CompletionCache, HintStatus};
 use anyhow::Result;

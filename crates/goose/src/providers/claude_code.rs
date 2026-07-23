@@ -6,7 +6,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use rmcp::model::{Role, Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -18,8 +18,8 @@ use tokio::process::Command;
 use tokio::sync::oneshot;
 
 use super::base::{
-    stream_from_single_message, ConfigKey, MessageStream, PermissionRouting, Provider, ProviderDef,
-    ProviderMetadata,
+    ConfigKey, MessageStream, PermissionRouting, Provider, ProviderDef, ProviderMetadata,
+    stream_from_single_message,
 };
 use super::utils::filter_extensions_from_system_prompt;
 use crate::config::paths::Paths;
@@ -1512,11 +1512,13 @@ mod tests {
         let pending = Arc::clone(&provider.pending_confirmations);
 
         let (first_msg, _) = stream.next().await.unwrap().unwrap();
-        assert!(first_msg
-            .unwrap()
-            .content
-            .iter()
-            .any(|c| c.as_action_required().is_some()));
+        assert!(
+            first_msg
+                .unwrap()
+                .content
+                .iter()
+                .any(|c| c.as_action_required().is_some())
+        );
 
         let tx = pending.lock().await.remove("perm_1").unwrap();
         drop(tx);

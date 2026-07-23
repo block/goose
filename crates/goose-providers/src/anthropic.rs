@@ -2,7 +2,7 @@ use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
 use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -16,7 +16,7 @@ use tokio_util::io::StreamReader;
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request, response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
+    ANTHROPIC_PROVIDER_NAME, AnthropicFormatOptions, create_request, response_to_streaming_message,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;

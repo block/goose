@@ -1,5 +1,5 @@
-use crate::config::paths::Paths;
 use crate::config::GooseMode;
+use crate::config::paths::Paths;
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
@@ -222,7 +222,7 @@ macro_rules! config_value {
         }
     };
 
-    ($key:ident, $inner:ty, $default:expr) => {
+    ($key:ident, $inner:ty, $default:expr_2021) => {
         pastey::paste! {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             #[serde(transparent)]
@@ -1059,7 +1059,7 @@ impl Config {
         fallback_values: Option<&HashMap<String, Value>>,
     ) -> Result<T, ConfigError> {
         if self.is_keyring_availability_error(&keyring_err.to_string()) {
-            std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+            unsafe { std::env::set_var("GOOSE_DISABLE_KEYRING", "1") };
             tracing::warn!("Keyring unavailable. Using file storage for secrets.");
 
             if let Some(values) = fallback_values {
@@ -1272,8 +1272,7 @@ mod tests {
         let value: String = config.get_param("test_key")?;
         assert_eq!(value, "test_value");
 
-        // Test with environment variable override
-        std::env::set_var("TEST_KEY", "env_value");
+        // Test with environment variable override        unsafe { std::env::set_var("TEST_KEY", "env_value") };
         let value: String = config.get_param("test_key")?;
         assert_eq!(value, "env_value");
 
@@ -1422,11 +1421,10 @@ mod tests {
         let value: String = config.get_secret("api_key")?;
         assert_eq!(value, "secret123");
 
-        // Test environment variable override
-        std::env::set_var("API_KEY", "env_secret");
+        // Test environment variable override        unsafe { std::env::set_var("API_KEY", "env_secret") };
         let value: String = config.get_secret("api_key")?;
         assert_eq!(value, "env_secret");
-        std::env::remove_var("API_KEY");
+        unsafe { std::env::remove_var("API_KEY") };
 
         // Test deleting a secret
         config.delete_secret("api_key")?;
@@ -1846,22 +1844,19 @@ mod tests {
         let config = new_test_config();
 
         // Test string environment variable (the original issue case)
-        std::env::set_var("PROVIDER", "ANTHROPIC");
+        unsafe { std::env::set_var("PROVIDER", "ANTHROPIC") };
         let value: String = config.get_param("provider")?;
         assert_eq!(value, "ANTHROPIC");
 
-        // Test number environment variable
-        std::env::set_var("PORT", "8080");
+        // Test number environment variable        unsafe { std::env::set_var("PORT", "8080") };
         let value: i32 = config.get_param("port")?;
         assert_eq!(value, 8080);
 
-        // Test boolean environment variable
-        std::env::set_var("ENABLED", "true");
+        // Test boolean environment variable        unsafe { std::env::set_var("ENABLED", "true") };
         let value: bool = config.get_param("enabled")?;
         assert!(value);
 
-        // Test JSON object environment variable
-        std::env::set_var("CONFIG", "{\"debug\": true, \"level\": 5}");
+        // Test JSON object environment variable        unsafe { std::env::set_var("CONFIG", "{\"debug\": true, \"level\": 5}") };
         #[derive(Deserialize, Debug, PartialEq)]
         struct TestConfig {
             debug: bool,
@@ -1871,11 +1866,10 @@ mod tests {
         assert!(value.debug);
         assert_eq!(value.level, 5);
 
-        // Clean up
-        std::env::remove_var("PROVIDER");
-        std::env::remove_var("PORT");
-        std::env::remove_var("ENABLED");
-        std::env::remove_var("CONFIG");
+        // Clean up        unsafe { std::env::remove_var("PROVIDER") };
+        unsafe { std::env::remove_var("PORT") };
+        unsafe { std::env::remove_var("ENABLED") };
+        unsafe { std::env::remove_var("CONFIG") };
 
         Ok(())
     }
@@ -1891,15 +1885,13 @@ mod tests {
         let value: String = config.get_param("test_precedence")?;
         assert_eq!(value, "file_value");
 
-        // Set environment variable
-        std::env::set_var("TEST_PRECEDENCE", "env_value");
+        // Set environment variable        unsafe { std::env::set_var("TEST_PRECEDENCE", "env_value") };
 
         // Environment variable should take precedence
         let value: String = config.get_param("test_precedence")?;
         assert_eq!(value, "env_value");
 
-        // Clean up
-        std::env::remove_var("TEST_PRECEDENCE");
+        // Clean up        unsafe { std::env::remove_var("TEST_PRECEDENCE") };
 
         Ok(())
     }
@@ -2002,10 +1994,10 @@ mod tests {
         assert_eq!(value, "from_config");
 
         // Env var overrides config file (and defaults)
-        std::env::set_var("MY_KEY", "from_env");
+        unsafe { std::env::set_var("MY_KEY", "from_env") };
         let value: String = config.get_param("my_key")?;
         assert_eq!(value, "from_env");
-        std::env::remove_var("MY_KEY");
+        unsafe { std::env::remove_var("MY_KEY") };
 
         // After removing env var, config file value is back
         let value: String = config.get_param("my_key")?;

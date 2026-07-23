@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
-    filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
-    Registry,
+    EnvFilter, Layer, Registry, filter::LevelFilter, fmt, layer::SubscriberExt,
+    util::SubscriberInitExt,
 };
 
 /// Configuration for the shared logging setup.
@@ -51,7 +51,7 @@ fn build_env_filter(extra_directives: &[&str]) -> EnvFilter {
 /// `Once` guard or direct init as appropriate for their use case.
 pub fn build_logging_subscriber(
     config: &LoggingConfig<'_>,
-) -> Result<impl SubscriberInitExt + Send + Sync + 'static> {
+) -> Result<impl SubscriberInitExt + Send + Sync + 'static + use<>> {
     let log_dir = prepare_log_directory(config.component, true)?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
     let log_filename = match config.name {

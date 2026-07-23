@@ -111,7 +111,8 @@ impl FinalOutputTool {
             Err(format!(
                 "Validation failed:\n{}\n\nExpected format:\n{}\n\nPlease correct your output to match the expected JSON schema and try again.",
                 validation_errors.join("\n"),
-                serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap()).unwrap_or_else(|_| "Invalid schema".to_string())
+                serde_json::to_string_pretty(self.response.json_schema.as_ref().unwrap())
+                    .unwrap_or_else(|_| "Invalid schema".to_string())
             ))
         }
     }

@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono;
 use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use goose::session::{SessionManager, SessionType};
 use rmcp::model::Role;
 
-use crate::session::{build_session, SessionBuilderConfig};
+use crate::session::{SessionBuilderConfig, build_session};
 
 use clap::ValueEnum;
 
@@ -397,8 +397,11 @@ mod tests {
         let script = render_term_init_script(Shell::Nu, "session-123", "/tmp/goose", true);
 
         assert!(script.contains("$env.config.hooks.command_not_found = {|command_name|"));
-        assert!(script
-            .contains("run-external \"/tmp/goose\" \"term\" \"run\" $prompt | complete | ignore"));
+        assert!(
+            script.contains(
+                "run-external \"/tmp/goose\" \"term\" \"run\" $prompt | complete | ignore"
+            )
+        );
     }
 
     #[test]

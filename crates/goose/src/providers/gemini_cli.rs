@@ -8,12 +8,12 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{
-    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
 };
 use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::search_path::SearchPaths;
 use crate::config::Config;
+use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;

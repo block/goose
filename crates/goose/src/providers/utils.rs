@@ -1,8 +1,8 @@
 use crate::config::paths::Paths;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fs_err::File;
 use goose_providers::errors::{GoogleErrorCode, ProviderError};
-use goose_providers::request_log::{install_logger, RequestLogHandle, RequestLogger};
+use goose_providers::request_log::{RequestLogHandle, RequestLogger, install_logger};
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
 use std::error::Error;
@@ -122,28 +122,49 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
     let final_status = get_google_final_status(status, payload.as_ref());
 
     match final_status {
-        StatusCode::OK =>  payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+        StatusCode::OK => payload.ok_or_else(|| {
+            ProviderError::RequestFailed("Response body is not valid JSON".to_string())
+        }),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            Err(ProviderError::Authentication(format!("Authentication failed for {url}. Please ensure your API keys are valid and have the required permissions. \
-                Status: {}. Response: {:?}", final_status, payload )))
+            Err(ProviderError::Authentication(format!(
+                "Authentication failed for {url}. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}",
+                final_status, payload
+            )))
         }
         StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {
                 if let Some(error) = payload.get("error") {
-                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
-                    let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
+                    error_msg = error
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
+                    let error_status = error
+                        .get("status")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("Unknown status");
                     if error_status == "INVALID_ARGUMENT"
-                        && goose_providers::http_status::is_context_length_exceeded_message(&error_msg)
+                        && goose_providers::http_status::is_context_length_exceeded_message(
+                            &error_msg,
+                        )
                     {
                         return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
                     }
                 }
             }
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+                "{}",
+                format!(
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    final_status, payload
+                )
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status {} at {url}. Message: {}", final_status, error_msg)))
+            Err(ProviderError::RequestFailed(format!(
+                "Request failed with status {} at {url}. Message: {}",
+                final_status, error_msg
+            )))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             let retry_delay = payload.as_ref().and_then(parse_google_retry_delay);
@@ -152,14 +173,23 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                 retry_delay,
             })
         }
-        _ if final_status.is_server_error() => Err(ProviderError::ServerError(
-            format!("Server error ({}) at {url}: {}", final_status, format_server_error_message(final_status, payload.as_ref())),
-        )),
+        _ if final_status.is_server_error() => Err(ProviderError::ServerError(format!(
+            "Server error ({}) at {url}: {}",
+            final_status,
+            format_server_error_message(final_status, payload.as_ref())
+        ))),
         _ => {
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+                "{}",
+                format!(
+                    "Provider request failed with status: {}. Payload: {:?}",
+                    final_status, payload
+                )
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status {} at {url}", final_status)))
+            Err(ProviderError::RequestFailed(format!(
+                "Request failed with status {} at {url}",
+                final_status
+            )))
         }
     }
 }

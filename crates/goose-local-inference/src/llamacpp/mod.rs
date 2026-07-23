@@ -11,7 +11,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{ChatTemplateResult, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
-use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOptions};
+use llama_cpp_2::{LlamaBackendDeviceType, LogOptions, list_llama_ggml_backend_devices};
 
 use self::inference_emulated_tools::{
     build_emulator_tool_description, generate_with_emulated_tools, load_tiny_model_prompt,
@@ -22,7 +22,7 @@ use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceB
 use crate::local_model_registry::{ChatTemplate, ModelSettings, ToolCallingMode};
 use crate::multimodal::ExtractedImage;
 use crate::tool_parsing::compact_tools_json;
-use crate::{build_openai_messages_json, build_openai_text_messages_json, ResolvedModelPaths};
+use crate::{ResolvedModelPaths, build_openai_messages_json, build_openai_text_messages_json};
 use goose_provider_types::errors::ProviderError;
 use goose_provider_types::formats::openai::format_tools;
 

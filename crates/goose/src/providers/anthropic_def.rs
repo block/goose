@@ -6,7 +6,7 @@ use crate::{
     providers::{base::ProviderDef, custom_provider_config::ConfigKeyResolver},
 };
 use goose_providers::{
-    anthropic::{self, AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION},
+    anthropic::{self, ANTHROPIC_API_VERSION, AnthropicProvider, AnthropicProviderBuilder},
     api_client::{ApiClient, AuthMethod, TlsConfig},
     base::ProviderDescriptor,
 };

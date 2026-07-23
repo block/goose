@@ -1,18 +1,18 @@
 use opentelemetry::trace::TracerProvider;
-use opentelemetry::{global, KeyValue};
+use opentelemetry::{KeyValue, global};
 use opentelemetry_appender_tracing::layer::{OpenTelemetryTracingBridge, TracingSpanAttributes};
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{SdkMeterProvider, Temporality};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::Resource;
 use std::env;
 use std::sync::{Arc, Mutex};
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
-use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::Layer as _;
+use tracing_subscriber::filter::FilterFn;
 
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
@@ -261,12 +261,12 @@ pub fn signal_exporter(signal: &str) -> Option<ExporterType> {
 pub fn promote_config_to_env(config: &crate::config::Config) {
     if env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_err() {
         if let Ok(endpoint) = config.get_param::<String>("otel_exporter_otlp_endpoint") {
-            env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+            unsafe { env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint) };
         }
     }
     if env::var("OTEL_EXPORTER_OTLP_TIMEOUT").is_err() {
         if let Ok(timeout) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
-            env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout.to_string());
+            unsafe { env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout.to_string()) };
         }
     }
 }

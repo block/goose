@@ -4,7 +4,7 @@ mod macros;
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use anyhow::Result;
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use serde::{Deserialize, Deserializer, Serialize};
 
 pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
@@ -585,8 +585,9 @@ mod tests {
             Err(err) => err,
         };
 
-        assert!(err
-            .to_string()
-            .contains("Required environment variable TEST_PROVIDER_REQUIRED_HOST is not set"));
+        assert!(
+            err.to_string()
+                .contains("Required environment variable TEST_PROVIDER_REQUIRED_HOST is not set")
+        );
     }
 }

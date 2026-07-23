@@ -11,8 +11,8 @@ use agent_client_protocol::schema::v1::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fs_err as fs;
-use goose::acp::server::{serve, AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions};
-pub use goose::acp::{map_permission_response, PermissionDecision};
+use goose::acp::server::{AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions, serve};
+pub use goose::acp::{PermissionDecision, map_permission_response};
 use goose::agents::GoosePlatform;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::paths::Paths;
@@ -776,7 +776,7 @@ where
 {
     let _guard = ACP_TEST_LOCK.lock().unwrap_or_else(|err| err.into_inner());
     if std::env::var_os("GOOSE_PATH_ROOT").is_none() {
-        std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path()) };
     }
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 

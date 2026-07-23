@@ -1,9 +1,9 @@
 // Extension data management for sessions
 // Provides a simple way to store extension-specific data with versioned keys
 
+use crate::config::ExtensionConfig;
 use crate::config::base::Config;
 use crate::config::extensions::is_extension_available;
-use crate::config::ExtensionConfig;
 use crate::session::SessionManager;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -294,8 +294,10 @@ mod tests {
         let names: Vec<String> = loaded.extensions.iter().map(|ext| ext.name()).collect();
 
         assert!(names.iter().any(|name| name == "developer"));
-        assert!(!names
-            .iter()
-            .any(|name| name == "definitely_not_real_platform_extension"));
+        assert!(
+            !names
+                .iter()
+                .any(|name| name == "definitely_not_real_platform_extension")
+        );
     }
 }

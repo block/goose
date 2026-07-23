@@ -1,6 +1,6 @@
 use super::{
-    config_secret_value, default_inventory_identity, default_inventory_identity_resolver,
-    serialize_string_map, InventoryIdentityInput, InventoryRegistration,
+    InventoryIdentityInput, InventoryRegistration, config_secret_value, default_inventory_identity,
+    default_inventory_identity_resolver, serialize_string_map,
 };
 use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};

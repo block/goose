@@ -1,14 +1,14 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
+use agent_client_protocol::ErrorCode;
 use agent_client_protocol::schema::v1::{
     ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
     SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
     SetSessionConfigOptionRequest,
 };
-use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
+use common_tests::fixtures::{Connection, OpenAiFixture, Session, TestConnectionConfig, run_test};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -237,10 +237,12 @@ fn test_list_sessions_pagination() {
             .await
             .unwrap();
         assert_eq!(first.sessions.len(), 50);
-        assert!(first
-            .sessions
-            .iter()
-            .all(|session| last_message_snippet(session).is_none()));
+        assert!(
+            first
+                .sessions
+                .iter()
+                .all(|session| last_message_snippet(session).is_none())
+        );
 
         let second = list_sessions_request(
             &conn,
@@ -257,10 +259,12 @@ fn test_list_sessions_pagination() {
         assert_eq!(last_message_snippet(&second.sessions[0]), Some("hello"));
 
         let second_id = &second.sessions[0].session_id;
-        assert!(first
-            .sessions
-            .iter()
-            .all(|session| session.session_id != *second_id));
+        assert!(
+            first
+                .sessions
+                .iter()
+                .all(|session| session.session_id != *second_id)
+        );
     });
 }
 

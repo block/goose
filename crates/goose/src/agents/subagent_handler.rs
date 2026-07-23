@@ -1,13 +1,13 @@
 use crate::{
-    agents::{subagent_task_config::TaskConfig, Agent, AgentConfig, AgentEvent, SessionConfig},
+    agents::{Agent, AgentConfig, AgentEvent, SessionConfig, subagent_task_config::TaskConfig},
     conversation::{
-        message::{Message, MessageContent},
         Conversation,
+        message::{Message, MessageContent},
     },
     prompt_template::render_template,
     recipe::Recipe,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::StreamExt;
 use rmcp::model::{
     ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotificationParam, Notification,
@@ -305,7 +305,7 @@ pub fn create_tool_notification(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_tool_notification, SUBAGENT_TOOL_REQUEST_TYPE};
+    use super::{SUBAGENT_TOOL_REQUEST_TYPE, create_tool_notification};
     use crate::conversation::message::MessageContent;
     use rmcp::model::{CallToolRequestParams, ServerNotification};
     use serde_json::json;

@@ -1,4 +1,4 @@
-use crate::download_manager::{get_download_manager, DownloadStatus};
+use crate::download_manager::{DownloadStatus, get_download_manager};
 use crate::paths::Paths;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -213,13 +213,12 @@ pub const FEATURED_MODELS: &[FeaturedModel] = &[
 pub fn default_settings_for_model(model_id: &str) -> ModelSettings {
     use super::hf_models::parse_model_spec;
     let model_repo = model_id.split(':').next().unwrap_or(model_id);
-    let featured = FEATURED_MODELS.iter().find(|m| {
-        if let Ok((repo_id, _quant)) = parse_model_spec(m.spec) {
-            repo_id == model_repo
-        } else {
-            false
-        }
-    });
+    let featured = FEATURED_MODELS
+        .iter()
+        .find(|m| match parse_model_spec(m.spec) {
+            Ok((repo_id, _quant)) => repo_id == model_repo,
+            _ => false,
+        });
     ModelSettings {
         tool_calling: if featured.is_some_and(|m| m.native_tool_calling) {
             ToolCallingMode::ForceNative
@@ -255,13 +254,12 @@ pub fn mmproj_local_path(repo_id: &str, filename: &str) -> PathBuf {
 /// Check if a model ID corresponds to a featured model.
 pub fn is_featured_model(model_id: &str) -> bool {
     use super::hf_models::parse_model_spec;
-    FEATURED_MODELS.iter().any(|m| {
-        if let Ok((repo_id, quant)) = parse_model_spec(m.spec) {
-            model_id_from_repo(&repo_id, &quant) == model_id
-        } else {
-            false
-        }
-    })
+    FEATURED_MODELS
+        .iter()
+        .any(|m| match parse_model_spec(m.spec) {
+            Ok((repo_id, quant)) => model_id_from_repo(&repo_id, &quant) == model_id,
+            _ => false,
+        })
 }
 
 static REGISTRY: OnceLock<Mutex<LocalModelRegistry>> = OnceLock::new();

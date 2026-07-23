@@ -8,16 +8,16 @@ use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
-    create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
+    OpenAiFormatOptions, create_request_with_options, get_cost, get_usage, response_to_message,
 };
 use crate::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+    ResponsesApiResponse, create_responses_request, get_responses_usage, responses_api_to_message,
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use async_trait::async_trait;

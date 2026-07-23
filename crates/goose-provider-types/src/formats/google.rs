@@ -5,14 +5,14 @@ use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
+    AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool, object,
 };
 use serde::Serialize;
 use std::borrow::Cow;
 use uuid::Uuid;
 
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::ops::Deref;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";

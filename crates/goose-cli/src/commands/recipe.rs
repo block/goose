@@ -83,7 +83,10 @@ where
                     err
                 )?;
                 writeln!(out, "Generated deeplink: {}", deeplink_url)?;
-                writeln!(out, "You can manually copy and open the URL above, or ensure Goose Desktop is installed.")?;
+                writeln!(
+                    out,
+                    "You can manually copy and open the URL above, or ensure Goose Desktop is installed."
+                )?;
                 Err(anyhow::anyhow!("Failed to open recipe: {}", err))
             }
         },
@@ -124,11 +127,7 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
                     };
 
                     let description = if let Some(desc) = &recipe.description {
-                        if desc.is_empty() {
-                            "(none)"
-                        } else {
-                            desc
-                        }
+                        if desc.is_empty() { "(none)" } else { desc }
                     } else {
                         "(none)"
                     };

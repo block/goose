@@ -10,14 +10,14 @@ use crate::errors::ProviderError;
 use crate::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use crate::images::ImageFormat;
 use crate::model::ModelConfig;
-use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
+use crate::request_log::{LoggerHandleExt, RequestLogHandle, start_log};
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use reqwest::{Response, StatusCode};
 use rmcp::model::Tool;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -599,9 +599,10 @@ mod tests {
         .err()
         .expect("expected static models validation error");
 
-        assert!(err
-            .to_string()
-            .contains("dynamic_models: false but no static models listed"));
+        assert!(
+            err.to_string()
+                .contains("dynamic_models: false but no static models listed")
+        );
     }
 
     #[tokio::test]

@@ -3,15 +3,15 @@ use goose::conversation::Conversation;
 
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
-use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
+use crate::scenario_tests::provider_configs::{ProviderConfig, get_provider_configs};
 use crate::session::CliSession;
 use anyhow::Result;
 use goose::agents::{Agent, AgentConfig, GoosePlatform};
-use goose::config::permission::PermissionManager;
 use goose::config::GooseMode;
+use goose::config::permission::PermissionManager;
 use goose::providers::{create, testprovider::TestProvider};
-use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
+use goose::session::session_manager::SessionType;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -170,7 +170,9 @@ where
                 let _ = std::fs::remove_file(&file_path);
                 return Err(anyhow::anyhow!(
                     "Test replay failed for '{}' ({}): {}. File deleted - re-run test to record fresh data.",
-                    test_name, factory_name, e
+                    test_name,
+                    factory_name,
+                    e
                 ));
             }
         }
@@ -280,7 +282,9 @@ where
             let _ = std::fs::remove_file(&file_path);
             return Err(anyhow::anyhow!(
                 "Test replay failed for '{}' ({}) - missing recorded interaction: {}. File deleted - re-run test to record fresh data.",
-                test_name, factory_name, err_msg
+                test_name,
+                factory_name,
+                err_msg
             ));
         }
     }
@@ -329,8 +333,8 @@ fn setup_environment(config: &ProviderConfig) -> Result<HashMap<&'static str, St
     if let Some(mods) = &config.env_modifications {
         for (&var, value) in mods.iter() {
             match value {
-                Some(val) => std::env::set_var(var, val),
-                None => std::env::remove_var(var),
+                Some(val) => unsafe { std::env::set_var(var, val) },
+                None => unsafe { std::env::remove_var(var) },
             }
         }
     }
@@ -353,12 +357,12 @@ fn setup_environment(config: &ProviderConfig) -> Result<HashMap<&'static str, St
 
 fn restore_environment(config: &ProviderConfig, original_env: &HashMap<&'static str, String>) {
     for (&var, value) in original_env.iter() {
-        std::env::set_var(var, value);
+        unsafe { std::env::set_var(var, value) };
     }
     if let Some(mods) = &config.env_modifications {
         for &var in mods.keys() {
             if !original_env.contains_key(var) {
-                std::env::remove_var(var);
+                unsafe { std::env::remove_var(var) };
             }
         }
     }

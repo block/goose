@@ -11,7 +11,7 @@ use agent_client_protocol::schema::v1::{
     Meta, SessionId, ToolCallId, ToolCallUpdate, ToolCallUpdateFields,
 };
 use rmcp::model::CallToolRequestParams;
-use serde_json::{json, to_string, Map, Number, Value};
+use serde_json::{Map, Number, Value, json, to_string};
 use std::slice::from_ref;
 use std::sync::Arc;
 use std::time::Duration;
@@ -157,8 +157,7 @@ impl ToolTitleEnrichmentJob {
                         return;
                     }
 
-                    let system =
-                        "Summarize this tool call in a short lowercase phrase (3-8 words). \
+                    let system = "Summarize this tool call in a short lowercase phrase (3-8 words). \
                          No punctuation. No quotes. Examples: reading project configuration, \
                          checking network connectivity, listing files in src directory";
                     let user_text = format!("Tool: {name}\nArguments: {args_json}");

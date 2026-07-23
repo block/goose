@@ -2,7 +2,7 @@ use goose::conversation::message::Message;
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
-use goose::session_context::{session_id_request_builder, SESSION_ID_HEADER};
+use goose::session_context::{SESSION_ID_HEADER, session_id_request_builder};
 use goose_providers::model::ModelConfig;
 use serde_json::json;
 use std::sync::Arc;
@@ -161,8 +161,8 @@ async fn make_request(provider: &dyn Provider, session_id: &str) {
 #[tokio::test]
 #[cfg(feature = "otel")]
 async fn test_session_id_propagates_to_log_records() {
-    use opentelemetry::logs::AnyValue;
     use opentelemetry::Key;
+    use opentelemetry::logs::AnyValue;
     use opentelemetry_appender_tracing::layer::{
         OpenTelemetryTracingBridge, TracingSpanAttributes,
     };

@@ -1,13 +1,14 @@
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use indoc::formatdoc;
 use rmcp::{
+    ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult, Role,
         ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
-    tool, tool_handler, tool_router, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +102,7 @@ impl TutorialServer {
         let content = String::from_utf8_lossy(file.contents()).into_owned();
 
         Ok(CallToolResult::success(vec![
-            Content::text(content).with_audience(vec![Role::Assistant])
+            Content::text(content).with_audience(vec![Role::Assistant]),
         ]))
     }
 }
@@ -136,10 +137,11 @@ mod tests {
 
         assert_eq!(info.server_info.name, "goose-tutorial");
         assert!(info.instructions.is_some());
-        assert!(info
-            .instructions
-            .unwrap()
-            .contains("tutorial extension is enabled"));
+        assert!(
+            info.instructions
+                .unwrap()
+                .contains("tutorial extension is enabled")
+        );
     }
 
     #[tokio::test]
@@ -201,8 +203,10 @@ mod tests {
         // Check that the instructions contain the tutorial list
         let available_tutorials = TutorialServer::get_available_tutorials();
         // The instructions should contain at least some part of the tutorial list
-        assert!(available_tutorials
-            .lines()
-            .any(|line| instructions.contains(line)));
+        assert!(
+            available_tutorials
+                .lines()
+                .any(|line| instructions.contains(line))
+        );
     }
 }

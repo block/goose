@@ -1,12 +1,12 @@
 macro_rules! expose_declarative_provider {
-    ($module:ident, $definition:expr) => {
+    ($module:ident, $definition:expr_2021) => {
         pub mod $module {
             use anyhow::Result;
 
             use crate::{
                 api_client::TlsConfig,
                 base::Provider,
-                declarative::{from_json, KeyResolver},
+                declarative::{KeyResolver, from_json},
             };
 
             pub const JSON: &str = include_str!(concat!(

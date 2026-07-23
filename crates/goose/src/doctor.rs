@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use crate::agents::platform_extensions::developer;
 use crate::agents::ExtensionConfig;
+use crate::agents::platform_extensions::developer;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::providers;
 use crate::providers::base::Provider;
 use crate::session::{
-    config_path, latest_llm_log_path, read_capped, read_tail, recent_cli_log_paths, SystemInfo,
+    SystemInfo, config_path, latest_llm_log_path, read_capped, read_tail, recent_cli_log_paths,
 };
 use goose_providers::errors::ProviderError;
 
@@ -66,7 +66,7 @@ async fn ensure_working_provider(
     let provider_name = config.get_goose_provider().ok();
     let model_name = config.get_goose_model().ok();
 
-    if let (Some(ref pname), Some(ref mname)) = (&provider_name, &model_name) {
+    if let (Some(pname), Some(mname)) = (&provider_name, &model_name) {
         log.push(format!("Checking {} / {} ...", pname, mname));
         match try_create_and_test(pname, mname).await {
             Ok(_) => {

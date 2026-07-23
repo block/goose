@@ -18,13 +18,13 @@
 //! User-side items (`message` with `role:"user"`, `function_call_output`,
 //! `web_search_call`) are rollout-specific and handled locally.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::formats::openai_responses::{ResponseOutputItem, ResponsesApiResponse};
 
@@ -334,11 +334,13 @@ mod tests {
         assert_eq!(req_block["toolCall"]["status"], "success");
         assert_eq!(req_block["toolCall"]["value"]["arguments"]["cmd"], "ls");
         // user message with the tool response
-        assert!(msgs[2]["content"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| c["type"] == "toolResponse"));
+        assert!(
+            msgs[2]["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["type"] == "toolResponse")
+        );
     }
 
     #[test]

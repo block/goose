@@ -2,7 +2,7 @@ use super::*;
 #[cfg(feature = "local-inference")]
 use crate::dictation::providers::transcribe_local;
 use crate::dictation::providers::{
-    all_providers, get_provider_def, is_configured, transcribe_with_provider, DictationProvider,
+    DictationProvider, all_providers, get_provider_def, is_configured, transcribe_with_provider,
 };
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper;
@@ -19,7 +19,7 @@ impl GooseAcpAgent {
         &self,
         req: DictationTranscribeRequest,
     ) -> Result<DictationTranscribeResponse, agent_client_protocol::Error> {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+        use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
         let config = crate::config::Config::global();
 
         #[cfg(not(feature = "local-inference"))]
@@ -157,7 +157,7 @@ impl GooseAcpAgent {
     ) -> Result<DictationModelsListResponse, agent_client_protocol::Error> {
         #[cfg(feature = "local-inference")]
         {
-            use crate::download_manager::{get_download_manager, DownloadStatus};
+            use crate::download_manager::{DownloadStatus, get_download_manager};
 
             let manager = get_download_manager();
             let recommended_id = whisper::recommend_model();

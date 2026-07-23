@@ -1,8 +1,8 @@
 use crate::recipe::read_recipe_file_content::RecipeFile;
 use crate::recipe::template_recipe::parse_recipe_content;
 use crate::recipe::{
-    Recipe, RecipeParameter, RecipeParameterInputType, RecipeParameterRequirement,
-    BUILT_IN_RECIPE_DIR_PARAM,
+    BUILT_IN_RECIPE_DIR_PARAM, Recipe, RecipeParameter, RecipeParameterInputType,
+    RecipeParameterRequirement,
 };
 use anyhow::Result;
 use std::collections::HashSet;
@@ -153,7 +153,10 @@ fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Re
         .collect();
 
     if !file_params_with_defaults.is_empty() {
-        return Err(anyhow::anyhow!("File parameters cannot have default values to avoid importing sensitive user files: {}", file_params_with_defaults.join(", ")));
+        return Err(anyhow::anyhow!(
+            "File parameters cannot have default values to avoid importing sensitive user files: {}",
+            file_params_with_defaults.join(", ")
+        ));
     }
 
     let optional_params_without_default_values: Vec<String> = params
@@ -167,7 +170,10 @@ fn validate_optional_parameters(parameters: &Option<Vec<RecipeParameter>>) -> Re
     if optional_params_without_default_values.is_empty() {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Optional parameters missing default values in the recipe: {}. Please provide defaults.", optional_params_without_default_values.join(", ")))
+        Err(anyhow::anyhow!(
+            "Optional parameters missing default values in the recipe: {}. Please provide defaults.",
+            optional_params_without_default_values.join(", ")
+        ))
     }
 }
 

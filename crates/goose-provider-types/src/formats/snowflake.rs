@@ -3,10 +3,10 @@ use crate::conversation::token_usage::Usage;
 use crate::errors::ProviderError;
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParams, Role, Tool};
+use anyhow::{Result, anyhow};
+use rmcp::model::{CallToolRequestParams, Role, Tool, object};
 use rmcp::object;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 
 /// Convert internal Message format to Snowflake's API message specification

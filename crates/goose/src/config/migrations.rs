@@ -1,5 +1,5 @@
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
+use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::config::extensions::ExtensionEntry;
 use crate::config::providers::ProviderEntry;
 use serde_yaml::Mapping;

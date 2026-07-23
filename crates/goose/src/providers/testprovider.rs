@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,13 +89,13 @@ impl TestProvider {
 
                 for content in &mut cleaned_content {
                     match content {
-                        MessageContent::ToolRequest(ref mut req) => {
+                        MessageContent::ToolRequest(req) => {
                             req.tool_meta = None;
                         }
                         MessageContent::ToolResponse(ToolResponse {
                             tool_result:
                                 Ok(
-                                    ref mut result @ CallToolResult {
+                                    result @ CallToolResult {
                                         is_error: Some(false),
                                         ..
                                     },
@@ -326,10 +326,12 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No recorded response found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No recorded response found")
+        );
 
         let _ = fs::remove_file(temp_file);
     }

@@ -8,7 +8,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
@@ -190,8 +190,7 @@ async fn execute_summarize(
     let total_lines: usize = files.iter().map(|f| f.lines).sum();
     let file_count = files.len();
 
-    let system =
-        "You are an assistant that analyzes content and provides clear, concise summaries \
+    let system = "You are an assistant that analyzes content and provides clear, concise summaries \
          focused on answering the user's specific question. \
          Be specific and reference relevant parts of the content when helpful.";
 
@@ -477,12 +476,16 @@ mod tests {
         let gitignore = build_gitignore(dir.path());
         let files = collect_files(&[".".to_string()], dir.path(), &None, &gitignore).unwrap();
 
-        assert!(!files
-            .iter()
-            .any(|f| f.path.to_string_lossy().contains("node_modules")));
-        assert!(!files
-            .iter()
-            .any(|f| f.path.to_string_lossy().contains(".log")));
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.path.to_string_lossy().contains("node_modules"))
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.path.to_string_lossy().contains(".log"))
+        );
     }
 
     #[test]
@@ -510,9 +513,11 @@ mod tests {
         let result = collect_files(&["/etc/passwd".to_string()], dir.path(), &None, &gitignore);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("Absolute paths are not allowed"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Absolute paths are not allowed")
+        );
     }
 
     #[test]

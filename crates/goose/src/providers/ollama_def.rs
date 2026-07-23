@@ -5,16 +5,15 @@ use futures::future::BoxFuture;
 use url::Url;
 
 use crate::{
-    config::{declarative_providers::DeclarativeProviderConfig, Config},
+    config::{Config, declarative_providers::DeclarativeProviderConfig},
     providers::{base::ProviderDef, custom_provider_config::ConfigKeyResolver},
 };
 use goose_providers::{
     api_client::{ApiClient, AuthMethod},
     base::ProviderDescriptor,
     ollama::{
-        self, OllamaOptions, OllamaProvider, OllamaProviderBuilder,
-        OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME,
-        OLLAMA_TIMEOUT,
+        self, OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT, OLLAMA_HOST,
+        OLLAMA_PROVIDER_NAME, OLLAMA_TIMEOUT, OllamaOptions, OllamaProvider, OllamaProviderBuilder,
     },
 };
 

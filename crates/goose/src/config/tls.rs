@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::providers::api_client::TlsConfig;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::path::PathBuf;
 
 pub fn provider_tls_config_from_config(config: &Config) -> Result<Option<TlsConfig>> {

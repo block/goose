@@ -1,4 +1,4 @@
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{AppStrategy, AppStrategyArgs, choose_app_strategy};
 use std::ffi::OsString;
 use std::path::PathBuf;
 

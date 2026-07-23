@@ -347,9 +347,11 @@ mod tests {
         assert!(!config.ask_before.contains(&"prefix__tool3".to_string()));
 
         // Verify other entries remain
-        assert!(config
-            .always_allow
-            .contains(&"nonprefix__tool2".to_string()));
+        assert!(
+            config
+                .always_allow
+                .contains(&"nonprefix__tool2".to_string())
+        );
     }
 
     #[test]

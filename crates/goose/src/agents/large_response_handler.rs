@@ -39,8 +39,7 @@ pub fn process_tool_response(
                                     // If file writing fails, include original content with warning
                                     let warning = format!(
                                         "Warning: Failed to write large response to file: {}. Showing full content instead.\n\n{}",
-                                        e,
-                                        text_content.text
+                                        e, text_content.text
                                     );
                                     processed_contents.push(Content::text(warning));
                                 }
@@ -118,9 +117,11 @@ mod tests {
         // Verify the response contains a message about the file
         assert_eq!(processed.content.len(), 1);
         if let Some(text_content) = processed.content[0].as_text() {
-            assert!(text_content
-                .text
-                .contains("The response returned from the tool call was larger"));
+            assert!(
+                text_content
+                    .text
+                    .contains("The response returned from the tool call was larger")
+            );
             assert!(text_content.text.contains("characters"));
 
             // Extract the file path from the message
@@ -182,9 +183,11 @@ mod tests {
 
         // Second item should be a message about the file
         if let Some(text_content) = processed.content[1].as_text() {
-            assert!(text_content
-                .text
-                .contains("The response returned from the tool call was larger"));
+            assert!(
+                text_content
+                    .text
+                    .contains("The response returned from the tool call was larger")
+            );
 
             // Extract the file path and clean up
             let file_path = text_content

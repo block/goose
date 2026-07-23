@@ -71,9 +71,11 @@ mod tests {
                 "status"
             ]
         );
-        assert!(commands
-            .iter()
-            .all(|command| command.source == SlashCommandSource::Builtin));
+        assert!(
+            commands
+                .iter()
+                .all(|command| command.source == SlashCommandSource::Builtin)
+        );
     }
 
     fn entry(name: &str, source: SlashCommandSource) -> SlashCommandEntry {

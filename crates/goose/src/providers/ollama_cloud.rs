@@ -1,6 +1,6 @@
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::Config;
+use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use futures::future::BoxFuture;

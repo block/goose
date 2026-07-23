@@ -3,7 +3,7 @@
 mod common_tests;
 
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, send_custom, Connection, TestConnectionConfig};
+use common_tests::fixtures::{Connection, TestConnectionConfig, run_test, send_custom};
 use goose::config::paths::Paths;
 use goose::config::{Config, ConfigError};
 use goose::providers::base::{MessageStream, Provider};
@@ -243,9 +243,11 @@ fn acp_secret_mutations_and_inventory_refresh_invalidate_global_secret_cache() {
         );
 
         Config::global().invalidate_secrets_cache();
-        assert!(Config::global()
-            .get_secret::<String>("ANTHROPIC_API_KEY")
-            .is_err());
+        assert!(
+            Config::global()
+                .get_secret::<String>("ANTHROPIC_API_KEY")
+                .is_err()
+        );
 
         write_secrets(&config_dir, "ANTHROPIC_API_KEY: anthropic-key\n");
 

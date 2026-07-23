@@ -31,12 +31,12 @@ use goose_provider_types::conversation::token_usage::{ProviderUsage, Usage};
 use goose_provider_types::errors::ProviderError;
 use goose_provider_types::images::ImageFormat;
 use goose_provider_types::model::ModelConfig;
-use goose_provider_types::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
-use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
+use goose_provider_types::request_log::{LoggerHandleExt, RequestLogHandle, start_log};
+use llamacpp::{LLAMACPP_BACKEND_ID, LlamaCppBackend};
 use local_model_registry::ChatTemplate;
-use mlx::{MlxBackend, MLX_BACKEND_ID};
+use mlx::{MLX_BACKEND_ID, MlxBackend};
 use rmcp::model::Tool;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, Weak};
@@ -201,12 +201,15 @@ pub async fn loaded_model_ids() -> Result<HashSet<String>, ProviderError> {
 
     let mut loaded = HashSet::new();
     for (model_id, slot) in slots {
-        if let Ok(state) = slot.state.try_lock() {
-            if matches!(*state, ModelSlotState::Loaded(_)) {
+        match slot.state.try_lock() {
+            Ok(state) => {
+                if matches!(*state, ModelSlotState::Loaded(_)) {
+                    loaded.insert(model_id);
+                }
+            }
+            _ => {
                 loaded.insert(model_id);
             }
-        } else {
-            loaded.insert(model_id);
         }
     }
     Ok(loaded)
@@ -306,7 +309,7 @@ pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
 }
 
 pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
-    use local_model_registry::{get_registry, is_featured_model, FEATURED_MODELS};
+    use local_model_registry::{FEATURED_MODELS, get_registry, is_featured_model};
 
     let available_memory = available_inference_memory_bytes(runtime);
 
@@ -456,7 +459,9 @@ fn strip_image_parts_from_messages(messages: &mut [Value]) {
         }
     }
     if stripped {
-        tracing::warn!("Stripped image content parts from messages — vision encoder not available for this model");
+        tracing::warn!(
+            "Stripped image content parts from messages — vision encoder not available for this model"
+        );
     }
 }
 
@@ -603,7 +608,7 @@ impl ProviderDescriptor for LocalInferenceProvider {
     where
         Self: Sized,
     {
-        use crate::local_model_registry::{get_registry, FEATURED_MODELS};
+        use crate::local_model_registry::{FEATURED_MODELS, get_registry};
 
         let mut known_models: Vec<&str> = FEATURED_MODELS.iter().map(|m| m.spec).collect();
 
@@ -835,7 +840,7 @@ impl Provider for LocalInferenceProvider {
             tokio::task::spawn_blocking(move || {
                 // Macro to log errors before sending them through the channel
                 macro_rules! send_err {
-                    ($err:expr) => {{
+                    ($err:expr_2021) => {{
                         let err = $err;
                         let msg = match &err {
                             ProviderError::ExecutionError(s) => s.as_str(),

@@ -9,8 +9,8 @@ pub(crate) mod tool_call_notifier;
 pub(crate) mod tools;
 pub mod transport;
 
-pub use common::{map_permission_response, PermissionDecision};
+pub use common::{PermissionDecision, map_permission_response};
 pub use goose_sdk_types::{custom_notifications, custom_requests};
 pub use provider::{
-    extension_configs_to_mcp_servers, AcpProvider, AcpProviderConfig, ACP_CURRENT_MODEL,
+    ACP_CURRENT_MODEL, AcpProvider, AcpProviderConfig, extension_configs_to_mcp_servers,
 };

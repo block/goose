@@ -8,7 +8,7 @@ use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
 async fn main() -> Result<()> {
     dotenv().ok();
 
-    std::env::remove_var("DATABRICKS_TOKEN");
+    unsafe { std::env::remove_var("DATABRICKS_TOKEN") };
 
     let provider = create_with_named_model("databricks", Vec::new()).await?;
 

@@ -4,9 +4,9 @@ use std::time::Duration;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
@@ -17,20 +17,20 @@ use url::Url;
 use crate::conversation::message::Message;
 use crate::providers::api_client::RequestBuilderDecorator;
 use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    ConfigKey, DEFAULT_PROVIDER_TIMEOUT_SECS, MessageStream, Provider, ProviderDef,
+    ProviderMetadata,
 };
 use goose_providers::model::ModelConfig;
 
 use crate::providers::formats::gcpvertexai::{
-    create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
-    DEFAULT_MODEL, KNOWN_MODELS,
+    DEFAULT_MODEL, GcpLocation, KNOWN_MODELS, ModelProvider, RequestContext, create_request,
+    response_to_streaming_message,
 };
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use crate::providers::retry::RetryConfig;
 use goose_providers::errors::ProviderError;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
@@ -57,8 +57,7 @@ fn rate_limit_error_message(response_text: &str) -> String {
     }
 }
 
-const OVERLOADED_ERROR_MSG: &str =
-    "Vertex AI Provider API is temporarily overloaded. This is similar to a rate limit \
+const OVERLOADED_ERROR_MSG: &str = "Vertex AI Provider API is temporarily overloaded. This is similar to a rate limit \
      error but indicates backend processing capacity issues.";
 
 fn build_vertex_url(
@@ -758,9 +757,10 @@ mod tests {
         )
         .unwrap();
 
-        assert!(url
-            .as_str()
-            .contains("europe-west1-aiplatform.googleapis.com"));
+        assert!(
+            url.as_str()
+                .contains("europe-west1-aiplatform.googleapis.com")
+        );
         assert!(url.as_str().contains("locations/europe-west1"));
     }
 

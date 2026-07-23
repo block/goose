@@ -5,19 +5,19 @@ use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use pctx_code_mode::{
+    CodeMode,
     config::ToolDisclosure,
     descriptions::{tools as tool_descriptions, workflow::get_workflow_description},
     model::{CallbackConfig, ExecuteBashInput, ExecuteTypescriptInput, GetFunctionDetailsInput},
     registry::{CallbackFn, PctxRegistry},
-    CodeMode,
 };
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
     ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
 use std::hash::{Hash, Hasher};
@@ -518,18 +518,20 @@ impl McpClientTrait for CodeExecutionClient {
                 ]
             }
             ToolDisclosure::Sidecar => {
-                vec![McpTool::new(
-                    "execute_typescript".to_string(),
-                    tool_descriptions::EXECUTE_TYPESCRIPT_SIDECAR.to_string(),
-                    schema::<ExecuteWithToolGraph>(),
-                )
-                .annotate(ToolAnnotations::from_raw(
-                    Some("Execute TypeScript".to_string()),
-                    Some(false),
-                    Some(true),
-                    Some(false),
-                    Some(true),
-                ))]
+                vec![
+                    McpTool::new(
+                        "execute_typescript".to_string(),
+                        tool_descriptions::EXECUTE_TYPESCRIPT_SIDECAR.to_string(),
+                        schema::<ExecuteWithToolGraph>(),
+                    )
+                    .annotate(ToolAnnotations::from_raw(
+                        Some("Execute TypeScript".to_string()),
+                        Some(false),
+                        Some(true),
+                        Some(false),
+                        Some(true),
+                    )),
+                ]
             }
         };
 

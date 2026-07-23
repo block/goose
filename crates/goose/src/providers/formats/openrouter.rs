@@ -3,7 +3,7 @@ use goose_providers::formats::openai;
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::Role;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const REASONING_DETAILS_KEY: &str = "reasoning_details";
 

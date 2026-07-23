@@ -1,24 +1,24 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
-use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use crate::images::{ImageFormat, convert_image, detect_image_path, load_image_file};
 use crate::json::{parse_tool_arguments, truncation_error_message};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::{
-    split_think_blocks, ThinkFilter, ThinkingEffort, GEMINI_THOUGHT_SIGNATURE_KEY,
+    GEMINI_THOUGHT_SIGNATURE_KEY, ThinkFilter, ThinkingEffort, split_think_blocks,
 };
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use regex::Regex;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
-    Tool,
+    AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -357,14 +357,16 @@ pub fn format_messages_with_options(
                                     }
                                 }
                             }
-                            let tool_response_content: Value = json!(tool_content
-                                .iter()
-                                .map(|content| match content.deref() {
-                                    RawContent::Text(text) => text.text.clone(),
-                                    _ => String::new(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join(" "));
+                            let tool_response_content: Value = json!(
+                                tool_content
+                                    .iter()
+                                    .map(|content| match content.deref() {
+                                        RawContent::Text(text) => text.text.clone(),
+                                        _ => String::new(),
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(" ")
+                            );
 
                             // First add the tool response with all content
                             output.push(json!({
@@ -1104,7 +1106,7 @@ where
                 if !is_complete {
                     let mut done = false;
                     while !done {
-                        if let Some(response_chunk) = stream.next().await {
+                        match stream.next().await { Some(response_chunk) => {
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
                                 if line == "[DONE]" {
@@ -1134,7 +1136,7 @@ where
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
-                                                if let Some((_, _, ref mut args, ref mut extra)) = tool_call_data.get_mut(&index) {
+                                                if let Some((_, _, args, extra)) = tool_call_data.get_mut(&index) {
                                                     args.push_str(&delta_call.function.arguments);
                                                     if extra.is_none() && delta_call.extra.is_some() {
                                                         *extra = delta_call.extra.clone();
@@ -1156,9 +1158,9 @@ where
                                     done = true;
                                 }
                             }
-                        } else {
+                        } _ => {
                             break;
-                        }
+                        }}
                     }
                 }
 
@@ -1870,10 +1872,14 @@ mod tests {
 
     #[test]
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
-        let mut messages = vec![Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
-        )];
+        let mut messages =
+            vec![
+                Message::assistant().with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("example")
+                        .with_arguments(object!({"param1": "value1"}))),
+                ),
+            ];
 
         // Get the ID from the tool request to use in the response
         let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
@@ -1933,10 +1939,12 @@ mod tests {
 
         let result = format_tools(&[tool1, tool2]);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Duplicate tool name"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate tool name")
+        );
 
         Ok(())
     }
@@ -1974,10 +1982,12 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
         assert_eq!(content[1]["type"], "image_url");
-        assert!(content[1]["image_url"]["url"]
-            .as_str()
-            .unwrap()
-            .starts_with("data:image/png;base64,"));
+        assert!(
+            content[1]["image_url"]["url"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/png;base64,")
+        );
 
         // Create assistant message with same text - should NOT load the image
         let assistant_message =
@@ -2789,10 +2799,12 @@ data: [DONE]
             "Expected 2 tool calls, got {}",
             result.tool_calls.len()
         );
-        assert!(result
-            .tool_calls
-            .iter()
-            .all(|name| name == "developer__shell"));
+        assert!(
+            result
+                .tool_calls
+                .iter()
+                .all(|name| name == "developer__shell")
+        );
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
 
@@ -3090,8 +3102,8 @@ data: [DONE]"#;
     }
 
     #[tokio::test]
-    async fn test_streaming_suppresses_inline_think_when_structured_reasoning_follows(
-    ) -> anyhow::Result<()> {
+    async fn test_streaming_suppresses_inline_think_when_structured_reasoning_follows()
+    -> anyhow::Result<()> {
         // Inline <think>...</think> arrives in an early content chunk, then
         // reasoning_content arrives in a later chunk. The inline thinking
         // should be discarded in favor of the structured reasoning so users
@@ -3199,8 +3211,8 @@ data: [DONE]"#;
     }
 
     #[test]
-    fn test_response_to_message_prefers_structured_reasoning_over_inline_think(
-    ) -> anyhow::Result<()> {
+    fn test_response_to_message_prefers_structured_reasoning_over_inline_think()
+    -> anyhow::Result<()> {
         let response = json!({
             "choices": [{
                 "role": "assistant",

@@ -285,10 +285,12 @@ mod tests {
     #[test]
     fn test_messages_extract_multiple_images() {
         let b64 = tiny_png_base64();
-        let messages = vec![Message::user()
-            .with_image(b64.clone(), "image/png")
-            .with_text("describe both")
-            .with_image(b64, "image/png")];
+        let messages = vec![
+            Message::user()
+                .with_image(b64.clone(), "image/png")
+                .with_text("describe both")
+                .with_image(b64, "image/png"),
+        ];
 
         let (images, new_msgs) = extract_images_from_messages(&messages, "<__media__>");
         assert_eq!(images.len(), 2);

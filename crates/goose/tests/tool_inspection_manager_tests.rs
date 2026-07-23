@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, ToolRequest};
@@ -112,10 +112,14 @@ async fn test_inspect_tools_aggregates_and_handles_errors() {
     );
 
     // Verify that specific actions are preserved
-    assert!(results
-        .iter()
-        .any(|r| matches!(r.action, InspectionAction::Allow)));
-    assert!(results
-        .iter()
-        .any(|r| matches!(r.action, InspectionAction::RequireApproval(_))));
+    assert!(
+        results
+            .iter()
+            .any(|r| matches!(r.action, InspectionAction::Allow))
+    );
+    assert!(
+        results
+            .iter()
+            .any(|r| matches!(r.action, InspectionAction::RequireApproval(_)))
+    );
 }

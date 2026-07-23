@@ -592,10 +592,9 @@ impl DownloadManager {
                             None
                         };
 
-                        let current_total = if let Ok(dl) = downloads.lock() {
-                            dl.get(model_id).map(|p| p.total_bytes).unwrap_or(0)
-                        } else {
-                            0
+                        let current_total = match downloads.lock() {
+                            Ok(dl) => dl.get(model_id).map(|p| p.total_bytes).unwrap_or(0),
+                            _ => 0,
                         };
 
                         let eta_seconds = if let Some(speed) = speed_bps {

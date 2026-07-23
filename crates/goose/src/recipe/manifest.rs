@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::fs;
 use std::hash::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+use crate::recipe::Recipe;
 use crate::recipe::build_recipe::resolve_sub_recipe_path;
 use crate::recipe::local_recipes::list_local_recipes;
-use crate::recipe::Recipe;
 
 #[derive(Debug, Clone)]
 pub struct RecipeFileManifest {

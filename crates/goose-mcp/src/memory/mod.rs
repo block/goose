@@ -1,6 +1,7 @@
-use etcetera::{choose_app_strategy, AppStrategy};
+use etcetera::{AppStrategy, choose_app_strategy};
 use indoc::formatdoc;
 use rmcp::{
+    RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult, Meta,
@@ -8,7 +9,7 @@ use rmcp::{
     },
     schemars::JsonSchema,
     service::RequestContext,
-    tool, tool_handler, tool_router, RoleServer, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -528,12 +529,16 @@ mod tests {
             global_memory_dir: memory_base.join("global"),
         };
 
-        assert!(router
-            .clear_all_global_or_local_memories(false, Some(&working_dir))
-            .is_ok());
-        assert!(router
-            .clear_all_global_or_local_memories(true, None)
-            .is_ok());
+        assert!(
+            router
+                .clear_all_global_or_local_memories(false, Some(&working_dir))
+                .is_ok()
+        );
+        assert!(
+            router
+                .clear_all_global_or_local_memories(true, None)
+                .is_ok()
+        );
     }
 
     #[test]

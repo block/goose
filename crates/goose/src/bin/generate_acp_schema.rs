@@ -1,7 +1,7 @@
 use goose::acp::custom_notifications::custom_notification_schemas;
-use goose::acp::server::{agent_request_schemas, GooseAcpAgent};
+use goose::acp::server::{GooseAcpAgent, agent_request_schemas};
 use schemars::SchemaGenerator;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeSet, HashMap};
 use std::env;
 use std::fs;
@@ -599,14 +599,18 @@ mod tests {
             json!({ "type": "string", "const": "sse" })
         );
         assert_eq!(defs["McpServerStdio"]["properties"].get("type"), None);
-        assert!(defs["McpServerHttp"]["required"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("type")));
-        assert!(defs["McpServerSse"]["required"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("type")));
+        assert!(
+            defs["McpServerHttp"]["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("type"))
+        );
+        assert!(
+            defs["McpServerSse"]["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("type"))
+        );
     }
 
     #[test]

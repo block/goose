@@ -6,9 +6,9 @@ use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::{AgentEvent, ExtensionConfig, SessionConfig};
+use crate::config::Config;
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
-use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::execution::manager::AgentManager;
 use crate::session::SessionType;
@@ -167,7 +167,7 @@ impl GatewayHandler {
         if let Some(ref provider) = provider {
             update = update.provider_name(provider);
         }
-        if let (Some(ref provider), Ok(model_name)) = (&provider, config.get_goose_model()) {
+        if let (Some(provider), Ok(model_name)) = (&provider, config.get_goose_model()) {
             if let Ok(model_config) =
                 crate::model_config::model_config_from_user_config(provider, &model_name)
             {
@@ -182,10 +182,13 @@ impl GatewayHandler {
         ));
         let extensions_state = EnabledExtensionsState::new(extensions);
         let mut extension_data = session.extension_data.clone();
-        if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
-            tracing::warn!(error = %e, "failed to initialize gateway session extensions");
-        } else {
-            update = update.extension_data(extension_data);
+        match extensions_state.to_extension_data(&mut extension_data) {
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to initialize gateway session extensions");
+            }
+            _ => {
+                update = update.extension_data(extension_data);
+            }
         }
 
         update.apply().await?;
@@ -261,8 +264,7 @@ impl GatewayHandler {
         if let Some(ref provider) = current_provider {
             update = update.provider_name(provider);
         }
-        if let (Some(ref provider), Some(ref model_name)) = (&current_provider, &current_model_name)
-        {
+        if let (Some(provider), Some(model_name)) = (&current_provider, &current_model_name) {
             if let Ok(model_config) =
                 crate::model_config::model_config_from_user_config(provider, model_name)
             {
@@ -273,10 +275,13 @@ impl GatewayHandler {
         if extensions_changed {
             let extensions_state = EnabledExtensionsState::new(current_extensions);
             let mut extension_data = session.extension_data.clone();
-            if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
-                tracing::warn!(error = %e, "failed to update gateway session extensions");
-            } else {
-                update = update.extension_data(extension_data);
+            match extensions_state.to_extension_data(&mut extension_data) {
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to update gateway session extensions");
+                }
+                _ => {
+                    update = update.extension_data(extension_data);
+                }
             }
         }
 

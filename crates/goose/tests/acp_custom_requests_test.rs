@@ -7,8 +7,8 @@ use agent_client_protocol::schema::v1::{
 };
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{
-    run_test, send_custom, Connection, PermissionDecision, Session, SessionData,
-    TestConnectionConfig,
+    Connection, PermissionDecision, Session, SessionData, TestConnectionConfig, run_test,
+    send_custom,
 };
 use goose::acp::server::AcpProviderFactory;
 use goose::providers::base::{MessageStream, Provider};
@@ -29,8 +29,8 @@ static ACP_CONFIG_ROOT: LazyLock<tempfile::TempDir> =
     LazyLock::new(|| tempfile::tempdir().unwrap());
 
 fn write_acp_global_config(contents: &str) -> PathBuf {
-    std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
-    std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+    unsafe { std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path()) };
+    unsafe { std::env::set_var("GOOSE_DISABLE_KEYRING", "1") };
     let config_dir = goose::config::paths::Paths::config_dir();
     std::fs::create_dir_all(&config_dir).unwrap();
     let mut contents = contents.to_string();
@@ -473,9 +473,11 @@ fn test_custom_prompt_methods() {
         .await
         .expect("get prompt should succeed");
         assert_eq!(get_response["name"], "system.md");
-        assert!(get_response["content"]
-            .as_str()
-            .is_some_and(|s| !s.is_empty()));
+        assert!(
+            get_response["content"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty())
+        );
         assert_eq!(get_response["isCustomized"], false);
 
         let content = "custom acp system prompt";

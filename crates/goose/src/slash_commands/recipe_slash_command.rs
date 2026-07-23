@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use super::types::{SlashCommandEntry, SlashCommandSource};
 use super::util::normalize_command_name;
 use crate::config::Config;
-use crate::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+use crate::recipe::build_recipe::{RecipeError, build_recipe_from_template};
 use crate::recipe::{RecipeParameter, RecipeParameterRequirement, Response};
 
 const SLASH_COMMANDS_CONFIG_KEY: &str = "slash_commands";
@@ -470,9 +470,10 @@ mod tests {
 
         let err = parse_recipe_args("Button old-lib extra", &required, &[]).unwrap_err();
 
-        assert!(err
-            .to_string()
-            .contains("Unexpected positional argument: extra"));
+        assert!(
+            err.to_string()
+                .contains("Unexpected positional argument: extra")
+        );
     }
 
     #[test]

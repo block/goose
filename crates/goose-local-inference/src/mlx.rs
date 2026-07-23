@@ -4,9 +4,9 @@ mod imp {
     use std::path::{Path, PathBuf};
 
     use safemlx::transforms::eval;
-    use safemlx::{random, Array, Device, DeviceType, Stream};
+    use safemlx::{Array, Device, DeviceType, Stream, random};
     use safemlx_lm::gemma4_mtp::generate_gemma4_mtp;
-    use safemlx_lm::models::{gemma4_assistant::load_gemma4_assistant_model, LoadedModel, Model};
+    use safemlx_lm::models::{LoadedModel, Model, gemma4_assistant::load_gemma4_assistant_model};
     use safemlx_lm_utils::tokenizer::{Chat, Conversation, Role, Tokenizer};
     use serde_json::json;
 
@@ -16,10 +16,10 @@ mod imp {
     use crate::provider_utils::filter_extensions_from_system_prompt;
     use crate::thinking_output::ThinkingOutputFilter;
     use crate::tool_emulation::{
-        build_emulator_tool_description, load_tiny_model_prompt, message_for_emulator_action,
-        StreamingEmulatorParser, CODE_EXECUTION_TOOL,
+        CODE_EXECUTION_TOOL, StreamingEmulatorParser, build_emulator_tool_description,
+        load_tiny_model_prompt, message_for_emulator_action,
     };
-    use crate::{extract_text_content, ResolvedModelPaths};
+    use crate::{ResolvedModelPaths, extract_text_content};
     use goose_provider_types::conversation::message::{Message, MessageContent};
     use goose_provider_types::conversation::token_usage::{
         DraftStats, ProviderStats, ProviderUsage, Usage,
@@ -117,7 +117,8 @@ mod imp {
             if prompt_tokens.len() >= request.context_limit && request.context_limit > 0 {
                 return Err(ProviderError::ContextLengthExceeded(format!(
                     "Prompt ({} tokens) exceeds context limit ({} tokens). Try reducing conversation length.",
-                    prompt_tokens.len(), request.context_limit
+                    prompt_tokens.len(),
+                    request.context_limit
                 )));
             }
 
@@ -992,9 +993,9 @@ mod imp {
 
 #[cfg(not(feature = "mlx"))]
 mod imp {
+    use crate::ResolvedModelPaths;
     use crate::backend::{BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend};
     use crate::local_model_registry::ModelSettings;
-    use crate::ResolvedModelPaths;
     use goose_provider_types::errors::ProviderError;
 
     pub(crate) const MLX_BACKEND_ID: &str = "mlx";
@@ -1041,4 +1042,4 @@ mod imp {
     }
 }
 
-pub(crate) use imp::{MlxBackend, MLX_BACKEND_ID};
+pub(crate) use imp::{MLX_BACKEND_ID, MlxBackend};

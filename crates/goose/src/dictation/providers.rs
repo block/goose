@@ -1,5 +1,5 @@
-use crate::config::tls::provider_tls_config_from_config;
 use crate::config::Config;
+use crate::config::tls::provider_tls_config_from_config;
 #[cfg(feature = "local-inference")]
 use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 use crate::providers::api_client::{ApiClient, AuthMethod};
@@ -325,8 +325,8 @@ pub async fn transcribe_with_provider(
 #[cfg(test)]
 mod tests {
     use super::{
-        openai_dictation_target, resolve_openai_base_url_target,
-        OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH,
+        OPENAI_VERSIONLESS_TRANSCRIPTIONS_PATH, openai_dictation_target,
+        resolve_openai_base_url_target,
     };
 
     #[test]
@@ -363,8 +363,10 @@ mod tests {
 
     #[test]
     fn resolve_openai_base_url_target_ignores_blank_values() {
-        assert!(resolve_openai_base_url_target(Some("   "))
-            .unwrap()
-            .is_none());
+        assert!(
+            resolve_openai_base_url_target(Some("   "))
+                .unwrap()
+                .is_none()
+        );
     }
 }

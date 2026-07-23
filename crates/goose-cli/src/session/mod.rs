@@ -11,9 +11,9 @@ mod task_execution_display;
 mod thinking;
 
 use crate::session::task_execution_display::{
-    format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
+    TASK_EXECUTION_NOTIFICATION_TYPE, format_task_execution_notification,
 };
-use goose::conversation::{fix_conversation, Conversation};
+use goose::conversation::{Conversation, fix_conversation};
 use std::env;
 use std::io::Write;
 use std::str::FromStr;
@@ -21,13 +21,13 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
-pub use builder::{build_session, SessionBuilderConfig};
+pub use builder::{SessionBuilderConfig, build_session};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
-use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
+use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::Provider;
 use goose::providers::base::ProviderUsage;
 use goose::utils::safe_truncate;
@@ -36,7 +36,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::agents::{Agent, COMPACT_TRIGGERS, SessionConfig};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
@@ -1014,7 +1014,7 @@ impl CliSession {
     }
 
     async fn handle_list_skills(&mut self) -> Result<()> {
-        use comfy_table::{presets, Cell, ContentArrangement, Table};
+        use comfy_table::{Cell, ContentArrangement, Table, presets};
         use goose::custom_requests::SourceType;
         use goose::skills::list_installed_skills;
         let cwd = std::env::current_dir().unwrap_or_default();
@@ -2296,8 +2296,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
-async fn get_reasoner(
-) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
+async fn get_reasoner()
+-> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
 
     let config = Config::global();
@@ -2402,10 +2402,12 @@ mod tests {
             planner_classification_text(&mixed).unwrap(),
             "agent classification text"
         );
-        assert!(planner_classification_text(
-            &Message::assistant().with_content(MessageContent::Text(user_only))
-        )
-        .is_err());
+        assert!(
+            planner_classification_text(
+                &Message::assistant().with_content(MessageContent::Text(user_only))
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2434,9 +2436,11 @@ mod tests {
             provider_messages[0].as_concat_text(),
             "first request\nsecond request"
         );
-        assert!(!provider_messages[0]
-            .as_concat_text()
-            .contains("hidden separator"));
+        assert!(
+            !provider_messages[0]
+                .as_concat_text()
+                .contains("hidden separator")
+        );
     }
 
     #[test]

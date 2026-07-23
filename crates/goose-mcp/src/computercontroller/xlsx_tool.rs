@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use umya_spreadsheet::{structs::Workbook, Worksheet};
+use umya_spreadsheet::{Worksheet, structs::Workbook};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorksheetInfo {

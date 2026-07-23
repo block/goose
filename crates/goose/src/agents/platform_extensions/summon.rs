@@ -1,17 +1,17 @@
+use crate::agents::AgentConfig;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
-use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::subagent_handler::{OnMessageCallback, SubagentRunParams, run_subagent_task};
+use crate::agents::subagent_task_config::{DEFAULT_SUBAGENT_MAX_TURNS, TaskConfig};
 use crate::agents::tool_execution::ToolCallContext;
-use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
+use crate::recipe::{RECIPE_FILE_EXTENSIONS, Recipe, RecipeParameter, Settings};
 use crate::session::SessionType;
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
@@ -24,10 +24,10 @@ use rmcp::model::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -2547,9 +2547,9 @@ You review code."#;
         };
 
         // Set env var to a different value — recipe should still win
-        std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "99");
+        unsafe { std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "99") };
         let result = client.resolve_max_turns(&session);
-        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+        unsafe { std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS") };
 
         assert_eq!(
             result, 10,
@@ -2564,10 +2564,9 @@ You review code."#;
         let client = SummonClient::new(context).unwrap();
 
         let session = crate::session::Session::default(); // no recipe
-
-        std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "7");
+        unsafe { std::env::set_var("GOOSE_SUBAGENT_MAX_TURNS", "7") };
         let result = client.resolve_max_turns(&session);
-        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+        unsafe { std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS") };
 
         assert_eq!(
             result, 7,
@@ -2582,8 +2581,7 @@ You review code."#;
         let client = SummonClient::new(context).unwrap();
 
         let session = crate::session::Session::default(); // no recipe
-
-        std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS");
+        unsafe { std::env::remove_var("GOOSE_SUBAGENT_MAX_TURNS") };
         let result = client.resolve_max_turns(&session);
 
         assert_eq!(
@@ -2887,11 +2885,13 @@ You review code."#;
         assert_eq!(result.status, "completed");
         assert_eq!(result.turns, Some(5));
 
-        assert!(!client
-            .completed_tasks
-            .lock()
-            .await
-            .contains_key("20260204_2"));
+        assert!(
+            !client
+                .completed_tasks
+                .lock()
+                .await
+                .contains_key("20260204_2")
+        );
 
         let result = client
             .handle_load_task_result("20260204_3", false, false)
@@ -2948,11 +2948,13 @@ You review code."#;
         assert_eq!(result.status, "cancelled");
         assert_eq!(result.turns, Some(3));
         assert!(token.is_cancelled());
-        assert!(!client
-            .background_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(
+            !client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
     }
 
     #[tokio::test]
@@ -2990,11 +2992,13 @@ You review code."#;
         assert!(text.contains("7")); // turns taken
 
         // Task should still be in background_tasks (not consumed)
-        assert!(client
-            .background_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(
+            client
+                .background_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
     }
 
     #[tokio::test]
@@ -3037,11 +3041,13 @@ You review code."#;
         assert!(text.contains("final output"));
 
         // Peek must be non-destructive: the result is still retrievable afterwards.
-        assert!(client
-            .completed_tasks
-            .lock()
-            .await
-            .contains_key("20260204_1"));
+        assert!(
+            client
+                .completed_tasks
+                .lock()
+                .await
+                .contains_key("20260204_1")
+        );
         let result = client
             .handle_load_task_result("20260204_1", false, false)
             .await

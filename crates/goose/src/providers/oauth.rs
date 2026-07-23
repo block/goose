@@ -2,7 +2,7 @@ use crate::config::paths::Paths;
 use crate::providers::private_file::write_private_file;
 use crate::utils::bytes_to_hex;
 use anyhow::Result;
-use axum::{extract::Query, response::Html, routing::get, Router};
+use axum::{Router, extract::Query, response::Html, routing::get};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Digest;
 use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tokio::sync::{oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, oneshot};
 use url::Url;
 
 static OAUTH_MUTEX: Lazy<TokioMutex<()>> = Lazy::new(|| TokioMutex::new(()));
@@ -472,8 +472,8 @@ pub(crate) async fn get_oauth_token_async(
 mod tests {
     use super::*;
     use wiremock::{
-        matchers::{method, path},
         Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
     };
 
     #[tokio::test]

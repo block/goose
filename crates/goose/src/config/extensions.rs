@@ -1,6 +1,6 @@
 use super::base::Config;
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
+use crate::agents::extension::PLATFORM_EXTENSIONS;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;

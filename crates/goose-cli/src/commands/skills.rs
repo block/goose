@@ -1,5 +1,5 @@
 use anyhow::Result;
-use console::{measure_text_width, Term};
+use console::{Term, measure_text_width};
 use goose::skills::list_installed_skills;
 use goose::token_counter::create_token_counter;
 

@@ -97,14 +97,17 @@ impl GatewayManager {
                 }
             };
 
-            if let Err(e) = self.start_gateway_internal(config.clone(), gateway).await {
-                tracing::error!(
-                    gateway = %config.gateway_type,
-                    error = %e,
-                    "failed to auto-start gateway"
-                );
-            } else {
-                tracing::info!(gateway = %config.gateway_type, "gateway auto-started");
+            match self.start_gateway_internal(config.clone(), gateway).await {
+                Err(e) => {
+                    tracing::error!(
+                        gateway = %config.gateway_type,
+                        error = %e,
+                        "failed to auto-start gateway"
+                    );
+                }
+                _ => {
+                    tracing::info!(gateway = %config.gateway_type, "gateway auto-started");
+                }
             }
         }
     }

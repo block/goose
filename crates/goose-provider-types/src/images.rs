@@ -3,7 +3,7 @@ use std::{borrow::Cow, io::Read as _, path::Path};
 use base64::Engine as _;
 use rmcp::model::{AnnotateAble as _, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::errors::ProviderError;
 
@@ -221,13 +221,13 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
             _ => {
                 return Err(ProviderError::RequestFailed(
                     "Unsupported image format".to_string(),
-                ))
+                ));
             }
         },
         None => {
             return Err(ProviderError::RequestFailed(
                 "Unknown image format".to_string(),
-            ))
+            ));
         }
     };
 
@@ -485,10 +485,12 @@ mod tests {
         // Test loading fake PNG file
         let result = load_image_file(fake_png_path_str);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not a valid image"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("not a valid image")
+        );
 
         // Test nonexistent file
         let result = load_image_file("nonexistent.png");
@@ -504,9 +506,11 @@ mod tests {
         // Test loading unsupported GIF format
         let result = load_image_file(gif_path_str);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported image format"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unsupported image format")
+        );
     }
 }

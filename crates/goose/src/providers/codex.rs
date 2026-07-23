@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::thinking::ThinkingEffort;
@@ -22,7 +22,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::subprocess::configure_subprocess;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -765,10 +765,12 @@ mod tests {
         assert_eq!(metadata.default_model, CODEX_DEFAULT_MODEL);
         assert!(!metadata.known_models.is_empty());
         // Check that the default model is in the known models
-        assert!(metadata
-            .known_models
-            .iter()
-            .any(|m| m.name == CODEX_DEFAULT_MODEL));
+        assert!(
+            metadata
+                .known_models
+                .iter()
+                .any(|m| m.name == CODEX_DEFAULT_MODEL)
+        );
     }
 
     #[test_case(
@@ -869,9 +871,11 @@ mod tests {
     #[test_case("image/jpeg", ".jpg" ; "jpeg image")]
     fn test_prepare_input_image(mime: &str, expected_ext: &str) {
         let dir = tempfile::tempdir().unwrap();
-        let messages = vec![Message::user()
-            .with_text("Describe")
-            .with_image(TEST_IMAGE_B64, mime)];
+        let messages = vec![
+            Message::user()
+                .with_text("Describe")
+                .with_image(TEST_IMAGE_B64, mime),
+        ];
         let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
         assert_eq!(temp_files.len(), 1);
         let path = temp_files[0].path();
@@ -887,9 +891,11 @@ mod tests {
     #[test_case("image/svg+xml" ; "svg")]
     fn test_prepare_input_image_unsupported(mime: &str) {
         let dir = tempfile::tempdir().unwrap();
-        let messages = vec![Message::user()
-            .with_text("Describe")
-            .with_image(TEST_IMAGE_B64, mime)];
+        let messages = vec![
+            Message::user()
+                .with_text("Describe")
+                .with_image(TEST_IMAGE_B64, mime),
+        ];
         let err = prepare_input("", &messages, dir.path()).unwrap_err();
         assert!(
             err.to_string().contains("Unsupported image MIME type"),

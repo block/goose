@@ -66,7 +66,7 @@ impl ImageTool {
                 result
             }
             Err(error) => CallToolResult::error(vec![
-                Content::text(format!("Error: {error}")).with_priority(0.0)
+                Content::text(format!("Error: {error}")).with_priority(0.0),
             ]),
         }
     }

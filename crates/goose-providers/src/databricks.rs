@@ -19,19 +19,19 @@ use crate::databricks_auth::{
     DatabricksSessionIdProvider, DatabricksTokenResolver,
 };
 use crate::errors::ProviderError;
-use crate::formats::databricks::create_request_for_provider;
 pub use crate::formats::databricks::DATABRICKS_PROVIDER_NAME;
+use crate::formats::databricks::create_request_for_provider;
 use crate::formats::openai_responses::create_responses_request;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{
     handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
     stream_responses_compat,
 };
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use crate::retry::ProviderRetry;
 use crate::retry::{
-    RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-    DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
+    DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS, DEFAULT_MAX_RETRIES,
+    DEFAULT_MAX_RETRY_INTERVAL_MS, RetryConfig,
 };
 use rmcp::model::Tool;
 use serde_json::json;

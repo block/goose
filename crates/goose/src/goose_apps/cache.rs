@@ -190,9 +190,9 @@ mod tests {
         F: FnOnce(),
     {
         let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", root.path()) };
         test();
-        std::env::remove_var("GOOSE_PATH_ROOT");
+        unsafe { std::env::remove_var("GOOSE_PATH_ROOT") };
     }
 
     #[test]

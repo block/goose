@@ -15,7 +15,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use goose_providers::conversation::token_usage::Usage;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::conversation::Conversation;
 

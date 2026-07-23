@@ -331,7 +331,7 @@ mod tests {
     #[serial_test::serial]
     fn test_global_agents_md_in_agents_home() {
         let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", root.path()) };
 
         let agents_home = root.path().join(".agents");
         fs::create_dir_all(&agents_home).unwrap();
@@ -351,8 +351,7 @@ mod tests {
             ],
             &gitignore,
         );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
+        unsafe { std::env::remove_var("GOOSE_PATH_ROOT") };
 
         assert!(hints.contains("Global Hints"));
         assert!(hints.contains("Global agents home instructions"));
@@ -362,7 +361,7 @@ mod tests {
     #[serial_test::serial]
     fn test_global_agents_md_imports_not_filtered_by_project_gitignore() {
         let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", root.path()) };
 
         let agents_home = root.path().join(".agents");
         fs::create_dir_all(&agents_home).unwrap();
@@ -386,8 +385,7 @@ mod tests {
             ],
             &gitignore,
         );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
+        unsafe { std::env::remove_var("GOOSE_PATH_ROOT") };
 
         assert!(hints.contains("Imported policy content"));
     }
@@ -396,7 +394,7 @@ mod tests {
     #[serial_test::serial]
     fn test_global_agents_md_skipped_when_not_in_context_file_names() {
         let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", root.path()) };
 
         let agents_home = root.path().join(".agents");
         fs::create_dir_all(&agents_home).unwrap();
@@ -413,8 +411,7 @@ mod tests {
             &[GOOSE_HINTS_FILENAME.to_string()],
             &gitignore,
         );
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
+        unsafe { std::env::remove_var("GOOSE_PATH_ROOT") };
 
         assert!(!hints.contains("Global agents home instructions"));
     }
@@ -770,9 +767,11 @@ End of hints"#;
         tracker.record_tool_arguments(&Some(args), &wd);
         let hints = tracker.load_new_hints(&wd);
         assert!(hints.is_empty());
-        assert!(tracker
-            .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/src")));
+        assert!(
+            tracker
+                .loaded_dirs
+                .contains(&PathBuf::from("/home/user/project/src"))
+        );
     }
 
     #[test]
@@ -784,9 +783,11 @@ End of hints"#;
         tracker.record_tool_arguments(&Some(args), &wd);
         let hints = tracker.load_new_hints(&wd);
         assert!(hints.is_empty());
-        assert!(tracker
-            .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/nested")));
+        assert!(
+            tracker
+                .loaded_dirs
+                .contains(&PathBuf::from("/home/user/project/nested"))
+        );
     }
 
     #[test]
@@ -797,9 +798,11 @@ End of hints"#;
             serde_json::from_str(r#"{"command": "grep -rn pattern src/lib.rs"}"#).unwrap();
         tracker.record_tool_arguments(&Some(args), &wd);
         let _ = tracker.load_new_hints(&wd);
-        assert!(tracker
-            .loaded_dirs
-            .contains(&PathBuf::from("/home/user/project/src")));
+        assert!(
+            tracker
+                .loaded_dirs
+                .contains(&PathBuf::from("/home/user/project/src"))
+        );
         assert_eq!(tracker.loaded_dirs.len(), 1);
     }
 

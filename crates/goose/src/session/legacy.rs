@@ -1,5 +1,5 @@
-use crate::conversation::message::MessageMetadata;
 use crate::conversation::Conversation;
+use crate::conversation::message::MessageMetadata;
 use crate::session::Session;
 use anyhow::Result;
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
@@ -77,10 +77,9 @@ pub fn load_session(session_name: &str, session_path: &Path) -> Result<Session> 
 
             if let Some(desc) = obj.get_mut("description") {
                 if let Some(desc_str) = desc.as_str() {
-                    *desc = serde_json::json!(desc_str
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" "));
+                    *desc = serde_json::json!(
+                        desc_str.split_whitespace().collect::<Vec<_>>().join(" ")
+                    );
                 }
             }
         }

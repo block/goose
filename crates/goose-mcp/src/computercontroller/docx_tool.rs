@@ -217,7 +217,7 @@ fn parse_update_mode(
         _ => {
             return Err(invalid_params(
                 "Invalid mode. Must be 'append', 'replace', 'structured', or 'add_image'",
-            ))
+            ));
         }
     };
     Ok((mode, style))

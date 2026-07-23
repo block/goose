@@ -182,8 +182,9 @@ mod tests {
     fn test_code_generation() {
         let code = PairingStore::generate_code();
         assert_eq!(code.len(), 6);
-        assert!(code
-            .chars()
-            .all(|c| "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(c)));
+        assert!(
+            code.chars()
+                .all(|c| "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".contains(c))
+        );
     }
 }

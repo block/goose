@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::Message;
@@ -47,8 +47,7 @@ static COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "grind",
-        description:
-            "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
+        description: "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
     },
     CommandDef {
         name: "status",
@@ -568,8 +567,10 @@ mod tests {
 
     #[test]
     fn status_is_registered_as_a_builtin_command() {
-        assert!(list_commands()
-            .iter()
-            .any(|command| command.name == "status"));
+        assert!(
+            list_commands()
+                .iter()
+                .any(|command| command.name == "status")
+        );
     }
 }

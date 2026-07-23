@@ -620,10 +620,12 @@ mod tests {
         let response = apply_onboarding_import_candidates(&target_config, target.path(), &req);
 
         assert_eq!(response.imported.extensions, 1);
-        assert!(response
-            .warnings
-            .iter()
-            .any(|warning| warning.starts_with("Skipped Goose configuration import at ")));
+        assert!(
+            response
+                .warnings
+                .iter()
+                .any(|warning| warning.starts_with("Skipped Goose configuration import at "))
+        );
         let extensions = target_config.get_param::<Mapping>("extensions").unwrap();
         assert!(extensions.contains_key(serde_yaml::Value::String(name_to_key("github"))));
     }

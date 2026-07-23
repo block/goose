@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, Mutex, OwnedMutexGuard, RwLock};
+use tokio::sync::{Mutex, OwnedMutexGuard, RwLock, mpsc};
 use tokio::time::timeout;
 use tracing::warn;
 use uuid::Uuid;
@@ -555,9 +555,10 @@ mod tests {
             .await;
 
         let err = result.expect_err("request should fail without a registered stream");
-        assert!(err
-            .to_string()
-            .contains("Tool call request not found for elicitation"));
+        assert!(
+            err.to_string()
+                .contains("Tool call request not found for elicitation")
+        );
     }
 
     #[tokio::test]
@@ -579,8 +580,9 @@ mod tests {
             .await;
 
         let err = result.expect_err("request should fail when stream is closed");
-        assert!(err
-            .to_string()
-            .contains("Tool call action-required stream closed"));
+        assert!(
+            err.to_string()
+                .contains("Tool call action-required stream closed")
+        );
     }
 }

@@ -1,7 +1,7 @@
 use dotenvy::dotenv;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
-use goose::config::{GooseMode, DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
+use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT, GooseMode};
 use goose::conversation::message::Message;
 use goose::providers::create_with_named_model;
 use goose::session::session_manager::SessionType;

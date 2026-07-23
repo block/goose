@@ -4,25 +4,25 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::{DateTime, Local, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
+use tokio_cron_scheduler::{Job, JobScheduler as TokioJobScheduler, job::JobId};
 use tokio_util::sync::CancellationToken;
 
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
-use crate::config::{resolve_extensions_for_new_session, Config};
-use crate::conversation::message::Message;
+use crate::config::{Config, resolve_extensions_for_new_session};
 use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 #[cfg(feature = "telemetry")]
 use crate::posthog;
 use crate::providers::create;
-use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::Recipe;
+use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
@@ -319,7 +319,7 @@ impl Scheduler {
                     "Invalid cron expression '{}': expected 5 or 6 fields, got {}",
                     job.cron,
                     cron_parts.len()
-                )))
+                )));
             }
         };
 
@@ -1297,7 +1297,7 @@ impl SchedulerTrait for Scheduler {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     fn create_test_recipe(dir: &Path, name: &str) -> PathBuf {
         let recipe_path = dir.join(format!("{}.yaml", name));

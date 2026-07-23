@@ -1,8 +1,8 @@
 use crate::agents::mcp_client::GooseMcpHostInfo;
 use crate::agents::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
+use crate::config::Config;
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
-use crate::config::Config;
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{SessionManager, SessionNameUpdate};
@@ -11,7 +11,7 @@ use lru::LruCache;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex, OnceCell, RwLock};
+use tokio::sync::{Mutex, OnceCell, RwLock, mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -405,8 +405,8 @@ mod tests {
     use test_case::test_case;
 
     use crate::agents::{AgentConfig, GoosePlatform};
-    use crate::config::permission::PermissionManager;
     use crate::config::GooseMode;
+    use crate::config::permission::PermissionManager;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 

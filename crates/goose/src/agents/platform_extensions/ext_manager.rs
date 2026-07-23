@@ -10,7 +10,7 @@ use rmcp::model::{
     InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
     ReadResourceResult, ServerCapabilities, ServerNotification, Tool, ToolAnnotations,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
@@ -105,15 +105,19 @@ impl ExtensionManagerClient {
         &self,
     ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                match extension_manager.search_available_extensions().await {
-                    Ok(content) => Ok(content),
-                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to search available extensions: {}", e.message),
-                    }),
+            match weak_ref.upgrade() {
+                Some(extension_manager) => {
+                    match extension_manager.search_available_extensions().await {
+                        Ok(content) => Ok(content),
+                        Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                            message: format!(
+                                "Failed to search available extensions: {}",
+                                e.message
+                            ),
+                        }),
+                    }
                 }
-            } else {
-                Err(ExtensionManagerToolError::ManagerUnavailable)
+                _ => Err(ExtensionManagerToolError::ManagerUnavailable),
             }
         } else {
             Err(ExtensionManagerToolError::ManagerUnavailable)
@@ -205,26 +209,27 @@ impl ExtensionManagerClient {
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                let params = arguments
-                    .map(serde_json::Value::Object)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+            match weak_ref.upgrade() {
+                Some(extension_manager) => {
+                    let params = arguments
+                        .map(serde_json::Value::Object)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                match extension_manager
-                    .list_resources(
-                        session_id,
-                        params,
-                        tokio_util::sync::CancellationToken::default(),
-                    )
-                    .await
-                {
-                    Ok(content) => Ok(content),
-                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to list resources: {}", e.message),
-                    }),
+                    match extension_manager
+                        .list_resources(
+                            session_id,
+                            params,
+                            tokio_util::sync::CancellationToken::default(),
+                        )
+                        .await
+                    {
+                        Ok(content) => Ok(content),
+                        Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                            message: format!("Failed to list resources: {}", e.message),
+                        }),
+                    }
                 }
-            } else {
-                Err(ExtensionManagerToolError::ManagerUnavailable)
+                _ => Err(ExtensionManagerToolError::ManagerUnavailable),
             }
         } else {
             Err(ExtensionManagerToolError::ManagerUnavailable)
@@ -237,26 +242,27 @@ impl ExtensionManagerClient {
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
-            if let Some(extension_manager) = weak_ref.upgrade() {
-                let params = arguments
-                    .map(serde_json::Value::Object)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+            match weak_ref.upgrade() {
+                Some(extension_manager) => {
+                    let params = arguments
+                        .map(serde_json::Value::Object)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                match extension_manager
-                    .read_resource_tool(
-                        session_id,
-                        params,
-                        tokio_util::sync::CancellationToken::default(),
-                    )
-                    .await
-                {
-                    Ok(content) => Ok(content),
-                    Err(e) => Err(ExtensionManagerToolError::OperationFailed {
-                        message: format!("Failed to read resource: {}", e.message),
-                    }),
+                    match extension_manager
+                        .read_resource_tool(
+                            session_id,
+                            params,
+                            tokio_util::sync::CancellationToken::default(),
+                        )
+                        .await
+                    {
+                        Ok(content) => Ok(content),
+                        Err(e) => Err(ExtensionManagerToolError::OperationFailed {
+                            message: format!("Failed to read resource: {}", e.message),
+                        }),
+                    }
                 }
-            } else {
-                Err(ExtensionManagerToolError::ManagerUnavailable)
+                _ => Err(ExtensionManagerToolError::ManagerUnavailable),
             }
         } else {
             Err(ExtensionManagerToolError::ManagerUnavailable)

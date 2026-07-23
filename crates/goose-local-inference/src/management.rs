@@ -1,20 +1,20 @@
 use super::hf_models::{
-    self, register_resolved_model, resolve_local_model_selection, resolve_local_model_spec,
-    resolve_model_spec, HfGgufFile, HfModelInfo, HfModelVariant,
+    self, HfGgufFile, HfModelInfo, HfModelVariant, register_resolved_model,
+    resolve_local_model_selection, resolve_local_model_spec, resolve_model_spec,
 };
 use super::local_model_registry::{
-    default_settings_for_model, featured_mmproj_spec, get_registry, model_id_from_repo,
-    ChatTemplate, LocalModelEntry, LocalModelStorage, ModelDownloadStatus, ModelSettings,
-    SamplingConfig, ToolCallingMode, FEATURED_MODELS,
+    ChatTemplate, FEATURED_MODELS, LocalModelEntry, LocalModelStorage, ModelDownloadStatus,
+    ModelSettings, SamplingConfig, ToolCallingMode, default_settings_for_model,
+    featured_mmproj_spec, get_registry, model_id_from_repo,
 };
 use super::{
-    available_inference_memory_bytes, builtin_chat_template_names, recommend_local_model,
-    InferenceRuntime,
+    InferenceRuntime, available_inference_memory_bytes, builtin_chat_template_names,
+    recommend_local_model,
 };
-use crate::download_manager::{get_download_manager, DownloadProgress, DownloadStatus};
+use crate::download_manager::{DownloadProgress, DownloadStatus, get_download_manager};
 use crate::huggingface_auth;
 use crate::paths::Paths;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::future::join_all;
 use goose_sdk_types::custom_requests::{
     LocalInferenceBuiltinChatTemplatesListResponse, LocalInferenceChatTemplate,
@@ -789,10 +789,11 @@ fn register_pending_download_model(
                 .clone()
                 .unwrap_or_else(|| "default".to_string()),
         )
-    } else if let Ok((repo_id, quantization)) = hf_models::parse_model_spec(&req.spec) {
-        (repo_id, "llamacpp".to_string(), quantization)
     } else {
-        (req.spec.clone(), "mlx".to_string(), "default".to_string())
+        match hf_models::parse_model_spec(&req.spec) {
+            Ok((repo_id, quantization)) => (repo_id, "llamacpp".to_string(), quantization),
+            _ => (req.spec.clone(), "mlx".to_string(), "default".to_string()),
+        }
     };
 
     let mut registry = get_registry()

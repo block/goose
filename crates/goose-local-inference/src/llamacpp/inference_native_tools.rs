@@ -8,7 +8,7 @@ use uuid::Uuid;
 use super::super::finalize_usage;
 use super::super::thinking_output::ThinkingOutputFilter;
 use super::inference_engine::{
-    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer, TokenAction,
+    GenerationContext, StopSuffixTrimmer, TokenAction, generation_loop, prepare_generation,
 };
 
 pub(super) fn generate_with_native_tools(

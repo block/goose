@@ -1,7 +1,7 @@
 use crate::cli::StreamableHttpOptions;
 
-use super::output;
 use super::CliSession;
+use super::output;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
@@ -9,8 +9,8 @@ use goose::config::{Config, ExtensionConfig, GooseMode};
 use goose::model_config::model_config_from_user_config;
 use goose::providers::create;
 use goose::recipe::Recipe;
-use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
+use goose::session::session_manager::SessionType;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -595,24 +595,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                     ),
                     Err(e2) => {
                         output::render_error(&format!(
-                        "Error {}.\n\
+                            "Error {}.\n\
                         Please check your system keychain and run 'goose configure' again.\n\
                         If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                         For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
-                        e2
-                    ));
+                            e2
+                        ));
                         process::exit(1);
                     }
                 }
             }
             Err(e) => {
                 output::render_error(&format!(
-                "Error {}.\n\
+                    "Error {}.\n\
                 Please check your system keychain and run 'goose configure' again.\n\
                 If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                 For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
-                e
-            ));
+                    e
+                ));
                 process::exit(1);
             }
         };

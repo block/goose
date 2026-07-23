@@ -27,9 +27,9 @@ use serde_json::json;
 use std::borrow::Cow;
 use uuid::Uuid;
 
-use super::super::{finalize_usage, thinking_output::ThinkingOutputFilter, StreamSender};
+use super::super::{StreamSender, finalize_usage, thinking_output::ThinkingOutputFilter};
 use super::inference_engine::{
-    generation_loop, prepare_generation, GenerationContext, StopSuffixTrimmer, TokenAction,
+    GenerationContext, StopSuffixTrimmer, TokenAction, generation_loop, prepare_generation,
 };
 
 const SHELL_TOOL: &str = "developer__shell";
@@ -741,9 +741,11 @@ mod tests {
             parse_with_seeded_thinking(&["reasoning\n$ echo hidden\n</think>The answer."], false);
 
         assert_eq!(thinking.trim(), "reasoning\n$ echo hidden");
-        assert!(actions
-            .iter()
-            .all(|action| matches!(action, EmulatorAction::Text(_))));
+        assert!(
+            actions
+                .iter()
+                .all(|action| matches!(action, EmulatorAction::Text(_)))
+        );
         let text: String = actions
             .iter()
             .filter_map(|action| match action {

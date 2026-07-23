@@ -3,7 +3,7 @@ use crate::images::ImageFormat;
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::api_client::{ApiClient, AuthMethod, RequestBuilderDecorator, TlsConfig};
 use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
@@ -15,7 +15,7 @@ use crate::retry::ProviderRetry;
 use crate::utils::get_model;
 
 use crate::model::ModelConfig;
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";

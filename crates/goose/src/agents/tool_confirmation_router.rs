@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tracing::warn;
 
 use crate::permission::PermissionConfirmation;
@@ -25,22 +25,25 @@ impl ToolConfirmationRouter {
     }
 
     pub async fn deliver(&self, request_id: String, confirmation: PermissionConfirmation) -> bool {
-        if let Some(tx) = self.pending.lock().await.remove(&request_id) {
-            if tx.send(confirmation).is_err() {
+        match self.pending.lock().await.remove(&request_id) {
+            Some(tx) => {
+                if tx.send(confirmation).is_err() {
+                    warn!(
+                        request_id = %request_id,
+                        "Confirmation receiver was dropped (task cancelled)"
+                    );
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => {
                 warn!(
                     request_id = %request_id,
-                    "Confirmation receiver was dropped (task cancelled)"
+                    "No task waiting for confirmation"
                 );
                 false
-            } else {
-                true
             }
-        } else {
-            warn!(
-                request_id = %request_id,
-                "No task waiting for confirmation"
-            );
-            false
         }
     }
 }
@@ -48,8 +51,8 @@ impl ToolConfirmationRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::permission::permission_confirmation::PrincipalType;
     use crate::permission::Permission;
+    use crate::permission::permission_confirmation::PrincipalType;
 
     fn test_confirmation() -> PermissionConfirmation {
         PermissionConfirmation {

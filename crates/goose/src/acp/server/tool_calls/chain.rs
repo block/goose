@@ -47,7 +47,7 @@ pub(crate) fn extend_chain_membership(
 #[cfg(test)]
 mod tests {
     mod extend_chain_membership {
-        use super::super::{extend_chain_membership, ToolChain};
+        use super::super::{ToolChain, extend_chain_membership};
         use std::collections::HashMap;
         use std::sync::Arc;
 

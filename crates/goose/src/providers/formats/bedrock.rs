@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::mcp_utils::ToolResult;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
-    object, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
-    Role, Tool,
+    CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, ResourceContents, Role, Tool,
+    object,
 };
 use serde_json::Value;
 
@@ -18,8 +18,8 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
 use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
-    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
+    ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS, ThinkingType, adaptive_output_effort,
+    model_supports_temperature, thinking_budget_tokens, thinking_type_for_provider,
 };
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
@@ -913,10 +913,12 @@ mod tests {
         // Verify that converting a cache point results in an error
         let result = from_bedrock_content_block(&content_block);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("CachePoint blocks should have been filtered out"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("CachePoint blocks should have been filtered out")
+        );
     }
 
     #[test]

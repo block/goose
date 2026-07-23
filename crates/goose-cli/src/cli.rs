@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Shell as ClapShell};
+use clap_complete::{Shell as ClapShell, generate};
 use clap_complete_nushell::Nushell as ClapNushell;
 use goose::agents::GoosePlatform;
 use goose::builtin_extension::register_builtin_extensions;
@@ -9,7 +9,7 @@ use goose::config::{Config, GooseMode};
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose::source_roots::SourceRoot;
-use goose_mcp::mcp_server_runner::{serve, McpCommand};
+use goose_mcp::mcp_server_runner::{McpCommand, serve};
 use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
 #[cfg(feature = "telemetry")]
@@ -20,7 +20,7 @@ use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
 use crate::commands::term::{
-    handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
+    Shell, handle_term_info, handle_term_init, handle_term_log, handle_term_run,
 };
 
 use crate::commands::schedule::{
@@ -32,10 +32,10 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::commands::skills::handle_skills_list;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig};
+use crate::session::{SessionBuilderConfig, build_session};
 use goose::agents::Container;
-use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
+use goose::session::session_manager::SessionType;
 use std::io::Read;
 use std::path::PathBuf;
 use tracing::warn;
@@ -1839,7 +1839,9 @@ fn parse_run_input(
             Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            eprintln!(
+                "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+            );
             std::process::exit(1);
         }
     }
@@ -2341,7 +2343,7 @@ pub async fn cli() -> anyhow::Result<()> {
             summary_only,
             severity,
         }) => {
-            use crate::commands::review::{handle_review, ReviewOptions};
+            use crate::commands::review::{ReviewOptions, handle_review};
             handle_review(ReviewOptions {
                 range,
                 prompt_file: prompt,

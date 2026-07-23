@@ -10,7 +10,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool, ToolAnnotations,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
@@ -114,9 +114,10 @@ impl TodoClient {
         let schema_value =
             serde_json::to_value(schema).expect("Failed to serialize TodoWriteParams schema");
 
-        vec![Tool::new(
-            "todo_write".to_string(),
-            indoc! {r#"
+        vec![
+            Tool::new(
+                "todo_write".to_string(),
+                indoc! {r#"
                     Overwrite the entire TODO content.
 
                     The content persists across conversation turns and compaction. Use this for:
@@ -126,16 +127,17 @@ impl TodoClient {
                     WARNING: This operation completely replaces the existing content. Always include
                     all content you want to keep, not just the changes.
                 "#}
-            .to_string(),
-            schema_value.as_object().unwrap().clone(),
-        )
-        .annotate(ToolAnnotations::from_raw(
-            Some("Write TODO".to_string()),
-            Some(false),
-            Some(true),
-            Some(false),
-            Some(false),
-        ))]
+                .to_string(),
+                schema_value.as_object().unwrap().clone(),
+            )
+            .annotate(ToolAnnotations::from_raw(
+                Some("Write TODO".to_string()),
+                Some(false),
+                Some(true),
+                Some(false),
+                Some(false),
+            )),
+        ]
     }
 }
 

@@ -2,7 +2,7 @@
 //! Usage: cargo run -p goose --bin analyze_cli -- <path> [--focus <symbol>] [--depth <n>] [--follow <n>] [--force]
 
 use clap::Parser;
-use goose::agents::platform_extensions::analyze::{format, graph, AnalyzeClient};
+use goose::agents::platform_extensions::analyze::{AnalyzeClient, format, graph};
 use rayon::prelude::*;
 use std::path::PathBuf;
 

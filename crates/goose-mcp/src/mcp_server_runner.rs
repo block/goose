@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Result;
-use rmcp::{transport::stdio, ServiceExt};
+use rmcp::{ServiceExt, transport::stdio};
 
 #[derive(Clone, Debug)]
 pub enum McpCommand {

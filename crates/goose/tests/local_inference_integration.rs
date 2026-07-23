@@ -144,9 +144,11 @@ async fn test_local_inference_vision_produces_output() {
     let image_b64 = BASE64_STANDARD.encode(&image_bytes);
 
     let system = "You are a helpful assistant. Describe images briefly.";
-    let messages = vec![Message::user()
-        .with_text("What color is this image?")
-        .with_image(image_b64, "image/png")];
+    let messages = vec![
+        Message::user()
+            .with_text("What color is this image?")
+            .with_image(image_b64, "image/png"),
+    ];
 
     let mut stream = provider
         .stream(&model_config, system, &messages, &[])
@@ -189,9 +191,11 @@ async fn test_local_inference_vision_text_only_model_graceful() {
     let image_b64 = BASE64_STANDARD.encode(&image_bytes);
 
     let system = "You are a helpful assistant.";
-    let messages = vec![Message::user()
-        .with_text("What is this?")
-        .with_image(image_b64, "image/png")];
+    let messages = vec![
+        Message::user()
+            .with_text("What is this?")
+            .with_image(image_b64, "image/png"),
+    ];
 
     let mut stream = provider
         .stream(&model_config, system, &messages, &[])

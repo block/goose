@@ -8,7 +8,7 @@ use crate::retry::ProviderRetry;
 use crate::base::{ConfigKey, Provider, ProviderMetadata};
 use crate::formats::google::{create_request_with_thinking_budget, response_to_streaming_message};
 use crate::model::ModelConfig;
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;

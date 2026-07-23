@@ -1,4 +1,4 @@
-use super::{default_inventory_configured, default_inventory_identity, InventoryIdentityInput};
+use super::{InventoryIdentityInput, default_inventory_configured, default_inventory_identity};
 use crate::config::Config;
 use crate::providers::base::ProviderMetadata;
 use anyhow::Result;

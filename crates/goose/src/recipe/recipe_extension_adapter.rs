@@ -1,7 +1,7 @@
 use crate::agents::extension::{Envs, ExtensionConfig};
 use rmcp::model::Tool;
-use serde::de::Deserializer;
 use serde::Deserialize;
+use serde::de::Deserializer;
 use std::collections::HashMap;
 
 #[derive(Deserialize)]
@@ -97,7 +97,7 @@ enum RecipeExtensionConfigInternal {
 }
 
 macro_rules! map_recipe_extensions {
-    ($value:expr; $( $variant:ident { $( $field:ident ),* $(,)? } ),+ $(,)?) => {{
+    ($value:expr_2021; $( $variant:ident { $( $field:ident ),* $(,)? } ),+ $(,)?) => {{
         match $value {
             $(
                 RecipeExtensionConfigInternal::$variant {

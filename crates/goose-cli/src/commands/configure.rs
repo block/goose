@@ -1,12 +1,12 @@
 use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 use cliclack::spinner;
 use console::style;
-use goose::agents::extension::{ToolInfo, PLATFORM_EXTENSIONS};
-use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
-use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::agents::extension::{PLATFORM_EXTENSIONS, ToolInfo};
+use goose::agents::extension_manager::get_parameter_names;
+use goose::agents::{ExtensionConfig, extension::Envs};
 use goose::config::declarative_providers::{
-    create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
+    CreateCustomProviderParams, create_custom_provider, remove_custom_provider,
 };
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
@@ -16,14 +16,14 @@ use goose::config::paths::Paths;
 use goose::config::permission::PermissionLevel;
 use goose::config::signup_tetrate::TetrateAuth;
 use goose::config::{
-    configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
-    PermissionManager,
+    Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode, PermissionManager,
+    configure_tetrate,
 };
 #[cfg(feature = "telemetry")]
-use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
+use goose::posthog::{TELEMETRY_ENABLED_KEY, get_telemetry_choice};
 use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
-use goose::providers::{create, providers, retry_operation, RetryConfig};
+use goose::providers::{RetryConfig, create, providers, retry_operation};
 use goose::session::SessionType;
 use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;

@@ -1,13 +1,13 @@
 use anyhow::Result;
 use axum::{
+    Router,
     extract::Query,
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
-    Router,
 };
-use include_dir::{include_dir, Dir};
-use minijinja::{context, Environment};
+use include_dir::{Dir, include_dir};
+use minijinja::{Environment, context};
 use serde::Deserialize;
 use tokio::sync::oneshot;
 

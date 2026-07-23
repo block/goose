@@ -14,7 +14,7 @@ use rmcp::model::{Content, ErrorCode, ErrorData};
 use super::Agent;
 use crate::recipe::Recipe;
 use crate::scheduler::{
-    open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
+    MAX_SCHEDULE_RECIPE_BYTES, ValidatedScheduleRecipe, open_regular_schedule_recipe,
 };
 use crate::scheduler_trait::SchedulerTrait;
 
@@ -377,7 +377,10 @@ impl Agent {
                 let duration = Utc::now().signed_duration_since(start_time);
                 Ok(vec![Content::text(format!(
                     "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
-                    job_id, session_id, start_time.to_rfc3339(), duration.num_seconds()
+                    job_id,
+                    session_id,
+                    start_time.to_rfc3339(),
+                    duration.num_seconds()
                 ))])
             }
             Ok(None) => Ok(vec![Content::text(format!(

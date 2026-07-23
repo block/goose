@@ -1,8 +1,8 @@
 use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
-use crate::session::session_manager::SessionUsageTotals;
 use crate::session::Session;
+use crate::session::session_manager::SessionUsageTotals;
 use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
 use agent_client_protocol::schema::v1::{
     AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, SessionConfigOption,
@@ -15,7 +15,7 @@ use goose_providers::thinking::ThinkingEffort;
 use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
-use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
+use super::server::{DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL, build_usage_updates};
 
 pub(super) fn session_provider_selection(session: &Session) -> &str {
     session

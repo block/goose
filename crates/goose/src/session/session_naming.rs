@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use anyhow::Result;
-use goose_providers::conversation::{message::Message, Conversation};
+use goose_providers::conversation::{Conversation, message::Message};
 use regex::Regex;
 
 use crate::{providers::base::Provider, utils::safe_truncate};

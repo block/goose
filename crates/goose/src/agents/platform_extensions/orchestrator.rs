@@ -4,8 +4,8 @@ use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::{AgentEvent, SessionConfig};
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 use crate::execution::manager::AgentManager;
 use crate::providers;
 use crate::providers::base::Provider;
@@ -18,7 +18,7 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool,
 };
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -343,8 +343,7 @@ impl OrchestratorClient {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let system =
-            "You are a helpful assistant. Summarize the following conversation concisely, \
+        let system = "You are a helpful assistant. Summarize the following conversation concisely, \
                        capturing the key topics, decisions, and current state. Be brief.";
 
         let user_message = Message::user().with_text(format!(

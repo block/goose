@@ -1,6 +1,6 @@
 use super::*;
 use crate::config::paths::Paths;
-use crate::goose_apps::{fetch_mcp_apps, mark_deletable_apps, GooseApp, McpAppCache};
+use crate::goose_apps::{GooseApp, McpAppCache, fetch_mcp_apps, mark_deletable_apps};
 
 const APPS_EXTENSION_NAME: &str = "apps";
 
@@ -257,9 +257,9 @@ mod tests {
         F: FnOnce(),
     {
         let root = TempDir::new().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+        unsafe { std::env::set_var("GOOSE_PATH_ROOT", root.path()) };
         test();
-        std::env::remove_var("GOOSE_PATH_ROOT");
+        unsafe { std::env::remove_var("GOOSE_PATH_ROOT") };
     }
 
     #[test]

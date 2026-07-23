@@ -1,7 +1,7 @@
 use crate::config::paths::Paths;
-use crate::config::{get_enabled_extensions, Config};
-use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
+use crate::config::{Config, get_enabled_extensions};
 use crate::session::SessionManager;
+use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
 #[cfg(target_os = "windows")]
 use crate::subprocess::SubprocessExt;
 use chrono::{DateTime, Utc};
@@ -9,8 +9,8 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";

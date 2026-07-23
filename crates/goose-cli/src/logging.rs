@@ -37,9 +37,9 @@ mod tests {
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
         if cfg!(windows) {
-            env::set_var("USERPROFILE", temp_dir.path());
+            unsafe { env::set_var("USERPROFILE", temp_dir.path()) };
         } else {
-            env::set_var("HOME", temp_dir.path());
+            unsafe { env::set_var("HOME", temp_dir.path()) };
         }
         temp_dir
     }
@@ -76,28 +76,28 @@ mod tests {
         ];
 
         for (var, _) in &original_vars {
-            env::remove_var(var);
+            unsafe { env::remove_var(var) };
         }
 
         assert!(langfuse_layer::create_langfuse_observer().is_none());
 
-        env::set_var("LANGFUSE_PUBLIC_KEY", "test_public_key");
-        env::set_var("LANGFUSE_SECRET_KEY", "test_secret_key");
+        unsafe { env::set_var("LANGFUSE_PUBLIC_KEY", "test_public_key") };
+        unsafe { env::set_var("LANGFUSE_SECRET_KEY", "test_secret_key") };
         assert!(langfuse_layer::create_langfuse_observer().is_some());
 
-        env::remove_var("LANGFUSE_PUBLIC_KEY");
-        env::remove_var("LANGFUSE_SECRET_KEY");
-        env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test_public_key");
-        env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test_secret_key");
+        unsafe { env::remove_var("LANGFUSE_PUBLIC_KEY") };
+        unsafe { env::remove_var("LANGFUSE_SECRET_KEY") };
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "test_public_key") };
+        unsafe { env::set_var("LANGFUSE_INIT_PROJECT_SECRET_KEY", "test_secret_key") };
         assert!(langfuse_layer::create_langfuse_observer().is_some());
 
-        env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY");
+        unsafe { env::remove_var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY") };
         assert!(langfuse_layer::create_langfuse_observer().is_none());
 
         for (var, value) in original_vars {
             match value {
-                Some(val) => env::set_var(var, val),
-                None => env::remove_var(var),
+                Some(val) => unsafe { env::set_var(var, val) },
+                None => unsafe { env::remove_var(var) },
             }
         }
     }

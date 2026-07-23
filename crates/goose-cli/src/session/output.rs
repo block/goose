@@ -1,6 +1,6 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{measure_text_width, style, Color, StyledObject, Term};
+use console::{Color, StyledObject, Term, measure_text_width, style};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
@@ -1082,7 +1082,7 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
 }
 
 fn print_table(table_lines: &[&str], theme: Theme) {
-    use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
+    use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets};
 
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
@@ -1549,7 +1549,7 @@ mod tests {
         let original_home = env::var("HOME").ok();
 
         // Set a test home directory
-        env::set_var("HOME", "/Users/testuser");
+        unsafe { env::set_var("HOME", "/Users/testuser") };
 
         assert_eq!(
             shorten_path("/Users/testuser/documents/file.txt", false),
@@ -1564,9 +1564,9 @@ mod tests {
 
         // Restore the original home dir
         if let Some(home) = original_home {
-            env::set_var("HOME", home);
+            unsafe { env::set_var("HOME", home) };
         } else {
-            env::remove_var("HOME");
+            unsafe { env::remove_var("HOME") };
         }
     }
 

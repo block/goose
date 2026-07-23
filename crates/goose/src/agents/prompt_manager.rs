@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
 use crate::hints::load_hints::build_gitignore;
-use crate::hints::{get_context_filenames, load_hint_files, SubdirectoryHintTracker};
+use crate::hints::{SubdirectoryHintTracker, get_context_filenames, load_hint_files};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -455,7 +455,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_platform_extensions() {
-        use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
+        use crate::agents::platform_extensions::{PLATFORM_EXTENSIONS, PlatformExtensionContext};
         use crate::config::GooseMode;
         use crate::session::SessionManager;
         use std::sync::Arc;

@@ -1,3 +1,4 @@
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
     ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
@@ -9,10 +10,9 @@ use agent_client_protocol::schema::v1::{
     SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
     ToolCallStatus, ToolKind,
 };
-use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
-use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use agent_client_protocol_schema::v1::AGENT_METHOD_NAMES;
+use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
@@ -23,20 +23,20 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
-use crate::acp::{map_permission_response, PermissionDecision};
+use crate::acp::{PermissionDecision, map_permission_response};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
@@ -845,8 +845,9 @@ impl AcpClientLoop {
                                     );
                                     // Seed the buffer; drain immediately if the call is
                                     // already terminal (synchronous tool, no follow-up).
-                                    let synchronous_accumulated =
-                                        if let Ok(mut buffer) = pending_tool_updates.lock() {
+                                    let synchronous_accumulated = match pending_tool_updates.lock()
+                                    {
+                                        Ok(mut buffer) => {
                                             let entry = buffer.entry(id.clone()).or_default();
                                             if let Some(raw_output) = tool_call.raw_output.clone() {
                                                 entry.raw_output = Some(raw_output);
@@ -857,9 +858,9 @@ impl AcpClientLoop {
                                             } else {
                                                 None
                                             }
-                                        } else {
-                                            None
-                                        };
+                                        }
+                                        _ => None,
+                                    };
                                     // ACP carries no canonical tool name to clients — only
                                     // `title` (display) and `kind` (category). We pass `title`
                                     // for renderer affordance, surface `kind` separately via
@@ -898,23 +899,24 @@ impl AcpClientLoop {
                                             ToolCallStatus::Completed | ToolCallStatus::Failed
                                         )
                                     });
-                                    let accumulated = if let Ok(mut buffer) =
-                                        pending_tool_updates.lock()
-                                    {
-                                        let entry = buffer.entry(id.clone()).or_default();
-                                        if let Some(raw_output) = update.fields.raw_output.clone() {
-                                            entry.raw_output = Some(raw_output);
+                                    let accumulated = match pending_tool_updates.lock() {
+                                        Ok(mut buffer) => {
+                                            let entry = buffer.entry(id.clone()).or_default();
+                                            if let Some(raw_output) =
+                                                update.fields.raw_output.clone()
+                                            {
+                                                entry.raw_output = Some(raw_output);
+                                            }
+                                            if let Some(content) = update.fields.content.clone() {
+                                                entry.content.extend(content);
+                                            }
+                                            if terminal_status.is_some() {
+                                                buffer.remove(&id)
+                                            } else {
+                                                None
+                                            }
                                         }
-                                        if let Some(content) = update.fields.content.clone() {
-                                            entry.content.extend(content);
-                                        }
-                                        if terminal_status.is_some() {
-                                            buffer.remove(&id)
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
+                                        _ => None,
                                     };
                                     if let (Some(accumulated), Some(status)) =
                                         (accumulated, terminal_status)

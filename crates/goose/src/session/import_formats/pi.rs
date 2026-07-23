@@ -9,13 +9,13 @@
 //!
 //! Format reference: pi-mono `packages/coding-agent/docs/session.md`.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 use goose_providers::conversation::token_usage::Usage;
 
 pub fn convert(content: &str) -> Result<String> {
@@ -353,16 +353,20 @@ mod tests {
         let v: Value = serde_json::from_str(&json).unwrap();
         let msgs = v["conversation"].as_array().unwrap();
         assert_eq!(msgs.len(), 3);
-        assert!(msgs[1]["content"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| c["type"] == "toolRequest"));
-        assert!(msgs[2]["content"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| c["type"] == "toolResponse"));
+        assert!(
+            msgs[1]["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["type"] == "toolRequest")
+        );
+        assert!(
+            msgs[2]["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["type"] == "toolResponse")
+        );
     }
 
     #[test]

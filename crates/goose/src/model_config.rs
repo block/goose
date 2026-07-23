@@ -1,7 +1,7 @@
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 use crate::providers::base::Provider;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
@@ -237,11 +237,11 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
         serde_yaml::Value::Bool(value) => Ok(value),
         serde_yaml::Value::Number(value) => parse_bool_config(key, &value.to_string()),
         serde_yaml::Value::String(value) => parse_bool_config(key, &value),
-        other => {
-            Err(anyhow!(
+        other => Err(anyhow!(
             "Invalid value for '{key}': '{}' - must be one of: 1, true, yes, on, 0, false, no, off",
-            serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
-        ))
-        }
+            serde_yaml::to_string(&other)
+                .unwrap_or_else(|_| "<unprintable>".to_string())
+                .trim()
+        )),
     }
 }

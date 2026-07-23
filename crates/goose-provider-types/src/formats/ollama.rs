@@ -18,7 +18,7 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use regex::Regex;
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Role};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, Role, object};
 use serde_json::Value;
 use std::borrow::Cow;
 use uuid::Uuid;

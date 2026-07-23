@@ -2,8 +2,8 @@ use goose_provider_types::conversation::message::{Message, MessageContent};
 use goose_provider_types::errors::ProviderError;
 use goose_provider_types::formats::openai::is_valid_function_name;
 use goose_provider_types::json::safely_parse_json;
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData};
-use serde_json::{json, Value};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, object};
+use serde_json::{Value, json};
 use std::borrow::Cow;
 use uuid::Uuid;
 
@@ -293,25 +293,31 @@ mod tests {
     #[test]
     fn ignores_plain_json_objects_with_name_fields() {
         let text = r#"{"name":"Alice","age":30}"#;
-        assert!(message_from_native_tool_text(text, "msg")
-            .unwrap()
-            .is_none());
+        assert!(
+            message_from_native_tool_text(text, "msg")
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
     fn ignores_plain_json_arrays() {
         let text = r#"["a","b"]"#;
-        assert!(message_from_native_tool_text(text, "msg")
-            .unwrap()
-            .is_none());
+        assert!(
+            message_from_native_tool_text(text, "msg")
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
     fn ignores_non_tool_call_arrays_in_tool_calls_field() {
         let text = r#"{"tool_calls":["a","b"]}"#;
-        assert!(message_from_native_tool_text(text, "msg")
-            .unwrap()
-            .is_none());
+        assert!(
+            message_from_native_tool_text(text, "msg")
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

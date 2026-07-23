@@ -1,5 +1,5 @@
-use crate::config::paths::Paths;
 use crate::config::Config;
+use crate::config::paths::Paths;
 use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
@@ -822,10 +822,12 @@ mod tests {
 
         let result = expand_env_vars("${TEST_EXPAND_MISSING}/path", &env_vars);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("TEST_EXPAND_MISSING"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("TEST_EXPAND_MISSING")
+        );
     }
 
     #[test]

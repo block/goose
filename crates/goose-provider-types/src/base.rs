@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 use crate::{
-    canonical::{map_to_canonical_model, CanonicalModelRegistry},
+    canonical::{CanonicalModelRegistry, map_to_canonical_model},
     conversation::{
         message::{Message, MessageContent},
         token_usage::{ProviderUsage, Usage},

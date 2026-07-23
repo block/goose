@@ -60,7 +60,9 @@ pub fn auto_install_peekaboo() -> Result<(), String> {
             let bin_path = format!("{}/bin/peekaboo", prefix);
             if std::path::Path::new(&bin_path).exists() {
                 if let Ok(current_path) = std::env::var("PATH") {
-                    std::env::set_var("PATH", format!("{}/bin:{}", prefix, current_path));
+                    unsafe {
+                        std::env::set_var("PATH", format!("{}/bin:{}", prefix, current_path))
+                    };
                     if is_peekaboo_installed() {
                         return Ok(());
                     }

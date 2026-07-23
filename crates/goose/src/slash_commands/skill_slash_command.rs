@@ -96,9 +96,11 @@ mod tests {
 
         let names: Vec<_> = commands.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, vec!["review", "summarize"]);
-        assert!(commands
-            .iter()
-            .all(|c| c.source == SlashCommandSource::Skill));
+        assert!(
+            commands
+                .iter()
+                .all(|c| c.source == SlashCommandSource::Skill)
+        );
     }
 
     #[test]

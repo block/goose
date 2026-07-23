@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anstream::println;
 use console::style;
-use goose::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
+use goose::recipe::{BUILT_IN_RECIPE_DIR_PARAM, Recipe};
 
 pub fn print_recipe_explanation(recipe: &Recipe) {
     println!(

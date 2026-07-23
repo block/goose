@@ -1,7 +1,7 @@
 use crate::config::paths::Paths;
 use crate::config::{Config, ConfigError};
-use anyhow::{anyhow, Result};
-use axum::{extract::Query, response::Html, routing::get, Router};
+use anyhow::{Result, anyhow};
+use axum::{Router, extract::Query, response::Html, routing::get};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
-use tokio::sync::{oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, oneshot};
 
 pub const HUGGINGFACE_PROVIDER_NAME: &str = "huggingface";
 pub const HUGGINGFACE_DISPLAY_NAME: &str = "Hugging Face";

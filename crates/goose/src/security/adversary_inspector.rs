@@ -4,10 +4,10 @@ use chrono::Utc;
 use std::sync::{Arc, OnceLock};
 
 use crate::agents::types::SharedProvider;
-use crate::config::paths::Paths;
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, MessageContent, ToolRequest};
+use crate::config::paths::Paths;
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use crate::utils::safe_truncate;
 
@@ -237,11 +237,7 @@ impl AdversaryInspector {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                if text.is_empty() {
-                    None
-                } else {
-                    Some(text)
-                }
+                if text.is_empty() { None } else { Some(text) }
             })
             .take(count)
             .collect::<Vec<_>>()

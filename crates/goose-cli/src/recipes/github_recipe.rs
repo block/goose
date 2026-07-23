@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use console::style;
-use goose::recipe::template_recipe::parse_recipe_content;
 use goose::recipe::RECIPE_FILE_EXTENSIONS;
+use goose::recipe::template_recipe::parse_recipe_content;
 use serde::{Deserialize, Serialize};
 
 use goose::recipe::read_recipe_file_content::RecipeFile;
@@ -51,7 +51,7 @@ pub fn retrieve_recipe_from_github(
                         content,
                         parent_dir: download_dir.clone(),
                         file_path: recipe_file_local_path,
-                    })
+                    });
                 }
                 Err(err) => return Err(err),
             },
@@ -353,7 +353,7 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
 
     if let Some(content_b64) = file_info.get("content").and_then(|c| c.as_str()) {
         // Decode base64 content
-        use base64::{engine::general_purpose, Engine as _};
+        use base64::{Engine as _, engine::general_purpose};
         let content_bytes = general_purpose::STANDARD
             .decode(content_b64.replace('\n', ""))
             .map_err(|e| anyhow!("Failed to decode base64 content: {}", e))?;

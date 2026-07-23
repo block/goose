@@ -1,16 +1,16 @@
-use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
+use crate::canonical::maybe_get_canonical_model;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
-use crate::images::{convert_image, ImageFormat};
+use crate::images::{ImageFormat, convert_image};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
-use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use anyhow::{Result, anyhow};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool, object};
 use rmcp::object as json_object;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
@@ -1487,9 +1487,11 @@ mod tests {
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
-        assert!(payload["messages"][0]["content"][0]
-            .get("signature")
-            .is_none());
+        assert!(
+            payload["messages"][0]["content"][0]
+                .get("signature")
+                .is_none()
+        );
 
         Ok(())
     }

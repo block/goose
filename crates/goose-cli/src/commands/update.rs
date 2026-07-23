@@ -1,12 +1,12 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use reqwest::{
-    header::{HeaderValue, AUTHORIZATION},
     StatusCode,
+    header::{AUTHORIZATION, HeaderValue},
 };
 use sha2::{Digest, Sha256};
-use sigstore_verify::trust_root::{TrustedRoot, SIGSTORE_PRODUCTION_TRUSTED_ROOT};
-use sigstore_verify::types::{Bundle, Sha256Hash};
 use sigstore_verify::VerificationPolicy;
+use sigstore_verify::trust_root::{SIGSTORE_PRODUCTION_TRUSTED_ROOT, TrustedRoot};
+use sigstore_verify::types::{Bundle, Sha256Hash};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -208,7 +208,9 @@ async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
         )?;
 
     if bundles.is_empty() {
-        bail!("No Sigstore attestation found for downloaded archive; refusing to install unverifiable update");
+        bail!(
+            "No Sigstore attestation found for downloaded archive; refusing to install unverifiable update"
+        );
     }
 
     let trusted_root = TrustedRoot::from_json(SIGSTORE_PRODUCTION_TRUSTED_ROOT)
@@ -844,8 +846,8 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_extract_tar_bz2_safe_archive() {
-        use bzip2::write::BzEncoder;
         use bzip2::Compression;
+        use bzip2::write::BzEncoder;
 
         let tmp = tempdir().unwrap();
 
@@ -891,8 +893,8 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_extract_tar_bz2_blocks_symlink_escape() {
-        use bzip2::write::BzEncoder;
         use bzip2::Compression;
+        use bzip2::write::BzEncoder;
 
         let tmp = tempdir().unwrap();
 

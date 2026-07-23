@@ -6,7 +6,7 @@
 //! projects; `goose review` consumes [`Check`] and [`discover`] directly.
 
 use crate::sources::parse_frontmatter;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
@@ -99,8 +99,9 @@ impl Check {
                 path.display()
             ),
             Err(e) => {
-                return Err(anyhow!(e))
-                    .with_context(|| format!("check {}: invalid frontmatter YAML", path.display()))
+                return Err(anyhow!(e)).with_context(|| {
+                    format!("check {}: invalid frontmatter YAML", path.display())
+                });
             }
         };
 

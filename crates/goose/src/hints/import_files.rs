@@ -231,12 +231,16 @@ mod tests {
         }
 
         // Should not match email addresses or social handles
-        assert!(!references
-            .iter()
-            .any(|p| p.to_str().unwrap().contains("example.com")));
-        assert!(!references
-            .iter()
-            .any(|p| p.to_str().unwrap().contains("company.org")));
+        assert!(
+            !references
+                .iter()
+                .any(|p| p.to_str().unwrap().contains("example.com"))
+        );
+        assert!(
+            !references
+                .iter()
+                .any(|p| p.to_str().unwrap().contains("company.org"))
+        );
         assert!(!references.iter().any(|p| p.to_str().unwrap() == "username"));
         assert!(!references.iter().any(|p| p.to_str().unwrap() == "user123"));
     }

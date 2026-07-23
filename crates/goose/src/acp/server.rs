@@ -7,7 +7,7 @@ pub(super) use crate::acp::response_builder::{
     session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
-use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
+use crate::acp::{ACP_CURRENT_MODEL, PermissionDecision};
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
 use crate::agents::platform_extensions::developer::DeveloperClient;
@@ -76,7 +76,7 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use self::tool_calls::chain::{extend_chain_membership, ToolChain};
+use self::tool_calls::chain::{ToolChain, extend_chain_membership};
 use self::tool_calls::conversion::{
     extract_tool_call_update_meta, format_tool_name, pending_tool_call_from_request,
     tool_call_identity_meta, tool_call_update_fields_from_response,

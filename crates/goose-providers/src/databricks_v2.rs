@@ -1,4 +1,4 @@
-use crate::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
+use crate::formats::anthropic::{ANTHROPIC_PROVIDER_NAME, AnthropicFormatOptions};
 use crate::formats::openai::{self, extract_reasoning_effort, is_openai_responses_model};
 use crate::images::ImageFormat;
 use anyhow::Result;
@@ -26,11 +26,11 @@ use crate::formats::anthropic;
 use crate::formats::openai_responses;
 use crate::model::ModelConfig;
 use crate::openai_compatible::{handle_status, stream_openai_compat, stream_responses_compat};
-use crate::request_log::{start_log, LoggerHandleExt};
+use crate::request_log::{LoggerHandleExt, start_log};
 use crate::retry::ProviderRetry;
 use crate::retry::{
-    RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-    DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
+    DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS, DEFAULT_MAX_RETRIES,
+    DEFAULT_MAX_RETRY_INTERVAL_MS, RetryConfig,
 };
 use rmcp::model::Tool;
 
@@ -467,8 +467,10 @@ mod tests {
         let error = DatabricksV2Provider::parse_list_endpoints_response(&json).unwrap_err();
 
         assert!(matches!(error, ProviderError::RequestFailed(_)));
-        assert!(error
-            .to_string()
-            .contains("Unexpected response format from Databricks AI Gateway endpoints API"));
+        assert!(
+            error
+                .to_string()
+                .contains("Unexpected response format from Databricks AI Gateway endpoints API")
+        );
     }
 }

@@ -37,7 +37,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
-use crate::plugins::discovery::{discover_enabled_plugins, DiscoveredPlugin};
+use crate::plugins::discovery::{DiscoveredPlugin, discover_enabled_plugins};
 
 /// Default per-hook timeout when the plugin does not specify one.
 const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 30;

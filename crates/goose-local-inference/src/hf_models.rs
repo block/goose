@@ -1,10 +1,10 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use futures::StreamExt;
 use hf_hub::progress::{DownloadEvent, FileStatus, ProgressEvent, ProgressHandler};
 use hf_hub::repository::{ModelInfo, RepoSibling};
 use hf_hub::{HFClient, HFRepository, RepoTypeModel};
 
-use super::local_model_registry::{get_registry, model_id_from_repo, LocalModelStorage, ShardFile};
+use super::local_model_registry::{LocalModelStorage, ShardFile, get_registry, model_id_from_repo};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -1058,14 +1058,18 @@ mod tests {
         assert_eq!(models[0].downloads, 2);
         assert_eq!(models[0].gguf_files.len(), 1);
         assert_eq!(models[0].variants.len(), 2);
-        assert!(models[0]
-            .variants
-            .iter()
-            .any(|variant| variant.backend_id == LLAMACPP_BACKEND_ID));
-        assert!(models[0]
-            .variants
-            .iter()
-            .any(|variant| variant.backend_id == MLX_BACKEND_ID));
+        assert!(
+            models[0]
+                .variants
+                .iter()
+                .any(|variant| variant.backend_id == LLAMACPP_BACKEND_ID)
+        );
+        assert!(
+            models[0]
+                .variants
+                .iter()
+                .any(|variant| variant.backend_id == MLX_BACKEND_ID)
+        );
     }
 
     fn sibling(filename: &str) -> RepoSibling {

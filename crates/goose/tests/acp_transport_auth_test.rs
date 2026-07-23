@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderValue, Method, Request, Response, StatusCode};
-use axum::Router;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::acp::transport::{create_acp_router, create_router};
 use goose::agents::GoosePlatform;
@@ -501,10 +501,12 @@ async fn acp_cors_rejects_arbitrary_web_origins() {
     )
     .await;
 
-    assert!(response
-        .headers()
-        .get("access-control-allow-origin")
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -527,10 +529,12 @@ async fn acp_cors_rejects_custom_app_origins_unless_configured() {
     )
     .await;
 
-    assert!(response
-        .headers()
-        .get("access-control-allow-origin")
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -761,10 +765,12 @@ async fn unauthenticated_serve_cors_rejects_null_origin_by_default() {
     )
     .await;
 
-    assert!(response
-        .headers()
-        .get("access-control-allow-origin")
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -787,10 +793,12 @@ async fn unauthenticated_serve_cors_rejects_file_origin_by_default() {
     )
     .await;
 
-    assert!(response
-        .headers()
-        .get("access-control-allow-origin")
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -817,10 +825,12 @@ async fn acp_cors_explicit_origins_replace_loopback_defaults() {
     )
     .await;
 
-    assert!(response
-        .headers()
-        .get("access-control-allow-origin")
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -881,9 +891,11 @@ async fn acp_cors_explicit_origins_replace_file_defaults() {
         )
         .await;
 
-        assert!(response
-            .headers()
-            .get("access-control-allow-origin")
-            .is_none());
+        assert!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .is_none()
+        );
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use goose::config::Config;
-use goose::conversation::message::Message;
 use goose::conversation::Conversation;
+use goose::conversation::message::Message;
 use std::fs;
 use std::io::Read;
 use std::io::Write;

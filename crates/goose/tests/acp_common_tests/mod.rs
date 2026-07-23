@@ -9,14 +9,14 @@ use agent_client_protocol::schema::v1::{
     SessionUpdate, ToolCallStatus, ToolKind,
 };
 use fixtures::{
-    assert_notifications, Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision,
-    Session, SessionData, TerminalCall, TerminalFixture, TestConnectionConfig,
+    Connection, FsFixture, Notification, OpenAiFixture, PermissionDecision, Session, SessionData,
+    TerminalCall, TerminalFixture, TestConnectionConfig, assert_notifications,
 };
 use fs_err as fs;
 use goose::acp::server::AcpProviderFactory;
-use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
-use goose_test_support::{McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
+use goose::config::base::CONFIG_YAML_NAME;
+use goose_test_support::{FAKE_CODE, McpFixture, TEST_IMAGE_B64, TEST_MODEL};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
@@ -92,12 +92,11 @@ pub async fn run_list_sessions<C: Connection>() {
     expected_meta.insert("hasRecipe".to_string(), serde_json::Value::Bool(false));
     assert_eq!(
         response,
-        ListSessionsResponse::new(vec![SessionInfo::new(
-            session.session_id().clone(),
-            session.work_dir()
-        )
-        .title("New Chat".to_string())
-        .meta(expected_meta)])
+        ListSessionsResponse::new(vec![
+            SessionInfo::new(session.session_id().clone(), session.work_dir())
+                .title("New Chat".to_string())
+                .meta(expected_meta)
+        ])
     );
 }
 

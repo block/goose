@@ -1,8 +1,8 @@
 use crate::agents::extension_manager::ExtensionManager;
 use crate::conversation::message::MessageContent;
 use crate::conversation::{
-    effective_role, fix_conversation, Conversation, CURRENT_TIME_TAG, TURN_CONTEXT_TAG,
-    WORKING_DIRECTORY_TAG,
+    CURRENT_TIME_TAG, Conversation, TURN_CONTEXT_TAG, WORKING_DIRECTORY_TAG, effective_role,
+    fix_conversation,
 };
 use std::path::{Path, PathBuf};
 

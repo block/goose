@@ -1,6 +1,6 @@
+use opentelemetry::InstrumentationScope;
 use opentelemetry::global;
 use opentelemetry::metrics::{Meter, MeterProvider};
-use opentelemetry::InstrumentationScope;
 use std::env;
 use std::sync::Arc;
 
@@ -56,7 +56,7 @@ pub fn clear_otel_env(overrides: &[(&'static str, &'static str)]) -> OtelTestGua
 
     let guard = env_lock::lock_env(keys.into_iter().map(|k| (k, None::<&str>)));
     for &(k, v) in overrides {
-        env::set_var(k, v);
+        unsafe { env::set_var(k, v) };
     }
     OtelTestGuard {
         _env: guard,

@@ -1,7 +1,7 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use goose::scheduler::{
-    get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
-    SchedulerError,
+    ScheduledJob, Scheduler, SchedulerError, get_default_scheduled_recipes_dir,
+    get_default_scheduler_storage_path,
 };
 use goose::session::SessionManager;
 use std::path::Path;
@@ -339,7 +339,9 @@ pub async fn handle_schedule_cron_help() -> Result<()> {
     println!(
         "  goose schedule add --schedule-id daily-backup --cron \"@daily\" --recipe-source backup.yaml"
     );
-    println!("  goose schedule add --schedule-id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml");
+    println!(
+        "  goose schedule add --schedule-id weekly-summary --cron \"0 9 * * 1\" --recipe-source summary.yaml"
+    );
 
     Ok(())
 }

@@ -78,7 +78,7 @@ pub trait Gateway: Send + Sync + 'static {
     fn gateway_type(&self) -> &str;
 
     async fn start(&self, handler: GatewayHandler, cancel: CancellationToken)
-        -> anyhow::Result<()>;
+    -> anyhow::Result<()>;
 
     async fn send_message(
         &self,

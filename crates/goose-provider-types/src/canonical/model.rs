@@ -199,12 +199,16 @@ mod tests {
         assert_eq!(cost, (1_000.0 * 2.0 + 100.0 * 10.0) / 1_000_000.0);
 
         // Missing input or output pricing means no estimate at all.
-        assert!(pricing(None, Some(10.0), None, None)
-            .estimate_cost(&usage)
-            .is_none());
-        assert!(pricing(Some(2.0), None, None, None)
-            .estimate_cost(&usage)
-            .is_none());
+        assert!(
+            pricing(None, Some(10.0), None, None)
+                .estimate_cost(&usage)
+                .is_none()
+        );
+        assert!(
+            pricing(Some(2.0), None, None, None)
+                .estimate_cost(&usage)
+                .is_none()
+        );
     }
 
     #[test]

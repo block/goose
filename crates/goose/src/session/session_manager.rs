@@ -1,13 +1,13 @@
-use crate::config::paths::Paths;
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, MessageUsage, TokenState};
+use crate::config::paths::Paths;
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageUsage, TokenState};
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
-    generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
+    MSG_COUNT_FOR_SESSION_NAME_GENERATION, generate_session_name,
 };
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -1594,7 +1594,7 @@ impl SessionStorage {
         let mut query = String::from("UPDATE sessions SET ");
 
         macro_rules! add_update {
-            ($field:expr, $name:expr) => {
+            ($field:expr_2021, $name:expr_2021) => {
                 if $field.is_some() {
                     if !updates.is_empty() {
                         query.push_str(", ");

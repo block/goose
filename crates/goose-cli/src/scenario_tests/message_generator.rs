@@ -2,8 +2,8 @@
 //! just generate an image or text message.
 
 use crate::scenario_tests::scenario_runner::SCENARIO_TESTS_DIR;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use goose::conversation::message::Message;
 use goose::providers::base::Provider;
 

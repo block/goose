@@ -6,13 +6,13 @@
 //! Most other lines (attachments, queue operations, internal hooks) are
 //! transcript noise and are skipped.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
 use serde_json::Value;
 
-use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::conversation::message::Message;
 use goose_providers::conversation::token_usage::Usage;
 
 pub fn convert(content: &str) -> Result<String> {

@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use agent_client_protocol_http::{AcpHttpServer, CorsOptions, ServerOptions};
 use axum::{
+    Router,
     extract::{Request, State},
-    http::{header, HeaderName, HeaderValue, Method, StatusCode},
+    http::{HeaderName, HeaderValue, Method, StatusCode, header},
     middleware::Next,
     response::Response,
     routing::get,
-    Router,
 };
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 

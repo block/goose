@@ -13,7 +13,7 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{stream_from_single_message, MessageStream, Provider};
+use super::base::{MessageStream, Provider, stream_from_single_message};
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
@@ -22,7 +22,7 @@ use crate::formats::openai::{
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
-use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
+use crate::request_log::{LoggerHandleExt, RequestLogHandle, start_log};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {

@@ -78,7 +78,7 @@ fn create_owner_only_file(path: &Path) -> io::Result<std::fs::File> {
     use winapi::shared::sddl::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
-    use winapi::um::fileapi::{CreateFileW, CREATE_NEW};
+    use winapi::um::fileapi::{CREATE_NEW, CreateFileW};
     use winapi::um::handleapi::INVALID_HANDLE_VALUE;
     use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
     use winapi::um::winbase::LocalFree;
@@ -147,7 +147,7 @@ fn persist_private_temporary_file(
     path: &Path,
 ) -> io::Result<()> {
     use winapi::um::fileapi::SetFileAttributesW;
-    use winapi::um::winbase::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
+    use winapi::um::winbase::{MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW};
     use winapi::um::winnt::{FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_TEMPORARY};
 
     let temporary_path = to_windows_api_path(temporary.path())?;
@@ -249,9 +249,9 @@ mod windows_tests {
     };
     use winapi::um::winbase::LocalFree;
     use winapi::um::winnt::{
-        WinCreatorOwnerRightsSid, ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE,
-        DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS, OWNER_SECURITY_INFORMATION, PACL,
-        PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE, SE_DACL_PROTECTED,
+        ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_ACE_TYPE, DACL_SECURITY_INFORMATION, FILE_ALL_ACCESS,
+        OWNER_SECURITY_INFORMATION, PACL, PSECURITY_DESCRIPTOR, PSID, SE_DACL_PROTECTED,
+        SECURITY_MAX_SID_SIZE, WinCreatorOwnerRightsSid,
     };
 
     fn assert_owner_only_protected_dacl(file: &File) {

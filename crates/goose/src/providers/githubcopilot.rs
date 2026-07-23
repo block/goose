@@ -1,11 +1,11 @@
 use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use crate::providers::oauth_device_flow::{run_device_flow, DeviceFlowConfig, RequestEncoding};
+use crate::providers::oauth_device_flow::{DeviceFlowConfig, RequestEncoding, run_device_flow};
 use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::providers::private_file::write_private_file;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
@@ -26,7 +26,7 @@ tokio::task_local! {
 }
 
 use super::base::{
-    collect_stream, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
+    DEFAULT_PROVIDER_TIMEOUT_SECS, Provider, ProviderDef, ProviderMetadata, collect_stream,
 };
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
@@ -41,7 +41,7 @@ use crate::providers::base::{ConfigKey, MessageStream};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::{RawContent, Tool};
 use std::ops::Deref;
 
@@ -768,9 +768,11 @@ mod tests {
     fn detects_images_in_messages() {
         use crate::conversation::message::Message;
 
-        let messages_with_image = vec![Message::user()
-            .with_text("describe this")
-            .with_image("base64data", "image/png")];
+        let messages_with_image = vec![
+            Message::user()
+                .with_text("describe this")
+                .with_image("base64data", "image/png"),
+        ];
         assert!(GithubCopilotProvider::messages_contain_image(
             &messages_with_image
         ));
@@ -789,15 +791,15 @@ mod tests {
         let image_content = Content::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
         let tool_result = Ok(CallToolResult::success(vec![image_content]));
 
-        let messages =
-            vec![Message::user()
-                .with_content(MessageContent::tool_response("call_123", tool_result))];
+        let messages = vec![
+            Message::user().with_content(MessageContent::tool_response("call_123", tool_result)),
+        ];
         assert!(GithubCopilotProvider::messages_contain_image(&messages));
 
         let text_result = Ok(CallToolResult::success(vec![Content::text("no images")]));
-        let messages_text_only =
-            vec![Message::user()
-                .with_content(MessageContent::tool_response("call_456", text_result))];
+        let messages_text_only = vec![
+            Message::user().with_content(MessageContent::tool_response("call_456", text_result)),
+        ];
         assert!(!GithubCopilotProvider::messages_contain_image(
             &messages_text_only
         ));
@@ -826,10 +828,12 @@ mod tests {
             .and_then(|c| c.first())
             .unwrap();
 
-        assert!(first_choice
-            .get("message")
-            .and_then(|m| m.get("tool_calls"))
-            .is_some());
+        assert!(
+            first_choice
+                .get("message")
+                .and_then(|m| m.get("tool_calls"))
+                .is_some()
+        );
     }
 
     #[test]

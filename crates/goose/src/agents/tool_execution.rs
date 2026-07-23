@@ -58,7 +58,7 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
     }
 }
 
-use super::agent::{tool_stream, ToolStream};
+use super::agent::{ToolStream, tool_stream};
 use crate::agents::Agent;
 use crate::conversation::message::ToolRequest;
 use crate::session::Session;

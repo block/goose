@@ -2,7 +2,7 @@ use crate::agents::extension::{Envs, ExtensionConfig};
 use crate::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use crate::plugins::discovery::discover_enabled_plugins;
 use crate::plugins::formats::open_plugins;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use fs_err as fs;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};

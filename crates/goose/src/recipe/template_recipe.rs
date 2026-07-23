@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use crate::recipe::{Recipe, BUILT_IN_RECIPE_DIR_PARAM};
+use crate::recipe::{BUILT_IN_RECIPE_DIR_PARAM, Recipe};
 use anyhow::Result;
 use minijinja::{Environment, UndefinedBehavior};
 use regex::Regex;

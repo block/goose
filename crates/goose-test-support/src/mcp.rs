@@ -1,15 +1,15 @@
-use crate::session::SESSION_ID_HEADER;
 use crate::ExpectedSessionId;
+use crate::session::SESSION_ID_HEADER;
 use rmcp::model::{
     CallToolResult, ClientNotification, ClientRequest, Content, ErrorCode, Implementation,
     InitializeResult, Meta, ProtocolVersion, Role, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{DynService, NotificationContext, RequestContext, ServiceExt, ServiceRole};
 use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 use rmcp::{
-    tool, tool_handler, tool_router, ErrorData as McpError, RoleServer, ServerHandler, Service,
+    ErrorData as McpError, RoleServer, ServerHandler, Service, tool, tool_handler, tool_router,
 };
 use std::sync::Arc;
 use tokio::task::JoinHandle;

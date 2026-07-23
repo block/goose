@@ -4,7 +4,7 @@ mod common_tests;
 
 use agent_client_protocol::schema::v1::{ForkSessionRequest, ForkSessionResponse, SessionId};
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, TestConnectionConfig};
+use common_tests::fixtures::{Connection, OpenAiFixture, TestConnectionConfig, run_test};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::session::{SessionManager, SessionType};

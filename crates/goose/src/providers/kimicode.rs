@@ -1,13 +1,13 @@
-use crate::config::paths::Paths;
 use crate::config::Config;
+use crate::config::paths::Paths;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::TryStreamExt;
-use goose_providers::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
-use reqwest::header::{HeaderMap, HeaderValue};
+use goose_providers::formats::anthropic::{ANTHROPIC_PROVIDER_NAME, AnthropicFormatOptions};
 use reqwest::Client;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
@@ -18,12 +18,12 @@ use uuid::Uuid;
 
 use super::api_client::RequestBuilderDecorator;
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    ConfigKey, DEFAULT_PROVIDER_TIMEOUT_SECS, MessageStream, Provider, ProviderDef,
+    ProviderMetadata,
 };
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::oauth_device_flow::{
-    refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokens, RequestEncoding,
+    DeviceFlowConfig, DeviceFlowTokens, RequestEncoding, refresh_device_flow_token, run_device_flow,
 };
 use super::openai_compatible::handle_status;
 use super::retry::ProviderRetry;
@@ -31,7 +31,7 @@ use crate::conversation::message::Message;
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 const KIMI_CODE_PROVIDER_NAME: &str = "kimi_code";
