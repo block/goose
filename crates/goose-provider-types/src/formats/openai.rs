@@ -1591,7 +1591,7 @@ pub fn sanitize_function_name(name: &str) -> String {
 pub fn is_valid_function_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
-    name.len() <= MAX_FUNCTION_NAME_LENGTH && re.is_match(name)
+    re.is_match(name)
 }
 
 #[cfg(test)]
@@ -4180,13 +4180,10 @@ data: [DONE]"#;
         assert!(is_valid_function_name("hello-world"));
         assert!(is_valid_function_name("hello_world"));
         assert!(is_valid_function_name(
-            &"a".repeat(MAX_FUNCTION_NAME_LENGTH)
+            &"a".repeat(MAX_FUNCTION_NAME_LENGTH + 1)
         ));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
-        assert!(!is_valid_function_name(
-            &"a".repeat(MAX_FUNCTION_NAME_LENGTH + 1)
-        ));
     }
 
     #[test]
