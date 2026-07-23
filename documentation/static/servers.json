@@ -741,9 +741,9 @@
     "id": "swatchify",
     "name": "Swatchify",
     "description": "Extract dominant colors from images using k-means clustering",
-    "command": "go install github.com/james-see/swatchify/cmd/mcp@latest",
+    "command": "swatchify-mcp",
     "link": "https://github.com/james-see/swatchify",
-    "installation_notes": "Install using go install. Binary must be renamed to swatchify-mcp.",
+    "installation_notes": "Install with: go install github.com/james-see/swatchify/cmd/mcp@latest. The binary installs as \"mcp\" — rename it to \"swatchify-mcp\" and ensure it is on your PATH.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
