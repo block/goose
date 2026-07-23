@@ -555,6 +555,17 @@
     "environmentVariables": []
   },
   {
+    "id": "pngmeta",
+    "name": "PNG Metadata",
+    "description": "Read and write PNG metadata (tEXt, iTXt, zTXt chunks and XMP)",
+    "command": "uvx --from pngmeta[mcp] pngmeta-mcp",
+    "link": "https://github.com/james-see/pngmeta",
+    "installation_notes": "Install using uvx. Requires pngmeta[mcp] extra.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "playwright",
     "name": "Playwright",
     "description": "Interact with web pages through structured accessibility snapshots using Playwright",
