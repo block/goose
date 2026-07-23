@@ -3,6 +3,7 @@ use super::tool_calls::conversion::{
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
+use agent_client_protocol::schema::v1::ToolCall;
 
 fn replay_message_meta(message: &Message) -> Meta {
     let mut meta = serde_json::Map::new();
@@ -69,10 +70,41 @@ fn send_replay_content_chunk(
     cx.send_notification(SessionNotification::new(session_id.clone(), update))
 }
 
+fn build_replayed_tool_call(
+    tool_request: &ToolRequest,
+    client_requests_tool_call_label_enrichment: bool,
+) -> ToolCall {
+    let mut tool_call =
+        build_initial_tool_call(tool_request, client_requests_tool_call_label_enrichment);
+
+    if !client_requests_tool_call_label_enrichment {
+        return tool_call;
+    }
+
+    let Some(chain_summary) = tool_request.generated_chain_summary() else {
+        return tool_call;
+    };
+    let goose_meta = tool_call
+        .meta
+        .get_or_insert_default()
+        .entry("goose".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !goose_meta.is_object() {
+        *goose_meta = serde_json::Value::Object(serde_json::Map::new());
+    }
+    goose_meta
+        .as_object_mut()
+        .expect("goose metadata was initialized as an object")
+        .extend([tool_chain_summary(&chain_summary)]);
+
+    tool_call
+}
+
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
     supports_goose_custom_notifications: bool,
+    client_requests_tool_call_label_enrichment: bool,
 ) -> Result<(), agent_client_protocol::Error> {
     let session_id = SessionId::new(session.id.clone());
     let tool_call_notifier = ToolCallNotifier::new(cx, &session_id);
@@ -112,21 +144,11 @@ fn replay_conversation_to_client(
                 MessageContent::ToolRequest(tool_request) => {
                     replay_tool_requests.insert(tool_request.id.clone(), tool_request.clone());
 
-                    let mut tool_call = build_initial_tool_call(tool_request);
-                    let mut meta = tool_call.meta.take();
-                    if let Some(chain_summary) = tool_request.generated_chain_summary() {
-                        let goose_meta = meta
-                            .get_or_insert_default()
-                            .entry("goose".to_string())
-                            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-                        if !goose_meta.is_object() {
-                            *goose_meta = serde_json::Value::Object(serde_json::Map::new());
-                        }
-                        goose_meta
-                            .as_object_mut()
-                            .expect("goose metadata was initialized as an object")
-                            .extend([tool_chain_summary(&chain_summary)]);
-                    }
+                    let mut tool_call = build_replayed_tool_call(
+                        tool_request,
+                        client_requests_tool_call_label_enrichment,
+                    );
+                    let meta = tool_call.meta.take();
                     let tool_call = tool_call.meta(merge_replay_message_meta(meta, message));
 
                     tool_call_notifier.send_initial(tool_call)?;
@@ -201,7 +223,12 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        replay_conversation_to_client(cx, &session, self.supports_goose_custom_notifications())?;
+        replay_conversation_to_client(
+            cx,
+            &session,
+            self.supports_goose_custom_notifications(),
+            self.requests_tool_call_label_enrichment(),
+        )?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone())
@@ -238,6 +265,63 @@ impl GooseAcpAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::CallToolRequestParams;
+
+    fn persisted_enriched_tool_request() -> ToolRequest {
+        ToolRequest {
+            id: "req_first".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
+            metadata: None,
+            tool_meta: Some(serde_json::json!({
+                (crate::conversation::message::TOOL_META_TITLE_KEY): "applied dark mode polish",
+                (crate::conversation::message::TOOL_META_CHAIN_SUMMARY_KEY): {
+                    "summary": "applied dark mode polish",
+                    "count": 3,
+                },
+            })),
+        }
+    }
+
+    #[test]
+    fn replay_includes_persisted_enrichment_when_requested() {
+        let tool_call = build_replayed_tool_call(&persisted_enriched_tool_request(), true);
+        let goose = tool_call
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .expect("valid initial tool call should contain goose metadata");
+
+        assert_eq!(tool_call.title, "applied dark mode polish");
+        assert_eq!(
+            goose.get("toolCall"),
+            Some(
+                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
+            ),
+        );
+        assert_eq!(
+            goose.get("toolChainSummary"),
+            Some(&serde_json::json!({ "summary": "applied dark mode polish", "count": 3 })),
+        );
+    }
+
+    #[test]
+    fn replay_omits_persisted_enrichment_when_not_requested() {
+        let tool_call = build_replayed_tool_call(&persisted_enriched_tool_request(), false);
+        let goose = tool_call
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("goose"))
+            .expect("valid initial tool call should contain goose metadata");
+
+        assert_eq!(tool_call.title, "developer: shell");
+        assert_eq!(
+            goose.get("toolCall"),
+            Some(
+                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
+            ),
+        );
+        assert_eq!(goose.get("toolChainSummary"), None);
+    }
 
     #[test]
     fn merge_replay_message_meta_preserves_existing_goose_meta() {

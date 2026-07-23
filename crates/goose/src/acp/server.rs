@@ -201,7 +201,7 @@ pub struct GooseAcpAgent {
     client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
     client_supports_recipe_param_requests: OnceCell<bool>,
-    client_supports_tool_call_label_enrichment: OnceCell<bool>,
+    client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     config_dir: std::path::PathBuf,
@@ -575,6 +575,13 @@ impl GooseAcpAgent {
             .unwrap_or(false)
     }
 
+    fn requests_tool_call_label_enrichment(&self) -> bool {
+        self.client_requests_tool_call_label_enrichment
+            .get()
+            .copied()
+            .unwrap_or(false)
+    }
+
     fn supports_acp_elicitation(&self) -> bool {
         self.client_supports_acp_elicitation
             .get()
@@ -617,7 +624,7 @@ impl GooseAcpAgent {
             client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
             client_supports_recipe_param_requests: OnceCell::new(),
-            client_supports_tool_call_label_enrichment: OnceCell::new(),
+            client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             config_dir: options.config_dir,
@@ -1125,6 +1132,10 @@ impl GooseAcpAgent {
         session_id: &SessionId,
         cx: &ConnectionTo<Client>,
     ) {
+        if !self.requests_tool_call_label_enrichment() {
+            return;
+        }
+
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         spawn_chain_summary_enrichment(
             agent,
@@ -1144,14 +1155,13 @@ impl GooseAcpAgent {
         agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let initial_tool_call = build_initial_tool_call(tool_request);
+        let client_requests_label_enrichment = self.requests_tool_call_label_enrichment();
+        let initial_tool_call =
+            build_initial_tool_call(tool_request, client_requests_label_enrichment);
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
 
-        if Config::global()
-            .get_goose_disable_tool_call_summary()
-            .unwrap_or(false)
-        {
+        if !client_requests_label_enrichment {
             return Ok(());
         }
 
@@ -1279,14 +1289,6 @@ fn extract_client_supports_recipe_param_requests(
 ) -> bool {
     goose_client_capabilities
         .and_then(|goose| goose.recipe_parameter_requests)
-        .unwrap_or(false)
-}
-
-fn extract_client_supports_tool_call_label_enrichment(
-    goose_client_capabilities: Option<&GooseClientCapabilities>,
-) -> bool {
-    goose_client_capabilities
-        .and_then(|goose| goose.tool_call_label_enrichment)
         .unwrap_or(false)
 }
 
@@ -1450,9 +1452,13 @@ impl GooseAcpAgent {
         let _ = self.client_supports_recipe_param_requests.set(
             extract_client_supports_recipe_param_requests(goose_client_capabilities.as_ref()),
         );
-        let _ = self.client_supports_tool_call_label_enrichment.set(
-            extract_client_supports_tool_call_label_enrichment(goose_client_capabilities.as_ref()),
-        );
+        let client_requests_tool_call_label_enrichment = goose_client_capabilities
+            .as_ref()
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false);
+        let _ = self
+            .client_requests_tool_call_label_enrichment
+            .set(client_requests_tool_call_label_enrichment);
         let _ = self
             .client_supports_acp_elicitation
             .set(elicitation::client_supports_form_elicitation(&args));
@@ -2345,15 +2351,12 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::server::tool_calls::enrichment::tool_chain_summary;
-    use crate::conversation::message::ToolRequest;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
-    use rmcp::model::CallToolRequestParams;
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
@@ -2447,62 +2450,6 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
-    }
-
-    #[test]
-    fn replay_attaches_chain_summary_meta_for_first_tool_request_with_persisted_summary() {
-        let tool_request = ToolRequest {
-            id: "req_first".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-            metadata: None,
-            tool_meta: Some(serde_json::json!({
-                crate::conversation::message::TOOL_META_CHAIN_SUMMARY_KEY: {
-                    "summary": "applied dark mode polish",
-                    "count": 3,
-                },
-            })),
-        };
-
-        let mut initial_tool_call = build_initial_tool_call(&tool_request);
-        let goose = initial_tool_call
-            .meta
-            .as_mut()
-            .and_then(|meta| meta.get_mut("goose"))
-            .and_then(serde_json::Value::as_object_mut)
-            .expect("valid initial tool call should contain goose metadata");
-        let chain_summary = tool_request
-            .generated_chain_summary()
-            .expect("chain summary should be present");
-        goose.extend([tool_chain_summary(&chain_summary)]);
-
-        assert_eq!(
-            goose.get("toolCall"),
-            Some(
-                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
-            ),
-            "replay must preserve identity meta alongside the chain summary",
-        );
-        assert_eq!(
-            goose.get("toolChainSummary"),
-            Some(&serde_json::json!({ "summary": "applied dark mode polish", "count": 3 })),
-            "replay must attach toolChainSummary so the chain header renders on first paint",
-        );
-    }
-
-    #[test]
-    fn replay_does_not_attach_chain_summary_for_tool_requests_without_persisted_summary() {
-        let tool_request = ToolRequest {
-            id: "req_second".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-            metadata: None,
-            tool_meta: None,
-        };
-
-        let chain_summary = tool_request.generated_chain_summary();
-        assert!(
-            chain_summary.is_none(),
-            "non-first tool requests must not carry chain summaries",
-        );
     }
 
     #[test_case(
@@ -2720,9 +2667,9 @@ print(\"hello, world\")
             InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
-        assert!(!extract_client_supports_tool_call_label_enrichment(
-            goose_client_capabilities.as_ref()
-        ));
+        assert!(!goose_client_capabilities
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false));
 
         let mut goose_meta = serde_json::Map::new();
         goose_meta.insert(
@@ -2738,8 +2685,8 @@ print(\"hello, world\")
                 );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
-        assert!(extract_client_supports_tool_call_label_enrichment(
-            goose_client_capabilities.as_ref()
-        ));
+        assert!(goose_client_capabilities
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false));
     }
 }

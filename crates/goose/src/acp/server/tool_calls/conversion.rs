@@ -82,7 +82,10 @@ pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
     Some(meta)
 }
 
-pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
+pub(crate) fn build_initial_tool_call(
+    tool_request: &ToolRequest,
+    include_generated_title: bool,
+) -> ToolCall {
     let tool_name = match &tool_request.tool_call {
         Ok(tool_call) => tool_call.name.to_string(),
         Err(_) => "error".to_string(),
@@ -96,10 +99,14 @@ pub(crate) fn build_initial_tool_call(tool_request: &ToolRequest) -> ToolCall {
     let default_tool_call_title = default_tool_title(&tool_name, args_value.as_ref());
     let goose_meta = goose_tool_call_meta(tool_request);
 
-    let initial_title = tool_request
-        .generated_title()
-        .map(|s| s.to_string())
-        .unwrap_or(default_tool_call_title);
+    let initial_title = if include_generated_title {
+        tool_request
+            .generated_title()
+            .map(str::to_string)
+            .unwrap_or(default_tool_call_title)
+    } else {
+        default_tool_call_title
+    };
 
     let mut tool_call = ToolCall::new(ToolCallId::new(tool_request.id.clone()), initial_title)
         .status(ToolCallStatus::Pending);
@@ -368,7 +375,7 @@ mod tests {
                 tool_meta: Some(serde_json::json!({"goose_extension": "developer"})),
             };
 
-            let tool_call = build_initial_tool_call(&request);
+            let tool_call = build_initial_tool_call(&request, false);
 
             assert_eq!(tool_call.title, "edit · /src/main.rs");
             assert_eq!(tool_call.status, ToolCallStatus::Pending);
@@ -388,7 +395,7 @@ mod tests {
         }
 
         #[test]
-        fn uses_generated_title() {
+        fn uses_generated_title_when_enrichment_is_enabled() {
             let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
             let request = ToolRequest {
                 id: "req_1".to_string(),
@@ -401,9 +408,28 @@ mod tests {
                 })),
             };
 
-            let tool_call = build_initial_tool_call(&request);
+            let tool_call = build_initial_tool_call(&request, true);
 
             assert_eq!(tool_call.title, "running focused tests");
+        }
+
+        #[test]
+        fn uses_default_title_when_enrichment_is_disabled() {
+            let arguments = json_object(vec![("command", serde_json::json!("cargo test"))]);
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(
+                    CallToolRequestParams::new("developer__shell").with_arguments(arguments)
+                ),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({
+                    (TOOL_META_TITLE_KEY): "running focused tests",
+                })),
+            };
+
+            let tool_call = build_initial_tool_call(&request, false);
+
+            assert_eq!(tool_call.title, "developer: shell · cargo test");
         }
 
         #[test]
@@ -415,7 +441,7 @@ mod tests {
                 tool_meta: None,
             };
 
-            let tool_call = build_initial_tool_call(&request);
+            let tool_call = build_initial_tool_call(&request, false);
 
             assert_eq!(tool_call.title, "error");
             assert_eq!(tool_call.status, ToolCallStatus::Pending);
@@ -437,7 +463,7 @@ mod tests {
                 metadata: None,
                 tool_meta: None,
             };
-            let initial = build_initial_tool_call(&request);
+            let initial = build_initial_tool_call(&request, false);
 
             let permission = build_permission_tool_call_update(
                 &request.id,
