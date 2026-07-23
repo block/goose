@@ -2158,6 +2158,32 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_request_limits_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![Message::assistant().with_tool_request(
+            "call_long_name",
+            Ok(CallToolRequestParams::new("a".repeat(160))),
+        )];
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let name = result["input"][0]["name"].as_str().unwrap();
+
+        assert_eq!(name.len(), 128);
+    }
+
+    #[test]
     fn test_tool_request_error_emits_function_call_output() {
         use crate::conversation::message::Message;
         use rmcp::model::{ErrorCode, ErrorData};

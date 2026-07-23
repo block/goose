@@ -1577,16 +1577,21 @@ pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [
     }
 }
 
+const MAX_FUNCTION_NAME_LENGTH: usize = 128;
+
 pub fn sanitize_function_name(name: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
-    re.replace_all(name, "_").to_string()
+    re.replace_all(name, "_")
+        .chars()
+        .take(MAX_FUNCTION_NAME_LENGTH)
+        .collect()
 }
 
 pub fn is_valid_function_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
-    re.is_match(name)
+    name.len() <= MAX_FUNCTION_NAME_LENGTH && re.is_match(name)
 }
 
 #[cfg(test)]
@@ -4160,14 +4165,28 @@ data: [DONE]"#;
         assert_eq!(sanitize_function_name("hello-world"), "hello-world");
         assert_eq!(sanitize_function_name("hello world"), "hello_world");
         assert_eq!(sanitize_function_name("hello@world"), "hello_world");
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH + 32)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
     }
 
     #[test]
     fn test_is_valid_function_name() {
         assert!(is_valid_function_name("hello-world"));
         assert!(is_valid_function_name("hello_world"));
+        assert!(is_valid_function_name(
+            &"a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        ));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
+        assert!(!is_valid_function_name(
+            &"a".repeat(MAX_FUNCTION_NAME_LENGTH + 1)
+        ));
     }
 
     #[test]
