@@ -171,6 +171,8 @@ jobs:
       - name: Build Linux packages
         env:
           GOOSE_DESKTOP_LINUX_VARIANT: ${{ matrix.variant }}
+          DEBUG: '@malept/flatpak-bundler*'
+          DEBUG_COLORS: '0'
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
