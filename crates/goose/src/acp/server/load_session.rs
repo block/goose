@@ -230,6 +230,10 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
+        if args.cwd != session.working_dir {
+            validate_absolute_cwd(&args.cwd)?;
+        }
+
         session = self
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;

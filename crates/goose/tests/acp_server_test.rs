@@ -178,6 +178,39 @@ fn test_load_session_tolerates_missing_working_dir() {
 }
 
 #[test]
+fn test_load_session_rejects_repoint_to_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let stored_dir = tempfile::tempdir().unwrap();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                stored_dir.path().to_path_buf(),
+                "Live session".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+
+        let error = conn
+            .cx()
+            .send_request(LoadSessionRequest::new(
+                SessionId::new(session.id.clone()),
+                deleted_absolute_dir().as_path(),
+            ))
+            .block_task()
+            .await
+            .expect_err("repointing a load to a non-existent working dir must be rejected");
+
+        assert_invalid_params(error.into());
+    });
+}
+
+#[test]
 fn test_new_session_rejects_missing_working_dir() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
