@@ -33,7 +33,7 @@ You'll need [Go 1.21+](https://go.dev/doc/install) installed on your system to b
 ### Install the MCP server
 
 ```sh
-go install github.com/james-see/swatchify/cmd/mcp@latest
+go install github.com/james-see/swatchify/cmd/mcp@v0.4.0
 ```
 
 This produces a binary named `mcp` in your `$GOPATH/bin`. Rename it so goose (and you) can find it by a distinct name:

@@ -743,7 +743,7 @@
     "description": "Extract dominant colors from images using k-means clustering",
     "command": "swatchify-mcp",
     "link": "https://github.com/james-see/swatchify",
-    "installation_notes": "Install with: go install github.com/james-see/swatchify/cmd/mcp@latest. The binary installs as \"mcp\" — rename it to \"swatchify-mcp\" and ensure it is on your PATH.",
+    "installation_notes": "Install with: go install github.com/james-see/swatchify/cmd/mcp@v0.4.0. The binary installs as \"mcp\" — rename it to \"swatchify-mcp\" and ensure it is on your PATH.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
