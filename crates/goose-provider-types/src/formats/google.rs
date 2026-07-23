@@ -54,18 +54,26 @@ fn maybe_insert_signature_from_metadata(
     }
 }
 
-fn build_function_response_part(id: &str, name: &str, text: String) -> Map<String, Value> {
+fn build_function_response_part(
+    id: &str,
+    name: &str,
+    text: String,
+    media: Vec<Value>,
+) -> Map<String, Value> {
     let mut part = Map::new();
     let mut function_response = Map::new();
     function_response.insert("id".to_string(), json!(id));
     function_response.insert("name".to_string(), json!(name));
     function_response.insert("response".to_string(), json!({"content": {"text": text}}));
+    if !media.is_empty() {
+        function_response.insert("parts".to_string(), json!(media));
+    }
     part.insert("functionResponse".to_string(), json!(function_response));
     part
 }
 
 /// Convert internal Message format to Google's API message specification
-pub fn format_messages(messages: &[Message]) -> Vec<Value> {
+pub fn format_messages(messages: &[Message], nested_function_response_media: bool) -> Vec<Value> {
     let filtered: Vec<_> = messages
         .iter()
         .filter(|m| m.is_agent_visible())
@@ -161,15 +169,25 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
+                            let mut media = Vec::new();
                             for content in result.content.iter().map(|c| c.raw.clone()) {
                                 match content {
                                     RawContent::Image(image) => {
-                                        parts.push(json!({
-                                            "inline_data": {
-                                                "mime_type": image.mime_type,
-                                                "data": image.data,
-                                            }
-                                        }));
+                                        if nested_function_response_media {
+                                            media.push(json!({
+                                                "inlineData": {
+                                                    "mimeType": image.mime_type,
+                                                    "data": image.data,
+                                                }
+                                            }));
+                                        } else {
+                                            parts.push(json!({
+                                                "inline_data": {
+                                                    "mime_type": image.mime_type,
+                                                    "data": image.data,
+                                                }
+                                            }));
+                                        }
                                     }
                                     _ => {
                                         tool_content.push(content.no_annotation());
@@ -195,7 +213,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 .get(response.id.as_str())
                                 .map(String::as_str)
                                 .unwrap_or(response.id.as_str());
-                            let mut part = build_function_response_part(&response.id, name, text);
+                            let mut part =
+                                build_function_response_part(&response.id, name, text, media);
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
@@ -210,6 +229,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 &response.id,
                                 name,
                                 format!("Error: {}", e),
+                                Vec::new(),
                             );
                             if include_signature {
                                 maybe_insert_signature_from_metadata(&mut part, &response.metadata);
@@ -702,7 +722,13 @@ fn create_request_impl(
         system_instruction: SystemInstruction {
             parts: [TextPart { text: system }],
         },
-        contents: format_messages(messages),
+        contents: format_messages(
+            messages,
+            model_config
+                .model_name
+                .to_lowercase()
+                .starts_with("gemini-3"),
+        ),
         tools: tools_wrapper,
         generation_config,
     };
@@ -796,7 +822,7 @@ mod tests {
             set_up_text_message("Hello", Role::User),
             set_up_text_message("World", Role::Assistant),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 2);
         assert_eq!(payload[0]["role"], "user");
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
@@ -821,7 +847,7 @@ mod tests {
                 MessageContent::Image(image.no_annotation()),
             ],
         )];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
@@ -851,7 +877,7 @@ mod tests {
                 CallToolRequestParams::new("tool_name_2").with_arguments(object(arguments.clone())),
             ),
         ];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
         assert_eq!(payload[0]["parts"][0]["functionCall"]["id"], "id");
@@ -862,7 +888,7 @@ mod tests {
     fn test_message_to_google_spec_tool_result_message() {
         let tool_result: Vec<Content> = vec![Content::text("Hello")];
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "model");
         assert_eq!(
@@ -886,7 +912,7 @@ mod tests {
             set_up_tool_response_message("call_123", vec![Content::text("contents")]),
         ];
 
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         assert_eq!(
             payload[1]["parts"][0]["functionResponse"],
@@ -894,6 +920,38 @@ mod tests {
                 "id": "call_123",
                 "name": "read_file",
                 "response": {"content": {"text": "contents"}}
+            })
+        );
+    }
+
+    #[test]
+    fn test_image_tool_result_is_nested_in_function_response() {
+        let messages = vec![
+            set_up_tool_request_message("call_123", CallToolRequestParams::new("screenshot")),
+            set_up_tool_response_message(
+                "call_123",
+                vec![
+                    Content::text("Screenshot captured"),
+                    Content::image("base64encodeddata", "image/png"),
+                ],
+            ),
+        ];
+
+        let payload = format_messages(&messages, true);
+
+        assert_eq!(payload[1]["parts"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"],
+            json!({
+                "id": "call_123",
+                "name": "screenshot",
+                "response": {"content": {"text": "Screenshot captured"}},
+                "parts": [{
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": "base64encodeddata"
+                    }
+                }]
             })
         );
     }
@@ -907,7 +965,7 @@ mod tests {
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
@@ -1067,7 +1125,7 @@ mod tests {
         let tool_result: Vec<Content> = Vec::new();
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
-        let payload = format_messages(&messages);
+        let payload = format_messages(&messages, false);
 
         let expected_payload = vec![json!({
             "role": "model",
@@ -1154,8 +1212,10 @@ mod tests {
             req1.metadata.as_ref(),
         );
         let user_prompt = set_up_text_message("List files", Role::User);
-        let google_out =
-            format_messages(&[user_prompt.clone(), native.clone(), tool_response.clone()]);
+        let google_out = format_messages(
+            &[user_prompt.clone(), native.clone(), tool_response.clone()],
+            false,
+        );
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_out[2]["parts"][0]["thoughtSignature"], SIG);
 
@@ -1164,7 +1224,10 @@ mod tests {
             "thoughtSignature": "sig_456"
         })]))
         .unwrap();
-        let google_multi = format_messages(&[user_prompt, native, tool_response, second_assistant]);
+        let google_multi = format_messages(
+            &[user_prompt, native, tool_response, second_assistant],
+            false,
+        );
         assert_eq!(google_multi[1]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_multi[3]["parts"][0]["thoughtSignature"], "sig_456");
@@ -1207,7 +1270,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only]);
+        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only], false);
         assert_eq!(formatted.len(), 1);
         assert_eq!(formatted[0]["role"], "user");
         assert_eq!(formatted[0]["parts"][0]["text"], "hello");
@@ -1221,7 +1284,7 @@ mod tests {
         })]))
         .unwrap();
 
-        let formatted = format_messages(&[user_prompt, assistant_tool]);
+        let formatted = format_messages(&[user_prompt, assistant_tool], false);
         assert_eq!(
             formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
             SYNTHETIC_THOUGHT_SIGNATURE
