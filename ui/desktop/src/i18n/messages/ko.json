@@ -495,121 +495,121 @@
     "defaultMessage": "부족한 크레딧"
   },
   "cronPicker.april": {
-    "defaultMessage": "4월"
+    "defaultMessage": "April"
   },
   "cronPicker.at": {
-    "defaultMessage": "시각"
+    "defaultMessage": "at"
   },
   "cronPicker.atMinute": {
-    "defaultMessage": "분에"
+    "defaultMessage": "at minute"
   },
   "cronPicker.atSecond": {
-    "defaultMessage": "초에"
+    "defaultMessage": "at second"
   },
   "cronPicker.august": {
-    "defaultMessage": "8월"
+    "defaultMessage": "August"
   },
   "cronPicker.cronExpression": {
-    "defaultMessage": "cron 표현식"
+    "defaultMessage": "Cron expression"
   },
   "cronPicker.custom": {
-    "defaultMessage": "사용자 지정 cron"
+    "defaultMessage": "Custom cron"
   },
   "cronPicker.day": {
-    "defaultMessage": "일"
+    "defaultMessage": "Day"
   },
   "cronPicker.december": {
-    "defaultMessage": "12월"
+    "defaultMessage": "December"
   },
   "cronPicker.emptyCronError": {
-    "defaultMessage": "cron 표현식은 비워둘 수 없습니다."
+    "defaultMessage": "Cron expression cannot be empty"
   },
   "cronPicker.every": {
-    "defaultMessage": "모든"
+    "defaultMessage": "Every"
   },
   "cronPicker.february": {
-    "defaultMessage": "2월"
+    "defaultMessage": "February"
   },
   "cronPicker.friday": {
-    "defaultMessage": "금요일"
+    "defaultMessage": "Friday"
   },
   "cronPicker.hour": {
-    "defaultMessage": "시간"
+    "defaultMessage": "Hour"
   },
   "cronPicker.inMonth": {
-    "defaultMessage": "월"
+    "defaultMessage": "in"
   },
   "cronPicker.invalidDayOfMonth": {
-    "defaultMessage": "일은 1에서 {max} 사이여야 합니다."
+    "defaultMessage": "Day must be between 1 and {max}"
   },
   "cronPicker.january": {
-    "defaultMessage": "1월"
+    "defaultMessage": "January"
   },
   "cronPicker.july": {
-    "defaultMessage": "7월"
+    "defaultMessage": "July"
   },
   "cronPicker.june": {
-    "defaultMessage": "6월"
+    "defaultMessage": "June"
   },
   "cronPicker.march": {
-    "defaultMessage": "3월"
+    "defaultMessage": "March"
   },
   "cronPicker.may": {
-    "defaultMessage": "5월"
+    "defaultMessage": "May"
   },
   "cronPicker.minute": {
-    "defaultMessage": "분"
+    "defaultMessage": "Minute"
   },
   "cronPicker.mode": {
-    "defaultMessage": "모드"
+    "defaultMessage": "Mode"
   },
   "cronPicker.monday": {
-    "defaultMessage": "월요일"
+    "defaultMessage": "Monday"
   },
   "cronPicker.month": {
-    "defaultMessage": "월"
+    "defaultMessage": "Month"
   },
   "cronPicker.november": {
-    "defaultMessage": "11월"
+    "defaultMessage": "November"
   },
   "cronPicker.october": {
-    "defaultMessage": "10월"
+    "defaultMessage": "October"
   },
   "cronPicker.on": {
-    "defaultMessage": "지정"
+    "defaultMessage": "on"
   },
   "cronPicker.onDay": {
-    "defaultMessage": "일에"
+    "defaultMessage": "on day"
   },
   "cronPicker.quarter": {
-    "defaultMessage": "분기"
+    "defaultMessage": "Quarter"
   },
   "cronPicker.saturday": {
-    "defaultMessage": "토요일"
+    "defaultMessage": "Saturday"
   },
   "cronPicker.september": {
-    "defaultMessage": "9월"
+    "defaultMessage": "September"
   },
   "cronPicker.startingMonth": {
-    "defaultMessage": "시작 월"
+    "defaultMessage": "starting month"
   },
   "cronPicker.sunday": {
-    "defaultMessage": "일요일"
+    "defaultMessage": "Sunday"
   },
   "cronPicker.thursday": {
-    "defaultMessage": "목요일"
+    "defaultMessage": "Thursday"
   },
   "cronPicker.tuesday": {
-    "defaultMessage": "화요일"
+    "defaultMessage": "Tuesday"
   },
   "cronPicker.wednesday": {
-    "defaultMessage": "수요일"
+    "defaultMessage": "Wednesday"
   },
   "cronPicker.week": {
-    "defaultMessage": "주"
+    "defaultMessage": "Week"
   },
   "cronPicker.year": {
-    "defaultMessage": "연도"
+    "defaultMessage": "Year"
   },
   "customProviderForm.add": {
     "defaultMessage": "추가"
