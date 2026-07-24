@@ -793,7 +793,13 @@ async fn create_streamable_http_client(
                 )
                 .await
             }
-            Err(_) => Ok(Box::new(client_res?)),
+            Err(e) => {
+                warn!(
+                    "[OAuth:{}] Browser authorization flow failed: {:#}",
+                    name, e
+                );
+                Ok(Box::new(client_res?))
+            }
         }
     } else {
         Ok(Box::new(client_res?))
