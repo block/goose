@@ -152,6 +152,9 @@ export default function BaseChat({
         working_dir: newDir,
         working_dir_missing: false,
       }));
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId: session.id } })
+      );
     },
     [session, updateSession]
   );
