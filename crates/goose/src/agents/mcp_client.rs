@@ -385,8 +385,10 @@ impl ClientHandler for GooseClient {
 
     async fn on_tool_list_changed(&self, _context: rmcp::service::NotificationContext<RoleClient>) {
         if let Some(extension_manager) = self.extension_manager.as_ref().and_then(Weak::upgrade) {
+            // Prefer if_populated: connect-time list_changed with an empty cache
+            // must not bump the version mid first-fetch (see method docs).
             extension_manager
-                .invalidate_tools_cache_and_bump_version()
+                .invalidate_tools_cache_if_populated()
                 .await;
         }
     }

@@ -1405,6 +1405,22 @@ impl ExtensionManager {
         *self.tools_cache.lock().await = None;
     }
 
+    /// Invalidate only when a tools list is already cached.
+    ///
+    /// Used for `notifications/tools/list_changed`. Servers often emit that
+    /// notification at connect time (before any `tools/list`); treating those as
+    /// a version bump races with the first fetch so the result is discarded and
+    /// the next tool resolution issues a second `tools/list`. When the cache is
+    /// empty there is nothing stale to drop — skip the bump.
+    pub(crate) async fn invalidate_tools_cache_if_populated(&self) {
+        let mut cache = self.tools_cache.lock().await;
+        if cache.is_none() {
+            return;
+        }
+        self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
+        *cache = None;
+    }
+
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
             .extensions
