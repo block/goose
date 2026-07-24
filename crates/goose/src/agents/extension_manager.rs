@@ -2217,6 +2217,7 @@ mod tests {
                 ],
                 next_cursor: None,
                 meta: None,
+                ..Default::default()
             })
         }
 
@@ -2734,6 +2735,7 @@ mod tests {
                 ],
                 next_cursor: None,
                 meta: None,
+                ..Default::default()
             })
         }
 

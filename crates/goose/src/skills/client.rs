@@ -75,6 +75,7 @@ impl McpClientTrait for SkillsClient {
             tools: vec![tool],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

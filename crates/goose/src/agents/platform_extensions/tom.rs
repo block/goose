@@ -41,6 +41,7 @@ impl McpClientTrait for TomClient {
             tools: vec![],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

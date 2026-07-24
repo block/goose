@@ -5,7 +5,8 @@ use rmcp::{
     model::{
         CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
         ListResourcesResult, Meta, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
@@ -694,6 +695,7 @@ impl ServerHandler for AutoVisualiserRouter {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -701,7 +703,7 @@ impl ServerHandler for AutoVisualiserRouter {
         &self,
         params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let html = self.get_template_html(&params.uri)?;
 
         let mut meta = Meta::new();
@@ -715,7 +717,7 @@ impl ServerHandler for AutoVisualiserRouter {
             meta: Some(meta),
         };
 
-        Ok(ReadResourceResult::new(vec![resource_contents]))
+        Ok(ReadResourceResult::new(vec![resource_contents]).into())
     }
 }
 

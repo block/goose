@@ -544,6 +544,7 @@ impl McpClientTrait for AppsManagerClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -616,6 +617,7 @@ impl McpClientTrait for AppsManagerClient {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

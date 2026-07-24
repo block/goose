@@ -184,6 +184,7 @@ impl McpClientTrait for DeveloperClient {
             tools: Self::get_tools(),
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
