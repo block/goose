@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Создано"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Каталог"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Модель"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Статус"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Обновлено"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ошибка"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Ожидание"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Потоковая передача"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Непрочитанная активность"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Безымянный сеанс"

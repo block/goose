@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sembang"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Dicipta"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Direktori"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Dikemas kini"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Tiada sembang terkini"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ralat"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Terbiar"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Penstriman"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Aktiviti belum dibaca"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesi tanpa tajuk"

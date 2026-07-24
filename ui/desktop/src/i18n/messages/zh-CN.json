@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "创建时间"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目录"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "状态"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新时间"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "错误"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "空闲"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "流式传输"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未读活动"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名会话"

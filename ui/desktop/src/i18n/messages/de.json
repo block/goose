@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Erstellt"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Verzeichnis"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modell"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Aktualisiert"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Keine aktuellen Chats"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Fehler"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inaktiv"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Streaming"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Ungelesene Aktivität"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Unbenannte Sitzung"

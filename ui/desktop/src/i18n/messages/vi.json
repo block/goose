@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Cuộc trò chuyện"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Đã tạo"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Thư mục"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Mô hình"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Trạng thái"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Đã cập nhật"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Không có cuộc trò chuyện gần đây"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Lỗi"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Nhàn rỗi"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Đang truyền"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Hoạt động chưa đọc"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Phiên chưa đặt tên"

@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sohbetler"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Oluşturuldu"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Dizin"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Durum"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Güncellendi"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Son sohbet yok"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Hata"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Boşta"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Akış"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Okunmamış etkinlik"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Başlıksız oturum"

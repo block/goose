@@ -15,6 +15,8 @@ import { AppEvents } from '../../constants/events';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
 import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
@@ -38,6 +40,42 @@ const i18n = defineMessages({
   untitledSession: {
     id: 'navigationPanel.untitledSession',
     defaultMessage: 'Untitled session',
+  },
+  metaModel: {
+    id: 'navigationPanel.metaModel',
+    defaultMessage: 'Model',
+  },
+  metaDirectory: {
+    id: 'navigationPanel.metaDirectory',
+    defaultMessage: 'Directory',
+  },
+  metaStatus: {
+    id: 'navigationPanel.metaStatus',
+    defaultMessage: 'Status',
+  },
+  metaCreated: {
+    id: 'navigationPanel.metaCreated',
+    defaultMessage: 'Created',
+  },
+  metaUpdated: {
+    id: 'navigationPanel.metaUpdated',
+    defaultMessage: 'Updated',
+  },
+  statusStreaming: {
+    id: 'navigationPanel.statusStreaming',
+    defaultMessage: 'Streaming',
+  },
+  statusError: {
+    id: 'navigationPanel.statusError',
+    defaultMessage: 'Error',
+  },
+  statusUnread: {
+    id: 'navigationPanel.statusUnread',
+    defaultMessage: 'Unread activity',
+  },
+  statusIdle: {
+    id: 'navigationPanel.statusIdle',
+    defaultMessage: 'Idle',
   },
 });
 
@@ -78,43 +116,106 @@ interface SessionRowProps {
   onRenamed: () => void;
 }
 
+const formatTimestamp = (value?: string): string | null => {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  return formatMessageTimestamp(parsed / 1000);
+};
+
+const MetaRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex gap-2">
+    <span className="text-text-inverse/60 flex-shrink-0">{label}</span>
+    <span className="text-right ml-auto break-all">{value}</span>
+  </div>
+);
+
+interface SessionTooltipContentProps {
+  session: SessionListItem;
+  statusLabel: string;
+}
+
+const SessionTooltipContent: React.FC<SessionTooltipContentProps> = ({ session, statusLabel }) => {
+  const intl = useIntl();
+  const model = session.modelId
+    ? session.providerId
+      ? `${session.modelId} (${session.providerId})`
+      : session.modelId
+    : session.providerId;
+  const created = formatTimestamp(session.createdAt);
+  const updated = formatTimestamp(session.lastMessageAt ?? session.updatedAt);
+
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      <div className="font-medium break-words">
+        {session.name || intl.formatMessage(i18n.untitledSession)}
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {model && <MetaRow label={intl.formatMessage(i18n.metaModel)} value={model} />}
+        {session.workingDir && (
+          <MetaRow label={intl.formatMessage(i18n.metaDirectory)} value={session.workingDir} />
+        )}
+        <MetaRow label={intl.formatMessage(i18n.metaStatus)} value={statusLabel} />
+        {created && <MetaRow label={intl.formatMessage(i18n.metaCreated)} value={created} />}
+        {updated && <MetaRow label={intl.formatMessage(i18n.metaUpdated)} value={updated} />}
+      </div>
+    </div>
+  );
+};
+
 const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClick, onRenamed }) => {
   const intl = useIntl();
   const [isEditing, setIsEditing] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
   const isStreaming = status?.streamState === 'streaming';
   const hasError = status?.streamState === 'error';
   const hasUnread = status?.hasUnreadActivity ?? false;
 
+  const statusLabel = isStreaming
+    ? intl.formatMessage(i18n.statusStreaming)
+    : hasError
+      ? intl.formatMessage(i18n.statusError)
+      : hasUnread
+        ? intl.formatMessage(i18n.statusUnread)
+        : intl.formatMessage(i18n.statusIdle);
+
   return (
-    <div
-      onClick={() => !isEditing && onClick()}
-      className={cn(
-        'flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer text-sm',
-        'hover:bg-background-tertiary/60 transition-colors',
-        active && 'bg-background-tertiary'
-      )}
-    >
-      <InlineEditText
-        value={session.name}
-        onSave={async (newName) => {
-          await acpRenameSession(session.id, newName);
-          window.dispatchEvent(
-            new CustomEvent(AppEvents.SESSION_RENAMED, {
-              detail: { sessionId: session.id, newName, userInitiated: true },
-            })
-          );
-          onRenamed();
-        }}
-        placeholder={intl.formatMessage(i18n.untitledSession)}
-        disabled={isStreaming}
-        singleClickEdit={false}
-        className="truncate text-text-primary flex-1 !px-0 !py-0 hover:bg-transparent"
-        editClassName="!text-sm"
-        onEditStart={() => setIsEditing(true)}
-        onEditEnd={() => setIsEditing(false)}
-      />
-      <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
-    </div>
+    <Tooltip open={tooltipOpen && !isEditing} onOpenChange={setTooltipOpen} delayDuration={400}>
+      <TooltipTrigger asChild>
+        <div
+          onClick={() => !isEditing && onClick()}
+          className={cn(
+            'flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer text-sm',
+            'hover:bg-background-tertiary/60 transition-colors',
+            active && 'bg-background-tertiary'
+          )}
+        >
+          <InlineEditText
+            value={session.name}
+            onSave={async (newName) => {
+              await acpRenameSession(session.id, newName);
+              window.dispatchEvent(
+                new CustomEvent(AppEvents.SESSION_RENAMED, {
+                  detail: { sessionId: session.id, newName, userInitiated: true },
+                })
+              );
+              onRenamed();
+            }}
+            placeholder={intl.formatMessage(i18n.untitledSession)}
+            disabled={isStreaming}
+            singleClickEdit={false}
+            className="truncate text-text-primary flex-1 !px-0 !py-0 hover:bg-transparent"
+            editClassName="!text-sm"
+            onEditStart={() => setIsEditing(true)}
+            onEditEnd={() => setIsEditing(false)}
+          />
+          <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="start" className="max-w-xs text-left">
+        <SessionTooltipContent session={session} statusLabel={statusLabel} />
+      </TooltipContent>
+    </Tooltip>
   );
 };
 

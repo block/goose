@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "作成"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "ディレクトリ"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "モデル"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "ステータス"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "最近のチャットはありません"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "エラー"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "アイドル"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "ストリーミング"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未読のアクティビティ"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "無題のセッション"

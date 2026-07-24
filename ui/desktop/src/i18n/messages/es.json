@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Creado"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Directorio"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modelo"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Estado"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Actualizado"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "No hay chats recientes"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Error"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inactivo"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Transmitiendo"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Actividad sin leer"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesión sin título"

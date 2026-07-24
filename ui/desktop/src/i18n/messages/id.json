@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Obrolan"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Dibuat"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Direktori"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Diperbarui"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Tidak ada obrolan terbaru"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Kesalahan"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Menganggur"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Streaming"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Aktivitas belum dibaca"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesi tanpa judul"
