@@ -244,21 +244,36 @@ impl GooseAcpAgent {
             self.supports_goose_custom_notifications(),
             self.requests_tool_call_label_enrichment(),
         )?;
-        let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        self.apply_session_recipe(&agent, &session).await?;
-        self.register_acp_session(session_id_str.clone(), agent.clone())
-            .await;
 
-        session = self
-            .session_manager
-            .get_session(&session_id_str, false)
-            .await
-            .internal_err_ctx("Failed to reload session")?;
+        // Defer agent and extension activation when the stored working directory is
+        // missing. Starting stdio MCP servers here would spawn them against the goose
+        // process directory (child_process_client skips current_dir when the path is
+        // absent), launching against the wrong root before the user can repoint. The
+        // agent activates lazily once the directory exists, via
+        // session/update-working-dir or the next prompt.
+        let working_dir_missing = !session.working_dir.exists() || !session.working_dir.is_dir();
 
-        agent
-            .extension_manager
-            .update_working_dir(&session.working_dir)
-            .await;
+        let extension_results = if working_dir_missing {
+            Vec::new()
+        } else {
+            let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+            self.apply_session_recipe(&agent, &session).await?;
+            self.register_acp_session(session_id_str.clone(), agent.clone())
+                .await;
+
+            session = self
+                .session_manager
+                .get_session(&session_id_str, false)
+                .await
+                .internal_err_ctx("Failed to reload session")?;
+
+            agent
+                .extension_manager
+                .update_working_dir(&session.working_dir)
+                .await;
+
+            extension_results
+        };
 
         let (mode_state, config_options) =
             build_session_setup_config(&self.provider_inventory, &session).await?;

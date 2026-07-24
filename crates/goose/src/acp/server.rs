@@ -1777,6 +1777,14 @@ impl GooseAcpAgent {
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
 
+        // Validate before activating the agent: a session whose working directory is
+        // missing defers activation, and get_session_agent would otherwise start its
+        // stdio extensions against the wrong root before this check rejects the prompt.
+        if let Err(error) = self.validate_session_working_dir(&session_id).await {
+            self.clear_active_run(&session_id, &run_id).await;
+            return Err(error);
+        }
+
         let agent = match self.get_session_agent(&session_id).await {
             Ok(agent) => agent,
             Err(error) => {
@@ -1784,11 +1792,6 @@ impl GooseAcpAgent {
                 return Err(error);
             }
         };
-
-        if let Err(error) = self.validate_session_working_dir(&session_id).await {
-            self.clear_active_run(&session_id, &run_id).await;
-            return Err(error);
-        }
 
         if cancel_token.is_cancelled() {
             self.clear_active_run(&session_id, &run_id).await;

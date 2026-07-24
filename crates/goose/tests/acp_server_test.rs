@@ -2,13 +2,16 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
-    PromptRequest, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
-    SessionId, SessionInfo, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
+    ContentBlock, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
+    LoadSessionResponse, McpServer, McpServerHttp, NewSessionRequest, PromptRequest,
+    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionId,
+    SessionInfo, SessionUpdate, SetSessionConfigOptionRequest, StopReason, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
+use common_tests::fixtures::{
+    run_test, send_custom, Connection, OpenAiFixture, Session, TestConnectionConfig,
+};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -29,6 +32,7 @@ use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
+use goose_test_support::McpFixture;
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -82,6 +86,13 @@ async fn new_connection(data_root: &Path) -> AcpServerConnection {
         <AcpServerConnection as Connection>::expected_session_id(),
     )
     .await;
+    new_connection_with_openai(data_root, openai).await
+}
+
+async fn new_connection_with_openai(
+    data_root: &Path,
+    openai: OpenAiFixture,
+) -> AcpServerConnection {
     <AcpServerConnection as Connection>::new(
         TestConnectionConfig {
             data_root: data_root.to_path_buf(),
@@ -90,6 +101,24 @@ async fn new_connection(data_root: &Path) -> AcpServerConnection {
         openai,
     )
     .await
+}
+
+fn extension_results(response: &LoadSessionResponse) -> Vec<serde_json::Value> {
+    response
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("extensionResults"))
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn working_dir_missing(response: &LoadSessionResponse) -> Option<bool> {
+    response
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("workingDirMissing"))
+        .and_then(serde_json::Value::as_bool)
 }
 
 async fn list_sessions_request(
@@ -293,6 +322,156 @@ fn test_new_session_rejects_missing_working_dir() {
             .expect_err("new_session must reject a working dir that does not exist");
 
         assert_invalid_params(error.into());
+    });
+}
+
+#[test]
+fn test_load_session_missing_working_dir_defers_extension_activation() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let mcp = McpFixture::new(<AcpServerConnection as Connection>::expected_session_id()).await;
+        let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp.url))];
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        let response = conn
+            .cx()
+            .send_request(
+                LoadSessionRequest::new(session_id.clone(), missing_dir.as_path())
+                    .mcp_servers(mcp_servers.clone()),
+            )
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        assert_eq!(working_dir_missing(&response), Some(true));
+        assert!(
+            extension_results(&response).is_empty(),
+            "a missing working dir must defer extension activation so stdio servers never \
+             start against the wrong root, got {:?}",
+            extension_results(&response)
+        );
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        let response = conn
+            .cx()
+            .send_request(
+                LoadSessionRequest::new(session_id, valid_dir.path()).mcp_servers(mcp_servers),
+            )
+            .block_task()
+            .await
+            .expect("reloading after repoint must succeed");
+
+        assert_eq!(working_dir_missing(&response), Some(false));
+        assert!(
+            extension_results(&response).iter().any(|result| result
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                == Some("mcp-fixture")),
+            "after repointing to a valid dir the extensions must activate, got {:?}",
+            extension_results(&response)
+        );
+    });
+}
+
+#[test]
+fn test_prompt_succeeds_after_repointing_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("remember this"))
+            .await
+            .unwrap();
+
+        let openai = OpenAiFixture::new(
+            vec![(
+                "what is 1+1".to_string(),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let conn = new_connection_with_openai(data_root.path(), openai).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        conn.cx()
+            .send_request(PromptRequest::new(
+                session_id.clone(),
+                vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+            ))
+            .block_task()
+            .await
+            .expect_err("prompting must be rejected while the working dir is missing");
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        let response = conn
+            .cx()
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+            ))
+            .block_task()
+            .await
+            .expect("prompting must succeed once the working dir is repointed");
+
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
     });
 }
 
