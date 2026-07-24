@@ -265,6 +265,47 @@ describe('acpChatSessionStore', () => {
     });
   });
 
+  it('records a prompt failure as a submit error without tripping the load-error screen', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+
+    expect(
+      acpChatSessionActions.finishPromptAttemptIfCurrent(
+        currentSessionId,
+        'attempt-1',
+        'Submit error: boom'
+      )
+    ).toBe(true);
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)).toMatchObject({
+      submitError: 'Submit error: boom',
+      sessionLoadError: undefined,
+      chatState: ChatState.Idle,
+    });
+  });
+
+  it('clears a submit error when the next prompt attempt starts', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-1', 'boom');
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-2');
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.submitError).toBeUndefined();
+  });
+
+  it('marks the session working directory as missing', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.finishSessionLoad(currentSessionId, session(currentSessionId));
+    acpChatSessionActions.markSessionWorkingDirMissing(currentSessionId);
+
+    expect(
+      acpChatSessionStore.getSnapshot(currentSessionId)?.session?.working_dir_missing
+    ).toBe(true);
+  });
+
   it('keeps loaded sessions streaming when a prompt attempt is active', () => {
     const currentSessionId = sessionId('session-1');
 

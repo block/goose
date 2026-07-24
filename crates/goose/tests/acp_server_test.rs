@@ -3,8 +3,8 @@
 mod common_tests;
 use agent_client_protocol::schema::v1::{
     ContentBlock, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
-    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionId,
-    SessionInfo, SessionUpdate, SetSessionConfigOptionRequest,
+    PromptRequest, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
+    SessionId, SessionInfo, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
@@ -149,7 +149,8 @@ fn test_load_session_tolerates_missing_working_dir() {
 
         let conn = new_connection(data_root.path()).await;
 
-        conn.cx()
+        let response = conn
+            .cx()
             .send_request(LoadSessionRequest::new(
                 SessionId::new(session.id.clone()),
                 missing_dir.as_path(),
@@ -157,6 +158,15 @@ fn test_load_session_tolerates_missing_working_dir() {
             .block_task()
             .await
             .expect("loading a session with a deleted working dir must succeed");
+
+        assert_eq!(
+            response
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get("workingDirMissing")),
+            Some(&serde_json::Value::Bool(true)),
+            "the load response must flag the missing working dir so clients can warn up front"
+        );
 
         let replayed_text = conn
             .drain_session_updates()
@@ -173,6 +183,65 @@ fn test_load_session_tolerates_missing_working_dir() {
         assert!(
             replayed_text.iter().any(|text| text == "remember this"),
             "expected the transcript to replay despite the missing working dir, got {replayed_text:?}"
+        );
+    });
+}
+
+#[test]
+fn test_prompt_rejects_missing_working_dir_with_structured_reason() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("remember this"))
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        let error = conn
+            .cx()
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new("do something"))],
+            ))
+            .block_task()
+            .await
+            .expect_err("prompting a session with a deleted working dir must be rejected");
+
+        let acp_error = anyhow::Error::from(error)
+            .downcast::<agent_client_protocol::Error>()
+            .unwrap();
+        assert_eq!(acp_error.code, ErrorCode::InvalidParams);
+        assert_eq!(
+            acp_error
+                .data
+                .as_ref()
+                .and_then(|data| data.get("reason"))
+                .and_then(serde_json::Value::as_str),
+            Some("working_dir_missing"),
+            "prompt rejection must carry a machine-readable reason so the client can warn inline"
         );
     });
 }

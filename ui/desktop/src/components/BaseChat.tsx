@@ -29,6 +29,7 @@ import {
   type Message,
   type UserInput,
 } from '../types/message';
+import { errorMessage } from '../utils/conversionUtils';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
@@ -45,9 +46,30 @@ const i18n = defineMessages({
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
   },
+  goBack: {
+    id: 'baseChat.goBack',
+    defaultMessage: 'Go back',
+  },
   reconnecting: {
     id: 'baseChat.reconnecting',
     defaultMessage: 'Connection lost. Reconnecting…',
+  },
+  workingDirMissingTitle: {
+    id: 'baseChat.workingDirMissingTitle',
+    defaultMessage: 'Working directory is unavailable',
+  },
+  workingDirMissingBody: {
+    id: 'baseChat.workingDirMissingBody',
+    defaultMessage:
+      'This session was working in {dir}, which no longer exists. Choose a new working directory to keep going. The conversation and tools were set up against the old path, so results may differ after switching.',
+  },
+  chooseWorkingDir: {
+    id: 'baseChat.chooseWorkingDir',
+    defaultMessage: 'Choose working directory…',
+  },
+  updateWorkingDirFailed: {
+    id: 'baseChat.updateWorkingDirFailed',
+    defaultMessage: 'Failed to update working directory',
   },
 });
 
@@ -107,6 +129,8 @@ export default function BaseChat({
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
+    submitError,
+    workingDirMissing,
     tokenState,
     notifications: toolCallNotifications,
     pauseQueueOnStop,
@@ -123,10 +147,30 @@ export default function BaseChat({
         throw new Error('Cannot update working directory before ACP session is loaded');
       }
       await acpUpdateWorkingDir(session.id, newDir);
-      updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
+      updateSession((currentSession) => ({
+        ...currentSession,
+        working_dir: newDir,
+        working_dir_missing: false,
+      }));
     },
     [session, updateSession]
   );
+
+  const handlePickWorkingDir = useCallback(async () => {
+    const result = await window.electron.directoryChooser();
+    if (result.canceled || result.filePaths.length === 0) {
+      return;
+    }
+    try {
+      await handleWorkingDirChange(result.filePaths[0]);
+    } catch (error) {
+      const { toastError } = await import('../toasts');
+      toastError({
+        title: intl.formatMessage(i18n.updateWorkingDirFailed),
+        msg: errorMessage(error),
+      });
+    }
+  }, [handleWorkingDirChange, intl]);
 
   const recipe = session?.recipe as Recipe | null | undefined;
 
@@ -384,14 +428,22 @@ export default function BaseChat({
                   </h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setView('chat');
-                  }}
-                  className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
-                >
-                  {intl.formatMessage(i18n.goHome)}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
+                  >
+                    {intl.formatMessage(i18n.goBack)}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('chat');
+                    }}
+                    className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
+                  >
+                    {intl.formatMessage(i18n.goHome)}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -488,6 +540,32 @@ export default function BaseChat({
         {acpRecovering && (
           <div role="status" className="mx-4 mb-2 text-sm text-text-secondary">
             {intl.formatMessage(i18n.reconnecting)}
+          </div>
+        )}
+
+        {workingDirMissing && (
+          <div
+            role="alert"
+            className="mx-4 mb-2 rounded-lg border border-amber-500/40 bg-amber-400/10 p-3 text-sm text-amber-700 dark:text-amber-300"
+          >
+            <p className="font-semibold">{intl.formatMessage(i18n.workingDirMissingTitle)}</p>
+            <p className="mt-1">
+              {intl.formatMessage(i18n.workingDirMissingBody, {
+                dir: session?.working_dir ?? '',
+              })}
+            </p>
+            <button
+              onClick={handlePickWorkingDir}
+              className="mt-2 px-3 py-1.5 cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
+            >
+              {intl.formatMessage(i18n.chooseWorkingDir)}
+            </button>
+          </div>
+        )}
+
+        {submitError && !workingDirMissing && (
+          <div role="alert" className="mx-4 mb-2 text-sm text-red-700 dark:text-red-300">
+            {submitError}
           </div>
         )}
 

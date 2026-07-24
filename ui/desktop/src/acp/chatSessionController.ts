@@ -17,7 +17,11 @@ import {
   type AcpChatSessionSnapshot,
 } from './chatSessionStore';
 import { cancelAcpElicitationRequestsForSession } from './elicitationRequests';
-import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from './errors';
+import {
+  isWorkingDirMissingError,
+  parseAcpCreditsExhaustedError,
+  type AcpCreditsExhaustedError,
+} from './errors';
 import { cancelAcpPermissionRequestsForSession } from './permissionRequests';
 import { acpCancelPrompt, acpPromptSession } from './prompt';
 import {
@@ -209,6 +213,10 @@ async function submitMessage(
         void options.onFinish();
       }
       return;
+    }
+
+    if (isWorkingDirMissingError(error)) {
+      acpChatSessionActions.markSessionWorkingDirMissing(sessionId);
     }
 
     const submitError = 'Submit error: ' + errorMessage(error);

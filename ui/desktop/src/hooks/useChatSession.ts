@@ -65,6 +65,8 @@ export function useChatSession({
   const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
   const progressMessage = acpSnapshot?.progressMessage;
   const sessionLoadError = acpSnapshot?.sessionLoadError;
+  const submitError = acpSnapshot?.submitError;
+  const workingDirMissing = session?.working_dir_missing === true;
   const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
   const queueProcessingBlocked = acpSnapshot?.pendingCancelPromptAttemptId != null;
 
@@ -161,6 +163,7 @@ export function useChatSession({
 
       if (
         !currentSnapshot?.session ||
+        currentSnapshot.session.working_dir_missing === true ||
         currentSnapshot.chatState === ChatState.LoadingConversation ||
         currentSnapshot.chatState === ChatState.Streaming ||
         currentSnapshot.chatState === ChatState.Thinking ||
@@ -335,6 +338,8 @@ export function useChatSession({
 
   return {
     sessionLoadError,
+    submitError,
+    workingDirMissing,
     messages,
     session,
     chatState,

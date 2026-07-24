@@ -846,10 +846,7 @@ impl GooseAcpAgent {
 
         let working_dir = &session.working_dir;
         if !working_dir.exists() || !working_dir.is_dir() {
-            return Err(agent_client_protocol::Error::invalid_params().data(format!(
-                "Working directory no longer exists: {}. Update the session's working directory before continuing.",
-                working_dir.display()
-            )));
+            return Err(working_dir_missing_prompt_error(working_dir));
         }
 
         Ok(())
@@ -1316,6 +1313,24 @@ fn prompt_error_from_message_content(
         }
         _ => None,
     }
+}
+
+/// Marker on the prompt-time error data so clients can distinguish a missing
+/// working directory from other invalid-params rejections without matching prose.
+///
+/// Kept in sync with WORKING_DIR_MISSING_REASON in ui/desktop/src/acp/errors.ts.
+pub(super) const WORKING_DIR_MISSING_REASON: &str = "working_dir_missing";
+
+fn working_dir_missing_prompt_error(working_dir: &Path) -> agent_client_protocol::Error {
+    let mut error = agent_client_protocol::Error::invalid_params().data(serde_json::json!({
+        "reason": WORKING_DIR_MISSING_REASON,
+        "workingDir": working_dir.display().to_string(),
+    }));
+    error.message = format!(
+        "Working directory no longer exists: {}. Update the session's working directory before continuing.",
+        working_dir.display()
+    );
+    error
 }
 
 fn credits_exhausted_prompt_error(

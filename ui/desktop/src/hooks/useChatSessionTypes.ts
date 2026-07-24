@@ -23,6 +23,8 @@ export interface UseChatSessionResult {
   ) => Promise<boolean>;
   stopStreaming: () => void;
   sessionLoadError?: string;
+  submitError?: string;
+  workingDirMissing: boolean;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
   pauseQueueOnStop: boolean;

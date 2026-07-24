@@ -40,6 +40,7 @@ vi.mock('../chatSessionStore', () => ({
     waitForPromptCancellation: vi.fn(),
     setChatState: vi.fn(),
     setSessionMetadata: vi.fn(),
+    markSessionWorkingDirMissing: vi.fn(),
     setSessionLoadError: vi.fn(),
   },
 }));
@@ -111,6 +112,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     progressMessage: undefined,
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
+    submitError: undefined,
     activePromptAttemptId,
     activeRunId: activePromptAttemptId ? 'run-1' : null,
     pendingCancelPromptAttemptId: null,

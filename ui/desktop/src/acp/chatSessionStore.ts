@@ -22,6 +22,7 @@ export interface AcpChatSessionSnapshot {
   progressMessage: string | undefined;
   chatState: ChatState;
   sessionLoadError: string | undefined;
+  submitError: string | undefined;
   activePromptAttemptId: string | null;
   activeRunId: string | null;
   pendingCancelPromptAttemptId: string | null;
@@ -70,6 +71,7 @@ export interface AcpChatSessionActions {
   ): AcpChatSessionSnapshot | undefined;
 
   setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
+  markSessionWorkingDirMissing(sessionId: string): AcpChatSessionSnapshot | undefined;
   startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
   finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
   failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
@@ -160,6 +162,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       progressMessage: undefined,
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
+      submitError: undefined,
       activePromptAttemptId: null,
       activeRunId: null,
       pendingCancelPromptAttemptId: null,
@@ -190,10 +193,23 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
+  const markSessionWorkingDirMissing: AcpChatSessionActions['markSessionWorkingDirMissing'] = (
+    sessionId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry?.session || entry.session.working_dir_missing) {
+      return entry ? snapshotFromEntry(entry) : undefined;
+    }
+
+    entry.session = { ...entry.session, working_dir_missing: true };
+    return notify(sessionId, entry);
+  };
+
   const startSessionLoad: AcpChatSessionActions['startSessionLoad'] = (sessionId) => {
     const entry = getOrCreateEntry(sessionId);
     resetReplayState(entry);
     entry.sessionLoadError = undefined;
+    entry.submitError = undefined;
     entry.progressMessage = undefined;
     entry.chatState = ChatState.LoadingConversation;
     return notify(sessionId, entry);
@@ -203,6 +219,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
     entry.sessionLoadError = undefined;
+    entry.submitError = undefined;
     entry.progressMessage = undefined;
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);
@@ -298,6 +315,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.pendingUserInputRequestIds.clear();
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
+    entry.submitError = undefined;
     entry.notifications = [];
     entry.progressMessage = undefined;
     return notify(sessionId, entry);
@@ -401,7 +419,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     discardPendingLocalSteerMessages(entry);
     entry.progressMessage = undefined;
     entry.chatState = ChatState.Idle;
-    entry.sessionLoadError = error;
+    entry.submitError = error;
     notify(sessionId, entry);
     return true;
   };
@@ -491,6 +509,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     subscribe,
     deleteSnapshot,
     setSessionMetadata,
+    markSessionWorkingDirMissing,
     startSessionLoad,
     finishSessionLoad,
     failSessionLoad,
@@ -569,6 +588,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     applyElicitationRequest: store.applyElicitationRequest,
     setElicitationStatus: store.setElicitationStatus,
     setSessionMetadata: store.setSessionMetadata,
+    markSessionWorkingDirMissing: store.markSessionWorkingDirMissing,
     startSessionLoad: store.startSessionLoad,
     finishSessionLoad: store.finishSessionLoad,
     failSessionLoad: store.failSessionLoad,
@@ -714,6 +734,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     progressMessage: entry.progressMessage,
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
+    submitError: entry.submitError,
     activePromptAttemptId: entry.activePromptAttemptId,
     activeRunId: entry.activeRunId,
     pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,

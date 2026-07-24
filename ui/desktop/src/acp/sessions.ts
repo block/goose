@@ -51,6 +51,7 @@ export interface LoadSessionMeta {
   userRecipeValues?: Record<string, string> | null;
   extensionResults?: ExtensionLoadResult[] | null;
   workingDir?: string;
+  workingDirMissing?: boolean;
 }
 
 export interface AcpLoadSessionResult {
@@ -68,6 +69,7 @@ function parseSessionResponseMeta(rawMeta: unknown): LoadSessionMeta {
     userRecipeValues: meta.userRecipeValues,
     extensionResults: meta.extensionResults,
     workingDir: typeof meta.workingDir === 'string' ? meta.workingDir : undefined,
+    workingDirMissing: meta.workingDirMissing === true,
   };
 }
 
@@ -108,6 +110,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     user_recipe_values: loadMeta.userRecipeValues,
     user_set_name: meta.userSetName,
     last_message_snippet: meta.lastMessageSnippet,
+    working_dir_missing: loadMeta.workingDirMissing === true,
   };
 }
 

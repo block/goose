@@ -8,8 +8,15 @@ const CREDITS_EXHAUSTED_REASON = 'credits_exhausted';
 // Kept in sync with RECIPE_PARAMS_CANCELLED_REASON in crates/goose/src/acp/server/recipe.rs.
 const RECIPE_PARAMS_CANCELLED_REASON = 'recipe_params_cancelled';
 
+// Kept in sync with WORKING_DIR_MISSING_REASON in crates/goose/src/acp/server.rs.
+const WORKING_DIR_MISSING_REASON = 'working_dir_missing';
+
 export function isRecipeParamsCancelled(error: unknown): boolean {
   return asAcpJsonRpcError(error)?.data?.reason === RECIPE_PARAMS_CANCELLED_REASON;
+}
+
+export function isWorkingDirMissingError(error: unknown): boolean {
+  return asAcpJsonRpcError(error)?.data?.reason === WORKING_DIR_MISSING_REASON;
 }
 
 export function parseAcpCreditsExhaustedError(error: unknown): AcpCreditsExhaustedError | null {

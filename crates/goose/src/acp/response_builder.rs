@@ -96,6 +96,11 @@ pub(super) fn session_response_meta(
         "workingDir".to_string(),
         serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
     );
+    let working_dir_missing = !session.working_dir.exists() || !session.working_dir.is_dir();
+    meta.insert(
+        "workingDirMissing".to_string(),
+        serde_json::Value::Bool(working_dir_missing),
+    );
     meta
 }
 
