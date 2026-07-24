@@ -157,6 +157,7 @@ fn replay_conversation_to_client(
                     let fields = tool_call_update_fields_from_response(
                         tool_response,
                         replay_tool_requests.get(&tool_response.id),
+                        true,
                     );
 
                     let update =

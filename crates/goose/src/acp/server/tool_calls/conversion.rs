@@ -266,6 +266,7 @@ fn extract_tool_raw_output(tool_result: &ToolResult<CallToolResult>) -> Option<s
 pub(crate) fn tool_call_update_fields_from_response(
     tool_response: &ToolResponse,
     tool_request: Option<&ToolRequest>,
+    include_content_for_acp_aware_tools: bool,
 ) -> ToolCallUpdateFields {
     let is_failed = match &tool_response.tool_result {
         Ok(result) => result.is_error == Some(true),
@@ -285,7 +286,7 @@ pub(crate) fn tool_call_update_fields_from_response(
         .tool_result
         .as_ref()
         .is_ok_and(|result| result.is_acp_aware());
-    let include_content = is_failed || !is_acp_aware;
+    let include_content = include_content_for_acp_aware_tools || is_failed || !is_acp_aware;
     let include_locations = !is_acp_aware;
 
     if include_content {
@@ -719,7 +720,7 @@ mod tests {
             let response = response_from_tool_result(Ok(result));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Completed));
             assert_eq!(fields.raw_output, Some(raw_output));
@@ -737,7 +738,7 @@ mod tests {
                     "write failed",
                 )])));
 
-            let fields = tool_call_update_fields_from_response(&response, None);
+            let fields = tool_call_update_fields_from_response(&response, None, false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("write failed"));
@@ -752,12 +753,24 @@ mod tests {
             let response = response_from_tool_result(Ok(result.with_acp_aware_meta()));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Completed));
             assert_eq!(fields.raw_output, Some(raw_output));
             assert!(fields.content.is_none());
             assert!(fields.locations.is_none());
+        }
+
+        #[test]
+        fn includes_acp_aware_success_content_when_requested() {
+            let result = CallToolResult::success(vec![RmcpContent::text("write completed")])
+                .with_acp_aware_meta();
+            let response = response_from_tool_result(Ok(result));
+
+            let fields = tool_call_update_fields_from_response(&response, None, true);
+
+            assert_eq!(fields.status, Some(ToolCallStatus::Completed));
+            assert_eq!(first_tool_call_text(&fields), Some("write completed"));
         }
 
         #[test]
@@ -767,7 +780,7 @@ mod tests {
             })));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             let locations = fields.locations.as_deref().expect("expected location");
             assert_eq!(locations.len(), 1);
@@ -782,7 +795,7 @@ mod tests {
             let response = response_from_tool_result(Ok(result));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("write failed"));
@@ -797,7 +810,7 @@ mod tests {
                 None,
             )));
 
-            let fields = tool_call_update_fields_from_response(&response, None);
+            let fields = tool_call_update_fields_from_response(&response, None, false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("transport failed"));

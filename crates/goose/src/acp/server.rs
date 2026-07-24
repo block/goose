@@ -1186,7 +1186,7 @@ impl GooseAcpAgent {
         session_id: &SessionId,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let fields = tool_call_update_fields_from_response(tool_response, tool_request);
+        let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
             .meta(trusted_update_meta(tool_response));
