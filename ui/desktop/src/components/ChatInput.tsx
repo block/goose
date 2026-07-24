@@ -146,6 +146,10 @@ const i18n = defineMessages({
     id: 'chatInput.waitingForCancellation',
     defaultMessage: 'Waiting for cancellation to finish',
   },
+  workingDirMissing: {
+    id: 'chatInput.workingDirMissing',
+    defaultMessage: 'Update the working directory before sending a message',
+  },
   failedToReadImage: {
     id: 'chatInput.failedToReadImage',
     defaultMessage: 'Failed to read image file',
@@ -164,6 +168,7 @@ interface ChatInputProps {
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   pauseQueueOnStop?: boolean;
   queueProcessingBlocked?: boolean;
+  submissionDisabled?: boolean;
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
@@ -199,6 +204,7 @@ export default function ChatInput({
   onSteerQueuedMessage,
   pauseQueueOnStop = false,
   queueProcessingBlocked = false,
+  submissionDisabled = false,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
@@ -1083,6 +1089,7 @@ export default function ChatInput({
   const canSubmit =
     !isLoading &&
     !queueProcessingBlocked &&
+    !submissionDisabled &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1199,7 +1206,7 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
-    if (queueProcessingBlocked) {
+    if (queueProcessingBlocked || submissionDisabled) {
       return;
     }
     if (isLoading && hasSubmittableContent) {
@@ -1209,6 +1216,7 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       !queueProcessingBlocked &&
+      !submissionDisabled &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1328,9 +1336,11 @@ export default function ChatInput({
     isRecording ||
     isTranscribing ||
     queueProcessingBlocked ||
+    submissionDisabled ||
     chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
+    if (submissionDisabled) return intl.formatMessage(i18n.workingDirMissing);
     if (queueProcessingBlocked) return intl.formatMessage(i18n.waitingForCancellation);
     if (isAnyImageLoading) return intl.formatMessage(i18n.waitingForImages);
     if (isAnyDroppedFileLoading) return intl.formatMessage(i18n.processingDroppedFiles);

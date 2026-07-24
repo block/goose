@@ -259,6 +259,55 @@ describe('acpChatSessionController.submitMessage', () => {
     expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, []);
   });
 
+  it('restores the persisted message on an empty resume submit rejected for missing working dir', async () => {
+    const existing = userMessage();
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [existing],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await acpChatSessionController.submitMessage(SESSION_ID, existing, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+      messagesBeforeSubmit: [existing],
+    });
+
+    expect(acpChatSessionActions.markSessionWorkingDirMissing).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, [existing]);
+  });
+
+  it('restores the pre-clear transcript when /clear is rejected for missing working dir', async () => {
+    const priorMessage = userMessage();
+    const clearMessage: Message & { id: string } = {
+      id: 'clear-message',
+      role: 'user',
+      created: 200,
+      content: [{ type: 'text', text: '/clear' }],
+      metadata: { userVisible: true, agentVisible: true },
+    };
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await acpChatSessionController.submitMessage(SESSION_ID, clearMessage, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+      messagesBeforeSubmit: [priorMessage],
+    });
+
+    expect(acpChatSessionActions.markSessionWorkingDirMissing).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, [priorMessage]);
+  });
+
   it('rejects while a cancellation barrier is pending', async () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
       ...snapshotWithActivePrompt(null),

@@ -44,6 +44,7 @@ export interface AcpSnapshotOptions {
 
 export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
   onFinish(error?: string): void | Promise<void>;
+  messagesBeforeSubmit?: Message[];
 }
 
 export interface AcpChatSessionController {
@@ -88,9 +89,22 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
 }
 
 // The server rejects a missing-cwd prompt before persisting anything, so the
-// message optimistically appended in handleSubmit was never seen upstream and
-// must be dropped to keep the transcript in sync with the stored conversation.
-function rollbackOptimisticUserMessage(sessionId: string, userMessage: Message): void {
+// local transcript must return to its pre-submit state. handleSubmit has several
+// shapes -- appending a new message, re-sending the last persisted message on an
+// empty resume, and replacing the transcript with [] for /clear -- so filtering
+// the submitted message out by id is only correct for the append shape. Restore
+// the captured pre-submit list wholesale when the caller provides it, falling
+// back to dropping the optimistic append by id.
+function restoreTranscriptAfterWorkingDirMissing(
+  sessionId: string,
+  userMessage: Message,
+  messagesBeforeSubmit: Message[] | undefined
+): void {
+  if (messagesBeforeSubmit) {
+    acpChatSessionActions.setMessages(sessionId, messagesBeforeSubmit);
+    return;
+  }
+
   const currentMessages = acpChatSessionStore.getSnapshot(sessionId)?.messages;
   if (!currentMessages) {
     return;
@@ -232,7 +246,11 @@ async function submitMessage(
 
     if (isWorkingDirMissingError(error)) {
       acpChatSessionActions.markSessionWorkingDirMissing(sessionId);
-      rollbackOptimisticUserMessage(sessionId, userMessage);
+      restoreTranscriptAfterWorkingDirMissing(
+        sessionId,
+        userMessage,
+        options.messagesBeforeSubmit
+      );
     }
 
     const submitError = 'Submit error: ' + errorMessage(error);

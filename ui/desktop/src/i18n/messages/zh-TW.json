@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待影像儲存…"
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "傳送訊息前請更新工作目錄"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "選擇 Goose 用於新工作階段的預設模式。現有的工作階段會維持目前的模式。"
   },

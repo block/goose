@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Warten auf das Speichern der Bilder..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Aktualisieren Sie das Arbeitsverzeichnis, bevor Sie eine Nachricht senden"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Wählen Sie den Standardmodus, den Goose für neue Sitzungen verwendet. Bestehende Sitzungen behalten ihren aktuellen Modus bei."
   },

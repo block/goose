@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "이미지 저장을 기다리는 중..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "메시지를 보내기 전에 작업 디렉터리를 업데이트하세요"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "새 세션에 goose가 사용할 기본 모드를 선택합니다. 기존 세션은 현재 모드를 유지합니다."
   },

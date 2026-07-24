@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Esperando a que se guarden las imágenes..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Actualiza el directorio de trabajo antes de enviar un mensaje"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Configura cómo interactúa Goose con las herramientas y las extensiones"
   },

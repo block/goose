@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待图片保存…"
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "发送消息前请更新工作目录"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "配置 Goose 与工具和扩展的交互方式"
   },

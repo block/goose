@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Đang chờ lưu hình ảnh..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Cập nhật thư mục làm việc trước khi gửi tin nhắn"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Chọn chế độ mặc định mà Goose sử dụng cho các phiên mới. Các phiên hiện có vẫn giữ chế độ hiện tại của chúng."
   },

@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "संदेश भेजने से पहले कार्यशील निर्देशिका अपडेट करें"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "कॉन्फ़िगर करें कि Goose टूल और एक्सटेंशन के साथ कैसे इंटरैक्ट करता है"
   },

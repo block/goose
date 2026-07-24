@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "En attente de l'enregistrement des images..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Mettez à jour le répertoire de travail avant d'envoyer un message"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Choisissez le mode par défaut que Goose utilise pour les nouvelles sessions. Les sessions existantes conservent leur mode actuel."
   },

@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Menunggu gambar disimpan..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Perbarui direktori kerja sebelum mengirim pesan"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Pilih mode default yang digunakan Goose untuk sesi baru. Sesi yang sudah ada tetap menggunakan mode saat ini."
   },

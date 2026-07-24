@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Menunggu imej disimpan..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Kemas kini direktori kerja sebelum menghantar mesej"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Pilih mod lalai yang Goose gunakan untuk sesi baharu. Sesi sedia ada mengekalkan mod semasanya."
   },

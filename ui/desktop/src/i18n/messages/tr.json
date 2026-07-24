@@ -236,6 +236,9 @@
   "chatInput.waitingForImages": {
     "defaultMessage": "Resimlerin kaydedilmesi bekleniyor..."
   },
+  "chatInput.workingDirMissing": {
+    "defaultMessage": "Bir mesaj göndermeden önce çalışma dizinini güncelleyin"
+  },
   "chatSettings.modeDescription": {
     "defaultMessage": "Goose'nin araçlar ve uzantılarla nasıl etkileşimde bulunacağını yapılandırın"
   },
