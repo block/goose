@@ -40,7 +40,11 @@ export const DEFAULT_VISIBLE_MESSAGE_METADATA: Message['metadata'] = {
 };
 
 export function messagesChange(state: AdapterState): AcpChatStateChange[] {
-  return [{ type: 'messages', messages: state.messages.map(cloneMessage) }];
+  // Pass the live array by reference: the store is the only consumer and it
+  // clones on write (applyChatStateChanges). Cloning here as well made every
+  // streamed chunk O(messages) twice, which turns session-load replay into
+  // O(n^2) on large sessions.
+  return [{ type: 'messages', messages: state.messages }];
 }
 
 export function cloneMessage(message: Message): Message {
