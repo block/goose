@@ -383,14 +383,11 @@ impl ClientHandler for GooseClient {
             });
     }
 
-    async fn on_tool_list_changed(
-        &self,
-        _context: rmcp::service::NotificationContext<RoleClient>,
-    ) {
-        if let Some(extension_manager) =
-            self.extension_manager.as_ref().and_then(Weak::upgrade)
-        {
-            extension_manager.invalidate_tools_cache_and_bump_version().await;
+    async fn on_tool_list_changed(&self, _context: rmcp::service::NotificationContext<RoleClient>) {
+        if let Some(extension_manager) = self.extension_manager.as_ref().and_then(Weak::upgrade) {
+            extension_manager
+                .invalidate_tools_cache_and_bump_version()
+                .await;
         }
     }
 

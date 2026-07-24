@@ -3362,8 +3362,7 @@ mod tests {
             if self.unlocked.load(Ordering::SeqCst) {
                 tools.push(Tool::new(
                     "beta".to_string(),
-                    "Only appears after alpha is called and tools/list is re-fetched."
-                        .to_string(),
+                    "Only appears after alpha is called and tools/list is re-fetched.".to_string(),
                     Arc::new(json!({}).as_object().unwrap().clone()),
                 ));
             }
@@ -3373,8 +3372,12 @@ mod tests {
 
     impl rmcp::ServerHandler for DynamicToolsServer {
         fn get_info(&self) -> ServerInfo {
-            InitializeResult::new(rmcp::model::ServerCapabilities::builder().enable_tools().build())
-                .with_server_info(rmcp::model::Implementation::new("dynamic-tools", "0.1.0"))
+            InitializeResult::new(
+                rmcp::model::ServerCapabilities::builder()
+                    .enable_tools()
+                    .build(),
+            )
+            .with_server_info(rmcp::model::Implementation::new("dynamic-tools", "0.1.0"))
         }
 
         async fn list_tools(
