@@ -62,6 +62,7 @@ function sessionWithName(name: string): Session {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     working_dir: '/tmp',
+    working_dir_missing: false,
     message_count: 0,
     extension_data: {},
     source: 'test',

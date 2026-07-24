@@ -74,6 +74,13 @@ export function useAutoSubmit({
       return;
     }
 
+    // handleSubmit rejects while the working dir is missing, so consuming the
+    // queued message here would drop it for good. Wait instead: repointing the
+    // dir updates the session and re-runs this effect, submitting the message.
+    if (session.working_dir_missing) {
+      return;
+    }
+
     if (chatState !== ChatState.Idle) {
       return;
     }

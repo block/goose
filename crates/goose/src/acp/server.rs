@@ -844,12 +844,7 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id))
             })?;
 
-        let working_dir = &session.working_dir;
-        if !working_dir.exists() || !working_dir.is_dir() {
-            return Err(working_dir_missing_prompt_error(working_dir));
-        }
-
-        Ok(())
+        ensure_working_dir_present(&session.working_dir)
     }
 
     async fn prepare_session_for_activation(
@@ -1321,6 +1316,13 @@ fn prompt_error_from_message_content(
 /// Kept in sync with WORKING_DIR_MISSING_REASON in ui/desktop/src/acp/errors.ts.
 pub(super) const WORKING_DIR_MISSING_REASON: &str = "working_dir_missing";
 
+fn ensure_working_dir_present(working_dir: &Path) -> Result<(), agent_client_protocol::Error> {
+    if !working_dir.exists() || !working_dir.is_dir() {
+        return Err(working_dir_missing_prompt_error(working_dir));
+    }
+    Ok(())
+}
+
 fn working_dir_missing_prompt_error(working_dir: &Path) -> agent_client_protocol::Error {
     let mut error = agent_client_protocol::Error::invalid_params().data(serde_json::json!({
         "reason": WORKING_DIR_MISSING_REASON,
@@ -1564,6 +1566,13 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                     .data(format!("Session not found: {}", session_id))
             })?;
+
+        // Guard the activation path itself: any endpoint that lazily activates a
+        // deferred session would otherwise spawn stdio extensions against goose's
+        // own cwd (child_process_client skips a missing current_dir). Reject with
+        // the structured reason so clients handle it exactly like the prompt path.
+        ensure_working_dir_present(&session.working_dir)?;
+
         let (agent, _) = self.activate_acp_session(cx, &session).await?;
         Ok(agent)
     }

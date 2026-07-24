@@ -57,5 +57,5 @@ export type Session = {
   user_recipe_values?: Record<string, string> | null;
   user_set_name?: boolean;
   working_dir: string;
-  working_dir_missing?: boolean;
+  working_dir_missing: boolean;
 };

@@ -28,6 +28,7 @@ const testSession: Session = {
   created_at: '2026-06-19T00:00:00.000Z',
   updated_at: '2026-06-19T00:00:00.000Z',
   working_dir: '/tmp',
+  working_dir_missing: false,
   extension_data: { active: [], installed: [] },
 };
 

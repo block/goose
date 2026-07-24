@@ -33,6 +33,7 @@ function session(id: string, conversation: Message[] = []): Session {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     working_dir: '/tmp',
+    working_dir_missing: false,
     message_count: conversation.length,
     extension_data: {},
     source: 'test',

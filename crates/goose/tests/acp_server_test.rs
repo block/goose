@@ -475,6 +475,79 @@ fn test_prompt_succeeds_after_repointing_missing_working_dir() {
     });
 }
 
+#[test]
+fn test_tools_list_rejects_missing_working_dir_without_activating() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        // tools/list lazily activates the session via get_session_agent, which would
+        // otherwise spawn extensions against the wrong root. The central guard must
+        // reject it with the same structured reason the prompt path uses.
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/tools/list",
+            serde_json::json!({ "sessionId": session.id }),
+        )
+        .await
+        .expect_err("listing tools while the working dir is missing must be rejected");
+
+        assert_eq!(error.code, ErrorCode::InvalidParams);
+        assert_eq!(
+            error
+                .data
+                .as_ref()
+                .and_then(|data| data.get("reason"))
+                .and_then(serde_json::Value::as_str),
+            Some("working_dir_missing"),
+            "the activation guard must carry a machine-readable reason for every endpoint"
+        );
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/tools/list",
+            serde_json::json!({ "sessionId": session.id }),
+        )
+        .await
+        .expect("listing tools must succeed once the working dir is repointed");
+    });
+}
+
 fn include_last_message_snippet_meta(
     value: serde_json::Value,
 ) -> serde_json::Map<String, serde_json::Value> {

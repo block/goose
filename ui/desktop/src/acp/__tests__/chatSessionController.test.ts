@@ -77,6 +77,7 @@ function loadedSession(): Session {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     working_dir: '/tmp',
+    working_dir_missing: false,
     message_count: 0,
     extension_data: {},
     source: 'test',
@@ -236,6 +237,26 @@ describe('acpChatSessionController.submitMessage', () => {
     );
     expect(acpChatSessionActions.finishPromptAttemptIfCurrent).not.toHaveBeenCalled();
     expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the optimistic message when the working dir is missing', async () => {
+    const message = userMessage();
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [message],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await acpChatSessionController.submitMessage(SESSION_ID, message, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+    });
+
+    expect(acpChatSessionActions.markSessionWorkingDirMissing).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, []);
   });
 
   it('rejects while a cancellation barrier is pending', async () => {

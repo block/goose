@@ -15,6 +15,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     working_dir: '/tmp',
+    working_dir_missing: false,
     extension_data: { active: [], installed: [] },
     ...overrides,
   } as Session;
@@ -54,6 +55,37 @@ describe('useAutoSubmit', () => {
 
     expect(handleSubmit).not.toHaveBeenCalled();
     expect(dispatchEventSpy).not.toHaveBeenCalled();
+  });
+
+  it('waits while the working dir is missing and submits once it is repointed', () => {
+    const handleSubmit = vi.fn();
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <MemoryRouter initialEntries={['/pair?resumeSessionId=sess-1']}>{children}</MemoryRouter>
+    );
+
+    const { rerender } = renderHook(
+      ({ workingDirMissing }) =>
+        useAutoSubmit({
+          sessionId: 'sess-1',
+          session: makeSession({ working_dir_missing: workingDirMissing }),
+          messages: [],
+          chatState: ChatState.Idle,
+          initialMessage,
+          handleSubmit,
+        }),
+      {
+        initialProps: { workingDirMissing: true },
+        wrapper,
+      }
+    );
+
+    expect(handleSubmit).not.toHaveBeenCalled();
+
+    rerender({ workingDirMissing: false });
+
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    expect(handleSubmit).toHaveBeenCalledWith(initialMessage);
   });
 
   it('keeps the initial message while blocked and submits it once unblocked', () => {

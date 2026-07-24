@@ -13,6 +13,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     working_dir: '/tmp',
+    working_dir_missing: false,
     extension_data: { active: [], installed: [] },
     ...overrides,
   };

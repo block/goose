@@ -87,6 +87,21 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
+// The server rejects a missing-cwd prompt before persisting anything, so the
+// message optimistically appended in handleSubmit was never seen upstream and
+// must be dropped to keep the transcript in sync with the stored conversation.
+function rollbackOptimisticUserMessage(sessionId: string, userMessage: Message): void {
+  const currentMessages = acpChatSessionStore.getSnapshot(sessionId)?.messages;
+  if (!currentMessages) {
+    return;
+  }
+
+  const filtered = currentMessages.filter((message) => message.id !== userMessage.id);
+  if (filtered.length !== currentMessages.length) {
+    acpChatSessionActions.setMessages(sessionId, filtered);
+  }
+}
+
 function assertNoPendingPromptCancellation(sessionId: string): void {
   const snapshot = acpChatSessionStore.getSnapshot(sessionId);
   if (snapshot?.pendingCancelPromptAttemptId) {
@@ -217,6 +232,7 @@ async function submitMessage(
 
     if (isWorkingDirMissingError(error)) {
       acpChatSessionActions.markSessionWorkingDirMissing(sessionId);
+      rollbackOptimisticUserMessage(sessionId, userMessage);
     }
 
     const submitError = 'Submit error: ' + errorMessage(error);
