@@ -23,16 +23,22 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id))
             })?;
 
+        // Re-selecting the stored path is only a no-op for an active session. A
+        // deferred session (loaded while its directory was missing, then the same
+        // directory recreated) still needs the activation below.
+        let was_active = self.has_session(session_id).await;
         if path == session.working_dir {
-            return Ok(EmptyResponse {});
+            if was_active {
+                return Ok(EmptyResponse {});
+            }
+        } else {
+            self.session_manager
+                .update(session_id)
+                .working_dir(path)
+                .apply()
+                .await
+                .internal_err_ctx("Failed to update session working directory")?;
         }
-
-        self.session_manager
-            .update(session_id)
-            .working_dir(path)
-            .apply()
-            .await
-            .internal_err_ctx("Failed to update session working directory")?;
 
         let session = self
             .session_manager
@@ -43,7 +49,6 @@ impl GooseAcpAgent {
         // A session loaded while its working directory was missing defers activation,
         // so its recipe was never applied. get_session_agent activates it now against
         // the repointed directory; apply the recipe to finish that deferred setup.
-        let was_active = self.has_session(session_id).await;
         let agent = self.get_session_agent(session_id).await?;
         if !was_active {
             self.apply_session_recipe(&agent, &session).await?;

@@ -546,6 +546,74 @@ fn test_prompt_succeeds_after_repointing_missing_working_dir() {
 }
 
 #[test]
+fn test_recreating_same_working_dir_activates_deferred_session() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("remember this"))
+            .await
+            .unwrap();
+
+        let openai = OpenAiFixture::new(
+            vec![(
+                "what is 1+1".to_string(),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let conn = new_connection_with_openai(data_root.path(), openai).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        std::fs::create_dir_all(&missing_dir).unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": missing_dir.to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("re-selecting the recreated stored dir must succeed");
+
+        let response = conn
+            .cx()
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+            ))
+            .block_task()
+            .await
+            .expect("prompting must succeed after the stored dir is recreated");
+
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+        std::fs::remove_dir_all(&missing_dir).ok();
+    });
+}
+
+#[test]
 fn test_tools_list_rejects_missing_working_dir_without_activating() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
