@@ -1926,6 +1926,7 @@ impl McpClientTrait for SummonClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

@@ -52,6 +52,7 @@ impl McpClientTrait for MockClient {
             resources: vec![],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -90,6 +91,7 @@ impl McpClientTrait for MockClient {
             tools: rmcp_tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

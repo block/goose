@@ -233,6 +233,7 @@ impl McpClientTrait for AnalyzeClient {
             tools: vec![tool],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

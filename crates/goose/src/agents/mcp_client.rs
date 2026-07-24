@@ -549,7 +549,7 @@ impl ClientHandler for GooseClient {
                 .build(),
             self.resolved_client_info(),
         )
-        .with_protocol_version(ProtocolVersion::V_2025_03_26)
+        .with_protocol_version(ProtocolVersion::LATEST)
     }
 }
 
