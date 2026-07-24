@@ -290,6 +290,15 @@ export function useChatSession({
       editType: 'fork' | 'edit',
       retainedImages: ImageData[]
     ) => {
+      if (getCurrentSnapshot()?.session?.working_dir_missing === true) {
+        const { toastError } = await import('../toasts');
+        toastError({
+          title: 'Working directory is unavailable',
+          msg: "Update the session's working directory before editing messages.",
+        });
+        return;
+      }
+
       try {
         await acpChatSessionController.updateMessage(
           sessionId,
