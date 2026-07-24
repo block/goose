@@ -1408,8 +1408,10 @@ impl ExtensionManager {
     }
 
     async fn invalidate_tools_cache_and_bump_version(&self) {
-        self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
+        // Clear the cache before bumping the version so observers of the new
+        // version never see the stale cache.
         *self.tools_cache.lock().await = None;
+        self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
     }
 
     /// Monotonic tool-cache version, bumped on every invalidation (add/remove
