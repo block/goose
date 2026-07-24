@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Quay lại"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Chọn thư mục làm việc…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Không thể tải phiên"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Quay lại"
   },
   "baseChat.goHome": {
     "defaultMessage": "Về trang chủ"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Mất kết nối. Đang kết nối lại…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Không thể cập nhật thư mục làm việc"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Phiên này đang làm việc trong {dir}, thư mục này không còn tồn tại. Hãy chọn một thư mục làm việc mới để tiếp tục. Cuộc trò chuyện và công cụ được thiết lập theo đường dẫn cũ, nên kết quả có thể khác sau khi chuyển."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Thư mục làm việc không khả dụng"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Đã cập nhật tiện ích mở rộng"

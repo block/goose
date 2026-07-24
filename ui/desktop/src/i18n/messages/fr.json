@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Retour"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Choisir un répertoire de travail…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Échec du chargement de la session"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Retour"
   },
   "baseChat.goHome": {
     "defaultMessage": "Aller à l'accueil"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Connexion perdue. Reconnexion…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Échec de la mise à jour du répertoire de travail"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Cette session travaillait dans {dir}, qui n'existe plus. Choisissez un nouveau répertoire de travail pour continuer. La conversation et les outils ont été configurés pour l'ancien chemin, les résultats peuvent donc différer après le changement."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Le répertoire de travail est indisponible"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension mise à jour"

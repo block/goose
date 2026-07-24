@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Kembali"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Pilih direktori kerja…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Gagal Memuatkan Sesi"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Kembali"
   },
   "baseChat.goHome": {
     "defaultMessage": "Pergi ke laman utama"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Sambungan terputus. Menyambung semula…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Gagal mengemas kini direktori kerja"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Sesi ini bekerja dalam {dir}, yang sudah tidak wujud. Pilih direktori kerja baharu untuk meneruskan. Perbualan dan alatan disediakan berdasarkan laluan lama, jadi hasil mungkin berbeza selepas bertukar."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Direktori kerja tidak tersedia"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Sambungan Dikemas Kini"

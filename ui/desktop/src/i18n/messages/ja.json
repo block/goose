@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "戻る"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "作業ディレクトリを選択…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "セッションの読み込みに失敗しました"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "戻る"
   },
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "接続が失われました。再接続しています…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "作業ディレクトリを更新できませんでした"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "このセッションは {dir} で作業していましたが、このディレクトリはもう存在しません。続行するには新しい作業ディレクトリを選択してください。会話とツールは以前のパスに基づいて設定されているため、切り替え後は結果が異なる場合があります。"
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "作業ディレクトリが利用できません"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"

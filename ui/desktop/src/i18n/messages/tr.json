@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Geri"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Çalışma dizini seç…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Oturum Yüklenemedi"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Geri dön"
   },
   "baseChat.goHome": {
     "defaultMessage": "Ana sayfaya git"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Bağlantı kesildi. Yeniden bağlanılıyor…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Çalışma dizini güncellenemedi"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Bu oturum, artık mevcut olmayan {dir} dizininde çalışıyordu. Devam etmek için yeni bir çalışma dizini seçin. Konuşma ve araçlar eski yola göre ayarlandığından, değişiklikten sonra sonuçlar farklı olabilir."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Çalışma dizini kullanılamıyor"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"

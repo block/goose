@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Назад"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Выбрать рабочий каталог…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Не удалось загрузить сеанс"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Назад"
   },
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Соединение потеряно. Повторное подключение…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Не удалось обновить рабочий каталог"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Эта сессия работала в каталоге {dir}, который больше не существует. Выберите новый рабочий каталог, чтобы продолжить. Беседа и инструменты были настроены на старый путь, поэтому после смены результаты могут отличаться."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Рабочий каталог недоступен"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"

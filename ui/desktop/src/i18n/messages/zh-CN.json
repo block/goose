@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "返回"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "选择工作目录…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "加载会话失败"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "返回"
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "连接已断开。正在重新连接…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "无法更新工作目录"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "此会话之前在 {dir} 中工作，该目录已不存在。请选择新的工作目录以继续。对话和工具是基于旧路径设置的，切换后结果可能有所不同。"
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "工作目录不可用"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"

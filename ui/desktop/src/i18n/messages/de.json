@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Zurück"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Arbeitsverzeichnis auswählen…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Sitzung konnte nicht geladen werden"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Zurück"
   },
   "baseChat.goHome": {
     "defaultMessage": "Zur Startseite"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Verbindung unterbrochen. Verbindung wird wiederhergestellt…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Arbeitsverzeichnis konnte nicht aktualisiert werden"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "Diese Sitzung arbeitete in {dir}, das nicht mehr existiert. Wähle ein neues Arbeitsverzeichnis, um fortzufahren. Die Unterhaltung und die Werkzeuge wurden für den alten Pfad eingerichtet, daher können die Ergebnisse nach dem Wechsel abweichen."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Arbeitsverzeichnis ist nicht verfügbar"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Erweiterung aktualisiert"

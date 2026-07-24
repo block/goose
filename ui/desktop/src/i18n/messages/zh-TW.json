@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "返回"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "選擇工作目錄…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "無法載入工作階段"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "返回"
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首頁"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "連線已中斷。正在重新連線…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "無法更新工作目錄"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "此工作階段先前在 {dir} 中運作，該目錄已不存在。請選擇新的工作目錄以繼續。對話與工具是依據舊路徑設定的，切換後結果可能有所不同。"
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "工作目錄無法使用"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"

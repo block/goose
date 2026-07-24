@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "वापस"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "कार्य निर्देशिका चुनें…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "सत्र लोड करने में विफल"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "वापस जाएँ"
   },
   "baseChat.goHome": {
     "defaultMessage": "घर जाओ"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "कनेक्शन टूट गया। फिर से कनेक्ट किया जा रहा है…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "कार्य निर्देशिका अपडेट नहीं हो सकी"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "यह सत्र {dir} में काम कर रहा था, जो अब मौजूद नहीं है। जारी रखने के लिए एक नई कार्य निर्देशिका चुनें। बातचीत और उपकरण पुराने पथ के अनुसार सेट किए गए थे, इसलिए बदलने के बाद परिणाम भिन्न हो सकते हैं।"
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "कार्य निर्देशिका उपलब्ध नहीं है"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
