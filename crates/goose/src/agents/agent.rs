@@ -2046,6 +2046,23 @@ impl Agent {
                     max_turns,
                 ).await;
 
+                // Recheck the tool-cache version immediately before calling the
+                // provider, so a `notifications/tools/list_changed` handled since the
+                // last refresh is reflected in the tools offered on THIS turn. This
+                // runs on every iteration, including those reached via an earlier
+                // `continue`. Best-effort: the rmcp notification handler runs on a
+                // detached task, so a change whose handler has not run yet is caught
+                // on a later iteration — the cache invalidation guarantees it is never
+                // lost, only possibly deferred by a turn.
+                let current_tools_cache_version = self.extension_manager.tools_cache_version();
+                if current_tools_cache_version != tools_cache_version {
+                    tools_cache_version = current_tools_cache_version;
+                    (tools, toolshim_tools, system_prompt, _) = self
+                        .prepare_tools_and_prompt(&session_config.id, &session.working_dir)
+                        .await?;
+                    system_prompt = self.with_project_addendum(&session, system_prompt).await;
+                }
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     model_config.clone(),
@@ -2672,17 +2689,6 @@ impl Agent {
                     }
                 }
                 can_drain_pending_steers = true;
-
-                // A server may have emitted `notifications/tools/list_changed`
-                // during this iteration (e.g. a tool call that unlocks new tools),
-                // invalidating the shared tool cache. Detect that via the version
-                // counter so the loop re-lists and offers the updated tool set on
-                // the next iteration of this same reply.
-                let current_tools_cache_version = self.extension_manager.tools_cache_version();
-                if current_tools_cache_version != tools_cache_version {
-                    tools_cache_version = current_tools_cache_version;
-                    tools_updated = true;
-                }
 
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt, _) =
