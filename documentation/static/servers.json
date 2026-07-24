@@ -749,6 +749,19 @@
     "environmentVariables": []
   },
   {
+    "id": "webhound",
+    "name": "Webhound",
+    "description": "Run budgeted, inspectable web investigations that return cited reports, datasets, and evidence packs",
+    "type": "streamable-http",
+    "url": "https://api.webhound.ai/api/v2/mcp",
+    "link": "https://github.com/WebhoundAI/webhound-mcp",
+    "installation_notes": "Goose opens Webhound's OAuth flow. Each user authorizes their own Webhound account; this catalog entry contains no API key, bearer token, OAuth client secret, or shared publisher credential.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": []
+  },
+  {
     "id": "youtube-transcript-mcp",
     "name": "YouTube Transcript",
     "description": "YouTube video transcript extraction",
