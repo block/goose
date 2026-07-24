@@ -125,14 +125,29 @@
   "backButton.back": {
     "defaultMessage": "Back"
   },
+  "baseChat.chooseWorkingDir": {
+    "defaultMessage": "Choose working directory…"
+  },
   "baseChat.failedToLoadSession": {
     "defaultMessage": "Failed to Load Session"
+  },
+  "baseChat.goBack": {
+    "defaultMessage": "Go back"
   },
   "baseChat.goHome": {
     "defaultMessage": "Go home"
   },
   "baseChat.reconnecting": {
     "defaultMessage": "Connection lost. Reconnecting…"
+  },
+  "baseChat.updateWorkingDirFailed": {
+    "defaultMessage": "Failed to update working directory"
+  },
+  "baseChat.workingDirMissingBody": {
+    "defaultMessage": "This session was working in {dir}, which no longer exists. Choose a new working directory to keep going. The conversation and tools were set up against the old path, so results may differ after switching."
+  },
+  "baseChat.workingDirMissingTitle": {
+    "defaultMessage": "Working directory is unavailable"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
