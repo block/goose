@@ -402,6 +402,37 @@ describe('acpChatSessionController.updateMessage', () => {
     expect(acpPromptSession).not.toHaveBeenCalled();
   });
 
+  it('surfaces the working-dir banner and aborts when truncation is refused', async () => {
+    const existingMessage = userMessage();
+    const currentSnapshot: AcpChatSessionSnapshot = {
+      ...snapshotWithActivePrompt(null),
+      messages: [existingMessage],
+    };
+    vi.mocked(acpTruncateSessionConversation).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await expect(
+      acpChatSessionController.updateMessage(
+        SESSION_ID,
+        existingMessage.id,
+        'Updated',
+        'edit',
+        [],
+        {
+          getCurrentSnapshot: () => currentSnapshot,
+          onFinish: vi.fn(),
+        }
+      )
+    ).rejects.toMatchObject({ data: { reason: 'working_dir_missing' } });
+
+    expect(acpChatSessionActions.markSessionWorkingDirMissing).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.setChatState).toHaveBeenLastCalledWith(SESSION_ID, ChatState.Idle);
+    expect(acpChatSessionActions.setMessages).not.toHaveBeenCalled();
+    expect(acpPromptSession).not.toHaveBeenCalled();
+  });
+
   it('waits for pending tool permission cancellation before truncating and rerunning', async () => {
     const existingMessage = userMessage();
     const permissionMessage = pendingToolPermissionMessage();

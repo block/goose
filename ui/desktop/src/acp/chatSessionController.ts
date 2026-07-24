@@ -361,6 +361,14 @@ async function updateMessage(
     await submitMessage(sessionId, updatedUserMessage, options);
   } catch (error) {
     acpChatSessionActions.setChatState(sessionId, ChatState.Idle);
+    // The server refuses to truncate while the working dir is missing, so this
+    // path aborts before mutating the conversation. Surface the banner the same
+    // way the prompt path does. In the residual window where truncation lands but
+    // the follow-up prompt is then rejected, submitMessage settles internally and
+    // leaves the UI on the truncated prefix, which matches the persisted store.
+    if (isWorkingDirMissingError(error)) {
+      acpChatSessionActions.markSessionWorkingDirMissing(sessionId);
+    }
     throw error;
   }
 }

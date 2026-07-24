@@ -276,6 +276,76 @@ fn test_prompt_rejects_missing_working_dir_with_structured_reason() {
 }
 
 #[test]
+fn test_truncate_conversation_rejects_missing_working_dir() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::user().with_text("first"))
+            .await
+            .unwrap();
+        session_manager
+            .add_message(&session.id, &Message::assistant().with_text("second"))
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/conversation/truncate",
+            serde_json::json!({
+                "sessionId": session.id,
+                "truncateFrom": 0,
+            }),
+        )
+        .await
+        .expect_err("truncating a session with a deleted working dir must be rejected");
+
+        assert_eq!(error.code, ErrorCode::InvalidParams);
+        assert_eq!(
+            error
+                .data
+                .as_ref()
+                .and_then(|data| data.get("reason"))
+                .and_then(serde_json::Value::as_str),
+            Some("working_dir_missing"),
+            "truncate rejection must carry the same machine-readable reason as the prompt path"
+        );
+
+        let reloaded = session_manager
+            .get_session(&session.id, true)
+            .await
+            .unwrap();
+        assert_eq!(
+            reloaded.message_count, 2,
+            "a rejected truncate must leave the persisted conversation intact"
+        );
+    });
+}
+
+#[test]
 fn test_load_session_rejects_repoint_to_missing_working_dir() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();

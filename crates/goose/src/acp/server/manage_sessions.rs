@@ -221,6 +221,20 @@ impl GooseAcpAgent {
             );
         }
 
+        // Truncation deletes messages from the store, so refuse it while the working
+        // directory is missing: the follow-up prompt would be rejected, leaving the
+        // conversation permanently truncated. Guard on the stored directory directly
+        // because an active session with a since-deleted dir skips the activation check.
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+        ensure_working_dir_present(&session.working_dir)?;
+
         self.session_manager
             .truncate_conversation(session_id, req.truncate_from)
             .await
