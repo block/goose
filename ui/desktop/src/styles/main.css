@@ -593,6 +593,13 @@ pre:has(> code.bg-inline-code) {
   padding-bottom: 24px;
 }
 
+/* Virtualized list: items are wrapped by the virtualizer so the sibling
+   selector above never matches; VirtualizedMessageList precomputes the
+   relationship and sets .before-user instead. */
+.assistant.before-user:not(.in-chain) .goose-message {
+  padding-bottom: 24px;
+}
+
 /* Sidebar scrollbar styles */
 .sidebar-scrollbar {
   scrollbar-width: thin;

@@ -62,6 +62,10 @@ interface RenderItem {
   notification?: SystemNotificationContent;
   previousModel?: string;
   currentModel?: string;
+  // The next rendered item is a user message. The CSS sibling rule that
+  // normally handles assistant->user spacing cannot match across the
+  // virtualizer's item wrappers, so this is precomputed instead.
+  beforeUser?: boolean;
 }
 
 function getSystemNotification(message: Message): SystemNotificationContent | undefined {
@@ -144,6 +148,12 @@ export default function VirtualizedMessageList({
       }
       items.push({ message, origIndex: i, previousModel, currentModel });
     }
+    for (let i = 0; i < items.length - 1; i++) {
+      const next = items[i + 1];
+      if (!next.notification && isUserMessage(next.message)) {
+        items[i].beforeUser = true;
+      }
+    }
     return items;
   }, [messages, isUserMessage]);
 
@@ -202,7 +212,7 @@ export default function VirtualizedMessageList({
                   />
                 )}
                 <div
-                  className={`relative ${origIndex === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
+                  className={`relative ${origIndex === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''} ${item.beforeUser ? 'before-user' : ''}`}
                   data-testid="message-container"
                 >
                   {isUser ? (
