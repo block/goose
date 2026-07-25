@@ -31,7 +31,7 @@ interface ConfigureProps {
   sessionId: string;
   width: number;
   height: number;
-  onComplete: () => void;
+  onComplete: (providerId: string, modelId: string) => void;
   onCancel: () => void;
   initialIntent?: ConfigureIntent;
 }
@@ -442,7 +442,7 @@ export default function ConfigureScreen({
           configId: "model",
           value: model,
         });
-        onComplete();
+        onComplete(provider.providerId, model);
       } catch (e: unknown) {
         setErrorMsg(e instanceof Error ? e.message : String(e));
         setPhase("error");

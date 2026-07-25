@@ -508,6 +508,10 @@ function App({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("connecting…");
+  const [defaults, setDefaults] = useState<{
+    providerId?: string | null;
+    modelId?: string | null;
+  }>({});
   const [spinIdx, setSpinIdx] = useState(0);
   const [gooseFrame, setGooseFrame] = useState(0);
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -807,6 +811,7 @@ function App({
             resp.providerId != null &&
             resp.providerId !== "" &&
             resp.providerId !== "null";
+          setDefaults({ providerId: resp.providerId, modelId: resp.modelId });
         } catch {
           hasProvider = false;
         }
@@ -1174,9 +1179,10 @@ function App({
             sessionId={sessionIdRef.current}
             width={safeTermWidth}
             height={safeTermHeight}
-            onComplete={() => {
+            onComplete={(providerId, modelId) => {
               setOverlay(null);
               setStatus("ready");
+              setDefaults({ providerId, modelId });
             }}
             onCancel={() => setOverlay(null)}
             initialIntent={intent}
@@ -1229,6 +1235,8 @@ function App({
             status={status}
             loading={loading}
             spinIdx={spinIdx}
+            providerId={defaults.providerId}
+            modelId={defaults.modelId}
             turnInfo={
               turns.length > 1
                 ? { current: effectiveTurnIdx + 1, total: turns.length }
