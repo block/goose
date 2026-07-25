@@ -81,7 +81,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::claude_acp_inventory()),
         );
-        registry.register::<ClaudeCodeProvider>(true);
+        registry.register_with_inventory::<ClaudeCodeProvider>(
+            true,
+            Some(registrations::refresh_only()),
+        );
         registry.register_with_inventory::<CodexAcpProvider>(
             false,
             Some(registrations::codex_acp_inventory()),
@@ -90,8 +93,14 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::copilot_acp_inventory()),
         );
-        registry.register::<CodexProvider>(true);
-        registry.register::<CursorAgentProvider>(false);
+        registry.register_with_inventory::<CodexProvider>(
+            true,
+            Some(registrations::refresh_only()),
+        );
+        registry.register_with_inventory::<CursorAgentProvider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register_with_inventory::<DatabricksProviderDef>(
             true,
             Some(registrations::refresh_only()),
@@ -477,6 +486,21 @@ mod tests {
         assert_eq!(inf_config.context_limit(), 1_000_000);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    // Named to sort after the env-sensitive tests above: the first test to touch
+    // the global registry/config wins, so registry-only tests must run later.
+    #[tokio::test]
+    async fn test_inventory_refresh_supported_for_cli_providers() {
+        for provider in ["claude-code", "codex", "cursor-agent"] {
+            let entry = get_from_registry(provider)
+                .await
+                .unwrap_or_else(|_| panic!("{provider} should be registered"));
+            assert!(
+                entry.supports_inventory_refresh(),
+                "{provider} must support inventory refresh so the model picker calls fetch_supported_models"
+            );
+        }
     }
 
     #[tokio::test]
