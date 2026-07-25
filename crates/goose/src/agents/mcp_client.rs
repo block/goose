@@ -1431,6 +1431,7 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );
@@ -1462,6 +1463,7 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );
@@ -1490,6 +1492,7 @@ mod tests {
                     client_name: Some("goose2".to_string()),
                     client_version: Some("0.1.0".to_string()),
                 }),
+                elicitation_handler: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );

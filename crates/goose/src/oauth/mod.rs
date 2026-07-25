@@ -8,7 +8,6 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use reqwest::redirect::Policy;
 use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
@@ -23,15 +22,24 @@ const CLIENT_METADATA_URL: &str = "https://goose-docs.ai/oauth/client-metadata.j
 const DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS: u64 = 300;
 const OAUTH_CALLBACK_TIMEOUT_ENV: &str = "GOOSE_OAUTH_CALLBACK_TIMEOUT_SECONDS";
 
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthFlowConfig {
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub client_metadata_url: Option<String>,
+}
+
 #[derive(Clone)]
 struct AppState {
-    code_receiver: Arc<Mutex<Option<oneshot::Sender<CallbackParams>>>>,
+    callback_receiver: Arc<Mutex<Option<oneshot::Sender<String>>>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CallbackParams {
     code: String,
     state: String,
+    iss: Option<String>,
 }
 
 fn resolve_oauth_callback_timeout(value: Option<&str>) -> Duration {
@@ -58,53 +66,45 @@ fn announce_authorization_url(name: &str, authorization_url: &str) {
     );
 }
 
-async fn complete_conformance_authorization(
+async fn complete_automatic_authorization(
     authorization_url: &str,
-) -> Result<Option<CallbackParams>, anyhow::Error> {
-    if std::env::var("MCP_CONFORMANCE_SCENARIO")
-        .ok()
-        .is_none_or(|scenario| !scenario.starts_with("auth/"))
-    {
+    redirect_uri: &str,
+) -> Result<Option<String>, anyhow::Error> {
+    if std::env::var_os("GOOSE_OAUTH_AUTOMATIC_CALLBACK").is_none() {
         return Ok(None);
     }
 
     let response = reqwest::Client::builder()
-        .redirect(Policy::none())
+        .redirect(reqwest::redirect::Policy::none())
         .build()?
         .get(authorization_url)
         .send()
         .await?;
-
     let location = response
         .headers()
         .get(reqwest::header::LOCATION)
-        .ok_or_else(|| anyhow::anyhow!("conformance auth response did not include Location"))?
+        .ok_or_else(|| anyhow::anyhow!("authorization response did not include Location"))?
         .to_str()?;
-    let redirect = url::Url::parse(location)?;
-    let mut code = None;
-    let mut state = None;
-    for (key, value) in redirect.query_pairs() {
-        match key.as_ref() {
-            "code" => code = Some(value.into_owned()),
-            "state" => state = Some(value.into_owned()),
-            _ => {}
-        }
+    let callback_url = url::Url::parse(location)?;
+    let expected_redirect = url::Url::parse(redirect_uri)?;
+    if callback_url.scheme() != expected_redirect.scheme()
+        || callback_url.host_str() != expected_redirect.host_str()
+        || callback_url.port_or_known_default() != expected_redirect.port_or_known_default()
+        || callback_url.path() != expected_redirect.path()
+    {
+        anyhow::bail!("authorization response redirected to an unexpected callback URI");
     }
-
-    Ok(Some(CallbackParams {
-        code: code.ok_or_else(|| anyhow::anyhow!("conformance auth redirect missing code"))?,
-        state: state.ok_or_else(|| anyhow::anyhow!("conformance auth redirect missing state"))?,
-    }))
+    Ok(Some(callback_url.to_string()))
 }
 
 async fn wait_for_callback(
-    code_receiver: oneshot::Receiver<CallbackParams>,
+    callback_receiver: oneshot::Receiver<String>,
     timeout_duration: Duration,
     name: &str,
     authorization_url: &str,
-) -> Result<CallbackParams, anyhow::Error> {
-    match tokio::time::timeout(timeout_duration, code_receiver).await {
-        Ok(Ok(params)) => Ok(params),
+) -> Result<String, anyhow::Error> {
+    match tokio::time::timeout(timeout_duration, callback_receiver).await {
+        Ok(Ok(callback_url)) => Ok(callback_url),
         Ok(Err(e)) => Err(anyhow::anyhow!(
             "OAuth authorization for {} ended before the callback was received: {}",
             name,
@@ -126,40 +126,56 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
+    let config = OAuthFlowConfig {
+        client_id: std::env::var("GOOSE_MCP_OAUTH_CLIENT_ID").ok(),
+        client_secret: std::env::var("GOOSE_MCP_OAUTH_CLIENT_SECRET").ok(),
+        client_metadata_url: std::env::var("GOOSE_MCP_OAUTH_CLIENT_METADATA_URL").ok(),
+    };
+    oauth_flow_with_config(mcp_server_url, name, config).await
+}
+
+pub async fn oauth_flow_with_config(
+    mcp_server_url: &String,
+    name: &String,
+    flow_config: OAuthFlowConfig,
+) -> Result<AuthorizationManager, anyhow::Error> {
     let credential_store = GooseCredentialStore::new(name.clone());
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
     if auth_manager.initialize_from_store().await? {
         match auth_manager.refresh_token().await {
-            Ok(_) => {
-                return Ok(auth_manager);
-            }
-            Err(e) => {
-                warn!(
-                    "[OAuth:{}] Token refresh failed: {} - clearing stored credentials and falling back to browser auth",
-                    name, e
-                );
-            }
+            Ok(_) => return Ok(auth_manager),
+            Err(e) => warn!(
+                "[OAuth:{}] Token refresh failed: {} - clearing stored credentials and falling back to browser auth",
+                name, e
+            ),
         }
-
         if let Err(e) = credential_store.clear().await {
             warn!("[OAuth:{}] error clearing bad credentials: {}", name, e);
         }
     }
 
-    // No existing credentials or they were invalid - need to do the full oauth flow
-    let (code_sender, code_receiver) = oneshot::channel::<CallbackParams>();
+    let (callback_sender, callback_receiver) = oneshot::channel::<String>();
     let app_state = AppState {
-        code_receiver: Arc::new(Mutex::new(Some(code_sender))),
+        callback_receiver: Arc::new(Mutex::new(Some(callback_sender))),
     };
-
     let rendered = render!(CALLBACK_TEMPLATE, name => name);
     let handler = move |Query(params): Query<CallbackParams>, State(state): State<AppState>| {
         let rendered = rendered.clone();
         async move {
-            if let Some(sender) = state.code_receiver.lock().await.take() {
-                let _ = sender.send(params);
+            if let Some(sender) = state.callback_receiver.lock().await.take() {
+                let query = serde_urlencoded::to_string([
+                    ("code", params.code.as_str()),
+                    ("state", params.state.as_str()),
+                ])
+                .unwrap_or_default();
+                let issuer = params
+                    .iss
+                    .as_deref()
+                    .map(|iss| format!("&iss={}", urlencoding::encode(iss)))
+                    .unwrap_or_default();
+                let _ = sender.send(format!("http://callback/oauth_callback?{query}{issuer}"));
             }
             Html(rendered)
         }
@@ -168,36 +184,40 @@ pub async fn oauth_flow(
         .route("/oauth_callback", get(handler))
         .with_state(app_state);
 
-    let port: u16 = std::env::var("GOOSE_OAUTH_CALLBACK_PORT")
+    let port = std::env::var("GOOSE_OAUTH_CALLBACK_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(0);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await?;
     let used_addr = listener.local_addr()?;
     let server_handle = tokio::spawn(async move {
-        let result = axum::serve(listener, app).await;
-        if let Err(e) = result {
+        if let Err(e) = axum::serve(listener, app).await {
             eprintln!("Callback server error: {}", e);
         }
     });
 
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
-
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
-    oauth_state
-        .start_authorization(
-            AuthorizationRequest::new(redirect_uri)
-                .with_client_name("goose")
-                .with_client_metadata_url(CLIENT_METADATA_URL),
-        )
-        .await?;
+    let mut request = AuthorizationRequest::new(redirect_uri.clone()).with_client_name("goose");
+    if let Some(client_id) = flow_config.client_id {
+        request = request.with_preregistered_client(client_id);
+        if let Some(client_secret) = flow_config.client_secret {
+            request = request.with_client_secret(client_secret);
+        }
+    } else {
+        request = request.with_client_metadata_url(
+            flow_config
+                .client_metadata_url
+                .unwrap_or_else(|| CLIENT_METADATA_URL.to_string()),
+        );
+    }
+    oauth_state.start_authorization(request).await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
-    let callback_params = if let Some(params) =
-        complete_conformance_authorization(authorization_url.as_str()).await?
+    let callback_url = if let Some(callback_url) =
+        complete_automatic_authorization(authorization_url.as_str(), &redirect_uri).await?
     {
-        Ok(params)
+        callback_url
     } else {
         announce_authorization_url(name, authorization_url.as_str());
         if let Err(e) = webbrowser::open(authorization_url.as_str()) {
@@ -206,34 +226,26 @@ pub async fn oauth_flow(
                 name, e
             );
         }
-
         wait_for_callback(
-            code_receiver,
+            callback_receiver,
             oauth_callback_timeout(),
             name,
             authorization_url.as_str(),
         )
-        .await
+        .await?
     };
     server_handle.abort();
-    let CallbackParams {
-        code: auth_code,
-        state: csrf_token,
-    } = callback_params?;
-    oauth_state.handle_callback(&auth_code, &csrf_token).await?;
+    oauth_state.handle_callback_url(&callback_url).await?;
 
     let (client_id, token_response) = oauth_state.get_credentials().await?;
-
     let mut auth_manager = oauth_state
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
-
-    let granted_scopes: Vec<String> = token_response
+    let granted_scopes = token_response
         .as_ref()
         .and_then(|tr| tr.scopes())
         .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
         .unwrap_or_default();
-
     credential_store
         .save(StoredCredentials::new(
             client_id,
@@ -247,9 +259,7 @@ pub async fn oauth_flow(
             ),
         ))
         .await?;
-
     auth_manager.set_credential_store(credential_store);
-
     Ok(auth_manager)
 }
 
@@ -282,16 +292,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wait_for_callback_returns_received_callback_params() {
+    async fn wait_for_callback_returns_received_callback_url() {
         let (sender, receiver) = oneshot::channel();
-        sender
-            .send(CallbackParams {
-                code: "auth-code".to_string(),
-                state: "csrf-state".to_string(),
-            })
-            .unwrap();
+        let expected = "http://callback/oauth_callback?code=auth-code&state=csrf-state";
+        sender.send(expected.to_string()).unwrap();
 
-        let params = wait_for_callback(
+        let callback_url = wait_for_callback(
             receiver,
             Duration::from_secs(1),
             "test-server",
@@ -300,8 +306,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(params.code, "auth-code");
-        assert_eq!(params.state, "csrf-state");
+        assert_eq!(callback_url, expected);
     }
 
     #[tokio::test]

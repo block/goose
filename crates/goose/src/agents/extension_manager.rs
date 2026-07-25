@@ -3133,6 +3133,7 @@ mod tests {
         let capabilities = GooseMcpClientCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         };
 
         let result = create_streamable_http_client(
@@ -3168,6 +3169,7 @@ mod tests {
         let capabilities = GooseMcpClientCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         };
 
         let result = create_streamable_http_client(
@@ -3212,6 +3214,7 @@ mod tests {
         let capabilities = GooseMcpClientCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         };
 
         // The MCP handshake will fail against the stub server. We only care that
@@ -3295,6 +3298,7 @@ mod tests {
         let capabilities = GooseMcpClientCapabilities {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         };
 
         // connect_with_auth will fail (mock server isn't an MCP server) but we
