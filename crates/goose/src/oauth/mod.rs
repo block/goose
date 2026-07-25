@@ -8,6 +8,7 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
+use reqwest::redirect::Policy;
 use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
@@ -55,6 +56,45 @@ fn announce_authorization_url(name: &str, authorization_url: &str) {
         "If the browser did not open, authorize {} at:\n  {}",
         name, authorization_url
     );
+}
+
+async fn complete_conformance_authorization(
+    authorization_url: &str,
+) -> Result<Option<CallbackParams>, anyhow::Error> {
+    if std::env::var("MCP_CONFORMANCE_SCENARIO")
+        .ok()
+        .is_none_or(|scenario| !scenario.starts_with("auth/"))
+    {
+        return Ok(None);
+    }
+
+    let response = reqwest::Client::builder()
+        .redirect(Policy::none())
+        .build()?
+        .get(authorization_url)
+        .send()
+        .await?;
+
+    let location = response
+        .headers()
+        .get(reqwest::header::LOCATION)
+        .ok_or_else(|| anyhow::anyhow!("conformance auth response did not include Location"))?
+        .to_str()?;
+    let redirect = url::Url::parse(location)?;
+    let mut code = None;
+    let mut state = None;
+    for (key, value) in redirect.query_pairs() {
+        match key.as_ref() {
+            "code" => code = Some(value.into_owned()),
+            "state" => state = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    Ok(Some(CallbackParams {
+        code: code.ok_or_else(|| anyhow::anyhow!("conformance auth redirect missing code"))?,
+        state: state.ok_or_else(|| anyhow::anyhow!("conformance auth redirect missing state"))?,
+    }))
 }
 
 async fn wait_for_callback(
@@ -154,21 +194,27 @@ pub async fn oauth_flow(
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
-    announce_authorization_url(name, authorization_url.as_str());
-    if let Err(e) = webbrowser::open(authorization_url.as_str()) {
-        warn!(
-            "[OAuth:{}] Failed to open browser automatically: {}",
-            name, e
-        );
-    }
+    let callback_params = if let Some(params) =
+        complete_conformance_authorization(authorization_url.as_str()).await?
+    {
+        Ok(params)
+    } else {
+        announce_authorization_url(name, authorization_url.as_str());
+        if let Err(e) = webbrowser::open(authorization_url.as_str()) {
+            warn!(
+                "[OAuth:{}] Failed to open browser automatically: {}",
+                name, e
+            );
+        }
 
-    let callback_params = wait_for_callback(
-        code_receiver,
-        oauth_callback_timeout(),
-        name,
-        authorization_url.as_str(),
-    )
-    .await;
+        wait_for_callback(
+            code_receiver,
+            oauth_callback_timeout(),
+            name,
+            authorization_url.as_str(),
+        )
+        .await
+    };
     server_handle.abort();
     let CallbackParams {
         code: auth_code,

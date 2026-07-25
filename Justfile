@@ -413,6 +413,13 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
+# Run an MCP client conformance suite against Goose.
+# Example: just mcp-conformance 2025-11-25 auth
+mcp-conformance version suite:
+  cargo build -p goose-cli --bin goose
+  cd mcp-conformance && npm ci
+  cd mcp-conformance && npx conformance client --command "../target/debug/goose mcp-probe" --spec-version "{{version}}" --suite "{{suite}}"
+
 build-test-tools:
   cargo build -p goose-test
 

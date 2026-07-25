@@ -1195,6 +1195,22 @@ enum Command {
         #[arg(help = "Path to the bundled-extensions.json file")]
         file: PathBuf,
     },
+
+    #[command(
+        name = "mcp-probe",
+        about = "Start a Goose MCP session without an LLM and inspect a stdio MCP server",
+        hide = true
+    )]
+    McpProbe {
+        #[arg(help = "Stdio MCP server command to inspect")]
+        extension: String,
+
+        #[arg(long, help = "Call a tool after initialization")]
+        call_tool: Option<String>,
+
+        #[arg(long, default_value = "{}", help = "JSON arguments for --call-tool")]
+        arguments: String,
+    },
 }
 
 #[cfg(feature = "local-inference")]
@@ -1361,8 +1377,102 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Completion { .. }) => "completion",
         Some(Command::Review { .. }) => "review",
         Some(Command::ValidateExtensions { .. }) => "validate-extensions",
+        Some(Command::McpProbe { .. }) => "mcp-probe",
         None => "default_session",
     }
+}
+
+async fn handle_mcp_probe(
+    extension_command: String,
+    call_tool: Option<String>,
+    arguments: String,
+) -> Result<()> {
+    use goose::agents::{Agent, ToolCallContext};
+    use goose::config::ExtensionConfig;
+    use rmcp::model::CallToolRequestParams;
+    use tokio_util::sync::CancellationToken;
+
+    let mut extension = if url::Url::parse(&extension_command)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+    {
+        crate::session::CliSession::parse_streamable_http_extension(
+            &extension_command,
+            goose::config::DEFAULT_EXTENSION_TIMEOUT,
+        )
+    } else {
+        crate::session::CliSession::parse_stdio_extension(&extension_command)?
+    };
+    match &mut extension {
+        ExtensionConfig::Stdio { name, .. } | ExtensionConfig::StreamableHttp { name, .. } => {
+            *name = "conformance".to_string();
+        }
+        _ => unreachable!("MCP probe only creates stdio or streamable HTTP extensions"),
+    }
+
+    let agent = Agent::new();
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir()?,
+            "MCP Probe".to_string(),
+            goose::session::session_manager::SessionType::Hidden,
+            agent.config.goose_mode,
+        )
+        .await?;
+    let session_id = session.id.as_str();
+    agent.add_extension(extension, session_id).await?;
+
+    let tools = agent
+        .list_tools(session_id, Some("conformance".to_string()))
+        .await;
+    let prompts = agent
+        .extension_manager
+        .list_prompts(session_id, CancellationToken::new())
+        .await
+        .ok();
+    let resources = agent
+        .extension_manager
+        .get_ui_resources(session_id)
+        .await
+        .ok();
+
+    let tool_result = if let Some(tool_name) = call_tool {
+        let args = serde_json::from_str(&arguments)?;
+        let ctx = ToolCallContext::new(
+            session_id.to_string(),
+            Some(std::env::current_dir()?),
+            Some("mcp-probe-tool-call".to_string()),
+        );
+        let result = agent
+            .extension_manager
+            .dispatch_tool_call(
+                &ctx,
+                CallToolRequestParams::new(tool_name).with_arguments(args),
+                CancellationToken::new(),
+            )
+            .await?
+            .result
+            .await?;
+        Some(serde_json::json!({
+            "content": result.content,
+            "isError": result.is_error,
+        }))
+    } else {
+        None
+    };
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "tools": tools,
+            "prompts": prompts,
+            "uiResources": resources,
+            "toolResult": tool_result,
+        }))?
+    );
+
+    Ok(())
 }
 
 async fn handle_mcp_command(server: McpCommand) -> Result<()> {
@@ -2375,6 +2485,11 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
             }
         }
+        Some(Command::McpProbe {
+            extension,
+            call_tool,
+            arguments,
+        }) => handle_mcp_probe(extension, call_tool, arguments).await,
         None => handle_default_session().await,
     }
 }
