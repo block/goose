@@ -165,6 +165,7 @@ pub struct ExtensionManagerCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
     pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
+    pub protocol_version: Option<rmcp::model::ProtocolVersion>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -494,9 +495,10 @@ fn is_oauth_auth_failure(err: &ClientInitializeError) -> bool {
         };
     }
 
-    error
-        .to_string()
-        .contains("unexpected server response: HTTP 401")
+    let message = error.to_string();
+    message.contains("unexpected server response: HTTP 401")
+        || message.contains("Auth required")
+        || message.contains("Authorization required")
 }
 
 fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
@@ -869,6 +871,7 @@ impl ExtensionManager {
             mcpui: self.capabilities.mcpui,
             host_info: self.capabilities.host_info.clone(),
             elicitation_handler: self.capabilities.elicitation_handler.clone(),
+            protocol_version: self.capabilities.protocol_version.clone(),
         }
     }
 
@@ -905,6 +908,7 @@ impl ExtensionManager {
                 mcpui: false,
                 host_info: None,
                 elicitation_handler: None,
+                protocol_version: None,
             },
             false,
         )
@@ -3127,6 +3131,7 @@ mod tests {
             mcpui: false,
             host_info: None,
             elicitation_handler: None,
+            protocol_version: None,
         };
 
         let result = create_streamable_http_client(
@@ -3163,6 +3168,7 @@ mod tests {
             mcpui: false,
             host_info: None,
             elicitation_handler: None,
+            protocol_version: None,
         };
 
         let result = create_streamable_http_client(
@@ -3208,6 +3214,7 @@ mod tests {
             mcpui: false,
             host_info: None,
             elicitation_handler: None,
+            protocol_version: None,
         };
 
         // The MCP handshake will fail against the stub server. We only care that
@@ -3292,6 +3299,7 @@ mod tests {
             mcpui: false,
             host_info: None,
             elicitation_handler: None,
+            protocol_version: None,
         };
 
         // connect_with_auth will fail (mock server isn't an MCP server) but we

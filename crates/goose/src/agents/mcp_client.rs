@@ -23,8 +23,8 @@ use rmcp::{
         Role, ServerNotification, ServerResult,
     },
     service::{
-        ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
-        ServiceRole,
+        ClientInitializeError, ClientLifecycleMode, ClientServiceExt, PeerRequestOptions,
+        RequestContext, RequestHandle, RunningService, ServiceRole,
     },
     transport::IntoTransport,
     ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
@@ -566,6 +566,7 @@ pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
     pub elicitation_handler: Option<ElicitationHandler>,
+    pub protocol_version: Option<ProtocolVersion>,
 }
 
 impl std::fmt::Debug for GooseMcpClientCapabilities {
@@ -575,6 +576,7 @@ impl std::fmt::Debug for GooseMcpClientCapabilities {
             .field("mcpui", &self.mcpui)
             .field("host_info", &self.host_info)
             .field("elicitation_handler", &self.elicitation_handler.is_some())
+            .field("protocol_version", &self.protocol_version)
             .finish()
     }
 }
@@ -585,6 +587,7 @@ impl Default for GooseMcpClientCapabilities {
             mcpui: false,
             host_info: None,
             elicitation_handler: None,
+            protocol_version: None,
         }
     }
 }
@@ -647,7 +650,18 @@ impl McpClient {
             working_dir,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
-            client.serve(transport).await?;
+            if let Some(protocol_version) = capabilities.protocol_version {
+                client
+                    .serve_with_lifecycle(
+                        transport,
+                        ClientLifecycleMode::Discover {
+                            preferred_versions: vec![protocol_version],
+                        },
+                    )
+                    .await?
+            } else {
+                client.serve(transport).await?
+            };
         let server_info = client.peer_info().map(|info| (*info).clone());
 
         Ok(Self {
@@ -831,6 +845,15 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
+        let protocol_version = {
+            let client = self.client.lock().await;
+            client.peer_info().map(|info| info.protocol_version.clone())
+        };
+        if protocol_version.as_ref() == Some(&ProtocolVersion::V_2026_07_28) {
+            let client = self.client.lock().await;
+            return client.call_tool(params).await;
+        }
+
         let request = ClientRequest::CallToolRequest(Request::new(params));
 
         let result = self
@@ -1041,11 +1064,13 @@ mod tests {
                 mcpui: true,
                 host_info: None,
                 elicitation_handler: None,
+                protocol_version: None,
             },
             GoosePlatform::GooseCli => GooseMcpClientCapabilities {
                 mcpui: false,
                 host_info: None,
                 elicitation_handler: None,
+                protocol_version: None,
             },
         };
 
@@ -1406,6 +1431,7 @@ mod tests {
                     client_version: Some("0.1.0".to_string()),
                 }),
                 elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );
@@ -1438,6 +1464,7 @@ mod tests {
                     client_version: Some("0.1.0".to_string()),
                 }),
                 elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );
@@ -1467,6 +1494,7 @@ mod tests {
                     client_version: Some("0.1.0".to_string()),
                 }),
                 elicitation_handler: None,
+                protocol_version: None,
             },
             std::env::current_dir().unwrap_or_default(),
         );
