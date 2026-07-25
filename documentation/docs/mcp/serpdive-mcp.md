@@ -101,5 +101,5 @@ and their URLs?
 ```
 
 :::tip
-`serpdive_search` takes `query`, an optional retrieval depth (`mako` for the fact-carrying sentences of each source, `moby` for the full readable page), and an optional `max_results` cap (1-10). Over MCP there is no written-answer argument — goose synthesizes the answer from the extracted content itself. See the [SERPdive docs](https://serpdive.com/docs) for the full API.
+`serpdive_search` takes `query`, an optional retrieval depth (`mako` for the fact-carrying sentences of each source, `krill` for the free tier — unlimited under fair use, smallest payload, one request at a time — and `moby` for the full readable page), and an optional `max_results` cap (1-10). Over MCP there is no written-answer argument — goose synthesizes the answer from the extracted content itself. See the [SERPdive docs](https://serpdive.com/docs) for the full API.
 :::
