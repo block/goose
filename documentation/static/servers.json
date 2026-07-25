@@ -90,6 +90,17 @@
     "environmentVariables": []
   },
   {
+    "id": "bernstein",
+    "name": "Bernstein",
+    "description": "Deterministic orchestration for CLI coding agents with replay journal and verifiable audit log",
+    "command": "uvx --from bernstein bernstein mcp",
+    "link": "https://github.com/sipyourdrink-ltd/bernstein",
+    "installation_notes": "Install using uvx package manager. Requires uv and Python 3.12+. No API key or environment variables required.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration (requires local server setup)",
