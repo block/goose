@@ -21,7 +21,6 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
-use crate::session::SessionManager;
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
@@ -573,65 +572,54 @@ impl Agent {
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<ProviderUsage> {
-        update_session_metrics(
-            &self.config.session_manager,
-            session_id,
-            schedule_id,
-            usage,
-            is_compaction_usage,
-        )
-        .await
+        let manager = self.config.session_manager.clone();
+        let session = manager.get_session(session_id, false).await?;
+
+        let (chunk_cost, cost_source) =
+            self.resolve_chunk_cost(usage, session.provider_name.as_deref());
+
+        let mut enriched = usage.clone();
+        enriched.cost = chunk_cost;
+        enriched.cost_source = cost_source;
+        let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
+
+        let current_usage = if is_compaction_usage {
+            // After compaction: summary output becomes new input context
+            let new_input = usage.usage.output_tokens;
+            Usage::new(new_input, None, new_input)
+        } else {
+            usage.usage
+        };
+
+        manager
+            .record_usage_metrics(
+                session_id,
+                schedule_id,
+                current_usage,
+                &usage.model,
+                &ledger,
+            )
+            .await?;
+
+        Ok(enriched)
     }
-}
 
-pub(crate) async fn update_session_metrics(
-    manager: &SessionManager,
-    session_id: &str,
-    schedule_id: Option<String>,
-    usage: &ProviderUsage,
-    is_compaction_usage: bool,
-) -> Result<ProviderUsage> {
-    let session = manager.get_session(session_id, false).await?;
-
-    let (cost, cost_source) = if let Some(cost) = usage.cost {
-        (Some(cost), Some(CostSource::ProviderReported))
-    } else {
-        match session
-            .provider_name
-            .as_deref()
-            .and_then(|provider| {
-                crate::providers::canonical::maybe_get_canonical_model(provider, &usage.model)
-            })
+    fn resolve_chunk_cost(
+        &self,
+        usage: &ProviderUsage,
+        provider_name: Option<&str>,
+    ) -> (Option<f64>, Option<CostSource>) {
+        if let Some(cost) = usage.cost {
+            return (Some(cost), Some(CostSource::ProviderReported));
+        }
+        match provider_name
+            .and_then(|pn| crate::providers::canonical::maybe_get_canonical_model(pn, &usage.model))
             .and_then(|canonical| canonical.cost.estimate_cost(&usage.usage))
         {
             Some(cost) => (Some(cost), Some(CostSource::Estimated)),
             None => (None, None),
         }
-    };
-
-    let mut enriched = usage.clone();
-    enriched.cost = cost;
-    enriched.cost_source = cost_source;
-    let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
-
-    let current_usage = if is_compaction_usage {
-        let new_input = usage.usage.output_tokens;
-        Usage::new(new_input, None, new_input)
-    } else {
-        usage.usage
-    };
-
-    manager
-        .record_usage_metrics(
-            session_id,
-            schedule_id,
-            current_usage,
-            &usage.model,
-            &ledger,
-        )
-        .await?;
-
-    Ok(enriched)
+    }
 }
 
 fn user_visible_provider_content(content: &MessageContent) -> Option<MessageContent> {

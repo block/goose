@@ -5,15 +5,18 @@ use std::collections::HashSet;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rmcp::model::Tool;
+use tracing_futures::Instrument;
 
 use crate::agents::final_output_tool::{
     FinalOutputTool, FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME,
 };
 use crate::agents::state_machine::operation::{
-    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
-    Operation, OperationResult, SlashCommand, TurnEffect,
+    applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, yielded_with,
+    Emitter, Operation, OperationResult, SlashCommand, StateEffect,
 };
-use crate::agents::state_machine::ops_toolcalling::{pending_tool_requests, ToolDisposition};
+use crate::agents::state_machine::ops_toolcalling::{
+    pending_tool_requests, tool_span, ToolDisposition,
+};
 use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
@@ -90,14 +93,13 @@ impl RecipeOperation {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command)).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::SetMessageVisibility {
+        yielded_with([
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 }
@@ -143,12 +145,12 @@ impl Operation for RecipeOperation {
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
         applied([
-            TurnEffect::SetMessageVisibility {
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
-            TurnEffect::SetRecipe(Some(recipe)),
+            StateEffect::SetRecipe(Some(recipe)),
             Message::user()
                 .with_text(prompt)
                 .with_visibility(false, true)
@@ -200,8 +202,21 @@ impl Operation for RecipeOperation {
             let tool_call = request
                 .tool_call
                 .map_err(|error| anyhow!("final output tool call could not be parsed: {error}"))?;
-            let result = final_output.execute_tool_call(tool_call).await;
-            let output = result.result.await;
+            let span = tool_span(&tool_call.name, &request.id, &session.id);
+            let result = final_output
+                .execute_tool_call(tool_call)
+                .instrument(span.clone())
+                .await;
+            let output = result.result.instrument(span.clone()).await;
+            match &output {
+                Ok(result) if result.is_error == Some(true) => {
+                    span.record("error.type", "tool_error");
+                }
+                Err(_) => {
+                    span.record("error.type", "tool_execution_error");
+                }
+                _ => {}
+            }
             let mut response = Message::user().with_generated_id();
             response.add_tool_response_with_metadata(request.id, output, request.metadata.as_ref());
             emit.emit(AgentEvent::Message(response.clone())).await;

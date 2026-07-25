@@ -4,11 +4,13 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use tracing_futures::Instrument;
 
 use crate::agents::state_machine::operation::{
-    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, Emitter,
-    Operation, OperationResult, SlashCommand, TurnEffect,
+    applied, last_effective_role, messages_since_kickoff, not_applicable, trailing_error, yielded,
+    yielded_with, Emitter, Operation, OperationResult, SlashCommand, StateEffect,
 };
+use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
 use crate::agents::AgentEvent;
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
@@ -89,14 +91,13 @@ impl CompactionOperation {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command)).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::SetMessageVisibility {
+        yielded_with([
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 
@@ -111,12 +112,10 @@ impl CompactionOperation {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command.clone())).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::ResetContextUsage,
+        yielded_with([
             Conversation::default().into(),
             command.into(),
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 }
@@ -140,6 +139,12 @@ impl Operation for CompactionOperation {
             _ => return not_applicable(emit),
         }
 
+        let span = chat_span(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            "compaction",
+        );
         let (compacted, usage) = match compact_messages(
             self.provider.as_ref(),
             &self.model_config,
@@ -147,13 +152,16 @@ impl Operation for CompactionOperation {
             conversation,
             true,
         )
+        .instrument(span.clone())
         .await
         {
             Ok(result) => result,
             Err(error) => {
+                span.record("error.type", "compaction_error");
                 return Self::command_error(conversation, error.to_string(), emit).await;
             }
         };
+        record_chat_usage(&span, &usage);
 
         let command = messages_since_kickoff(conversation)?
             .first()
@@ -165,14 +173,12 @@ impl Operation for CompactionOperation {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command)).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::RecordUsage {
-                usage,
-                is_compaction: true,
+        yielded_with([
+            StateEffect::ReplaceConversation {
+                conversation: compacted,
+                usage: Some(usage),
             },
-            compacted.into(),
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 
@@ -210,14 +216,14 @@ impl Operation for CompactionOperation {
         );
 
         if reactive_context_error {
-            let prior_compactions = messages
+            let context_errors = messages
                 .iter()
                 .filter(|message| {
                     message.error_kind() == Some(MessageErrorKind::ContextLengthExceeded)
                         && !message.is_agent_visible()
                 })
                 .count();
-            if prior_compactions >= MAX_CONTEXT_ERROR_COMPACTIONS {
+            if context_errors > MAX_CONTEXT_ERROR_COMPACTIONS {
                 return not_applicable(emit);
             }
         } else {
@@ -262,6 +268,12 @@ impl Operation for CompactionOperation {
         ))
         .await;
 
+        let span = chat_span(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            "compaction",
+        );
         match compact_messages(
             self.provider.as_ref(),
             &self.model_config,
@@ -269,9 +281,11 @@ impl Operation for CompactionOperation {
             conversation,
             false,
         )
+        .instrument(span.clone())
         .await
         {
             Ok((compacted, usage)) => {
+                record_chat_usage(&span, &usage);
                 emit.emit(AgentEvent::Message(
                     Message::assistant().with_system_notification(
                         SystemNotificationType::InlineMessage,
@@ -279,15 +293,13 @@ impl Operation for CompactionOperation {
                     ),
                 ))
                 .await;
-                applied([
-                    TurnEffect::RecordUsage {
-                        usage,
-                        is_compaction: true,
-                    },
-                    compacted.into(),
-                ])
+                applied([StateEffect::ReplaceConversation {
+                    conversation: compacted,
+                    usage: Some(usage),
+                }])
             }
             Err(e) => {
+                span.record("error.type", "compaction_error");
                 emit.emit(AgentEvent::Message(Message::assistant().with_text(
                     format!(
                         "Ran into this error trying to compact: {e}.\n\n\
@@ -295,7 +307,7 @@ impl Operation for CompactionOperation {
                     ),
                 )))
                 .await;
-                applied([TurnEffect::YieldToClient])
+                yielded()
             }
         }
     }

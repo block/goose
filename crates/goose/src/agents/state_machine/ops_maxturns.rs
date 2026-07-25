@@ -1,8 +1,8 @@
 //! Ends the turn when the agent has used its autonomous turn budget.
 
 use crate::agents::state_machine::operation::{
-    applied, assistant_turn_count, messages_since_kickoff, not_applicable, Emitter, Operation,
-    OperationResult, TurnEffect,
+    assistant_turn_count, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
+    OperationResult,
 };
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
@@ -11,7 +11,7 @@ use crate::session::Session;
 use anyhow::Result;
 use async_trait::async_trait;
 
-pub(super) const DEFAULT_MAX_TURNS: u32 = 1000;
+pub const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
 
 pub struct MaxTurnsOperation {
     max_turns: u32,
@@ -61,11 +61,8 @@ impl Operation for MaxTurnsOperation {
             return not_applicable(emit);
         }
 
-        let message = Message::assistant().with_text(
-            "I've reached the maximum number of actions I can do without user input. \
-             Would you like me to continue?",
-        );
+        let message = Message::assistant().with_text(MAX_TURNS_MESSAGE);
         emit.emit(AgentEvent::Message(message.clone())).await;
-        applied([message.into(), TurnEffect::YieldToClient])
+        yielded_with([message.into()])
     }
 }

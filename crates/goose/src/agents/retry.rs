@@ -185,8 +185,13 @@ pub async fn execute_success_checks(
     checks: &[SuccessCheck],
     retry_config: &RetryConfig,
 ) -> Result<bool> {
-    let timeout = get_retry_timeout(retry_config);
+    execute_success_checks_with_timeout(checks, get_retry_timeout(retry_config)).await
+}
 
+pub async fn execute_success_checks_with_timeout(
+    checks: &[SuccessCheck],
+    timeout: Duration,
+) -> Result<bool> {
     for check in checks {
         match check {
             SuccessCheck::Shell { command } => {
@@ -267,7 +272,13 @@ pub async fn execute_shell_command(
 
 /// Execute an on_failure command and return an error if it fails
 pub async fn execute_on_failure_command(command: &str, retry_config: &RetryConfig) -> Result<()> {
-    let timeout = get_on_failure_timeout(retry_config);
+    execute_on_failure_command_with_timeout(command, get_on_failure_timeout(retry_config)).await
+}
+
+pub async fn execute_on_failure_command_with_timeout(
+    command: &str,
+    timeout: Duration,
+) -> Result<()> {
     info!(
         "Executing on_failure command with timeout {:?}: {}",
         timeout, command

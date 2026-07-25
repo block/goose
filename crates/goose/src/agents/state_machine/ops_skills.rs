@@ -11,10 +11,12 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    SlashCommand, TurnEffect,
+    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
+    OperationResult, SlashCommand, StateEffect,
 };
-use crate::agents::state_machine::ops_toolcalling::{pending_tool_requests, ToolDisposition};
+use crate::agents::state_machine::ops_toolcalling::{
+    pending_tool_requests, tool_span, ToolDisposition,
+};
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::agents::AgentEvent;
 use crate::config::GooseMode;
@@ -220,14 +222,13 @@ impl SkillOperation {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command)).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::SetMessageVisibility {
+        yielded_with([
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 }
@@ -273,7 +274,7 @@ impl Operation for SkillOperation {
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
         applied([
-            TurnEffect::SetMessageVisibility {
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
@@ -329,7 +330,15 @@ impl Operation for SkillOperation {
                     let tool_call = request.tool_call.as_ref().map_err(|error| {
                         anyhow!("load_skill tool call could not be parsed: {error}")
                     })?;
-                    execute_skill(&session.working_dir, tool_call.arguments.clone())
+                    let span = tool_span(&tool_call.name, &request.id, &session.id);
+                    let result = {
+                        let _entered = span.enter();
+                        execute_skill(&session.working_dir, tool_call.arguments.clone())
+                    };
+                    if result.is_error == Some(true) {
+                        span.record("error.type", "tool_error");
+                    }
+                    result
                 }
                 ToolDisposition::Decline => {
                     CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])

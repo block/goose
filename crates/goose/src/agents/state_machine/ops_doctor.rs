@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use rmcp::model::Role;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    SlashCommand, TurnEffect,
+    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
+    OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
@@ -55,19 +55,18 @@ impl Operation for DoctorOperation {
             let result = result.with_visibility(true, false);
             emit.emit(AgentEvent::Message(command_message)).await;
             emit.emit(AgentEvent::Message(result.clone())).await;
-            return applied([
-                TurnEffect::SetMessageVisibility {
+            return yielded_with([
+                StateEffect::SetMessageVisibility {
                     message_id,
                     user_visible: true,
                     agent_visible: false,
                 },
                 result.into(),
-                TurnEffect::YieldToClient,
             ]);
         }
 
         applied([
-            TurnEffect::SetMessageVisibility {
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,

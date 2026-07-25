@@ -10,7 +10,7 @@ use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::providers::base::ProviderUsage;
 use crate::recipe::Recipe;
-use crate::session::Session;
+use crate::session::{ExtensionData, Session};
 use rmcp::model::Tool;
 
 pub type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -119,10 +119,10 @@ pub trait Operation: Send + Sync {
     }
 }
 
+#[derive(Default)]
 pub struct InferenceInput {
-    pub system_prompt: String,
     pub tools: Vec<Tool>,
-    pub toolshim_tools: Vec<Tool>,
+    pub prompt_parts: Vec<(String, String)>,
     pub moim_parts: Vec<String>,
 }
 
@@ -137,24 +137,47 @@ pub trait Inference: Operation {
     ) -> Result<OperationResult>;
 }
 
-pub type TurnOutcome = Vec<TurnEffect>;
+pub struct StepResult {
+    pub effects: Vec<StateEffect>,
+    pub yield_to_client: bool,
+}
 
 pub enum OperationResult {
     NotApplicable(Emitter),
-    Applied(TurnOutcome),
+    Applied(StepResult),
 }
 
 pub fn not_applicable(emit: Emitter) -> Result<OperationResult> {
     Ok(OperationResult::NotApplicable(emit))
 }
 
-pub fn applied(effects: impl IntoIterator<Item = TurnEffect>) -> Result<OperationResult> {
-    Ok(OperationResult::Applied(effects.into_iter().collect()))
+pub fn applied(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+    Ok(OperationResult::Applied(StepResult {
+        effects: effects.into_iter().collect(),
+        yield_to_client: false,
+    }))
 }
 
-pub enum TurnEffect {
+pub fn yielded() -> Result<OperationResult> {
+    Ok(OperationResult::Applied(StepResult {
+        effects: Vec::new(),
+        yield_to_client: true,
+    }))
+}
+
+pub fn yielded_with(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
+    Ok(OperationResult::Applied(StepResult {
+        effects: effects.into_iter().collect(),
+        yield_to_client: true,
+    }))
+}
+
+pub enum StateEffect {
     AppendMessage(Message),
-    ReplaceConversation(Conversation),
+    ReplaceConversation {
+        conversation: Conversation,
+        usage: Option<ProviderUsage>,
+    },
     PatchToolRequestMeta {
         message_id: String,
         tool_call_id: String,
@@ -166,26 +189,26 @@ pub enum TurnEffect {
         agent_visible: bool,
     },
     SetRecipe(Option<Recipe>),
-    RecordUsage {
-        usage: ProviderUsage,
-        is_compaction: bool,
-    },
-    ResetContextUsage,
-    YieldToClient,
+    SetExtensionData(ExtensionData),
+    RecordUsage(ProviderUsage),
 }
 
-impl From<Message> for TurnEffect {
+impl From<Message> for StateEffect {
     fn from(message: Message) -> Self {
-        TurnEffect::AppendMessage(message)
+        StateEffect::AppendMessage(message)
     }
 }
 
-impl From<Conversation> for TurnEffect {
+impl From<Conversation> for StateEffect {
     fn from(conversation: Conversation) -> Self {
-        TurnEffect::ReplaceConversation(conversation)
+        StateEffect::ReplaceConversation {
+            conversation,
+            usage: None,
+        }
     }
 }
 
+#[derive(Clone)]
 pub struct Emitter {
     tx: mpsc::Sender<AgentEvent>,
     cancel: CancellationToken,

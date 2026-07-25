@@ -15,9 +15,10 @@ not in operations.
 
 ```
 state_machine/
-├── mod.rs          # public surface: `reply` + `enabled` flag check
-├── machine.rs      # the driver: assemble ops, run loop, apply outcomes
-├── operation.rs    # Operation trait, Emitter, TurnOutcome
+├── mod.rs          # public surface
+├── machine.rs      # StateMachine::step, apply, and run
+├── operation.rs    # Operation trait, Emitter, StepResult, StateEffect
+├── usage.rs        # usage recording and replacement context estimates
 ├── ops_llm.rs      # required inference runner; provider errors -> error messages
 ├── ops_toolcalling.rs  # execute tool requests, synthesize responses
 ├── ops_skills.rs   # advertise and load filesystem skills
@@ -43,18 +44,19 @@ state_machine/
 - [x] Cooperative tool handling — execution only claims tools it advertises; the fallback returns unknown calls to inference as tool errors
 - [x] `MaxTurnsOperation` — halts the loop after `max_turns` assistant turns this request; the limit message is persisted so the transcript shows why the agent stopped (the old loop only yielded it)
 - [x] `CompactionOperation` — proactive auto-compact before an LLM call (returns `ReplaceConversation`)
-- [x] Machine driver applies ordered `TurnEffect`s
-- [x] Usage recording — the LLM and compaction ops return `RecordUsage` effects. The machine enriches the usage, updates session totals, emits `Usage`/`MessageUsage` events for LLM turns, and attaches the ledger to the assistant message. Compaction usage resets the session total to the summary size so a replace cannot re-trigger on a stale count.
+- [x] `StateMachine::step` evaluates one operation against a supplied `Session`
+- [x] `StateMachine::apply` persists a step result through `SessionManager`
+- [x] `StateMachine::run` loads and applies state through `SessionManager`
+- [x] Usage recording — inference returns `RecordUsage`; compaction carries the usage spent producing its `ReplaceConversation`. The machine enriches usage, updates session totals, emits `Usage`/`MessageUsage` events for inference turns, and attaches that ledger to the assistant message. Replacing a conversation recalculates its current context usage so compaction, clear, and retry cannot leave stale counts behind.
 - [x] Stale orphaned tool requests (a crash mid-execution) — approval and execution only consider requests from the current request (at/after the last genuine user prompt); the LLM op strips older unanswered requests from the provider view. The transcript keeps them; nothing re-executes them.
-- [x] Hooks — `SessionStart`/`UserPromptSubmit` at machine entry; `PreToolUse`/`PostToolUse` in `ToolExecutionOperation`; `Stop` as `StopHookOperation` (see backlog table)
+- [x] Hooks — inference owns `SessionStart` and the initial `UserPromptSubmit`; steers own their prompt hooks; tool execution owns tool hooks; `StopHookOperation` owns normal completion
 - [x] Retry / goal / grind / final-output — `RetryOperation` between the LLM op and the stop hook (see backlog table)
 - [x] Steering — `SteerOperation` injects mid-run user messages between turns (see backlog table)
 - [x] LLM op provider fidelity — routes through `stream_response_from_provider` (toolshim, session-context scoping, thinking-effort default, error enhancement) and injects the moim turn-context block into the provider view
 - [x] Unparseable tool calls — answered with the parse error so the model can correct (even in chat mode); the `Err` request stays in history, relying on the formatters' `Err` arms rather than the old loop's placeholder rewrite
-- [x] Elicitation — a blocked tool's request flows through the existing action-required stream: the execution op persists it (mid-op, since the op stays blocked until the answer) and emits it; the response arrives via `Agent::reply`'s interception (shared with the old loop, so the state-machine dispatch sits below it) or directly from ACP, unblocking the tool through the `ActionRequiredManager` registry. The design-doc idea of yielding and re-entering doesn't fit here: the blocked tool call is a live future, so the reply stream stays open while the question is out.
+- [x] Elicitation — a blocked tool's request flows through the existing action-required stream and is returned as an append effect before the final tool response. Persistence is delayed until the tool finishes because MCP elicitation currently keeps a live future blocked waiting for the answer. Once elicitation is stateless, the operation should return at the request and resume from conversation state.
 - [x] Cancellation plumbed through the machine + `Emitter`
-- [x] Observability — the stream runs inside the same `reply_stream` span as the old loop, with `trace_output` recorded from the final assistant text at exit
-- [x] Non-blocking `Stop` hook at stream end for exits the blocking op didn't decide (see the Hooks backlog row)
+- [x] Observability — `StateMachine::run` owns an `invoke_agent` span; model calls, cooperative tool owners, and hook commands add `chat`, `execute_tool`, and `execute_hook` child spans. Chat spans cover stream consumption or compaction and record model and token usage when available. Tool and hook spans cover their delayed result futures. `trace_output` remains on the invocation span for the existing observation backend.
 - [x] `SlashCommandOperation` — runs over the persisted tail message and returns ordered effects
 - [ ] More operations (see backlog below)
 - [x] Errors as conversation state — provider errors become tagged, user-visible / agent-invisible messages (replacing the old fire-and-forget notification)
@@ -103,7 +105,12 @@ pub trait Inference: Operation {
 
 pub enum OperationResult {
     NotApplicable(Emitter),
-    Applied(TurnOutcome),
+    Applied(StepResult),
+}
+
+pub struct StepResult {
+    pub effects: Vec<StateEffect>,
+    pub yield_to_client: bool,
 }
 ```
 
@@ -112,7 +119,7 @@ Ops take `&Session` (read-only — the conversation IS the state) and an
 sender for `AgentEvent`s the client should see in real time, and a
 `CancellationToken`. Ops inspect the session and either return
 `NotApplicable(Emitter)` without emitting, or stream 0+ events through the
-emitter and return `Applied(TurnOutcome)`.
+emitter and return `Applied(StepResult)`.
 
 Long-running, streaming ops `select!` on `emit.cancelled()`. On cancel they
 commit whatever they fully produced (via the normal `AppendMessages`) and
@@ -144,17 +151,10 @@ enforced there; it leaned on `fix_conversation` dropping orphans at read time.
 We make the persisted conversation the real state at all times and make each
 op responsible for leaving it valid.
 
-**The SessionManager is the single source of truth; the machine keeps no
-in-memory copy.** Each loop iteration re-reads the session via
-`get_session(id, true)` before selecting an op, and outcomes only *write* to
-the SessionManager (`add_message` / `replace_conversation`) — they never patch
-a local `Session`. This avoids reintroducing the `messages_to_add` failure
-mode in a new shape: a hand-maintained mirror that can drift from disk. It
-already would have drifted, because `add_message` assigns a message id when
-one is missing, so a pushed-but-not-reloaded message differs from its
-persisted form. The reload costs one small indexed DB read per turn —
-negligible next to an LLM call — and guarantees every op sees exactly the
-persisted state (ids assigned, stored order).
+**The persisted session is the single source of truth; the machine keeps no
+in-memory copy.** `step` evaluates a supplied `Session`. `run` reloads the
+session through `SessionManager` before every step and applies the returned
+effects through it.
 
 Construction-time dependencies are passed to the component that owns them.
 Operations, including inference, may contribute tools, prompt inputs, and
@@ -163,12 +163,15 @@ MOIM text when the pipeline reaches its required inference step.
 pipeline then builds a fresh, immutable `InferenceInput`; it is not shared
 between operations or retained across iterations.
 
-### `TurnOutcome`
+### `StepResult`
 
 ```rust
-pub enum TurnEffect {
+pub enum StateEffect {
     AppendMessage(Message),
-    ReplaceConversation(Conversation),
+    ReplaceConversation {
+        conversation: Conversation,
+        usage: Option<ProviderUsage>,
+    },
     PatchToolRequestMeta {
         message_id: String,
         tool_call_id: String,
@@ -180,36 +183,29 @@ pub enum TurnEffect {
         agent_visible: bool,
     },
     SetRecipe(Option<Recipe>),
-    RecordUsage {
-        usage: ProviderUsage,
-        is_compaction: bool,
-    },
-    ResetContextUsage,
-    YieldToClient,
+    SetExtensionData(ExtensionData),
+    RecordUsage(ProviderUsage),
 }
-
-pub type TurnOutcome = Vec<TurnEffect>;
 ```
 
-The machine applies all effects in order via `SessionManager`. If it sees
-`YieldToClient`, it stops selecting operations after applying the prior effects.
-This lets one op perform a small transaction — for example "mark this message
-invisible, append that response, then yield" — without relying on a two-pass
-op dance. The machine does **not** auto-emit events for appended messages; ops
-already streamed what they wanted visible.
+`yield_to_client` is control flow, not persisted state. `apply` persists all
+effects through `SessionManager` and emits the events derived from them. `run`
+repeats `step` and `apply`, then stops when the boolean is true. The machine does not
+auto-emit message events for appended messages; operations already streamed what
+they wanted visible.
 
 ### Machine driver
 
-The driver (`machine::reply`) is the only place that:
+The compatibility driver beside `Agent::reply` handles entry and exit behavior
+and adapts the machine's emitter to the existing reply stream. `StateMachine::run`:
 
-- persists messages and conversations via `SessionManager`
-- mutates `session` (push to conversation, replace, future field updates)
+- loads sessions, calls `step`, and calls `apply`
 - runs the operation loop
 - turns ops' emitted events into the client `AgentEvent` stream
 - forwards `HistoryReplaced` on `ReplaceConversation`
 
-Loop termination: either an applied op returns `YieldToClient`, or every
-operation and the final inference step return `NotApplicable`.
+Loop termination: either an applied step sets `yield_to_client`, cancellation is
+requested, or every operation and the inference step return `NotApplicable`.
 
 ---
 
@@ -281,12 +277,12 @@ stream. Recovery ops dispatch on the kind: compaction reacts to
 the error and retry with a new message. This replaces the old fire-and-forget
 `yield notification; break`.
 | **Tool-call pair compaction** | `crate::context_mgmt::maybe_summarize_tool_pairs` background task | **Landed (synchronous first cut, per plan).** An op after regular compaction: when enough agent-visible pairs sit past the cutoff, summarize a batch, mark each pair agent-invisible (`SetMessageVisibility`, transcript keeps them), append the agent-only summaries — they carry the replaced pair's created timestamp, so they sort into position on read. The trailing span of tool activity is protected (the old loop protected the current turn's calls). Revisit backgrounding if the summarization calls visibly delay turns — that's the "first-class background operations" open question. |
-| **Elicitation** | `drain_elicitation_messages` + `ActionRequiredManager` calls | **Landed** (in the tool-execution op, not as its own op — see Current status). |
+| **Elicitation** | `drain_elicitation_messages` + `ActionRequiredManager` calls | **Landed** in the tool-execution op. The request is emitted immediately but persisted with the operation's returned effects after the tool finishes. This temporary compromise avoids giving the operation direct access to `SessionManager`; stateless elicitation should eventually let the operation return the request effect and resume in a later step. |
 | **Max turns** | `if turns_taken > max_turns` block | Trivial. Counter is per-op or per-machine state (TBD when needed). |
-| **Retry / goal / grind / final-output** | `handle_retry_logic` + `goal` / `grind` / `final_output` blocks | **Landed.** `RetryOperation` owns retry, goal, and grind. `RecipeOperation` reads the active recipe from the session, contributes its final-output prompt and tool, executes that tool, and turns the successful request/response pair in the conversation into the final assistant output. Recipe slash commands replace the session recipe through a turn effect. |
+| **Retry / goal / grind / final-output** | `handle_retry_logic` + `goal` / `grind` / `final_output` blocks | **Landed.** `RetryOperation` reads retry policy from the active session recipe, owns its per-reply attempt count, and resets to the current kickoff using conversation state. `RecipeOperation` contributes the active recipe's final-output prompt and tool, executes that tool, and turns the successful request/response pair in the conversation into the final assistant output. Recipe slash commands replace the session recipe through a state effect. |
 | **Subagent sync** | — | **Retired: nothing to port.** Subagents are tool calls through the `summon` platform extension — synchronous ones block, background ones are pulled via `load`/check-progress/cancel tools — so they already work through the execution op; no push channel into the loop exists in the old loop either. (`moim` was never subagent-related: it's the per-turn context block, now injected by the LLM op.) The design doc's vision — a completed background task *waking* the loop — is a future feature the re-entrant design makes cheap: re-enter via `reply()` with a synthetic message, like the ACP approval flow. |
-| **Steering** | `drain_pending_steers` at loop top + retry/exit interactions | **Landed** as `SteerOperation` (after slash commands): applies between turns — completed assistant turn or finished tool exchange, never while requests are unanswered — drains the queue, fires `UserPromptSubmit` per steer, appends. Being genuine user-visible user messages, steers reset the max-turns budget (the old loop's cumulative counter did not — deliberate: new user input, new budget). The retry op needs no pending-steers check: the steer op precedes it and consumes the state. |
-| **Hooks** | scattered `hook_manager.emit(...)` and `emit_blocking(...)` calls | **Landed.** The "cross-cutting exception" turned out unnecessary — each hook found a home at its own granularity: `SessionStart`/`UserPromptSubmit` fire at machine entry (once per reply, so not ops — a non-mutating op would re-apply forever); `PreToolUse`/`PostToolUse` and the shell/file variants live in `ToolExecutionOperation`, per tool call; `Stop` is an ordinary `StopHookOperation` at the end of the list — it applies when the tail is a completed assistant turn, and a denial just appends the denial-context user message, which re-arms the LLM op. The consecutive-block cap is a per-reply counter on the op (the denial messages are user-role and agent-visible, so a conversation walk can't count them). Exits the blocking op didn't decide — max turns, approval waits, errors, cancellation — still notify Stop hooks via the machine's non-blocking tail emit, mirroring the old loop's `stop_hook_handled_for_exit`. (An earlier note here claimed the old loop consulted the *blocking* hook on the max-turns exit; it doesn't — that consult is the final-output exit, which the retry-op → stop-op sequence covers.) **Divergence:** in the old loop a stop-hook-denial retry didn't count against the max-turns budget; here it does — the denial context is indistinguishable from other machine-generated nudges in the conversation walk. Conservative: denials burn budget faster, never loop longer. |
+| **Steering** | `drain_pending_steers` at loop top + retry/exit interactions | **Landed** as `SteerOperation` (after slash commands): the pipeline constructor gives it the queue for this session, so it does not know about the agent's session-to-queue registry. It applies between turns — completed assistant turn or finished tool exchange, never while requests are unanswered — drains the queue, fires `UserPromptSubmit` per steer, and appends. Being genuine user-visible user messages, steers reset the max-turns budget (the old loop's cumulative counter did not — deliberate: new user input, new budget). The retry op needs no pending-steers check: the steer op precedes it and consumes the state. |
+| **Hooks** | hook calls in `Agent::reply` | **Landed.** Hooks are owned by the machinery that reaches their boundary: inference emits `SessionStart` before the first actual agent turn and `UserPromptSubmit` before its first call for a reply; steers emit `UserPromptSubmit`; tool hooks live in `ToolExecutionOperation`; and `StopHookOperation` applies only when the agent has produced a completed assistant response and every earlier operation has declined to continue. Commands that do not reach inference emit no lifecycle hooks. An allowed Stop hook yields, while a denial appends agent-visible context and inference continues. Max turns, errors, and cancellation do not emit Stop. The consecutive-block cap is per reply. **Divergence:** in the old loop a stop-hook-denial retry didn't count against the max-turns budget; here it does because the denial context is indistinguishable from other machine-generated nudges in the conversation walk. |
 | **Slash commands** | `execute_command` block in `reply()` | **Landed** as `SlashCommandOperation`. Commands are offered to each operation and then inference; `/status` is owned by inference. The state machine no longer calls `Agent::execute_command`. |
 | **Refresh tools after `manage_extensions`** | `tools_updated` block | Either a tail-step of the Tool execution op or a separate op. |
 
@@ -366,14 +362,13 @@ the error and retry with a new message. This replaces the old fire-and-forget
 ## Migration steps remaining
 
 1. Add ops in the order in the backlog table.
-2. Fold `reply()` entry-point logic in (elicitation response, slash
-   commands, `UserPromptSubmit` hook, pre-turn auto-compact) as
-   first-turn-only ops.
+2. Fold the remaining `reply()` entry-point behavior into the machinery where
+   it has a natural owner.
 3. Tests: scenario tests driven by a scripted provider. Because ops are
    independently constructable and the machine just sequences them, each op
    can be instrumented on its own and in combination with others. Build these
    out once there's enough op surface to be worthwhile — not a differential
-   oracle against the old loop. Tests call `state_machine::reply` directly
+   oracle against the old loop. Tests call the Agent-side state-machine reply directly
    (parallel-safe, no env var). A scripted provider returns canned
    responses/tool-requests per call so a scenario can drive LLM → tool
    execution → LLM, etc.

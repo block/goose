@@ -2,14 +2,17 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::Duration;
 
-use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::state_machine::operation::{
-    applied, ends_turn, messages_since_kickoff, not_applicable, Emitter, Operation,
-    OperationResult, SlashCommand, TurnEffect,
+use crate::agents::retry::{
+    execute_on_failure_command_with_timeout, execute_success_checks_with_timeout,
 };
-use crate::agents::types::SessionConfig;
+use crate::agents::state_machine::operation::{
+    applied, ends_turn, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
+    OperationResult, SlashCommand, StateEffect,
+};
+use crate::agents::types::RetryConfig;
 use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
@@ -17,32 +20,46 @@ use crate::session::Session;
 use tokio::sync::Mutex;
 
 pub struct RetryOperation<'a> {
-    retry_manager: &'a RetryManager,
     goal: &'a Mutex<Option<String>>,
     grind: &'a Mutex<Option<String>>,
-    session_config: SessionConfig,
-    initial_messages: Vec<Message>,
+    retry_timeout: Duration,
+    on_failure_timeout: Duration,
+    attempts: AtomicU32,
     goal_nudged: AtomicBool,
     finished: AtomicBool,
 }
 
 impl<'a> RetryOperation<'a> {
     pub fn new(
-        retry_manager: &'a RetryManager,
         goal: &'a Mutex<Option<String>>,
         grind: &'a Mutex<Option<String>>,
-        session_config: SessionConfig,
-        initial_messages: Vec<Message>,
+        retry_timeout: Duration,
+        on_failure_timeout: Duration,
     ) -> Self {
         Self {
-            retry_manager,
             goal,
             grind,
-            session_config,
-            initial_messages,
+            retry_timeout,
+            on_failure_timeout,
+            attempts: AtomicU32::new(0),
             goal_nudged: AtomicBool::new(false),
             finished: AtomicBool::new(false),
         }
+    }
+
+    fn retry_config(session: &Session) -> Option<&RetryConfig> {
+        session
+            .recipe
+            .as_ref()
+            .and_then(|recipe| recipe.retry.as_ref())
+    }
+
+    fn reset_conversation(conversation: &Conversation) -> Result<Conversation> {
+        let messages = messages_since_kickoff(conversation)?;
+        let kickoff = conversation.len() - messages.len();
+        Ok(Conversation::new_unvalidated(
+            conversation.messages()[..=kickoff].to_vec(),
+        ))
     }
 }
 
@@ -116,7 +133,7 @@ impl Operation for RetryOperation<'_> {
         emit.emit(AgentEvent::Message(response.clone())).await;
 
         let mut effects = vec![
-            TurnEffect::SetMessageVisibility {
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
@@ -133,14 +150,14 @@ impl Operation for RetryOperation<'_> {
                     .into(),
             );
         } else {
-            effects.push(TurnEffect::YieldToClient);
+            return yielded_with(effects);
         }
         applied(effects)
     }
 
     async fn run(
         &self,
-        _session: &Session,
+        session: &Session,
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
@@ -194,30 +211,60 @@ impl Operation for RetryOperation<'_> {
         *self.goal.lock().await = None;
         *self.grind.lock().await = None;
 
-        if self.session_config.retry_config.is_none() {
+        let Some(retry_config) = Self::retry_config(session) else {
+            return not_applicable(emit);
+        };
+
+        let retry_timeout = retry_config
+            .timeout_seconds
+            .map(Duration::from_secs)
+            .unwrap_or(self.retry_timeout);
+        let success =
+            execute_success_checks_with_timeout(&retry_config.checks, retry_timeout).await;
+        let success = match success {
+            Ok(success) => success,
+            Err(error) => {
+                self.finished.store(true, Ordering::Relaxed);
+                let message = Message::assistant()
+                    .with_text(format!("Retry logic encountered an error: {error}"));
+                emit.emit(AgentEvent::Message(message.clone())).await;
+                return applied([message.into()]);
+            }
+        };
+        if success {
             return not_applicable(emit);
         }
 
-        let mut working = conversation.clone();
-        match self
-            .retry_manager
-            .handle_retry_logic(&mut working, &self.session_config, &self.initial_messages)
-            .await
-        {
-            Ok(RetryResult::Retried) => applied([working.into()]),
-            Ok(RetryResult::MaxAttemptsReached(message)) => {
-                self.finished.store(true, Ordering::Relaxed);
-                emit.emit(AgentEvent::Message(message.clone())).await;
-                applied([message.into()])
-            }
-            Ok(RetryResult::Skipped | RetryResult::SuccessChecksPassed) => not_applicable(emit),
-            Err(e) => {
+        if self.attempts.load(Ordering::Relaxed) >= retry_config.max_retries {
+            self.finished.store(true, Ordering::Relaxed);
+            let message = Message::assistant().with_text(format!(
+                "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
+                retry_config.max_retries
+            ));
+            #[cfg(feature = "telemetry")]
+            crate::posthog::emit_error(
+                "retry_max_exceeded",
+                &format!("Max retries ({}) exceeded", retry_config.max_retries),
+            );
+            emit.emit(AgentEvent::Message(message.clone())).await;
+            return applied([message.into()]);
+        }
+
+        if let Some(command) = &retry_config.on_failure {
+            let timeout = retry_config
+                .on_failure_timeout_seconds
+                .map(Duration::from_secs)
+                .unwrap_or(self.on_failure_timeout);
+            if let Err(error) = execute_on_failure_command_with_timeout(command, timeout).await {
                 self.finished.store(true, Ordering::Relaxed);
                 let message = Message::assistant()
-                    .with_text(format!("Retry logic encountered an error: {e}"));
+                    .with_text(format!("Retry logic encountered an error: {error}"));
                 emit.emit(AgentEvent::Message(message.clone())).await;
-                applied([message.into()])
+                return applied([message.into()]);
             }
         }
+
+        self.attempts.fetch_add(1, Ordering::Relaxed);
+        applied([Self::reset_conversation(conversation)?.into()])
     }
 }

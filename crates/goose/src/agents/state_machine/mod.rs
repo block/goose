@@ -16,13 +16,33 @@ mod ops_tool_approval;
 mod ops_tool_pair_compaction;
 mod ops_toolcalling;
 mod ops_unknown_tool;
-
-pub mod test_helpers;
+mod usage;
 
 #[cfg(test)]
 mod tests;
 
-pub use machine::reply;
+pub use machine::{StateMachine, Step};
+pub use operation::{
+    applied, not_applicable, yielded, yielded_with, Emitter, Inference, InferenceInput, Operation,
+    OperationResult, SlashCommand, StateEffect, StepResult,
+};
+
+pub(super) use ops_bang_shell::BangShellOperation;
+pub(super) use ops_compaction::CompactionOperation;
+pub(super) use ops_doctor::DoctorOperation;
+pub(super) use ops_exit_on_error::ExitOnErrorOperation;
+pub(super) use ops_llm::InferenceRunner;
+pub(super) use ops_maxturns::{MaxTurnsOperation, MAX_TURNS_MESSAGE};
+pub(super) use ops_recipe::RecipeOperation;
+pub(super) use ops_retry::RetryOperation;
+pub(super) use ops_skills::SkillOperation;
+pub(super) use ops_slash_command::SlashCommandOperation;
+pub(super) use ops_steer::{SteerOperation, SteerQueue};
+pub(super) use ops_stop_hook::StopHookOperation;
+pub(super) use ops_tool_approval::ToolApprovalOperation;
+pub(super) use ops_tool_pair_compaction::ToolPairCompactionOperation;
+pub(super) use ops_toolcalling::ToolExecutionOperation;
+pub(super) use ops_unknown_tool::UnknownToolOperation;
 
 pub fn enabled() -> bool {
     std::env::var("GOOSE_STATE_MACHINE")

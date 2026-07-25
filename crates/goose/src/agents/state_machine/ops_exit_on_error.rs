@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::agents::state_machine::operation::{
-    applied, not_applicable, trailing_error, Emitter, Operation, OperationResult, TurnEffect,
+    not_applicable, trailing_error, yielded, Emitter, Operation, OperationResult,
 };
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -27,6 +27,6 @@ impl Operation for ExitOnErrorOperation {
             return not_applicable(emit);
         }
 
-        applied([TurnEffect::YieldToClient])
+        yielded()
     }
 }

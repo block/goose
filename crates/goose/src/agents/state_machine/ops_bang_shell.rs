@@ -5,15 +5,15 @@ use async_trait::async_trait;
 use rmcp::model::CallToolRequestParams;
 
 use crate::agents::state_machine::operation::{
-    applied, last_effective_role, messages_since_kickoff, not_applicable, Emitter, Operation,
-    OperationResult, TurnEffect,
+    applied, last_effective_role, messages_since_kickoff, not_applicable, yielded, Emitter,
+    Operation, OperationResult,
 };
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::session::Session;
 
-const SHELL_TOOL_NAME: &str = "developer__shell";
+const SHELL_TOOL_NAME: &str = "shell";
 
 pub struct BangShellOperation;
 
@@ -51,7 +51,7 @@ impl Operation for BangShellOperation {
 
         if messages.len() > 1 {
             return if last_effective_role(messages)? == EffectiveRole::Tool {
-                applied([TurnEffect::YieldToClient])
+                yielded()
             } else {
                 not_applicable(emit)
             };

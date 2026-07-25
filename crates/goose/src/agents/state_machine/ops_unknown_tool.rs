@@ -7,7 +7,9 @@ use rmcp::model::{CallToolResult, Content};
 use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
 };
-use crate::agents::state_machine::ops_toolcalling::{pending_tool_requests, ToolDisposition};
+use crate::agents::state_machine::ops_toolcalling::{
+    pending_tool_requests, tool_span, ToolDisposition,
+};
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -23,7 +25,7 @@ impl Operation for UnknownToolOperation {
 
     async fn run(
         &self,
-        _session: &Session,
+        session: &Session,
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
@@ -34,9 +36,18 @@ impl Operation for UnknownToolOperation {
 
         let mut response = Message::user().with_generated_id();
         for (request, disposition) in pending {
+            let tool_name = request
+                .tool_call
+                .as_ref()
+                .map(|tool_call| tool_call.name.as_ref())
+                .unwrap_or("unknown");
+            let span = tool_span(tool_name, &request.id, &session.id);
+            span.record("error.type", "tool_not_available");
             let message = match disposition {
                 ToolDisposition::ParseError(error) => {
-                    format!("The tool call could not be parsed: {error}. Correct the arguments and try again.")
+                    format!(
+                        "The tool call could not be parsed: {error}. Correct the arguments and try again."
+                    )
                 }
                 ToolDisposition::Execute | ToolDisposition::Decline => request
                     .tool_call

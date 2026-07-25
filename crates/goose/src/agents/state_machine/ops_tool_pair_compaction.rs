@@ -5,11 +5,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use tracing_futures::Instrument;
 
 use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    TurnEffect,
+    StateEffect,
 };
+use crate::agents::state_machine::ops_llm::chat_span;
 use crate::context_mgmt::{summarize_tool_call, tool_ids_to_summarize};
 use crate::conversation::message::MessageContent;
 use crate::conversation::Conversation;
@@ -69,7 +71,7 @@ impl Operation for ToolPairCompactionOperation {
         }
         self.batch_attempted.store(true, Ordering::Relaxed);
 
-        let mut effects: Vec<TurnEffect> = Vec::new();
+        let mut effects: Vec<StateEffect> = Vec::new();
         let mut hidden_messages: std::collections::HashSet<String> = Default::default();
         for tool_id in tool_ids {
             let pair: Vec<_> = conversation
@@ -120,6 +122,12 @@ impl Operation for ToolPairCompactionOperation {
                 continue;
             }
 
+            let span = chat_span(
+                self.provider.as_ref(),
+                &self.model_config,
+                &session.id,
+                "tool_pair_compaction",
+            );
             let summary = match summarize_tool_call(
                 self.provider.as_ref(),
                 &self.model_config,
@@ -127,10 +135,12 @@ impl Operation for ToolPairCompactionOperation {
                 conversation,
                 &tool_id,
             )
+            .instrument(span.clone())
             .await
             {
                 Ok(summary) => summary,
                 Err(e) => {
+                    span.record("error.type", "tool_pair_compaction_error");
                     tracing::warn!("Failed to summarize tool pair: {e}");
                     continue;
                 }
@@ -141,7 +151,7 @@ impl Operation for ToolPairCompactionOperation {
                     continue;
                 };
                 hidden_messages.insert(message_id.clone());
-                effects.push(TurnEffect::SetMessageVisibility {
+                effects.push(StateEffect::SetMessageVisibility {
                     message_id,
                     user_visible: message.is_user_visible(),
                     agent_visible: false,

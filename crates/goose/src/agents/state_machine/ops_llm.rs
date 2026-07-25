@@ -1,38 +1,137 @@
 //! Builds a provider request and streams the next assistant response.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, trailing_error, Emitter, Inference,
-    InferenceInput, Operation, OperationResult, SlashCommand, TurnEffect, TurnOutcome,
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
+    Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::AgentEvent;
+use crate::agents::{ExtensionManager, PromptManager};
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
-use crate::providers::base::Provider;
+use crate::hooks::{HookContext, HookEvent, HookManager};
+use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
+use crate::tool_inspection::ToolInspectionManager;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use tokio::sync::Mutex;
+use tracing_futures::Instrument;
 
-pub struct InferenceRunner {
-    provider: Arc<dyn Provider>,
-    model_config: ModelConfig,
+pub(super) fn chat_span(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    purpose: &'static str,
+) -> tracing::Span {
+    tracing::info_span!(
+        target: "goose::state_machine",
+        "chat",
+        "gen_ai.operation.name" = "chat",
+        "gen_ai.provider.name" = %provider.get_name(),
+        "gen_ai.request.model" = %model_config.model_name,
+        "gen_ai.response.model" = tracing::field::Empty,
+        "gen_ai.usage.input_tokens" = tracing::field::Empty,
+        "gen_ai.usage.output_tokens" = tracing::field::Empty,
+        "goose.chat.purpose" = purpose,
+        "error.type" = tracing::field::Empty,
+        session.id = %session_id,
+    )
 }
 
-impl InferenceRunner {
-    pub fn new(provider: Arc<dyn Provider>, model_config: ModelConfig) -> Self {
+pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
+    span.record("gen_ai.response.model", usage.model.as_str());
+    if let Some(tokens) = usage.usage.input_tokens {
+        span.record("gen_ai.usage.input_tokens", tokens);
+    }
+    if let Some(tokens) = usage.usage.output_tokens {
+        span.record("gen_ai.usage.output_tokens", tokens);
+    }
+}
+
+pub struct InferenceRunner<'a> {
+    provider: Arc<dyn Provider>,
+    model_config: ModelConfig,
+    extension_manager: Arc<ExtensionManager>,
+    goose_mode: &'a Mutex<GooseMode>,
+    prompt_manager: &'a Mutex<PromptManager>,
+    tool_inspection_manager: &'a ToolInspectionManager,
+    frontend_instructions: &'a Mutex<Option<String>>,
+    hook_manager: HookManager,
+    entry_hooks_emitted: AtomicBool,
+}
+
+impl<'a> InferenceRunner<'a> {
+    pub fn new(
+        provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
+        extension_manager: Arc<ExtensionManager>,
+        goose_mode: &'a Mutex<GooseMode>,
+        prompt_manager: &'a Mutex<PromptManager>,
+        tool_inspection_manager: &'a ToolInspectionManager,
+        frontend_instructions: &'a Mutex<Option<String>>,
+        hook_manager: HookManager,
+    ) -> Self {
         Self {
             provider,
             model_config,
+            extension_manager,
+            goose_mode,
+            prompt_manager,
+            tool_inspection_manager,
+            frontend_instructions,
+            hook_manager,
+            entry_hooks_emitted: AtomicBool::new(false),
         }
     }
 
-    async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> TurnOutcome {
+    async fn emit_entry_hooks(
+        &self,
+        session: &Session,
+        conversation: &Conversation,
+        messages: &[Message],
+    ) {
+        if self.entry_hooks_emitted.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        let messages_before_kickoff =
+            &conversation.messages()[..conversation.len() - messages.len()];
+        if messages_before_kickoff.iter().all(|message| {
+            !message.is_agent_visible() || message.agent_visible_content().content.is_empty()
+        }) {
+            self.hook_manager
+                .emit(
+                    HookEvent::SessionStart,
+                    HookContext::new(HookEvent::SessionStart, &session.id),
+                )
+                .await;
+        }
+
+        let prompt = messages
+            .first()
+            .map(Message::as_concat_text)
+            .unwrap_or_default();
+        if !prompt.is_empty() {
+            self.hook_manager
+                .emit(
+                    HookEvent::UserPromptSubmit,
+                    HookContext::new(HookEvent::UserPromptSubmit, &session.id).with_message(prompt),
+                )
+                .await;
+        }
+    }
+
+    async fn error_outcome(&self, err: &ProviderError, emit: &Emitter) -> Vec<StateEffect> {
         #[cfg(feature = "telemetry")]
         crate::posthog::emit_error(err.telemetry_type(), &err.to_string());
+        tracing::Span::current().record("error.type", err.telemetry_type());
         tracing::error!("LLM provider error: {err}");
         let message = Message::from_provider_error(err);
         emit.emit(AgentEvent::Message(message.clone())).await;
@@ -41,7 +140,7 @@ impl InferenceRunner {
 }
 
 #[async_trait]
-impl Operation for InferenceRunner {
+impl Operation for InferenceRunner<'_> {
     fn name(&self) -> &'static str {
         "llm"
     }
@@ -100,25 +199,24 @@ impl Operation for InferenceRunner {
         ))
         .await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::SetMessageVisibility {
+        yielded_with([
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 }
 
 #[async_trait]
-impl Inference for InferenceRunner {
+impl Inference for InferenceRunner<'_> {
     async fn infer(
         &self,
         session: &Session,
         conversation: &Conversation,
-        input: InferenceInput,
+        mut input: InferenceInput,
         emit: Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
@@ -162,68 +260,116 @@ impl Inference for InferenceRunner {
             return not_applicable(emit);
         }
 
-        let context_limit = self
-            .provider
-            .get_context_limit(&self.model_config)
-            .await
-            .unwrap_or_else(|_| self.model_config.context_limit());
-        let conversation_for_provider = crate::agents::moim::inject_moim_parts(
-            Conversation::new_unvalidated(messages_for_provider),
-            &session.working_dir,
-            Some(context_limit),
-            input.moim_parts,
+        self.emit_entry_hooks(session, conversation, messages).await;
+
+        let span = chat_span(
+            self.provider.as_ref(),
+            &self.model_config,
+            &session.id,
+            "inference",
         );
 
-        let stream = crate::agents::reply_parts::stream_response_from_provider(
-            self.provider.clone(),
-            self.model_config.clone(),
-            &session.id,
-            &input.system_prompt,
-            conversation_for_provider.messages(),
-            &input.tools,
-            &input.toolshim_tools,
-        )
-        .await;
+        async {
+            #[cfg(feature = "code-mode")]
+            let code_execution_mode = self
+                .extension_manager
+                .is_extension_enabled(
+                    crate::agents::platform_extensions::code_execution::EXTENSION_NAME,
+                )
+                .await;
+            #[cfg(not(feature = "code-mode"))]
+            let code_execution_mode = false;
 
-        let mut stream = match stream {
-            Ok(stream) => stream,
-            Err(err) => return applied(self.error_outcome(&err, &emit).await),
-        };
+            let goose_mode = *self.goose_mode.lock().await;
+            if goose_mode == GooseMode::SmartApprove {
+                self.tool_inspection_manager
+                    .apply_tool_annotations(&input.tools);
+            }
+            let tools = crate::agents::reply_parts::prepare_inference_tools(
+                input.tools,
+                code_execution_mode,
+            );
+            if let Some(frontend_instructions) = self.frontend_instructions.lock().await.clone() {
+                input
+                    .prompt_parts
+                    .push(("frontend".to_string(), frontend_instructions));
+            }
+            let system_prompt = self.prompt_manager.lock().await.build_system_prompt(
+                &session.working_dir,
+                input.prompt_parts,
+                goose_mode,
+            );
+            let (tools, toolshim_tools, system_prompt) =
+                crate::agents::reply_parts::prepare_tools_for_provider(
+                    tools,
+                    system_prompt,
+                    &self.model_config,
+                );
 
-        let mut accumulator = Conversation::empty();
-        let mut usage_effects = Vec::new();
-        loop {
-            tokio::select! {
-                biased;
-                _ = emit.cancelled() => break,
-                next = stream.next() => {
-                    let Some(result) = next else { break };
-                    let (msg_opt, usage_opt) = match result {
-                        Ok(chunk) => chunk,
-                        Err(err) => {
-                            usage_effects.extend(self.error_outcome(&err, &emit).await);
-                            return applied(usage_effects);
+            let context_limit = self
+                .provider
+                .get_context_limit(&self.model_config)
+                .await
+                .unwrap_or_else(|_| self.model_config.context_limit());
+            let conversation_for_provider = crate::agents::moim::inject_moim_parts(
+                Conversation::new_unvalidated(messages_for_provider),
+                &session.working_dir,
+                Some(context_limit),
+                input.moim_parts,
+            );
+
+            let stream = crate::agents::reply_parts::stream_response_from_provider(
+                self.provider.clone(),
+                self.model_config.clone(),
+                &session.id,
+                &system_prompt,
+                conversation_for_provider.messages(),
+                &tools,
+                &toolshim_tools,
+            )
+            .await;
+
+            let mut stream = match stream {
+                Ok(stream) => stream,
+                Err(err) => return applied(self.error_outcome(&err, &emit).await),
+            };
+
+            let mut accumulator = Conversation::empty();
+            let mut usage_effects = Vec::new();
+            loop {
+                tokio::select! {
+                    biased;
+                    _ = emit.cancelled() => break,
+                    next = stream.next() => {
+                        let Some(result) = next else { break };
+                        let (msg_opt, usage_opt) = match result {
+                            Ok(chunk) => chunk,
+                            Err(err) => {
+                                usage_effects.extend(self.error_outcome(&err, &emit).await);
+                                return applied(usage_effects);
+                            }
+                        };
+                        if let Some(usage) = usage_opt {
+                            let span = tracing::Span::current();
+                            record_chat_usage(&span, &usage);
+                            usage_effects.push(StateEffect::RecordUsage(usage));
                         }
-                    };
-                    if let Some(usage) = usage_opt {
-                        usage_effects.push(TurnEffect::RecordUsage {
-                            usage,
-                            is_compaction: false,
-                        });
-                    }
-                    if let Some(chunk) = msg_opt {
-                        emit.emit(AgentEvent::Message(chunk.clone())).await;
-                        accumulator.push(chunk);
+                        if let Some(chunk) = msg_opt {
+                            emit.emit(AgentEvent::Message(chunk.clone())).await;
+                            accumulator.push(chunk);
+                        }
                     }
                 }
             }
-        }
 
-        if accumulator.is_empty() {
-            return not_applicable(emit);
-        }
+            if accumulator.is_empty() {
+                return not_applicable(emit);
+            }
 
-        usage_effects.extend(accumulator.into_iter().map(Into::into));
-        applied(usage_effects)
+            usage_effects.extend(accumulator.into_iter().map(Into::into));
+            applied(usage_effects)
+        }
+        .instrument(span)
+        .await
     }
 }

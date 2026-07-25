@@ -1,35 +1,40 @@
 //! Adds queued user guidance when the agent is between model and tool turns.
 
+use std::collections::VecDeque;
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
+use tokio::sync::Mutex;
 
 use crate::agents::state_machine::operation::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
     Operation, OperationResult,
 };
-use crate::agents::steering::PendingSteers;
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::Session;
 
-pub struct SteerOperation<'a> {
-    pending_steers: &'a PendingSteers,
+pub(crate) type SteerQueue = Arc<Mutex<VecDeque<Message>>>;
+
+pub struct SteerOperation {
+    queue: SteerQueue,
     hook_manager: HookManager,
 }
 
-impl<'a> SteerOperation<'a> {
-    pub(super) fn new(pending_steers: &'a PendingSteers, hook_manager: HookManager) -> Self {
+impl SteerOperation {
+    pub(crate) fn new(queue: SteerQueue, hook_manager: HookManager) -> Self {
         Self {
-            pending_steers,
+            queue,
             hook_manager,
         }
     }
 }
 
 #[async_trait]
-impl Operation for SteerOperation<'_> {
+impl Operation for SteerOperation {
     fn name(&self) -> &'static str {
         "steer"
     }
@@ -47,8 +52,19 @@ impl Operation for SteerOperation<'_> {
             return not_applicable(emit);
         }
 
-        let mut effects = Vec::new();
-        for message in self.pending_steers.drain(&session.id).await {
+        let pending: Vec<_> = self
+            .queue
+            .lock()
+            .await
+            .drain(..)
+            .map(Message::with_steer)
+            .collect();
+        if pending.is_empty() {
+            return not_applicable(emit);
+        }
+
+        let mut effects = Vec::with_capacity(pending.len());
+        for message in pending {
             let context = HookContext::new(HookEvent::UserPromptSubmit, &session.id)
                 .with_message(message.as_concat_text());
             self.hook_manager
@@ -56,9 +72,6 @@ impl Operation for SteerOperation<'_> {
                 .await;
             emit.emit(AgentEvent::Message(message.clone())).await;
             effects.push(message.into());
-        }
-        if effects.is_empty() {
-            return not_applicable(emit);
         }
         applied(effects)
     }

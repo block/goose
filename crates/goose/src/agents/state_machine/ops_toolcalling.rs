@@ -10,8 +10,8 @@ use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorData, Rol
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    SlashCommand, TurnEffect,
+    applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
+    OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_tool_approval::request_executable;
 use crate::agents::tool_execution::{
@@ -22,10 +22,11 @@ use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
-use crate::session::{EnabledExtensionsState, ExtensionState, Session, SessionManager};
+use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use tracing_futures::Instrument;
 
 #[derive(Clone, Copy)]
 enum ToolCategory {
@@ -55,9 +56,20 @@ fn string_argument(input: &serde_json::Value, keys: &[&str]) -> Option<String> {
     })
 }
 
+pub(super) fn tool_span(tool_name: &str, tool_call_id: &str, session_id: &str) -> tracing::Span {
+    tracing::info_span!(
+        target: "goose::state_machine",
+        "execute_tool",
+        "gen_ai.operation.name" = "execute_tool",
+        "gen_ai.tool.name" = %tool_name,
+        "gen_ai.tool.call.id" = %tool_call_id,
+        "error.type" = tracing::field::Empty,
+        session.id = %session_id,
+    )
+}
+
 pub struct ToolExecutionOperation<'a> {
     goose_mode: &'a Mutex<GooseMode>,
-    session_manager: Arc<SessionManager>,
     extension_manager: Arc<ExtensionManager>,
     hook_manager: HookManager,
 }
@@ -65,13 +77,11 @@ pub struct ToolExecutionOperation<'a> {
 impl<'a> ToolExecutionOperation<'a> {
     pub fn new(
         goose_mode: &'a Mutex<GooseMode>,
-        session_manager: Arc<SessionManager>,
         extension_manager: Arc<ExtensionManager>,
         hook_manager: HookManager,
     ) -> Self {
         Self {
             goose_mode,
-            session_manager,
             extension_manager,
             hook_manager,
         }
@@ -123,6 +133,7 @@ impl<'a> ToolExecutionOperation<'a> {
         result: ToolCallResult,
         tool_call: &CallToolRequestParams,
         session: &Session,
+        span: tracing::Span,
     ) -> ToolCallResult {
         let hook_manager = self.hook_manager.clone();
         let session_id = session.id.clone();
@@ -136,6 +147,15 @@ impl<'a> ToolExecutionOperation<'a> {
         let future = async move {
             let result =
                 crate::agents::large_response_handler::process_tool_response(result.result.await);
+            match &result {
+                Ok(result) if result.is_error == Some(true) => {
+                    tracing::Span::current().record("error.type", "tool_error");
+                }
+                Err(_) => {
+                    tracing::Span::current().record("error.type", "tool_execution_error");
+                }
+                _ => {}
+            }
             let event = match &result {
                 Ok(result) if result.is_error != Some(true) => HookEvent::PostToolUse,
                 _ => HookEvent::PostToolUseFailure,
@@ -174,7 +194,8 @@ impl<'a> ToolExecutionOperation<'a> {
                 }
             }
             result
-        };
+        }
+        .instrument(span);
         ToolCallResult {
             notification_stream: result.notification_stream,
             action_required_stream: result.action_required_stream,
@@ -189,63 +210,66 @@ impl<'a> ToolExecutionOperation<'a> {
         cancellation_token: CancellationToken,
         session: &Session,
     ) -> std::result::Result<ToolCallResult, ErrorData> {
-        let tool_input = tool_call
-            .arguments
-            .as_ref()
-            .map(|arguments| serde_json::Value::Object(arguments.clone()));
-        if self.hook_manager.has_hooks(HookEvent::PreToolUse) {
-            let context = HookContext::new(HookEvent::PreToolUse, &session.id)
-                .with_tool(tool_call.name.to_string(), tool_input.clone())
-                .with_working_dir(session.working_dir.to_string_lossy().to_string());
-            if let HookDecision::Deny { reason, plugin } = self
-                .hook_manager
-                .emit_blocking(HookEvent::PreToolUse, context)
-                .await
-            {
-                return Err(ErrorData::new(
-                    rmcp::model::ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "Tool call denied by policy hook `{plugin}`: {reason}. \
-                         Do not retry; this is a policy denial, not a transient failure."
-                    ),
-                    None,
-                ));
-            }
-        }
-        self.emit_extended_pre_hooks(&tool_call.name, tool_input.as_ref(), session)
-            .await;
+        let span = tool_span(&tool_call.name, &request_id, &session.id);
+        let result_span = span.clone();
 
-        let context = crate::agents::tool_execution::ToolCallContext::new(
-            session.id.clone(),
-            Some(session.working_dir.clone()),
-            Some(request_id),
-        );
-        let result = self
-            .extension_manager
-            .dispatch_tool_call(&context, tool_call.clone(), cancellation_token)
-            .await;
-        let result = result.unwrap_or_else(|error| {
-            #[cfg(feature = "telemetry")]
-            crate::posthog::emit_error(
-                "tool_execution_failed",
-                &format!("{}: {}", tool_call.name, error),
+        async {
+            let tool_input = tool_call
+                .arguments
+                .as_ref()
+                .map(|arguments| serde_json::Value::Object(arguments.clone()));
+            if self.hook_manager.has_hooks(HookEvent::PreToolUse) {
+                let context = HookContext::new(HookEvent::PreToolUse, &session.id)
+                    .with_tool(tool_call.name.to_string(), tool_input.clone())
+                    .with_working_dir(session.working_dir.to_string_lossy().to_string());
+                if let HookDecision::Deny { reason, plugin } = self
+                    .hook_manager
+                    .emit_blocking(HookEvent::PreToolUse, context)
+                    .await
+                {
+                    tracing::Span::current().record("error.type", "hook_denied");
+                    return Err(ErrorData::new(
+                        rmcp::model::ErrorCode::INTERNAL_ERROR,
+                        format!(
+                            "Tool call denied by policy hook `{plugin}`: {reason}. \
+                             Do not retry; this is a policy denial, not a transient failure."
+                        ),
+                        None,
+                    ));
+                }
+            }
+            self.emit_extended_pre_hooks(&tool_call.name, tool_input.as_ref(), session)
+                .await;
+
+            let context = crate::agents::tool_execution::ToolCallContext::new(
+                session.id.clone(),
+                Some(session.working_dir.clone()),
+                Some(request_id),
             );
-            ToolCallResult::from(Err(error))
-        });
-        Ok(self.with_post_hooks(result, &tool_call, session))
+            let result = self
+                .extension_manager
+                .dispatch_tool_call(&context, tool_call.clone(), cancellation_token)
+                .await;
+            let result = result.unwrap_or_else(|error| {
+                #[cfg(feature = "telemetry")]
+                crate::posthog::emit_error(
+                    "tool_execution_failed",
+                    &format!("{}: {}", tool_call.name, error),
+                );
+                ToolCallResult::from(Err(error))
+            });
+            Ok(self.with_post_hooks(result, &tool_call, session, result_span))
+        }
+        .instrument(span)
+        .await
     }
 
-    async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
+    async fn extension_state_effect(&self, session: &Session) -> Result<StateEffect> {
         let extension_configs = self.extension_manager.get_extension_configs().await;
         let extensions_state = EnabledExtensionsState::new(extension_configs);
-        let session = self.session_manager.get_session(session_id, false).await?;
-        let mut extension_data = session.extension_data;
+        let mut extension_data = session.extension_data.clone();
         extensions_state.to_extension_data(&mut extension_data)?;
-        self.session_manager
-            .update(session_id)
-            .extension_data(extension_data)
-            .apply()
-            .await
+        Ok(StateEffect::SetExtensionData(extension_data))
     }
 
     async fn command_response(
@@ -267,14 +291,13 @@ impl<'a> ToolExecutionOperation<'a> {
             .with_visibility(true, false);
         emit.emit(AgentEvent::Message(command)).await;
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([
-            TurnEffect::SetMessageVisibility {
+        yielded_with([
+            StateEffect::SetMessageVisibility {
                 message_id,
                 user_visible: true,
                 agent_visible: false,
             },
             response.into(),
-            TurnEffect::YieldToClient,
         ])
     }
 
@@ -427,7 +450,7 @@ impl<'a> ToolExecutionOperation<'a> {
             .id
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
-        let mut effects = vec![TurnEffect::SetMessageVisibility {
+        let mut effects = vec![StateEffect::SetMessageVisibility {
             message_id,
             user_visible: true,
             agent_visible: false,
@@ -722,6 +745,7 @@ impl Operation for ToolExecutionOperation<'_> {
 
         let mut combined = futures::stream::select_all(tool_streams);
         let mut response = Message::user().with_generated_id();
+        let mut effects = Vec::new();
         for (request, disposition) in &pending {
             match disposition {
                 ToolDisposition::Execute => {}
@@ -774,10 +798,8 @@ impl Operation for ToolExecutionOperation<'_> {
                             if msg.id.is_none() {
                                 msg = msg.with_generated_id();
                             }
-                            if let Err(e) = self.session_manager.add_message(&session.id, &msg).await {
-                                tracing::warn!("Failed to persist action-required message: {e}");
-                            }
-                            emit.emit(AgentEvent::Message(msg)).await;
+                            emit.emit(AgentEvent::Message(msg.clone())).await;
+                            effects.push(msg.into());
                         }
                     }
                 }
@@ -802,12 +824,11 @@ impl Operation for ToolExecutionOperation<'_> {
         }
 
         if !manage_extensions_ids.is_empty() && !extension_change_failed {
-            if let Err(e) = self.persist_extension_state(&session.id).await {
-                tracing::warn!("Failed to save extension state after runtime changes: {e}");
-            }
+            effects.push(self.extension_state_effect(session).await?);
         }
 
         emit.emit(AgentEvent::Message(response.clone())).await;
-        applied([response.into()])
+        effects.push(response.into());
+        applied(effects)
     }
 }

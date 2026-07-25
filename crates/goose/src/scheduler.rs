@@ -1106,6 +1106,15 @@ async fn execute_job(
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
+    agent
+        .config
+        .session_manager
+        .update(&session.id)
+        .schedule_id(Some(job.id.clone()))
+        .recipe(Some(recipe.clone()))
+        .apply()
+        .await?;
+
     let session_config = SessionConfig {
         id: session.id.clone(),
         schedule_id: Some(job.id.clone()),
@@ -1139,15 +1148,6 @@ async fn execute_job(
             }
         }
     }
-
-    agent
-        .config
-        .session_manager
-        .update(&session.id)
-        .schedule_id(Some(job.id.clone()))
-        .recipe(Some(recipe))
-        .apply()
-        .await?;
 
     {
         let session_duration = start_time.elapsed();

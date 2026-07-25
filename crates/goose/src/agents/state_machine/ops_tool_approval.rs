@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
-    TurnEffect,
+    StateEffect,
 };
 use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
@@ -279,8 +279,8 @@ fn permission_allows(permission: &Permission) -> bool {
     matches!(permission, Permission::AllowOnce | Permission::AlwaysAllow)
 }
 
-fn mark_executable(message_id: &str, tool_call_id: &str, executable: bool) -> TurnEffect {
-    TurnEffect::PatchToolRequestMeta {
+fn mark_executable(message_id: &str, tool_call_id: &str, executable: bool) -> StateEffect {
+    StateEffect::PatchToolRequestMeta {
         message_id: message_id.to_string(),
         tool_call_id: tool_call_id.to_string(),
         patch: serde_json::json!({ TOOL_EXECUTABLE_KEY: executable }),
