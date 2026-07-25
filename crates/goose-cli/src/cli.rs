@@ -1389,6 +1389,8 @@ struct McpProbeScript {
     #[serde(default)]
     steps: Vec<McpProbeStep>,
     elicitation: Option<McpProbeElicitation>,
+    #[serde(default)]
+    oauth: goose::oauth::OAuthFlowConfig,
 }
 
 #[derive(serde::Deserialize)]
@@ -1437,6 +1439,7 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
                 McpProbeStep::ListResources,
             ],
             elicitation: None,
+            oauth: goose::oauth::OAuthFlowConfig::default(),
         }
     };
 
@@ -1455,6 +1458,13 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
             *name = "probe".to_string();
         }
         _ => unreachable!("MCP probe only creates stdio or streamable HTTP extensions"),
+    }
+
+    if let Some(client_id) = &script.oauth.client_id {
+        std::env::set_var("GOOSE_MCP_OAUTH_CLIENT_ID", client_id);
+    }
+    if let Some(client_secret) = &script.oauth.client_secret {
+        std::env::set_var("GOOSE_MCP_OAUTH_CLIENT_SECRET", client_secret);
     }
 
     let config = goose::config::Config::global();
