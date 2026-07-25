@@ -11,5 +11,8 @@
     "@modelcontextprotocol/conformance": "^0.2.0-alpha.9",
     "tsx": "^4.20.0",
     "typescript": "^5.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1"
   }
 }

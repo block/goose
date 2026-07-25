@@ -418,7 +418,7 @@ win-total-rls *allparam:
 mcp-conformance version suite:
   cargo build -p goose-cli --bin goose
   cd mcp-conformance && npm ci
-  cd mcp-conformance && npx conformance client --command "../target/debug/goose mcp-probe" --spec-version "{{version}}" --suite "{{suite}}"
+  cd mcp-conformance && npx conformance client --command "npx tsx src/driver.ts" --spec-version "{{version}}" --suite "{{suite}}"
 
 build-test-tools:
   cargo build -p goose-test
