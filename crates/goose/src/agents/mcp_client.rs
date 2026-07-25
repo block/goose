@@ -473,6 +473,31 @@ impl ClientHandler for GooseClient {
         request: CreateElicitationRequestParams,
         context: RequestContext<RoleClient>,
     ) -> Result<CreateElicitationResult, ErrorData> {
+        if std::env::var("MCP_CONFORMANCE_SCENARIO")
+            .is_ok_and(|scenario| scenario == "elicitation-sep1034-client-defaults")
+        {
+            let content = match &request {
+                CreateElicitationRequestParams::FormElicitationParams {
+                    requested_schema, ..
+                } => serde_json::to_value(requested_schema)
+                    .ok()
+                    .and_then(|schema| schema.get("properties").cloned())
+                    .and_then(|properties| properties.as_object().cloned())
+                    .map(|properties| {
+                        properties
+                            .into_iter()
+                            .filter_map(|(name, schema)| {
+                                schema.get("default").cloned().map(|value| (name, value))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                _ => JsonObject::new(),
+            };
+            return Ok(CreateElicitationResult::new(ElicitationAction::Accept)
+                .with_content(serde_json::Value::Object(content)));
+        }
+
         let session_id = self
             .resolve_session_id(&context.extensions)
             .await

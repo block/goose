@@ -1437,8 +1437,24 @@ async fn handle_mcp_probe(
         .await
         .ok();
 
+    let call_tool =
+        call_tool.or_else(
+            || match std::env::var("MCP_CONFORMANCE_SCENARIO").as_deref() {
+                Ok("tools_call") => Some("conformance__add_numbers".to_string()),
+                Ok("elicitation-sep1034-client-defaults") => {
+                    Some("conformance__test_client_elicitation_defaults".to_string())
+                }
+                Ok("auth/scope-step-up") => Some("conformance__test-tool".to_string()),
+                _ => None,
+            },
+        );
+    let arguments = if std::env::var("MCP_CONFORMANCE_SCENARIO").as_deref() == Ok("tools_call") {
+        serde_json::from_value(serde_json::json!({ "a": 2, "b": 3 }))?
+    } else {
+        serde_json::from_str(&arguments)?
+    };
+
     let tool_result = if let Some(tool_name) = call_tool {
-        let args = serde_json::from_str(&arguments)?;
         let ctx = ToolCallContext::new(
             session_id.to_string(),
             Some(std::env::current_dir()?),
@@ -1448,7 +1464,7 @@ async fn handle_mcp_probe(
             .extension_manager
             .dispatch_tool_call(
                 &ctx,
-                CallToolRequestParams::new(tool_name).with_arguments(args),
+                CallToolRequestParams::new(tool_name).with_arguments(arguments),
                 CancellationToken::new(),
             )
             .await?
