@@ -91,6 +91,7 @@
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
+    "react-virtuoso": "^4.18.11",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
