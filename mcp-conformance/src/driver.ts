@@ -4,9 +4,13 @@ import { spawn } from "node:child_process";
 interface ProbeScript {
   steps: Array<Record<string, unknown>>;
   elicitation?: Record<string, unknown>;
+  oauth?: { clientId?: string; clientSecret?: string };
 }
 
 function scriptForScenario(scenario: string | undefined): ProbeScript {
+  const context = process.env.MCP_CONFORMANCE_CONTEXT
+    ? JSON.parse(process.env.MCP_CONFORMANCE_CONTEXT) as Record<string, string>
+    : {};
   switch (scenario) {
     case "tools_call":
       return { steps: [{ action: "callTool", name: "add_numbers", arguments: { a: 2, b: 3 } }] };
@@ -17,6 +21,13 @@ function scriptForScenario(scenario: string | undefined): ProbeScript {
       };
     case "auth/scope-step-up":
       return { steps: [{ action: "callTool", name: "test-tool", arguments: {} }] };
+    case "sse-retry":
+      return { steps: [{ action: "callTool", name: "test_reconnection", arguments: {} }] };
+    case "auth/pre-registration":
+      return {
+        steps: [{ action: "listTools" }],
+        oauth: { clientId: context.client_id, clientSecret: context.client_secret },
+      };
     default:
       return { steps: [{ action: "listTools" }, { action: "listPrompts" }, { action: "listResources" }] };
   }
@@ -30,7 +41,7 @@ if (args.length !== 1) {
 
 const goose = process.env.GOOSE_BIN ?? "../target/debug/goose";
 const child = spawn(goose, ["mcp-probe", args[0], "--script", "-"], {
-  env: process.env,
+  env: { ...process.env, GOOSE_OAUTH_AUTOMATIC_CALLBACK: "1" },
   stdio: ["pipe", "inherit", "inherit"],
 });
 child.stdin.end(JSON.stringify(scriptForScenario(process.env.MCP_CONFORMANCE_SCENARIO)));
