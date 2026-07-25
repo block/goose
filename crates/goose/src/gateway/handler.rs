@@ -7,7 +7,7 @@ use futures::StreamExt;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::{AgentEvent, ExtensionConfig, SessionConfig};
+use crate::agents::{Agent, AgentEvent, ExtensionConfig, SessionConfig};
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::config::Config;
@@ -40,6 +40,11 @@ fn resolve_gateway_max_turns(gateway_override: Option<u32>, global_max_turns: Op
         .unwrap_or(DEFAULT_GATEWAY_MAX_TURNS)
 }
 
+struct PendingConfirmation {
+    agent: Arc<Agent>,
+    request_id: String,
+}
+
 #[derive(Clone)]
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
@@ -47,8 +52,7 @@ pub struct GatewayHandler {
     gateway: Arc<dyn Gateway>,
     config: GatewayConfig,
     /// Tracks users who have a tool-confirmation prompt awaiting their reply.
-    /// Maps a platform user to the pending confirmation request ID.
-    pending_confirmations: Arc<Mutex<HashMap<PlatformUser, String>>>,
+    pending_confirmations: Arc<Mutex<HashMap<PlatformUser, PendingConfirmation>>>,
 }
 
 impl GatewayHandler {
@@ -125,14 +129,13 @@ impl GatewayHandler {
                 }
             }
             PairingState::Paired { session_id, .. } => {
-                if let Some(request_id) = self
+                if let Some(pending) = self
                     .pending_confirmations
                     .lock()
                     .await
                     .remove(&message.user)
                 {
-                    self.handle_pending_confirmation(&message, &session_id, request_id)
-                        .await?;
+                    self.handle_pending_confirmation(&message, pending).await?;
                 } else {
                     self.relay_to_session(&message, &session_id).await?;
                 }
@@ -146,8 +149,7 @@ impl GatewayHandler {
     async fn handle_pending_confirmation(
         &self,
         message: &IncomingMessage,
-        session_id: &str,
-        request_id: String,
+        pending: PendingConfirmation,
     ) -> anyhow::Result<()> {
         let text = message.text.trim().to_lowercase();
         let permission = match text.as_str() {
@@ -162,7 +164,7 @@ impl GatewayHandler {
             self.pending_confirmations
                 .lock()
                 .await
-                .insert(message.user.clone(), request_id);
+                .insert(message.user.clone(), pending);
             self.gateway
                 .send_message(
                     &message.user,
@@ -175,13 +177,10 @@ impl GatewayHandler {
             return Ok(());
         };
 
-        let agent = self
-            .agent_manager
-            .get_or_create_agent(session_id.to_string())
-            .await?;
-        agent
+        pending
+            .agent
             .handle_confirmation(
-                request_id,
+                pending.request_id,
                 PermissionConfirmation {
                     principal_type: PrincipalType::Tool,
                     permission,
@@ -590,10 +589,13 @@ impl GatewayHandler {
                                             .await;
                                         sent_any = true;
 
-                                        self.pending_confirmations
-                                            .lock()
-                                            .await
-                                            .insert(message.user.clone(), id.clone());
+                                        self.pending_confirmations.lock().await.insert(
+                                            message.user.clone(),
+                                            PendingConfirmation {
+                                                agent: agent.clone(),
+                                                request_id: id.clone(),
+                                            },
+                                        );
                                     }
                                 }
                                 _ => {}
