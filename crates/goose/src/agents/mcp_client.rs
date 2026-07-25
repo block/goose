@@ -553,6 +553,15 @@ pub struct GooseMcpClientCapabilities {
     pub host_info: Option<GooseMcpHostInfo>,
 }
 
+impl Default for GooseMcpClientCapabilities {
+    fn default() -> Self {
+        Self {
+            mcpui: false,
+            host_info: None,
+        }
+    }
+}
+
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient {
     client: Mutex<RunningService<RoleClient, GooseClient>>,
