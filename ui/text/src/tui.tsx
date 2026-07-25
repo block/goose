@@ -471,6 +471,11 @@ const SplashScreen = React.memo(function SplashScreen({
   );
 });
 
+// An unconfigured provider reaches us as null, "" or the literal string "null".
+function hasConfiguredProvider(providerId?: string | null): boolean {
+  return providerId != null && providerId !== "" && providerId !== "null";
+}
+
 function App({
   serverConnection,
   initialPrompt,
@@ -720,6 +725,12 @@ function App({
     [executePrompt, processQueue],
   );
 
+  const readDefaults = useCallback(async (client: GooseClient) => {
+    const resp = await client.goose.defaultsRead_unstable({});
+    setDefaults({ providerId: resp.providerId, modelId: resp.modelId });
+    return resp;
+  }, []);
+
   const createSession = useCallback(
     async (client: GooseClient) => {
       setStatus("creating session…");
@@ -749,11 +760,19 @@ function App({
     [initialPrompt, sendPrompt, exit],
   );
 
-  const handleOnboardingComplete = useCallback(() => {
+  const handleOnboardingComplete = useCallback(async () => {
     setNeedsOnboarding(false);
     const client = clientRef.current;
-    if (client) createSession(client);
-  }, [createSession]);
+    if (!client) return;
+    // Onboarding configures the provider; the core then picks the model. Neither
+    // value is known to the wizard, so re-read both to fill the header.
+    try {
+      await readDefaults(client);
+    } catch {
+      // Header stays unlabelled — creating the session matters more.
+    }
+    await createSession(client);
+  }, [createSession, readDefaults]);
 
   useEffect(() => {
     let cancelled = false;
@@ -806,12 +825,8 @@ function App({
         setStatus("checking provider…");
         let hasProvider = false;
         try {
-          const resp = await client.goose.defaultsRead_unstable({});
-          hasProvider =
-            resp.providerId != null &&
-            resp.providerId !== "" &&
-            resp.providerId !== "null";
-          setDefaults({ providerId: resp.providerId, modelId: resp.modelId });
+          const resp = await readDefaults(client);
+          hasProvider = hasConfiguredProvider(resp.providerId);
         } catch {
           hasProvider = false;
         }
@@ -840,6 +855,7 @@ function App({
     serverConnection,
     initialPrompt,
     createSession,
+    readDefaults,
     appendAgent,
     handleToolCall,
     handleToolCallUpdate,
