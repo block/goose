@@ -27,7 +27,7 @@ use rmcp::{
         RequestContext, RequestHandle, RunningService, ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError,
 };
 use serde_json::Value;
 use std::{
@@ -677,7 +677,15 @@ impl McpClient {
                     )
                     .await?
             } else {
-                client.serve(transport).await?
+                client
+                    .serve_with_lifecycle(
+                        transport,
+                        ClientLifecycleMode::Auto {
+                            preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                            legacy_version: Some(ProtocolVersion::LATEST),
+                        },
+                    )
+                    .await?
             };
         let server_info = client.peer_info().map(|info| {
             let mut initialize_result = InitializeResult::new(info.capabilities.clone())
