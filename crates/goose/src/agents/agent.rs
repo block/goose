@@ -184,6 +184,7 @@ pub struct AgentConfig {
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub mcp_host_info: Option<GooseMcpHostInfo>,
+    pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
     pub session_name_update_tx: Option<mpsc::UnboundedSender<SessionNameUpdate>>,
     pub use_login_shell_path: Option<bool>,
 }
@@ -205,6 +206,7 @@ impl AgentConfig {
             disable_session_naming,
             goose_platform,
             mcp_host_info: None,
+            elicitation_handler: None,
             session_name_update_tx: None,
             use_login_shell_path: None,
         }
@@ -377,6 +379,7 @@ impl Agent {
         let capabilities = ExtensionManagerCapabilities {
             mcpui,
             host_info: explicit_mcp_host_info.clone(),
+            elicitation_handler: config.elicitation_handler.clone(),
         };
         let client_name = explicit_mcp_host_info
             .as_ref()

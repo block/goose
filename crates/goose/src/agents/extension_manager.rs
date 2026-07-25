@@ -164,6 +164,7 @@ impl Extension {
 pub struct ExtensionManagerCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
+    pub elicitation_handler: Option<crate::agents::mcp_client::ElicitationHandler>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -867,6 +868,7 @@ impl ExtensionManager {
         GooseMcpClientCapabilities {
             mcpui: self.capabilities.mcpui,
             host_info: self.capabilities.host_info.clone(),
+            elicitation_handler: self.capabilities.elicitation_handler.clone(),
         }
     }
 
@@ -902,6 +904,7 @@ impl ExtensionManager {
             ExtensionManagerCapabilities {
                 mcpui: false,
                 host_info: None,
+                elicitation_handler: None,
             },
             false,
         )

@@ -473,29 +473,8 @@ impl ClientHandler for GooseClient {
         request: CreateElicitationRequestParams,
         context: RequestContext<RoleClient>,
     ) -> Result<CreateElicitationResult, ErrorData> {
-        if std::env::var("MCP_CONFORMANCE_SCENARIO")
-            .is_ok_and(|scenario| scenario == "elicitation-sep1034-client-defaults")
-        {
-            let content = match &request {
-                CreateElicitationRequestParams::FormElicitationParams {
-                    requested_schema, ..
-                } => serde_json::to_value(requested_schema)
-                    .ok()
-                    .and_then(|schema| schema.get("properties").cloned())
-                    .and_then(|properties| properties.as_object().cloned())
-                    .map(|properties| {
-                        properties
-                            .into_iter()
-                            .filter_map(|(name, schema)| {
-                                schema.get("default").cloned().map(|value| (name, value))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                _ => JsonObject::new(),
-            };
-            return Ok(CreateElicitationResult::new(ElicitationAction::Accept)
-                .with_content(serde_json::Value::Object(content)));
+        if let Some(handler) = &self.capabilities.elicitation_handler {
+            return Ok(handler(&request));
         }
 
         let session_id = self
@@ -578,10 +557,26 @@ impl ClientHandler for GooseClient {
     }
 }
 
-#[derive(Debug, Clone)]
+#[expect(deprecated)]
+pub type ElicitationHandler =
+    Arc<dyn Fn(&CreateElicitationRequestParams) -> CreateElicitationResult + Send + Sync>;
+
+#[derive(Clone)]
 pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
+    pub elicitation_handler: Option<ElicitationHandler>,
+}
+
+impl std::fmt::Debug for GooseMcpClientCapabilities {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GooseMcpClientCapabilities")
+            .field("mcpui", &self.mcpui)
+            .field("host_info", &self.host_info)
+            .field("elicitation_handler", &self.elicitation_handler.is_some())
+            .finish()
+    }
 }
 
 impl Default for GooseMcpClientCapabilities {
@@ -589,6 +584,7 @@ impl Default for GooseMcpClientCapabilities {
         Self {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         }
     }
 }
@@ -1044,10 +1040,12 @@ mod tests {
             GoosePlatform::GooseDesktop => GooseMcpClientCapabilities {
                 mcpui: true,
                 host_info: None,
+                elicitation_handler: None,
             },
             GoosePlatform::GooseCli => GooseMcpClientCapabilities {
                 mcpui: false,
                 host_info: None,
+                elicitation_handler: None,
             },
         };
 
