@@ -1397,6 +1397,7 @@ struct McpProbeScript {
     elicitation: Option<McpProbeElicitation>,
     #[serde(default)]
     oauth: goose::oauth::OAuthFlowConfig,
+    protocol_version: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -1446,6 +1447,7 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
             ],
             elicitation: None,
             oauth: goose::oauth::OAuthFlowConfig::default(),
+            protocol_version: None,
         }
     };
 
@@ -1482,6 +1484,11 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
         true,
         GoosePlatform::GooseCli,
     );
+    if let Some(protocol_version) = script.protocol_version.as_deref() {
+        agent_config.mcp_protocol_version = Some(serde_json::from_value(
+            serde_json::Value::String(protocol_version.to_string()),
+        )?);
+    }
     if let Some(action) = script.elicitation.clone() {
         agent_config.elicitation_handler =
             Some(std::sync::Arc::new(move |request| match &action {
