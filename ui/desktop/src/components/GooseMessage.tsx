@@ -137,7 +137,7 @@ export default function GooseMessage({
         {(displayText.trim() || imagePaths.length > 0) && (
           <div className="flex flex-col group">
             {displayText.trim() && (
-              <div ref={contentRef} className="w-full">
+              <div ref={contentRef} className="agent-message-bubble w-full">
                 <MarkdownContent content={displayText} />
               </div>
             )}
