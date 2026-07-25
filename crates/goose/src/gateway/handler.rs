@@ -53,6 +53,8 @@ pub struct GatewayHandler {
     config: GatewayConfig,
     /// Tracks users who have a tool-confirmation prompt awaiting their reply.
     pending_confirmations: Arc<Mutex<HashMap<PlatformUser, PendingConfirmation>>>,
+    /// Serializes `relay_to_session` per user; confirmation replies bypass this lock.
+    turn_locks: Arc<Mutex<HashMap<PlatformUser, Arc<Mutex<()>>>>>,
 }
 
 impl GatewayHandler {
@@ -68,6 +70,17 @@ impl GatewayHandler {
             gateway,
             config,
             pending_confirmations: Arc::new(Mutex::new(HashMap::new())),
+            turn_locks: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    async fn prune_turn_lock(&self, user: &PlatformUser) {
+        let mut locks = self.turn_locks.lock().await;
+        let in_use = locks
+            .get(user)
+            .is_some_and(|lock| Arc::strong_count(lock) > 1);
+        if !in_use {
+            locks.remove(user);
         }
     }
 
@@ -137,7 +150,20 @@ impl GatewayHandler {
                 {
                     self.handle_pending_confirmation(&message, pending).await?;
                 } else {
-                    self.relay_to_session(&message, &session_id).await?;
+                    let turn_lock = {
+                        let mut locks = self.turn_locks.lock().await;
+                        Arc::clone(
+                            locks
+                                .entry(message.user.clone())
+                                .or_insert_with(|| Arc::new(Mutex::new(()))),
+                        )
+                    };
+                    let turn_guard = turn_lock.lock().await;
+                    let result = self.relay_to_session(&message, &session_id).await;
+                    drop(turn_guard);
+                    drop(turn_lock);
+                    self.prune_turn_lock(&message.user).await;
+                    result?;
                 }
             }
         }
