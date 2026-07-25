@@ -1,0 +1,15 @@
+{
+  "name": "goose-mcp-conformance",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "conformance": "tsx src/driver.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/conformance": "^0.2.0-alpha.9",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  }
+}
