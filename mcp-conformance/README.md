@@ -1,57 +1,36 @@
 # Goose MCP conformance harness
 
-This directory contains a TypeScript driver for running upstream MCP conformance data against Goose's normal MCP extension/session path.
-
-The driver reads JSON conformance fixtures and invokes:
+The upstream MCP conformance tester invokes `src/driver.ts`, appending its server URL and setting `MCP_CONFORMANCE_SCENARIO`. The driver translates that scenario into a JSON probe script and runs Goose:
 
 ```bash
-goose mcp-probe '<stdio MCP server command>'
+goose mcp-probe <target> --script <path|->
 ```
 
-That command starts a lightweight Goose session with no provider/LLM, loads the supplied stdio MCP server as an extension, and reports discovered tools/prompts/resources as JSON. Optional fixture fields can also request a direct tool call.
+`target` may be an HTTP(S) MCP endpoint or a stdio command. Script tool names are raw MCP names; the probe applies Goose's internal extension scope.
 
-## Usage
+## Script format
+
+```json
+{
+  "steps": [
+    { "action": "listTools" },
+    { "action": "listPrompts" },
+    { "action": "listResources" },
+    { "action": "callTool", "name": "echo", "arguments": { "message": "hello" } }
+  ],
+  "elicitation": { "action": "accept", "content": { "answer": "yes" } }
+}
+```
+
+Elicitation actions are `accept` (with explicit `content`), `acceptSchemaDefaults`, `decline`, and `cancel`.
+
+Without `--script`, the command remains useful as a manual probe and lists tools, prompts, and resources.
+
+## Conformance
 
 ```bash
 source ../bin/activate-hermit
-cargo build -p goose-cli
-cd mcp-conformance
-pnpm install
-pnpm conformance /path/to/modelcontextprotocol/conformance/tests
+just mcp-conformance 2025-11-25 all
 ```
 
-Set `GOOSE_BIN` to test a specific Goose binary:
-
-```bash
-GOOSE_BIN=../target/debug/goose pnpm conformance ./fixtures
-```
-
-## Fixture shape
-
-The driver accepts a JSON file, an array of cases, or an object with a `tests` array. Each case must define either `command` or `server.command`/`server.args`:
-
-```json
-{
-  "id": "initialize",
-  "name": "initializes against the conformance server",
-  "server": {
-    "command": "node",
-    "args": ["/path/to/conformance/server.js", "--case", "initialize"]
-  },
-  "expected": {
-    "toolResult": null
-  }
-}
-```
-
-To call a tool after initialization:
-
-```json
-{
-  "id": "call-echo",
-  "name": "calls echo",
-  "command": ["node", "./server.js"],
-  "callTool": "conformance__echo",
-  "arguments": { "message": "hello" }
-}
-```
+Set `GOOSE_BIN` when invoking the driver directly to select another Goose binary.

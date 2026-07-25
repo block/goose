@@ -472,6 +472,10 @@ impl ClientHandler for GooseClient {
         request: ElicitRequestParams,
         context: RequestContext<RoleClient>,
     ) -> Result<ElicitResult, ErrorData> {
+        if let Some(handler) = &self.capabilities.elicitation_handler {
+            return Ok(handler(&request));
+        }
+
         if std::env::var("MCP_CONFORMANCE_SCENARIO")
             .is_ok_and(|scenario| scenario == "elicitation-sep1034-client-defaults")
         {
@@ -572,10 +576,24 @@ impl ClientHandler for GooseClient {
     }
 }
 
-#[derive(Debug, Clone)]
+pub type ElicitationHandler = Arc<dyn Fn(&ElicitRequestParams) -> ElicitResult + Send + Sync>;
+
+#[derive(Clone)]
 pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
+    pub elicitation_handler: Option<ElicitationHandler>,
+}
+
+impl std::fmt::Debug for GooseMcpClientCapabilities {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("GooseMcpClientCapabilities")
+            .field("mcpui", &self.mcpui)
+            .field("host_info", &self.host_info)
+            .field("elicitation_handler", &self.elicitation_handler.is_some())
+            .finish()
+    }
 }
 
 impl Default for GooseMcpClientCapabilities {
@@ -583,6 +601,7 @@ impl Default for GooseMcpClientCapabilities {
         Self {
             mcpui: false,
             host_info: None,
+            elicitation_handler: None,
         }
     }
 }
@@ -1047,10 +1066,12 @@ mod tests {
             GoosePlatform::GooseDesktop => GooseMcpClientCapabilities {
                 mcpui: true,
                 host_info: None,
+                elicitation_handler: None,
             },
             GoosePlatform::GooseCli => GooseMcpClientCapabilities {
                 mcpui: false,
                 host_info: None,
+                elicitation_handler: None,
             },
         };
 

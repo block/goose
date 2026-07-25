@@ -1211,11 +1211,12 @@ enum Command {
         #[arg(help = "Stdio MCP server command to inspect")]
         extension: String,
 
-        #[arg(long, help = "Call a tool after initialization")]
-        call_tool: Option<String>,
-
-        #[arg(long, default_value = "{}", help = "JSON arguments for --call-tool")]
-        arguments: String,
+        #[arg(
+            long,
+            value_name = "PATH|-",
+            help = "JSON probe script; use - for stdin"
+        )]
+        script: Option<String>,
     },
 }
 
@@ -1388,15 +1389,62 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
     }
 }
 
-async fn handle_mcp_probe(
-    extension_command: String,
-    call_tool: Option<String>,
-    arguments: String,
-) -> Result<()> {
-    use goose::agents::{Agent, ToolCallContext};
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct McpProbeScript {
+    #[serde(default)]
+    steps: Vec<McpProbeStep>,
+    elicitation: Option<McpProbeElicitation>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "action", rename_all = "camelCase")]
+enum McpProbeStep {
+    ListTools,
+    ListPrompts,
+    ListResources,
+    CallTool {
+        name: String,
+        #[serde(default)]
+        arguments: serde_json::Map<String, serde_json::Value>,
+    },
+}
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(tag = "action", rename_all = "camelCase")]
+enum McpProbeElicitation {
+    Accept { content: serde_json::Value },
+    AcceptSchemaDefaults,
+    Decline,
+    Cancel,
+}
+
+#[expect(deprecated)]
+async fn handle_mcp_probe(extension_command: String, script_path: Option<String>) -> Result<()> {
+    use goose::agents::{Agent, AgentConfig, ToolCallContext};
     use goose::config::ExtensionConfig;
-    use rmcp::model::CallToolRequestParams;
+    use rmcp::model::{CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction};
     use tokio_util::sync::CancellationToken;
+
+    let script = if let Some(path) = script_path {
+        let json = if path == "-" {
+            let mut json = String::new();
+            std::io::stdin().read_to_string(&mut json)?;
+            json
+        } else {
+            std::fs::read_to_string(path)?
+        };
+        serde_json::from_str::<McpProbeScript>(&json)?
+    } else {
+        McpProbeScript {
+            steps: vec![
+                McpProbeStep::ListTools,
+                McpProbeStep::ListPrompts,
+                McpProbeStep::ListResources,
+            ],
+            elicitation: None,
+        }
+    };
 
     let mut extension = if url::Url::parse(&extension_command)
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
@@ -1410,12 +1458,59 @@ async fn handle_mcp_probe(
     };
     match &mut extension {
         ExtensionConfig::Stdio { name, .. } | ExtensionConfig::StreamableHttp { name, .. } => {
-            *name = "conformance".to_string();
+            *name = "probe".to_string();
         }
         _ => unreachable!("MCP probe only creates stdio or streamable HTTP extensions"),
     }
 
-    let agent = Agent::new();
+    let config = goose::config::Config::global();
+    let mut agent_config = AgentConfig::new(
+        std::sync::Arc::new(SessionManager::instance()),
+        goose::config::permission::PermissionManager::instance(),
+        None,
+        config.get_goose_mode().unwrap_or_default(),
+        true,
+        GoosePlatform::GooseCli,
+    );
+    if let Some(action) = script.elicitation.clone() {
+        agent_config.elicitation_handler =
+            Some(std::sync::Arc::new(move |request| match &action {
+                McpProbeElicitation::Accept { content } => {
+                    CreateElicitationResult::new(ElicitationAction::Accept)
+                        .with_content(content.clone())
+                }
+                McpProbeElicitation::AcceptSchemaDefaults => {
+                    let content = match request {
+                        CreateElicitationRequestParams::FormElicitationParams {
+                            requested_schema,
+                            ..
+                        } => serde_json::to_value(requested_schema)
+                            .ok()
+                            .and_then(|schema| schema.get("properties").cloned())
+                            .and_then(|properties| properties.as_object().cloned())
+                            .map(|properties| {
+                                properties
+                                    .into_iter()
+                                    .filter_map(|(name, schema)| {
+                                        schema.get("default").cloned().map(|value| (name, value))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        _ => serde_json::Map::new(),
+                    };
+                    CreateElicitationResult::new(ElicitationAction::Accept)
+                        .with_content(serde_json::Value::Object(content))
+                }
+                McpProbeElicitation::Decline => {
+                    CreateElicitationResult::new(ElicitationAction::Decline)
+                }
+                McpProbeElicitation::Cancel => {
+                    CreateElicitationResult::new(ElicitationAction::Cancel)
+                }
+            }));
+    }
+    let agent = Agent::with_config(agent_config);
     let session = agent
         .config
         .session_manager
@@ -1429,71 +1524,48 @@ async fn handle_mcp_probe(
     let session_id = session.id.as_str();
     agent.add_extension(extension, session_id).await?;
 
-    let tools = agent
-        .list_tools(session_id, Some("conformance".to_string()))
-        .await;
-    let prompts = agent
-        .extension_manager
-        .list_prompts(session_id, CancellationToken::new())
-        .await
-        .ok();
-    let resources = agent
-        .extension_manager
-        .get_ui_resources(session_id)
-        .await
-        .ok();
-
-    let call_tool =
-        call_tool.or_else(
-            || match std::env::var("MCP_CONFORMANCE_SCENARIO").as_deref() {
-                Ok("tools_call") => Some("conformance__add_numbers".to_string()),
-                Ok("elicitation-sep1034-client-defaults") => {
-                    Some("conformance__test_client_elicitation_defaults".to_string())
-                }
-                Ok("auth/scope-step-up") => Some("conformance__test-tool".to_string()),
-                _ => None,
-            },
-        );
-    let arguments = if std::env::var("MCP_CONFORMANCE_SCENARIO").as_deref() == Ok("tools_call") {
-        serde_json::from_value(serde_json::json!({ "a": 2, "b": 3 }))?
-    } else {
-        serde_json::from_str(&arguments)?
-    };
-
-    let tool_result = if let Some(tool_name) = call_tool {
-        let ctx = ToolCallContext::new(
-            session_id.to_string(),
-            Some(std::env::current_dir()?),
-            Some("mcp-probe-tool-call".to_string()),
-        );
-        let result = agent
-            .extension_manager
-            .dispatch_tool_call(
-                &ctx,
-                CallToolRequestParams::new(tool_name).with_arguments(arguments),
-                CancellationToken::new(),
-            )
-            .await?
-            .result
-            .await?;
-        Some(serde_json::json!({
-            "content": result.content,
-            "isError": result.is_error,
-        }))
-    } else {
-        None
-    };
-
+    let mut results = Vec::new();
+    for step in script.steps {
+        let result = match step {
+            McpProbeStep::ListTools => serde_json::json!({
+                "action": "listTools",
+                "result": agent.list_tools(session_id, Some("probe".to_string())).await,
+            }),
+            McpProbeStep::ListPrompts => serde_json::json!({
+                "action": "listPrompts",
+                "result": agent.extension_manager.list_prompts(session_id, CancellationToken::new()).await?,
+            }),
+            McpProbeStep::ListResources => serde_json::json!({
+                "action": "listResources",
+                "result": agent.extension_manager.get_ui_resources(session_id).await?,
+            }),
+            McpProbeStep::CallTool { name, arguments } => {
+                let scoped_name = format!("probe__{name}");
+                let ctx = ToolCallContext::new(
+                    session_id.to_string(),
+                    Some(std::env::current_dir()?),
+                    Some("mcp-probe-tool-call".to_string()),
+                );
+                let result = agent
+                    .extension_manager
+                    .dispatch_tool_call(
+                        &ctx,
+                        rmcp::model::CallToolRequestParams::new(scoped_name)
+                            .with_arguments(arguments),
+                        CancellationToken::new(),
+                    )
+                    .await?
+                    .result
+                    .await?;
+                serde_json::json!({ "action": "callTool", "name": name, "result": result })
+            }
+        };
+        results.push(result);
+    }
     println!(
         "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "tools": tools,
-            "prompts": prompts,
-            "uiResources": resources,
-            "toolResult": tool_result,
-        }))?
+        serde_json::to_string_pretty(&serde_json::json!({ "results": results }))?
     );
-
     Ok(())
 }
 
@@ -2517,11 +2589,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
             }
         }
-        Some(Command::McpProbe {
-            extension,
-            call_tool,
-            arguments,
-        }) => handle_mcp_probe(extension, call_tool, arguments).await,
+        Some(Command::McpProbe { extension, script }) => handle_mcp_probe(extension, script).await,
         None => handle_default_session().await,
     }
 }
