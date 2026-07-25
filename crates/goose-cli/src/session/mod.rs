@@ -852,7 +852,6 @@ impl CliSession {
             .await?;
         let current_model_name = current_model_config.model_name.clone();
 
-        // No args → show current state with a helpful hint
         if options.provider.is_none() && options.model.is_none() {
             output::goose_mode_message(&format!(
                 "Current session model: '{}' (provider '{}')\n\
@@ -862,7 +861,6 @@ impl CliSession {
             return Ok(());
         }
 
-        // Determine the target provider
         let requested_provider = options
             .provider
             .as_deref()
@@ -870,13 +868,11 @@ impl CliSession {
             .filter(|s| !s.is_empty());
         let target_provider_name = requested_provider.unwrap_or(&current_provider_name);
 
-        // Reject a bare --provider flag with no value
         if options.provider.is_some() && requested_provider.is_none() {
             output::render_error("Provider name is required after '--provider'.");
             return Ok(());
         }
 
-        // Validate that the target provider exists in the registry
         let target_entry = match goose::providers::get_from_registry(target_provider_name).await {
             Ok(entry) => entry,
             Err(_) => {
@@ -888,7 +884,6 @@ impl CliSession {
             }
         };
 
-        // Guard: ACP and self-managing-context providers
         if target_provider_name.ends_with("-acp") {
             output::render_error(
                 "Session model switching is not supported for ACP providers in the CLI.",
@@ -904,11 +899,18 @@ impl CliSession {
             return Ok(());
         }
 
-        // Determine the target model name
+        if options
+            .model
+            .as_deref()
+            .is_some_and(|model| model.split_whitespace().count() > 1)
+        {
+            output::render_error("Unexpected arguments after model name.");
+            return Ok(());
+        }
+
         let target_model_name = match options.model.as_deref().map(str::trim) {
             Some(m) if !m.is_empty() => m.to_string(),
             _ => {
-                // Provider-only switch (no model specified).
                 if target_provider_name == current_provider_name {
                     current_model_name.clone()
                 } else {
@@ -933,7 +935,6 @@ impl CliSession {
             &current_model_config,
         )?;
 
-        // No-op check
         let configured_effort = Config::global().get_goose_thinking_effort();
         let new_effort = new_model_config.thinking_effort().or(configured_effort);
         let current_effort = current_model_config.thinking_effort().or(configured_effort);
@@ -949,7 +950,6 @@ impl CliSession {
             return Ok(());
         }
 
-        // Warn if the new model has a smaller context window than the current one
         if let Some(model_info) = target_entry
             .metadata()
             .known_models
@@ -971,20 +971,16 @@ impl CliSession {
             }
         }
 
-        // Create the new provider, preserving session extensions
         let extensions = self.agent.get_extension_configs().await;
         let new_provider = match goose::providers::create(target_provider_name, extensions).await {
             Ok(p) => p,
             Err(e) => {
-                // Don't kill the session — connect to the lesson from #9491.
-                // Missing API keys and credential errors are common when switching
-                // providers in segregated environments.
                 output::render_error(&format!(
-                        "Cannot switch to provider '{}': {}\n\
+                    "Cannot switch to provider '{}': {}\n\
                          Set credentials via `goose configure` or the appropriate environment variable.\n\
                          Session continues with current provider '{}'.",
-                        target_provider_name, e, current_provider_name
-                    ));
+                    target_provider_name, e, current_provider_name
+                ));
                 return Ok(());
             }
         };
@@ -1004,7 +1000,6 @@ impl CliSession {
         let mode = self.agent.goose_mode().await;
         self.agent.update_goose_mode(mode, &self.session_id).await?;
 
-        // Refresh completion cache so model tab-completion reflects the new provider
         self.update_completion_cache().await?;
 
         if provider_unchanged {
@@ -1680,16 +1675,11 @@ impl CliSession {
         Ok(())
     }
 
-    /// Update the completion cache with fresh data
-    /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        // Fetch all async data before acquiring the write lock
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
         let all_providers = goose::providers::providers().await;
         let session_provider = self.agent.provider().await?.get_name().to_string();
 
-        // Fetch inventory-fetched models (dynamically discovered via API refresh)
-        // to supplement the static known_models list.
         let provider_ids: Vec<String> = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         let inventory_models: HashMap<String, Vec<String>> = {
             let storage = SessionManager::instance().storage().clone();
@@ -1707,9 +1697,6 @@ impl CliSession {
                 .collect()
         };
 
-        // Fetch configured model per provider from config so the user's
-        // currently-selected model always appears in completion, even if it
-        // is not in the static or inventory model lists.
         let config = Config::global();
         let configured_models: HashMap<String, String> = all_providers
             .iter()
@@ -1720,7 +1707,6 @@ impl CliSession {
             })
             .collect();
 
-        // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
         cache.prompts.clear();
         cache.prompt_info.clear();
@@ -1742,11 +1728,6 @@ impl CliSession {
             }
         }
 
-        // Populate provider/model data for /model tab-completion.
-        // Models are merged from three sources, deduplicated:
-        //   1. Static known_models from provider metadata (curated list)
-        //   2. Inventory-fetched models (dynamically discovered via API refresh)
-        //   3. The user's currently-configured model for each provider
         cache.provider_names = all_providers.iter().map(|(m, _)| m.name.clone()).collect();
         cache.current_session_provider = session_provider;
         cache.provider_models.clear();

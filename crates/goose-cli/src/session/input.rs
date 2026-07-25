@@ -313,7 +313,10 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             } else if let Some(after_flag) = rest.strip_prefix("--provider ") {
                 let parts: Vec<&str> = after_flag.split_whitespace().collect();
                 let provider = parts.first().map(|s| s.to_string());
-                let model = parts.get(1).map(|s| s.to_string());
+                let model = parts
+                    .get(1..)
+                    .filter(|parts| !parts.is_empty())
+                    .map(|parts| parts.join(" "));
                 Some(InputResult::Model(ModelCommandOptions { provider, model }))
             } else if rest == "--provider" {
                 Some(InputResult::Model(ModelCommandOptions {
@@ -615,7 +618,6 @@ mod tests {
             panic!("Expected Model");
         }
 
-        // Test /model --provider <name> (provider only)
         if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
             handle_slash_command("/model --provider anthropic")
         {
@@ -625,7 +627,6 @@ mod tests {
             panic!("Expected Model with provider");
         }
 
-        // Test /model --provider <name> <model> (both provider and model)
         if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
             handle_slash_command("/model --provider anthropic claude-sonnet-4")
         {
@@ -635,7 +636,6 @@ mod tests {
             panic!("Expected Model with provider and model");
         }
 
-        // Test /model --provider (bare flag, no value yet)
         if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
             handle_slash_command("/model --provider")
         {
@@ -645,7 +645,6 @@ mod tests {
             panic!("Expected Model with empty provider");
         }
 
-        // Test /model --provider (trailing space, same as bare flag after trim)
         if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
             handle_slash_command("/model --provider ")
         {
@@ -655,7 +654,6 @@ mod tests {
             panic!("Expected Model with empty provider (trailing space)");
         }
 
-        // Test extra whitespace between provider and model args
         if let Some(InputResult::Model(ModelCommandOptions { provider, model })) =
             handle_slash_command("/model --provider   anthropic    claude-sonnet-4")
         {
