@@ -32,19 +32,25 @@ export const Header = React.memo(function Header({
   const rightSideWidth = constrainedWidth - leftSideWidth;
 
   // Active provider/model next to the status. Show "provider · model" when it
-  // fits, fall back to just the model on narrow terminals.
+  // fits; otherwise show the model, pre-truncated with an ellipsis on narrow
+  // terminals (per AGENTS.md Ink-Text) rather than hiding it entirely.
   const provider = providerId || undefined;
   const model = modelId || undefined;
   const modelOnly = model ?? provider;
   const full = provider && model ? `${provider} · ${model}` : modelOnly;
-  const reserved = 8 + status.length + 3 + (loading ? 2 : 0);
+  // Space left for the label after the "goose · " prefix, the status, its
+  // " · " separator, and the spinner — so the pre-truncation matches the render.
+  const spinnerWidth = loading ? 2 : 0;
+  const reserved =
+    "goose · ".length + status.length + " · ".length + spinnerWidth;
   const avail = Math.max(0, leftSideWidth - reserved);
-  const modelLabel =
-    full && full.length <= avail
-      ? full
-      : modelOnly && modelOnly.length <= avail
-        ? modelOnly
-        : undefined;
+  let modelLabel: string | undefined;
+  if (full && full.length <= avail) {
+    modelLabel = full;
+  } else if (modelOnly && avail >= 2) {
+    modelLabel =
+      modelOnly.length <= avail ? modelOnly : modelOnly.slice(0, avail - 1) + "…";
+  }
 
   return (
     <Box flexDirection="column" width={constrainedWidth} flexShrink={0}>
