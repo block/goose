@@ -604,7 +604,7 @@ impl GatewayHandler {
                                              • deny always — always deny",
                                         );
 
-                                        let _ = self
+                                        let send_result = self
                                             .gateway
                                             .send_message(
                                                 &message.user,
@@ -613,15 +613,32 @@ impl GatewayHandler {
                                                 },
                                             )
                                             .await;
-                                        sent_any = true;
 
-                                        self.pending_confirmations.lock().await.insert(
-                                            message.user.clone(),
-                                            PendingConfirmation {
-                                                agent: agent.clone(),
-                                                request_id: id.clone(),
-                                            },
-                                        );
+                                        if let Err(e) = send_result {
+                                            tracing::error!(
+                                                session_id,
+                                                error = %e,
+                                                "failed to deliver tool approval prompt; denying tool call"
+                                            );
+                                            agent
+                                                .handle_confirmation(
+                                                    id.clone(),
+                                                    PermissionConfirmation {
+                                                        principal_type: PrincipalType::Tool,
+                                                        permission: Permission::DenyOnce,
+                                                    },
+                                                )
+                                                .await;
+                                        } else {
+                                            sent_any = true;
+                                            self.pending_confirmations.lock().await.insert(
+                                                message.user.clone(),
+                                                PendingConfirmation {
+                                                    agent: agent.clone(),
+                                                    request_id: id.clone(),
+                                                },
+                                            );
+                                        }
                                     }
                                 }
                                 _ => {}
