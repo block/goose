@@ -22,7 +22,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
-use utoipa::ToSchema;
 
 pub const CURRENT_SCHEMA_VERSION: i32 = 15;
 pub const SESSIONS_FOLDER: &str = "sessions";
@@ -35,7 +34,6 @@ const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
     Copy,
     Serialize,
     Deserialize,
-    ToSchema,
     PartialEq,
     Eq,
     Default,
@@ -58,10 +56,9 @@ pub enum SessionType {
 static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =
     LazyLock::new(|| Arc::new(SessionStorage::new(Paths::data_dir())));
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
-    #[schema(value_type = String)]
     pub working_dir: PathBuf,
     #[serde(alias = "description")]
     pub name: String,
@@ -170,7 +167,7 @@ pub struct SessionUpdateBuilder<'a> {
     parent_session_id: Option<Option<String>>,
 }
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
     pub total_sessions: usize,
@@ -620,14 +617,13 @@ impl SessionManager {
             .await
     }
 
-    pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
+    pub async fn update_message_metadata<F>(&self, id: &str, message_id: &str, f: F) -> Result<()>
     where
         F: FnOnce(
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
-        Self::instance()
-            .storage
+        self.storage
             .update_message_metadata(id, message_id, f)
             .await
     }
@@ -894,12 +890,6 @@ impl SessionStorage {
         Ok(&self.pool)
     }
 
-    pub async fn create(session_dir: &Path) -> Result<Self> {
-        let storage = Self::new(session_dir.to_path_buf());
-        Self::create_schema(&storage.pool).await?;
-        Ok(storage)
-    }
-
     async fn create_schema(pool: &Pool<Sqlite>) -> Result<()> {
         // Run schema creation under `BEGIN IMMEDIATE` so SQLite serializes
         // writers across processes. Combined with `IF NOT EXISTS` on every
@@ -1034,12 +1024,9 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        tx.commit().await?;
+        crate::providers::inventory::create_tables(&mut tx).await?;
 
-        // The inventory tables already use `CREATE TABLE IF NOT EXISTS`
-        // and run on the shared pool, so they don't need to be inside
-        // the same transaction.
-        crate::providers::inventory::create_tables(pool).await?;
+        tx.commit().await?;
 
         Ok(())
     }
@@ -1393,7 +1380,7 @@ impl SessionStorage {
                     .await?;
             }
             11 => {
-                crate::providers::inventory::create_tables_in_tx(tx).await?;
+                crate::providers::inventory::create_tables(tx).await?;
             }
             12 => {
                 // Add archived_at, project_id columns to sessions.
@@ -2829,6 +2816,12 @@ mod tests {
                 SessionType::User,
                 GooseMode::default(),
             )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
             .await
             .unwrap();
 

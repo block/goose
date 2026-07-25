@@ -19,14 +19,16 @@ use thiserror::Error;
 fn write_secrets_file(path: &Path, content: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
-            .truncate(true)
+            .truncate(false)
             .mode(0o600)
             .open(path)?;
 
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        file.set_len(0)?;
         file.write_all(content.as_bytes())
     }
 
@@ -1136,7 +1138,6 @@ config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
-config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
 
 impl Config {
     pub fn get_goose_context_limit(&self) -> Result<Option<usize>, ConfigError> {
@@ -2062,6 +2063,28 @@ mod tests {
         let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
         config.set_secret("key", &"value")?;
 
+        let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_existing_secrets_file_permissions_tightened_on_write() -> Result<(), ConfigError> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_path = dir.path().join("secrets.yaml");
+        std::fs::write(&secrets_path, "existing: old\n")?;
+        std::fs::set_permissions(&secrets_path, std::fs::Permissions::from_mode(0o644))?;
+
+        let config = Config::new_with_file_secrets(config_file.path(), &secrets_path)?;
+        config.set_secret("key", &"value")?;
+
+        let value: String = config.get_secret("key")?;
+        assert_eq!(value, "value");
         let mode = std::fs::metadata(&secrets_path)?.permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
 

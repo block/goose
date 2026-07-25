@@ -1,10 +1,10 @@
 use anstream::println;
 use bat::WrappingMode;
-use console::{measure_text_width, style, Color, Term};
+use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest, ToolResponse,
+    ToolNameParts, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -16,6 +16,7 @@ use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
 use std::time::Duration;
@@ -25,6 +26,22 @@ use super::streaming_buffer::MarkdownBuffer;
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
+
+fn accent<T: Display>(value: T) -> StyledObject<T> {
+    style(value).cyan()
+}
+
+fn success<T: Display>(value: T) -> StyledObject<T> {
+    style(value).green()
+}
+
+fn warning<T: Display>(value: T) -> StyledObject<T> {
+    style(value).yellow()
+}
+
+fn danger<T: Display>(value: T) -> StyledObject<T> {
+    style(value).red()
+}
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -220,6 +237,10 @@ pub fn set_thinking_message(s: &String) {
 }
 
 pub fn render_message(message: &Message, debug: bool) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -255,7 +276,7 @@ pub fn render_message(message: &Message, debug: bool) {
                     }
                     SystemNotificationType::InlineMessage => {
                         hide_thinking();
-                        println!("\n{}", style(&notification.msg).yellow());
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
                     SystemNotificationType::CreditsExhausted => {
                         render_credits_exhausted_notification(notification);
@@ -279,6 +300,10 @@ pub fn render_message_streaming(
     thinking_header_shown: &mut bool,
     debug: bool,
 ) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -339,7 +364,7 @@ pub fn render_message_streaming(
                     SystemNotificationType::InlineMessage => {
                         flush_markdown_buffer(buffer, theme);
                         hide_thinking();
-                        println!("\n{}", style(&notification.msg).yellow());
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
                     SystemNotificationType::CreditsExhausted => {
                         flush_markdown_buffer(buffer, theme);
@@ -359,7 +384,7 @@ pub fn render_message_streaming(
 
 fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
     hide_thinking();
-    println!("\n{}", style(&notification.msg).yellow());
+    println!("\n{} {}", warning("warning:").bold(), &notification.msg);
 
     if let Some(url) = notification
         .data
@@ -367,10 +392,7 @@ fn render_credits_exhausted_notification(notification: &SystemNotificationConten
         .and_then(|d| d.get("top_up_url"))
         .and_then(|v| v.as_str())
     {
-        println!(
-            "{}",
-            style(format!("Visit this URL to top up credits: {url}")).yellow()
-        );
+        println!("{} {}", style("top up:").dim(), accent(url));
     }
 }
 
@@ -417,8 +439,6 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     }
     if let Some(color) = color {
         styled_text = styled_text.fg(color);
-    } else {
-        styled_text = styled_text.green();
     }
     print!("{}", styled_text);
 }
@@ -426,9 +446,8 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
 pub fn render_enter_plan_mode() {
     println!(
         "\n{} {}\n",
-        style("Entering plan mode.").green().bold(),
+        accent("Entering plan mode.").bold(),
         style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
-            .green()
             .dim()
     );
 }
@@ -436,18 +455,16 @@ pub fn render_enter_plan_mode() {
 pub fn render_act_on_plan() {
     println!(
         "\n{}\n",
-        style("Exiting plan mode and acting on the above plan")
-            .green()
-            .bold(),
+        accent("Exiting plan mode and acting on the above plan").bold(),
     );
 }
 
 pub fn render_exit_plan_mode() {
-    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+    println!("\n{}\n", accent("Exiting plan mode.").bold());
 }
 
 pub fn goose_mode_message(text: &str) {
-    println!("\n{}", style(text).yellow(),);
+    println!("\n{} {}", accent("mode:"), text);
 }
 
 fn should_show_thinking() -> bool {
@@ -583,13 +600,13 @@ fn is_file_tool_name(name: &str) -> bool {
 }
 
 pub fn render_error(message: &str) {
-    println!("\n  {} {}\n", style("error:").red().bold(), message);
+    println!("\n  {} {}\n", danger("error:").bold(), message);
 }
 
 pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
     println!();
     for (extension, prompts) in prompts {
-        println!(" {}", style(extension).green());
+        println!(" {}", accent(extension));
         for prompt in prompts {
             println!("  - {}", style(prompt).cyan());
         }
@@ -600,7 +617,7 @@ pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
 pub fn render_prompt_info(info: &PromptInfo) {
     println!();
     if let Some(ext) = &info.extension {
-        println!(" {}: {}", style("Extension").green(), ext);
+        println!(" {}: {}", accent("Extension"), ext);
     }
     println!(" Prompt: {}", style(&info.name).cyan().bold());
     if let Some(desc) = &info.description {
@@ -616,14 +633,14 @@ fn render_arguments(info: &PromptInfo) {
         for arg in args {
             let required = arg.required.unwrap_or(false);
             let req_str = if required {
-                style("(required)").red()
+                style("(required)").bold()
             } else {
                 style("(optional)").dim()
             };
 
             println!(
                 "  {} {} {}",
-                style(&arg.name).yellow(),
+                accent(&arg.name),
                 req_str,
                 arg.description.as_deref().unwrap_or("")
             );
@@ -633,21 +650,13 @@ fn render_arguments(info: &PromptInfo) {
 
 pub fn render_extension_success(name: &str) {
     println!();
-    println!(
-        "  {} extension `{}`",
-        style("added").green(),
-        style(name).cyan(),
-    );
+    println!("  {} extension `{}`", success("added"), accent(name),);
     println!();
 }
 
 pub fn render_extension_error(name: &str, error: &str) {
     println!();
-    println!(
-        "  {} to add extension {}",
-        style("failed").red(),
-        style(name).red()
-    );
+    println!("  {} to add extension {}", danger("failed"), danger(name));
     println!();
     println!("{}", style(error).dim());
     println!();
@@ -657,9 +666,9 @@ pub fn render_builtin_success(names: &str) {
     println!();
     println!(
         "  {} builtin{}: {}",
-        style("added").green(),
+        success("added"),
         if names.contains(',') { "s" } else { "" },
-        style(names).cyan()
+        accent(names)
     );
     println!();
 }
@@ -668,9 +677,9 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
     println!(
         "  {} to add builtin{}: {}",
-        style("failed").red(),
+        danger("failed"),
         if names.contains(',') { "s" } else { "" },
-        style(names).red()
+        danger(names)
     );
     println!();
     println!("{}", style(error).dim());
@@ -771,7 +780,7 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
         .and_then(Value::as_str)
         .filter(|c| !c.is_empty());
     if code.is_some_and(|_| debug) {
-        println!("{}", style(code.unwrap_or_default()).green());
+        println!("{}", code.unwrap_or_default());
     }
 
     println!();
@@ -835,31 +844,25 @@ fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
-fn split_tool_name(tool_name: &str) -> (String, String) {
-    let parts: Vec<_> = tool_name.rsplit("__").collect();
-    let tool = parts.first().copied().unwrap_or("unknown");
-    let extension = parts
-        .split_first()
-        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-        .unwrap_or_default();
-    (tool.to_string(), extension_display_name(&extension))
-}
-
-fn extension_display_name(name: &str) -> String {
+fn extension_display_name(name: &str) -> &str {
     match name {
-        "code_execution" => "Code Mode".to_string(),
-        _ => name.to_string(),
+        "code_execution" => "Code Mode",
+        _ => name,
     }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
     let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
-    let (tool, extension) = split_tool_name(tool_name);
+    let parts = ToolNameParts::from(tool_name);
 
-    if extension.is_empty() {
-        format!("[subagent:{}] {}", short_id, tool)
-    } else {
-        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+    match parts.extension_name {
+        Some(extension_name) => format!(
+            "[subagent:{}] {} | {}",
+            short_id,
+            parts.tool_name,
+            extension_display_name(extension_name)
+        ),
+        None => format!("[subagent:{}] {}", short_id, parts.tool_name),
     }
 }
 
@@ -939,16 +942,17 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParams) {
-    let (tool, extension) = split_tool_name(&call.name);
-    let tool_header = if extension.is_empty() {
-        format!("  {} {}", style("▸").dim(), style(&tool).dim())
-    } else {
-        format!(
+    let parts = ToolNameParts::from(call.name.as_ref());
+    let tool_header = match parts.extension_name {
+        Some(extension_name) => format!(
             "  {} {} {}",
             style("▸").dim(),
-            style(&tool).dim(),
-            style(extension).magenta().dim(),
-        )
+            style(parts.tool_name).dim(),
+            style(extension_display_name(extension_name))
+                .magenta()
+                .dim(),
+        ),
+        None => format!("  {} {}", style("▸").dim(), style(parts.tool_name).dim()),
     };
     println!();
     println!("  {}", style("─".repeat(40)).dim());
@@ -1518,6 +1522,26 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::env;
+
+    #[test]
+    fn formats_subagent_tool_call_names() {
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "read"),
+            "[subagent:42] read"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "developer__shell"),
+            "[subagent:42] shell | developer"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "code_execution__execute_typescript"),
+            "[subagent:42] execute_typescript | Code Mode"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "calendar__events__list"),
+            "[subagent:42] events__list | calendar"
+        );
+    }
 
     #[test]
     fn test_short_paths_unchanged() {

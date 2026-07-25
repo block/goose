@@ -139,7 +139,6 @@ goose-providers = { path = "../goose-providers", default-features = false }
 goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
-utoipa = { workspace = true, features = ["chrono"] }
 tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
@@ -188,7 +187,7 @@ schemars = { workspace = true, features = [
     "derive",
 ] }
 shellexpand = { workspace = true }
-indexmap = { version = "2.9", default-features = false, features = ["std"] }
+indexmap = { version = "2.9", default-features = false, features = ["serde", "std"] }
 ignore = { workspace = true }
 rayon = { workspace = true }
 tree-sitter = { workspace = true }
@@ -218,7 +217,7 @@ aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 
-pctx_code_mode = { version = "0.3", default-features = false, optional = true }
+pctx_code_mode = { version = "0.4.1", default-features = false, optional = true }
 
 # These are needed because temporal_rs 0.1 (a transitive dep via PCTX) enables unstable features on icu_calendar without pinning the dependency version
 # A fix is available in temporal_rs 0.2 but PCTX has not updated
@@ -230,7 +229,7 @@ subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { workspace = true }
+winapi = { workspace = true, features = ["accctrl", "aclapi", "fileapi", "handleapi", "minwinbase", "sddl", "securitybaseapi", "winbase", "winerror"] }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference
@@ -241,6 +240,8 @@ keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { workspace = true, features = ["sync-secret-service"], optional = true }
+
+[target."cfg(unix)".dependencies]
 libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]

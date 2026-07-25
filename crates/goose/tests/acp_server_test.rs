@@ -526,6 +526,41 @@ fn test_config_option_thinking_effort_set() {
 }
 
 #[test]
+fn test_config_option_non_value_id_returns_error_and_keeps_connection() {
+    run_test(async {
+        let openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let mut conn =
+            <AcpServerConnection as Connection>::new(TestConnectionConfig::default(), openai).await;
+        let data = conn.new_session().await.unwrap();
+
+        let err = conn
+            .cx()
+            .send_request(SetSessionConfigOptionRequest::new(
+                data.session.session_id().clone(),
+                "mode".to_string(),
+                SessionConfigOptionValue::boolean(true),
+            ))
+            .block_task()
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err,
+            agent_client_protocol::Error::invalid_params().data("Expected a value ID")
+        );
+
+        conn.cx()
+            .send_request(ListSessionsRequest::new())
+            .block_task()
+            .await
+            .expect("connection should survive an invalid set_config_option");
+    });
+}
+
+#[test]
 fn test_delete_session() {
     run_test(async { run_delete_session::<AcpServerConnection>().await });
 }

@@ -138,7 +138,16 @@ struct StreamingChoice {
     #[serde(default)]
     delta: Delta,
     index: Option<i32>,
+    #[serde(default, deserialize_with = "empty_finish_reason_as_none")]
     finish_reason: Option<String>,
+}
+
+fn empty_finish_reason_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.filter(|reason| !reason.is_empty()))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -875,31 +884,55 @@ pub fn validate_tool_schemas(tools: &mut [Value]) {
 /// Ensures that the given JSON value follows the expected JSON Schema structure.
 fn ensure_valid_json_schema(schema: &mut Value) {
     if let Some(params_obj) = schema.as_object_mut() {
-        // Check if this is meant to be an object type schema
-        let is_object_type = params_obj
-            .get("type")
-            .and_then(|t| t.as_str())
-            .is_none_or(|t| t == "object"); // Default to true if no type is specified
+        if !params_obj.contains_key("type") {
+            params_obj.insert("type".to_string(), json!("object"));
+        }
+    }
+    sanitize_schema_node(schema);
+}
 
-        // Only apply full schema validation to object types
-        if is_object_type {
-            // Ensure required fields exist with default values
-            params_obj.entry("properties").or_insert_with(|| json!({}));
-            params_obj.entry("required").or_insert_with(|| json!([]));
-            params_obj.entry("type").or_insert_with(|| json!("object"));
+fn sanitize_schema_node(node: &mut Value) {
+    if let Some(obj) = node.as_object_mut() {
+        // Moonshot's walle validator rejects `oneOf` behind a `$ref` as
+        // "infinite recursion" because its termination check only traverses
+        // `anyOf`. The two are interchangeable for tool-argument schemas, so
+        // emit the more widely supported form.
+        if !obj.contains_key("anyOf") {
+            if let Some(one_of) = obj.remove("oneOf") {
+                obj.insert("anyOf".to_string(), one_of);
+            }
+        }
+    }
 
-            // Recursively validate properties if it exists
-            if let Some(properties) = params_obj.get_mut("properties") {
-                if let Some(properties_obj) = properties.as_object_mut() {
-                    for (_key, prop) in properties_obj.iter_mut() {
-                        normalize_nullable(prop);
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
-                            ensure_valid_json_schema(prop);
-                        }
-                    }
-                }
+    normalize_nullable(node);
+
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
+
+    if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+        obj.entry("properties").or_insert_with(|| json!({}));
+        obj.entry("required").or_insert_with(|| json!([]));
+    }
+
+    for key in ["properties", "$defs", "definitions"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_object_mut) {
+            for child in children.values_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["anyOf", "allOf", "prefixItems"] {
+        if let Some(children) = obj.get_mut(key).and_then(Value::as_array_mut) {
+            for child in children.iter_mut() {
+                sanitize_schema_node(child);
+            }
+        }
+    }
+    for key in ["items", "additionalProperties"] {
+        if let Some(child) = obj.get_mut(key) {
+            if child.is_object() {
+                sanitize_schema_node(child);
             }
         }
     }
@@ -1506,13 +1539,10 @@ pub fn openai_reasoning_effort_for_thinking(
     model_name: &str,
     effort: ThinkingEffort,
 ) -> Option<String> {
-    if effort == ThinkingEffort::Off {
-        return Some("none".to_string());
-    }
-
     let supported = openai_reasoning_efforts_for_model(model_name);
+
     let preferred: &[&str] = match effort {
-        ThinkingEffort::Off => unreachable!(),
+        ThinkingEffort::Off => &["none", "low"],
         ThinkingEffort::Low => &["low", "medium", "high", "xhigh"],
         ThinkingEffort::Medium => &["medium", "high", "low", "xhigh"],
         ThinkingEffort::High => &["high", "medium", "xhigh", "low"],
@@ -1525,7 +1555,7 @@ pub fn openai_reasoning_effort_for_thinking(
         .map(|level| (*level).to_string())
 }
 
-fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
+pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static str] {
     let normalized = model_name.to_ascii_lowercase();
 
     if normalized.contains("gpt-5") {
@@ -1538,7 +1568,7 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
             || normalized.contains("gpt-5.6")
             || normalized.contains("gpt-5-6")
         {
-            &["low", "medium", "high", "xhigh"]
+            &["none", "low", "medium", "high", "xhigh"]
         } else {
             &["low", "medium", "high"]
         }
@@ -1547,10 +1577,15 @@ fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [&'static st
     }
 }
 
+const MAX_FUNCTION_NAME_LENGTH: usize = 128;
+
 pub fn sanitize_function_name(name: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
-    re.replace_all(name, "_").to_string()
+    re.replace_all(name, "_")
+        .chars()
+        .take(MAX_FUNCTION_NAME_LENGTH)
+        .collect()
 }
 
 pub fn is_valid_function_name(name: &str) -> bool {
@@ -1702,6 +1737,44 @@ mod tests {
         let timeout_schema = &tools[0]["function"]["parameters"]["properties"]["timeout_secs"];
         assert_eq!(timeout_schema["type"], "integer");
         assert!(!timeout_schema["type"].is_array());
+    }
+
+    #[test]
+    fn test_validate_tool_schemas_sanitizes_defs() {
+        let mut tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "cache",
+                "description": "manage cache",
+                "parameters": {
+                    "type": "object",
+                    "$defs": {
+                        "CacheCommand": {
+                            "oneOf": [
+                                { "description": "List cached files", "type": "string", "const": "list" },
+                                { "description": "Clear cached files", "type": "string", "const": "clear" }
+                            ]
+                        },
+                        "TextStyle": {
+                            "type": "object",
+                            "properties": {
+                                "size": { "type": ["integer", "null"], "format": "int32" }
+                            }
+                        }
+                    },
+                    "properties": {
+                        "command": { "$ref": "#/$defs/CacheCommand" },
+                        "style": { "$ref": "#/$defs/TextStyle" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        })];
+        validate_tool_schemas(&mut tools);
+        let defs = &tools[0]["function"]["parameters"]["$defs"];
+        assert!(defs["CacheCommand"].get("oneOf").is_none());
+        assert_eq!(defs["CacheCommand"]["anyOf"].as_array().unwrap().len(), 2);
+        assert_eq!(defs["TextStyle"]["properties"]["size"]["type"], "integer");
     }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
@@ -2494,27 +2567,6 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o3_off_effort_preserves_none() -> anyhow::Result<()> {
-        let model_config = test_model_config("o3")
-            .with_max_tokens(Some(1024))
-            .with_thinking_effort(ThinkingEffort::Off);
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-            false,
-        )?;
-        let obj = request.as_object().unwrap();
-
-        assert_eq!(obj.get("reasoning_effort"), Some(&json!("none")));
-        assert!(obj.get("thinking_effort").is_none());
-
-        Ok(())
-    }
-
-    #[test]
     fn test_create_request_gpt56_max_effort_uses_xhigh() -> anyhow::Result<()> {
         let model_config = test_model_config("gpt-5.6-luna")
             .with_max_tokens(Some(1024))
@@ -2748,6 +2800,30 @@ data: [DONE]
             .all(|name| name == "developer__shell"));
 
         assert_usage_yielded_once(&result, 4982, 122, 5104);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_empty_finish_reason_is_not_terminal() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"Checking."},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":"{\"command\""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"function":{"arguments":": \"ls\"}"}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: {"model":"m","choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120},"object":"chat.completion.chunk","id":"1","created":1753288340}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_eq!(
+            result.tool_calls,
+            vec!["developer__shell"],
+            "tool call must survive intermediate empty-string finish_reason"
+        );
+        assert_usage_yielded_once(&result, 100, 20, 120);
 
         Ok(())
     }
@@ -4089,12 +4165,23 @@ data: [DONE]"#;
         assert_eq!(sanitize_function_name("hello-world"), "hello-world");
         assert_eq!(sanitize_function_name("hello world"), "hello_world");
         assert_eq!(sanitize_function_name("hello@world"), "hello_world");
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH + 32)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
     }
 
     #[test]
     fn test_is_valid_function_name() {
         assert!(is_valid_function_name("hello-world"));
         assert!(is_valid_function_name("hello_world"));
+        assert!(is_valid_function_name(
+            &"a".repeat(MAX_FUNCTION_NAME_LENGTH + 1)
+        ));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
     }

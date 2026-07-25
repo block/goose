@@ -3,7 +3,6 @@ use futures::Stream;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
-use utoipa::ToSchema;
 
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
@@ -19,7 +18,7 @@ use crate::{
 };
 
 /// Metadata about a provider's configuration requirements and capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderMetadata {
     /// The unique identifier for this provider
     pub name: String,
@@ -129,7 +128,7 @@ impl ProviderMetadata {
 }
 
 /// Configuration key metadata for provider setup
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigKey {
     /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
@@ -218,7 +217,7 @@ impl ConfigKey {
 }
 
 /// Information about a model's capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelInfo {
     /// The name of the model
     pub name: String,
@@ -340,7 +339,7 @@ pub async fn collect_stream(
                             (
                                 Some(MessageContent::Text(last_text)),
                                 MessageContent::Text(new_text),
-                            ) => {
+                            ) if last_text.audience() == new_text.audience() => {
                                 last_text.text.push_str(&new_text.text);
                             }
                             _ => {
@@ -359,13 +358,21 @@ pub async fn collect_stream(
         }
     }
 
-    match final_message {
-        Some(msg) => {
-            let usage = final_usage
+    match (final_message, final_usage) {
+        (Some(msg), usage) => {
+            let usage = usage
                 .unwrap_or_else(|| ProviderUsage::new("unknown".to_string(), Usage::default()));
             Ok((msg, usage))
         }
-        None => Err(ProviderError::ExecutionError(
+        (None, Some(usage)) => Ok((
+            Message::new(
+                rmcp::model::Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                Vec::new(),
+            ),
+            usage,
+        )),
+        (None, None) => Err(ProviderError::ExecutionError(
             "Stream yielded no message".to_string(),
         )),
     }
@@ -661,6 +668,49 @@ mod tests {
         let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
         assert_eq!(content_to_strings(&msg), vec!["Hello"]);
         assert_eq!(usage.model, "unknown");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_usage_only_yields_empty_message() {
+        let usage = ProviderUsage::new("claude-sonnet-4".to_string(), Usage::default());
+        let stream = futures::stream::once(async move { Ok((None, Some(usage))) });
+        let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
+        assert!(msg.content.is_empty());
+        assert_eq!(usage.model, "claude-sonnet-4");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_no_message_no_usage_errors() {
+        let stream = futures::stream::empty();
+        let result = collect_stream(Box::pin(stream)).await;
+        assert!(matches!(result, Err(ProviderError::ExecutionError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_preserves_text_audience_boundaries() {
+        use futures::stream;
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let message = |text: &str, audience| {
+            Message::assistant().with_content(MessageContent::Text(
+                RawTextContent {
+                    text: text.to_string(),
+                    meta: None,
+                }
+                .no_annotation()
+                .with_audience(vec![audience]),
+            ))
+        };
+        let stream = stream::iter([
+            Ok((Some(message("public", Role::User)), None)),
+            Ok((Some(message("private", Role::Assistant)), None)),
+        ]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 2);
+        assert_eq!(message.user_visible_content().as_concat_text(), "public");
+        assert_eq!(message.agent_visible_content().as_concat_text(), "private");
     }
 
     #[test]

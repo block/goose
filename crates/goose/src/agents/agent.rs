@@ -152,7 +152,7 @@ pub struct ToolCategorizeResult {
     pub filtered_response: Message,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExtensionLoadResult {
     pub name: String,
     pub success: bool,
@@ -276,6 +276,14 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
+fn project_message_for_user_event(message: &Message) -> Message {
+    message.user_visible_content()
+}
+
+fn agent_visible_message_text(message: &Message) -> String {
+    message.agent_visible_content().as_concat_text()
+}
+
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
@@ -285,9 +293,10 @@ fn attach_turn_usage(
         .iter_mut()
         .rev()
         .find(|m| m.role == rmcp::model::Role::Assistant)?;
+    let has_user_visible_content = !message.user_visible_content().content.is_empty();
     let message_usage = MessageUsage::from_provider_usage(usage, false);
     message.metadata.usage = Some(Box::new(message_usage.clone()));
-    Some((message.id.clone(), message_usage))
+    has_user_visible_content.then(|| (message.id.clone(), message_usage))
 }
 
 impl Default for Agent {
@@ -450,19 +459,26 @@ impl Agent {
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookContext {
         crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
             .with_last_assistant_message(last_assistant_message.to_string())
+            .with_working_dir(working_dir.to_string())
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
+    async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+    ) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await;
     }
@@ -471,11 +487,12 @@ impl Agent {
         &self,
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookDecision {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await
     }
@@ -739,10 +756,6 @@ impl Agent {
             .await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
-
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
-        }
 
         let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
         {
@@ -1541,7 +1554,7 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
 
-        let message_text_for_trace = user_message.as_concat_text();
+        let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
 
@@ -1581,17 +1594,34 @@ impl Agent {
             }
         }
 
-        let message_text = user_message.as_concat_text();
+        let message_text = message_text_for_trace;
 
         let session = session_manager
             .get_session(&session_config.id, true)
             .await?;
-        let is_first_turn = session
+        let is_first_agent_turn = session
             .conversation
             .as_ref()
-            .map(|conversation| conversation.messages().is_empty())
+            .map(|conversation| {
+                conversation.messages().iter().all(|message| {
+                    !message.is_agent_visible()
+                        || message.agent_visible_content().content.is_empty()
+                })
+            })
             .unwrap_or(true);
-        if is_first_turn {
+
+        if !user_message.is_agent_visible()
+            || user_message.agent_visible_content().content.is_empty()
+        {
+            let user_visibility = user_message.is_user_visible();
+            let user_message = user_message.with_visibility(user_visibility, false);
+            session_manager
+                .add_message(&session_config.id, &user_message)
+                .await?;
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
+        if is_first_agent_turn {
             self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
                 .await;
         }
@@ -1779,9 +1809,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1921,7 +1952,7 @@ impl Agent {
 
                 if can_drain_pending_steers {
                     for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = message.as_concat_text();
+                        let message_text = agent_visible_message_text(&message);
                         if self
                             .hook_manager
                             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
@@ -1953,7 +1984,7 @@ impl Agent {
                     conversation.push(message);
 
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2036,6 +2067,7 @@ impl Agent {
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
                 let mut provider_errored = false;
+                let mut provider_produced_content = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
 
@@ -2054,7 +2086,7 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
                                 pending_turn_usage = Some(enriched);
                             }
@@ -2070,6 +2102,24 @@ impl Agent {
                                     tokio::task::yield_now().await;
                                     continue;
                                 }
+
+                                provider_produced_content |= response.content.iter().any(|content| {
+                                    match content {
+                                        MessageContent::Text(text) => !text.text.is_empty(),
+                                        MessageContent::Image(image) => !image.data.is_empty(),
+                                        MessageContent::Thinking(thinking) => {
+                                            !thinking.thinking.is_empty()
+                                                || !thinking.signature.is_empty()
+                                        }
+                                        MessageContent::RedactedThinking(thinking) => {
+                                            !thinking.data.is_empty()
+                                        }
+                                        MessageContent::SystemNotification(notification) => {
+                                            !notification.msg.is_empty()
+                                        }
+                                        _ => true,
+                                    }
+                                });
 
                                 let ToolCategorizeResult {
                                     frontend_requests,
@@ -2104,8 +2154,10 @@ impl Agent {
                                     },
                                 );
 
-                                yield AgentEvent::Message(filtered_response.clone());
-                                tokio::task::yield_now().await;
+                                if !filtered_response.content.is_empty() {
+                                    yield AgentEvent::Message(filtered_response.clone());
+                                    tokio::task::yield_now().await;
+                                }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
@@ -2313,27 +2365,94 @@ impl Agent {
                                     })
                                     .cloned()
                                     .collect();
-                                // When thinking arrived in an earlier stream chunk it was stored as
-                                // a standalone thinking-only message; reuse that thinking on the
-                                // tool-call messages and drop the standalone so it isn't duplicated.
-                                let response_thinking = if direct_thinking.is_empty() {
-                                    let prior = messages_to_add.messages().iter().rposition(|m| {
-                                        m.role == response.role
-                                            && !m.content.is_empty()
-                                            && m.content.iter().all(|c| {
-                                                matches!(
+                                // When thinking arrived in earlier stream chunks it was stored as
+                                // standalone thinking-only messages; reuse that thinking on the
+                                // tool-call messages and drop the standalone messages so the
+                                // thinking isn't duplicated.
+                                // Always accumulate ALL prior thinking — even when
+                                // direct_thinking is non-empty (reasoning arrived on the same
+                                // chunk as tool_calls) — because otherwise only the last chunk's
+                                // reasoning ends up on split tool-call messages.
+                                // Also extract thinking from mixed (thinking+text) messages,
+                                // not just pure-thinking-only ones.
+                                let mut accumulated_prior: Vec<MessageContent> = Vec::new();
+                                let mut indices_to_remove: Vec<usize> = Vec::new();
+                                for (idx, m) in messages_to_add.messages_mut().iter_mut().enumerate()
+                                {
+                                    if m.role != response.role || m.content.is_empty() {
+                                        continue;
+                                    }
+                                    let thinking_only = m.content.iter().all(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    let has_thinking = m.content.iter().any(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    if has_thinking {
+                                        // Only accumulate thinking from messages that
+                                        // have not already been split into tool-call
+                                        // request_msg items — prior-split messages
+                                        // already carry their own thinking copy.
+                                        if !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
+                                        }) {
+                                            for c in &m.content {
+                                                if matches!(
                                                     c,
                                                     MessageContent::Thinking(_)
                                                         | MessageContent::RedactedThinking(_)
-                                                )
-                                            })
-                                    });
-                                    match prior {
-                                        Some(idx) => messages_to_add.remove(idx).content,
-                                        None => Vec::new(),
+                                                ) {
+                                                    accumulated_prior.push(c.clone());
+                                                }
+                                            }
+                                        }
                                     }
-                                } else {
+                                    if thinking_only {
+                                        indices_to_remove.push(idx);
+                                    } else if has_thinking
+                                        && !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
+                                        })
+                                    {
+                                        // Strip thinking blocks from mixed text+thinking
+                                        // messages so the same signed/unsigned thinking is not
+                                        // duplicated when carried onto the tool-call request
+                                        // messages below. Messages that already contain tool
+                                        // requests are prior-split request_msg items whose
+                                        // thinking was already attached — stripping their
+                                        // thinking would leave only the last split message
+                                        // with reasoning, violating the signed-thinking
+                                        // dedup expectation that the first split message
+                                        // retains it.
+                                        m.content.retain(|c| {
+                                            !matches!(
+                                                c,
+                                                MessageContent::Thinking(_)
+                                                    | MessageContent::RedactedThinking(_)
+                                            )
+                                        });
+                                    }
+                                }
+                                // Remove in reverse order to preserve indices
+                                for idx in indices_to_remove.into_iter().rev() {
+                                    messages_to_add.remove(idx);
+                                }
+                                let response_thinking = if direct_thinking.is_empty() {
+                                    accumulated_prior
+                                } else if accumulated_prior.is_empty() {
                                     direct_thinking
+                                } else {
+                                    let mut merged = accumulated_prior;
+                                    merged.extend(direct_thinking);
+                                    merged
                                 };
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
@@ -2400,7 +2519,7 @@ impl Agent {
                                         request_msg.created = final_response.created;
                                     }
                                     messages_to_add.push(request_msg);
-                                    yield AgentEvent::Message(final_response.clone());
+                                    yield AgentEvent::Message(project_message_for_user_event(&final_response));
                                     messages_to_add.push(final_response);
                                 }
 
@@ -2449,10 +2568,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2566,6 +2685,7 @@ impl Agent {
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
+                    && !provider_produced_content
                     && last_assistant_text.is_empty();
 
                 if empty_response {
@@ -2721,7 +2841,7 @@ impl Agent {
 
                             if matching_ids.len() == 2 {
                                 for id in &matching_ids {
-                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    session_manager.update_message_metadata(&session_config.id, id, |metadata| {
                                         metadata.with_agent_invisible()
                                     }).await?;
                                 }
@@ -2770,7 +2890,7 @@ impl Agent {
 
                 if exit_chat {
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2803,7 +2923,7 @@ impl Agent {
             }
 
             if !stop_hook_handled_for_exit {
-                self.emit_stop_hook(&session_config.id, &last_assistant_text).await;
+                self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
         Ok(inner)
@@ -3194,6 +3314,7 @@ impl Agent {
             .filter(super::reply_parts::is_tool_visible_to_model)
             .collect();
 
+        messages = Conversation::new_unvalidated(messages.agent_visible_messages());
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
@@ -3403,6 +3524,48 @@ mod tests {
             Some(false),
             &GoosePlatform::GooseDesktop
         ));
+    }
+
+    #[test]
+    fn user_event_projection_preserves_hidden_tool_response_wrapper() {
+        use rmcp::model::{Content, Role};
+
+        let hidden_only = Message::user().with_tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![Content::text(
+                "provider-only",
+            )
+            .with_audience(vec![Role::Assistant])])),
+        );
+
+        let projected = project_message_for_user_event(&hidden_only);
+        let result = projected.content[0]
+            .as_tool_response()
+            .expect("hidden tool response wrapper")
+            .tool_result
+            .as_ref()
+            .expect("successful hidden tool result");
+        assert!(result.content.is_empty());
+    }
+
+    #[test]
+    fn agent_visible_message_text_excludes_user_only_blocks() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let user_only = RawTextContent {
+            text: "SECRET_USER_ONLY".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::User]);
+        let message = Message::user()
+            .with_text("/goal visible objective")
+            .with_content(MessageContent::Text(user_only));
+
+        assert_eq!(
+            agent_visible_message_text(&message),
+            "/goal visible objective"
+        );
     }
 
     struct ActionRequiredProvider {
@@ -3890,6 +4053,90 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     #[tokio::test]
+    async fn skipped_user_message_does_not_enter_empty_response_retry_loop() -> Result<()> {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let env = SessionStartHookTestEnv::new()?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let hook_manager = env.hook_manager();
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), hook_manager, provider.clone()).await?;
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let user_only_content = MessageContent::Text(
+            RawTextContent {
+                text: "user-only".to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::User]),
+        );
+
+        let mut stream = agent
+            .reply(
+                Message::user().with_content(user_only_content),
+                session_config,
+                None,
+            )
+            .await?;
+
+        assert!(stream.next().await.is_none());
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(env.hook_invocations(), 0);
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert!(!conversation.messages()[0].is_agent_visible());
+
+        let visible_session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut visible_stream = agent
+            .reply(
+                Message::user().with_text("agent-visible"),
+                visible_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = visible_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(env.hook_invocations(), 1);
+
+        let final_session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut final_stream = agent
+            .reply(
+                Message::user().with_text("second-agent-visible"),
+                final_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = final_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+        assert_eq!(env.hook_invocations(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn stop_hook_block_cap_allows_configured_consecutive_blocks_then_overrides() -> Result<()>
     {
         let env = StopHookTestEnv::new(ALWAYS_BLOCK_SCRIPT)?;
@@ -4141,5 +4388,37 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             conversation.messages()[0].metadata.usage.is_none(),
             "user message must stay untouched"
         );
+    }
+
+    #[test]
+    fn attach_turn_usage_suppresses_notification_for_assistant_only_message() {
+        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let assistant_only = RawTextContent {
+            text: "provider-only state".to_string(),
+            meta: None,
+        }
+        .no_annotation()
+        .with_audience(vec![Role::Assistant]);
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_text("hi"),
+            Message::assistant()
+                .with_id("hidden")
+                .with_content(MessageContent::Text(assistant_only)),
+        ]);
+
+        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+
+        let stored = conversation.messages()[1]
+            .metadata
+            .usage
+            .as_deref()
+            .expect("usage must remain stored on the hidden assistant message");
+        assert_eq!(stored.input_tokens, Some(1200));
+        assert_eq!(stored.output_tokens, Some(340));
     }
 }

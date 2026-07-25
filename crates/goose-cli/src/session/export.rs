@@ -1,5 +1,5 @@
 use goose::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+    ActionRequiredData, Message, MessageContent, ToolNameParts, ToolRequest, ToolResponse,
 };
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
@@ -124,20 +124,20 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
     let mut md = String::new();
     match &req.tool_call {
         Ok(call) => {
-            let parts: Vec<_> = call.name.rsplitn(2, "__").collect();
-            let (namespace, tool_name_only) = if parts.len() == 2 {
-                (parts[1], parts[0])
-            } else if is_shell_tool_name(call.name.as_ref())
-                || is_developer_file_tool_name(call.name.as_ref())
-            {
-                ("developer", parts[0])
-            } else {
-                ("Tool", parts[0])
+            let name_parts = ToolNameParts::from(call.name.as_ref());
+            let namespace = match name_parts.extension_name {
+                Some(extension_name) => extension_name,
+                None if is_shell_tool_name(call.name.as_ref())
+                    || is_developer_file_tool_name(call.name.as_ref()) =>
+                {
+                    "developer"
+                }
+                None => "Tool",
             };
 
             md.push_str(&format!(
                 "#### Tool Call: `{}` (namespace: `{}`)\n",
-                tool_name_only, namespace
+                name_parts.tool_name, namespace
             ));
             md.push_str("**Arguments:**\n");
 
@@ -214,7 +214,13 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
     md
 }
 
+#[cfg(test)]
 pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) -> String {
+    let audience = (!export_all_content).then_some(Role::Assistant);
+    tool_response_to_markdown_for_audience(resp, audience)
+}
+
+fn tool_response_to_markdown_for_audience(resp: &ToolResponse, audience: Option<Role>) -> String {
     let mut md = String::new();
     md.push_str("#### Tool Response:\n");
 
@@ -225,9 +231,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
             }
 
             for content in &result.content {
-                if !export_all_content {
+                if let Some(ref role) = audience {
                     if let Some(audience) = content.audience() {
-                        if !audience.contains(&Role::Assistant) {
+                        if !audience.contains(role) {
                             continue;
                         }
                     }
@@ -337,6 +343,19 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
 }
 
 pub fn message_to_markdown(message: &Message, export_all_content: bool) -> String {
+    let audience = (!export_all_content).then_some(Role::Assistant);
+    message_to_markdown_for_audience(message, export_all_content, audience)
+}
+
+pub fn user_projected_message_to_markdown(message: &Message) -> String {
+    message_to_markdown_for_audience(message, false, Some(Role::User))
+}
+
+fn message_to_markdown_for_audience(
+    message: &Message,
+    export_all_content: bool,
+    audience: Option<Role>,
+) -> String {
     let mut md = String::new();
     for content in &message.content {
         match content {
@@ -371,7 +390,10 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                 md.push('\n');
             }
             MessageContent::ToolResponse(resp) => {
-                md.push_str(&tool_response_to_markdown(resp, export_all_content));
+                md.push_str(&tool_response_to_markdown_for_audience(
+                    resp,
+                    audience.clone(),
+                ));
                 md.push('\n');
             }
             MessageContent::Image(image) => {
@@ -564,6 +586,21 @@ mod tests {
         assert!(result.contains("**path**: `/path/to/file.txt`"));
         assert!(result.contains("**before**"));
         assert!(result.contains("**after**"));
+    }
+
+    #[test]
+    fn test_tool_request_to_markdown_splits_at_first_separator() {
+        let tool_request = ToolRequest {
+            id: "test-id".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("calendar__events__list")),
+            metadata: None,
+            tool_meta: None,
+        };
+
+        let result = tool_request_to_markdown(&tool_request, true);
+
+        assert!(result.contains("#### Tool Call: `events__list`"));
+        assert!(result.contains("namespace: `calendar`"));
     }
 
     #[test]

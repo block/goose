@@ -50,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nenhuma aplicação disponível"
   },
-  "appsView.retry": {
-    "defaultMessage": "Tentar novamente"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Tentar novamente"
   },
   "appsView.title": {
     "defaultMessage": "Aplicações"
@@ -130,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Ir para o início"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Conexão perdida. Reconectando…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensão atualizada"
@@ -1194,7 +1197,7 @@
     "defaultMessage": "Chave secreta"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "A chave secreta configurada no servidor goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "A chave secreta configurada no servidor Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Insira a chave secreta do servidor"
@@ -2813,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "A partir de um modelo ou configuração manual"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Nenhum fornecedor corresponde a \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Pesquisar fornecedores..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logótipo de {providerName}"
   },
@@ -3653,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON da sessão copiado"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texto copiado"
   },
@@ -3683,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "A carregar JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Falha ao renomear a sessão: {error}"
   },
@@ -3706,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver JSON da sessão"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "A sessão encontrou um erro"

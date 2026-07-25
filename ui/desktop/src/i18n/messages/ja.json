@@ -131,6 +131,9 @@
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
+  "baseChat.reconnecting": {
+    "defaultMessage": "接続が失われました。再接続しています…"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -1194,7 +1197,7 @@
     "defaultMessage": "シークレットキー"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "Goose サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "サーバーのシークレットキーを入力"
@@ -2813,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "テンプレートまたは手動設定から"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "「{query}」に一致するプロバイダーはありません"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "プロバイダーを検索..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName}のロゴ"
   },
@@ -3653,6 +3662,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "セッションJSONをコピーしました"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "テキストをコピーしました"
   },
@@ -3683,6 +3695,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSONを読み込み中..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "セッションの名前を変更できませんでした: {error}"
   },
@@ -3706,6 +3724,9 @@
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "セッションJSONを表示"
+  },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
   },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"

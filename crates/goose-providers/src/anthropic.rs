@@ -282,7 +282,10 @@ impl Provider for AnthropicProvider {
 
         let response = self
             .with_retry(|| async {
-                let request = self.api_client.request("v1/messages");
+                let request = self
+                    .api_client
+                    .request("v1/messages")
+                    .model_headers(model_config)?;
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })
