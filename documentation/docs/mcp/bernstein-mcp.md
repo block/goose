@@ -30,7 +30,7 @@ Bernstein orchestrates CLI coding agents. It ships adapters for Claude Code, Cod
 
 Each task runs in its own git worktree, so parallel workers do not share a mutable checkout. Every run is written to a replay journal with lineage records for the artifacts it produced. An HMAC-chained audit log is available as an opt-in, and `bernstein audit verify` checks it offline without contacting a service.
 
-The MCP server advertises 13 tools at its default tier:
+The MCP server advertises 14 tools at its default tier:
 
 | Tool | Purpose |
 |------|---------|
@@ -46,9 +46,10 @@ The MCP server advertises 13 tools at its default tier:
 | `bernstein_stop` | Request a graceful shutdown |
 | `bernstein_approve` | Approve a pending or blocked task |
 | `bernstein_create_subtask` | Create a subtask under a parent |
+| `bernstein_context` | Return a task's signed context capsule |
 | `load_skill` | Load a skill pack body on demand |
 
-Starting the server with `--mcp-tier all` adds five more tools: `bernstein_context`, `bernstein_scenarios`, `bernstein_scenario`, `bernstein_scenario_status`, and `verify_chain`. Starting it with `--mcp-tier core` narrows the set to the five read and dispatch tools, which keeps the context budget small.
+Starting the server with `--mcp-tier all` adds four more tools: `bernstein_scenarios`, `bernstein_scenario`, `bernstein_scenario_status`, and `verify_chain`. Starting it with `--mcp-tier core` narrows the set to the five read and dispatch tools, which keeps the context budget small.
 
 The server also exposes a `bernstein://capability` resource, lineage resources, and three prompts: `orchestrate_goal`, `triage_failed_tasks`, and `cost_recap`.
 
