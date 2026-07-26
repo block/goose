@@ -13,6 +13,7 @@ import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import type {
   SessionNotification,
+  SessionConfigOption,
   Stream,
   ContentChunk,
   ToolCall,
@@ -476,6 +477,14 @@ function hasConfiguredProvider(providerId?: string | null): boolean {
   return providerId != null && providerId !== "" && providerId !== "null";
 }
 
+function selectedConfigValue(
+  options: SessionConfigOption[],
+  id: string,
+): string | undefined {
+  const option = options.find((o) => o.id === id);
+  return option?.type === "select" ? option.currentValue : undefined;
+}
+
 function App({
   serverConnection,
   initialPrompt,
@@ -805,6 +814,22 @@ function App({
                 handleToolCall(update);
               } else if (update.sessionUpdate === "tool_call_update") {
                 handleToolCallUpdate(update);
+              } else if (update.sessionUpdate === "config_option_update") {
+                // The agent emits this after every accepted config change, so it
+                // also covers a provider switch whose model change then failed.
+                // An absent option says nothing about its value — keep the old one.
+                const providerId = selectedConfigValue(
+                  update.configOptions,
+                  "provider",
+                );
+                const modelId = selectedConfigValue(
+                  update.configOptions,
+                  "model",
+                );
+                setDefaults((prev) => ({
+                  providerId: providerId ?? prev.providerId,
+                  modelId: modelId ?? prev.modelId,
+                }));
               }
             },
           }),
@@ -1195,10 +1220,9 @@ function App({
             sessionId={sessionIdRef.current}
             width={safeTermWidth}
             height={safeTermHeight}
-            onComplete={(providerId, modelId) => {
+            onComplete={() => {
               setOverlay(null);
               setStatus("ready");
-              setDefaults({ providerId, modelId });
             }}
             onCancel={() => setOverlay(null)}
             initialIntent={intent}
