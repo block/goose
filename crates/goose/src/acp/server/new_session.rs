@@ -19,7 +19,16 @@ struct InitialSessionConfig {
     extension_data: ExtensionData,
     recipe: Option<Recipe>,
     user_recipe_values: Option<HashMap<String, String>>,
+    meta: NewSessionMetaFields,
+}
+
+/// Session fields read from `_meta` on `session/new` that are applied to the
+/// session row after it is created.
+struct NewSessionMetaFields {
     project_id: Option<String>,
+    /// Client-supplied title, recorded as user-set so goose's own name
+    /// generation leaves it alone. `None` when a recipe title took precedence.
+    client_title: Option<String>,
 }
 
 impl GooseAcpAgent {
@@ -30,14 +39,14 @@ impl GooseAcpAgent {
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         validate_absolute_cwd(&args.cwd)?;
         let config = Config::global();
-        let project_id = meta_string(args.meta.as_ref(), "projectId")?;
         let session_type = session_type_from_meta(args.meta.as_ref())?;
         let current_mode: GooseMode = config.get_goose_mode().unwrap_or_default();
         let recipe = self.resolve_recipe_from_meta(args.meta.as_ref()).await?;
-        let session_name = match recipe.as_ref() {
-            Some((recipe, _)) if !recipe.title.trim().is_empty() => recipe.title.clone(),
-            _ => "New Chat".to_string(),
-        };
+        let meta = new_session_meta_fields(args.meta.as_ref(), recipe.as_ref())?;
+        let session_name = recipe_title(recipe.as_ref())
+            .map(str::to_string)
+            .or_else(|| meta.client_title.clone())
+            .unwrap_or_else(|| "New Chat".to_string());
 
         let session = self
             .session_manager
@@ -45,7 +54,7 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to create session")?;
         match self
-            .finish_new_session_setup(cx, config, &session, args, recipe, project_id)
+            .finish_new_session_setup(cx, config, &session, args, recipe, meta)
             .await
         {
             Ok(response) => Ok(response),
@@ -63,10 +72,10 @@ impl GooseAcpAgent {
         session: &Session,
         args: NewSessionRequest,
         recipe: Option<(Recipe, PathBuf)>,
-        project_id: Option<String>,
+        meta: NewSessionMetaFields,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let rendered_recipe = self
-            .configure_new_session(cx, config, session, args, recipe, project_id)
+            .configure_new_session(cx, config, session, args, recipe, meta)
             .await?;
 
         let reloaded_session = self.reload_session(&session.id).await?;
@@ -111,7 +120,7 @@ impl GooseAcpAgent {
         session: &Session,
         args: NewSessionRequest,
         recipe: Option<(Recipe, PathBuf)>,
-        project_id: Option<String>,
+        meta: NewSessionMetaFields,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
         let (rendered, user_recipe_values) = self
             .render_recipe_for_session(cx, &session.id, recipe.as_ref())
@@ -140,7 +149,7 @@ impl GooseAcpAgent {
                 extension_data,
                 recipe: recipe.map(|(recipe, _)| recipe),
                 user_recipe_values,
-                project_id,
+                meta,
             },
         )
         .await?;
@@ -211,8 +220,11 @@ impl GooseAcpAgent {
         if config.user_recipe_values.is_some() {
             builder = builder.user_recipe_values(config.user_recipe_values);
         }
-        if let Some(project_id) = config.project_id {
+        if let Some(project_id) = config.meta.project_id {
             builder = builder.project_id(Some(project_id));
+        }
+        if let Some(client_title) = config.meta.client_title {
+            builder = builder.user_provided_name(client_title);
         }
         builder
             .apply()
@@ -268,6 +280,28 @@ fn meta_bool(meta: Option<&Meta>, key: &str) -> Result<bool, agent_client_protoc
     }
     value.as_bool().ok_or_else(|| {
         agent_client_protocol::Error::invalid_params().data(format!("{key} must be a boolean"))
+    })
+}
+
+fn recipe_title(recipe: Option<&(Recipe, PathBuf)>) -> Option<&str> {
+    recipe
+        .map(|(recipe, _)| recipe.title.trim())
+        .filter(|title| !title.is_empty())
+}
+
+fn new_session_meta_fields(
+    meta: Option<&Meta>,
+    recipe: Option<&(Recipe, PathBuf)>,
+) -> Result<NewSessionMetaFields, agent_client_protocol::Error> {
+    let session_title = meta_string(meta, "sessionTitle")?
+        .map(|title| title.trim().to_string())
+        .filter(|title| !title.is_empty());
+    Ok(NewSessionMetaFields {
+        project_id: meta_string(meta, "projectId")?,
+        // A recipe title is a server-side declaration, so it keeps the
+        // precedence it has today and a client title only replaces the
+        // "New Chat" fallback.
+        client_title: session_title.filter(|_| recipe_title(recipe).is_none()),
     })
 }
 
