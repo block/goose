@@ -3767,6 +3767,12 @@
   "sessions.action.export": {
     "defaultMessage": "导出会话"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
@@ -3865,6 +3871,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "会话“{name}”复制成功"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "导出会话失败：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "会话导出成功"

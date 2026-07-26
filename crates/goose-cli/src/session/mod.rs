@@ -2,7 +2,6 @@ mod builder;
 mod completion;
 pub mod editor;
 mod elicitation;
-mod export;
 mod input;
 mod output;
 mod paste;
@@ -20,7 +19,6 @@ use std::str::FromStr;
 use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
-pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;

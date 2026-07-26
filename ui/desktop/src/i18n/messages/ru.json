@@ -3767,6 +3767,12 @@
   "sessions.action.export": {
     "defaultMessage": "Экспортировать сеанс"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Открыть в новом окне"
   },
@@ -3865,6 +3871,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Сеанс «{name}» успешно дублирован"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Не удалось экспортировать сеанс: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Сеанс успешно экспортирован"

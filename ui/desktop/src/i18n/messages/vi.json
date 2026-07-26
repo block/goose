@@ -3767,6 +3767,12 @@
   "sessions.action.export": {
     "defaultMessage": "Xuất phiên"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "Mở trong cửa sổ mới"
   },
@@ -3865,6 +3871,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Đã nhân bản phiên làm việc \"{name}\" thành công"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "Không thể xuất phiên làm việc: {error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "Đã xuất phiên làm việc thành công"

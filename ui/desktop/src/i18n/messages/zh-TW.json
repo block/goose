@@ -3767,6 +3767,12 @@
   "sessions.action.export": {
     "defaultMessage": "匯出工作階段"
   },
+  "sessions.action.exportJson": {
+    "defaultMessage": "JSON"
+  },
+  "sessions.action.exportMarkdown": {
+    "defaultMessage": "Markdown"
+  },
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新視窗中開啟"
   },
@@ -3865,6 +3871,9 @@
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "已成功複製工作階段「{name}」"
+  },
+  "sessions.toast.exportFailed": {
+    "defaultMessage": "無法匯出工作階段：{error}"
   },
   "sessions.toast.exported": {
     "defaultMessage": "已成功匯出工作階段"

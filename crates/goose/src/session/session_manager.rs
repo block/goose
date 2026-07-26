@@ -5,6 +5,7 @@ use crate::conversation::Conversation;
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
+use crate::session::export_markdown::export_session_to_markdown;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
@@ -487,6 +488,15 @@ impl SessionManager {
 
     pub async fn export_session(&self, id: &str) -> Result<String> {
         self.storage.export_session(id).await
+    }
+
+    pub async fn export_session_markdown(&self, id: &str) -> Result<String> {
+        let session = self.get_session(id, true).await?;
+        let messages = session
+            .conversation
+            .map(|conversation| conversation.user_visible_messages())
+            .unwrap_or_default();
+        Ok(export_session_to_markdown(messages, &session.name))
     }
 
     pub async fn import_session(
