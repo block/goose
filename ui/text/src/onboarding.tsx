@@ -615,6 +615,13 @@ export default function Onboarding({
             value,
           })),
         });
+        // Saving the fields only stores credentials. Without this the provider
+        // never becomes the active default, so session creation fails right
+        // after a "successful" setup.
+        await client.goose.defaultsSave_unstable({
+          providerId: provider.providerId,
+          modelId: provider.defaultModel,
+        });
         setPhase("success");
         setTimeout(onComplete, 1000);
       } catch (e: unknown) {
