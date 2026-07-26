@@ -72,13 +72,6 @@ impl ProviderDef for PiAcpProvider {
                 vec![("model".to_string(), model)]
             };
 
-            let mode_mapping = HashMap::from([
-                (GooseMode::Auto, vec!["auto".to_string()]),
-                (GooseMode::Approve, vec!["approve".to_string()]),
-                (GooseMode::SmartApprove, vec!["smart-approve".to_string()]),
-                (GooseMode::Chat, vec!["chat".to_string()]),
-            ]);
-
             let provider_config = AcpProviderConfig {
                 command: resolved_command,
                 args: vec![],
@@ -86,10 +79,11 @@ impl ProviderDef for PiAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
-                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
+                session_mode_id: None,
                 session_config_options,
                 model_config_option_id: Some("model".to_string()),
-                mode_mapping,
+                // pi-acp exposes thinking levels as ACP modes, not permission modes.
+                mode_mapping: HashMap::new(),
                 notification_callback: None,
             };
 
