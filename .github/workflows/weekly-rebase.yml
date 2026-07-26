@@ -1,0 +1,106 @@
+name: Weekly Rebase
+
+# Syncs fork main with upstream aaif-goose/goose, rebases all tracked
+# patch branches, and rebuilds the vz/integration branch.
+#
+# To add a new patch: cherry-pick it onto main as patches/<name>,
+# then add the branch name to PATCH_BRANCHES below.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Every Monday 06:00 UTC
+  workflow_dispatch: {} # Manual trigger
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: aaif-goose/goose
+  # Space-separated list of patch branches to rebase + merge into integration
+  PATCH_BRANCHES: >-
+    patches/sonar-remote-control
+    patches/git-worktree-creation
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "vincenzopalazzo"
+          git config user.email "vincenzopalazzodev@gmail.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/${UPSTREAM_REPO}.git
+          git fetch upstream main
+
+      - name: Sync main onto upstream
+        run: |
+          git checkout main
+          # main = upstream/main + this workflow file (1 commit ahead)
+          # rebase replays that commit cleanly since upstream has no file here
+          git rebase upstream/main
+          git push origin main --force
+
+      - name: Rebase patch branches
+        id: rebase_patches
+        continue-on-error: true
+        run: |
+          FAILED=""
+          for branch in $PATCH_BRANCHES; do
+            echo "::group::Rebasing $branch"
+            git checkout "$branch" 2>/dev/null || {
+              echo "Branch $branch not found, skipping"
+              continue
+            }
+            if git rebase main; then
+              git push origin "$branch" --force
+              echo "✅ $branch rebased"
+            else
+              echo "::warning::Failed to rebase $branch — manual resolution needed"
+              git rebase --abort
+              FAILED="$FAILED $branch"
+            fi
+            echo "::endgroup::"
+          done
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild integration branch
+        run: |
+          FAILED="${{ steps.rebase_patches.outputs.failed }}"
+          git checkout -B vz/integration main
+          for branch in $PATCH_BRANCHES; do
+            case "$FAILED" in
+              *"$branch"*) echo "Skipping $branch (rebase failed)"; continue;;
+            esac
+            if git merge "$branch" --no-edit; then
+              echo "✅ Merged $branch"
+            else
+              echo "::warning::Conflict merging $branch into vz/integration"
+              git merge --abort
+            fi
+          done
+          git push origin vz/integration --force
+
+      - name: Report
+        if: always()
+        run: |
+          echo "## Weekly Rebase Report"
+          echo ""
+          echo "- **Upstream:** ${{ env.UPSTREAM_REPO }}"
+          echo "- **Main:** synced to upstream"
+          FAILED="${{ steps.rebase_patches.outputs.failed }}"
+          if [ -n "$FAILED" ]; then
+            echo "- ⚠️ **Failed rebases:**$FAILED"
+            echo ""
+            echo "Manual conflict resolution needed for the branches above."
+          else
+            echo "- ✅ **All patch branches rebased successfully**"
+          fi
