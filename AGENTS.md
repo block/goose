@@ -110,6 +110,7 @@ remaining space for dynamic text.
 - Never: Skip cargo fmt
 - Never: Merge without running clippy
 - Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
+- Never: Overwrite a live binary in place (e.g. `cp`/`fs.copyFileSync` onto an existing executable) - unlink or atomic-rename the destination first, otherwise macOS SIGKILLs running processes with "Code Signature Invalid"
 
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs
