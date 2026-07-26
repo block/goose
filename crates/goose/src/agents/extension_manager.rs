@@ -1436,10 +1436,12 @@ impl ExtensionManager {
     }
 
     async fn invalidate_tools_cache_and_bump_version(&self) {
-        // Clear the cache before bumping the version so observers of the new
-        // version never see the stale cache.
-        *self.tools_cache.lock().await = None;
+        // Bump and clear while holding the cache lock so a concurrent
+        // get_all_tools_cached write-back cannot slip between them and repopulate
+        // the cache with a pre-bump entry (which the version poll can't evict).
+        let mut cache = self.tools_cache.lock().await;
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
+        *cache = None;
     }
 
     /// Monotonic tool-cache version, bumped on every invalidation (add/remove
