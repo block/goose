@@ -48,8 +48,12 @@ export const Header = React.memo(function Header({
   if (full && full.length <= avail) {
     modelLabel = full;
   } else if (modelOnly && avail >= 2) {
+    // Cut on code points, not UTF-16 units: slicing an astral character in half
+    // would leave a lone surrogate that renders as a replacement glyph.
     modelLabel =
-      modelOnly.length <= avail ? modelOnly : modelOnly.slice(0, avail - 1) + "…";
+      modelOnly.length <= avail
+        ? modelOnly
+        : [...modelOnly].slice(0, avail - 1).join("") + "…";
   }
 
   return (
