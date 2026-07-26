@@ -11,6 +11,7 @@ use tracing_futures::Instrument;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
+use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
@@ -644,10 +645,21 @@ impl Agent {
             .as_ref()
             .map(|a| serde_json::Value::Object(a.clone()));
         let category = categorize_tool(&tool_name);
+        let span = tracing::Span::current();
+        let capture_message_content = gen_ai_telemetry::capture_message_content();
 
         let fut = async move {
             let processed_result =
                 super::large_response_handler::process_tool_response(result.result.await);
+            if capture_message_content {
+                let output = gen_ai_telemetry::tool_result_json(&processed_result);
+                span.record("output", output.as_str());
+                if let Some(result) =
+                    gen_ai_telemetry::successful_tool_result_json(&processed_result)
+                {
+                    span.record("gen_ai.tool.call.result", result.as_str());
+                }
+            }
             let event = match &processed_result {
                 Ok(call_result) if call_result.is_error != Some(true) => {
                     crate::hooks::HookEvent::PostToolUse
@@ -1098,7 +1110,20 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
+    #[instrument(
+        skip(self, tool_call, request_id, cancellation_token, session),
+        fields(
+            input,
+            output,
+            session.id = %session.id,
+            gen_ai.conversation.id = %session.id,
+            gen_ai.operation.name = "execute_tool",
+            gen_ai.tool.name = %tool_call.name,
+            gen_ai.tool.call.id = %request_id,
+            gen_ai.tool.call.arguments = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        )
+    )]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -1111,6 +1136,17 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        if gen_ai_telemetry::capture_message_content() {
+            let arguments = tool_call
+                .arguments
+                .as_ref()
+                .map(|arguments| Value::Object(arguments.clone()))
+                .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+            tracing::Span::current().record(
+                "gen_ai.tool.call.arguments",
+                tracing::field::display(arguments),
+            );
+        }
 
         self.prompt_manager
             .lock()
@@ -3610,6 +3646,7 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
     use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
@@ -3620,6 +3657,105 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
+        let data_dir = TempDir::new().unwrap();
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "otel-tool-span".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        (agent, session, data_dir)
+    }
+
+    #[tokio::test]
+    async fn tool_dispatch_records_gen_ai_span_attributes() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::object;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("dispatch_tool_call");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new(PLATFORM_MANAGE_SCHEDULE_TOOL_NAME)
+            .with_arguments(object!({ "action": "list" }));
+
+        let (request_id, result) = agent
+            .dispatch_tool_call(
+                tool_call,
+                "call-42".to_string(),
+                Some(CancellationToken::new()),
+                &session,
+            )
+            .await;
+        assert_eq!(request_id, "call-42");
+        let result = result.unwrap();
+        assert!(result.result.await.is_err());
+
+        let fields = capture.fields();
+        assert_eq!(fields["gen_ai.operation.name"], "execute_tool");
+        assert_eq!(
+            fields["gen_ai.tool.name"],
+            PLATFORM_MANAGE_SCHEDULE_TOOL_NAME
+        );
+        assert_eq!(fields["gen_ai.tool.call.id"], "call-42");
+        assert_eq!(fields["gen_ai.conversation.id"], session.id);
+        let arguments: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.arguments"].as_str().unwrap()).unwrap();
+        assert_eq!(arguments["action"], "list");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "error");
+        assert!(!fields.contains_key("gen_ai.tool.call.result"));
+    }
+
+    #[tokio::test]
+    async fn successful_tool_result_is_recorded_after_execution() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::model::ContentBlock;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("successful_tool");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new("test_tool");
+        let span = tracing::info_span!(
+            "successful_tool",
+            output = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        );
+        let entered = span.enter();
+        let result = agent.with_post_tool_hook(
+            ToolCallResult::from(Ok(CallToolResult::success(vec![ContentBlock::text(
+                "done",
+            )]))),
+            &tool_call,
+            &session,
+        );
+        drop(entered);
+        drop(span);
+
+        assert!(result.result.await.is_ok());
+        let fields = capture.fields();
+        let result: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.result"].as_str().unwrap()).unwrap();
+        assert_eq!(result["content"][0]["text"], "done");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "success");
+    }
 
     #[test]
     fn ensure_message_event_id_assigns_missing_ids_and_preserves_existing_ids() {
