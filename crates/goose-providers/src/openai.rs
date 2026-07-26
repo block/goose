@@ -354,7 +354,7 @@ impl OpenAiProvider {
     /// matched by [`is_openai_responses_model`] (which only recognises
     /// OpenAI's own `o*`/`gpt-5*` model names). These need the unified
     /// [`ThinkingEffort`] mapped onto the request explicitly.
-    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta"];
+    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta", "ollama_cloud"];
 
     /// Maps the unified thinking effort onto Meta's Muse Spark
     /// `reasoning_effort` levels: `low`, `medium`, `high`, `xhigh`.
@@ -368,6 +368,29 @@ impl OpenAiProvider {
             ThinkingEffort::Medium => "medium",
             ThinkingEffort::High => "high",
             ThinkingEffort::Max => "xhigh",
+        }
+    }
+
+    /// Maps the unified thinking effort onto Ollama Cloud's OpenAI-compatible
+    /// `reasoning_effort` levels.
+    ///
+    /// Returns `None` for `Off` so the field is omitted rather than sending
+    /// unsupported `"none"`. Supported values are passed through 1:1.
+    fn ollama_cloud_reasoning_effort(effort: ThinkingEffort) -> Option<&'static str> {
+        match effort {
+            ThinkingEffort::Off => None,
+            ThinkingEffort::Low => Some("low"),
+            ThinkingEffort::Medium => Some("medium"),
+            ThinkingEffort::High => Some("high"),
+            ThinkingEffort::Max => Some("max"),
+        }
+    }
+
+    fn map_reasoning_effort_for_provider(&self, effort: ThinkingEffort) -> Option<&'static str> {
+        match self.name.as_str() {
+            "meta" => Some(Self::meta_reasoning_effort(effort)),
+            "ollama_cloud" => Self::ollama_cloud_reasoning_effort(effort),
+            _ => None,
         }
     }
 
@@ -404,15 +427,27 @@ impl OpenAiProvider {
 
             if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
                 match model_config.thinking_effort() {
-                    Some(effort) => {
-                        obj.insert(
-                            "reasoning_effort".to_string(),
-                            json!(Self::meta_reasoning_effort(effort)),
-                        );
-                    }
-                    None => {
+                    Some(effort) => match self.map_reasoning_effort_for_provider(effort) {
+                        Some(mapped) => {
+                            obj.insert("reasoning_effort".to_string(), json!(mapped));
+                        }
+                        // Ollama does not accept reasoning_effort=none; omit the
+                        // field when the user explicitly selects Off.
+                        None if self.name == "ollama_cloud"
+                            && matches!(effort, ThinkingEffort::Off) =>
+                        {
+                            obj.remove("reasoning_effort");
+                        }
+                        None => {}
+                    },
+                    // Meta has no request_params-based reasoning_effort path and
+                    // always wants an explicit mapped value or omission. Ollama
+                    // Cloud callers may set provider-native reasoning_effort via
+                    // request_params without unified thinking_effort; preserve it.
+                    None if self.name == "meta" => {
                         obj.remove("reasoning_effort");
                     }
+                    None => {}
                 }
             }
         }

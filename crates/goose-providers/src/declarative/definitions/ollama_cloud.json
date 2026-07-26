@@ -9,5 +9,6 @@
   "dynamic_models": true,
   "headers": null,
   "timeout_seconds": null,
-  "supports_streaming": true
+  "supports_streaming": true,
+  "catalog_provider_id": "ollama_cloud"
 }
