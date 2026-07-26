@@ -173,8 +173,8 @@ impl Agent {
         &self,
         session_id: &str,
         working_dir: &std::path::Path,
-    ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
-        let mut tools = self.list_tools(session_id, None).await;
+    ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig, u64)> {
+        let (mut tools, tools_cache_version) = self.list_tools_with_version(session_id, None).await;
 
         #[cfg(feature = "code-mode")]
         let code_execution_active = self
@@ -277,7 +277,13 @@ impl Agent {
             tools = vec![];
         }
 
-        Ok((tools, toolshim_tools, system_prompt, model_config))
+        Ok((
+            tools,
+            toolshim_tools,
+            system_prompt,
+            model_config,
+            tools_cache_version,
+        ))
     }
 
     #[tracing::instrument(
@@ -924,7 +930,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (tools, _toolshim_tools, _system_prompt, _model_config) = agent
+        let (tools, _toolshim_tools, _system_prompt, _model_config, _tools_cache_version) = agent
             .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 
@@ -987,7 +993,7 @@ mod tests {
             )
             .await?;
 
-        let (tools, toolshim_tools, _, _) = agent
+        let (tools, toolshim_tools, _, _, _) = agent
             .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 

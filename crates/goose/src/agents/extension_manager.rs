@@ -187,7 +187,9 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: PlatformExtensionContext,
     provider: SharedProvider,
-    tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
+    // Cached tools paired with the `tools_cache_version` they were built from, so
+    // callers get the tools and their version together and can't drift apart.
+    tools_cache: Mutex<Option<(u64, Arc<Vec<Tool>>)>>,
     tools_cache_version: AtomicU64,
     client_name: String,
     capabilities: ExtensionManagerCapabilities,
@@ -1292,14 +1294,30 @@ impl ExtensionManager {
             .collect()
     }
 
+    /// Get all tools from all clients with proper prefixing, together with the
+    /// `tools_cache_version` they were built from.
+    pub async fn get_prefixed_tools_with_version(
+        &self,
+        session_id: &str,
+        extension_name: Option<String>,
+    ) -> ExtensionResult<(Vec<Tool>, u64)> {
+        let (all_tools, version) = self.get_all_tools_cached(session_id).await?;
+        Ok((
+            self.filter_tools(&all_tools, extension_name.as_deref(), None),
+            version,
+        ))
+    }
+
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(
         &self,
         session_id: &str,
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
-        let all_tools = self.get_all_tools_cached(session_id).await?;
-        Ok(self.filter_tools(&all_tools, extension_name.as_deref(), None))
+        Ok(self
+            .get_prefixed_tools_with_version(session_id, extension_name)
+            .await?
+            .0)
     }
 
     pub async fn get_prefixed_tools_excluding(
@@ -1307,7 +1325,7 @@ impl ExtensionManager {
         session_id: &str,
         exclude: &str,
     ) -> ExtensionResult<Vec<Tool>> {
-        let all_tools = self.get_all_tools_cached(session_id).await?;
+        let (all_tools, _version) = self.get_all_tools_cached(session_id).await?;
         Ok(self.filter_tools(&all_tools, None, Some(exclude)))
     }
 
@@ -1343,11 +1361,18 @@ impl ExtensionManager {
             .collect()
     }
 
-    async fn get_all_tools_cached(&self, session_id: &str) -> ExtensionResult<Arc<Vec<Tool>>> {
+    /// Returns the cached tools together with the `tools_cache_version` they were
+    /// built from. Returning the two together (rather than letting the caller read
+    /// the version separately) is what keeps a consumer's version baseline from
+    /// drifting ahead of the tools it actually holds.
+    async fn get_all_tools_cached(
+        &self,
+        session_id: &str,
+    ) -> ExtensionResult<(Arc<Vec<Tool>>, u64)> {
         {
             let cache = self.tools_cache.lock().await;
-            if let Some(ref tools) = *cache {
-                return Ok(Arc::clone(tools));
+            if let Some((version, tools)) = &*cache {
+                return Ok((Arc::clone(tools), *version));
             }
         }
 
@@ -1358,11 +1383,14 @@ impl ExtensionManager {
             let mut cache = self.tools_cache.lock().await;
             let version_after = self.tools_cache_version.load(Ordering::SeqCst);
             if version_after == version_before && cache.is_none() {
-                *cache = Some(Arc::clone(&tools));
+                *cache = Some((version_before, Arc::clone(&tools)));
             }
         }
 
-        Ok(tools)
+        // The fetched tools reflect `version_before`; if a bump raced during the
+        // fetch, returning the older version (not the live counter) ensures a
+        // polling consumer still sees a difference and re-lists.
+        Ok((tools, version_before))
     }
 
     fn host_supports_mcp_apps(&self) -> bool {
@@ -1730,7 +1758,7 @@ impl ExtensionManager {
         session_id: &str,
         tool_name: &str,
     ) -> Result<ResolvedTool, ErrorData> {
-        let tools = self.get_all_tools_cached(session_id).await.map_err(|e| {
+        let (tools, _version) = self.get_all_tools_cached(session_id).await.map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!("Failed to get tools: {}", e),
@@ -2724,6 +2752,75 @@ mod tests {
             names.iter().any(|n| n.starts_with("growing__second")),
             "invalidation should surface the newly published tool"
         );
+    }
+
+    #[tokio::test]
+    async fn test_get_all_tools_cached_returns_paired_version() {
+        // Contract that prevents the version/tools skew class: get_all_tools_cached
+        // returns the tools together with the version they were built from, so a
+        // consumer's baseline can never drift ahead of the tools it holds.
+        struct StaticMockClient;
+
+        #[async_trait::async_trait]
+        impl McpClientTrait for StaticMockClient {
+            fn get_info(&self) -> Option<&InitializeResult> {
+                None
+            }
+
+            async fn list_tools(
+                &self,
+                _session_id: &str,
+                _next_cursor: Option<String>,
+                _cancellation_token: CancellationToken,
+            ) -> Result<ListToolsResult, Error> {
+                use serde_json::json;
+                let schema = Arc::new(json!({}).as_object().unwrap().clone());
+                Ok(ListToolsResult {
+                    tools: vec![Tool::new(
+                        "only".to_string(),
+                        "only tool".to_string(),
+                        schema,
+                    )],
+                    next_cursor: None,
+                    meta: None,
+                })
+            }
+
+            async fn call_tool(
+                &self,
+                _ctx: &ToolCallContext,
+                _name: &str,
+                _arguments: Option<JsonObject>,
+                _cancellation_token: CancellationToken,
+            ) -> Result<CallToolResult, Error> {
+                Ok(CallToolResult::success(vec![]))
+            }
+        }
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = Arc::new(ExtensionManager::new_without_provider(
+            temp_dir.path().to_path_buf(),
+        ));
+        em.add_mock_extension("ext".to_string(), Arc::new(StaticMockClient))
+            .await;
+
+        // First fetch returns the tools paired with the version they were built from.
+        let (_tools, v_first) = em.get_all_tools_cached("s").await.unwrap();
+        // A cache hit returns the SAME version with the same tools.
+        let (_tools, v_hit) = em.get_all_tools_cached("s").await.unwrap();
+        assert_eq!(
+            v_first, v_hit,
+            "cache hit must report the cached tools' version"
+        );
+
+        // Invalidation advances the counter; the next fetch reports the new version.
+        ToolCacheInvalidator::invalidate_tools(em.as_ref()).await;
+        let (_tools, v_after) = em.get_all_tools_cached("s").await.unwrap();
+        assert!(
+            v_after > v_first,
+            "after invalidation the re-listed tools must report a newer version"
+        );
+        assert_eq!(v_after, em.tools_cache_version());
     }
 
     #[tokio::test]

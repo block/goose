@@ -144,6 +144,8 @@ pub struct ReplyContext {
     pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
     pub model_config: goose_providers::model::ModelConfig,
+    /// The `tools_cache_version` the `tools` above were built from.
+    pub tools_cache_version: u64,
 }
 
 pub struct ToolCategorizeResult {
@@ -762,7 +764,7 @@ impl Agent {
         }
         let initial_messages = conversation.messages().clone();
 
-        let (tools, toolshim_tools, system_prompt, model_config) = self
+        let (tools, toolshim_tools, system_prompt, model_config, tools_cache_version) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
@@ -795,6 +797,7 @@ impl Agent {
             tool_call_cut_off,
             initial_messages,
             model_config,
+            tools_cache_version,
         })
     }
 
@@ -1461,9 +1464,22 @@ impl Agent {
     }
 
     pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
-        let mut prefixed_tools = self
+        self.list_tools_with_version(session_id, extension_name)
+            .await
+            .0
+    }
+
+    /// Like `list_tools`, but also returns the `tools_cache_version` the MCP tools
+    /// were built from. Callers that keep a version baseline (the reply loop) use
+    /// this so the baseline and the tools it is paired with can't drift apart.
+    pub async fn list_tools_with_version(
+        &self,
+        session_id: &str,
+        extension_name: Option<String>,
+    ) -> (Vec<Tool>, u64) {
+        let (mut prefixed_tools, tools_cache_version) = self
             .extension_manager
-            .get_prefixed_tools(session_id, extension_name.clone())
+            .get_prefixed_tools_with_version(session_id, extension_name.clone())
             .await
             .unwrap_or_default();
 
@@ -1484,7 +1500,7 @@ impl Agent {
             }
         }
 
-        prefixed_tools
+        (prefixed_tools, tools_cache_version)
     }
 
     pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
@@ -1872,14 +1888,13 @@ impl Agent {
             goose_mode,
             initial_messages,
             model_config,
+            // The version the `tools` above were built from. The loop compares the
+            // live counter against this and re-lists when they differ, so a
+            // `notifications/tools/list_changed` mid-reply reaches the model on the
+            // next iteration of the *same* reply. It travels with the tools (rather
+            // than being read separately) so the baseline can't drift ahead of them.
+            mut tools_cache_version,
         } = context;
-
-        // Snapshot of the tool-cache version that `tools` above was built from.
-        // If a server emits `notifications/tools/list_changed` mid-reply, the
-        // ExtensionManager cache is invalidated and this counter bumps; the reply
-        // loop polls it below to re-list tools so the change reaches the model on
-        // the next iteration of the *same* reply, not only on the next one.
-        let mut tools_cache_version = self.extension_manager.tools_cache_version();
 
         system_prompt = self.with_project_addendum(&session, system_prompt).await;
 
@@ -2054,10 +2069,10 @@ impl Agent {
                 // detached task, so a change whose handler has not run yet is caught
                 // on a later iteration — the cache invalidation guarantees it is never
                 // lost, only possibly deferred by a turn.
-                let current_tools_cache_version = self.extension_manager.tools_cache_version();
-                if current_tools_cache_version != tools_cache_version {
-                    tools_cache_version = current_tools_cache_version;
-                    (tools, toolshim_tools, system_prompt, _) = self
+                if self.extension_manager.tools_cache_version() != tools_cache_version {
+                    // Re-list; the returned version is the one the new `tools` were
+                    // built from, so the baseline stays paired with the tools.
+                    (tools, toolshim_tools, system_prompt, _, tools_cache_version) = self
                         .prepare_tools_and_prompt(&session_config.id, &session.working_dir)
                         .await?;
                     system_prompt = self.with_project_addendum(&session, system_prompt).await;
@@ -2691,7 +2706,7 @@ impl Agent {
                 can_drain_pending_steers = true;
 
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt, _) =
+                    (tools, toolshim_tools, system_prompt, _, tools_cache_version) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                     // prepare_tools_and_prompt rebuilds system_prompt without the
                     // project addendum; re-append it so project instructions survive
@@ -2706,7 +2721,7 @@ impl Agent {
                         .await
                         .load_subdirectory_hints(&working_dir);
                     if has_new_hints && !tools_updated {
-                        (tools, toolshim_tools, system_prompt, _) =
+                        (tools, toolshim_tools, system_prompt, _, tools_cache_version) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                         system_prompt =
                             self.with_project_addendum(&session, system_prompt).await;
