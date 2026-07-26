@@ -158,13 +158,13 @@ impl GatewayHandler {
                 }
             }
             PairingState::Paired { session_id, .. } => {
-                if let Some(pending) = self
+                if self
                     .pending_confirmations
                     .lock()
                     .await
-                    .remove(&message.user)
+                    .contains_key(&message.user)
                 {
-                    self.handle_pending_confirmation(&message, pending).await?;
+                    self.handle_pending_confirmation(&message).await?;
                 } else {
                     let turn_lock = {
                         let mut locks = self.turn_locks.lock().await;
@@ -187,12 +187,7 @@ impl GatewayHandler {
         Ok(())
     }
 
-    /// Handle a user reply to a pending tool-confirmation prompt.
-    async fn handle_pending_confirmation(
-        &self,
-        message: &IncomingMessage,
-        pending: PendingConfirmation,
-    ) -> anyhow::Result<()> {
+    async fn handle_pending_confirmation(&self, message: &IncomingMessage) -> anyhow::Result<()> {
         let text = message.text.trim().to_lowercase();
         let permission = match text.as_str() {
             "approve" | "yes" | "y" => Some(Permission::AllowOnce),
@@ -203,10 +198,6 @@ impl GatewayHandler {
         };
 
         let Some(permission) = permission else {
-            self.pending_confirmations
-                .lock()
-                .await
-                .insert(message.user.clone(), pending);
             self.gateway
                 .send_message(
                     &message.user,
@@ -216,6 +207,15 @@ impl GatewayHandler {
                     },
                 )
                 .await?;
+            return Ok(());
+        };
+
+        let Some(pending) = self
+            .pending_confirmations
+            .lock()
+            .await
+            .remove(&message.user)
+        else {
             return Ok(());
         };
 
