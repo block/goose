@@ -74,6 +74,22 @@ impl GatewayHandler {
         }
     }
 
+    pub async fn deny_pending_confirmations(&self) {
+        let pending: Vec<_> = self.pending_confirmations.lock().await.drain().collect();
+        for (_, confirmation) in pending {
+            confirmation
+                .agent
+                .handle_confirmation(
+                    confirmation.request_id,
+                    PermissionConfirmation {
+                        principal_type: PrincipalType::Tool,
+                        permission: Permission::DenyOnce,
+                    },
+                )
+                .await;
+        }
+    }
+
     async fn prune_turn_lock(&self, user: &PlatformUser) {
         let mut locks = self.turn_locks.lock().await;
         let in_use = locks
@@ -604,6 +620,14 @@ impl GatewayHandler {
                                              • deny always — always deny",
                                         );
 
+                                        self.pending_confirmations.lock().await.insert(
+                                            message.user.clone(),
+                                            PendingConfirmation {
+                                                agent: agent.clone(),
+                                                request_id: id.clone(),
+                                            },
+                                        );
+
                                         let send_result = self
                                             .gateway
                                             .send_message(
@@ -620,6 +644,10 @@ impl GatewayHandler {
                                                 error = %e,
                                                 "failed to deliver tool approval prompt; denying tool call"
                                             );
+                                            self.pending_confirmations
+                                                .lock()
+                                                .await
+                                                .remove(&message.user);
                                             agent
                                                 .handle_confirmation(
                                                     id.clone(),
@@ -631,13 +659,6 @@ impl GatewayHandler {
                                                 .await;
                                         } else {
                                             sent_any = true;
-                                            self.pending_confirmations.lock().await.insert(
-                                                message.user.clone(),
-                                                PendingConfirmation {
-                                                    agent: agent.clone(),
-                                                    request_id: id.clone(),
-                                                },
-                                            );
                                         }
                                     }
                                 }
