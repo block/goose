@@ -6,6 +6,7 @@ mod last_message_snippet;
 mod legacy;
 #[cfg(feature = "nostr")]
 pub mod nostr_share;
+pub mod pr_status;
 pub mod session_manager;
 mod session_naming;
 

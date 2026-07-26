@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "आप"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "सत्र संग्रहीत करें"
+  },
   "sessions.action.delete": {
     "defaultMessage": "सत्र हटाएँ"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "एन्क्रिप्टेड नोस्ट्र शेयर लिंक"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "सत्र \"{name}\" संग्रहीत करने में विफल: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "सत्र \"{name}\" संग्रहीत किया गया"
   },
   "sessions.toast.copied": {
     "defaultMessage": "क्लिपबोर्ड पर कॉपी किया गया"

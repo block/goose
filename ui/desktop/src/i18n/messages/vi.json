@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "Bạn"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Lưu trữ phiên"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Liên kết chia sẻ Nostr được mã hóa"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Không thể lưu trữ phiên làm việc \"{name}\": {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Đã lưu trữ phiên làm việc \"{name}\""
   },
   "sessions.toast.copied": {
     "defaultMessage": "Đã sao chép vào bộ nhớ tạm"

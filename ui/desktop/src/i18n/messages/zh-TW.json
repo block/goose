@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "您"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "封存工作階段"
+  },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "加密的 Nostr 分享連結"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "無法封存工作階段「{name}」：{error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "工作階段「{name}」已封存"
   },
   "sessions.toast.copied": {
     "defaultMessage": "已複製到剪貼簿"

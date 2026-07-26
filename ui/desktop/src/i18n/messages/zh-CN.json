@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "你"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "归档会话"
+  },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "加密的 Nostr 分享链接"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "归档会话“{name}”失败：{error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "会话“{name}”已归档"
   },
   "sessions.toast.copied": {
     "defaultMessage": "已复制到剪贴板"

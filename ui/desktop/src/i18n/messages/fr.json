@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "Vous"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "Archiver la session"
+  },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "Lien de partage Nostr chiffré"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "Échec de l'archivage de la session « {name} » : {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "Session « {name} » archivée"
   },
   "sessions.toast.copied": {
     "defaultMessage": "Copié dans le presse-papiers"

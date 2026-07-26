@@ -699,6 +699,14 @@ impl GooseAcpAgent {
         self.on_unarchive_session(req).await
     }
 
+    #[custom_method(SetSessionStatusRequest)]
+    async fn dispatch_set_session_status(
+        &self,
+        req: SetSessionStatusRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_set_session_status(req).await
+    }
+
     #[custom_method(CreateSourceRequest)]
     async fn dispatch_create_source(
         &self,

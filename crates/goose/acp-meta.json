@@ -421,6 +421,11 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/session/set-status",
+      "requestType": "SetSessionStatusRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/sources/create",
       "requestType": "CreateSourceRequest_unstable",
       "responseType": "CreateSourceResponse_unstable"

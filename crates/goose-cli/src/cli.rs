@@ -28,7 +28,10 @@ use crate::commands::schedule::{
     handle_schedule_run_now, handle_schedule_services_status, handle_schedule_services_stop,
     handle_schedule_sessions,
 };
-use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::session::{
+    handle_session_archive, handle_session_infer_status, handle_session_list,
+    handle_session_remove, handle_session_unarchive,
+};
 use crate::commands::skills::handle_skills_list;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
@@ -485,7 +488,7 @@ async fn lookup_session_id(identifier: Identifier) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let sessions = session_manager.list_sessions().await?;
+        let sessions = session_manager.list_sessions_including_archived().await?;
         sessions
             .into_iter()
             .find(|s| s.name == name || s.id == name)
@@ -537,6 +540,9 @@ enum SessionCommand {
 
         #[arg(short = 'l', long = "limit", help = "Limit the number of results")]
         limit: Option<usize>,
+
+        #[arg(long = "archived", help = "Include archived sessions")]
+        archived: bool,
     },
     #[command(about = "Remove sessions. Runs interactively if no ID, name, or regex is provided.")]
     Remove {
@@ -548,6 +554,29 @@ enum SessionCommand {
             help = "Regex for removing matched sessions (optional)"
         )]
         regex: Option<String>,
+    },
+    #[command(about = "Archive a session, optionally marking it completed or superseded")]
+    Archive {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
+        #[arg(
+            long,
+            default_value = "archived",
+            help = "Status to set: archived, completed, superseded, pending, or rejected"
+        )]
+        status: String,
+    },
+    #[command(about = "Unarchive a session (mark it active again)")]
+    Unarchive {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
+    },
+    #[command(
+        about = "Infer session status from GitHub PRs referenced in the conversation. Without arguments, checks all active and pending sessions"
+    )]
+    InferStatus {
+        #[command(flatten)]
+        identifier: Option<Identifier>,
     },
     #[command(about = "Export a session")]
     Export {
@@ -1531,8 +1560,9 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             ascending,
             working_dir,
             limit,
+            archived,
         } => {
-            handle_session_list(format, ascending, working_dir, limit).await?;
+            handle_session_list(format, ascending, working_dir, limit, archived).await?;
         }
         SessionCommand::Remove { identifier, regex } => {
             let (session_id, name) = if let Some(id) = identifier {
@@ -1541,6 +1571,21 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 (None, None)
             };
             handle_session_remove(session_id, name, regex).await?;
+        }
+        SessionCommand::Archive { identifier, status } => {
+            let (session_id, name, path) =
+                identifier.map_or((None, None, None), |id| (id.session_id, id.name, id.path));
+            handle_session_archive(session_id, name, path, &status).await?;
+        }
+        SessionCommand::Unarchive { identifier } => {
+            let (session_id, name, path) =
+                identifier.map_or((None, None, None), |id| (id.session_id, id.name, id.path));
+            handle_session_unarchive(session_id, name, path).await?;
+        }
+        SessionCommand::InferStatus { identifier } => {
+            let (session_id, name, path) =
+                identifier.map_or((None, None, None), |id| (id.session_id, id.name, id.path));
+            handle_session_infer_status(session_id, name, path).await?;
         }
         SessionCommand::Export {
             identifier,
@@ -1839,7 +1884,9 @@ fn parse_run_input(
             Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            eprintln!(
+                "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+            );
             std::process::exit(1);
         }
     }

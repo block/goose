@@ -17,6 +17,7 @@ interface GooseSessionInfoMeta {
   createdAt?: string;
   lastMessageAt?: string;
   archivedAt?: string;
+  status?: string;
   projectId?: string;
   providerId?: string;
   modelId?: string;
@@ -35,6 +36,7 @@ export interface SessionListItem {
   lastMessageAt?: string;
   createdAt: string;
   archivedAt?: string;
+  status?: string;
   projectId?: string;
   providerId?: string;
   modelId?: string;
@@ -123,6 +125,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     lastMessageAt: meta.lastMessageAt,
     createdAt: meta.createdAt ?? s.updatedAt ?? '',
     archivedAt: meta.archivedAt,
+    status: meta.status,
     projectId: meta.projectId,
     providerId: meta.providerId,
     modelId: meta.modelId,
@@ -256,6 +259,11 @@ export async function acpNewSession(
 export async function acpDeleteSession(sessionId: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionDelete({ sessionId });
+}
+
+export async function acpSetSessionStatus(sessionId: string, status: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionSetStatus_unstable({ sessionId, status });
 }
 
 export async function acpCloseSession(sessionId: string): Promise<void> {

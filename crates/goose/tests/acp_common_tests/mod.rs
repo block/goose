@@ -90,6 +90,10 @@ pub async fn run_list_sessions<C: Connection>() {
         serde_json::Value::String("acp".to_string()),
     );
     expected_meta.insert("hasRecipe".to_string(), serde_json::Value::Bool(false));
+    expected_meta.insert(
+        "status".to_string(),
+        serde_json::Value::String("active".to_string()),
+    );
     assert_eq!(
         response,
         ListSessionsResponse::new(vec![SessionInfo::new(

@@ -4846,6 +4846,24 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/unarchive"
     },
+    "SetSessionStatusRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "status"
+      ],
+      "description": "Set the lifecycle status of a session (active, archived, completed, superseded, pending, rejected).",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/set-status"
+    },
     "CreateSourceRequest_unstable": {
       "type": "object",
       "properties": {
@@ -7637,6 +7655,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/unarchive",
                   "title": "UnarchiveSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetSessionStatusRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/set-status",
+                  "title": "SetSessionStatusRequest_unstable"
                 },
                 {
                   "allOf": [

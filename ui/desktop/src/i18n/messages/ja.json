@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "あなた"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "セッションをアーカイブ"
+  },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "暗号化Nostr共有リンク"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "セッション「{name}」をアーカイブできませんでした: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "セッション「{name}」をアーカイブしました"
   },
   "sessions.toast.copied": {
     "defaultMessage": "クリップボードにコピーしました"

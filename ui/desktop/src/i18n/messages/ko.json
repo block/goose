@@ -3755,6 +3755,9 @@
   "sessionViewComponents.role.user": {
     "defaultMessage": "나"
   },
+  "sessions.action.archive": {
+    "defaultMessage": "세션 보관"
+  },
   "sessions.action.delete": {
     "defaultMessage": "세션 삭제"
   },
@@ -3850,6 +3853,12 @@
   },
   "sessions.shareNostr.title": {
     "defaultMessage": "암호화된 Nostr 공유 링크"
+  },
+  "sessions.toast.archiveFailed": {
+    "defaultMessage": "세션 \"{name}\" 보관 실패: {error}"
+  },
+  "sessions.toast.archived": {
+    "defaultMessage": "세션 \"{name}\"이(가) 보관되었습니다."
   },
   "sessions.toast.copied": {
     "defaultMessage": "클립보드에 복사됨"

@@ -758,6 +758,15 @@ pub struct UnarchiveSessionRequest {
     pub session_id: String,
 }
 
+/// Set the lifecycle status of a session (active, archived, completed, superseded, pending, rejected).
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/session/set-status", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionStatusRequest {
+    pub session_id: String,
+    pub status: String,
+}
+
 /// Export a session as a JSON string.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/export", response = ExportSessionResponse)]

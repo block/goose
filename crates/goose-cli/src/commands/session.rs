@@ -105,7 +105,7 @@ pub async fn handle_session_remove(
             Err(_) => return Err(anyhow::anyhow!("Session ID '{}' not found.", id_val)),
         }
     } else if let Some(name_val) = name {
-        let all_sessions = session_manager.list_all_sessions().await?;
+        let all_sessions = session_manager.list_sessions_including_archived().await?;
         if let Some(session) = all_sessions.into_iter().find(|s| s.name == name_val) {
             matched_sessions = vec![session];
         } else {
@@ -118,8 +118,8 @@ pub async fn handle_session_remove(
         let session_regex = Regex::new(&regex_val)
             .with_context(|| format!("Invalid regex pattern '{}'", regex_val))?;
 
-        let visible_sessions = session_manager.list_sessions().await?;
-        matched_sessions = visible_sessions
+        let all_sessions = session_manager.list_sessions_including_archived().await?;
+        matched_sessions = all_sessions
             .into_iter()
             .filter(|session| session_regex.is_match(&session.id))
             .collect();
@@ -160,9 +160,14 @@ pub async fn handle_session_list(
     ascending: bool,
     working_dir: Option<PathBuf>,
     limit: Option<usize>,
+    archived: bool,
 ) -> Result<()> {
     let session_manager = SessionManager::instance();
-    let mut sessions = session_manager.list_sessions().await?;
+    let mut sessions = if archived {
+        session_manager.list_sessions_including_archived().await?
+    } else {
+        session_manager.list_sessions().await?
+    };
 
     if let Some(ref pat) = working_dir {
         let pat_lower = pat.to_string_lossy().to_lowercase();
@@ -207,10 +212,15 @@ pub async fn handle_session_list(
             }
 
             for session in sessions {
+                let status_tag = match session.status {
+                    goose::session::session_manager::SessionStatus::Active => String::new(),
+                    ref s => format!(" [{}]", s),
+                };
                 let output = format!(
-                    "{} - {} - {} - {}",
+                    "{} - {}{} - {} - {}",
                     session.id,
                     session.name,
+                    status_tag,
                     session_activity_at(&session),
                     display_path_with_tilde(&session.working_dir)
                 );
@@ -486,6 +496,180 @@ pub async fn prompt_interactive_session_selection(
     } else {
         Err(anyhow::anyhow!("Invalid selection"))
     }
+}
+
+pub async fn handle_session_archive(
+    session_id: Option<String>,
+    name: Option<String>,
+    path: Option<PathBuf>,
+    status: &str,
+) -> Result<()> {
+    use goose::session::session_manager::SessionStatus;
+    let status: SessionStatus = status.parse().map_err(|_| {
+        anyhow::anyhow!(
+            "Invalid status '{status}' (expected archived, completed, superseded, pending, or rejected)"
+        )
+    })?;
+    if status == SessionStatus::Active {
+        return Err(anyhow::anyhow!(
+            "Use 'goose session unarchive' to mark a session active"
+        ));
+    }
+    let id = resolve_session_id(session_id, name, path, Some(true)).await?;
+    SessionManager::instance()
+        .set_session_status(&id, status)
+        .await?;
+    println!("Session {id} marked as {status}");
+    Ok(())
+}
+
+pub async fn handle_session_infer_status(
+    session_id: Option<String>,
+    name: Option<String>,
+    path: Option<PathBuf>,
+) -> Result<()> {
+    use goose::session::pr_status::{find_conversation_pr_refs, status_from_github_pr_state};
+    use goose::session::session_manager::SessionStatus;
+
+    let session_manager = SessionManager::instance();
+    let sessions = if session_id.is_some() || name.is_some() || path.is_some() {
+        let id = resolve_session_id(session_id, name, path, None).await?;
+        vec![session_manager.get_session(&id, false).await?]
+    } else {
+        session_manager
+            .list_sessions_including_archived()
+            .await?
+            .into_iter()
+            .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Pending))
+            .collect()
+    };
+
+    let mut checked = 0usize;
+    let mut updated = 0usize;
+    for session in sessions {
+        let full = session_manager.get_session(&session.id, true).await?;
+        let Some(conversation) = full.conversation.as_ref() else {
+            continue;
+        };
+        let Some(pr) = find_conversation_pr_refs(conversation).last().cloned() else {
+            continue;
+        };
+        checked += 1;
+        let output = std::process::Command::new("gh")
+            .args([
+                "pr",
+                "view",
+                &pr.number.to_string(),
+                "--repo",
+                &pr.repo_slug(),
+                "--json",
+                "state",
+                "--jq",
+                ".state",
+            ])
+            .output();
+        let state = match output {
+            Ok(out) if out.status.success() => {
+                String::from_utf8_lossy(&out.stdout).trim().to_string()
+            }
+            Ok(out) => {
+                eprintln!(
+                    "Session {}: could not read PR {} state: {}",
+                    session.id,
+                    pr.repo_slug(),
+                    String::from_utf8_lossy(&out.stderr).trim()
+                );
+                continue;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(anyhow::anyhow!(
+                    "GitHub CLI 'gh' not found; install it to infer session status from PRs"
+                ));
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let Some(status) = status_from_github_pr_state(&state) else {
+            continue;
+        };
+        if status == session.status {
+            println!(
+                "Session {} ({}) unchanged: {status}",
+                session.id, session.name
+            );
+            continue;
+        }
+        session_manager
+            .set_session_status(&session.id, status)
+            .await?;
+        updated += 1;
+        println!(
+            "Session {} ({}): {} -> {status} ({}#{})",
+            session.id,
+            session.name,
+            session.status,
+            pr.repo_slug(),
+            pr.number
+        );
+    }
+    println!("Inferred status for {checked} session(s) with PRs, {updated} updated");
+    Ok(())
+}
+
+pub async fn handle_session_unarchive(
+    session_id: Option<String>,
+    name: Option<String>,
+    path: Option<PathBuf>,
+) -> Result<()> {
+    use goose::session::session_manager::SessionStatus;
+    let id = resolve_session_id(session_id, name, path, Some(false)).await?;
+    SessionManager::instance()
+        .set_session_status(&id, SessionStatus::Active)
+        .await?;
+    println!("Session {id} unarchived");
+    Ok(())
+}
+
+async fn resolve_session_id(
+    session_id: Option<String>,
+    name: Option<String>,
+    path: Option<PathBuf>,
+    active_only: Option<bool>,
+) -> Result<String> {
+    use goose::session::session_manager::SessionStatus;
+    let session_manager = SessionManager::instance();
+    if let Some(id) = session_id {
+        session_manager.get_session(&id, false).await?;
+        return Ok(id);
+    }
+    if let Some(path) = path {
+        let id = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {path:?}"))?;
+        session_manager.get_session(&id, false).await?;
+        return Ok(id);
+    }
+    if let Some(name) = name {
+        let sessions = session_manager.list_sessions_including_archived().await?;
+        let filtered = match active_only {
+            Some(true) => sessions
+                .into_iter()
+                .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Pending))
+                .collect::<Vec<_>>(),
+            Some(false) => sessions
+                .into_iter()
+                .filter(|s| !matches!(s.status, SessionStatus::Active | SessionStatus::Pending))
+                .collect::<Vec<_>>(),
+            None => sessions,
+        };
+        return filtered
+            .into_iter()
+            .find(|s| s.name == name)
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("Session with name '{name}' not found."));
+    }
+    Err(anyhow::anyhow!("Provide a session ID, --name, or --path"))
 }
 
 #[cfg(test)]
