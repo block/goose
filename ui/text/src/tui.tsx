@@ -449,7 +449,9 @@ const SplashScreen = React.memo(function SplashScreen({
 
   // Use original dimensions for outer container to maintain centering
   const safeWidth = Math.max(width, 20);
-  const safeHeight = Math.max(height, 10);
+  // No lower clamp: the caller already subtracted everything below, so anything
+  // we insist on here is a row the root does not have.
+  const safeHeight = Math.max(height, 0);
 
   return (
     <Box
