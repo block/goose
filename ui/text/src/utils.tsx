@@ -13,7 +13,10 @@ export function isErrorStatus(status: string): boolean {
 export function shortenPath(target: string): string {
   const home = os.homedir();
   const sep = path.sep;
-  const normalized = path.normalize(target);
+  // A directory name may legally contain newlines or escape sequences. Left in,
+  // they would break the single-row layout or drive the terminal, so drop them
+  // the way the CLI does for the window title (session/output.rs).
+  const normalized = path.normalize(target).replace(/\p{Cc}/gu, "");
   const withTilde =
     normalized === home
       ? "~"
