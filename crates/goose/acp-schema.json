@@ -1337,6 +1337,7 @@
       "required": [
         "sessionId"
       ],
+      "description": "Break down what would fill the model's context window if the session were\nprompted right now. Answering costs no model call and changes no state.",
       "x-side": "agent",
       "x-method": "_goose/unstable/context/report"
     },
@@ -1348,10 +1349,12 @@
         },
         "estimatedTotalTokens": {
           "type": "integer",
+          "description": "Sum of every segment's `tokenCount`, so a breakdown drawn from\n`segments` adds up to exactly this. Normally equal to `wireTotalTokens`,\nand never below it: whatever per-segment attribution cannot place is\nemitted as a trailing \"Prompt overhead\" segment.",
           "minimum": 0
         },
         "wireTotalTokens": {
           "type": "integer",
+          "description": "Size of the next request (system prompt, conversation and tool specs)\ncounted in one pass, as Goose would send it. Measured with Goose's local\ntokenizer, so it approximates what the provider will bill.",
           "minimum": 0
         },
         "liveTotalTokens": {
@@ -1359,13 +1362,15 @@
             "integer",
             "null"
           ],
+          "description": "Total the provider itself reported for the session's most recent model\nrequest, for the turn only and not accumulated over the session. Absent\nuntil a turn has completed. Describes a past request, so it will not\nmatch `wireTotalTokens` once the conversation has moved on.",
           "minimum": 0
         },
         "segments": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ContextSegment"
-          }
+          },
+          "description": "Non-overlapping slices of the context, roughly in the order they appear\nin the request. Group by `category` rather than relying on position."
         }
       },
       "required": [
@@ -1384,20 +1389,23 @@
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "Absent when the session has no provider recorded yet."
         },
         "modelName": {
           "type": "string"
         },
         "contextLimit": {
           "type": "integer",
+          "description": "Context window size in tokens, taken from the provider when it publishes\none and otherwise from Goose's own model metadata.",
           "minimum": 0
         }
       },
       "required": [
         "modelName",
         "contextLimit"
-      ]
+      ],
+      "description": "The model the report was measured against."
     },
     "ContextSegment": {
       "type": "object",
@@ -1406,33 +1414,39 @@
           "$ref": "#/$defs/ContextCategory"
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "Display name, such as an extension name, a tool owner, or \"User messages\"."
         },
         "source": {
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "Free-form provenance for display: a file path, `extension:<name>`,\n`project:<id>`, a tool count such as `12 tools`, or a flavour marker like\n`structured`. Not a stable identifier - show it, do not parse it."
         },
         "tokenCount": {
           "type": "integer",
+          "description": "Tokens this segment contributes to the request. Segments do not overlap,\nso they add up to `estimatedTotalTokens`.",
           "minimum": 0
         },
         "charCount": {
           "type": "integer",
+          "description": "Characters of the underlying text, useful for spotting content that\ntokenizes badly. Zero for synthetic segments that have no text of their\nown, such as reconciliation overhead.",
           "minimum": 0
         },
         "contentPreview": {
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "Leading slice of the raw content, truncated with a trailing\n`… (+N more chars)` marker. Omitted when `parts` carries the previews."
         },
         "parts": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ContextPart"
-          }
+          },
+          "description": "Finer breakdown: individual tools, hint files, messages or summary\nsections. Empty when the segment has no meaningful sub-items."
         }
       },
       "required": [
@@ -1440,19 +1454,48 @@
         "label",
         "tokenCount",
         "charCount"
-      ]
+      ],
+      "description": "One top-level row of the breakdown."
     },
     "ContextCategory": {
-      "type": "string",
-      "enum": [
-        "system_prompt",
-        "turn_context",
-        "extension_instructions",
-        "additional_instructions",
-        "tool_definitions",
-        "compaction_summary",
-        "messages"
-      ]
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "system_prompt",
+          "description": "The base system prompt, plus the residual row that reconciles the\nper-segment counts with `wireTotalTokens`."
+        },
+        {
+          "type": "string",
+          "const": "turn_context",
+          "description": "The block Goose regenerates each turn (time, working directory, budget\nreminders) together with the instructions that teach the model to read it."
+        },
+        {
+          "type": "string",
+          "const": "extension_instructions",
+          "description": "Instructions contributed by connected extensions."
+        },
+        {
+          "type": "string",
+          "const": "additional_instructions",
+          "description": "Hint files (`AGENTS.md`, `.goosehints`), project instructions and other\nprompt extras appended after the base prompt."
+        },
+        {
+          "type": "string",
+          "const": "tool_definitions",
+          "description": "Tool specs sent alongside the prompt, grouped by the extension that owns\nthem."
+        },
+        {
+          "type": "string",
+          "const": "compaction_summary",
+          "description": "A summary message left in place of conversation that compaction removed."
+        },
+        {
+          "type": "string",
+          "const": "messages",
+          "description": "The conversation itself, grouped by user, assistant, tool call and tool\nresult."
+        }
+      ],
+      "description": "Which part of the request a segment belongs to."
     },
     "ContextPart": {
       "type": "object",
@@ -1464,10 +1507,12 @@
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "Same free-form provenance as a segment's `source`, and usually unset for\nparts that have no source of their own such as tools and messages."
         },
         "tokenCount": {
           "type": "integer",
+          "description": "Marginal cost of this part: how much the segment grows when it is added.\nFraming shared with its siblings is charged to whichever part introduces\nit, so parts add up to (or just under) their segment's totals.",
           "minimum": 0
         },
         "charCount": {
@@ -1485,7 +1530,8 @@
         "label",
         "tokenCount",
         "charCount"
-      ]
+      ],
+      "description": "A sub-item of a segment, measured the same way."
     },
     "ListPromptsRequest_unstable": {
       "type": "object",
@@ -1844,7 +1890,8 @@
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "description": "Cheap model this provider suggests for background work such as\ncompaction and session naming. Absent when it offers no such model."
         },
         "configured": {
           "type": "boolean",

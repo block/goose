@@ -259,6 +259,8 @@ pub struct DiagnosticsGetResponse {
     pub report: serde_json::Value,
 }
 
+/// Break down what would fill the model's context window if the session were
+/// prompted right now. Answering costs no model call and changes no state.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/context/report", response = ContextReportResponse)]
 #[serde(rename_all = "camelCase")]
@@ -270,58 +272,108 @@ pub struct ContextReportRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ContextReportResponse {
     pub model: ContextReportModel,
+    /// Sum of every segment's `tokenCount`, so a breakdown drawn from
+    /// `segments` adds up to exactly this. Normally equal to `wireTotalTokens`,
+    /// and never below it: whatever per-segment attribution cannot place is
+    /// emitted as a trailing "Prompt overhead" segment.
     pub estimated_total_tokens: u64,
+    /// Size of the next request (system prompt, conversation and tool specs)
+    /// counted in one pass, as Goose would send it. Measured with Goose's local
+    /// tokenizer, so it approximates what the provider will bill.
     pub wire_total_tokens: u64,
+    /// Total the provider itself reported for the session's most recent model
+    /// request, for the turn only and not accumulated over the session. Absent
+    /// until a turn has completed. Describes a past request, so it will not
+    /// match `wireTotalTokens` once the conversation has moved on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub live_total_tokens: Option<u64>,
+    /// Non-overlapping slices of the context, roughly in the order they appear
+    /// in the request. Group by `category` rather than relying on position.
     pub segments: Vec<ContextSegment>,
 }
 
+/// The model the report was measured against.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextReportModel {
+    /// Absent when the session has no provider recorded yet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     pub model_name: String,
+    /// Context window size in tokens, taken from the provider when it publishes
+    /// one and otherwise from Goose's own model metadata.
     pub context_limit: u64,
 }
 
+/// One top-level row of the breakdown.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextSegment {
     pub category: ContextCategory,
+    /// Display name, such as an extension name, a tool owner, or "User messages".
     pub label: String,
+    /// Free-form provenance for display: a file path, `extension:<name>`,
+    /// `project:<id>`, a tool count such as `12 tools`, or a flavour marker like
+    /// `structured`. Not a stable identifier - show it, do not parse it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// Tokens this segment contributes to the request. Segments do not overlap,
+    /// so they add up to `estimatedTotalTokens`.
     pub token_count: u64,
+    /// Characters of the underlying text, useful for spotting content that
+    /// tokenizes badly. Zero for synthetic segments that have no text of their
+    /// own, such as reconciliation overhead.
     pub char_count: u64,
+    /// Leading slice of the raw content, truncated with a trailing
+    /// `… (+N more chars)` marker. Omitted when `parts` carries the previews.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_preview: Option<String>,
+    /// Finer breakdown: individual tools, hint files, messages or summary
+    /// sections. Empty when the segment has no meaningful sub-items.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub parts: Vec<ContextPart>,
 }
 
+/// A sub-item of a segment, measured the same way.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextPart {
     pub label: String,
+    /// Same free-form provenance as a segment's `source`, and usually unset for
+    /// parts that have no source of their own such as tools and messages.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// Marginal cost of this part: how much the segment grows when it is added.
+    /// Framing shared with its siblings is charged to whichever part introduces
+    /// it, so parts add up to (or just under) their segment's totals.
     pub token_count: u64,
     pub char_count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_preview: Option<String>,
 }
 
+/// Which part of the request a segment belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextCategory {
+    /// The base system prompt, plus the residual row that reconciles the
+    /// per-segment counts with `wireTotalTokens`.
     SystemPrompt,
+    /// The block Goose regenerates each turn (time, working directory, budget
+    /// reminders) together with the instructions that teach the model to read it.
     TurnContext,
+    /// Instructions contributed by connected extensions.
     ExtensionInstructions,
+    /// Hint files (`AGENTS.md`, `.goosehints`), project instructions and other
+    /// prompt extras appended after the base prompt.
     AdditionalInstructions,
+    /// Tool specs sent alongside the prompt, grouped by the extension that owns
+    /// them.
     ToolDefinitions,
+    /// A summary message left in place of conversation that compaction removed.
     CompactionSummary,
+    /// The conversation itself, grouped by user, assistant, tool call and tool
+    /// result.
     Messages,
 }
 
@@ -1818,6 +1870,8 @@ pub struct ProviderInventoryEntryDto {
     pub description: String,
     /// The default/recommended model for this provider.
     pub default_model: String,
+    /// Cheap model this provider suggests for background work such as
+    /// compaction and session naming. Absent when it offers no such model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
     /// Whether Goose has enough configuration to use this provider.

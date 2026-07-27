@@ -18,7 +18,8 @@ These are the minimum required variables to get started with goose.
 |----------|---------|---------|---------|
 | `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
 | `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
-| `GOOSE_FAST_MODEL` | Overrides the provider's default fast model used for auxiliary calls (tool-selection, classification, session titles) | Model name (e.g., "gpt-4o-mini", "google/gemini-2.5-flash") | Provider-specific default |
+| `GOOSE_FAST_MODEL` | Overrides the provider's default fast model used for auxiliary calls (tool-selection, classification, session titles), and for compaction unless `GOOSE_COMPACTION_MODEL` is set | Model name (e.g., "gpt-4o-mini", "google/gemini-2.5-flash") | Provider-specific default |
+| `GOOSE_COMPACTION_MODEL` | Model that summarizes conversation history when the context window fills up. Takes precedence over `GOOSE_FAST_MODEL` for compaction only | Model name (e.g., "claude-haiku-4-5-20251001") | `GOOSE_FAST_MODEL`, then the provider's default fast model, then the session model |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
 | `GOOSE_MAX_TOKENS` | Sets the maximum number of tokens for each model response (truncates longer responses) | Positive integer (e.g., 4096, 8192) | Model-specific default |
 
@@ -32,6 +33,9 @@ export GOOSE_TEMPERATURE=0.7
 
 # Override the fast model used for auxiliary calls (tool-selection, classification, etc.)
 export GOOSE_FAST_MODEL="gpt-4o-mini"
+
+# Use a different model just for compacting conversation history
+export GOOSE_COMPACTION_MODEL="claude-haiku-4-5-20251001"
 
 # Set a lower limit for shorter interactions
 export GOOSE_MAX_TOKENS=4096

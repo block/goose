@@ -711,39 +711,117 @@ export type DiagnosticsGetResponse_unstable = {
     report: unknown;
 };
 
+/**
+ * Break down what would fill the model's context window if the session were
+ * prompted right now. Answering costs no model call and changes no state.
+ */
 export type ContextReportRequest_unstable = {
     sessionId: string;
 };
 
 export type ContextReportResponse_unstable = {
     model: ContextReportModel;
+    /**
+     * Sum of every segment's `tokenCount`, so a breakdown drawn from
+     * `segments` adds up to exactly this. Normally equal to `wireTotalTokens`,
+     * and never below it: whatever per-segment attribution cannot place is
+     * emitted as a trailing "Prompt overhead" segment.
+     */
     estimatedTotalTokens: number;
+    /**
+     * Size of the next request (system prompt, conversation and tool specs)
+     * counted in one pass, as Goose would send it. Measured with Goose's local
+     * tokenizer, so it approximates what the provider will bill.
+     */
     wireTotalTokens: number;
+    /**
+     * Total the provider itself reported for the session's most recent model
+     * request, for the turn only and not accumulated over the session. Absent
+     * until a turn has completed. Describes a past request, so it will not
+     * match `wireTotalTokens` once the conversation has moved on.
+     */
     liveTotalTokens?: number | null;
+    /**
+     * Non-overlapping slices of the context, roughly in the order they appear
+     * in the request. Group by `category` rather than relying on position.
+     */
     segments: Array<ContextSegment>;
 };
 
+/**
+ * The model the report was measured against.
+ */
 export type ContextReportModel = {
+    /**
+     * Absent when the session has no provider recorded yet.
+     */
     provider?: string | null;
     modelName: string;
+    /**
+     * Context window size in tokens, taken from the provider when it publishes
+     * one and otherwise from Goose's own model metadata.
+     */
     contextLimit: number;
 };
 
+/**
+ * One top-level row of the breakdown.
+ */
 export type ContextSegment = {
     category: ContextCategory;
+    /**
+     * Display name, such as an extension name, a tool owner, or "User messages".
+     */
     label: string;
+    /**
+     * Free-form provenance for display: a file path, `extension:<name>`,
+     * `project:<id>`, a tool count such as `12 tools`, or a flavour marker like
+     * `structured`. Not a stable identifier - show it, do not parse it.
+     */
     source?: string | null;
+    /**
+     * Tokens this segment contributes to the request. Segments do not overlap,
+     * so they add up to `estimatedTotalTokens`.
+     */
     tokenCount: number;
+    /**
+     * Characters of the underlying text, useful for spotting content that
+     * tokenizes badly. Zero for synthetic segments that have no text of their
+     * own, such as reconciliation overhead.
+     */
     charCount: number;
+    /**
+     * Leading slice of the raw content, truncated with a trailing
+     * `… (+N more chars)` marker. Omitted when `parts` carries the previews.
+     */
     contentPreview?: string | null;
+    /**
+     * Finer breakdown: individual tools, hint files, messages or summary
+     * sections. Empty when the segment has no meaningful sub-items.
+     */
     parts?: Array<ContextPart>;
 };
 
+/**
+ * Which part of the request a segment belongs to.
+ */
 export type ContextCategory = 'system_prompt' | 'turn_context' | 'extension_instructions' | 'additional_instructions' | 'tool_definitions' | 'compaction_summary' | 'messages';
 
+/**
+ * A sub-item of a segment, measured the same way.
+ */
 export type ContextPart = {
     label: string;
+    /**
+     * Same free-form provenance as a segment's `source`, and usually unset for
+     * parts that have no source of their own such as tools and messages.
+     */
     source?: string | null;
+    /**
+     * Marginal cost of this part: how much the segment grows when it is added.
+     * Framing shared with its siblings is charged to whichever part introduces
+     * it, so parts add up to (or just under) their segment's totals.
+     */
     tokenCount: number;
     charCount: number;
     contentPreview?: string | null;
@@ -911,6 +989,10 @@ export type ProviderInventoryEntryDto = {
      * The default/recommended model for this provider.
      */
     defaultModel: string;
+    /**
+     * Cheap model this provider suggests for background work such as
+     * compaction and session naming. Absent when it offers no such model.
+     */
     fastModel?: string | null;
     /**
      * Whether Goose has enough configuration to use this provider.

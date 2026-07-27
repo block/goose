@@ -599,10 +599,17 @@ export const zDiagnosticsGetResponse_unstable = z.object({
     report: z.unknown()
 });
 
+/**
+ * Break down what would fill the model's context window if the session were
+ * prompted right now. Answering costs no model call and changes no state.
+ */
 export const zContextReportRequest_unstable = z.object({
     sessionId: z.string()
 });
 
+/**
+ * The model the report was measured against.
+ */
 export const zContextReportModel = z.object({
     provider: z.union([
         z.string(),
@@ -612,16 +619,22 @@ export const zContextReportModel = z.object({
     contextLimit: z.number().int().gte(0)
 });
 
-export const zContextCategory = z.enum([
-    'system_prompt',
-    'turn_context',
-    'extension_instructions',
-    'additional_instructions',
-    'tool_definitions',
-    'compaction_summary',
-    'messages'
+/**
+ * Which part of the request a segment belongs to.
+ */
+export const zContextCategory = z.union([
+    z.literal('system_prompt'),
+    z.literal('turn_context'),
+    z.literal('extension_instructions'),
+    z.literal('additional_instructions'),
+    z.literal('tool_definitions'),
+    z.literal('compaction_summary'),
+    z.literal('messages')
 ]);
 
+/**
+ * A sub-item of a segment, measured the same way.
+ */
 export const zContextPart = z.object({
     label: z.string(),
     source: z.union([
@@ -636,6 +649,9 @@ export const zContextPart = z.object({
     ]).optional()
 });
 
+/**
+ * One top-level row of the breakdown.
+ */
 export const zContextSegment = z.object({
     category: zContextCategory,
     label: z.string(),
