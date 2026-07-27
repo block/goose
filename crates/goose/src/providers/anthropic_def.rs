@@ -39,6 +39,12 @@ async fn from_env(
         .get_param("ANTHROPIC_HOST")
         .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
+    // Only trust the raw /v1/models list (skipping canonical capability filtering) for the
+    // first-party Anthropic endpoint, whose models are all chat/tool-capable. A custom
+    // ANTHROPIC_HOST may front an Anthropic-compatible proxy that also serves non-chat models,
+    // so keep the canonical filter there to avoid surfacing models unusable in agent sessions.
+    let is_first_party_host = host.trim_end_matches('/') == "https://api.anthropic.com";
+
     let auth = AuthMethod::ApiKey {
         header_name: "x-api-key".to_string(),
         key: api_key,
@@ -52,7 +58,7 @@ async fn from_env(
     // rather than filtering through the bundled canonical registry, which lags new releases
     // (e.g. Opus 5) and would silently drop models the key can actually use.
     Ok(AnthropicProviderBuilder::new(api_client)
-        .skip_canonical_filtering(true)
+        .skip_canonical_filtering(is_first_party_host)
         .build())
 }
 
