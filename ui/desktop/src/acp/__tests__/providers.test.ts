@@ -136,5 +136,33 @@ describe('ACP providers', () => {
 
       expect(models).toEqual(inventory);
     });
+
+    it('falls back to the inventory cache when live discovery stalls past the timeout', async () => {
+      vi.useFakeTimers();
+      try {
+        const inventory = [
+          { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', contextLimit: 200000 },
+        ];
+        const client = {
+          goose: {
+            providersList_unstable: vi
+              .fn()
+              .mockResolvedValue({ entries: [{ providerId: 'anthropic', models: inventory }] }),
+            // Never resolves — simulates a provider that accepts the request but hangs.
+            providersSupportedModelsList_unstable: vi.fn().mockReturnValue(new Promise(() => {})),
+          },
+        };
+        vi.mocked(getAcpClient).mockResolvedValue(
+          client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+        );
+
+        const promise = acpListProviderModels('anthropic');
+        await vi.runAllTimersAsync();
+
+        await expect(promise).resolves.toEqual(inventory);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

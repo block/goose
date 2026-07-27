@@ -72,6 +72,28 @@ export async function acpListProviderSupportedModels(providerId: string): Promis
   return models;
 }
 
+// Live discovery spawns/queries the provider, which can stall: Claude Code's control
+// request waits indefinitely for a model_list response and HTTP providers can hang up to
+// their request timeout. Bound it so a single slow provider can't leave the whole picker
+// (RecipeModelSelector awaits every provider via Promise.all) loading forever.
+const LIVE_MODELS_TIMEOUT_MS = 4000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 export async function acpListProviderModels(
   providerId: string
 ): Promise<ProviderInventoryModelDto[]> {
@@ -82,13 +104,19 @@ export async function acpListProviderModels(
   // The inventory cache is canonical-filtered and populated by a background refresh, so it
   // lags new releases and can silently drop models the key/adapter actually has (e.g. Opus 5,
   // or an ACP adapter's advertised aliases). Union in the live supported-models list so the
-  // picker never hides a currently-available model. Live ids lead (freshest ordering); cached
-  // metadata (context limit, reasoning) is grafted on by id where we have it.
+  // picker never hides a currently-available model. Live ids lead, in the order the backend
+  // returns them — each provider owns its own ordering (the Anthropic provider sorts
+  // newest-first); cached metadata (context limit, reasoning) is grafted on by id where we
+  // have it.
   let liveIds: string[];
   try {
-    liveIds = await acpListProviderSupportedModels(providerId);
+    liveIds = await withTimeout(
+      acpListProviderSupportedModels(providerId),
+      LIVE_MODELS_TIMEOUT_MS,
+      `live model discovery for ${providerId}`
+    );
   } catch {
-    // Live discovery is best-effort; fall back to the inventory cache when it's unavailable.
+    // Live discovery is best-effort; fall back to the inventory cache when it's slow or fails.
     return inventory;
   }
 
