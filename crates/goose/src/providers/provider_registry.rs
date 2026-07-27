@@ -66,14 +66,17 @@ impl ProviderEntry {
             model,
         )?;
 
-        if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
-            {
+        if let Some(info) = self
+            .metadata
+            .known_models
+            .iter()
+            .find(|m| m.name.eq_ignore_ascii_case(&model.model_name))
+        {
+            if model.context_limit.is_none() && info.context_limit > 0 {
                 model.context_limit = Some(info.context_limit);
+            }
+            if model.reasoning.is_none() && info.reasoning {
+                model.reasoning = Some(true);
             }
         }
 

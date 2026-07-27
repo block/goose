@@ -480,6 +480,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_custom_provider_reasoning_flag_from_known_models() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+        ]);
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        let custom_dir = Paths::config_dir().join("custom_providers");
+        fs::create_dir_all(&custom_dir).expect("custom providers dir should be created");
+
+        let custom_reasoning = r#"{
+  "name": "custom_reasoning",
+  "engine": "openai",
+  "display_name": "Custom Reasoning",
+  "description": "test provider",
+  "api_key_env": "",
+  "base_url": "https://example.invalid/v1/chat/completions",
+  "models": [
+    {"name": "my-uncatalogued-model", "context_limit": 200000, "reasoning": true}
+  ],
+  "requires_auth": false
+}"#;
+        fs::write(custom_dir.join("custom_reasoning.json"), custom_reasoning)
+            .expect("custom_reasoning.json should be written");
+
+        refresh_custom_providers()
+            .await
+            .expect("custom providers should refresh");
+
+        let entry = get_from_registry("custom_reasoning")
+            .await
+            .expect("custom_reasoning entry should exist");
+        let config = entry
+            .normalize_model_config(ModelConfig::new("my-uncatalogued-model"))
+            .expect("model config should normalize");
+        assert_eq!(
+            config.reasoning,
+            Some(true),
+            "reasoning flag should be propagated from known_models"
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
     async fn test_litellm_supports_inventory_refresh() {
         let entry = get_from_registry("litellm")
             .await
