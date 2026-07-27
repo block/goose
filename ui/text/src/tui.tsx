@@ -401,15 +401,14 @@ const Viewport = React.memo(function Viewport({
     );
   }
 
+  // A tall input can leave nothing for the transcript. Render nothing at all
+  // then — a one-row floor here would re-take the row the caller just gave up.
+  if (height <= 0) return null;
+
   const constrainedWidth = Math.max(width, 10);
-  const constrainedHeight = Math.max(height, 1);
 
   return (
-    <Box
-      flexDirection="column"
-      height={constrainedHeight}
-      width={constrainedWidth}
-    >
+    <Box flexDirection="column" height={height} width={constrainedWidth}>
       {elements}
     </Box>
   );
@@ -432,6 +431,8 @@ const SplashScreen = React.memo(function SplashScreen({
   spinIdx: number;
   cwd: string;
 }) {
+  if (height <= 0) return null;
+
   const frame = GOOSE_FRAMES[animFrame % GOOSE_FRAMES.length]!;
   const statusColor =
     status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
@@ -439,11 +440,27 @@ const SplashScreen = React.memo(function SplashScreen({
   // Shed content as the allotted height shrinks, largest first, so the splash
   // always fits: the goose frame goes before the title, tagline and status, and
   // the cwd only appears once everything else has room.
-  const chromeHeight = 1 + 1 + 1 + 2 + 1; // title (margin + line), tagline, status (margin + line)
+  // Shed rows as the allocation shrinks. The status line goes last: it is the
+  // only one carrying state, everything else is decoration.
+  const STATUS_ROW = 1;
+  const STATUS_MARGIN = 2;
+  const TITLE_ROWS = 2; // margin + line
+  const TAGLINE_ROWS = 1;
+  const CWD_ROWS = 1;
+
+  const statusMargin =
+    height >= STATUS_ROW + STATUS_MARGIN ? STATUS_MARGIN : 0;
+  const statusHeight = STATUS_ROW + statusMargin;
+  const showTitle = height >= statusHeight + TITLE_ROWS;
+  const showTagline = showTitle && height >= statusHeight + TITLE_ROWS + TAGLINE_ROWS;
+  const chromeHeight =
+    statusHeight +
+    (showTitle ? TITLE_ROWS : 0) +
+    (showTagline ? TAGLINE_ROWS : 0);
   const showFrame = height >= chromeHeight + frame.length;
   const baseHeight = chromeHeight + (showFrame ? frame.length : 0);
-  const showCwd = height >= baseHeight + 1;
-  const contentHeight = baseHeight + (showCwd ? 1 : 0);
+  const showCwd = height >= baseHeight + CWD_ROWS;
+  const contentHeight = baseHeight + (showCwd ? CWD_ROWS : 0);
 
   const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
 
@@ -471,20 +488,24 @@ const SplashScreen = React.memo(function SplashScreen({
           ))}
         </Box>
       )}
-      <Box marginTop={1}>
-        <Text color={TEXT_PRIMARY} bold>
-          goose
-        </Text>
-      </Box>
-      <Box alignItems="center">
-        <Text color={TEXT_DIM}>your on-machine AI agent</Text>
-      </Box>
+      {showTitle && (
+        <Box marginTop={1}>
+          <Text color={TEXT_PRIMARY} bold>
+            goose
+          </Text>
+        </Box>
+      )}
+      {showTagline && (
+        <Box alignItems="center">
+          <Text color={TEXT_DIM}>your on-machine AI agent</Text>
+        </Box>
+      )}
       {showCwd && (
         <Box width={Math.min(safeWidth, 60)} justifyContent="center">
           <Text color={TEXT_DIM} wrap="truncate-middle">{cwd}</Text>
         </Box>
       )}
-      <Box marginTop={2} gap={1} alignItems="center">
+      <Box marginTop={statusMargin} gap={1} alignItems="center">
         {loading && <Spinner idx={spinIdx} />}
         <Text color={statusColor}>{status}</Text>
       </Box>
