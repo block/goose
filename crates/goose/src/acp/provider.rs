@@ -152,6 +152,7 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
+    notification_rx: Mutex<Option<mpsc::UnboundedReceiver<serde_json::Value>>>,
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
@@ -245,6 +246,18 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
+        let (notification_tx, notification_rx) = mpsc::unbounded_channel();
+        let nested_notification_tx = notification_tx;
+        let mut config = config;
+        let configured_callback = config.notification_callback.take();
+        config.notification_callback = Some(Arc::new(move |notification| {
+            if let Some(callback) = configured_callback.as_ref() {
+                callback(notification.clone());
+            }
+            if let Ok(value) = serde_json::to_value(notification) {
+                let _ = nested_notification_tx.send(value);
+            }
+        }));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -280,6 +293,7 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
+            notification_rx: Mutex::new(Some(notification_rx)),
             handoff_context_sent: AtomicBool::new(false),
             context_size,
             model_config_option_id,
@@ -411,6 +425,16 @@ fn fresh_text_run() -> (String, i64) {
 impl Provider for AcpProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    fn take_acp_notification_receiver(
+        &self,
+    ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {
+        self.notification_rx
+            .lock()
+            .ok()?
+            .take()
+            .map(|receiver| (self.session.id.0.to_string(), receiver))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -1699,6 +1723,7 @@ mod tests {
                 },
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
+                notification_rx: Mutex::new(None),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,

@@ -3,6 +3,7 @@ use futures::Stream;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
+use tokio::sync::mpsc;
 
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
@@ -396,6 +397,15 @@ pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> Mes
 pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
+
+    /// Take the provider-native ACP notification stream when available.
+    /// A single outer ACP session owns this lossless stream for the provider's
+    /// lifetime, avoiding prompt-boundary duplicate or dropped terminal output.
+    fn take_acp_notification_receiver(
+        &self,
+    ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {
+        None
+    }
 
     /// Primary streaming method that all providers must implement.
     async fn stream(

@@ -170,11 +170,35 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 /// below is keyed by session ID.
 struct GooseAcpSession {
     agent: Arc<Agent>,
+    provider_notification_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
+}
+
+fn is_terminal_provider_notification(
+    notification: &serde_json::Value,
+    provider_session_id: &str,
+) -> bool {
+    if notification
+        .get("sessionId")
+        .and_then(|value| value.as_str())
+        != Some(provider_session_id)
+    {
+        return false;
+    }
+
+    notification
+        .get("update")
+        .and_then(|value| value.get("_meta"))
+        .and_then(|value| value.as_object())
+        .is_some_and(|meta| {
+            meta.contains_key("terminal_output")
+                || meta.contains_key("terminal_output_delta")
+                || meta.contains_key("terminal_exit")
+        })
 }
 
 pub struct GooseAcpAgentOptions {
@@ -904,7 +928,10 @@ impl GooseAcpAgent {
     }
 
     async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
-        let acp_session = GooseAcpSession { agent };
+        let acp_session = GooseAcpSession {
+            agent,
+            provider_notification_task: None,
+        };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
 
@@ -1802,6 +1829,53 @@ impl GooseAcpAgent {
             retry_config: None,
         };
 
+        let needs_provider_notification_task = self
+            .sessions
+            .lock()
+            .await
+            .get(&session_id)
+            .is_some_and(|session| {
+                session
+                    .provider_notification_task
+                    .as_ref()
+                    .is_none_or(tokio::task::JoinHandle::is_finished)
+            });
+        if needs_provider_notification_task {
+            let provider_notifications = agent
+                .provider()
+                .await
+                .ok()
+                .and_then(|provider| provider.take_acp_notification_receiver());
+            if let Some((provider_session_id, mut notifications)) = provider_notifications {
+                let forward_session_id = args.session_id.clone();
+                let forward_cx = cx.clone();
+                let task = tokio::spawn(async move {
+                    while let Some(mut notification) = notifications.recv().await {
+                        if !is_terminal_provider_notification(&notification, &provider_session_id) {
+                            continue;
+                        }
+                        notification["sessionId"] =
+                            serde_json::Value::String(forward_session_id.0.to_string());
+                        match serde_json::from_value::<SessionNotification>(notification) {
+                            Ok(notification) => {
+                                if forward_cx.send_notification(notification).is_err() {
+                                    break;
+                                }
+                            }
+                            Err(error) => warn!(
+                                %error,
+                                session = %forward_session_id.0,
+                                "could not decode ACP provider terminal notification"
+                            ),
+                        }
+                    }
+                });
+                if let Some(session) = self.sessions.lock().await.get_mut(&session_id) {
+                    session.provider_notification_task = Some(task);
+                }
+            }
+        }
+
         let mut stream = match agent
             .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
@@ -2251,7 +2325,11 @@ impl GooseAcpAgent {
         }
 
         let mut sessions = self.sessions.lock().await;
-        sessions.remove(session_id);
+        if let Some(mut session) = sessions.remove(session_id) {
+            if let Some(task) = session.provider_notification_task.take() {
+                task.abort();
+            }
+        }
         drop(sessions);
 
         self.agent_manager
@@ -2355,6 +2433,30 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    #[test]
+    fn terminal_provider_notifications_are_scoped_and_filtered() {
+        let terminal = serde_json::json!({
+            "sessionId": "nested-1",
+            "update": {
+                "sessionUpdate": "tool_call_update",
+                "_meta": {
+                    "terminal_output_delta": {
+                        "terminal_id": "command-1",
+                        "data": "hello"
+                    }
+                }
+            }
+        });
+        assert!(is_terminal_provider_notification(&terminal, "nested-1"));
+        assert!(!is_terminal_provider_notification(&terminal, "nested-2"));
+
+        let ordinary = serde_json::json!({
+            "sessionId": "nested-1",
+            "update": { "sessionUpdate": "agent_message_chunk" }
+        });
+        assert!(!is_terminal_provider_notification(&ordinary, "nested-1"));
+    }
 
     #[test_case(
         McpServer::Stdio(

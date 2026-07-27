@@ -78,7 +78,12 @@ fn create_terminal_request(
     params: &ShellParams,
     ctx: &crate::agents::ToolCallContext,
 ) -> CreateTerminalRequest {
-    CreateTerminalRequest::new(session_id.clone(), &params.command)
+    let script = format!(
+        "{}\n__goose_command_status=$?\nwait\nexit \"$__goose_command_status\"",
+        params.command
+    );
+    CreateTerminalRequest::new(session_id.clone(), "sh")
+        .args(vec!["-c".to_string(), script])
         .env(vec![EnvVariable::new("AGENT_SESSION_ID", &ctx.session_id)])
         .cwd(ctx.working_dir.clone())
         .output_byte_limit(OUTPUT_LIMIT_BYTES as u64)
@@ -90,6 +95,9 @@ fn visible_text(text: impl Into<String>) -> RmcpContent {
     )
 }
 
+fn acp_shell_description() -> &'static str {
+    "Execute a shell command in the current directory through an interactive ACP terminal. For a command the user asks to keep running, run that exact command in the foreground with a suitable timeout_secs; do not append &, use nohup/disown, redirect its output, or replace it with a background wrapper. The user can monitor and interrupt the foreground process in the client."
+}
 fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
     CallToolResult::error(vec![visible_text(msg.to_string())])
 }
@@ -340,15 +348,34 @@ impl AcpTools {
                     false
                 }
                 Err(_) => {
-                    let _ = self
-                        .cx
+                    self.cx
                         .send_request(KillTerminalRequest::new(
                             self.session_id.clone(),
                             terminal_id.clone(),
                         ))
                         .block_task()
                         .await
-                        .inspect_err(|e| tracing::error!("failed to kill terminal: {e:?}"));
+                        .map_err(|e| {
+                            McpError::McpError(rmcp::model::ErrorData::new(
+                                rmcp::model::ErrorCode::INTERNAL_ERROR,
+                                format!("failed to kill terminal: {e:?}"),
+                                None,
+                            ))
+                        })?;
+                    self.cx
+                        .send_request(WaitForTerminalExitRequest::new(
+                            self.session_id.clone(),
+                            terminal_id.clone(),
+                        ))
+                        .block_task()
+                        .await
+                        .map_err(|e| {
+                            McpError::McpError(rmcp::model::ErrorData::new(
+                                rmcp::model::ErrorCode::INTERNAL_ERROR,
+                                format!("failed to wait for killed terminal exit: {e:?}"),
+                                None,
+                            ))
+                        })?;
                     true
                 }
             },
@@ -406,6 +433,11 @@ impl McpClientTrait for AcpTools {
         if self.fs_read {
             result.tools.insert(0, read_tool());
         }
+        if self.terminal {
+            if let Some(shell) = result.tools.iter_mut().find(|tool| tool.name == "shell") {
+                shell.description = Some(acp_shell_description().into());
+            }
+        }
         Ok(result)
     }
 
@@ -452,7 +484,18 @@ mod tests {
     use crate::agents::ToolCallContext;
 
     #[test]
-    fn terminal_request_includes_agent_session_id() {
+    fn terminal_shell_guidance_keeps_persistent_commands_foregrounded() {
+        let description = acp_shell_description();
+
+        assert!(description.contains("exact command in the foreground"));
+        assert!(description.contains("do not append &"));
+        assert!(description.contains("do not"));
+        assert!(description.contains("redirect its output"));
+        assert!(description.contains("monitor and interrupt"));
+    }
+
+    #[test]
+    fn terminal_request_wraps_shell_expression_and_includes_agent_session_id() {
         let session_id = SessionId::new("acp-session");
         let params = ShellParams {
             command: "echo test".to_string(),
@@ -466,6 +509,14 @@ mod tests {
 
         let request = create_terminal_request(&session_id, &params, &ctx);
 
+        assert_eq!(request.command, "sh");
+        assert_eq!(
+            request.args,
+            vec![
+                "-c",
+                "echo test\n__goose_command_status=$?\nwait\nexit \"$__goose_command_status\""
+            ]
+        );
         assert_eq!(
             request.env,
             vec![EnvVariable::new("AGENT_SESSION_ID", "agent-session")]
