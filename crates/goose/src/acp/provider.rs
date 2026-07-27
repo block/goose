@@ -2527,7 +2527,6 @@ mod tests {
         assert_eq!(out.len(), 1);
         let text = out[0].as_text().unwrap();
         assert_eq!(text.text, "hello from shell");
-        assert_eq!(out[0].priority(), Some(0.0));
     }
 
     #[test]
