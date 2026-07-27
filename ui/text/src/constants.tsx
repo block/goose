@@ -6,6 +6,8 @@ export const SENT_PREVIEW_LEN = 60;
 
 // Viewport scroll step (lines per arrow press). Option/Alt applies the multiplier.
 export const SCROLL_STEP = 3;
+// The "▲ n more" / "▼ n more" pair framing a scrollable area.
+export const INDICATOR_ROWS = 2;
 export const SCROLL_FAST_MULTIPLIER = 10;
 
 // Context usage bar, mirrors crates/goose-cli/src/session/output.rs

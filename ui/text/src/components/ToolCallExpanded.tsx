@@ -14,6 +14,7 @@ import {
   TEXT_DIM,
 } from "../colors.js";
 import { SCROLL_STEP, SCROLL_FAST_MULTIPLIER } from "../constants.js";
+import { viewportGeometry } from "../utils.js";
 
 interface Props {
   info: ToolCallInfo;
@@ -203,8 +204,7 @@ export function ToolCallExpanded({
   const total = allLines.length;
   // Indicators cost a row each, so they only fit once content remains beside
   // them — otherwise the body would render more rows than it was given.
-  const showIndicators = total > bodyHeight && bodyHeight >= 3;
-  const contentHeight = showIndicators ? bodyHeight - 2 : bodyHeight;
+  const { showIndicators, contentHeight } = viewportGeometry(total, bodyHeight);
 
   const maxEnd = total;
   const minEnd = Math.min(contentHeight, total);

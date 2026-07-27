@@ -1,8 +1,23 @@
 import os from "node:os";
 import path from "node:path";
+import { INDICATOR_ROWS } from "./constants.js";
 
 const SHORTEN_PATH_MAX_LEN = 60;
 const SHORTEN_PATH_MAX_PARTS = 3;
+
+// Scroll indicators cost a row each, so they only earn their place once
+// content remains beside them. Shared because the scroll-offset maths and the
+// render have to agree — two hand-written copies already drifted apart once.
+export function viewportGeometry(
+  total: number,
+  height: number,
+): { showIndicators: boolean; contentHeight: number } {
+  const showIndicators = total > height && height > INDICATOR_ROWS;
+  return {
+    showIndicators,
+    contentHeight: showIndicators ? height - INDICATOR_ROWS : height,
+  };
+}
 
 export function isErrorStatus(status: string): boolean {
   return status.startsWith("error") || status.startsWith("failed");

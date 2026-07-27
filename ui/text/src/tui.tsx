@@ -43,7 +43,12 @@ import { Rule } from "./components/Rule.js";
 import { ToolCallExpanded } from "./components/ToolCallExpanded.js";
 import { ContextBar } from "./components/ContextBar.js";
 import type { ToolCallInfo } from "./toolcall.js";
-import { isErrorStatus, formatError, shortenPath } from "./utils.js";
+import {
+  isErrorStatus,
+  formatError,
+  shortenPath,
+  viewportGeometry,
+} from "./utils.js";
 import {
   CRANBERRY,
   TEAL,
@@ -77,17 +82,6 @@ function usageResetKey(options: SessionConfigOption[]): string {
     return option?.type === "select" ? option.currentValue : "";
   };
   return `${selected("provider")}/${selected("model")}`;
-}
-
-// The viewport's geometry, in one place: the scroll-offset maths has to agree
-// with what is actually rendered, and two copies of it drifted apart once the
-// indicators became conditional.
-function viewportGeometry(total: number, height: number) {
-  const showIndicators = total > height && height >= 3;
-  return {
-    showIndicators,
-    contentHeight: showIndicators ? height - 2 : height,
-  };
 }
 
 const InputBar = React.memo(function InputBar({
