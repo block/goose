@@ -213,6 +213,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                 }
                 Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::MessageUsage { .. }) => {}
+                Ok(AgentEvent::MaxTokens) => {}
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;

@@ -50,6 +50,9 @@ pub enum ProviderError {
         details: String,
         category: Option<String>,
     },
+
+    #[error("Provider stopped because it reached the output token limit")]
+    MaxTokens,
 }
 
 impl ProviderError {
@@ -71,6 +74,7 @@ impl ProviderError {
             ProviderError::EndpointNotFound(_) => "endpoint_not_found",
             ProviderError::CreditsExhausted { .. } => "credits_exhausted",
             ProviderError::Refusal { .. } => "refusal",
+            ProviderError::MaxTokens => "max_tokens",
         }
     }
 

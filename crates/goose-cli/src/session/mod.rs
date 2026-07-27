@@ -1479,6 +1479,15 @@ impl CliSession {
                             last_usage = Some(usage);
                         }
                         Some(Ok(AgentEvent::MessageUsage { .. })) => {}
+                        Some(Ok(AgentEvent::MaxTokens)) => {
+                            if !is_json_mode {
+                                output::render_text(
+                                    "Response reached the model's output token limit. Ask the agent to continue.",
+                                    Some(Color::Yellow),
+                                    true,
+                                );
+                            }
+                        }
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
                             handle_mcp_notification(
                                 &extension_id,

@@ -652,7 +652,7 @@ impl Provider for AcpProvider {
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
                     }
-                    AcpUpdate::Complete(_reason, usage) => {
+                    AcpUpdate::Complete(reason, usage) => {
                         if let Some(usage) = usage {
                             let provider_usage = ProviderUsage::new(
                                 model_name.clone(),
@@ -663,6 +663,9 @@ impl Provider for AcpProvider {
                                 ),
                             );
                             yield (None, Some(provider_usage));
+                        }
+                        if reason == StopReason::MaxTokens {
+                            Err(ProviderError::MaxTokens)?;
                         }
                         break;
                     }
@@ -1920,6 +1923,62 @@ mod tests {
         let later_claim = provider.claim_handoff_context(&later_prompt_with_history);
         assert!(!later_claim.first_prompt);
         assert!(!later_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn nested_acp_max_tokens_preserves_usage_then_returns_typed_error() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![Message::user().with_text("continue")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let request = rx.recv().await.expect("provider should send ACP prompt");
+        let ClientRequest::Prompt { response_tx, .. } = request else {
+            panic!("expected prompt request");
+        };
+        response_tx
+            .send(AcpUpdate::Complete(
+                StopReason::MaxTokens,
+                Some(AcpUsage::new(30, 10, 20)),
+            ))
+            .await
+            .unwrap();
+
+        let usage = stream
+            .next()
+            .await
+            .expect("usage item should be emitted first")
+            .expect("usage item should succeed")
+            .1
+            .expect("usage should be present");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(20));
+        assert!(matches!(
+            stream.next().await.expect("typed error should follow"),
+            Err(ProviderError::MaxTokens)
+        ));
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn nested_acp_end_turn_completes_without_max_tokens_error() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![Message::user().with_text("continue")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        let request = rx.recv().await.expect("provider should send ACP prompt");
+        let ClientRequest::Prompt { response_tx, .. } = request else {
+            panic!("expected prompt request");
+        };
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        assert!(stream.next().await.is_none());
     }
 
     #[tokio::test]

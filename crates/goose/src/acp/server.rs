@@ -1286,6 +1286,16 @@ fn extract_client_supports_recipe_param_requests(
         .unwrap_or(false)
 }
 
+fn prompt_stop_reason(was_cancelled: bool, reached_max_tokens: bool) -> StopReason {
+    if was_cancelled {
+        StopReason::Cancelled
+    } else if reached_max_tokens {
+        StopReason::MaxTokens
+    } else {
+        StopReason::EndTurn
+    }
+}
+
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
@@ -1816,6 +1826,7 @@ impl GooseAcpAgent {
         };
 
         let mut was_cancelled = false;
+        let mut reached_max_tokens = false;
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
@@ -1914,6 +1925,9 @@ impl GooseAcpAgent {
                         })?;
                     }
                 }
+                Ok(crate::agents::AgentEvent::MaxTokens) => {
+                    reached_max_tokens = true;
+                }
                 Ok(_) => {}
                 Err(e) => {
                     stream_error = Some(
@@ -1959,13 +1973,8 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        let stop_reason = if was_cancelled {
-            StopReason::Cancelled
-        } else {
-            StopReason::EndTurn
-        };
-
-        let mut response = PromptResponse::new(stop_reason);
+        let mut response =
+            PromptResponse::new(prompt_stop_reason(was_cancelled, reached_max_tokens));
         if let Some(usage) = build_prompt_usage(&session) {
             response = response.usage(usage);
         }
@@ -2444,6 +2453,21 @@ print(\"hello, world\")
         );
 
         assert_eq!(result, expected,)
+    }
+
+    #[test_case(false, false, StopReason::EndTurn; "normal completion")]
+    #[test_case(false, true, StopReason::MaxTokens; "max tokens completion")]
+    #[test_case(true, false, StopReason::Cancelled; "cancelled completion")]
+    #[test_case(true, true, StopReason::Cancelled; "cancellation wins over max tokens")]
+    fn test_prompt_stop_reason(
+        was_cancelled: bool,
+        reached_max_tokens: bool,
+        expected: StopReason,
+    ) {
+        assert_eq!(
+            prompt_stop_reason(was_cancelled, reached_max_tokens),
+            expected
+        );
     }
 
     #[test_case(

@@ -1029,8 +1029,8 @@ where
 
         // A tool_use block left open at stream end never received its
         // content_block_stop, so its args are truncated rather than complete.
+        let truncated_by_limit = stop_reason.as_deref() == Some("max_tokens");
         if !accumulated_tool_calls.is_empty() {
-            let truncated_by_limit = stop_reason.as_deref() == Some("max_tokens");
             let mut ids: Vec<String> = accumulated_tool_calls.keys().cloned().collect();
             ids.sort();
             for id in ids {
@@ -1061,6 +1061,13 @@ where
 
         if let Some(usage) = final_usage {
             yield (None, Some(usage));
+        }
+
+        // Keep the partial text/tool updates above, then terminate the provider
+        // turn with a typed signal so the agent and ACP layers can distinguish
+        // truncation from a successful end_turn.
+        if truncated_by_limit {
+            Err(ProviderError::MaxTokens)?;
         }
     }
 }
@@ -2211,6 +2218,58 @@ mod tests {
             parts.text[0]
         );
         assert!(parts.text[0].contains("context_window"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_partial_text_ends_with_max_tokens_error() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_partial","role":"assistant","content":[],"model":"claude-opus-4-8","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"There is a core dir — the c"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":128000}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let results = collect_stream_results(events).await;
+        assert!(results.iter().any(|result| {
+            matches!(result, Ok((Some(message), _)) if message.as_concat_text() == "There is a core dir — the c")
+        }));
+        assert!(results.iter().any(|result| {
+            result
+                .as_ref()
+                .err()
+                .and_then(|error| error.downcast_ref::<ProviderError>())
+                == Some(&ProviderError::MaxTokens)
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_unexpected_eof_without_max_tokens_is_not_typed_as_limit() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_eof","role":"assistant","content":[],"model":"claude-opus-4-8","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial before eof"}}"#,
+        );
+
+        let results = collect_stream_results(events).await;
+        assert!(results.iter().any(|result| {
+            matches!(result, Ok((Some(message), _)) if message.as_concat_text() == "partial before eof")
+        }));
+        assert!(!results.iter().any(|result| {
+            result
+                .as_ref()
+                .err()
+                .and_then(|error| error.downcast_ref::<ProviderError>())
+                == Some(&ProviderError::MaxTokens)
+        }));
     }
 
     #[tokio::test]

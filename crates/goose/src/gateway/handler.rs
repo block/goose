@@ -45,6 +45,13 @@ struct PendingConfirmation {
     request_id: String,
 }
 
+fn max_tokens_warning(reached_max_tokens: bool) -> Option<OutgoingMessage> {
+    reached_max_tokens.then(|| OutgoingMessage::Text {
+        body: "⚠️ This response repeatedly reached the model's output limit and couldn't finish. Try narrowing your request or splitting it into parts."
+            .to_string(),
+    })
+}
+
 #[derive(Clone)]
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
@@ -527,6 +534,7 @@ impl GatewayHandler {
         // typing indicator while the tool runs, then the next response.
         let mut pending_text = String::new();
         let mut sent_any = false;
+        let mut reached_max_tokens = false;
         let mut event_count: u64 = 0;
 
         while let Some(event) = stream.next().await {
@@ -669,6 +677,10 @@ impl GatewayHandler {
                 }
                 Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::MessageUsage { .. }) => {}
+                Ok(AgentEvent::MaxTokens) => {
+                    reached_max_tokens = true;
+                    tracing::warn!(session_id, "gateway response hit the output token limit");
+                }
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,
@@ -717,7 +729,7 @@ impl GatewayHandler {
             self.gateway
                 .send_message(&message.user, OutgoingMessage::Text { body: pending_text })
                 .await?;
-        } else if !sent_any {
+        } else if !sent_any && !reached_max_tokens {
             // Nothing was ever sent — let the user know.
             self.gateway
                 .send_message(
@@ -727,6 +739,10 @@ impl GatewayHandler {
                     },
                 )
                 .await?;
+        }
+
+        if let Some(warning) = max_tokens_warning(reached_max_tokens) {
+            self.gateway.send_message(&message.user, warning).await?;
         }
 
         Ok(())
@@ -743,6 +759,16 @@ fn gateway_working_dir(platform: &str, user_id: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_tokens_warning_is_user_visible_only_when_exhausted() {
+        assert!(max_tokens_warning(false).is_none());
+        let Some(OutgoingMessage::Text { body }) = max_tokens_warning(true) else {
+            panic!("max token exhaustion should produce a text warning");
+        };
+        assert!(body.contains("output limit"));
+        assert!(body.contains("splitting it into parts"));
+    }
 
     #[test]
     fn defaults_when_no_overrides() {
