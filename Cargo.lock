@@ -5256,7 +5256,7 @@ dependencies = [
  "futures",
  "goose-providers",
  "goose-sdk-types",
- "rmcp 2.2.0",
+ "rmcp 3.0.0-beta.1",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
