@@ -5,7 +5,8 @@ import { cn } from '../../utils';
 import type { ContextCategory, ContextReport, ContextSegment } from '../../types/contextReport';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { categoryColorClass, categoryMessages } from './categories';
-import { formatTokenCount, formatPercentOf } from './format';
+import { formatTokenCount } from '../../utils/usageFormatting';
+import { formatPercentOf } from './format';
 
 const i18n = defineMessages({
   free: {

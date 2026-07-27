@@ -1,5 +1,3 @@
-export { formatTokenCount } from '../../utils/usageFormatting';
-
 export function formatPercentOf(part: number, total: number): string {
   if (total <= 0) return '0%';
   const percent = (part / total) * 100;

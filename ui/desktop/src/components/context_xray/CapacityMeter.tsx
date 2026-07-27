@@ -3,7 +3,8 @@ import { cn } from '../../utils';
 import type { ContextReport } from '../../types/contextReport';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
 import { categoryColorClass, categoryMessages } from './categories';
-import { formatTokenCount, formatPercentOf } from './format';
+import { formatTokenCount } from '../../utils/usageFormatting';
+import { formatPercentOf } from './format';
 
 const i18n = defineMessages({
   tooltipDetail: {

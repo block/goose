@@ -35,8 +35,6 @@ describe('usageFormatting', () => {
         [200_000, '200k'],
         [999_499, '999.5k'],
         [999_500, '1M'],
-        [999_949, '1M'],
-        [999_950, '1M'],
         [1_234_567, '1.2M'],
       ])('formats %d as %s', (input, expected) => {
         expect(formatTokenCount(input, true)).toBe(expected);

@@ -10,7 +10,8 @@ import { Button } from '../ui/button';
 import { CapacityMeter } from './CapacityMeter';
 import { BreakdownList } from './BreakdownList';
 import { CompactionControls } from './CompactionControls';
-import { formatTokenCount, formatPercentOf } from './format';
+import { formatTokenCount } from '../../utils/usageFormatting';
+import { formatPercentOf } from './format';
 
 const i18n = defineMessages({
   title: {
