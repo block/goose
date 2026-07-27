@@ -954,15 +954,11 @@ function App({
   // One blank line separates the transcript from the input area. Whichever of
   // the two comes first carries it as its marginTop.
   const inputGapH = showInputBar ? 1 : 0;
+  // Everything below the transcript. Both the viewport and the splash screen
+  // size themselves against this, so they cannot drift apart.
+  const inputAreaH = inputGapH + usageBarH + inputBarH;
   const viewportHeight = Math.max(
-    safeTermHeight -
-      PAD_TOP -
-      PAD_BOTTOM -
-      headerH -
-      inputBarH -
-      historyBarH -
-      usageBarH -
-      inputGapH,
+    safeTermHeight - PAD_TOP - PAD_BOTTOM - headerH - historyBarH - inputAreaH,
     3,
   );
 
@@ -1242,7 +1238,7 @@ function App({
           animFrame={gooseFrame}
           width={contentWidth}
           height={Math.max(
-            safeTermHeight - PAD_TOP - PAD_BOTTOM - inputBarH,
+            safeTermHeight - PAD_TOP - PAD_BOTTOM - inputAreaH,
             0,
           )}
           status={status}
