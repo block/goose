@@ -97,4 +97,3 @@ Purchases return an x402 payment requirement that the buyer's wallet signs. Noth
 - App: [app.getvia.xyz](https://app.getvia.xyz)
 - Website: [getvia.xyz](https://getvia.xyz)
 - MCP endpoint: `https://app.getvia.xyz/mcp`
-- Source: [github.com/richardjhobbs/via-app](https://github.com/richardjhobbs/via-app)
