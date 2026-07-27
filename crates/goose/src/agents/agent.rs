@@ -995,6 +995,9 @@ impl Agent {
             }
         }
 
+        // These land in the cached system prompt, and `extensions` is a HashMap.
+        instructions.sort();
+
         *self.frontend_tools.lock().await = tools;
         *self.frontend_instructions.lock().await = if instructions.is_empty() {
             None

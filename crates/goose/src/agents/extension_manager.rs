@@ -1482,6 +1482,9 @@ impl ExtensionManager {
             }
         }
 
+        // `extensions` is a HashMap, so prompts embedding this list would vary per process.
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
+
         Ok(tools)
     }
 
