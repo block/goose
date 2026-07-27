@@ -13,6 +13,7 @@ import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import type {
   SessionNotification,
+  SessionConfigOption,
   Stream,
   ContentChunk,
   ToolCall,
@@ -66,6 +67,28 @@ import { tryRunSlashCommand } from "./slashCommands.js";
 // Border, status row, one row of body and the hint row. Below that the
 // expanded view cannot exist, so the transcript is shown instead.
 const MIN_EXPANDED_HEIGHT = 5;
+
+// Context limits are per provider AND per model, so the usage snapshot is only
+// valid for one pair. Seeded at session start and compared on every config
+// change, hence one function rather than two spellings of the same key.
+function usageResetKey(options: SessionConfigOption[]): string {
+  const selected = (id: string) => {
+    const option = options.find((o) => o.id === id);
+    return option?.type === "select" ? option.currentValue : "";
+  };
+  return `${selected("provider")}/${selected("model")}`;
+}
+
+// The viewport's geometry, in one place: the scroll-offset maths has to agree
+// with what is actually rendered, and two copies of it drifted apart once the
+// indicators became conditional.
+function viewportGeometry(total: number, height: number) {
+  const showIndicators = total > height && height >= 3;
+  return {
+    showIndicators,
+    contentHeight: showIndicators ? height - 2 : height,
+  };
+}
 
 const InputBar = React.memo(function InputBar({
   width,
@@ -359,11 +382,7 @@ const Viewport = React.memo(function Viewport({
   scrollOffset: number;
 }) {
   const total = lines.length;
-  // The two scroll indicators cost a row each, so they only fit once there is
-  // something left to indicate — below that the rows go to content instead.
-  const showIndicators = total > height && height >= 3;
-
-  const contentHeight = showIndicators ? height - 2 : height;
+  const { showIndicators, contentHeight } = viewportGeometry(total, height);
 
   const maxEnd = total;
   const minEnd = Math.min(contentHeight, total);
@@ -785,6 +804,10 @@ function App({
           mcpServers: [],
         });
         sessionIdRef.current = session.sessionId;
+        // Seed the key, or the first config notification — even one that
+        // changes nothing, such as reselecting the active model — would look
+        // like a switch and clear the bar for no reason.
+        modelRef.current = usageResetKey(session.configOptions ?? []);
         setLoading(false);
         setStatus("ready");
 
@@ -843,17 +866,9 @@ function App({
                 setUsage({ used: update.used, size: update.size });
               } else if (update.sessionUpdate === "config_option_update") {
                 // Switching models or providers can change the context limit,
-                // but the agent sends no fresh usage with the change. Drop the
-                // snapshot rather than divide by the old limit until the next
-                // turn ends. The key carries both, since the same model id can
-                // sit behind two providers with different limits.
-                const selected = (id: string) => {
-                  const option = update.configOptions.find((o) => o.id === id);
-                  return option?.type === "select"
-                    ? option.currentValue
-                    : undefined;
-                };
-                const key = `${selected("provider") ?? ""}/${selected("model") ?? ""}`;
+                // but no fresh usage arrives with the change. Drop the snapshot
+                // rather than divide by the old limit until the next turn ends.
+                const key = usageResetKey(update.configOptions);
                 if (key !== "/" && key !== modelRef.current) {
                   modelRef.current = key;
                   setUsage(null);
@@ -1084,11 +1099,8 @@ function App({
   const scrollOffsetForRange = useCallback(
     (range: ToolCallRange, current: number): number => {
       const total = contentLines.length;
-      const overflows = total > viewportHeight;
-      const contentHeight = overflows
-        ? Math.max(viewportHeight - 2, 1)
-        : viewportHeight;
-      if (!overflows) return 0;
+      const { contentHeight } = viewportGeometry(total, viewportHeight);
+      if (total <= viewportHeight) return 0;
       const maxOffset = total - contentHeight;
       const minForTop = total - range.startLine - contentHeight;
       const maxForBottom = total - range.endLine - 1;
