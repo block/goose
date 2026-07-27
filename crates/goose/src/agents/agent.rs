@@ -1944,6 +1944,7 @@ impl Agent {
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
+            let turn_start = chrono::Local::now();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2029,6 +2030,7 @@ impl Agent {
                     &self.extension_manager,
                     turns_taken,
                     max_turns,
+                    turn_start,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
