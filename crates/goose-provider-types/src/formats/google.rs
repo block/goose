@@ -910,7 +910,7 @@ mod tests {
     fn test_function_response_matches_function_call() {
         let messages = vec![
             set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),
-            set_up_tool_response_message("call_123", vec![Content::text("contents")]),
+            set_up_tool_response_message("call_123", vec![ContentBlock::text("contents")]),
         ];
 
         let payload = format_messages(&messages, false);
@@ -932,8 +932,8 @@ mod tests {
             set_up_tool_response_message(
                 "call_123",
                 vec![
-                    Content::text("Screenshot captured"),
-                    Content::image("base64encodeddata", "image/png"),
+                    ContentBlock::text("Screenshot captured"),
+                    ContentBlock::image("base64encodeddata", "image/png"),
                 ],
             ),
         ];
