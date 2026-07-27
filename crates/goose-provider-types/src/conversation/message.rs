@@ -679,6 +679,8 @@ pub struct MessageUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_source: Option<CostSource>,
@@ -699,6 +701,7 @@ impl MessageUsage {
             total_tokens: usage.usage.total_tokens,
             cache_read_tokens: usage.usage.cache_read_input_tokens,
             cache_write_tokens: usage.usage.cache_write_input_tokens,
+            thinking_tokens: usage.usage.thinking_tokens,
             cost: usage.cost,
             cost_source: usage.cost_source,
             elapsed_ms: stats.and_then(|s| s.elapsed_ms),

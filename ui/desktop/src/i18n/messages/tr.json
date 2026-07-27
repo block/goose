@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Düşünme eforunu {effort} olarak değiştir"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Token tasarrufu için düşünme eforunu {effort} olarak değiştir"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Düşünme eforu önerisi"
   },

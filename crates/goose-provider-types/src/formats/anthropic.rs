@@ -516,6 +516,12 @@ fn usage_from_anthropic_fields(usage: &Value) -> Usage {
             .map(|v| v.min(i32::MAX as u64) as i32)
     };
 
+    let thinking_tokens = usage
+        .get("output_tokens_details")
+        .and_then(|details| details.get("thinking_tokens"))
+        .and_then(|v| v.as_u64())
+        .map(|v| v.min(i32::MAX as u64) as i32);
+
     Usage::from_cache_exclusive_input(
         Some(field("input_tokens").unwrap_or(0)),
         Some(field("output_tokens").unwrap_or(0)),
@@ -523,6 +529,7 @@ fn usage_from_anthropic_fields(usage: &Value) -> Usage {
         field("cache_read_input_tokens"),
         field("cache_creation_input_tokens"),
     )
+    .with_thinking_tokens(thinking_tokens)
 }
 
 /// Merge a `message_delta` usage into the usage captured at `message_start`.
@@ -537,7 +544,10 @@ fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usa
         existing.output_tokens
     };
 
-    if !reports("input_tokens") {
+    // The thinking-token breakdown only arrives on the final message_delta.
+    let thinking = delta.thinking_tokens.or(existing.thinking_tokens);
+
+    let merged = if !reports("input_tokens") {
         Usage::new(existing.input_tokens, output, None).with_cache_tokens(
             existing.cache_read_input_tokens,
             existing.cache_write_input_tokens,
@@ -555,7 +565,8 @@ fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usa
             existing.cache_read_input_tokens,
             existing.cache_write_input_tokens,
         )
-    }
+    };
+    merged.with_thinking_tokens(thinking)
 }
 
 pub fn get_usage(data: &Value) -> Result<Usage> {
@@ -2098,6 +2109,33 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(510));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(200));
         assert_eq!(usage.usage.cache_write_input_tokens, Some(100));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_thinking_tokens_from_final_message_delta() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":25,"output_tokens":1}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":25,"output_tokens":348,"output_tokens_details":{"thinking_tokens":312}}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.output_tokens, Some(348));
+        assert_eq!(usage.usage.thinking_tokens, Some(312));
     }
 
     #[test]

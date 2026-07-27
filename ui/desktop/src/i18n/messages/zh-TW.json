@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "將思考強度切換為{effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "將思考強度切換為{effort}以節省權杖"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "思考強度建議"
   },

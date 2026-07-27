@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Denkaufwand auf {effort} umstellen"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Denkaufwand auf {effort} umstellen, um Tokens zu sparen"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Vorschlag zum Denkaufwand"
   },

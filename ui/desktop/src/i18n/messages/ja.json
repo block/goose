@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "思考エフォートを{effort}に切り替える"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "トークンを節約するために思考エフォートを{effort}に切り替える"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "思考エフォートの提案"
   },

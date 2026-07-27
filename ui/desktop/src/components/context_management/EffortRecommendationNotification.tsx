@@ -15,6 +15,10 @@ const i18n = defineMessages({
     id: 'effortRecommendationNotification.switchEffort',
     defaultMessage: 'Switch thinking effort to {effort}',
   },
+  switchEffortSave: {
+    id: 'effortRecommendationNotification.switchEffortSave',
+    defaultMessage: 'Switch thinking effort to {effort} to save tokens',
+  },
   applied: {
     id: 'effortRecommendationNotification.applied',
     defaultMessage: 'Thinking effort set to {effort} for this session',
@@ -96,12 +100,22 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
     return null;
   }
 
+  const recommendationTimeEffort = getRecommendationTimeEffort(notification.data);
+  // A recommendation below the effort the session ran at when it was made is
+  // a downgrade offer; "satisfied" then means at-or-below the recommendation.
+  const isLowering =
+    recommendationTimeEffort !== null &&
+    EFFORT_RANK[recommendedEffort] < EFFORT_RANK[recommendationTimeEffort];
+  const satisfiesRecommendation = (effort: string | null): boolean =>
+    effort !== null &&
+    (isLowering
+      ? EFFORT_RANK[effort] <= EFFORT_RANK[recommendedEffort]
+      : EFFORT_RANK[effort] >= EFFORT_RANK[recommendedEffort]);
+
   const liveEffort = knownEffort(snapshot?.thinkingEffort);
-  const currentEffort = liveEffort ?? getRecommendationTimeEffort(notification.data);
-  const alreadySatisfied =
-    currentEffort !== null && EFFORT_RANK[currentEffort] >= EFFORT_RANK[recommendedEffort];
-  const liveBelowRecommendation =
-    liveEffort !== null && EFFORT_RANK[liveEffort] < EFFORT_RANK[recommendedEffort];
+  const currentEffort = liveEffort ?? recommendationTimeEffort;
+  const alreadySatisfied = satisfiesRecommendation(currentEffort);
+  const liveOutsideRecommendation = liveEffort !== null && !satisfiesRecommendation(liveEffort);
   const liveOptions = snapshot?.thinkingEffortOptions ?? null;
   const modelCannotApply = liveOptions !== null && !liveOptions.includes(recommendedEffort);
 
@@ -112,8 +126,7 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
     const clickTimeEffort = knownEffort(clickTimeSnapshot?.thinkingEffort);
     const clickTimeOptions = clickTimeSnapshot?.thinkingEffortOptions ?? null;
     if (
-      (clickTimeEffort !== null &&
-        EFFORT_RANK[clickTimeEffort] >= EFFORT_RANK[recommendedEffort]) ||
+      satisfiesRecommendation(clickTimeEffort) ||
       (clickTimeOptions !== null && !clickTimeOptions.includes(recommendedEffort))
     ) {
       return;
@@ -131,7 +144,7 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
     if (modelCannotApply) {
       return null;
     }
-    if (status === 'applied' && !liveBelowRecommendation) {
+    if (status === 'applied' && !liveOutsideRecommendation) {
       return (
         <div className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-200">
           <Check className="h-3.5 w-3.5" />
@@ -159,7 +172,9 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
         disabled={status === 'pending'}
         className="mt-3 inline-flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-500 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 transition-colors"
       >
-        {intl.formatMessage(i18n.switchEffort, { effort: effortName })}
+        {intl.formatMessage(isLowering ? i18n.switchEffortSave : i18n.switchEffort, {
+          effort: effortName,
+        })}
       </button>
     );
   };

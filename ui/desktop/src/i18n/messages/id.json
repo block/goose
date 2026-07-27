@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Ubah upaya berpikir ke {effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Ubah upaya berpikir ke {effort} untuk menghemat token"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Saran upaya berpikir"
   },

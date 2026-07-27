@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "사고 노력을 {effort}(으)로 전환"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "토큰을 절약하려면 사고 노력을 {effort}(으)로 전환"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "사고 노력 제안"
   },

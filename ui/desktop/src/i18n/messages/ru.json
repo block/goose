@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Переключить уровень размышлений на {effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Переключить уровень размышлений на {effort}, чтобы сэкономить токены"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Рекомендация по уровню размышлений"
   },

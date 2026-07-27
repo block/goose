@@ -76,25 +76,122 @@ pub struct EffortRecommendation {
     pub reason: String,
     pub recommended_effort: ThinkingEffort,
     /// The provider-effective effort the session runs at, which the
-    /// recommendation is a raise over - not the raw configured value.
+    /// recommendation is a change from - not the raw configured value.
     pub current_effort: ThinkingEffort,
+}
+
+const OBSERVED_THINKING_WINDOW: usize = 8;
+const OBSERVED_THINKING_MIN_TURNS: usize = 3;
+/// A downgrade needs the recent turns to be nearly thinking-free; a genuinely
+/// hard stretch at high effort runs well above this on every provider.
+const OBSERVED_THINKING_IDLE_MAX_UTILIZATION: f64 = 0.05;
+
+/// Thinking activity over the most recent assistant turns, from
+/// provider-reported reasoning token counts on per-message usage
+/// (with thinking-content length as a fallback estimate).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ObservedThinking {
+    pub sampled_turns: usize,
+    pub thinking_tokens: i64,
+    pub output_tokens: i64,
+    /// Whether any message in the conversation carries a provider-reported
+    /// thinking-token count. Guards against providers (or proxies) that strip
+    /// the breakdown: reasoning there is invisible, so "no thinking observed"
+    /// is not evidence of easy work.
+    pub telemetry_reported: bool,
+}
+
+impl ObservedThinking {
+    pub fn utilization(&self) -> f64 {
+        self.thinking_tokens as f64 / self.output_tokens.max(1) as f64
+    }
+
+    fn shows_idle_reasoning(&self) -> bool {
+        self.telemetry_reported
+            && self.sampled_turns >= OBSERVED_THINKING_MIN_TURNS
+            && self.utilization() <= OBSERVED_THINKING_IDLE_MAX_UTILIZATION
+    }
+}
+
+fn message_thinking_estimate(message: &Message) -> i64 {
+    message
+        .content
+        .iter()
+        .map(|content| match content {
+            MessageContent::Thinking(thinking) => (thinking.thinking.len() / 4) as i64,
+            MessageContent::RedactedThinking(_) => 1,
+            _ => 0,
+        })
+        .sum()
+}
+
+pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
+    let telemetry_reported = conversation
+        .messages()
+        .iter()
+        .any(|m| matches!(&m.metadata.usage, Some(usage) if usage.thinking_tokens.is_some()));
+
+    let mut observed = ObservedThinking {
+        telemetry_reported,
+        ..Default::default()
+    };
+    for message in conversation
+        .messages()
+        .iter()
+        .rev()
+        .filter(|m| m.role == Role::Assistant)
+    {
+        let Some(usage) = &message.metadata.usage else {
+            continue;
+        };
+        let Some(output_tokens) = usage.output_tokens else {
+            continue;
+        };
+        observed.sampled_turns += 1;
+        observed.output_tokens += output_tokens as i64;
+        observed.thinking_tokens += usage
+            .thinking_tokens
+            .map(|t| t as i64)
+            .unwrap_or_else(|| message_thinking_estimate(message));
+        if observed.sampled_turns == OBSERVED_THINKING_WINDOW {
+            break;
+        }
+    }
+    observed
+}
+
+fn one_step_down(effort: ThinkingEffort) -> Option<ThinkingEffort> {
+    match effort {
+        ThinkingEffort::Max => Some(ThinkingEffort::High),
+        ThinkingEffort::High => Some(ThinkingEffort::Medium),
+        ThinkingEffort::Medium => Some(ThinkingEffort::Low),
+        ThinkingEffort::Low | ThinkingEffort::Off => None,
+    }
 }
 
 /// A recommendation is made only when the provider's request formatting
 /// actually maps a `thinking_effort` for the session's model
-/// ([`Provider::maps_thinking_effort`]) and the estimate calls for more
-/// effort than the provider actually runs with
+/// ([`Provider::maps_thinking_effort`]) and the estimate calls for a
+/// different effort than the provider actually runs with
 /// ([`Provider::effective_thinking_effort`]). An explicit `Off` (the user
 /// opted out) is second-guessed only by a `High` estimate; sessions pinning
 /// an explicit thinking budget are never nudged (the budget overrides any
-/// effort); downward and `Low` recommendations are never made. Providers may
+/// effort); `Low` raise recommendations are never made. Providers may
 /// coalesce adjacent effort levels, so a nudge can still be a behavioral
 /// no-op on some models - acceptable for an advisory hint.
+///
+/// Downgrades are held to a stricter bar than raises because the difficulty
+/// estimator's errors are under-ratings: a `Low` estimate alone nudges
+/// nothing. Lowering requires the estimate AND provider-reported thinking
+/// telemetry agreeing the recent turns were nearly reasoning-free, steps down
+/// a single level (never to `Off`), and never second-guesses an effort the
+/// user set explicitly for the session.
 pub fn build_effort_recommendation(
     provider: &dyn Provider,
     model_config: &ModelConfig,
     difficulty: &ForwardDifficulty,
     current_effort: Option<ThinkingEffort>,
+    observed: Option<&ObservedThinking>,
 ) -> Option<EffortRecommendation> {
     if !model_config.is_reasoning_model() || !provider.maps_thinking_effort(model_config) {
         return None;
@@ -124,19 +221,35 @@ pub fn build_effort_recommendation(
         DifficultyLevel::High => ThinkingEffort::High,
     };
     let effective_current = provider.effective_thinking_effort(model_config, current_effort);
-    if recommended <= effective_current {
+    if recommended > effective_current {
+        // Only reachable when the model defaults to thinking-off (Gemini 3,
+        // most Claude models): enabling thinking because the remaining work
+        // looks easy is noise.
+        if recommended == ThinkingEffort::Low {
+            return None;
+        }
+        return Some(EffortRecommendation {
+            difficulty: difficulty.level,
+            reason: difficulty.reason.clone(),
+            recommended_effort: recommended,
+            current_effort: effective_current,
+        });
+    }
+
+    if difficulty.level != DifficultyLevel::Low {
         return None;
     }
-    // Only reachable when the model defaults to thinking-off (Gemini 3, most
-    // Claude models): enabling thinking because the remaining work looks easy
-    // is noise.
-    if recommended == ThinkingEffort::Low {
+    if model_config.thinking_effort().is_some() {
         return None;
     }
+    if !observed.is_some_and(ObservedThinking::shows_idle_reasoning) {
+        return None;
+    }
+    let target = one_step_down(effective_current)?;
     Some(EffortRecommendation {
         difficulty: difficulty.level,
         reason: difficulty.reason.clone(),
-        recommended_effort: recommended,
+        recommended_effort: target,
         current_effort: effective_current,
     })
 }
@@ -1190,8 +1303,26 @@ mod tests {
         level: DifficultyLevel,
         current: Option<ThinkingEffort>,
     ) -> Option<EffortRecommendation> {
+        nudge_observing(model, level, current, None)
+    }
+
+    fn nudge_observing(
+        model: &ModelConfig,
+        level: DifficultyLevel,
+        current: Option<ThinkingEffort>,
+        observed: Option<&ObservedThinking>,
+    ) -> Option<EffortRecommendation> {
         let provider = MockProvider::new(Message::assistant(), 100_000);
-        build_effort_recommendation(&provider, model, &estimate(level), current)
+        build_effort_recommendation(&provider, model, &estimate(level), current, observed)
+    }
+
+    fn idle_reasoning() -> ObservedThinking {
+        ObservedThinking {
+            sampled_turns: 5,
+            thinking_tokens: 20,
+            output_tokens: 2000,
+            telemetry_reported: true,
+        }
     }
 
     #[test]
@@ -1297,7 +1428,8 @@ mod tests {
         assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
         assert_eq!(nudge.current_effort, ThinkingEffort::Low);
 
-        // Matching or higher current effort: nothing to nudge, never downward.
+        // Matching or higher current effort: nothing to raise, and without
+        // thinking telemetry there is never a downgrade either.
         assert!(build(DifficultyLevel::High, Some(ThinkingEffort::High)).is_none());
         assert!(build(DifficultyLevel::High, Some(ThinkingEffort::Max)).is_none());
         assert!(build(DifficultyLevel::Low, Some(ThinkingEffort::Medium)).is_none());
@@ -1308,6 +1440,211 @@ mod tests {
         let nudge = build(DifficultyLevel::High, Some(ThinkingEffort::Off))
             .expect("high overrides an explicit off");
         assert_eq!(nudge.recommended_effort, ThinkingEffort::High);
+    }
+
+    #[test]
+    fn effort_recommendation_lowers_one_step_with_low_estimate_and_idle_telemetry() {
+        let model = ModelConfig::new("gpt-5");
+        let idle = idle_reasoning();
+
+        let nudge = nudge_observing(
+            &model,
+            DifficultyLevel::Low,
+            Some(ThinkingEffort::High),
+            Some(&idle),
+        )
+        .expect("low estimate plus idle telemetry lowers a global-default high");
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
+        assert_eq!(nudge.current_effort, ThinkingEffort::High);
+
+        let nudge = nudge_observing(
+            &model,
+            DifficultyLevel::Low,
+            Some(ThinkingEffort::Max),
+            Some(&idle),
+        )
+        .expect("a downgrade steps down a single level from the provider-effective value");
+        // gpt-5 has no max tier, so the provider-effective effort is high and
+        // the single step lands on medium.
+        assert_eq!(nudge.current_effort, ThinkingEffort::High);
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
+
+        let nudge = nudge_observing(&model, DifficultyLevel::Low, None, Some(&idle))
+            .expect("the OpenAI default medium can step down to low");
+        assert_eq!(nudge.recommended_effort, ThinkingEffort::Low);
+        assert_eq!(nudge.current_effort, ThinkingEffort::Medium);
+    }
+
+    #[test]
+    fn effort_recommendation_downgrade_gates() {
+        let model = ModelConfig::new("gpt-5");
+        let idle = idle_reasoning();
+        let lower = |level, current, observed: Option<&ObservedThinking>| {
+            nudge_observing(&model, level, current, observed)
+        };
+
+        assert!(
+            lower(
+                DifficultyLevel::Medium,
+                Some(ThinkingEffort::High),
+                Some(&idle)
+            )
+            .is_none(),
+            "only a low estimate may lower; medium-vs-high stays silent"
+        );
+        assert!(
+            lower(DifficultyLevel::Low, Some(ThinkingEffort::High), None).is_none(),
+            "no telemetry, no downgrade"
+        );
+        assert!(
+            lower(
+                DifficultyLevel::Low,
+                Some(ThinkingEffort::High),
+                Some(&ObservedThinking {
+                    telemetry_reported: false,
+                    ..idle_reasoning()
+                }),
+            )
+            .is_none(),
+            "a provider that never reports thinking counts gives no evidence of idleness"
+        );
+        assert!(
+            lower(
+                DifficultyLevel::Low,
+                Some(ThinkingEffort::High),
+                Some(&ObservedThinking {
+                    sampled_turns: OBSERVED_THINKING_MIN_TURNS - 1,
+                    ..idle_reasoning()
+                }),
+            )
+            .is_none(),
+            "too few sampled turns"
+        );
+        assert!(
+            lower(
+                DifficultyLevel::Low,
+                Some(ThinkingEffort::High),
+                Some(&ObservedThinking {
+                    thinking_tokens: 600,
+                    ..idle_reasoning()
+                }),
+            )
+            .is_none(),
+            "recent turns actually reasoned; the estimate alone is not trusted downward"
+        );
+        assert!(
+            lower(DifficultyLevel::Low, Some(ThinkingEffort::Low), Some(&idle)).is_none(),
+            "low has nowhere to go; off is never suggested"
+        );
+        assert!(
+            lower(DifficultyLevel::Low, Some(ThinkingEffort::Off), Some(&idle)).is_none(),
+            "an explicit off is never adjusted downward"
+        );
+
+        let session_pinned = model.clone().with_thinking_effort(ThinkingEffort::High);
+        assert!(
+            nudge_observing(
+                &session_pinned,
+                DifficultyLevel::Low,
+                Some(ThinkingEffort::High),
+                Some(&idle),
+            )
+            .is_none(),
+            "an effort the user set explicitly for the session is never second-guessed downward"
+        );
+    }
+
+    #[test]
+    fn observed_thinking_samples_recent_assistant_usage() {
+        use crate::conversation::message::MessageUsage;
+
+        let with_usage = |thinking: Option<i32>, output: i32| {
+            let mut message = Message::assistant().with_text("done");
+            message.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(output),
+                thinking_tokens: thinking,
+                ..Default::default()
+            }));
+            message
+        };
+
+        let mut messages = vec![Message::user().with_text("go")];
+        // An early turn that reasoned hard, outside the window once enough
+        // newer turns exist.
+        messages.push(with_usage(Some(5000), 6000));
+        for _ in 0..OBSERVED_THINKING_WINDOW {
+            messages.push(with_usage(Some(10), 500));
+        }
+        // Assistant message without usage metadata: skipped, not sampled.
+        messages.push(Message::assistant().with_text("note"));
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation);
+        assert!(observed.telemetry_reported);
+        assert_eq!(observed.sampled_turns, OBSERVED_THINKING_WINDOW);
+        assert_eq!(
+            observed.thinking_tokens,
+            10 * OBSERVED_THINKING_WINDOW as i64
+        );
+        assert_eq!(
+            observed.output_tokens,
+            500 * OBSERVED_THINKING_WINDOW as i64
+        );
+        assert!(observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_estimates_from_thinking_content_when_counts_are_missing() {
+        use crate::conversation::message::MessageUsage;
+
+        let mut with_content_thinking = Message::assistant()
+            .with_thinking("x".repeat(4000), "sig")
+            .with_text("done");
+        with_content_thinking.metadata.usage = Some(Box::new(MessageUsage {
+            output_tokens: Some(500),
+            thinking_tokens: None,
+            ..Default::default()
+        }));
+
+        let mut reported = Message::assistant().with_text("ok");
+        reported.metadata.usage = Some(Box::new(MessageUsage {
+            output_tokens: Some(100),
+            thinking_tokens: Some(0),
+            ..Default::default()
+        }));
+
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("go"),
+            reported,
+            with_content_thinking,
+        ]);
+
+        let observed = observed_thinking(&conversation);
+        assert!(observed.telemetry_reported);
+        assert_eq!(observed.sampled_turns, 2);
+        assert_eq!(observed.thinking_tokens, 1000);
+        assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_without_any_reported_counts_is_not_evidence() {
+        use crate::conversation::message::MessageUsage;
+
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..4 {
+            let mut message = Message::assistant().with_text("done");
+            message.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(500),
+                thinking_tokens: None,
+                ..Default::default()
+            }));
+            messages.push(message);
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation);
+        assert!(!observed.telemetry_reported);
+        assert!(!observed.shows_idle_reasoning());
     }
 
     #[test]

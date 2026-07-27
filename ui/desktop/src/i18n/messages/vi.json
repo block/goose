@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Chuyển mức độ suy nghĩ sang {effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Chuyển mức độ suy nghĩ sang {effort} để tiết kiệm token"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Gợi ý mức độ suy nghĩ"
   },

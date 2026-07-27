@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Cambiar el esfuerzo de razonamiento a {effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Cambiar el esfuerzo de razonamiento a {effort} para ahorrar tokens"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Sugerencia de esfuerzo de razonamiento"
   },

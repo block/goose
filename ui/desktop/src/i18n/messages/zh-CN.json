@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "将思考力度切换为{effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "将思考力度切换为{effort}以节省令牌"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "思考力度建议"
   },

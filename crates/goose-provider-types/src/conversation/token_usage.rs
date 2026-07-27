@@ -76,6 +76,12 @@ pub struct Usage {
     pub total_tokens: Option<i32>,
     pub cache_read_input_tokens: Option<i32>,
     pub cache_write_input_tokens: Option<i32>,
+    /// Internal reasoning tokens the provider reports for this response
+    /// (Anthropic `thinking_tokens`, OpenAI `reasoning_tokens`, Gemini
+    /// `thoughtsTokenCount`). On Anthropic and OpenAI this is a subset of
+    /// `output_tokens`; Gemini reports it alongside `candidatesTokenCount`.
+    #[serde(default)]
+    pub thinking_tokens: Option<i32>,
 }
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
@@ -106,6 +112,7 @@ impl Add for Usage {
                 other.cache_write_input_tokens,
             ),
         )
+        .with_thinking_tokens(sum_optionals(self.thinking_tokens, other.thinking_tokens))
     }
 }
 
@@ -138,7 +145,13 @@ impl Usage {
             total_tokens: calculated_total,
             cache_read_input_tokens: None,
             cache_write_input_tokens: None,
+            thinking_tokens: None,
         }
+    }
+
+    pub fn with_thinking_tokens(mut self, thinking_tokens: Option<i32>) -> Self {
+        self.thinking_tokens = thinking_tokens;
+        self
     }
 
     pub fn with_cache_tokens(

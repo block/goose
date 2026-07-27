@@ -837,8 +837,15 @@ pub fn get_usage(usage: &Value) -> Usage {
             _ => None,
         });
 
+    let thinking_tokens = usage
+        .get("completion_tokens_details")
+        .and_then(|d| d.get("reasoning_tokens"))
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
     Usage::new(input_tokens, output_tokens, total_tokens)
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
+        .with_thinking_tokens(thinking_tokens)
 }
 
 pub fn get_cost(usage: &Value) -> Option<f64> {
@@ -2733,6 +2740,21 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(150));
         assert_eq!(usage.cache_read_input_tokens, Some(80));
         assert_eq!(usage.cache_write_input_tokens, None);
+    }
+
+    #[test]
+    fn test_get_usage_reads_reasoning_tokens() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 158,
+            "total_tokens": 278,
+            "completion_tokens_details": {
+                "reasoning_tokens": 128
+            }
+        }));
+
+        assert_eq!(usage.output_tokens, Some(158));
+        assert_eq!(usage.thinking_tokens, Some(128));
     }
 
     #[test]

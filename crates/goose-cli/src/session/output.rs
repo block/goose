@@ -417,14 +417,17 @@ pub fn render_effort_recommendation(
             None
         }
     });
+    let lowering = recommendation.recommended_effort < recommendation.current_effort;
+    let direction = if lowering { "lowering" } else { "raising" };
+    let savings = if lowering { " to save tokens" } else { "" };
     let hint = match how {
         Some(how) => format!(
-            "  Consider raising thinking effort to {} ({}).",
-            recommendation.recommended_effort, how
+            "  Consider {} thinking effort to {}{} ({}).",
+            direction, recommendation.recommended_effort, savings, how
         ),
         None => format!(
-            "  Consider raising thinking effort to {}.",
-            recommendation.recommended_effort
+            "  Consider {} thinking effort to {}{}.",
+            direction, recommendation.recommended_effort, savings
         ),
     };
     println!("{}", style(hint).dim());

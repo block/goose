@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "Passer l'effort de réflexion à {effort}"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "Passer l'effort de réflexion à {effort} pour économiser des tokens"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "Suggestion d'effort de réflexion"
   },

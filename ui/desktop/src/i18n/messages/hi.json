@@ -953,6 +953,9 @@
   "effortRecommendationNotification.switchEffort": {
     "defaultMessage": "सोच-प्रयास को {effort} पर बदलें"
   },
+  "effortRecommendationNotification.switchEffortSave": {
+    "defaultMessage": "टोकन बचाने के लिए सोच-प्रयास को {effort} पर बदलें"
+  },
   "effortRecommendationNotification.title": {
     "defaultMessage": "सोच-प्रयास का सुझाव"
   },

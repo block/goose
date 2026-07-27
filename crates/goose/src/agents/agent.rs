@@ -31,7 +31,7 @@ use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
-    build_effort_recommendation, check_if_compaction_needed, compact_messages,
+    build_effort_recommendation, check_if_compaction_needed, compact_messages, observed_thinking,
     EffortRecommendation, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
@@ -1873,6 +1873,7 @@ impl Agent {
                                 &compact_model_config,
                                 difficulty,
                                 effective_thinking_effort(&compact_model_config),
+                                Some(&observed_thinking(&conversation_to_compact)),
                             )
                         }) {
                             yield AgentEvent::EffortRecommendation(recommendation);
@@ -2618,6 +2619,7 @@ impl Agent {
                                 .model_config_with_session_thinking_effort(&session_config.id, &model_config)
                                 .await;
                             let recovery_provider = self.provider().await?;
+                            let observed = observed_thinking(&conversation);
                             match compact_messages(
                                 recovery_provider.as_ref(),
                                 &recovery_model_config,
@@ -2639,6 +2641,7 @@ impl Agent {
                                             &recovery_model_config,
                                             difficulty,
                                             effective_thinking_effort(&recovery_model_config),
+                                            Some(&observed),
                                         )
                                     }) {
                                         yield AgentEvent::EffortRecommendation(recommendation);

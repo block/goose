@@ -115,12 +115,20 @@ pub struct ResponseUsage {
     pub total_tokens: i32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_tokens_details: Option<InputTokensDetails>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_tokens_details: Option<OutputTokensDetails>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InputTokensDetails {
     #[serde(default)]
     pub cached_tokens: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OutputTokensDetails {
+    #[serde(default)]
+    pub reasoning_tokens: Option<i32>,
 }
 
 impl ResponseUsage {
@@ -130,12 +138,17 @@ impl ResponseUsage {
             .input_tokens_details
             .as_ref()
             .and_then(|d| d.cached_tokens);
+        let reasoning_tokens = self
+            .output_tokens_details
+            .as_ref()
+            .and_then(|d| d.reasoning_tokens);
         Usage::new(
             Some(self.input_tokens),
             Some(self.output_tokens),
             Some(self.total_tokens),
         )
         .with_cache_tokens(cached_tokens, None)
+        .with_thinking_tokens(reasoning_tokens)
     }
 }
 
@@ -1024,7 +1037,7 @@ mod tests {
             r#"data: {"type":"keepalive"}"#.to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
-            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14,"input_tokens_details":{"cached_tokens":6}}}}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14,"input_tokens_details":{"cached_tokens":6},"output_tokens_details":{"reasoning_tokens":3}}}}"#.to_string(),
             "data: [DONE]".to_string(),
         ];
 
@@ -1057,6 +1070,7 @@ mod tests {
         assert_eq!(usage.usage.total_tokens, Some(14));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(6));
         assert_eq!(usage.usage.cache_write_input_tokens, None);
+        assert_eq!(usage.usage.thinking_tokens, Some(3));
 
         Ok(())
     }

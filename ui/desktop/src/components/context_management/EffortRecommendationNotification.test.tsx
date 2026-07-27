@@ -142,6 +142,83 @@ describe('EffortRecommendationNotification', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('offers a downgrade with savings copy and applies it', async () => {
+    acpSetSessionThinkingEffortMock.mockResolvedValueOnce(undefined);
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          msg: 'The remaining work is mechanical cleanup.',
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-8"
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Switch thinking effort to medium to save tokens' })
+    );
+
+    expect(acpSetSessionThinkingEffortMock).toHaveBeenCalledWith('session-8', 'medium');
+    expect(
+      await screen.findByText('Thinking effort set to medium for this session')
+    ).toBeInTheDocument();
+  });
+
+  it('shows the already-set note when the session is at or below a downgrade recommendation', () => {
+    useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('low'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-9"
+      />
+    );
+
+    expect(
+      screen.getByText('Thinking effort is already set to low for this session')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('keeps the downgrade button when the live effort is still above the recommendation', () => {
+    useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('high'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-10"
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Switch thinking effort to medium to save tokens' })
+    ).toBeInTheDocument();
+  });
+
+  it('does not apply a downgrade when the session effort was lowered before the click lands', async () => {
+    getSnapshotMock.mockReturnValue(snapshotWithEffort('low'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-11"
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Switch thinking effort to medium to save tokens' })
+    );
+
+    expect(acpSetSessionThinkingEffortMock).not.toHaveBeenCalled();
+  });
+
   it('does not apply when the session effort was raised before the click lands', async () => {
     getSnapshotMock.mockReturnValue(snapshotWithEffort('max'));
 

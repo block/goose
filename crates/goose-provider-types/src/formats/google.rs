@@ -352,8 +352,13 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .get("cachedContentTokenCount")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
+        let thinking_tokens = usage_meta_data
+            .get("thoughtsTokenCount")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as i32);
         Ok(Usage::new(input_tokens, output_tokens, total_tokens)
-            .with_cache_tokens(cached_tokens, None))
+            .with_cache_tokens(cached_tokens, None)
+            .with_thinking_tokens(thinking_tokens))
     } else {
         tracing::debug!(
             "Failed to get usage data: {}",
@@ -742,6 +747,21 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(120));
         assert_eq!(usage.cache_read_input_tokens, Some(80));
         assert_eq!(usage.cache_write_input_tokens, None);
+    }
+
+    #[test]
+    fn test_get_usage_reads_thoughts_token_count() {
+        let data = json!({
+            "usageMetadata": {
+                "promptTokenCount": 100,
+                "candidatesTokenCount": 20,
+                "totalTokenCount": 470,
+                "thoughtsTokenCount": 350
+            }
+        });
+        let usage = get_usage(&data).unwrap();
+        assert_eq!(usage.output_tokens, Some(20));
+        assert_eq!(usage.thinking_tokens, Some(350));
     }
 
     #[test]
