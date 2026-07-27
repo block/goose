@@ -3375,7 +3375,9 @@ impl Agent {
             .filter(super::reply_parts::is_tool_visible_to_model)
             .collect();
 
-        messages = Conversation::new_unvalidated(messages.agent_visible_messages());
+        messages = without_tool_set_updates(&Conversation::new_unvalidated(
+            messages.agent_visible_messages(),
+        ));
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
