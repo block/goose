@@ -247,6 +247,7 @@ impl Agent {
             .await;
         let (mut extension_count, mut tool_count) =
             self.total_extension_and_tool_counts(session_id).await;
+        let mut frontend_instructions = self.frontend_instructions.lock().await.clone();
 
         let model_config = self.model_config_for_session(session_id).await?;
 
@@ -262,11 +263,13 @@ impl Agent {
                     session_id,
                     &tools,
                     extensions_info,
+                    self.frontend_instruction_entries().await,
                     (extension_count, tool_count),
                 )
                 .await;
             extension_count = declared.extension_count;
             tool_count = declared.tool_count;
+            frontend_instructions = declared.frontend_instructions;
             declared.extensions
         } else {
             extensions_info
@@ -282,7 +285,7 @@ impl Agent {
         let mut system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
-            .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_frontend_instructions(frontend_instructions)
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)

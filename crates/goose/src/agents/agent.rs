@@ -986,6 +986,22 @@ impl Agent {
             .collect()
     }
 
+    pub(super) async fn frontend_instruction_entries(&self) -> Vec<(String, String)> {
+        self.frontend_extension_configs()
+            .await
+            .into_iter()
+            .filter_map(|config| match config {
+                ExtensionConfig::Frontend {
+                    name, instructions, ..
+                } => Some((
+                    name,
+                    instructions.unwrap_or_else(|| DEFAULT_FRONTEND_INSTRUCTIONS.to_string()),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
     async fn rebuild_frontend_derived_state(&self, extensions: &HashMap<String, ExtensionConfig>) {
         let multiple = extensions.len() > 1;
         let mut tools = HashMap::new();

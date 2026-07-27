@@ -23,11 +23,13 @@ pub struct DeclaredSurfaces(Mutex<HashMap<String, Surface>>);
 struct Surface {
     tools: Vec<Tool>,
     extensions: Vec<ExtensionInfo>,
+    frontend_instructions: Vec<(String, String)>,
 }
 
 /// Covers the declared surface, not only what is enabled now.
 pub struct DeclaredPrompt {
     pub extensions: Vec<ExtensionInfo>,
+    pub frontend_instructions: Option<String>,
     pub extension_count: usize,
     pub tool_count: usize,
 }
@@ -38,6 +40,7 @@ impl DeclaredSurfaces {
         session_id: &str,
         enabled_tools: &[Tool],
         enabled_extensions: Vec<ExtensionInfo>,
+        enabled_frontend_instructions: Vec<(String, String)>,
         enabled_counts: (usize, usize),
     ) -> DeclaredPrompt {
         let mut sessions = self.0.lock().await;
@@ -56,16 +59,36 @@ impl DeclaredSurfaces {
             }
         }
 
-        // `enabled_counts` covers sources the declared lists do not hold, such as frontend
-        // extensions, so add what the surface declares beyond it rather than recounting.
+        let enabled_frontend_extension_count = enabled_frontend_instructions.len();
+        for (name, instructions) in enabled_frontend_instructions {
+            match surface
+                .frontend_instructions
+                .iter_mut()
+                .find(|(declared_name, _)| declared_name == &name)
+            {
+                Some(declared) => *declared = (name, instructions),
+                None => surface.frontend_instructions.push((name, instructions)),
+            }
+        }
+        surface
+            .frontend_instructions
+            .sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        // `enabled_counts` covers tool sources the declared prompt lists do not hold, so add
+        // what the surface declares beyond the currently enabled set rather than recounting.
         DeclaredPrompt {
             extension_count: enabled_counts.0
                 + surface
                     .extensions
                     .len()
-                    .saturating_sub(enabled_extension_count),
+                    .saturating_sub(enabled_extension_count)
+                + surface
+                    .frontend_instructions
+                    .len()
+                    .saturating_sub(enabled_frontend_extension_count),
             tool_count: enabled_counts.1 + surface.tools.len().saturating_sub(enabled_tools.len()),
             extensions: surface.extensions.clone(),
+            frontend_instructions: render_frontend_instructions(&surface.frontend_instructions),
         }
     }
 
@@ -97,6 +120,20 @@ impl DeclaredSurfaces {
             surface.tools.clone(),
             (!update.is_empty()).then_some(update),
         )
+    }
+}
+
+fn render_frontend_instructions(instructions: &[(String, String)]) -> Option<String> {
+    match instructions {
+        [] => None,
+        [(_, instructions)] => Some(instructions.clone()),
+        instructions => Some(
+            instructions
+                .iter()
+                .map(|(name, instructions)| format!("{name}: {instructions}"))
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+        ),
     }
 }
 
@@ -238,11 +275,18 @@ mod tests {
                 "s",
                 &tools(&["apps__a", "developer__b"]),
                 vec![apps, developer.clone()],
+                Vec::new(),
                 (2, 2),
             )
             .await;
         let prompt = surfaces
-            .declare("s", &tools(&["developer__b"]), vec![developer], (1, 1))
+            .declare(
+                "s",
+                &tools(&["developer__b"]),
+                vec![developer],
+                Vec::new(),
+                (1, 1),
+            )
             .await;
 
         assert_eq!(
@@ -257,9 +301,47 @@ mod tests {
 
         let other = ExtensionInfo::new("other", "do other things", false);
         let prompt = surfaces
-            .declare("s", &tools(&["other__c"]), vec![other], (1, 1))
+            .declare("s", &tools(&["other__c"]), vec![other], Vec::new(), (1, 1))
             .await;
 
         assert_eq!((prompt.extension_count, prompt.tool_count), (3, 3));
+    }
+
+    #[tokio::test]
+    async fn test_declared_prompt_keeps_disabled_frontend_instructions() {
+        let surfaces = DeclaredSurfaces::default();
+
+        let prompt = surfaces
+            .declare(
+                "s",
+                &tools(&["apps__a", "developer__b"]),
+                Vec::new(),
+                vec![
+                    ("developer".to_string(), "write code".to_string()),
+                    ("apps".to_string(), "build apps".to_string()),
+                ],
+                (2, 2),
+            )
+            .await;
+        assert_eq!(
+            prompt.frontend_instructions.as_deref(),
+            Some("apps: build apps\n\ndeveloper: write code")
+        );
+
+        let prompt = surfaces
+            .declare(
+                "s",
+                &tools(&["developer__b"]),
+                Vec::new(),
+                vec![("developer".to_string(), "write code".to_string())],
+                (1, 1),
+            )
+            .await;
+
+        assert_eq!(
+            prompt.frontend_instructions.as_deref(),
+            Some("apps: build apps\n\ndeveloper: write code")
+        );
+        assert_eq!((prompt.extension_count, prompt.tool_count), (2, 2));
     }
 }
