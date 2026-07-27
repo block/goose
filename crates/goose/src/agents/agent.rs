@@ -58,7 +58,7 @@ use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
     GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -860,9 +860,9 @@ impl Agent {
             if let Some(response) = request_to_response_map.get_mut(&request.id) {
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
-                        DECLINED_RESPONSE,
-                    )])),
+                    Ok(CallToolResult::error(vec![
+                        rmcp::model::ContentBlock::text(DECLINED_RESPONSE),
+                    ])),
                     request.metadata.as_ref(),
                 );
             }
@@ -1576,6 +1576,7 @@ impl Agent {
                         ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
                         ElicitationAction::Decline => ElicitationOutcome::Decline,
                         ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                        _ => ElicitationOutcome::Cancel,
                     };
                     crate::elicitation::complete_elicitation_with_message(
                         &session_manager,
@@ -1809,9 +1810,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -2085,7 +2087,7 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
                                 pending_turn_usage = Some(enriched);
                             }
@@ -2199,7 +2201,7 @@ impl Agent {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
                                             response.add_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
+                                                Ok(CallToolResult::success(vec![ContentBlock::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }
@@ -2567,10 +2569,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2840,7 +2842,7 @@ impl Agent {
 
                             if matching_ids.len() == 2 {
                                 for id in &matching_ids {
-                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    session_manager.update_message_metadata(&session_config.id, id, |metadata| {
                                         metadata.with_agent_invisible()
                                     }).await?;
                                 }
@@ -3527,14 +3529,14 @@ mod tests {
 
     #[test]
     fn user_event_projection_preserves_hidden_tool_response_wrapper() {
-        use rmcp::model::{Content, Role};
+        use rmcp::model::{Annotations, ContentBlock, Role, TextContent};
 
         let hidden_only = Message::user().with_tool_response(
             "tool-1",
-            Ok(CallToolResult::success(vec![Content::text(
-                "provider-only",
-            )
-            .with_audience(vec![Role::Assistant])])),
+            Ok(CallToolResult::success(vec![ContentBlock::Text(
+                TextContent::new("provider-only")
+                    .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+            )])),
         );
 
         let projected = project_message_for_user_event(&hidden_only);
@@ -3549,14 +3551,10 @@ mod tests {
 
     #[test]
     fn agent_visible_message_text_excludes_user_only_blocks() {
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
-        let user_only = RawTextContent {
-            text: "SECRET_USER_ONLY".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
         let message = Message::user()
             .with_text("/goal visible objective")
             .with_content(MessageContent::Text(user_only));
@@ -4053,7 +4051,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn skipped_user_message_does_not_enter_empty_response_retry_loop() -> Result<()> {
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let env = SessionStartHookTestEnv::new()?;
         let provider = Arc::new(CountingTextProvider::new());
@@ -4067,12 +4065,8 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             retry_config: None,
         };
         let user_only_content = MessageContent::Text(
-            RawTextContent {
-                text: "user-only".to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::User]),
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
         );
 
         let mut stream = agent
@@ -4391,18 +4385,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[test]
     fn attach_turn_usage_suppresses_notification_for_assistant_only_message() {
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let usage = ProviderUsage::new(
             "test-model".to_string(),
             Usage::new(Some(1200), Some(340), None),
         );
-        let assistant_only = RawTextContent {
-            text: "provider-only state".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
+        let assistant_only = TextContent::new("provider-only state")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
         let mut conversation = Conversation::new_unvalidated([
             Message::user().with_text("hi"),
             Message::assistant()

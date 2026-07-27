@@ -3,14 +3,13 @@ pub mod formats;
 pub mod mcp_servers;
 
 use crate::config::paths::Paths;
-use crate::subprocess::SubprocessExt;
+use crate::subprocess::{git_command, SubprocessExt};
 use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Duration, Utc};
 use fs_err as fs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tracing::warn;
 
 const INSTALL_METADATA: &str = ".goose-plugin-install.json";
@@ -290,7 +289,7 @@ fn install_from_checkout_at_root(
 }
 
 fn clone_git_repo(source: &str, destination: &Path) -> Result<()> {
-    let output = Command::new("git")
+    let output = git_command()
         .arg("clone")
         .arg("--depth")
         .arg("1")
@@ -551,7 +550,7 @@ mod tests {
     }
 
     fn run_git(repo: &Path, args: &[&str]) {
-        let output = Command::new("git")
+        let output = git_command()
             .args(args)
             .current_dir(repo)
             .set_no_window()

@@ -4,9 +4,9 @@ The bindings layer for Goose. It houses the shared types used for both ACP and
 SDK access, and exposes a cross-language version of the Goose API.
 
 With `--features uniffi` the crate compiles to native bindings for Python and
-Kotlin (namespace `goose` / `io.github.aaif_goose`). The UniFFI surface currently lets
-callers construct declarative providers from JSON and stream provider
-completions.
+Kotlin (namespace `goose` / `io.github.aaif_goose`). The UniFFI surface lets
+callers construct providers, stream provider completions, perform non-streaming
+completion, and pass rich message/tool content across the FFI boundary.
 
 ```bash
 just python   # build bindings + run examples/uniffi/provider.py

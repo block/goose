@@ -119,9 +119,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 }
                             };
                             let session_id = req.session_id.clone();
-                            let sid = sid_short(session_id.0.as_ref());
                             let config_id = req.config_id.0.to_string();
-                            let t_handler = std::time::Instant::now();
                             match config_id.as_ref() {
                                 "provider" => {
                                     Config::global().invalidate_secrets_cache();
@@ -160,7 +158,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 Ok(update) => update,
                                 Err(e) => {
                                     warn!(
-                                        sid = %sid,
+                                        session_id = %session_id.0,
                                         config_id = %config_id,
                                         error = ?e,
                                         "failed to build config update after config change"
@@ -307,7 +305,6 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 });
                             }
 
-                            debug!(target: "perf", sid = %sid, ms = t_handler.elapsed().as_millis() as u64, config_id = %config_id, "perf: set_config_option done");
                             Ok(())
                         })?;
                         Ok(())

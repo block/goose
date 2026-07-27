@@ -8,7 +8,7 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData};
 use serde_json::Value;
 
 use crate::conversation::message::Message;
@@ -295,7 +295,7 @@ fn build_tool_result(content: Option<&Value>, is_error: bool) -> Result<CallTool
     if is_error {
         Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, text, None))
     } else {
-        Ok(CallToolResult::success(vec![Content::text(text)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 }
 
