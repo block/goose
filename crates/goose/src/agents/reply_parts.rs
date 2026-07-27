@@ -245,9 +245,32 @@ impl Agent {
             .extension_manager
             .get_extensions_info(working_dir)
             .await;
-        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
+        let (mut extension_count, mut tool_count) =
+            self.total_extension_and_tool_counts(session_id).await;
 
         let model_config = self.model_config_for_session(session_id).await?;
+
+        // The system prompt is inside the cached prefix, so it has to describe the declared
+        // surface too, or a toggle rewrites it and voids the cache anyway.
+        let extensions_info = if self
+            .supports_mid_conversation_tool_changes(&model_config)
+            .await
+        {
+            let declared = self
+                .declared_surfaces
+                .declare(
+                    session_id,
+                    &tools,
+                    extensions_info,
+                    (extension_count, tool_count),
+                )
+                .await;
+            extension_count = declared.extension_count;
+            tool_count = declared.tool_count;
+            declared.extensions
+        } else {
+            extensions_info
+        };
 
         let goose_mode = *self.current_goose_mode.lock().await;
 

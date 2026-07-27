@@ -16,6 +16,9 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_set::{
+    can_record_tool_set_update, tool_set_update_message, without_tool_set_updates, DeclaredSurfaces,
+};
 use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
@@ -262,6 +265,7 @@ pub struct Agent {
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
     pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
+    pub(crate) declared_surfaces: DeclaredSurfaces,
 }
 
 #[derive(Clone, Debug)]
@@ -421,6 +425,7 @@ impl Agent {
             goal: Mutex::new(None),
             grind: Mutex::new(None),
             pending_steers: Mutex::new(HashMap::new()),
+            declared_surfaces: DeclaredSurfaces::default(),
         }
     }
 
@@ -874,6 +879,27 @@ impl Agent {
         match &*self.provider.lock().await {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
+        }
+    }
+
+    /// Toolshim moves definitions into the system prompt and sends an empty `tools`
+    /// array, leaving nothing for a delta to name.
+    pub(crate) fn provider_supports_mid_conversation_tool_changes(
+        provider: &Arc<dyn Provider>,
+        model_config: &goose_providers::model::ModelConfig,
+    ) -> bool {
+        !model_config.toolshim && provider.supports_mid_conversation_tool_changes(model_config)
+    }
+
+    pub(crate) async fn supports_mid_conversation_tool_changes(
+        &self,
+        model_config: &goose_providers::model::ModelConfig,
+    ) -> bool {
+        match self.provider().await {
+            Ok(provider) => {
+                Self::provider_supports_mid_conversation_tool_changes(&provider, model_config)
+            }
+            Err(_) => false,
         }
     }
 
@@ -2027,21 +2053,52 @@ impl Agent {
                     break;
                 }
 
+                // The capability has to come from the provider that serves this request: one
+                // swapped mid-reply would get the declared superset and ignore the deltas.
+                let turn_provider = self.provider().await?;
+                let mid_conversation_tool_changes = Self::provider_supports_mid_conversation_tool_changes(
+                    &turn_provider,
+                    &model_config,
+                );
+
+                // Deltas and the tool array have to agree, so a turn sending the enabled array
+                // must not carry deltas describing the declared one. Only recording a *new*
+                // delta needs a user turn after it, which keeps the array from oscillating
+                // whenever a turn opens with an assistant message.
+                let (provider_tools, provider_conversation) = if mid_conversation_tool_changes {
+                    let (declared_tools, update) = self
+                        .declared_surfaces
+                        .resolve(&session_config.id, &tools, &conversation)
+                        .await;
+                    match update {
+                        Some(update) if can_record_tool_set_update(&conversation) => {
+                            let message = tool_set_update_message(update);
+                            session_manager.add_message(&session_config.id, &message).await?;
+                            conversation.push(message);
+                            (declared_tools, conversation.clone())
+                        }
+                        Some(_) => (tools.clone(), without_tool_set_updates(&conversation)),
+                        None => (declared_tools, conversation.clone()),
+                    }
+                } else {
+                    (tools.clone(), without_tool_set_updates(&conversation))
+                };
+
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
-                    conversation.clone(),
+                    provider_conversation,
                     &self.extension_manager,
                     turns_taken,
                     max_turns,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
+                    turn_provider,
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
                     conversation_with_moim.messages(),
-                    &tools,
+                    &provider_tools,
                     &toolshim_tools,
                 ).await?;
                 last_assistant_text.clear();
