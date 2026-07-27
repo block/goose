@@ -815,17 +815,20 @@ function App({
               } else if (update.sessionUpdate === "usage_update") {
                 setUsage({ used: update.used, size: update.size });
               } else if (update.sessionUpdate === "config_option_update") {
-                // Switching models can change the context limit, but the agent
-                // sends no fresh usage with the change. Drop the snapshot
-                // rather than divide by the previous model's limit until the
-                // next turn ends.
-                const option = update.configOptions.find(
-                  (o) => o.id === "model",
-                );
-                const modelId =
-                  option?.type === "select" ? option.currentValue : undefined;
-                if (modelId !== undefined && modelId !== modelRef.current) {
-                  modelRef.current = modelId;
+                // Switching models or providers can change the context limit,
+                // but the agent sends no fresh usage with the change. Drop the
+                // snapshot rather than divide by the old limit until the next
+                // turn ends. The key carries both, since the same model id can
+                // sit behind two providers with different limits.
+                const selected = (id: string) => {
+                  const option = update.configOptions.find((o) => o.id === id);
+                  return option?.type === "select"
+                    ? option.currentValue
+                    : undefined;
+                };
+                const key = `${selected("provider") ?? ""}/${selected("model") ?? ""}`;
+                if (key !== "/" && key !== modelRef.current) {
+                  modelRef.current = key;
                   setUsage(null);
                 }
               }
@@ -985,9 +988,11 @@ function App({
   // Everything below the transcript. Both the viewport and the splash screen
   // size themselves against this, so they cannot drift apart.
   const inputAreaH = inputGapH + usageBarH + inputBarH;
+  // No lower bound: a floor here would claim rows the terminal does not have,
+  // and the transcript is what can be given up when the input grows tall.
   const viewportHeight = Math.max(
     safeTermHeight - PAD_TOP - PAD_BOTTOM - headerH - historyBarH - inputAreaH,
-    3,
+    0,
   );
 
   const contentLayout = useMemo(
