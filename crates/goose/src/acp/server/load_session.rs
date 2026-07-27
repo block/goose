@@ -3,7 +3,7 @@ use super::tool_calls::conversion::{
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
-use agent_client_protocol::schema::v1::ToolCall;
+use agent_client_protocol::schema::v1::{MessageId, ToolCall};
 
 fn replay_message_meta(message: &Message) -> Meta {
     let mut meta = serde_json::Map::new();
@@ -62,12 +62,20 @@ fn send_replay_content_chunk(
     message: &Message,
     content: ContentBlock,
 ) -> std::result::Result<(), agent_client_protocol::Error> {
-    let chunk = ContentChunk::new(content).meta(replay_message_meta(message));
+    let chunk = replay_content_chunk_for_message(message, content);
     let update = match message.role {
         Role::User => SessionUpdate::UserMessageChunk(chunk),
         Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
     };
     cx.send_notification(SessionNotification::new(session_id.clone(), update))
+}
+
+fn replay_content_chunk_for_message(message: &Message, content: ContentBlock) -> ContentChunk {
+    let mut chunk = ContentChunk::new(content).meta(replay_message_meta(message));
+    if let Some(message_id) = message.id.as_deref() {
+        chunk = chunk.message_id(MessageId::new(message_id));
+    }
+    chunk
 }
 
 fn build_replayed_tool_call(
@@ -170,12 +178,10 @@ fn replay_conversation_to_client(
                 MessageContent::Thinking(thinking) => {
                     cx.send_notification(SessionNotification::new(
                         session_id.clone(),
-                        SessionUpdate::AgentThoughtChunk(
-                            ContentChunk::new(ContentBlock::Text(TextContent::new(
-                                thinking.thinking.clone(),
-                            )))
-                            .meta(replay_message_meta(message)),
-                        ),
+                        SessionUpdate::AgentThoughtChunk(replay_content_chunk_for_message(
+                            message,
+                            ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
+                        )),
                     ))?;
                 }
                 MessageContent::SystemNotification(_) => {}
@@ -361,6 +367,20 @@ mod tests {
 
         assert_eq!(
             merged.get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_2",
+            })),
+        );
+
+        let chunk = replay_content_chunk_for_message(
+            &message,
+            ContentBlock::Text(TextContent::new("replayed text")),
+        );
+
+        assert_eq!(chunk.message_id, Some(MessageId::new("msg_2")));
+        assert_eq!(
+            chunk.meta.as_ref().and_then(|meta| meta.get("goose")),
             Some(&serde_json::json!({
                 "created": 1_700_000_000,
                 "messageId": "msg_2",

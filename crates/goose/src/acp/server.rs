@@ -45,7 +45,7 @@ use agent_client_protocol::schema::v1::{
     EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse,
     ImageContent, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
     ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
+    MessageId, Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
     PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, ResourceLink, SessionCapabilities, SessionCloseCapabilities,
     SessionConfigOption, SessionId, SessionInfoUpdate, SessionListCapabilities,
@@ -1008,9 +1008,12 @@ impl GooseAcpAgent {
     ) -> Result<(), agent_client_protocol::Error> {
         match content_item {
             MessageContent::Text(text) => {
-                let chunk =
-                    ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
-                        .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(
+                    ContentBlock::Text(TextContent::new(text.text.clone())),
+                    message_id,
+                    message_created,
+                    steer,
+                );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1040,16 +1043,12 @@ impl GooseAcpAgent {
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
-                    SessionUpdate::AgentThoughtChunk(
-                        ContentChunk::new(ContentBlock::Text(TextContent::new(
-                            thinking.thinking.clone(),
-                        )))
-                        .meta(message_update_meta(
-                            message_id,
-                            message_created,
-                            steer,
-                        )),
-                    ),
+                    SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
+                        ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
+                        message_id,
+                        message_created,
+                        steer,
+                    )),
                 ))?;
             }
             MessageContent::ActionRequired(action_required) => match &action_required.data {
@@ -1104,8 +1103,12 @@ impl GooseAcpAgent {
                         ),
                     );
                 }
-                let chunk = ContentChunk::new(ContentBlock::Image(image_content))
-                    .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(
+                    ContentBlock::Image(image_content),
+                    message_id,
+                    message_created,
+                    steer,
+                );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1262,18 +1265,6 @@ impl GooseAcpAgent {
 
         Ok(())
     }
-
-    fn is_builtin_agent_command(command: &str) -> bool {
-        let normalized = command.trim_start_matches('/');
-
-        crate::agents::execute_commands::list_commands()
-            .iter()
-            .any(|cmd| cmd.name == normalized)
-            || crate::agents::execute_commands::COMPACT_TRIGGERS
-                .iter()
-                .filter_map(|trigger| trigger.strip_prefix('/'))
-                .any(|trigger| trigger == normalized)
-    }
 }
 
 fn extract_client_supports_goose_custom_notifications(
@@ -1427,6 +1418,20 @@ fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> M
     let mut meta = serde_json::Map::new();
     meta.insert("goose".to_string(), serde_json::Value::Object(goose));
     meta
+}
+
+fn content_chunk_for_message(
+    content: ContentBlock,
+    message_id: Option<&str>,
+    created: i64,
+    steer: bool,
+) -> ContentChunk {
+    let mut chunk =
+        ContentChunk::new(content).meta(message_update_meta(message_id, created, steer));
+    if let Some(message_id) = message_id {
+        chunk = chunk.message_id(MessageId::new(message_id));
+    }
+    chunk
 }
 
 impl GooseAcpAgent {
@@ -1771,35 +1776,6 @@ impl GooseAcpAgent {
         }
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
-
-        let message_text = user_message.as_concat_text();
-        if let Some(parsed) = crate::agents::execute_commands::parse_slash_command(&message_text) {
-            let full_command = format!("/{}", parsed.command);
-
-            if !Self::is_builtin_agent_command(parsed.command) {
-                if let Some(recipe_path) =
-                    crate::slash_commands::recipe_slash_command::get_recipe_for_command(
-                        &full_command,
-                    )
-                {
-                    if recipe_path.exists() {
-                        if let Err(error) = cx.send_notification(SessionNotification::new(
-                            args.session_id.clone(),
-                            SessionUpdate::AgentMessageChunk(ContentChunk::new(
-                                ContentBlock::Text(TextContent::new(format!(
-                                    "Running recipe: {}",
-                                    full_command
-                                ))),
-                            )),
-                        )) {
-                            self.clear_active_run(&session_id, &run_id).await;
-                            let _ = Self::send_active_run_update(cx, &args.session_id, None);
-                            return Err(error);
-                        }
-                    }
-                }
-            }
-        }
 
         let session_config = SessionConfig {
             id: session_id.clone(),
@@ -2498,6 +2474,23 @@ print(\"hello, world\")
             Some(&serde_json::json!({
                 "created": 1_700_000_000,
                 "messageId": "msg_live",
+            })),
+        );
+
+        let chunk = content_chunk_for_message(
+            ContentBlock::Text(TextContent::new("hello")),
+            Some("msg_live"),
+            1_700_000_000,
+            true,
+        );
+
+        assert_eq!(chunk.message_id, Some(MessageId::new("msg_live")));
+        assert_eq!(
+            chunk.meta.as_ref().and_then(|meta| meta.get("goose")),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_live",
+                "steer": true,
             })),
         );
     }
