@@ -153,7 +153,11 @@ impl GooseAcpAgent {
             .collect();
         *self.recipe_path_cache.lock().await = recipe_file_hash_map;
 
-        let scheduled_jobs = self.agent_manager.scheduler().list_scheduled_jobs().await;
+        // A runtime without a scheduler simply reports no cron entries.
+        let scheduled_jobs = match self.agent_manager.scheduler() {
+            Some(scheduler) => scheduler.list_scheduled_jobs().await,
+            None => Vec::new(),
+        };
         let schedule_map: HashMap<_, _> = scheduled_jobs
             .into_iter()
             .map(|job| (PathBuf::from(job.source), job.cron))
@@ -200,8 +204,7 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let file_path = self.resolve_recipe_path_by_id(&req.id).await?;
         if let Err(err) = self
-            .agent_manager
-            .scheduler()
+            .scheduler()?
             .schedule_recipe(file_path, req.cron_schedule)
             .await
         {

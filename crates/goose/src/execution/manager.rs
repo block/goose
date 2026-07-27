@@ -92,13 +92,10 @@ impl AgentManager {
             .cloned()
     }
 
-    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
-        Arc::clone(
-            self.agent_config
-                .scheduler_service
-                .as_ref()
-                .expect("AgentManager scheduler is not configured"),
-        )
+    /// Returns the scheduler, or `None` when this runtime was configured
+    /// without one (see `GOOSE_ACP_SCHEDULER_DISABLED`).
+    pub fn scheduler(&self) -> Option<Arc<dyn SchedulerTrait>> {
+        self.agent_config.scheduler_service.as_ref().map(Arc::clone)
     }
 
     /// Get the shared SessionManager for session-only operations

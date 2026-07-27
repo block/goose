@@ -12,6 +12,8 @@ use super::{build_session_info, GooseAcpAgent, ResultExt};
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::Recipe;
 use crate::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob, SchedulerError};
+use crate::scheduler_trait::SchedulerTrait;
+use std::sync::Arc;
 
 fn validate_schedule_id(id: &str) -> Result<(), agent_client_protocol::Error> {
     let is_valid = !id.is_empty()
@@ -121,13 +123,26 @@ fn scheduled_job_to_dto(job: ScheduledJob) -> ScheduledJobDto {
 }
 
 impl GooseAcpAgent {
+    /// Returns this runtime's scheduler.
+    ///
+    /// Errors with `method_not_found` when the runtime was started without a
+    /// scheduler (see `GOOSE_ACP_SCHEDULER_DISABLED`), so clients treat
+    /// scheduling as unsupported rather than broken.
+    pub(super) fn scheduler(
+        &self,
+    ) -> Result<Arc<dyn SchedulerTrait>, agent_client_protocol::Error> {
+        self.agent_manager.scheduler().ok_or_else(|| {
+            agent_client_protocol::Error::method_not_found()
+                .data("scheduler is disabled in this ACP runtime")
+        })
+    }
+
     pub(super) async fn on_list_schedules(
         &self,
         _req: ListSchedulesRequest,
     ) -> Result<ListSchedulesResponse, agent_client_protocol::Error> {
         let jobs = self
-            .agent_manager
-            .scheduler()
+            .scheduler()?
             .list_scheduled_jobs()
             .await
             .into_iter()
@@ -142,8 +157,7 @@ impl GooseAcpAgent {
         req: ListScheduleSessionsRequest,
     ) -> Result<ListScheduleSessionsResponse, agent_client_protocol::Error> {
         let sessions = self
-            .agent_manager
-            .scheduler()
+            .scheduler()?
             .sessions(&req.schedule_id, req.limit)
             .await
             .internal_err_ctx("Failed to fetch schedule sessions")?
@@ -158,6 +172,10 @@ impl GooseAcpAgent {
         &self,
         req: CreateScheduleRequest,
     ) -> Result<CreateScheduleResponse, agent_client_protocol::Error> {
+        // Resolved before the recipe file is written so a disabled runtime
+        // leaves no orphaned recipe behind.
+        let scheduler = self.scheduler()?;
+
         let id = req.id.trim().to_string();
         validate_schedule_id(&id)?;
 
@@ -200,8 +218,7 @@ impl GooseAcpAgent {
             recipe_base_dir: None,
         };
 
-        self.agent_manager
-            .scheduler()
+        scheduler
             .add_scheduled_job(job.clone(), false)
             .await
             .map_err(create_schedule_error)?;
@@ -215,8 +232,7 @@ impl GooseAcpAgent {
         &self,
         req: DeleteScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.agent_manager
-            .scheduler()
+        self.scheduler()?
             .remove_scheduled_job(&req.schedule_id, false)
             .await
             .map_err(schedule_not_found_or_internal)?;
@@ -228,8 +244,7 @@ impl GooseAcpAgent {
         &self,
         req: PauseScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.agent_manager
-            .scheduler()
+        self.scheduler()?
             .pause_schedule(&req.schedule_id)
             .await
             .map_err(schedule_state_error)?;
@@ -241,8 +256,7 @@ impl GooseAcpAgent {
         &self,
         req: UnpauseScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.agent_manager
-            .scheduler()
+        self.scheduler()?
             .unpause_schedule(&req.schedule_id)
             .await
             .map_err(schedule_not_found_or_internal)?;
@@ -256,7 +270,7 @@ impl GooseAcpAgent {
     ) -> Result<UpdateScheduleResponse, agent_client_protocol::Error> {
         let schedule_id = req.schedule_id;
         let cron = req.cron;
-        let scheduler = self.agent_manager.scheduler();
+        let scheduler = self.scheduler()?;
         scheduler
             .update_schedule(&schedule_id, cron)
             .await
@@ -281,12 +295,7 @@ impl GooseAcpAgent {
         &self,
         req: RunScheduleNowRequest,
     ) -> Result<RunScheduleNowResponse, agent_client_protocol::Error> {
-        match self
-            .agent_manager
-            .scheduler()
-            .run_now(&req.schedule_id)
-            .await
-        {
+        match self.scheduler()?.run_now(&req.schedule_id).await {
             Ok(session_id) => Ok(RunScheduleNowResponse {
                 status: RunScheduleNowStatus::Completed,
                 session_id: Some(session_id),
@@ -299,8 +308,7 @@ impl GooseAcpAgent {
         &self,
         req: KillRunningJobRequest,
     ) -> Result<KillRunningJobResponse, agent_client_protocol::Error> {
-        self.agent_manager
-            .scheduler()
+        self.scheduler()?
             .kill_running_job(&req.job_id)
             .await
             .map_err(schedule_state_error)?;
@@ -315,8 +323,7 @@ impl GooseAcpAgent {
         req: InspectRunningJobRequest,
     ) -> Result<InspectRunningJobResponse, agent_client_protocol::Error> {
         let job = self
-            .agent_manager
-            .scheduler()
+            .scheduler()?
             .list_scheduled_jobs()
             .await
             .into_iter()
@@ -339,5 +346,91 @@ impl GooseAcpAgent {
             job_start_time: job.process_start_time.map(|value| value.to_rfc3339()),
             running_duration_seconds,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::server_factory::{
+        AcpServer, AcpServerFactoryConfig, GOOSE_ACP_SCHEDULER_DISABLED_ENV,
+    };
+    use crate::agents::GoosePlatform;
+    use goose_sdk_types::custom_requests::ListRecipesRequest;
+    use serial_test::serial;
+
+    /// Builds an ACP agent with scheduling disabled, rooted entirely inside a
+    /// temp dir so no assertion can touch the developer's real goose data.
+    async fn agent_without_scheduler(
+        root: &tempfile::TempDir,
+    ) -> (Arc<GooseAcpAgent>, env_lock::EnvGuard<'static>) {
+        let guard = env_lock::lock_env([
+            (GOOSE_ACP_SCHEDULER_DISABLED_ENV, Some("true")),
+            ("GOOSE_DISABLE_KEYRING", Some("true")),
+            ("GOOSE_PATH_ROOT", root.path().to_str()),
+        ]);
+        let server = AcpServer::new(AcpServerFactoryConfig {
+            builtins: Vec::new(),
+            data_dir: root.path().to_path_buf(),
+            config_dir: root.path().to_path_buf(),
+            goose_platform: GoosePlatform::GooseCli,
+            additional_source_roots: Vec::new(),
+        });
+
+        (server.create_agent().await.unwrap(), guard)
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn schedule_requests_report_method_not_found_when_scheduler_disabled() {
+        let root = tempfile::tempdir().unwrap();
+        let (agent, _guard) = agent_without_scheduler(&root).await;
+
+        let error = agent
+            .on_list_schedules(ListSchedulesRequest {})
+            .await
+            .expect_err("scheduling is unsupported without a scheduler");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::Error::method_not_found().code
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn creating_a_schedule_writes_no_recipe_when_scheduler_disabled() {
+        let root = tempfile::tempdir().unwrap();
+        let (agent, _guard) = agent_without_scheduler(&root).await;
+
+        let error = agent
+            .on_create_schedule(CreateScheduleRequest {
+                id: "nightly".to_string(),
+                recipe: Default::default(),
+                cron: "0 0 0 * * *".to_string(),
+            })
+            .await
+            .expect_err("scheduling is unsupported without a scheduler");
+
+        assert_eq!(
+            error.code,
+            agent_client_protocol::Error::method_not_found().code
+        );
+        assert!(!get_default_scheduled_recipes_dir()
+            .unwrap()
+            .join("nightly.yaml")
+            .exists());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn listing_recipes_succeeds_when_scheduler_disabled() {
+        let root = tempfile::tempdir().unwrap();
+        let (agent, _guard) = agent_without_scheduler(&root).await;
+
+        agent
+            .on_list_recipes(ListRecipesRequest {})
+            .await
+            .expect("recipes remain listable without a scheduler");
     }
 }
