@@ -26,18 +26,21 @@ export function shortenPath(target: string): string {
 
   if (withTilde.length <= SHORTEN_PATH_MAX_LEN) return withTilde;
 
-  const parts = withTilde.split(sep);
+  // Split off the root first — a Windows UNC path ("\\\\server\\share\\") is two
+  // empty leading segments, and abbreviating those would name a different host.
+  const root = path.parse(withTilde).root;
+  const parts = withTilde.slice(root.length).split(sep).filter(Boolean);
   if (parts.length <= SHORTEN_PATH_MAX_PARTS) return withTilde;
 
-  const shortened = [parts[0]];
+  const shortened = [parts[0]!];
   for (const part of parts.slice(1, -2)) {
     // Take the first code point, not the first UTF-16 unit: a directory name
     // starting with an emoji would otherwise leave half a surrogate pair.
-    if (part) shortened.push([...part][0]!);
+    shortened.push([...part][0]!);
   }
   shortened.push(...parts.slice(-2));
 
-  return shortened.join(sep);
+  return root + shortened.join(sep);
 }
 
 export function formatError(e: unknown): string {
