@@ -2242,7 +2242,7 @@ impl Agent {
                                     );
 
                                     while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                        yield AgentEvent::Message(msg);
+                                        yield AgentEvent::message_with_id(msg);
                                     }
                                 }
                                 if goose_mode == GooseMode::Chat {
@@ -3596,6 +3596,24 @@ mod tests {
         };
         assert_eq!(preserved_message.id.as_deref(), Some("provider-message-id"));
         assert_eq!(preserved_message.as_concat_text(), "hello");
+
+        let frontend_tool_request =
+            AgentEvent::message_with_id(Message::assistant().with_frontend_tool_request(
+                "frontend-request-id",
+                Ok(CallToolRequestParams::new("frontend_tool")),
+            ));
+        let AgentEvent::Message(frontend_tool_request_message) = frontend_tool_request else {
+            panic!("expected message event");
+        };
+        let frontend_tool_request_message_id = frontend_tool_request_message
+            .id
+            .as_deref()
+            .expect("frontend tool request message id");
+        assert!(frontend_tool_request_message_id.starts_with("msg_"));
+        assert!(matches!(
+            frontend_tool_request_message.content.first(),
+            Some(MessageContent::FrontendToolRequest(_))
+        ));
     }
 
     #[test]
