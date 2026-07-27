@@ -98,14 +98,14 @@ Comments and reactions are LinkedIn-only. The other nine networks support publis
 
 Once Publora is configured, you can ask goose to publish on your behalf. Media-only networks such as Instagram, TikTok and YouTube require an image or video.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Which social accounts do I have connected? Draft a short post about our new
 changelog page and schedule it to LinkedIn and Bluesky for tomorrow at 9am UTC.
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'll check your connected accounts first.
