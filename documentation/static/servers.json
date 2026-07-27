@@ -583,6 +583,25 @@
     ]
   },
   {
+    "id": "publora",
+    "name": "Publora",
+    "description": "Publish and schedule social media posts across 10 networks",
+    "url": "https://mcp.publora.com/mcp",
+    "link": "https://github.com/publora/mcp-server",
+    "installation_notes": "This is a remote extension. It requires a Publora API key sent as the x-publora-key request header. Create a key at https://publora.com under Settings > API.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "x-publora-key",
+        "description": "sk_<YOUR_PUBLORA_API_KEY>",
+        "required": true
+      }
+    ],
+    "type": "streamable-http"
+  },
+  {
     "id": "reddit-mcp",
     "name": "Reddit",
     "description": "Reddit API integration for posts and comments",
