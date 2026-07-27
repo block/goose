@@ -86,19 +86,17 @@ const OBSERVED_THINKING_MIN_TURNS: usize = 3;
 /// hard stretch at high effort runs well above this on every provider.
 const OBSERVED_THINKING_IDLE_MAX_UTILIZATION: f64 = 0.05;
 
-/// Thinking activity over the most recent assistant turns, from
-/// provider-reported reasoning token counts on per-message usage
-/// (with thinking-content length as a fallback estimate).
+/// Thinking activity over the most recent assistant turns. Within the window
+/// only turns with direct evidence are sampled: a provider-reported reasoning
+/// token count on per-message usage (including an explicit 0) or, failing
+/// that, thinking content on the message. Turns with neither are skipped -
+/// when a provider (or proxy) strips the breakdown, reasoning is invisible
+/// and "no thinking observed" is not evidence of easy work.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ObservedThinking {
     pub sampled_turns: usize,
     pub thinking_tokens: i64,
     pub output_tokens: i64,
-    /// Whether any message in the conversation carries a provider-reported
-    /// thinking-token count. Guards against providers (or proxies) that strip
-    /// the breakdown: reasoning there is invisible, so "no thinking observed"
-    /// is not evidence of easy work.
-    pub telemetry_reported: bool,
 }
 
 impl ObservedThinking {
@@ -107,8 +105,7 @@ impl ObservedThinking {
     }
 
     fn shows_idle_reasoning(&self) -> bool {
-        self.telemetry_reported
-            && self.sampled_turns >= OBSERVED_THINKING_MIN_TURNS
+        self.sampled_turns >= OBSERVED_THINKING_MIN_TURNS
             && self.utilization() <= OBSERVED_THINKING_IDLE_MAX_UTILIZATION
     }
 }
@@ -126,15 +123,8 @@ fn message_thinking_estimate(message: &Message) -> i64 {
 }
 
 pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
-    let telemetry_reported = conversation
-        .messages()
-        .iter()
-        .any(|m| matches!(&m.metadata.usage, Some(usage) if usage.thinking_tokens.is_some()));
-
-    let mut observed = ObservedThinking {
-        telemetry_reported,
-        ..Default::default()
-    };
+    let mut observed = ObservedThinking::default();
+    let mut examined = 0;
     for message in conversation
         .messages()
         .iter()
@@ -147,13 +137,20 @@ pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
         let Some(output_tokens) = usage.output_tokens else {
             continue;
         };
-        observed.sampled_turns += 1;
-        observed.output_tokens += output_tokens as i64;
-        observed.thinking_tokens += usage
+        // Evidence-free turns consume the window but are not sampled, so
+        // stale telemetry from before a provider switch can never vouch for
+        // newer turns whose reasoning is invisible.
+        examined += 1;
+        let thinking = usage
             .thinking_tokens
             .map(|t| t as i64)
             .unwrap_or_else(|| message_thinking_estimate(message));
-        if observed.sampled_turns == OBSERVED_THINKING_WINDOW {
+        if usage.thinking_tokens.is_some() || thinking > 0 {
+            observed.sampled_turns += 1;
+            observed.output_tokens += output_tokens as i64;
+            observed.thinking_tokens += thinking;
+        }
+        if examined == OBSERVED_THINKING_WINDOW {
             break;
         }
     }
@@ -194,7 +191,9 @@ pub fn build_effort_recommendation(
     current_effort: Option<ThinkingEffort>,
     observed: Option<&ObservedThinking>,
 ) -> Option<EffortRecommendation> {
-    if !model_config.is_reasoning_model() || !provider.maps_thinking_effort(model_config) {
+    // Capability is the provider's call (overrides handle e.g. Bedrock's
+    // `openai.` prefix); only an explicit reasoning opt-out short-circuits it.
+    if model_config.reasoning == Some(false) || !provider.maps_thinking_effort(model_config) {
         return None;
     }
     if current_effort == Some(ThinkingEffort::Off) && difficulty.level != DifficultyLevel::High {
@@ -1327,14 +1326,12 @@ mod tests {
             sampled_turns: 5,
             thinking_tokens: 20,
             output_tokens: 2000,
-            telemetry_reported: true,
         }
     }
 
     #[test]
     fn effort_recommendation_requires_a_model_that_maps_thinking_effort() {
         let non_reasoning = ModelConfig::new("plain-model");
-        assert!(!non_reasoning.is_reasoning_model());
         assert!(
             nudge(&non_reasoning, DifficultyLevel::High, None).is_none(),
             "must never suggest a setting the current model can't use"
@@ -1346,6 +1343,13 @@ mod tests {
             nudge(&unmapped, DifficultyLevel::High, None).is_none(),
             "the OpenAI-compatible formatter drops thinking_effort for this model, \
              so applying the nudge would change nothing"
+        );
+
+        let mut opted_out = ModelConfig::new("gpt-5");
+        opted_out.reasoning = Some(false);
+        assert!(
+            nudge(&opted_out, DifficultyLevel::High, None).is_none(),
+            "an explicit reasoning opt-out beats the capability check"
         );
     }
 
@@ -1507,18 +1511,6 @@ mod tests {
                 DifficultyLevel::Low,
                 Some(ThinkingEffort::High),
                 Some(&ObservedThinking {
-                    telemetry_reported: false,
-                    ..idle_reasoning()
-                }),
-            )
-            .is_none(),
-            "a provider that never reports thinking counts gives no evidence of idleness"
-        );
-        assert!(
-            lower(
-                DifficultyLevel::Low,
-                Some(ThinkingEffort::High),
-                Some(&ObservedThinking {
                     sampled_turns: OBSERVED_THINKING_MIN_TURNS - 1,
                     ..idle_reasoning()
                 }),
@@ -1600,7 +1592,6 @@ mod tests {
         let conversation = Conversation::new_unvalidated(messages);
 
         let observed = observed_thinking(&conversation);
-        assert!(observed.telemetry_reported);
         assert_eq!(observed.sampled_turns, OBSERVED_THINKING_WINDOW);
         assert_eq!(
             observed.thinking_tokens,
@@ -1640,7 +1631,6 @@ mod tests {
         ]);
 
         let observed = observed_thinking(&conversation);
-        assert!(observed.telemetry_reported);
         assert_eq!(observed.sampled_turns, 2);
         assert_eq!(observed.thinking_tokens, 1000);
         assert!(!observed.shows_idle_reasoning());
@@ -1663,7 +1653,40 @@ mod tests {
         let conversation = Conversation::new_unvalidated(messages);
 
         let observed = observed_thinking(&conversation);
-        assert!(!observed.telemetry_reported);
+        assert_eq!(observed.sampled_turns, 0);
+        assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_ignores_stale_telemetry_from_before_a_provider_switch() {
+        use crate::conversation::message::MessageUsage;
+
+        let with_usage = |thinking: Option<i32>| {
+            let mut message = Message::assistant().with_text("done");
+            message.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(500),
+                thinking_tokens: thinking,
+                ..Default::default()
+            }));
+            message
+        };
+
+        // Idle turns reported by the previous provider, then a window's worth
+        // of turns from a provider that strips the breakdown.
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+            messages.push(with_usage(Some(0)));
+        }
+        for _ in 0..OBSERVED_THINKING_WINDOW {
+            messages.push(with_usage(None));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation);
+        assert_eq!(
+            observed.sampled_turns, 0,
+            "evidence-free turns consume the window; stale reported turns behind them are never reached"
+        );
         assert!(!observed.shows_idle_reasoning());
     }
 
