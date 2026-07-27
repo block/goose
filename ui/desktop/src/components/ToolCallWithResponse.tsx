@@ -156,16 +156,13 @@ interface McpAppWrapperProps {
 }
 
 export function resolveMcpAppMetadata(
-  requestMeta: UiMeta | undefined,
   responseMeta: UiMeta | undefined
 ): { resourceUri: string; extensionName: string; toolName: string } | null {
-  for (const metadata of [requestMeta, responseMeta]) {
-    const resourceUri = metadata?.ui?.resourceUri;
-    const extensionName = metadata?.extensionName;
-    const toolName = metadata?.toolName;
-    if (resourceUri && extensionName && toolName) {
-      return { resourceUri, extensionName, toolName };
-    }
+  const resourceUri = responseMeta?.ui?.resourceUri;
+  const extensionName = responseMeta?.extensionName;
+  const toolName = responseMeta?.toolName;
+  if (resourceUri && extensionName && toolName) {
+    return { resourceUri, extensionName, toolName };
   }
 
   return null;
@@ -183,7 +180,7 @@ function McpAppWrapper({
     resultWithMeta?.status === 'success' && resultWithMeta.value
       ? resultWithMeta.value._meta
       : undefined;
-  const appMetadata = resolveMcpAppMetadata(requestWithMeta._meta, responseMeta);
+  const appMetadata = resolveMcpAppMetadata(responseMeta);
 
   const toolArguments =
     requestWithMeta.toolCall.status === 'success'
@@ -241,11 +238,8 @@ export default function ToolCallWithResponse({
     return null;
   }
 
-  const requestWithMeta = toolRequest as ToolRequestWithMeta;
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
-  const hasMcpAppResourceURI = Boolean(
-    requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
-  );
+  const hasMcpAppResourceURI = Boolean(resultWithMeta?.value?._meta?.ui?.resourceUri);
 
   const shouldShowMcpContent = !isPendingApproval;
 

@@ -3,14 +3,11 @@ import { resolveMcpAppMetadata } from './ToolCallWithResponse';
 
 describe('MCP app metadata binding', () => {
   it('preserves authoritative ownership when a tool name contains the delimiter', () => {
-    const metadata = resolveMcpAppMetadata(
-      {
-        ui: { resourceUri: 'ui://victim/render' },
-        extensionName: 'victim',
-        toolName: 'render__secret',
-      },
-      undefined
-    );
+    const metadata = resolveMcpAppMetadata({
+      ui: { resourceUri: 'ui://victim/render' },
+      extensionName: 'victim',
+      toolName: 'render__secret',
+    });
 
     expect(metadata).toEqual({
       resourceUri: 'ui://victim/render',
@@ -20,27 +17,23 @@ describe('MCP app metadata binding', () => {
   });
 
   it('does not infer ownership from incomplete metadata', () => {
-    const metadata = resolveMcpAppMetadata(
-      {
-        ui: { resourceUri: 'ui://victim/render' },
-      },
-      undefined
-    );
+    const metadata = resolveMcpAppMetadata({
+      ui: { resourceUri: 'ui://victim/render' },
+    });
 
     expect(metadata).toBeNull();
   });
 
-  it('uses complete response metadata when request metadata is incomplete', () => {
-    const metadata = resolveMcpAppMetadata(
-      {
-        ui: { resourceUri: 'ui://legacy/render' },
-      },
-      {
-        ui: { resourceUri: 'ui://victim/render' },
-        extensionName: 'victim',
-        toolName: 'render__secret',
-      }
-    );
+  it('rejects untrusted request metadata when authenticated response metadata is absent', () => {
+    expect(resolveMcpAppMetadata(undefined)).toBeNull();
+  });
+
+  it('uses complete authenticated response metadata', () => {
+    const metadata = resolveMcpAppMetadata({
+      ui: { resourceUri: 'ui://victim/render' },
+      extensionName: 'victim',
+      toolName: 'render__secret',
+    });
 
     expect(metadata).toEqual({
       resourceUri: 'ui://victim/render',
