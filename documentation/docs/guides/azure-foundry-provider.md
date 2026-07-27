@@ -9,10 +9,13 @@ The `azure_foundry` provider connects goose to Azure AI Foundry deployments. It 
 
 | Endpoint | Inference surface |
 |---|---|
-| Foundry project: `https://<resource>.services.ai.azure.com/api/projects/<project>` | OpenAI models through Responses, Claude through Anthropic Messages, and partner models through Chat Completions |
+| Foundry project: `https://<resource>.services.ai.azure.com/api/projects/<project>` | Deployment discovery plus publisher-aware routing |
+| Foundry resource: `https://<resource>.services.ai.azure.com` | OpenAI models through Responses, Claude through Anthropic Messages, and partner models through Chat Completions |
 | MaaS/serverless: `https://<deployment>.<region>.models.ai.azure.com` | Chat Completions for the model bound to the endpoint |
 
 For project endpoints, goose discovers deployments with `GET /deployments`. Deployment names can be customized; goose uses the returned `modelPublisher` to select the protocol and `modelName` to resolve model metadata such as the context window.
+
+Resource endpoints do not expose project deployment discovery. Goose routes recognizable model or deployment names by family: `gpt-5*` and supported o-series models use Responses, `claude-*` uses Anthropic Messages, and other names use Chat Completions. Use a project endpoint when aliases do not identify their underlying model family.
 
 ## Configuration
 
@@ -57,7 +60,7 @@ When neither token nor key is configured, sign in with Azure CLI before starting
 az login
 ```
 
-Project endpoints request a token for `https://ai.azure.com`. MaaS endpoints request a token for `https://ml.azure.com`.
+Project and resource endpoints request a token for `https://ai.azure.com`. MaaS endpoints request a token for `https://ml.azure.com`.
 
 ## Protocol routing
 
@@ -69,7 +72,9 @@ For a project endpoint, goose routes each deployment using metadata returned by 
 
 If deployment discovery is temporarily unavailable, recognizable Responses-compatible OpenAI and `claude-*` names use their native surfaces. Other names use Chat Completions.
 
-MaaS endpoints always use `/v1/chat/completions`.
+Resource endpoints use the same inference surfaces without deployment discovery: recognizable model-family names select the native protocol. This allows a custom agent's `model:` declaration to select deployments such as `gpt-5.6-sol` without rewriting the name through canonical model resolution.
+
+MaaS endpoints always use `/v1/chat/completions` and the model configured by `AZURE_FOUNDRY_MODEL`.
 
 ## Model metadata and pricing
 

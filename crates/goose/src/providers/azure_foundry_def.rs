@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::api_client::{AuthMethod, AuthProvider, TlsConfig};
-use goose_providers::azure_foundry::{is_project_endpoint, AzureFoundryProvider};
+use goose_providers::azure_foundry::{endpoint_kind, AzureFoundryProvider, EndpointKind};
 use goose_providers::base::{ProviderDescriptor, ProviderMetadata};
 
 use crate::config::{Config, ExtensionConfig};
@@ -78,11 +78,11 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
         .get_secret::<String>("AZURE_FOUNDRY_AD_TOKEN")
         .ok()
         .filter(|token| !token.is_empty());
-    let project = is_project_endpoint(&endpoint);
-    let resource = if project {
-        AZURE_PROJECT_ENTRA_RESOURCE
-    } else {
+    let endpoint_kind = endpoint_kind(&endpoint);
+    let resource = if endpoint_kind == EndpointKind::Maas {
         AZURE_MAAS_ENTRA_RESOURCE
+    } else {
+        AZURE_PROJECT_ENTRA_RESOURCE
     };
     let auth = Arc::new(AzureAuth::new_with_resource(
         api_key,
@@ -107,7 +107,7 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<AzureFoundryProvi
         _ => AuthHeader::Bearer,
     };
     let chat_auth_header = match auth.credential_type() {
-        AzureCredentials::ApiKey(_) if !project => AuthHeader::Bearer,
+        AzureCredentials::ApiKey(_) if endpoint_kind == EndpointKind::Maas => AuthHeader::Bearer,
         _ => api_key_auth_header(),
     };
 
