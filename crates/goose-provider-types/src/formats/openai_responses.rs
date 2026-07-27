@@ -7,6 +7,7 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
+use crate::utils::sanitize_unicode_tags;
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
@@ -713,11 +714,13 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 for block in msg_content {
                     match block {
                         ResponseContentBlock::OutputText { text, .. } => {
+                            let text = sanitize_unicode_tags(text);
                             if !text.is_empty() {
                                 content.push(MessageContentBlock::text(text));
                             }
                         }
                         ResponseContentBlock::Refusal { refusal } => {
+                            let refusal = sanitize_unicode_tags(refusal);
                             if !refusal.is_empty() {
                                 content.push(MessageContentBlock::text(refusal));
                             }
@@ -786,13 +789,15 @@ fn process_streaming_output_items(
                 for part in parts {
                     match part {
                         ContentBlockPart::OutputText { text, .. } => {
+                            let text = sanitize_unicode_tags(&text);
                             if !text.is_empty() && !is_text_response {
-                                content.push(MessageContentBlock::text(&text));
+                                content.push(MessageContentBlock::text(text));
                             }
                         }
                         ContentBlockPart::Refusal { refusal } => {
+                            let refusal = sanitize_unicode_tags(&refusal);
                             if !refusal.is_empty() && !is_text_response {
-                                content.push(MessageContentBlock::text(&refusal));
+                                content.push(MessageContentBlock::text(refusal));
                             }
                         }
                         ContentBlockPart::ToolCall {
@@ -901,6 +906,7 @@ where
 
                 ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
                     is_text_response = true;
+                    let delta = sanitize_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -955,6 +961,7 @@ where
 
                 ResponsesStreamEvent::RefusalDelta { delta, .. } => {
                     is_text_response = true;
+                    let delta = sanitize_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -1973,6 +1980,123 @@ mod tests {
         assert_eq!(input[0]["role"], "assistant");
         assert_eq!(input[0]["content"][0]["type"], "output_text");
         assert_eq!(input[0]["content"][0]["text"], "hello");
+    }
+
+    #[test]
+    fn test_responses_api_to_message_sanitizes_unicode_tags() {
+        let response: ResponsesApiResponse = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 0,
+            "status": "completed",
+            "model": "gpt-5.5",
+            "output": [{
+                "type": "message",
+                "id": "msg_1",
+                "status": "completed",
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "visible\u{E0041}text"},
+                    {"type": "refusal", "refusal": "cannot\u{E0042}help"}
+                ]
+            }]
+        }))
+        .unwrap();
+
+        let message = responses_api_to_message(&response).unwrap();
+        let text = message
+            .content
+            .iter()
+            .filter_map(MessageContentBlock::as_text)
+            .collect::<Vec<_>>();
+
+        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+    }
+
+    #[test]
+    fn test_streaming_output_items_sanitize_unicode_tags() {
+        let item: ResponseOutputItemInfo = serde_json::from_value(serde_json::json!({
+            "type": "message",
+            "id": "msg_1",
+            "status": "completed",
+            "role": "assistant",
+            "content": [
+                {"type": "output_text", "text": "visible\u{E0041}text"},
+                {"type": "refusal", "refusal": "cannot\u{E0042}help"}
+            ]
+        }))
+        .unwrap();
+
+        let content = process_streaming_output_items(vec![item], false).unwrap();
+        let text = content
+            .iter()
+            .filter_map(MessageContentBlock::as_text)
+            .collect::<Vec<_>>();
+
+        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_deltas_sanitize_unicode_tags() -> anyhow::Result<()> {
+        let lines = vec![
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.created",
+                    "sequence_number": 1,
+                    "response": {
+                        "id": "resp_1",
+                        "object": "response",
+                        "created_at": 0,
+                        "status": "in_progress",
+                        "model": "gpt-5.5",
+                        "output": []
+                    }
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 2,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "visible\u{E0041}text"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.refusal.delta",
+                    "sequence_number": 3,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 1,
+                    "delta": "cannot\u{E0042}help"
+                })
+            ),
+            "data: [DONE]".to_string(),
+        ];
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text = Vec::new();
+        while let Some(item) = messages.next().await {
+            if let Some(message) = item?.0 {
+                text.extend(
+                    message
+                        .content
+                        .iter()
+                        .filter_map(MessageContentBlock::as_text)
+                        .map(str::to_owned),
+                );
+            }
+        }
+
+        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+        Ok(())
     }
 
     #[test]
