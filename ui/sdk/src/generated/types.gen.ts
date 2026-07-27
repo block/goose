@@ -2590,6 +2590,7 @@ export type MessageUsageData = {
     totalTokens?: number | null;
     cacheReadTokens?: number | null;
     cacheWriteTokens?: number | null;
+    thinkingTokens?: number | null;
     cost?: number | null;
     costSource?: CostSourceData | null;
     /**

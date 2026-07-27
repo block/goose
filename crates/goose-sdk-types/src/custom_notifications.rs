@@ -81,6 +81,8 @@ pub struct MessageUsageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_source: Option<CostSourceData>,

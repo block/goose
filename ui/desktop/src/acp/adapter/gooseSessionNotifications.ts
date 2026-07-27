@@ -129,6 +129,7 @@ function applyMessageUsage(
     totalTokens: update.usage.totalTokens,
     cacheReadTokens: update.usage.cacheReadTokens,
     cacheWriteTokens: update.usage.cacheWriteTokens,
+    thinkingTokens: update.usage.thinkingTokens,
     cost: update.usage.cost,
     costSource: update.usage.costSource,
     elapsedMs: update.usage.elapsedMs,

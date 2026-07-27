@@ -6766,6 +6766,12 @@
             "null"
           ]
         },
+        "thinkingTokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "cost": {
           "type": [
             "number",

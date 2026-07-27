@@ -87,11 +87,12 @@ const OBSERVED_THINKING_MIN_TURNS: usize = 3;
 const OBSERVED_THINKING_IDLE_MAX_UTILIZATION: f64 = 0.05;
 
 /// Thinking activity over the most recent assistant turns. Within the window
-/// only turns with direct evidence are sampled: a provider-reported reasoning
-/// token count on per-message usage (including an explicit 0) or, failing
-/// that, thinking content on the message. Turns with neither are skipped -
-/// when a provider (or proxy) strips the breakdown, reasoning is invisible
-/// and "no thinking observed" is not evidence of easy work.
+/// only turns with a provider-reported reasoning token count on per-message
+/// usage (including an explicit 0) are sampled as idle evidence. When a
+/// provider (or proxy) strips the breakdown, reasoning is invisible: visible
+/// thinking content still adds its estimated size so it can block a
+/// downgrade, but an estimate never vouches for idleness - Claude models
+/// surface a summary that is a fraction of what `output_tokens` charges.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ObservedThinking {
     pub sampled_turns: usize,
@@ -158,14 +159,13 @@ pub fn observed_thinking(
         // vouch for newer turns whose reasoning is invisible. Evidence-free
         // turns are consumed but not sampled.
         examined += 1;
-        let thinking = usage
-            .thinking_tokens
-            .map(|t| t as i64)
-            .unwrap_or_else(|| message_thinking_estimate(message));
-        if usage.thinking_tokens.is_some() || thinking > 0 {
-            observed.sampled_turns += 1;
-            observed.output_tokens += usage.output_tokens.unwrap_or(0) as i64;
-            observed.thinking_tokens += thinking;
+        match usage.thinking_tokens {
+            Some(reported) => {
+                observed.sampled_turns += 1;
+                observed.output_tokens += usage.output_tokens.unwrap_or(0) as i64;
+                observed.thinking_tokens += reported as i64;
+            }
+            None => observed.thinking_tokens += message_thinking_estimate(message),
         }
         if examined == OBSERVED_THINKING_WINDOW {
             break;
@@ -1665,9 +1665,40 @@ mod tests {
         ]);
 
         let observed = observed_thinking(&conversation, "test-provider", "test-model");
-        assert_eq!(observed.sampled_turns, 2);
+        assert_eq!(
+            observed.sampled_turns, 1,
+            "an estimated turn adds thinking but is not idle evidence"
+        );
         assert_eq!(observed.thinking_tokens, 1000);
         assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_never_reads_summarized_thinking_as_idle() {
+        use crate::conversation::message::MessageUsage;
+
+        // Bedrock reports no thinking breakdown; Claude surfaces a short
+        // summary while output_tokens charges the full hidden reasoning.
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_WINDOW {
+            let mut summarized = Message::assistant()
+                .with_thinking("x".repeat(1200), "sig")
+                .with_text("done");
+            summarized.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(12_500),
+                thinking_tokens: None,
+                ..Default::default()
+            }));
+            messages.push(summarized);
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
+        assert_eq!(observed.sampled_turns, 0);
+        assert!(
+            !observed.shows_idle_reasoning(),
+            "a tiny summary over a large output must not pass the idle gate"
+        );
     }
 
     #[test]

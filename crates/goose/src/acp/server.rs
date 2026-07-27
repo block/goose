@@ -1543,6 +1543,7 @@ fn message_usage_update(
             total_tokens: usage.total_tokens,
             cache_read_tokens: usage.cache_read_tokens,
             cache_write_tokens: usage.cache_write_tokens,
+            thinking_tokens: usage.thinking_tokens,
             cost: usage.cost,
             cost_source: usage.cost_source.map(|source| match source {
                 CostSource::ProviderReported => CostSourceData::ProviderReported,

@@ -178,6 +178,7 @@ export type MessageUsage = {
   totalTokens?: number | null;
   cacheReadTokens?: number | null;
   cacheWriteTokens?: number | null;
+  thinkingTokens?: number | null;
   cost?: number | null;
   costSource?: 'provider_reported' | 'estimated' | null;
   elapsedMs?: number | null;

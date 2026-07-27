@@ -2745,6 +2745,10 @@ export const zMessageUsageData = z.object({
         z.number().int(),
         z.null()
     ]).optional(),
+    thinkingTokens: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
     cost: z.union([
         z.number(),
         z.null()
