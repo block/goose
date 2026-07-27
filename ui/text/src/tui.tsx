@@ -1069,6 +1069,16 @@ function App({
     }
   }, [toolCallRanges.length, selectedToolCallIdx]);
 
+  // The expanded view is not rendered below its minimum height, and its key
+  // handler lives inside it. Leaving the flag set there would strand the UI:
+  // App's handler bows out while expanded, so nothing would answer a keypress.
+  // This also covers growing the input until the room runs out mid-view.
+  useEffect(() => {
+    if (toolCallExpanded && viewportHeight < MIN_EXPANDED_HEIGHT) {
+      setToolCallExpanded(false);
+    }
+  }, [toolCallExpanded, viewportHeight]);
+
   const selectedToolCallInfo = useMemo<ToolCallInfo | null>(() => {
     if (selectedToolCallIdx === null || !currentTurn) return null;
     const range = toolCallRanges[selectedToolCallIdx];
