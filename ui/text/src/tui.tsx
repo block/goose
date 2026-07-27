@@ -1339,10 +1339,12 @@ function App({
             <Box flexDirection="column" width={contentWidth} flexShrink={0}>
               <Rule width={contentWidth} />
               <Box justifyContent="center" width={contentWidth}>
-                <Text color={GOLD}>
+                <Text color={GOLD} wrap="truncate-end">
                   turn {effectiveTurnIdx + 1}/{turns.length}
                 </Text>
-                <Text color={TEXT_DIM}> — shift+↓ to return</Text>
+                <Text color={TEXT_DIM} wrap="truncate-end">
+                  {" — shift+↓ to return"}
+                </Text>
               </Box>
             </Box>
           )}

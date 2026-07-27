@@ -42,11 +42,15 @@ export const Header = React.memo(function Header({
         </Box>
         <Box width={rightSideWidth} justifyContent="flex-end">
           {turnInfo && turnInfo.total > 1 && (
-            <Text color={TEXT_DIM}>
+            <Text color={TEXT_DIM} wrap="truncate-end">
               {turnInfo.current}/{turnInfo.total}{"  "}
             </Text>
           )}
-          <Text color={TEXT_DIM}>^E exts · ^M models · ^P providers</Text>
+          {/* Without truncation this wraps on a narrow terminal and the header
+              silently becomes three rows, breaking the height budget. */}
+          <Text color={TEXT_DIM} wrap="truncate-end">
+            ^E exts · ^M models · ^P providers
+          </Text>
         </Box>
       </Box>
       <Rule width={constrainedWidth} />
