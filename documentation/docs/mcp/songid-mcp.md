@@ -10,25 +10,25 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the [SongID MCP Server](https://github.com/james-see/songid) as a goose extension to identify songs from audio files or microphone input using open-source Chromaprint fingerprinting and AcoustID lookup.
 
-:::tip Quick Install
-<Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=songid-mcp&id=songid&name=SongID&description=Identify%20songs%20from%20audio%20files%20or%20microphone%20input)
-  </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  **Command**
-  ```sh
-  songid-mcp
-  ```
-  </TabItem>
-</Tabs>
-:::
-
-## Configuration
+## Prerequisites
 
 :::info
 You'll need [chromaprint](https://github.com/acoustid/chromaprint) (fpcalc) installed for audio fingerprinting, and [ffmpeg](https://ffmpeg.org) for microphone capture. No API key is required — songid uses a built-in default AcoustID key that works out of the box.
 :::
+
+### Install dependencies
+
+**macOS:**
+
+```sh
+brew install chromaprint ffmpeg
+```
+
+**Linux (Debian/Ubuntu):**
+
+```sh
+apt install libchromaprint-tools ffmpeg
+```
 
 ### Install the MCP server
 
@@ -52,13 +52,6 @@ This produces a binary named `mcp` in your `$GOPATH/bin`. Rename it so goose can
 mv $(go env GOPATH)/bin/mcp $(go env GOPATH)/bin/songid-mcp
 ```
 
-### Install dependencies
-
-```sh
-brew install chromaprint ffmpeg    # macOS
-# apt install libchromaprint-tools ffmpeg    # Linux (Debian/Ubuntu)
-```
-
 ### Verify installation
 
 If you installed via Homebrew (Option 1), verify with the CLI:
@@ -74,9 +67,23 @@ fpcalc -version
 ffmpeg -version
 ```
 
-## Add the extension to goose
+## Configure the extension
 
-<CLIExtensionInstructions command="songid-mcp" />
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop">
+  Go to **Settings > Extensions** and add a new extension with:
+  - **Name:** SongID
+  - **Command:** `songid-mcp`
+  - **Type:** stdio
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="songid"
+      description="Identify songs from audio files or microphone input"
+      command="songid-mcp"
+    />
+  </TabItem>
+</Tabs>
 
 ## Tools
 
