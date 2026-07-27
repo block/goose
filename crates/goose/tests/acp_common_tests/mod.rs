@@ -1181,6 +1181,7 @@ pub async fn run_prompt_basic<C: Connection>() {
             Some((standard_message_id, goose_message_id))
         })
         .expect("expected live agent message chunk with standard and goose message IDs");
+    assert!(!standard_message_id.is_empty());
     assert_eq!(standard_message_id, goose_message_id);
     assert_notifications(
         &fixtures::to_notifications(&updates),
