@@ -6,6 +6,7 @@ use crate::request_log::{start_log, LoggerHandleExt};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -241,21 +242,28 @@ impl AnthropicProvider {
             )
         })?;
 
-        let mut models: Vec<(String, String)> = arr
+        let mut models: Vec<(String, Option<DateTime<Utc>>)> = arr
             .iter()
             .filter_map(|m| {
                 let id = m.get("id").and_then(|v| v.as_str())?.to_string();
+                // Parse created_at into an instant so mixed UTC offsets / fractional seconds
+                // compare chronologically (lexical RFC 3339 order is not chronological order).
                 let created_at = m
                     .get("created_at")
                     .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
+                    .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc));
                 Some((id, created_at))
             })
             .collect();
-        // Newest first (Anthropic returns RFC 3339 created_at, so lexical == chronological),
-        // then by id so entries without a date remain deterministic.
-        models.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        // Newest first; entries without a parseable date sort last, then by id so the
+        // ordering stays deterministic.
+        models.sort_by(|a, b| match (a.1, b.1) {
+            (Some(da), Some(db)) => db.cmp(&da).then_with(|| a.0.cmp(&b.0)),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.cmp(&b.0),
+        });
         Ok(models.into_iter().map(|(id, _)| id).collect())
     }
 }
@@ -478,6 +486,9 @@ mod tests {
                 {"id": "claude-opus-4-7", "created_at": "2026-04-14T00:00:00Z"},
                 {"id": "claude-opus-5", "created_at": "2026-07-24T00:00:00Z"},
                 {"id": "claude-sonnet-5", "created_at": "2026-06-29T00:00:00Z"},
+                // Lexically sorts after opus-5, but +02:00 makes it 2026-07-23T22:00:00Z —
+                // chronologically earlier, so it must land below opus-5.
+                {"id": "claude-offset", "created_at": "2026-07-24T00:00:00+02:00"},
                 {"id": "legacy-no-date"}
             ],
             "has_more": false
@@ -497,6 +508,7 @@ mod tests {
             models,
             vec![
                 "claude-opus-5".to_string(),
+                "claude-offset".to_string(),
                 "claude-sonnet-5".to_string(),
                 "claude-opus-4-7".to_string(),
                 "legacy-no-date".to_string(),
