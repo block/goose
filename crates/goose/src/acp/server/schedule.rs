@@ -355,9 +355,12 @@ mod tests {
     use crate::acp::server_factory::{
         AcpServer, AcpServerFactoryConfig, GOOSE_ACP_SCHEDULER_DISABLED_ENV,
     };
+    use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
     use crate::agents::GoosePlatform;
-    use goose_sdk_types::custom_requests::ListRecipesRequest;
+    use futures::future::BoxFuture;
+    use goose_sdk_types::custom_requests::{ListRecipesRequest, ScheduleRecipeRequest};
     use serial_test::serial;
+    use std::future::Future;
 
     /// Builds an ACP agent with scheduling disabled, rooted entirely inside a
     /// temp dir so no assertion can touch the developer's real goose data.
@@ -380,21 +383,130 @@ mod tests {
         (server.create_agent().await.unwrap(), guard)
     }
 
+    /// Every request whose handler needs the scheduler, paired with the wire
+    /// method name read off the request type itself so the labels cannot drift
+    /// from the protocol. Response types differ per handler, so each future
+    /// discards its success value to give the table one uniform shape.
+    ///
+    /// The `_goose/unstable/recipes/schedule` case deliberately names a recipe
+    /// that does not exist: a disabled runtime must answer with the disabled
+    /// error rather than leaking `invalid_params` from the recipe lookup.
+    fn scheduler_dependent_requests(
+        agent: &GooseAcpAgent,
+    ) -> Vec<(
+        String,
+        BoxFuture<'_, Result<(), agent_client_protocol::Error>>,
+    )> {
+        fn case<'a, Req, Res, Fut>(
+            request: Req,
+            handler: impl FnOnce(Req) -> Fut,
+        ) -> (
+            String,
+            BoxFuture<'a, Result<(), agent_client_protocol::Error>>,
+        )
+        where
+            Req: agent_client_protocol::JsonRpcMessage,
+            Res: 'a,
+            Fut: Future<Output = Result<Res, agent_client_protocol::Error>> + Send + 'a,
+        {
+            let method = request.method().to_string();
+            let future = handler(request);
+            (method, Box::pin(async move { future.await.map(|_| ()) }))
+        }
+
+        let schedule_id = "nightly".to_string();
+        vec![
+            case(ListSchedulesRequest {}, |req| agent.on_list_schedules(req)),
+            case(
+                ListScheduleSessionsRequest {
+                    schedule_id: schedule_id.clone(),
+                    limit: 10,
+                },
+                |req| agent.on_list_schedule_sessions(req),
+            ),
+            case(
+                CreateScheduleRequest {
+                    id: schedule_id.clone(),
+                    recipe: Default::default(),
+                    cron: "0 0 0 * * *".to_string(),
+                },
+                |req| agent.on_create_schedule(req),
+            ),
+            case(
+                DeleteScheduleRequest {
+                    schedule_id: schedule_id.clone(),
+                },
+                |req| agent.on_delete_schedule(req),
+            ),
+            case(
+                PauseScheduleRequest {
+                    schedule_id: schedule_id.clone(),
+                },
+                |req| agent.on_pause_schedule(req),
+            ),
+            case(
+                UnpauseScheduleRequest {
+                    schedule_id: schedule_id.clone(),
+                },
+                |req| agent.on_unpause_schedule(req),
+            ),
+            case(
+                UpdateScheduleRequest {
+                    schedule_id: schedule_id.clone(),
+                    cron: "0 0 1 * * *".to_string(),
+                },
+                |req| agent.on_update_schedule(req),
+            ),
+            case(
+                RunScheduleNowRequest {
+                    schedule_id: schedule_id.clone(),
+                },
+                |req| agent.on_run_schedule_now(req),
+            ),
+            case(
+                KillRunningJobRequest {
+                    job_id: schedule_id.clone(),
+                },
+                |req| agent.on_kill_running_job(req),
+            ),
+            case(
+                InspectRunningJobRequest {
+                    job_id: schedule_id,
+                },
+                |req| agent.on_inspect_running_job(req),
+            ),
+            case(
+                ScheduleRecipeRequest {
+                    id: "no-such-recipe".to_string(),
+                    cron_schedule: Some("0 0 0 * * *".to_string()),
+                },
+                |req| agent.on_schedule_recipe(req),
+            ),
+        ]
+    }
+
     #[tokio::test]
     #[serial]
     async fn schedule_requests_report_method_not_found_when_scheduler_disabled() {
         let root = tempfile::tempdir().unwrap();
         let (agent, _guard) = agent_without_scheduler(&root).await;
 
-        let error = agent
-            .on_list_schedules(ListSchedulesRequest {})
-            .await
-            .expect_err("scheduling is unsupported without a scheduler");
+        for (method, request) in scheduler_dependent_requests(&agent) {
+            let error = request
+                .await
+                .expect_err(&format!("{method} is unsupported without a scheduler"));
 
-        assert_eq!(
-            error.code,
-            agent_client_protocol::Error::method_not_found().code
-        );
+            assert_eq!(
+                error.code,
+                agent_client_protocol::Error::method_not_found().code,
+                "{method} returned the wrong error code"
+            );
+            assert_eq!(
+                error.data.as_ref().and_then(serde_json::Value::as_str),
+                Some("scheduler is disabled in this ACP runtime"),
+                "{method} returned the wrong error data"
+            );
+        }
     }
 
     #[tokio::test]
@@ -432,5 +544,63 @@ mod tests {
             .on_list_recipes(ListRecipesRequest {})
             .await
             .expect("recipes remain listable without a scheduler");
+    }
+
+    /// Drives the agent through the session-creation path that configures a
+    /// session's tool surface, which is where the scheduler's absence has to
+    /// take effect.
+    async fn create_session_agent(
+        agent: &GooseAcpAgent,
+        session_id: &str,
+    ) -> Arc<crate::agents::Agent> {
+        agent
+            .agent_manager
+            .get_or_create_agent(session_id.to_string())
+            .await
+            .expect("session agent is creatable without a scheduler")
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn disabled_runtime_starts_without_scheduler_or_schedule_file() {
+        let root = tempfile::tempdir().unwrap();
+        let (agent, _guard) = agent_without_scheduler(&root).await;
+
+        assert!(agent.agent_manager.scheduler().is_none());
+        assert!(!root.path().join("schedule.json").exists());
+
+        let session_agent = create_session_agent(&agent, "disabled-runtime").await;
+        let tools = session_agent.list_tools("disabled-runtime", None).await;
+        assert!(!tools
+            .iter()
+            .any(|tool| tool.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn disabled_runtime_leaves_an_existing_schedule_file_untouched() {
+        let root = tempfile::tempdir().unwrap();
+        let schedule_file = root.path().join("schedule.json");
+        // `currently_running` is stale running state, which an enabled
+        // scheduler rewrites on startup — so an unchanged file proves the read
+        // never happened, not merely that nothing needed changing.
+        let sentinel = r#"[{"id":"pre-existing","source":"/tmp/pre-existing.yaml","cron":"0 0 0 * * *","currently_running":true}]"#;
+        std::fs::write(&schedule_file, sentinel).unwrap();
+        let modified_before = std::fs::metadata(&schedule_file)
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        let (agent, _guard) = agent_without_scheduler(&root).await;
+        create_session_agent(&agent, "disabled-runtime").await;
+
+        assert_eq!(std::fs::read_to_string(&schedule_file).unwrap(), sentinel);
+        assert_eq!(
+            std::fs::metadata(&schedule_file)
+                .unwrap()
+                .modified()
+                .unwrap(),
+            modified_before
+        );
     }
 }

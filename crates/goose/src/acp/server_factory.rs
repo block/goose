@@ -62,9 +62,6 @@ impl AcpServer {
     /// so `schedule.json` is neither read nor written.
     async fn scheduler(&self) -> Result<Option<Arc<dyn SchedulerTrait>>> {
         if scheduler_disabled_by_env() {
-            info!(
-                "{GOOSE_ACP_SCHEDULER_DISABLED_ENV}=true; scheduled recipes are disabled in this ACP runtime"
-            );
             return Ok(None);
         }
 

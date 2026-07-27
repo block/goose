@@ -202,9 +202,12 @@ impl GooseAcpAgent {
         &self,
         req: ScheduleRecipeRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        // Resolved before the recipe lookup so a disabled runtime answers
+        // uniformly with the disabled error, never `invalid_params`.
+        let scheduler = self.scheduler()?;
+
         let file_path = self.resolve_recipe_path_by_id(&req.id).await?;
-        if let Err(err) = self
-            .scheduler()?
+        if let Err(err) = scheduler
             .schedule_recipe(file_path, req.cron_schedule)
             .await
         {

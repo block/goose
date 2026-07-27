@@ -13,6 +13,7 @@ activities:
   - Test load tool for knowledge injection and discovery
   - Test delegate tool for task delegation (sync and async)
   - Test error boundaries including nested delegation prevention
+  - Validate the ACP scheduler kill-switch in a child goose acp process
   - Generate comprehensive test report
 
 parameters:
@@ -371,6 +372,42 @@ prompt: |
   2. Attempt directory traversal: ../../../etc/passwd
   3. Test with harmful Unicode characters
   4. Verify command injection prevention
+
+  ### ACP Scheduler Kill-Switch Validation
+  Hosts that run a pool of `goose acp` workers set `GOOSE_ACP_SCHEDULER_DISABLED=true` so only
+  one process executes the user's cron schedule. Verify the flag from outside the running instance,
+  by driving a child `goose acp` over stdio — this cannot be tested from within your own session,
+  because the flag is read once at startup.
+
+  1. Seed a schedule file the child must not touch, under an isolated path root. `GOOSE_PATH_ROOT`
+     is ignored unless it is absolute, and an ignored root would point the child at the user's real
+     schedule — so resolve it to an absolute path and confirm that before continuing. The scheduler
+     skips jobs whose recipe file is missing, so the sentinel job needs a real one:
+     ```
+     mkdir -p {{ workspace_dir }}/acp_root/data
+     ACP_ROOT=$(cd {{ workspace_dir }}/acp_root && pwd)
+     case "$ACP_ROOT" in /*) ;; *) echo "ABORT: path root is not absolute"; exit 1 ;; esac
+     printf 'version: 1.0.0\ntitle: sentinel\ndescription: placeholder for the kill-switch test\nprompt: noop\n' > "$ACP_ROOT/sentinel.yaml"
+     printf '[{"id":"sentinel","source":"%s","cron":"0 0 0 * * *","currently_running":true}]\n' "$ACP_ROOT/sentinel.yaml" > "$ACP_ROOT/data/schedule.json"
+     cp "$ACP_ROOT/data/schedule.json" "$ACP_ROOT/expected.json"
+     ```
+  2. Speak JSON-RPC to a child with the flag set. `goose acp` does not exit on stdin EOF, so bound
+     it with `timeout`:
+     ```
+     { printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{}}}'
+       sleep 2
+       printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"_goose/unstable/schedules/list","params":{}}'
+       sleep 3
+     } | GOOSE_ACP_SCHEDULER_DISABLED=true GOOSE_PATH_ROOT="$ACP_ROOT" timeout 30 goose acp > {{ workspace_dir }}/acp_disabled.jsonl
+     ```
+  3. **Expected**: the `id:2` response is an error with code `-32601` and data
+     `scheduler is disabled in this ACP runtime` — not a job list, and not a crash.
+  4. **Expected**: `diff "$ACP_ROOT/data/schedule.json" "$ACP_ROOT/expected.json"` reports no
+     difference. A disabled runtime never reads the file, so it cannot rewrite the stale
+     `currently_running` flag the way an enabled scheduler does at startup.
+  5. Repeat step 2 with `GOOSE_ACP_SCHEDULER_DISABLED` unset. **Expected**: `id:2` now returns a
+     `result` with a `jobs` array containing `sentinel`, and the file's `currently_running` has been
+     reset to `false` — confirming the default path is unchanged and that step 4 proved something.
 
   Log results to: {{ workspace_dir }}/phase4_advanced.md
   {% endif %}
