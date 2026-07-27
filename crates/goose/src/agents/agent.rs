@@ -276,6 +276,39 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
+impl AgentEvent {
+    pub fn message_with_id(message: Message) -> Self {
+        AgentEvent::Message(message.with_generated_id_if_missing())
+    }
+}
+
+fn push_message_with_id(messages: &mut Conversation, message: Message) -> Message {
+    let message = message.with_generated_id_if_missing();
+    messages.push(message.clone());
+    message
+}
+
+async fn persist_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    message: Message,
+) -> Result<Message> {
+    let message = message.with_generated_id_if_missing();
+    session_manager.add_message(session_id, &message).await?;
+    Ok(message)
+}
+
+async fn persist_and_push_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    conversation: &mut Conversation,
+    message: Message,
+) -> Result<Message> {
+    let message = persist_message_with_id(session_manager, session_id, message).await?;
+    conversation.push(message.clone());
+    Ok(message)
+}
+
 fn project_message_for_user_event(message: &Message) -> Message {
     message.user_visible_content()
 }
@@ -1657,13 +1690,15 @@ impl Agent {
                     .with_text(e.to_string())
                     .with_visibility(true, false);
                 return Ok(Box::pin(stream::once(async move {
-                    Ok(AgentEvent::Message(error_message))
+                    Ok(AgentEvent::message_with_id(error_message))
                 })));
             }
             Ok(Some(response))
                 if response.role == rmcp::model::Role::Assistant
                     && crate::agents::execute_commands::command_starts_turn(&message_text) =>
             {
+                let response = response.with_generated_id_if_missing();
+
                 // Setting a goal/grind should immediately start a turn so the
                 // agent begins pursuing it, rather than waiting for the next
                 // user prompt. Record the command and its confirmation as
@@ -1699,6 +1734,8 @@ impl Agent {
                 ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
+                let response = response.with_generated_id_if_missing();
+
                 session_manager
                     .add_message(
                         &session_config.id,
@@ -1831,7 +1868,7 @@ impl Agent {
                         compacted_conversation
                     }
                     Err(e) => {
-                        yield AgentEvent::Message(
+                        yield AgentEvent::message_with_id(
                             Message::assistant().with_text(
                                 format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
                             )
@@ -1971,8 +2008,13 @@ impl Agent {
                                 .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
                                 .await;
                         }
-                        session_manager.add_message(&session_config.id, &message).await?;
-                        conversation.push(message.clone());
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
                         yield AgentEvent::Message(message);
                     }
                 }
@@ -1983,7 +2025,9 @@ impl Agent {
                 };
                 if let Some(output) = final_output {
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
+                    let message = Message::assistant()
+                        .with_text(output)
+                        .with_generated_id_if_missing();
                     yield AgentEvent::Message(message.clone());
                     session_manager.add_message(&session_config.id, &message).await?;
                     conversation.push(message);
@@ -1999,15 +2043,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                             continue;
@@ -2024,7 +2076,7 @@ impl Agent {
                 }
                 if turns_taken > max_turns {
                     last_assistant_text = MAX_TURNS_MESSAGE.to_string();
-                    yield AgentEvent::Message(Message::assistant().with_text(last_assistant_text.clone()));
+                    yield AgentEvent::message_with_id(Message::assistant().with_text(last_assistant_text.clone()));
                     break;
                 }
 
@@ -2585,7 +2637,7 @@ impl Agent {
                                     #[cfg(feature = "telemetry")]
                                     crate::posthog::emit_error("compaction_failed", &e.to_string());
                                     error!("Compaction failed: {}", e);
-                                    yield AgentEvent::Message(
+                                    yield AgentEvent::message_with_id(
                                         Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
                                         )
@@ -2626,7 +2678,7 @@ impl Agent {
                             error!("Error: {}", provider_err);
 
                             let category = category.as_deref().map(|c| format!("\n\nCategory: {c}")).unwrap_or_default();
-                            yield AgentEvent::Message(Message::assistant().with_text(format!(
+                            yield AgentEvent::message_with_id(Message::assistant().with_text(format!(
                                 "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
                             )));
                             // A refusal is terminal: skip goal/grind nudges and
@@ -2640,7 +2692,7 @@ impl Agent {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
+                            yield AgentEvent::message_with_id(
                                 Message::assistant().with_text(
                                     format!("{provider_err}\n\nPlease resend your message to try again.")
                                 )
@@ -2652,7 +2704,7 @@ impl Agent {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::Message(
+                            yield AgentEvent::message_with_id(
                                 Message::assistant().with_text(
                                     format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
@@ -2710,8 +2762,10 @@ impl Agent {
                     match final_output {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
+                            let message = push_message_with_id(
+                                &mut messages_to_add,
+                                Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE),
+                            );
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
@@ -2732,7 +2786,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2750,7 +2804,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2790,8 +2844,10 @@ impl Agent {
                                     } else {
                                         warn!("Provider returned an empty response after retries; ending turn");
                                         last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
-                                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
-                                        messages_to_add.push(message.clone());
+                                        let message = push_message_with_id(
+                                            &mut messages_to_add,
+                                            Message::assistant().with_text(EMPTY_TURN_MESSAGE),
+                                        );
                                         yield AgentEvent::Message(message);
                                         exit_chat = true;
                                     }
@@ -2800,8 +2856,8 @@ impl Agent {
                                     // Surface and persist the failure message
                                     // through the normal path so recipes don't
                                     // exit silently when retries are exhausted.
+                                    let message = push_message_with_id(&mut messages_to_add, message);
                                     last_assistant_text = message.as_concat_text();
-                                    messages_to_add.push(message.clone());
                                     yield AgentEvent::Message(message);
                                     exit_chat = true;
                                 }
@@ -2810,7 +2866,7 @@ impl Agent {
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);
-                                    yield AgentEvent::Message(
+                                    yield AgentEvent::message_with_id(
                                         Message::assistant().with_text(
                                             format!("Retry logic encountered an error: {}", e)
                                         )
@@ -2861,8 +2917,10 @@ impl Agent {
 
                 if let Some(output) = pending_final_output.take() {
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
-                    messages_to_add.push(message.clone());
+                    let message = push_message_with_id(
+                        &mut messages_to_add,
+                        Message::assistant().with_text(output),
+                    );
                     yield AgentEvent::Message(message);
                 }
 
@@ -2905,15 +2963,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                         }
@@ -3508,6 +3574,31 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    fn agent_event_message_with_id_assigns_missing_ids_and_preserves_existing_ids() {
+        let generated = AgentEvent::message_with_id(Message::assistant().with_text("hello"));
+        let AgentEvent::Message(generated_message) = generated else {
+            panic!("expected message event");
+        };
+        let generated_id = generated_message
+            .id
+            .as_deref()
+            .expect("generated message id");
+        assert!(generated_id.starts_with("msg_"));
+        assert_eq!(generated_message.as_concat_text(), "hello");
+
+        let preserved = AgentEvent::message_with_id(
+            Message::assistant()
+                .with_id("provider-message-id")
+                .with_text("hello"),
+        );
+        let AgentEvent::Message(preserved_message) = preserved else {
+            panic!("expected message event");
+        };
+        assert_eq!(preserved_message.id.as_deref(), Some("provider-message-id"));
+        assert_eq!(preserved_message.as_concat_text(), "hello");
+    }
+
+    #[test]
     fn resolve_use_login_shell_path_defaults_by_platform() {
         assert!(resolve_use_login_shell_path(
             None,
@@ -3947,8 +4038,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .reply(Message::user().with_text("hi"), session_config, None)
             .await?;
         tokio::pin!(reply_stream);
+        let mut emitted_refusal_id = None;
         while let Some(event) = reply_stream.next().await {
-            event?;
+            if let AgentEvent::Message(message) = event? {
+                if message.as_concat_text().contains("provider refused") {
+                    emitted_refusal_id = message.id;
+                }
+            }
         }
 
         assert_eq!(
@@ -3956,6 +4052,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             1,
             "a refused request must not be resent"
         );
+        let emitted_refusal_id =
+            emitted_refusal_id.expect("refusal message should be emitted with an ID");
+        assert!(emitted_refusal_id.starts_with("msg_"));
         Ok(())
     }
 
@@ -4172,6 +4271,34 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                             && notification.msg.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
                 )
             })
+        }));
+
+        let stored_session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let stored_messages = stored_session
+            .conversation
+            .expect("session should have stored conversation");
+        let stop_hook_context_messages = stored_messages
+            .messages()
+            .iter()
+            .filter(|message| {
+                message.role == rmcp::model::Role::User
+                    && !message.is_user_visible()
+                    && message.is_agent_visible()
+                    && message
+                        .as_concat_text()
+                        .contains("Address this policy hook denial")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(stop_hook_context_messages.len(), 2);
+        assert!(stop_hook_context_messages.iter().all(|message| {
+            message
+                .id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("msg_"))
         }));
 
         Ok(())

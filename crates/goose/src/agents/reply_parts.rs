@@ -409,7 +409,7 @@ impl Agent {
 
                 if let Some(msg) = accumulated_message {
                     let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
-                    yield (Some(processed), final_usage);
+                    yield (Some(processed.with_generated_id_if_missing()), final_usage);
                 } else if final_usage.is_some() {
                     // Preserve usage-only responses (no message content)
                     yield (None, final_usage);
@@ -1310,6 +1310,107 @@ mod tests {
             messages[3].content.first(),
             Some(MessageContent::Image(_))
         ));
+
+        Ok(())
+    }
+
+    struct ToolshimMessageIdProvider {
+        messages: Vec<Message>,
+    }
+
+    #[async_trait]
+    impl Provider for ToolshimMessageIdProvider {
+        fn get_name(&self) -> &str {
+            "toolshim-message-id"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            let items = self
+                .messages
+                .iter()
+                .cloned()
+                .map(|message| Ok((Some(message), None)))
+                .collect::<Vec<StreamItem>>();
+            Ok(Box::pin(futures::stream::iter(items)))
+        }
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_assigns_missing_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![
+                Message::assistant().with_text("Hel"),
+                Message::assistant().with_text("lo"),
+            ],
+        });
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "Hello");
+        let id = messages[0]
+            .id
+            .as_deref()
+            .expect("toolshim provider message should have an ID");
+        assert!(id.starts_with("msg_"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_preserves_provider_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![Message::assistant()
+                .with_id("provider-toolshim-id")
+                .with_text("hello")],
+        });
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "hello");
+        assert_eq!(messages[0].id.as_deref(), Some("provider-toolshim-id"));
 
         Ok(())
     }
