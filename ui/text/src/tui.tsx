@@ -436,10 +436,12 @@ const SplashScreen = React.memo(function SplashScreen({
   const statusColor =
     status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
 
-  // frame, title (margin + line), tagline, then the status (margin + line).
-  const baseHeight = frame.length + 1 + 1 + 1 + 2 + 1;
-  // The cwd is the one dispensable row here, so on a short terminal it goes
-  // first rather than pushing the status out of the allotted height.
+  // Shed content as the allotted height shrinks, largest first, so the splash
+  // always fits: the goose frame goes before the title, tagline and status, and
+  // the cwd only appears once everything else has room.
+  const chromeHeight = 1 + 1 + 1 + 2 + 1; // title (margin + line), tagline, status (margin + line)
+  const showFrame = height >= chromeHeight + frame.length;
+  const baseHeight = chromeHeight + (showFrame ? frame.length : 0);
   const showCwd = height >= baseHeight + 1;
   const contentHeight = baseHeight + (showCwd ? 1 : 0);
 
@@ -458,13 +460,15 @@ const SplashScreen = React.memo(function SplashScreen({
       overflow="hidden"
     >
       {topPad > 0 && <Box height={topPad} />}
-      <Box flexDirection="column" alignItems="center">
-        {frame.map((line, i) => (
-          <Text key={i} color={TEXT_PRIMARY}>
-            {line}
-          </Text>
-        ))}
-      </Box>
+      {showFrame && (
+        <Box flexDirection="column" alignItems="center">
+          {frame.map((line, i) => (
+            <Text key={i} color={TEXT_PRIMARY}>
+              {line}
+            </Text>
+          ))}
+        </Box>
+      )}
       <Box marginTop={1}>
         <Text color={TEXT_PRIMARY} bold>
           goose
