@@ -22,6 +22,8 @@ pub struct DeclaredSurfaces(Mutex<HashMap<String, Surface>>);
 #[derive(Default)]
 struct Surface {
     tools: Vec<Tool>,
+    /// Names last rendered into a tool array, which is what the model's view is relative to.
+    sent: HashSet<String>,
     extensions: Vec<ExtensionInfo>,
     frontend_instructions: Vec<(String, String)>,
 }
@@ -103,7 +105,17 @@ impl DeclaredSurfaces {
         let surface = sessions.entry(session_id.to_string()).or_default();
         let declared_names = surface.declare_tools(enabled_tools);
 
-        let visible = resolve_visible_tools(&declared_names, conversation.messages());
+        // `declare` folds newly enabled tools in while building the prompt, and runs first, so the
+        // surface cannot say what the model has already been offered. Seeding from a set that
+        // already holds a brand-new tool leaves `added` empty and the array then reads as though
+        // the tool had been there from the first turn.
+        let sent = std::mem::take(&mut surface.sent);
+        let baseline = if sent.is_empty() {
+            &declared_names
+        } else {
+            &sent
+        };
+        let visible = resolve_visible_tools(baseline, conversation.messages());
         let enabled_names: HashSet<String> = enabled_tools
             .iter()
             .map(|tool| tool.name.to_string())
@@ -115,6 +127,8 @@ impl DeclaredSurfaces {
         };
         update.added.sort();
         update.removed.sort();
+
+        surface.sent = declared_names;
 
         (
             surface.tools.clone(),
