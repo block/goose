@@ -124,7 +124,11 @@ fn message_thinking_estimate(message: &Message) -> i64 {
         .sum()
 }
 
-pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
+pub fn observed_thinking(
+    conversation: &Conversation,
+    provider_name: &str,
+    model_name: &str,
+) -> ObservedThinking {
     let mut observed = ObservedThinking::default();
     let mut examined = 0;
     for message in conversation
@@ -133,6 +137,18 @@ pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
         .rev()
         .filter(|m| m.role == Role::Assistant)
     {
+        // Telemetry only vouches for the model that produced it: the scan
+        // stops at the first turn attributed to a different provider or model.
+        if message
+            .metadata
+            .inference
+            .as_ref()
+            .is_some_and(|inference| {
+                inference.provider != provider_name || inference.requested_model != model_name
+            })
+        {
+            break;
+        }
         let Some(usage) = &message.metadata.usage else {
             continue;
         };
@@ -1609,7 +1625,7 @@ mod tests {
         messages.push(Message::assistant().with_text("note"));
         let conversation = Conversation::new_unvalidated(messages);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(observed.sampled_turns, OBSERVED_THINKING_WINDOW);
         assert_eq!(
             observed.thinking_tokens,
@@ -1648,7 +1664,7 @@ mod tests {
             with_content_thinking,
         ]);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(observed.sampled_turns, 2);
         assert_eq!(observed.thinking_tokens, 1000);
         assert!(!observed.shows_idle_reasoning());
@@ -1670,7 +1686,7 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(observed.sampled_turns, 0);
         assert!(!observed.shows_idle_reasoning());
     }
@@ -1700,7 +1716,7 @@ mod tests {
         messages.push(thinking_only);
         let conversation = Conversation::new_unvalidated(messages);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(observed.sampled_turns, OBSERVED_THINKING_MIN_TURNS + 1);
         assert_eq!(observed.thinking_tokens, 5000);
         assert!(
@@ -1727,7 +1743,7 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(
             observed.thinking_tokens,
             1000 * OBSERVED_THINKING_MIN_TURNS as i64
@@ -1763,12 +1779,46 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        let observed = observed_thinking(&conversation);
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
         assert_eq!(
             observed.sampled_turns, 0,
             "evidence-free turns consume the window; stale reported turns behind them are never reached"
         );
         assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_stops_at_turns_attributed_to_a_different_model() {
+        use crate::conversation::message::{InferenceMetadata, MessageUsage};
+
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+            let mut idle =
+                Message::assistant()
+                    .with_text("done")
+                    .with_inference(InferenceMetadata {
+                        provider: "openai".to_string(),
+                        requested_model: "gpt-5".to_string(),
+                        resolved_model: None,
+                    });
+            idle.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(500),
+                thinking_tokens: Some(0),
+                ..Default::default()
+            }));
+            messages.push(idle);
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation, "anthropic", "claude-sonnet-5");
+        assert_eq!(
+            observed.sampled_turns, 0,
+            "another model's idle turns must not authorize downgrading this one"
+        );
+
+        let same_model = observed_thinking(&conversation, "openai", "gpt-5");
+        assert_eq!(same_model.sampled_turns, OBSERVED_THINKING_MIN_TURNS);
+        assert!(same_model.shows_idle_reasoning());
     }
 
     #[test]

@@ -1873,7 +1873,11 @@ impl Agent {
                                 &compact_model_config,
                                 difficulty,
                                 effective_thinking_effort(&compact_model_config),
-                                Some(&observed_thinking(&conversation_to_compact)),
+                                Some(&observed_thinking(
+                                    &conversation_to_compact,
+                                    compact_provider.get_name(),
+                                    &compact_model_config.model_name,
+                                )),
                             )
                         }) {
                             yield AgentEvent::EffortRecommendation(recommendation);
@@ -2619,7 +2623,11 @@ impl Agent {
                                 .model_config_with_session_thinking_effort(&session_config.id, &model_config)
                                 .await;
                             let recovery_provider = self.provider().await?;
-                            let observed = observed_thinking(&conversation);
+                            let observed = observed_thinking(
+                                &conversation,
+                                recovery_provider.get_name(),
+                                &recovery_model_config.model_name,
+                            );
                             match compact_messages(
                                 recovery_provider.as_ref(),
                                 &recovery_model_config,
