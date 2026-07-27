@@ -48,7 +48,12 @@ async fn from_env(
         .with_request_builder(crate::session_context::session_id_request_builder())
         .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
-    Ok(AnthropicProviderBuilder::new(api_client).build())
+    // Anthropic's /v1/models is the authoritative list for a first-party key, so trust it
+    // rather than filtering through the bundled canonical registry, which lags new releases
+    // (e.g. Opus 5) and would silently drop models the key can actually use.
+    Ok(AnthropicProviderBuilder::new(api_client)
+        .skip_canonical_filtering(true)
+        .build())
 }
 
 pub fn from_custom_config(
