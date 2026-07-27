@@ -1451,25 +1451,31 @@ fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role
 }
 
 fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
-    let content = rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text));
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
     if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
-        RmcpContent::Text(
-            content.with_annotations(rmcp::model::Annotations::default().with_audience(audience)),
-        )
-    } else {
-        RmcpContent::Text(content)
+        annotations = annotations.with_audience(audience);
     }
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
+            .with_annotations(annotations),
+    )
 }
 
 fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
-    let content = rmcp::model::ImageContent::new(image.data, image.mime_type);
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
     if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
-        RmcpContent::Image(
-            content.with_annotations(rmcp::model::Annotations::default().with_audience(audience)),
-        )
-    } else {
-        RmcpContent::Image(content)
+        annotations = annotations.with_audience(audience);
     }
+    RmcpContent::Image(
+        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+    )
+}
+
+fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(text)
+            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+    )
 }
 
 fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
@@ -1499,7 +1505,7 @@ fn acp_tool_call_content_to_rmcp(
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(RmcpContent::text(json));
+                            out.push(visible_rmcp_text(json));
                         }
                     }
                 },
@@ -1511,7 +1517,7 @@ fn acp_tool_call_content_to_rmcp(
                         }
                         None => format!("+++ {path}\n{}", diff.new_text),
                     };
-                    out.push(RmcpContent::text(body));
+                    out.push(visible_rmcp_text(body));
                 }
                 ToolCallContent::Terminal(_) => {}
                 _ => {}
@@ -1524,7 +1530,7 @@ fn acp_tool_call_content_to_rmcp(
                 serde_json::Value::String(s) => s,
                 other => other.to_string(),
             };
-            out.push(RmcpContent::text(text));
+            out.push(visible_rmcp_text(text));
         }
     }
     out
@@ -2527,6 +2533,12 @@ mod tests {
         assert_eq!(out.len(), 1);
         let text = out[0].as_text().unwrap();
         assert_eq!(text.text, "hello from shell");
+        assert_eq!(
+            text.annotations
+                .as_ref()
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
     }
 
     #[test]
@@ -2553,6 +2565,13 @@ mod tests {
             .expect("text audience annotation should survive");
         assert!(text_audience.contains(&Role::User));
         assert!(!text_audience.contains(&Role::Assistant));
+        assert_eq!(
+            out[0]
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
         let image_audience = out[1]
             .as_image()
             .and_then(|i| i.annotations.as_ref())
@@ -2560,6 +2579,13 @@ mod tests {
             .expect("image audience annotation should survive");
         assert!(image_audience.contains(&Role::Assistant));
         assert!(!image_audience.contains(&Role::User));
+        assert_eq!(
+            out[1]
+                .as_image()
+                .and_then(|image| image.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
     }
 
     #[test]

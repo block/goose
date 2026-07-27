@@ -12,8 +12,8 @@ use edit::{EditTools, FileEditParams, FileWriteParams};
 use image::{ImageReadParams, ImageTool};
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ServerCapabilities, Tool, ToolAnnotations,
+    Annotations, CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject,
+    ListToolsResult, ServerCapabilities, TextContent, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
@@ -23,6 +23,12 @@ use tokio_util::sync::CancellationToken;
 use tree::{TreeParams, TreeTool};
 
 pub static EXTENSION_NAME: &str = "developer";
+
+fn visible_text(text: impl Into<String>) -> ContentBlock {
+    ContentBlock::Text(
+        TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+    )
+}
 
 pub struct DeveloperClient {
     info: InitializeResult,
@@ -205,19 +211,19 @@ impl McpClientTrait for DeveloperClient {
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![visible_text(format!(
                     "Error: {error}"
                 ))])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![visible_text(format!(
                     "Error: {error}"
                 ))])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
                 Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
-                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![visible_text(format!(
                     "Error: {error}"
                 ))])),
             },
@@ -226,11 +232,11 @@ impl McpClientTrait for DeveloperClient {
                     .image_tool
                     .image_read_with_cwd(params, working_dir)
                     .await),
-                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![visible_text(format!(
                     "Error: {error}"
                 ))])),
             },
-            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+            _ => Ok(CallToolResult::error(vec![visible_text(format!(
                 "Error: Unknown tool: {name}"
             ))])),
         }
