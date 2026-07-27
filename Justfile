@@ -417,7 +417,7 @@ win-total-rls *allparam:
 # suite: all, core, extensions, backcompat, auth, metadata, draft, sep-835
 # Example: just mcp-conformance
 # Example: just mcp-conformance 2025-11-25 auth
-# Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.9
+# Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.10
 mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.9":
   cargo build -p goose-cli --bin goose --bin mcp_conformance_driver
   npx -y @modelcontextprotocol/conformance@{{conformance_version}} client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}"
