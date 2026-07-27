@@ -7,6 +7,8 @@ import {
   CONTEXT_CRITICAL_THRESHOLD,
 } from "../constants.js";
 
+const INDENT = "  ";
+
 interface ContextBarProps {
   used: number;
   size: number;
@@ -33,23 +35,26 @@ export const ContextBar = React.memo(function ContextBar({
   let line: string;
   let color: string;
   if (size === 0) {
-    line = "  context usage unavailable";
+    line = `${INDENT}context usage unavailable`;
     color = TEXT_DIM;
   } else {
     const percentage = Math.min(Math.round((used / size) * 100), 100);
-    const filled = Math.min(
-      Math.round((percentage / 100) * CONTEXT_BAR_WIDTH),
-      CONTEXT_BAR_WIDTH,
+    const counts = `${percentage}% ${formatTokenCount(used)}/${formatTokenCount(size)}`;
+    // The numbers carry the information, the bar only illustrates it — so the
+    // bar gives up width first. At 40 columns "100% 128k/128k" alone fills it.
+    const barWidth = Math.max(
+      0,
+      Math.min(CONTEXT_BAR_WIDTH, constrainedWidth - INDENT.length - counts.length - 1),
     );
-    const empty = CONTEXT_BAR_WIDTH - filled;
-    const bar = "━".repeat(filled) + "╌".repeat(empty);
+    const filled = Math.round((percentage / 100) * barWidth);
+    const bar = "━".repeat(filled) + "╌".repeat(barWidth - filled);
     color =
       percentage < CONTEXT_WARNING_THRESHOLD
         ? TEAL
         : percentage < CONTEXT_CRITICAL_THRESHOLD
           ? GOLD
           : CRANBERRY;
-    line = `  ${bar} ${percentage}% ${formatTokenCount(used)}/${formatTokenCount(size)}`;
+    line = barWidth > 0 ? `${INDENT}${bar} ${counts}` : `${INDENT}${counts}`;
   }
 
   return (
