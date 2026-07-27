@@ -8,6 +8,11 @@ export const SENT_PREVIEW_LEN = 60;
 export const SCROLL_STEP = 3;
 export const SCROLL_FAST_MULTIPLIER = 10;
 
+// Context usage bar, mirrors crates/goose-cli/src/session/output.rs
+export const CONTEXT_BAR_WIDTH = 20;
+export const CONTEXT_WARNING_THRESHOLD = 50;
+export const CONTEXT_CRITICAL_THRESHOLD = 85;
+
 export const GOOSE_FRAMES = [
   [
     "    ,_",

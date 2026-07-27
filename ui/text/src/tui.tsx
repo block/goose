@@ -40,8 +40,9 @@ import {
 import { Header } from "./components/Header.js";
 import { Rule } from "./components/Rule.js";
 import { ToolCallExpanded } from "./components/ToolCallExpanded.js";
+import { ContextBar } from "./components/ContextBar.js";
 import type { ToolCallInfo } from "./toolcall.js";
-import { isErrorStatus, formatError } from "./utils.js";
+import { isErrorStatus, formatError, shortenPath } from "./utils.js";
 import {
   CRANBERRY,
   TEAL,
@@ -73,6 +74,7 @@ const InputBar = React.memo(function InputBar({
   focused,
   pastedFull,
   onPastedFullChange,
+  marginTop,
 }: {
   width: number;
   input: string;
@@ -84,6 +86,7 @@ const InputBar = React.memo(function InputBar({
   focused: boolean;
   pastedFull: string | null;
   onPastedFullChange: (v: string | null) => void;
+  marginTop: number;
 }) {
   const prevLenRef = useRef(input.length);
 
@@ -148,7 +151,7 @@ const InputBar = React.memo(function InputBar({
       borderStyle="round"
       borderColor={RULE_COLOR}
       paddingX={1}
-      marginTop={1}
+      marginTop={marginTop}
       width={constrainedWidth}
       flexShrink={0}
     >
@@ -419,6 +422,7 @@ const SplashScreen = React.memo(function SplashScreen({
   status,
   loading,
   spinIdx,
+  cwd,
 }: {
   animFrame: number;
   width: number;
@@ -426,12 +430,13 @@ const SplashScreen = React.memo(function SplashScreen({
   status: string;
   loading: boolean;
   spinIdx: number;
+  cwd: string;
 }) {
   const frame = GOOSE_FRAMES[animFrame % GOOSE_FRAMES.length]!;
   const statusColor =
     status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
 
-  const contentHeight = frame.length + 1 + 1 + 1 + 2 + 1;
+  const contentHeight = frame.length + 1 + 1 + 1 + 1 + 2 + 1;
 
   const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
 
@@ -463,6 +468,9 @@ const SplashScreen = React.memo(function SplashScreen({
       <Box alignItems="center">
         <Text color={TEXT_DIM}>your on-machine AI agent</Text>
       </Box>
+      <Box width={Math.min(safeWidth, 60)} justifyContent="center">
+        <Text color={TEXT_DIM} wrap="truncate-middle">{cwd}</Text>
+      </Box>
       <Box marginTop={2} gap={1} alignItems="center">
         {loading && <Spinner idx={spinIdx} />}
         <Text color={statusColor}>{status}</Text>
@@ -470,6 +478,9 @@ const SplashScreen = React.memo(function SplashScreen({
     </Box>
   );
 });
+
+// The TUI cannot change directory, so this is fixed for the whole process.
+const CWD_DISPLAY = shortenPath(process.cwd());
 
 function App({
   serverConnection,
@@ -508,6 +519,11 @@ function App({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("connecting…");
+  // null means "no usage_update received yet" (renders nothing), distinct
+  // from a real {used: 0, size: 0} snapshot.
+  const [usage, setUsage] = useState<{ used: number; size: number } | null>(
+    null,
+  );
   const [spinIdx, setSpinIdx] = useState(0);
   const [gooseFrame, setGooseFrame] = useState(0);
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -782,6 +798,8 @@ function App({
                 handleToolCall(update);
               } else if (update.sessionUpdate === "tool_call_update") {
                 handleToolCallUpdate(update);
+              } else if (update.sessionUpdate === "usage_update") {
+                setUsage({ used: update.used, size: update.size });
               }
             },
           }),
@@ -930,12 +948,21 @@ function App({
     : 0;
   const inputExtraLines =
     (isPasteMode ? 1 : 0) + (queuedMessages.length > 0 ? 1 : 0);
-  const inputBarH = showInputBar
-    ? 2 + inputContentRows + inputExtraLines + 1 // +1 for marginTop gap above input bar
-    : 0;
+  const inputBarH = showInputBar ? 2 + inputContentRows + inputExtraLines : 0;
   const historyBarH = isViewingHistory ? 2 : 0;
+  const usageBarH = showInputBar && usage !== null ? 1 : 0;
+  // One blank line separates the transcript from the input area. Whichever of
+  // the two comes first carries it as its marginTop.
+  const inputGapH = showInputBar ? 1 : 0;
   const viewportHeight = Math.max(
-    safeTermHeight - PAD_TOP - PAD_BOTTOM - headerH - inputBarH - historyBarH,
+    safeTermHeight -
+      PAD_TOP -
+      PAD_BOTTOM -
+      headerH -
+      inputBarH -
+      historyBarH -
+      usageBarH -
+      inputGapH,
     3,
   );
 
@@ -1221,6 +1248,7 @@ function App({
           status={status}
           loading={loading}
           spinIdx={spinIdx}
+          cwd={CWD_DISPLAY}
         />
       ) : (
         <>
@@ -1270,8 +1298,17 @@ function App({
           )}
         </>
       )}
+      {usageBarH > 0 && usage !== null && (
+        <ContextBar
+          used={usage.used}
+          size={usage.size}
+          width={contentWidth}
+          marginTop={1}
+        />
+      )}
       {showInputBar && (
         <InputBar
+          marginTop={usageBarH > 0 ? 0 : 1}
           width={contentWidth}
           input={input}
           onChange={setInput}
