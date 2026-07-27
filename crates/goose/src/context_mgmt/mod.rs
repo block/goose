@@ -185,7 +185,8 @@ fn one_step_down(effort: ThinkingEffort) -> Option<ThinkingEffort> {
 /// nothing. Lowering requires the estimate AND provider-reported thinking
 /// telemetry agreeing the recent turns were nearly reasoning-free, steps down
 /// a single level (never to `Off`), and never second-guesses an effort the
-/// user set explicitly for the session.
+/// user pinned for the session (a session value that differs from the global
+/// default; a matching value is just the inherited default).
 pub fn build_effort_recommendation(
     provider: &dyn Provider,
     model_config: &ModelConfig,
@@ -239,7 +240,12 @@ pub fn build_effort_recommendation(
     if difficulty.level != DifficultyLevel::Low {
         return None;
     }
-    if model_config.thinking_effort().is_some() {
+    // `ModelConfig::new` bakes the global default effort into every session's
+    // request params, so a session value equal to the global setting is an
+    // inherited default, not a per-session choice. Only a differing value
+    // marks an effort the user pinned for this session.
+    let session_effort = model_config.thinking_effort();
+    if session_effort.is_some() && session_effort != Config::global().get_goose_thinking_effort() {
         return None;
     }
     if !observed.is_some_and(ObservedThinking::shows_idle_reasoning) {
@@ -1541,17 +1547,31 @@ mod tests {
             "an explicit off is never adjusted downward"
         );
 
-        let session_pinned = model.clone().with_thinking_effort(ThinkingEffort::High);
-        assert!(
-            nudge_observing(
-                &session_pinned,
+        let session_high = model.clone().with_thinking_effort(ThinkingEffort::High);
+        {
+            let _env = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("low"))]);
+            assert!(
+                nudge_observing(
+                    &session_high,
+                    DifficultyLevel::Low,
+                    Some(ThinkingEffort::High),
+                    Some(&idle),
+                )
+                .is_none(),
+                "a session effort differing from the global default is a user pin; never second-guessed downward"
+            );
+        }
+        {
+            let _env = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
+            let recommendation = nudge_observing(
+                &session_high,
                 DifficultyLevel::Low,
                 Some(ThinkingEffort::High),
                 Some(&idle),
             )
-            .is_none(),
-            "an effort the user set explicitly for the session is never second-guessed downward"
-        );
+            .expect("a session effort equal to the global default is inherited, not pinned");
+            assert_eq!(recommendation.recommended_effort, ThinkingEffort::Medium);
+        }
     }
 
     #[test]
