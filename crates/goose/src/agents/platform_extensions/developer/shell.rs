@@ -92,7 +92,7 @@ fn unix_shell_command_args(command_line: &str) -> [&str; 2] {
 /// the host filesystem. `GOOSE_SHELL` is passed through as-is.
 ///
 #[cfg(windows)]
-fn windows_shell() -> String {
+pub(crate) fn windows_shell() -> String {
     std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string())
 }
 
@@ -100,7 +100,7 @@ fn windows_shell() -> String {
 /// pick the right argument style on Windows and to tell the LLM which
 /// dialect to write in the tool description.
 #[cfg(windows)]
-fn shell_basename(shell: &str) -> String {
+pub(crate) fn shell_basename(shell: &str) -> String {
     Path::new(shell)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -137,7 +137,7 @@ pub fn shell_display_name() -> String {
 /// to `sh`. Users who really want their login shell can opt in via
 /// `GOOSE_SHELL`.
 #[cfg(not(windows))]
-fn unix_shell() -> String {
+pub(crate) fn unix_shell() -> String {
     if let Ok(shell) = std::env::var("GOOSE_SHELL") {
         return shell;
     }
@@ -145,6 +145,32 @@ fn unix_shell() -> String {
         "bash".to_string()
     } else {
         "sh".to_string()
+    }
+}
+
+pub(crate) fn terminal_shell_command(command_line: &str) -> (String, Vec<String>) {
+    #[cfg(windows)]
+    {
+        let shell = windows_shell();
+        let args = match shell_basename(&shell).as_str() {
+            "pwsh" | "powershell" => vec![
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                command_line.to_string(),
+            ],
+            "cmd" => vec!["/C".to_string(), command_line.to_string()],
+            _ => vec!["-c".to_string(), command_line.to_string()],
+        };
+        (shell, args)
+    }
+
+    #[cfg(not(windows))]
+    {
+        (
+            unix_shell(),
+            vec!["-c".to_string(), command_line.to_string()],
+        )
     }
 }
 

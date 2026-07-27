@@ -398,9 +398,8 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
-    /// Take the provider-native ACP notification stream when available.
-    /// A single outer ACP session owns this lossless stream for the provider's
-    /// lifetime, avoiding prompt-boundary duplicate or dropped terminal output.
+    /// Subscribe to provider-native ACP terminal notifications when available.
+    /// A single outer ACP session owns the stream until the provider is replaced.
     fn take_acp_notification_receiver(
         &self,
     ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {

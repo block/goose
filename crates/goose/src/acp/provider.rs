@@ -152,7 +152,7 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    notification_rx: Mutex<Option<mpsc::UnboundedReceiver<serde_json::Value>>>,
+    notification_subscriber: Arc<Mutex<Option<mpsc::UnboundedSender<serde_json::Value>>>>,
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
@@ -175,6 +175,29 @@ impl std::fmt::Debug for AcpProvider {
         f.debug_struct("AcpProvider")
             .field("name", &self.name)
             .finish()
+    }
+}
+
+fn forward_terminal_notification(
+    notification: serde_json::Value,
+    subscriber: &Mutex<Option<mpsc::UnboundedSender<serde_json::Value>>>,
+) {
+    let Some(session_id) = notification
+        .get("sessionId")
+        .and_then(|value| value.as_str())
+    else {
+        return;
+    };
+    if !crate::acp::is_terminal_notification(&notification, session_id) {
+        return;
+    }
+    if let Ok(mut subscriber) = subscriber.lock() {
+        let disconnected = subscriber
+            .as_ref()
+            .is_some_and(|sender| sender.send(notification).is_err());
+        if disconnected {
+            *subscriber = None;
+        }
     }
 }
 
@@ -246,8 +269,9 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let (notification_tx, notification_rx) = mpsc::unbounded_channel();
-        let nested_notification_tx = notification_tx;
+        let notification_subscriber =
+            Arc::new(Mutex::new(None::<mpsc::UnboundedSender<serde_json::Value>>));
+        let nested_notification_subscriber = notification_subscriber.clone();
         let mut config = config;
         let configured_callback = config.notification_callback.take();
         config.notification_callback = Some(Arc::new(move |notification| {
@@ -255,7 +279,7 @@ impl AcpProvider {
                 callback(notification.clone());
             }
             if let Ok(value) = serde_json::to_value(notification) {
-                let _ = nested_notification_tx.send(value);
+                forward_terminal_notification(value, &nested_notification_subscriber);
             }
         }));
         let client_loop = AcpClientLoop::new(
@@ -293,7 +317,7 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            notification_rx: Mutex::new(Some(notification_rx)),
+            notification_subscriber,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
             model_config_option_id,
@@ -430,11 +454,9 @@ impl Provider for AcpProvider {
     fn take_acp_notification_receiver(
         &self,
     ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {
-        self.notification_rx
-            .lock()
-            .ok()?
-            .take()
-            .map(|receiver| (self.session.id.0.to_string(), receiver))
+        let (sender, receiver) = mpsc::unbounded_channel();
+        *self.notification_subscriber.lock().ok()? = Some(sender);
+        Some((self.session.id.0.to_string(), receiver))
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -1723,7 +1745,7 @@ mod tests {
                 },
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                notification_rx: Mutex::new(None),
+                notification_subscriber: Arc::new(Mutex::new(None)),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
@@ -1733,6 +1755,49 @@ mod tests {
             },
             ModelConfig::new("test-model"),
         )
+    }
+
+    #[test]
+    fn terminal_notification_forwarding_requires_an_active_subscriber() {
+        let subscriber = Mutex::new(None);
+        let terminal = serde_json::json!({
+            "sessionId": "nested-1",
+            "update": { "_meta": { "terminal_output_delta": { "data": "hello" } } }
+        });
+
+        forward_terminal_notification(terminal, &subscriber);
+
+        assert!(subscriber.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn terminal_notification_forwarding_filters_ordinary_notifications() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let subscriber = Mutex::new(Some(sender));
+        let ordinary = serde_json::json!({
+            "sessionId": "nested-1",
+            "update": { "sessionUpdate": "agent_message_chunk" }
+        });
+
+        forward_terminal_notification(ordinary, &subscriber);
+
+        assert!(receiver.try_recv().is_err());
+        assert!(subscriber.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn terminal_notification_forwarding_clears_a_disconnected_subscriber() {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        drop(receiver);
+        let subscriber = Mutex::new(Some(sender));
+        let terminal = serde_json::json!({
+            "sessionId": "nested-1",
+            "update": { "_meta": { "terminal_exit": { "exit_code": 0 } } }
+        });
+
+        forward_terminal_notification(terminal, &subscriber);
+
+        assert!(subscriber.lock().unwrap().is_none());
     }
 
     #[test]

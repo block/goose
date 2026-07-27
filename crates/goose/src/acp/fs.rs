@@ -4,7 +4,9 @@ use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
 use crate::agents::platform_extensions::developer::edit::{
     resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
 };
-use crate::agents::platform_extensions::developer::shell::{ShellParams, OUTPUT_LIMIT_BYTES};
+use crate::agents::platform_extensions::developer::shell::{
+    terminal_shell_command, ShellParams, OUTPUT_LIMIT_BYTES,
+};
 use crate::agents::platform_extensions::developer::DeveloperClient;
 use agent_client_protocol::schema::v1::{
     CreateTerminalRequest, Diff, EnvVariable, KillTerminalRequest, ReadTextFileRequest,
@@ -78,12 +80,9 @@ fn create_terminal_request(
     params: &ShellParams,
     ctx: &crate::agents::ToolCallContext,
 ) -> CreateTerminalRequest {
-    let script = format!(
-        "{}\n__goose_command_status=$?\nwait\nexit \"$__goose_command_status\"",
-        params.command
-    );
-    CreateTerminalRequest::new(session_id.clone(), "sh")
-        .args(vec!["-c".to_string(), script])
+    let (shell, args) = terminal_shell_command(&params.command);
+    CreateTerminalRequest::new(session_id.clone(), shell)
+        .args(args)
         .env(vec![EnvVariable::new("AGENT_SESSION_ID", &ctx.session_id)])
         .cwd(ctx.working_dir.clone())
         .output_byte_limit(OUTPUT_LIMIT_BYTES as u64)
@@ -495,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_request_wraps_shell_expression_and_includes_agent_session_id() {
+    fn terminal_request_uses_configured_shell_and_includes_agent_session_id() {
         let session_id = SessionId::new("acp-session");
         let params = ShellParams {
             command: "echo test".to_string(),
@@ -509,14 +508,18 @@ mod tests {
 
         let request = create_terminal_request(&session_id, &params, &ctx);
 
-        assert_eq!(request.command, "sh");
-        assert_eq!(
-            request.args,
-            vec![
-                "-c",
-                "echo test\n__goose_command_status=$?\nwait\nexit \"$__goose_command_status\""
-            ]
-        );
+        #[cfg(not(windows))]
+        {
+            assert_eq!(request.command, terminal_shell_command("echo test").0);
+            assert_eq!(request.args, vec!["-c", "echo test"]);
+        }
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                (request.command, request.args),
+                terminal_shell_command("echo test")
+            );
+        }
         assert_eq!(
             request.env,
             vec![EnvVariable::new("AGENT_SESSION_ID", "agent-session")]

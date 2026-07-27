@@ -20,7 +20,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, delegation, advanced"
+    description: "Which test phases to run: all, basic, extensions, delegation, terminal, vision, advanced"
 
   - key: test_depth
     input_type: string
@@ -323,8 +323,22 @@ prompt: |
   Log results to: {{ workspace_dir }}/phase3_delegation.md
   {% endif %}
 
+  {% if test_phases == "all" or "terminal" in test_phases %}
+  ## 🖥️ PHASE 3B: Nested Agent Foreground Terminal Testing
+
+  Use a synchronous delegate to run a foreground shell command that emits three delayed markers:
+  ```
+  delegate(instructions: "Run this exact command in the foreground and return its complete output: printf 'terminal-start\\n'; sleep 1; printf 'terminal-middle\\n'; sleep 1; printf 'terminal-end\\n'")
+  ```
+  Verify the delegate completes, the parent receives all three markers in order, and no output is
+  duplicated or delayed until a later prompt. Record a failure if terminal output is missing,
+  reordered, duplicated, or attached to the wrong session.
+
+  Log results to: {{ workspace_dir }}/phase3b_terminal.md
+  {% endif %}
+
   {% if test_phases == "all" or "vision" in test_phases %}
-  ## 📷 PHASE 3B: Local Inference Vision Testing
+  ## 📷 PHASE 3C: Local Inference Vision Testing
 
   **Prerequisites**: A vision-capable local model must be downloaded (e.g., gemma-4-E4B).
   Skip this phase if no local vision model is available.
