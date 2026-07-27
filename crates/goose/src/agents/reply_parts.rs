@@ -514,7 +514,7 @@ impl Agent {
                     // Always keep externally-dispatched requests visible, even if
                     // their name happens to overlap a registered frontend tool —
                     // they're observation-only and must not be removed from history.
-                    let should_include = if coerced_req.is_externally_dispatched() {
+                    let should_include = if coerced_req.was_executed_externally() {
                         true
                     } else if let Ok(tool_call) = &coerced_req.tool_call {
                         !self.is_frontend_tool(&tool_call.name).await
@@ -551,7 +551,7 @@ impl Agent {
         for request in tool_requests {
             // Skip externally-dispatched requests (e.g. claude-acp); the
             // provider already executed the tool. Stays in filtered_message.
-            if request.is_externally_dispatched() {
+            if request.was_executed_externally() {
                 continue;
             }
             if let Ok(tool_call) = &request.tool_call {
@@ -569,12 +569,15 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
+    /// `post_compaction_context_tokens` is `Some` when this usage came from a
+    /// compaction call: the value (the retained summary size, not the billable
+    /// output) becomes the session's new context baseline.
     pub(crate) async fn update_session_metrics(
         &self,
         session_id: &str,
         schedule_id: Option<String>,
         usage: &ProviderUsage,
-        is_compaction_usage: bool,
+        post_compaction_context_tokens: Option<i32>,
     ) -> Result<ProviderUsage> {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
@@ -585,14 +588,12 @@ impl Agent {
         let mut enriched = usage.clone();
         enriched.cost = chunk_cost;
         enriched.cost_source = cost_source;
-        let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
+        let ledger =
+            MessageUsage::from_provider_usage(&enriched, post_compaction_context_tokens.is_some());
 
-        let current_usage = if is_compaction_usage {
-            // After compaction: summary output becomes new input context
-            let new_input = usage.usage.output_tokens;
-            Usage::new(new_input, None, new_input)
-        } else {
-            usage.usage
+        let current_usage = match post_compaction_context_tokens {
+            Some(retained) => Usage::new(Some(retained), None, Some(retained)),
+            None => usage.usage,
         };
 
         manager
@@ -1146,7 +1147,7 @@ mod tests {
             other => panic!("expected ToolRequest, got {other:?}"),
         };
         assert!(
-            tool_req.is_externally_dispatched(),
+            tool_req.was_executed_externally(),
             "goose.external_dispatch marker was clobbered by coercion; merged tool_meta = {:?}",
             tool_req.tool_meta
         );

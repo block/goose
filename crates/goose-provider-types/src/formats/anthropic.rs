@@ -1391,6 +1391,28 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_adaptive_thinking_for_opus_5() -> Result<()> {
+        // Claude 5 models reject the legacy thinking.type=enabled shape and
+        // require thinking.type=adaptive + output_config.effort.
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
+
+        let mut config = cfg("claude-opus-5");
+        config.max_tokens = Some(4096);
+        config.request_params = Some(params);
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert_eq!(payload["output_config"]["effort"], "high");
+        assert!(payload["thinking"].get("budget_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_enabled_thinking_with_budget() -> Result<()> {
         let _guard = env_lock::lock_env([
             ("GOOSE_THINKING_EFFORT", None::<&str>),

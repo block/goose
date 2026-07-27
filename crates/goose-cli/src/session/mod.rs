@@ -2574,6 +2574,7 @@ mod tests {
                 serde_json::json!(["output-128k-2025-02-19"]),
             )])),
             reasoning: Some(false),
+            request_headers: None,
         };
 
         let switched =

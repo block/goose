@@ -7,6 +7,7 @@ use thiserror::Error;
 
 pub mod message;
 pub mod token_usage;
+mod tool_request;
 mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -77,7 +77,13 @@ maven-bindings profile="release":
     esac; \
     crates/goose-sdk/scripts/prepare-maven-package.sh "$lib_path"
 
+maven-clean:
+    rm -rf {{maven_dir}}/build {{maven_kotlin_dir}} {{maven_resources_dir}}
+
 maven-package: (maven-bindings "release")
+    cd {{maven_dir}} && ./gradlew --no-daemon publishToMavenLocal
+
+maven-package-clean: maven-clean (maven-bindings "release")
     cd {{maven_dir}} && ./gradlew --no-daemon publishToMavenLocal
 
 maven-publish: (maven-bindings "release")

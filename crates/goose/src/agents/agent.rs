@@ -1810,9 +1810,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -2086,7 +2087,7 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
                                 pending_turn_usage = Some(enriched);
                             }
@@ -2568,10 +2569,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2841,7 +2842,7 @@ impl Agent {
 
                             if matching_ids.len() == 2 {
                                 for id in &matching_ids {
-                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    session_manager.update_message_metadata(&session_config.id, id, |metadata| {
                                         metadata.with_agent_invisible()
                                     }).await?;
                                 }
