@@ -811,7 +811,7 @@
     "description": "Agentic commerce network: discover sellers, negotiate, and pay in USDC on Base",
     "type": "streamable-http",
     "url": "https://app.getvia.xyz/mcp",
-    "link": "https://github.com/richardjhobbs/via-app",
+    "link": "https://app.getvia.xyz",
     "installation_notes": "Streamable HTTP extension. No API key or environment variables required.",
     "is_builtin": false,
     "endorsed": false,
