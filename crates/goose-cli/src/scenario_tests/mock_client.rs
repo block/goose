@@ -118,12 +118,7 @@ impl McpClientTrait for MockClient {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListPromptsResult, Error> {
-        Ok(ListPromptsResult {
-            prompts: vec![],
-            next_cursor: None,
-            meta: None,
-            ..Default::default()
-        })
+        Ok(ListPromptsResult::with_all_items(vec![]))
     }
 
     async fn get_prompt(
