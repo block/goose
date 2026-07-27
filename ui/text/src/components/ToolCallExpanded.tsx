@@ -169,7 +169,9 @@ export function ToolCallExpanded({
   onClose,
 }: Props) {
   const safeWidth = Math.max(width, 20);
-  const safeHeight = Math.max(height, 5);
+  // This sits in the normal layout where the viewport would be, not in an
+  // overlay, so a minimum here claims rows the caller already gave away.
+  const safeHeight = Math.max(height, 0);
   const contentWidth = Math.max(safeWidth - 4, 10);
 
   const allLines = useMemo(
@@ -194,13 +196,15 @@ export function ToolCallExpanded({
     }
   });
 
-  const headerH = 2;
-  const footerH = 2;
-  const bodyHeight = Math.max(safeHeight - headerH - footerH, 1);
+  const headerH = 2; // border top + status row
+  const footerH = 2; // hint row + border bottom
+  const bodyHeight = Math.max(safeHeight - headerH - footerH, 0);
 
   const total = allLines.length;
-  const overflows = total > bodyHeight;
-  const contentHeight = overflows ? Math.max(bodyHeight - 2, 1) : bodyHeight;
+  // Indicators cost a row each, so they only fit once content remains beside
+  // them — otherwise the body would render more rows than it was given.
+  const showIndicators = total > bodyHeight && bodyHeight >= 3;
+  const contentHeight = showIndicators ? bodyHeight - 2 : bodyHeight;
 
   const maxEnd = total;
   const minEnd = Math.min(contentHeight, total);
@@ -210,7 +214,7 @@ export function ToolCallExpanded({
   const padCount = contentHeight - visible.length;
 
   const elements: React.ReactElement[] = [];
-  if (overflows) {
+  if (showIndicators) {
     const above = startIdx;
     elements.push(
       <Box key="exp-up" width={safeWidth} height={1} justifyContent="center">
@@ -230,7 +234,7 @@ export function ToolCallExpanded({
     );
   }
   elements.push(...visible);
-  if (overflows) {
+  if (showIndicators) {
     const below = total - endIdx;
     elements.push(
       <Box key="exp-dn" width={safeWidth} height={1} justifyContent="center">

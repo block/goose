@@ -63,6 +63,10 @@ import {
 } from "./constants.js";
 import { tryRunSlashCommand } from "./slashCommands.js";
 
+// Border, status row, one row of body and the hint row. Below that the
+// expanded view cannot exist, so the transcript is shown instead.
+const MIN_EXPANDED_HEIGHT = 5;
+
 const InputBar = React.memo(function InputBar({
   width,
   input,
@@ -355,9 +359,11 @@ const Viewport = React.memo(function Viewport({
   scrollOffset: number;
 }) {
   const total = lines.length;
-  const overflows = total > height;
+  // The two scroll indicators cost a row each, so they only fit once there is
+  // something left to indicate — below that the rows go to content instead.
+  const showIndicators = total > height && height >= 3;
 
-  const contentHeight = overflows ? Math.max(height - 2, 1) : height;
+  const contentHeight = showIndicators ? height - 2 : height;
 
   const maxEnd = total;
   const minEnd = Math.min(contentHeight, total);
@@ -370,7 +376,7 @@ const Viewport = React.memo(function Viewport({
 
   const elements: React.ReactElement[] = [];
 
-  if (overflows) {
+  if (showIndicators) {
     const above = startIdx;
     elements.push(
       <Box key="si-up" width={width} height={1} justifyContent="center">
@@ -388,7 +394,7 @@ const Viewport = React.memo(function Viewport({
   }
   elements.push(...visible);
 
-  if (overflows) {
+  if (showIndicators) {
     const below = total - endIdx;
     elements.push(
       <Box key="si-dn" width={width} height={1} justifyContent="center">
@@ -1314,7 +1320,9 @@ function App({
             }
           />
 
-          {toolCallExpanded && selectedToolCallInfo ? (
+          {toolCallExpanded &&
+          selectedToolCallInfo &&
+          viewportHeight >= MIN_EXPANDED_HEIGHT ? (
             <ToolCallExpanded
               info={selectedToolCallInfo}
               width={contentWidth}
