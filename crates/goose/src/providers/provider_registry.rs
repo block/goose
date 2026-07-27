@@ -60,7 +60,11 @@ impl ProviderEntry {
     /// the agent/session layer to resolve effective limits (e.g. for custom
     /// providers that declare explicit context limits in their config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
+        model = crate::model_config::materialize_model_config_with_catalog(
+            &self.metadata.name,
+            self.metadata.catalog_provider_id.as_deref(),
+            model,
+        )?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -298,6 +302,7 @@ impl ProviderRegistry {
             setup_steps: config.setup_steps.clone(),
             model_selection_hint: None,
             fast_model: config.fast_model.clone(),
+            catalog_provider_id: config.catalog_provider_id.clone(),
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
         let default_inventory_configured = Arc::new(move || {

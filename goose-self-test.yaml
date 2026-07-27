@@ -375,7 +375,7 @@ prompt: |
   ### Provider Feature Smoke Check
   Confirm Ollama Cloud reasoning wiring is present in source:
   1. `ollama_cloud.json` has `catalog_provider_id: "ollama_cloud"`
-  2. `openai.rs` maps Ollama Cloud thinking effort via `PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING`
+  2. `openai.rs` maps Ollama Cloud thinking effort via `is_ollama_cloud()` and `map_reasoning_effort_for_provider()`
 
   Log results to: {{ workspace_dir }}/phase4_advanced.md
   {% endif %}

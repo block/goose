@@ -524,6 +524,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -696,6 +697,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -877,6 +879,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -1237,6 +1240,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -1508,6 +1512,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -1708,6 +1713,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -1859,6 +1865,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -2163,6 +2170,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -3015,6 +3023,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
@@ -3089,6 +3098,7 @@ mod tests {
                     setup_steps: vec![],
                     model_selection_hint: None,
                     fast_model: None,
+                    catalog_provider_id: None,
                 }
             }
         }
