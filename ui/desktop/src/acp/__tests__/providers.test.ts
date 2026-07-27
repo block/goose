@@ -164,5 +164,57 @@ describe('ACP providers', () => {
         vi.useRealTimers();
       }
     });
+
+    it('unions live models for agent-category providers regardless of id', async () => {
+      const client = {
+        goose: {
+          providersList_unstable: vi.fn().mockResolvedValue({
+            entries: [
+              {
+                providerId: 'claude-acp',
+                category: 'agent',
+                models: [{ id: 'sonnet', name: 'Sonnet' }],
+              },
+            ],
+          }),
+          providersSupportedModelsList_unstable: vi
+            .fn()
+            .mockResolvedValue({ providerId: 'claude-acp', models: ['opus[1m]', 'sonnet'] }),
+        },
+      };
+      vi.mocked(getAcpClient).mockResolvedValue(
+        client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+      );
+
+      const models = await acpListProviderModels('claude-acp');
+
+      expect(models).toEqual([
+        { id: 'opus[1m]', name: 'opus[1m]' },
+        { id: 'sonnet', name: 'Sonnet' },
+      ]);
+    });
+
+    it('does not union live models for non-allowlisted model providers', async () => {
+      const inventory = [{ id: 'gpt-5', name: 'GPT-5', contextLimit: 400000 }];
+      const supportedModels = vi.fn();
+      const client = {
+        goose: {
+          providersList_unstable: vi.fn().mockResolvedValue({
+            entries: [{ providerId: 'openai', category: 'model', models: inventory }],
+          }),
+          // OpenAI's raw /models lists embeddings/audio/image models, so it must not be unioned.
+          providersSupportedModelsList_unstable: supportedModels,
+        },
+      };
+      vi.mocked(getAcpClient).mockResolvedValue(
+        client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+      );
+
+      const models = await acpListProviderModels('openai');
+
+      expect(models).toEqual(inventory);
+      // Live discovery is skipped entirely for filtered model providers.
+      expect(supportedModels).not.toHaveBeenCalled();
+    });
   });
 });

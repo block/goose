@@ -2,6 +2,7 @@ import type {
   CanonicalModelInfoDto,
   CustomProviderCreateRequest_unstable,
   CustomProviderReadResponse_unstable,
+  ProviderInventoryEntryDto,
   ProviderInventoryModelDto,
   ProviderSecretDto,
   ProviderTemplateCatalogEntryDto,
@@ -78,6 +79,23 @@ export async function acpListProviderSupportedModels(providerId: string): Promis
 // (RecipeModelSelector awaits every provider via Promise.all) loading forever.
 const LIVE_MODELS_TIMEOUT_MS = 4000;
 
+// Model providers whose live supported-models endpoint returns *only* agent-usable models.
+// The first-party Anthropic API's /v1/models is all chat/tool-capable, so its raw list is safe
+// to surface directly. Other model providers (OpenAI, Google, OpenRouter, …) also return
+// embeddings, audio, and image models from their raw endpoint, which would fail an agent
+// request; for those we keep the canonical-filtered inventory list instead.
+const LIVE_UNION_MODEL_PROVIDERS = new Set(['anthropic']);
+
+// Whether to union a provider's live supported-models list into the picker. Agent adapters
+// (category 'agent', e.g. Claude Code / Codex over ACP) advertise only the agent's own chat
+// models, so their raw list is always safe; other providers must be explicitly allowlisted.
+function shouldUnionLiveModels(entry: ProviderInventoryEntryDto | undefined): boolean {
+  if (!entry) {
+    return false;
+  }
+  return entry.category === 'agent' || LIVE_UNION_MODEL_PROVIDERS.has(entry.providerId);
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
@@ -99,7 +117,15 @@ export async function acpListProviderModels(
 ): Promise<ProviderInventoryModelDto[]> {
   const client = await getAcpClient();
   const { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
-  const inventory = entries.find((e) => e.providerId === providerId)?.models ?? [];
+  const entry = entries.find((e) => e.providerId === providerId);
+  const inventory = entry?.models ?? [];
+
+  // Only union the live list for providers whose supported-models endpoint returns exclusively
+  // agent-usable models (see shouldUnionLiveModels). For the rest we keep the canonical-filtered
+  // inventory so non-chat models (embeddings, audio, image) never leak into the picker.
+  if (!shouldUnionLiveModels(entry)) {
+    return inventory;
+  }
 
   // The inventory cache is canonical-filtered and populated by a background refresh, so it
   // lags new releases and can silently drop models the key/adapter actually has (e.g. Opus 5,
