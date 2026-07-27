@@ -1,16 +1,17 @@
+use crate::utils::sanitize_unicode_tags;
 use base64::Engine;
 use rmcp::model::ResourceContents;
 
 pub fn extract_text_from_resource(resource: &ResourceContents) -> String {
     match resource {
-        ResourceContents::TextResourceContents { text, .. } => text.clone(),
+        ResourceContents::TextResourceContents { text, .. } => sanitize_unicode_tags(text),
         ResourceContents::BlobResourceContents {
             blob, mime_type, ..
         } => match base64::engine::general_purpose::STANDARD.decode(blob) {
             Ok(bytes) => {
                 let byte_len = bytes.len();
                 match String::from_utf8(bytes) {
-                    Ok(text) => text,
+                    Ok(text) => sanitize_unicode_tags(&text),
                     Err(_) => {
                         let mime = mime_type
                             .as_ref()
@@ -20,7 +21,7 @@ pub fn extract_text_from_resource(resource: &ResourceContents) -> String {
                     }
                 }
             }
-            Err(_) => blob.clone(),
+            Err(_) => sanitize_unicode_tags(blob),
         },
         _ => String::new(),
     }
@@ -33,6 +34,7 @@ mod tests {
 
     #[test_case("Hello, World!", "Hello, World!" ; "simple text")]
     #[test_case("Hello from GitHub!", "Hello from GitHub!" ; "github content")]
+    #[test_case("visible\u{E0041}\u{E0042}text", "visibletext" ; "unicode tags")]
     #[test_case("", "" ; "empty text")]
     fn test_extract_text_from_text_resource(input: &str, expected: &str) {
         let resource = ResourceContents::TextResourceContents {
@@ -46,6 +48,7 @@ mod tests {
 
     #[test_case("Hello from GitHub!", "Hello from GitHub!" ; "utf8 markdown")]
     #[test_case("Simple text", "Simple text" ; "utf8 plain")]
+    #[test_case("visible\u{E0041}\u{E0042}text", "visibletext" ; "unicode tags")]
     fn test_extract_text_from_blob_utf8(input: &str, expected: &str) {
         let blob = base64::engine::general_purpose::STANDARD.encode(input.as_bytes());
         let resource = ResourceContents::BlobResourceContents {
@@ -98,7 +101,7 @@ mod tests {
         let resource = ResourceContents::BlobResourceContents {
             uri: "file:///test.txt".to_string(),
             mime_type: Some("text/plain".to_string()),
-            blob: "not valid base64!!!".to_string(),
+            blob: "not\u{E0041} valid base64!!!".to_string(),
             meta: None,
         };
         assert_eq!(extract_text_from_resource(&resource), "not valid base64!!!");
