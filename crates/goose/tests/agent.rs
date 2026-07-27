@@ -2493,14 +2493,42 @@ mod tests {
                 .reply(Message::user().with_text("/goal"), session_config, None)
                 .await?;
             tokio::pin!(reply_stream);
+
+            let mut emitted_user_id = None;
             while let Some(event) = reply_stream.next().await {
-                let _ = event?;
+                if let AgentEvent::Message(message) = event? {
+                    if message.role == rmcp::model::Role::User
+                        && message.as_concat_text() == "/goal"
+                    {
+                        emitted_user_id = message.id;
+                    }
+                }
             }
 
             assert_eq!(
                 provider.call_count.load(Ordering::SeqCst),
                 0,
                 "Querying the goal should not start an agent turn"
+            );
+
+            let emitted_user_id = emitted_user_id.expect("User message should be emitted with ID");
+            assert!(emitted_user_id.starts_with("msg_"));
+
+            let reloaded = session_manager.get_session(&session.id, true).await?;
+            let conversation = reloaded
+                .conversation
+                .expect("Session should have a conversation");
+            let stored_user_message = conversation
+                .messages()
+                .iter()
+                .find(|message| {
+                    message.role == rmcp::model::Role::User && message.as_concat_text() == "/goal"
+                })
+                .expect("User message should be stored");
+
+            assert_eq!(
+                stored_user_message.id.as_deref(),
+                Some(emitted_user_id.as_str())
             );
 
             Ok(())

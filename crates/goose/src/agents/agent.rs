@@ -1552,6 +1552,11 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let user_message = if user_message.id.is_none() {
+            user_message.with_generated_id()
+        } else {
+            user_message
+        };
         let session_manager = self.config.session_manager.clone();
 
         let message_text_for_trace = agent_visible_message_text(&user_message);
