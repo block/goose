@@ -2,12 +2,15 @@
 #![allow(unused_attributes)]
 
 use agent_client_protocol::schema::v1::{
-    CreateTerminalResponse, KillTerminalResponse, ListSessionsResponse, McpServer,
-    ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
-    SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCallContent,
-    ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
-    WriteTextFileResponse,
+    AgentCapabilities, CreateTerminalResponse, InitializeRequest, InitializeResponse,
+    KillTerminalResponse, ListSessionsResponse, McpServer, NewSessionRequest, NewSessionResponse,
+    PromptRequest, PromptResponse, ReadTextFileRequest, ReadTextFileResponse,
+    ReleaseTerminalResponse, SessionModeState, SessionNotification, SessionUpdate, StopReason,
+    TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCall, ToolCallContent,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, WaitForTerminalExitResponse,
+    WriteTextFileRequest, WriteTextFileResponse,
 };
+use agent_client_protocol::{Agent as AcpAgent, Client as AcpClient};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fs_err as fs;
@@ -326,6 +329,83 @@ pub async fn serve_agent_in_process(
     let transport =
         agent_client_protocol::ByteStreams::new(client_write.compat_write(), client_read.compat());
     (transport, handle)
+}
+
+pub fn nested_terminal_agent() -> impl agent_client_protocol::ConnectTo<AcpClient> {
+    AcpAgent
+        .builder()
+        .name("nested-terminal-fixture")
+        .on_receive_request(
+            async move |initialize: InitializeRequest, responder, _cx| {
+                responder.respond(
+                    InitializeResponse::new(initialize.protocol_version)
+                        .agent_capabilities(AgentCapabilities::new()),
+                )
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |_request: NewSessionRequest, responder, _cx| {
+                responder.respond(NewSessionResponse::new("nested-session"))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .on_receive_request(
+            async move |request: PromptRequest, responder, cx| {
+                let tool_call_id = "provider-call-1";
+                cx.send_notification(SessionNotification::new(
+                    request.session_id.clone(),
+                    SessionUpdate::ToolCall(
+                        ToolCall::new(tool_call_id, "Run foreground command")
+                            .kind(ToolKind::Execute)
+                            .status(ToolCallStatus::InProgress),
+                    ),
+                ))?;
+
+                let terminal_meta = |key: &str, value: serde_json::Value| {
+                    let mut meta = agent_client_protocol::schema::v1::Meta::new();
+                    meta.insert(key.to_string(), value);
+                    meta
+                };
+                cx.send_notification(SessionNotification::new(
+                    request.session_id.clone(),
+                    SessionUpdate::ToolCallUpdate(
+                        ToolCallUpdate::new(tool_call_id, ToolCallUpdateFields::new()).meta(
+                            terminal_meta(
+                                "terminal_output_delta",
+                                serde_json::json!({
+                                    "terminal_id": "nested-terminal-1",
+                                    "data": "hello"
+                                }),
+                            ),
+                        ),
+                    ),
+                ))?;
+                cx.send_notification(SessionNotification::new(
+                    request.session_id.clone(),
+                    SessionUpdate::ToolCallUpdate(
+                        ToolCallUpdate::new(tool_call_id, ToolCallUpdateFields::new()).meta(
+                            terminal_meta(
+                                "terminal_exit",
+                                serde_json::json!({
+                                    "terminal_id": "nested-terminal-1",
+                                    "exit_code": 0
+                                }),
+                            ),
+                        ),
+                    ),
+                ))?;
+                cx.send_notification(SessionNotification::new(
+                    request.session_id.clone(),
+                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+                        tool_call_id,
+                        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+                    )),
+                ))?;
+                responder.respond(PromptResponse::new(StopReason::EndTurn))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
 }
 
 #[allow(dead_code)]

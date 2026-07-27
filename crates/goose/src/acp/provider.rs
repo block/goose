@@ -114,6 +114,7 @@ enum AcpUpdate {
         content: Option<Vec<ToolCallContent>>,
         is_error: bool,
     },
+    TerminalNotification(serde_json::Value),
     PermissionRequest {
         request: Box<RequestPermissionRequest>,
         response_tx: oneshot::Sender<RequestPermissionResponse>,
@@ -175,29 +176,6 @@ impl std::fmt::Debug for AcpProvider {
         f.debug_struct("AcpProvider")
             .field("name", &self.name)
             .finish()
-    }
-}
-
-fn forward_terminal_notification(
-    notification: serde_json::Value,
-    subscriber: &Mutex<Option<mpsc::UnboundedSender<serde_json::Value>>>,
-) {
-    let Some(session_id) = notification
-        .get("sessionId")
-        .and_then(|value| value.as_str())
-    else {
-        return;
-    };
-    if !crate::acp::is_terminal_notification(&notification, session_id) {
-        return;
-    }
-    if let Ok(mut subscriber) = subscriber.lock() {
-        let disconnected = subscriber
-            .as_ref()
-            .is_some_and(|sender| sender.send(notification).is_err());
-        if disconnected {
-            *subscriber = None;
-        }
     }
 }
 
@@ -271,17 +249,6 @@ impl AcpProvider {
         let context_size = Arc::new(AtomicU64::new(0));
         let notification_subscriber =
             Arc::new(Mutex::new(None::<mpsc::UnboundedSender<serde_json::Value>>));
-        let nested_notification_subscriber = notification_subscriber.clone();
-        let mut config = config;
-        let configured_callback = config.notification_callback.take();
-        config.notification_callback = Some(Arc::new(move |notification| {
-            if let Some(callback) = configured_callback.as_ref() {
-                callback(notification.clone());
-            }
-            if let Ok(value) = serde_json::to_value(notification) {
-                forward_terminal_notification(value, &nested_notification_subscriber);
-            }
-        }));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -562,6 +529,7 @@ impl Provider for AcpProvider {
         };
 
         let pending_confirmations = self.pending_confirmations.clone();
+        let notification_subscriber = self.notification_subscriber.clone();
         let goose_mode = *self
             .goose_mode
             .lock()
@@ -624,6 +592,16 @@ impl Provider for AcpProvider {
                                 tool_meta,
                             );
                             yield (Some(message), None);
+                        }
+                    }
+                    AcpUpdate::TerminalNotification(notification) => {
+                        if let Ok(mut subscriber) = notification_subscriber.lock() {
+                            let disconnected = subscriber
+                                .as_ref()
+                                .is_some_and(|sender| sender.send(notification).is_err());
+                            if disconnected {
+                                *subscriber = None;
+                            }
                         }
                     }
                     AcpUpdate::ToolCallComplete {
@@ -962,6 +940,21 @@ impl AcpClientLoop {
                                     } else {
                                         None
                                     };
+                                    if let Ok(notification) =
+                                        serde_json::to_value(SessionNotification::new(
+                                            notification.session_id.clone(),
+                                            SessionUpdate::ToolCallUpdate(update.clone()),
+                                        ))
+                                    {
+                                        if crate::acp::is_terminal_notification(
+                                            &notification,
+                                            notification["sessionId"].as_str().unwrap_or_default(),
+                                        ) {
+                                            let _ = tx.try_send(AcpUpdate::TerminalNotification(
+                                                notification,
+                                            ));
+                                        }
+                                    }
                                     if let (Some(accumulated), Some(status)) =
                                         (accumulated, terminal_status)
                                     {
@@ -1755,49 +1748,6 @@ mod tests {
             },
             ModelConfig::new("test-model"),
         )
-    }
-
-    #[test]
-    fn terminal_notification_forwarding_requires_an_active_subscriber() {
-        let subscriber = Mutex::new(None);
-        let terminal = serde_json::json!({
-            "sessionId": "nested-1",
-            "update": { "_meta": { "terminal_output_delta": { "data": "hello" } } }
-        });
-
-        forward_terminal_notification(terminal, &subscriber);
-
-        assert!(subscriber.lock().unwrap().is_none());
-    }
-
-    #[test]
-    fn terminal_notification_forwarding_filters_ordinary_notifications() {
-        let (sender, mut receiver) = mpsc::unbounded_channel();
-        let subscriber = Mutex::new(Some(sender));
-        let ordinary = serde_json::json!({
-            "sessionId": "nested-1",
-            "update": { "sessionUpdate": "agent_message_chunk" }
-        });
-
-        forward_terminal_notification(ordinary, &subscriber);
-
-        assert!(receiver.try_recv().is_err());
-        assert!(subscriber.lock().unwrap().is_some());
-    }
-
-    #[test]
-    fn terminal_notification_forwarding_clears_a_disconnected_subscriber() {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        drop(receiver);
-        let subscriber = Mutex::new(Some(sender));
-        let terminal = serde_json::json!({
-            "sessionId": "nested-1",
-            "update": { "_meta": { "terminal_exit": { "exit_code": 0 } } }
-        });
-
-        forward_terminal_notification(terminal, &subscriber);
-
-        assert!(subscriber.lock().unwrap().is_none());
     }
 
     #[test]
