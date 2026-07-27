@@ -256,6 +256,8 @@ async fn test_replayed_session(
         ExtensionManagerCapabilities {
             mcpui: true,
             host_info: None,
+            elicitation_handler: None,
+            protocol_version: None,
         },
         true,
     ));
