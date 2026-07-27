@@ -29,9 +29,9 @@ BountyVerdict is an account-free, read-only MCP server that helps agents decide 
 
 The server exposes six tools:
 
-- `check_bounty` checks one public GitHub bounty for assignment, claim competition, repository policy, reward provenance, and linked work.
-- `rank_bounties` compares two to five bounties and returns the best eligible candidate.
-- `audit_repository_instructions` checks repository agent instructions for risky or contradictory behavior.
+- `check_github_bounty` checks one public GitHub bounty for assignment, claim competition, repository policy, reward provenance, and linked work.
+- `rank_github_bounties` compares two to ten bounties and returns the best eligible candidate.
+- `audit_agent_harness` checks repository agent instructions for risky or contradictory behavior.
 - `diagnose_github_actions_run` identifies evidence-backed failure causes in a public Actions run.
 - `classify_github_actions_flake` decides whether one failed job should be retried or fixed.
 - `check_mcp_tool_drift` compares MCP tool catalogs for breaking changes.
