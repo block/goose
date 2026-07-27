@@ -95,10 +95,11 @@ pub async fn inject_moim(
     );
 
     let mut messages = conversation.messages().clone();
-    let Some(idx) = messages
-        .iter()
-        .rposition(|m| m.is_agent_visible() && effective_role(m) == "user")
-    else {
+    let Some(idx) = messages.iter().rposition(|m| {
+        m.is_agent_visible()
+            && effective_role(m) == "user"
+            && !super::tool_set::is_tool_set_update_carrier(m)
+    }) else {
         return conversation;
     };
     let insert_idx = messages[idx]
@@ -319,6 +320,45 @@ mod tests {
         assert_eq!(text_at(&msgs[0], 1), "agent visible");
         assert_eq!(text_at(&msgs[1], 0), "user only");
         assert!(!msgs[1].is_agent_visible());
+    }
+
+    #[tokio::test]
+    async fn test_moim_skips_tool_set_update_carriers() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let session = em
+            .get_context()
+            .session_manager
+            .create_session(
+                PathBuf::from("/test/dir"),
+                "test".to_string(),
+                crate::session::SessionType::User,
+                crate::config::GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("real turn"),
+            Message::assistant()
+                .with_tool_request("call_1", Ok(CallToolRequestParams::new("disable"))),
+            Message::user()
+                .with_tool_response("call_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
+            super::super::tool_set::tool_set_update_message(
+                crate::conversation::message::ToolSetUpdateContent {
+                    added: Vec::new(),
+                    removed: vec!["gone".to_string()],
+                },
+            ),
+        ]);
+        let result = inject_moim(&session.id, conv, &em, 0, 100).await;
+        let msgs = result.messages();
+
+        assert_eq!(msgs.len(), 4);
+        assert!(is_moim(&msgs[0].content[0]));
+        assert_eq!(text_at(&msgs[0], 1), "real turn");
+        assert!(!msgs[3].content.iter().any(is_moim));
+        assert_eq!(msgs[3].content.len(), 1);
     }
 
     #[tokio::test]

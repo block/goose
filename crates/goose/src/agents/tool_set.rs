@@ -120,6 +120,17 @@ impl Surface {
     }
 }
 
+/// A carrier only holds a delta at a wire position, so nothing else may be injected into it:
+/// that would render as the message's only block, which the Anthropic formatter cannot
+/// relocate out of the cached prefix once later messages exist.
+pub fn is_tool_set_update_carrier(message: &Message) -> bool {
+    !message.content.is_empty()
+        && message
+            .content
+            .iter()
+            .all(|content| matches!(content, MessageContentBlock::ToolSetUpdate(_)))
+}
+
 /// A delta renders as a wire-level system message, which must follow a user turn.
 pub fn can_record_tool_set_update(conversation: &Conversation) -> bool {
     conversation
