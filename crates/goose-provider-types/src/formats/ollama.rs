@@ -221,7 +221,8 @@ where
                     Role::Assistant,
                     chrono::Utc::now().timestamp(),
                     vec![MessageContent::text(&accumulated_text)],
-                );
+                )
+                .with_generated_id();
 
                 yield (Some(msg), last_usage);
             }
@@ -353,8 +354,10 @@ hello
         }
     }
 
-    #[test]
-    fn test_response_to_message_xml_fallback() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn test_response_to_message_xml_fallback() -> anyhow::Result<()> {
+        use futures::StreamExt;
+
         // Test that response_to_message falls back to XML parsing when no JSON tool_calls
         let response = json!({
             "choices": [{
@@ -374,6 +377,32 @@ hello
         } else {
             panic!("Expected ToolRequest content from XML parsing");
         }
+
+        let response_lines = r#"data: {"id":"ollama-source-id","model":"test-model","choices":[{"delta":{"role":"assistant","content":"literal <function=not-a-tool"},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","created":123}
+data: {"id":"ollama-source-id","model":"test-model","choices":[{"delta":{"content":" should remain text"},"index":0,"finish_reason":"stop"}],"object":"chat.completion.chunk","created":124}
+data: [DONE]"#;
+        let lines = response_lines.lines().map(|s| Ok(s.to_string()));
+        let response_stream = tokio_stream::iter(lines);
+        let mut messages = std::pin::pin!(response_to_streaming_message_ollama(response_stream));
+
+        let (message, usage) = messages
+            .next()
+            .await
+            .expect("expected invalid XML fallback message")?;
+        assert!(usage.is_none());
+        let message = message.expect("expected invalid XML fallback message");
+        assert_eq!(message.role, Role::Assistant);
+        assert_eq!(message.content.len(), 1);
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("expected invalid XML fallback to remain text-only");
+        };
+        assert_eq!(text.text, "literal <function=not-a-tool should remain text");
+        let message_id = message
+            .id
+            .as_deref()
+            .expect("invalid XML fallback message should have an ID");
+        assert!(message_id.starts_with("msg_"));
+        assert!(messages.next().await.is_none());
 
         Ok(())
     }

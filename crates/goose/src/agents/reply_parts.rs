@@ -168,6 +168,19 @@ fn message_has_timing_content(message: &Message) -> bool {
         .any(|content| !matches!(content, MessageContent::SystemNotification(_)))
 }
 
+fn is_mergeable_assistant_chunk(message: &Message) -> bool {
+    message.role == rmcp::model::Role::Assistant
+        && !message.content.is_empty()
+        && message.content.iter().all(|content| {
+            matches!(
+                content,
+                MessageContent::Text(_)
+                    | MessageContent::Thinking(_)
+                    | MessageContent::RedactedThinking(_)
+            )
+        })
+}
+
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
@@ -403,6 +416,7 @@ impl Agent {
                 }
             } else {
                 let mut first_content_at: Option<std::time::Instant> = None;
+                let mut active_mergeable_assistant_id: Option<String> = None;
                 while let Some(result) = stream.next().await {
                     let (message, mut usage) = result?;
 
@@ -414,6 +428,21 @@ impl Agent {
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
                     }
+
+                    let message = message.map(|message| {
+                        if message.id.is_some() {
+                            active_mergeable_assistant_id = None;
+                            message
+                        } else if is_mergeable_assistant_chunk(&message) {
+                            let id = active_mergeable_assistant_id
+                                .get_or_insert_with(|| format!("msg_{}", uuid::Uuid::new_v4()))
+                                .clone();
+                            message.with_id(id)
+                        } else {
+                            active_mergeable_assistant_id = None;
+                            message.with_generated_id()
+                        }
+                    });
 
                     yield (message, usage);
                 }
@@ -1042,6 +1071,247 @@ mod tests {
             error_seen,
             "Error should have been propagated, not silently ignored"
         );
+    }
+
+    struct MixedMessageIdStreamProvider;
+
+    #[async_trait]
+    impl Provider for MixedMessageIdStreamProvider {
+        fn get_name(&self) -> &str {
+            "mixed-message-id-stream"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("Hel")), None)),
+                Ok((Some(Message::assistant().with_text("lo")), None)),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-a",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve A?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-b",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve B?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-id")
+                            .with_text("done"),
+                    ),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("next")), None)),
+                Ok((Some(Message::assistant().with_text("a")), None)),
+                Ok((
+                    Some(Message::assistant().with_tool_request(
+                        "tool-t",
+                        Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                    )),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("b")), None)),
+            ]
+                as Vec<StreamItem>)))
+        }
+    }
+
+    #[tokio::test]
+    async fn normal_provider_stream_groups_only_contiguous_mergeable_chunks() -> anyhow::Result<()>
+    {
+        let provider = Arc::new(MixedMessageIdStreamProvider);
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 9);
+
+        let ids = messages
+            .iter()
+            .map(|message| {
+                message
+                    .id
+                    .as_deref()
+                    .expect("streamed provider message should have an ID")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(messages[0].as_concat_text(), "Hel");
+        assert_eq!(messages[1].as_concat_text(), "lo");
+        assert_eq!(ids[0], ids[1]);
+        assert!(ids[0].starts_with("msg_"));
+
+        assert!(matches!(
+            messages[2].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert!(matches!(
+            messages[3].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert_ne!(ids[2], ids[3]);
+        assert_ne!(ids[2], ids[0]);
+        assert_ne!(ids[3], ids[0]);
+
+        assert_eq!(messages[4].as_concat_text(), "done");
+        assert_eq!(ids[4], "provider-id");
+
+        assert_eq!(messages[5].as_concat_text(), "next");
+        assert_eq!(messages[6].as_concat_text(), "a");
+        assert_ne!(ids[5], ids[0]);
+        assert_eq!(ids[5], ids[6]);
+
+        assert!(matches!(
+            messages[7].content.first(),
+            Some(MessageContent::ToolRequest(_))
+        ));
+        assert_ne!(ids[7], ids[5]);
+
+        assert_eq!(messages[8].as_concat_text(), "b");
+        assert_ne!(ids[8], ids[5]);
+        assert_ne!(ids[8], ids[7]);
+
+        Ok(())
+    }
+
+    struct ExplicitMessageIdProvider;
+
+    #[async_trait]
+    impl Provider for ExplicitMessageIdProvider {
+        fn get_name(&self) -> &str {
+            "explicit-message-id"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-text-id")
+                            .with_text("text"),
+                    ),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-action-id")
+                            .with_action_required(
+                                "permission-a",
+                                "shell".to_string(),
+                                object!({}),
+                                Some("Approve?".to_string()),
+                            ),
+                    ),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-tool-id")
+                            .with_tool_request(
+                                "tool-t",
+                                Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                            ),
+                    ),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-image-id")
+                            .with_image("base64-image", "image/png"),
+                    ),
+                    None,
+                )),
+            ]
+                as Vec<StreamItem>)))
+        }
+    }
+
+    #[tokio::test]
+    async fn normal_provider_stream_preserves_provider_message_ids() -> anyhow::Result<()> {
+        let provider = Arc::new(ExplicitMessageIdProvider);
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0].id.as_deref(), Some("provider-text-id"));
+        assert_eq!(messages[1].id.as_deref(), Some("provider-action-id"));
+        assert_eq!(messages[2].id.as_deref(), Some("provider-tool-id"));
+        assert_eq!(messages[3].id.as_deref(), Some("provider-image-id"));
+        assert_eq!(messages[0].as_concat_text(), "text");
+        assert!(matches!(
+            messages[1].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert!(matches!(
+            messages[2].content.first(),
+            Some(MessageContent::ToolRequest(_))
+        ));
+        assert!(matches!(
+            messages[3].content.first(),
+            Some(MessageContent::Image(_))
+        ));
+
+        Ok(())
     }
 
     #[tokio::test]

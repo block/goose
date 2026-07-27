@@ -737,7 +737,7 @@ impl Provider for ClaudeCodeProvider {
         let blocks = self.last_user_content_blocks(messages);
         let ndjson_line = build_stream_json_input(&blocks, &session_id);
         let model_name = model_config.model_name.clone();
-        let message_id = uuid::Uuid::new_v4().to_string();
+        let mut current_text_message_id = uuid::Uuid::new_v4().to_string();
         let pending_confirmations = Arc::clone(&self.pending_confirmations);
 
         Ok(Box::pin(try_stream! {
@@ -820,7 +820,7 @@ impl Provider for ClaudeCodeProvider {
                                                             vec![MessageContent::text(text)],
                                                         );
                                                         partial_message.id =
-                                                            Some(message_id.clone());
+                                                            Some(current_text_message_id.clone());
                                                         yield (Some(partial_message), None);
                                                     }
                                                 }
@@ -945,6 +945,7 @@ impl Provider for ClaudeCodeProvider {
                                             request_id.clone(), tool_name, input.clone(), None,
                                         );
                                         yield (Some(action_msg), None);
+                                        current_text_message_id = uuid::Uuid::new_v4().to_string();
 
                                         let confirmation = rx.await.unwrap_or(PermissionConfirmation {
                                             principal_type: PrincipalType::Tool,
@@ -1497,6 +1498,65 @@ mod tests {
         let stdin_str = capture_stdin(&provider, stdin_reader).await;
         let response_data = extract_permission_response(&stdin_str, "perm_1");
         assert_eq!(response_data, expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_text_message_id_rotates_after_action_required() {
+        use futures::StreamExt;
+
+        let (provider, mut stream, _stdin_reader) = stream_with_canned_stdout(&[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"before permission"}}}"#,
+            r#"{"type":"control_request","request_id":"perm_1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"path":"foo.txt","content":"hello"},"tool_use_id":"tu_1"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"after permission"}}}"#,
+            r#"{"type":"result","result":"Done","usage":{"input_tokens":10,"output_tokens":5}}"#,
+        ]).await;
+
+        let (before_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        let before_msg = before_msg.unwrap();
+        assert_eq!(before_msg.role, Role::Assistant);
+        assert_eq!(before_msg.as_concat_text(), "before permission");
+        let before_id = before_msg
+            .id
+            .as_deref()
+            .expect("text before permission should have a provider ID")
+            .to_string();
+
+        let (action_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        assert!(action_msg
+            .unwrap()
+            .content
+            .iter()
+            .any(|content| content.as_action_required().is_some()));
+
+        let handled = provider
+            .handle_permission_confirmation(
+                "perm_1",
+                &PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: Permission::AllowOnce,
+                },
+            )
+            .await;
+        assert!(handled);
+
+        let (after_msg, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        let after_msg = after_msg.unwrap();
+        assert_eq!(after_msg.role, Role::Assistant);
+        assert_eq!(after_msg.as_concat_text(), "after permission");
+        let after_id = after_msg
+            .id
+            .as_deref()
+            .expect("text after permission should have a provider ID");
+
+        assert_ne!(before_id, after_id);
+
+        while let Some(item) = stream.next().await {
+            item.unwrap();
+        }
     }
 
     #[tokio::test]

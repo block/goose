@@ -595,7 +595,8 @@ impl Provider for AcpProvider {
                             // tool_response so downstream consumers see the rejection.
                             if reject_all_tools {
                                 let message = Message::assistant()
-                                    .with_text("Tool call was denied.");
+                                    .with_text("Tool call was denied.")
+                                    .with_generated_id();
                                 yield (Some(message), None);
                             } else {
                                 let denial = vec![RmcpContent::text("Tool call was denied.")];
@@ -1874,6 +1875,74 @@ mod tests {
         assert!(stream.next().await.is_none());
         assert!(rx.try_recv().is_err());
         assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn chat_mode_denied_tool_messages_get_distinct_provider_ids() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        *provider.goose_mode.lock().unwrap() = GooseMode::Chat;
+
+        let messages = vec![Message::user().with_text("inspect src/lib.rs")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        for id in ["call-1", "call-2"] {
+            response_tx
+                .send(AcpUpdate::ToolCallStart {
+                    id: id.to_string(),
+                    name: "read_file".to_string(),
+                    kind: ToolKind::Read,
+                    raw_input: None,
+                })
+                .await
+                .unwrap();
+            response_tx
+                .send(AcpUpdate::ToolCallComplete {
+                    id: id.to_string(),
+                    raw_output: None,
+                    content: None,
+                    is_error: false,
+                })
+                .await
+                .unwrap();
+        }
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item.unwrap();
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].as_concat_text(), "Tool call was denied.");
+        assert_eq!(messages[1].as_concat_text(), "Tool call was denied.");
+
+        let first_id = messages[0]
+            .id
+            .as_deref()
+            .expect("first denial should have a provider message ID");
+        let second_id = messages[1]
+            .id
+            .as_deref()
+            .expect("second denial should have a provider message ID");
+
+        assert!(first_id.starts_with("msg_"));
+        assert!(second_id.starts_with("msg_"));
+        assert_ne!(first_id, second_id);
     }
 
     #[test]
