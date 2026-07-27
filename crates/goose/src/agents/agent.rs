@@ -2316,7 +2316,7 @@ impl Agent {
                                         );
 
                                         while let Some(msg) = tool_approval_stream.try_next().await? {
-                                            yield AgentEvent::Message(msg);
+                                            yield AgentEvent::message_with_id(msg);
                                         }
                                     }
 
@@ -3613,6 +3613,29 @@ mod tests {
         assert!(matches!(
             frontend_tool_request_message.content.first(),
             Some(MessageContent::FrontendToolRequest(_))
+        ));
+
+        let action_required = AgentEvent::message_with_id(
+            Message::assistant()
+                .with_action_required(
+                    "permission-request-id",
+                    "shell".to_string(),
+                    serde_json::Map::new(),
+                    Some("Approve?".to_string()),
+                )
+                .user_only(),
+        );
+        let AgentEvent::Message(action_required_message) = action_required else {
+            panic!("expected message event");
+        };
+        let action_required_message_id = action_required_message
+            .id
+            .as_deref()
+            .expect("action required message id");
+        assert!(action_required_message_id.starts_with("msg_"));
+        assert!(matches!(
+            action_required_message.content.first(),
+            Some(MessageContent::ActionRequired(_))
         ));
     }
 
