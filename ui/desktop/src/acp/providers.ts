@@ -2,6 +2,7 @@ import type {
   CanonicalModelInfoDto,
   CustomProviderCreateRequest_unstable,
   CustomProviderReadResponse_unstable,
+  ProviderInventoryModelDto,
   ProviderSecretDto,
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
@@ -62,10 +63,48 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
   }));
 }
 
-export async function acpListProviderModels(providerId: string) {
+// Raw model ids from a provider's live supported-models API (e.g. Anthropic's /v1/models,
+// or the model list an ACP adapter advertises). Unlike the inventory cache this is neither
+// canonical-filtered nor asynchronously refreshed, so it reflects what the provider offers now.
+export async function acpListProviderSupportedModels(providerId: string): Promise<string[]> {
+  const client = await getAcpClient();
+  const { models } = await client.goose.providersSupportedModelsList_unstable({ providerId });
+  return models;
+}
+
+export async function acpListProviderModels(
+  providerId: string
+): Promise<ProviderInventoryModelDto[]> {
   const client = await getAcpClient();
   const { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
-  return entries.find((e) => e.providerId === providerId)?.models ?? [];
+  const inventory = entries.find((e) => e.providerId === providerId)?.models ?? [];
+
+  // The inventory cache is canonical-filtered and populated by a background refresh, so it
+  // lags new releases and can silently drop models the key/adapter actually has (e.g. Opus 5,
+  // or an ACP adapter's advertised aliases). Union in the live supported-models list so the
+  // picker never hides a currently-available model. Live ids lead (freshest ordering); cached
+  // metadata (context limit, reasoning) is grafted on by id where we have it.
+  let liveIds: string[];
+  try {
+    liveIds = await acpListProviderSupportedModels(providerId);
+  } catch {
+    // Live discovery is best-effort; fall back to the inventory cache when it's unavailable.
+    return inventory;
+  }
+
+  const inventoryById = new Map(inventory.map((model) => [model.id, model]));
+  const seen = new Set<string>();
+  const merged: ProviderInventoryModelDto[] = [];
+  for (const id of liveIds) {
+    seen.add(id);
+    merged.push(inventoryById.get(id) ?? { id, name: id });
+  }
+  for (const model of inventory) {
+    if (!seen.has(model.id)) {
+      merged.push(model);
+    }
+  }
+  return merged;
 }
 
 export async function acpListProviderCatalogEntries(
