@@ -413,13 +413,26 @@ win-total-rls *allparam:
   just win-bld-rls{{allparam}}
   just win-run-rls
 
-# Run an MCP client conformance suite against Goose.
+# Build the binaries the MCP conformance driver needs.
+mcp-conformance-build:
+  cargo build -p goose-cli --bin goose --bin mcp_conformance_driver
+
 # suite: all, core, extensions, backcompat, auth, metadata, draft, sep-835
+# build: "false" reuses the existing target/debug binaries instead of rebuilding
 # Example: just mcp-conformance
 # Example: just mcp-conformance 2025-11-25 auth
 # Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.10
-mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.9":
-  cargo build -p goose-cli --bin goose --bin mcp_conformance_driver
+# Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.10 false
+[doc("Run an MCP client conformance suite against Goose.")]
+mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.10" build="true":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{build}}" = "true" ]; then
+    just mcp-conformance-build
+  elif [ ! -x target/debug/mcp_conformance_driver ]; then
+    echo "target/debug/mcp_conformance_driver not found; run 'just mcp-conformance-build' first" >&2
+    exit 1
+  fi
   npx -y @modelcontextprotocol/conformance@{{conformance_version}} client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}"
 
 build-test-tools:
