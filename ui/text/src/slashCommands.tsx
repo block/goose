@@ -16,10 +16,21 @@ export interface SlashCommand {
 }
 
 function isGitRepo(cwd: string): boolean {
-  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-    cwd,
-    stdio: ["ignore", "ignore", "ignore"],
-  });
+  const result = spawnSync(
+    "git",
+    [
+      "-c",
+      "safe.bareRepository=explicit",
+      "-c",
+      "core.fsmonitor=false",
+      "rev-parse",
+      "--is-inside-work-tree",
+    ],
+    {
+      cwd,
+      stdio: ["ignore", "ignore", "ignore"],
+    },
+  );
   return result.status === 0;
 }
 
@@ -28,7 +39,15 @@ const MAX_DIFF_BYTES = 2_000_000;
 function readDiff(cwd: string): { text: string; truncated: boolean } | null {
   const result = spawnSync(
     "git",
-    ["--no-pager", "diff", "--no-color"],
+    [
+      "-c",
+      "safe.bareRepository=explicit",
+      "-c",
+      "core.fsmonitor=false",
+      "--no-pager",
+      "diff",
+      "--no-color",
+    ],
     {
       cwd,
       encoding: "utf8",

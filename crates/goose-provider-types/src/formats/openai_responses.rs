@@ -1331,6 +1331,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![
@@ -1423,6 +1424,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let tool = Tool::new(
@@ -1467,6 +1469,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1548,6 +1551,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1599,6 +1603,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
@@ -1625,6 +1630,7 @@ mod tests {
                 serde_json::json!(true),
             )])),
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &[], &[]).unwrap();
@@ -1650,6 +1656,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result =
@@ -1697,6 +1704,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1734,6 +1742,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1766,6 +1775,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1797,6 +1807,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1832,6 +1843,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1869,6 +1881,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1895,6 +1908,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1927,6 +1941,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1959,6 +1974,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2102,6 +2118,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2143,6 +2160,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2155,6 +2173,33 @@ mod tests {
         assert_eq!(input[1]["type"], "function_call");
         assert_eq!(input[1]["call_id"], "call_frontend_agent");
         assert_eq!(input[1]["name"], "_Review_Agent");
+    }
+
+    #[test]
+    fn test_responses_request_limits_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![Message::assistant().with_tool_request(
+            "call_long_name",
+            Ok(CallToolRequestParams::new("a".repeat(160))),
+        )];
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            reasoning_is_explicit: false,
+            request_headers: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let name = result["input"][0]["name"].as_str().unwrap();
+
+        assert_eq!(name.len(), 128);
     }
 
     #[test]
@@ -2181,6 +2226,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2219,6 +2265,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();

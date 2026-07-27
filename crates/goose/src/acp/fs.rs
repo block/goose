@@ -143,7 +143,7 @@ impl AcpTools {
             ctx,
             ToolCallUpdateFields::new()
                 .kind(ToolKind::Read)
-                .locations(vec![ToolCallLocation::new(&path)]),
+                .locations(vec![ToolCallLocation::new(&path).line(params.line)]),
         );
         match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
         {

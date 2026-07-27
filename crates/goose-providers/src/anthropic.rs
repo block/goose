@@ -28,6 +28,7 @@ use rmcp::model::Tool;
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
     // Claude 4.6 models
@@ -337,7 +338,10 @@ impl Provider for AnthropicProvider {
 
         let response = self
             .with_retry(|| async {
-                let request = self.api_client.request("v1/messages");
+                let request = self
+                    .api_client
+                    .request("v1/messages")
+                    .model_headers(model_config)?;
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })

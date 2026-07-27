@@ -943,6 +943,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             },
         )
     }

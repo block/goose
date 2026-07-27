@@ -5108,7 +5108,7 @@ dependencies = [
 
 [[package]]
 name = "goose-download-manager"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -5120,7 +5120,7 @@ dependencies = [
 
 [[package]]
 name = "goose-local-inference"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5186,7 +5186,7 @@ dependencies = [
 
 [[package]]
 name = "goose-provider-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5215,7 +5215,7 @@ dependencies = [
 
 [[package]]
 name = "goose-providers"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5247,14 +5247,16 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
  "anyhow",
+ "base64 0.22.1",
  "futures",
  "goose-providers",
  "goose-sdk-types",
+ "rmcp",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -5264,7 +5266,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",

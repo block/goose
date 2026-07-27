@@ -137,7 +137,15 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::openai_inventory()),
         );
-        registry.register::<OpenRouterProvider>(true);
+        registry.register_with_inventory::<OpenRouterProvider>(
+            true,
+            Some(registrations::refresh_only().with_configured(|| {
+                let config = crate::config::Config::global();
+                config
+                    .get_secret::<serde_json::Value>("OPENROUTER_API_KEY")
+                    .is_ok()
+            })),
+        );
         registry.register_with_inventory::<PiAcpProvider>(
             false,
             Some(registrations::pi_acp_inventory()),

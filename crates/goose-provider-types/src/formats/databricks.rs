@@ -1072,6 +1072,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1107,6 +1108,7 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1127,6 +1129,7 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "low");
@@ -1148,6 +1151,7 @@ mod tests {
             toolshim_model: None,
             request_params: Some(params),
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1167,6 +1171,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "o3");
@@ -1186,6 +1191,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "o3");
@@ -1205,6 +1211,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["model"], "databricks-gpt-5.4");
@@ -1695,6 +1702,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![
@@ -1748,6 +1756,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];

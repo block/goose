@@ -2585,6 +2585,7 @@ mod tests {
                 serde_json::json!(["output-128k-2025-02-19"]),
             )])),
             reasoning: Some(goose_providers::base::Reasoning::Enabled(false)),
+            request_headers: None,
         };
 
         let switched =
