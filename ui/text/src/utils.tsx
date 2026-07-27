@@ -28,7 +28,9 @@ export function shortenPath(target: string): string {
 
   const shortened = [parts[0]];
   for (const part of parts.slice(1, -2)) {
-    if (part) shortened.push(part[0]!);
+    // Take the first code point, not the first UTF-16 unit: a directory name
+    // starting with an emoji would otherwise leave half a surrogate pair.
+    if (part) shortened.push([...part][0]!);
   }
   shortened.push(...parts.slice(-2));
 
