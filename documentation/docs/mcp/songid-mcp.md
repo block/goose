@@ -56,16 +56,27 @@ mv $(go env GOPATH)/bin/mcp $(go env GOPATH)/bin/songid-mcp
 
 ```sh
 brew install chromaprint ffmpeg    # macOS
-# apt install chromaprint ffmpeg    # Linux (Debian/Ubuntu)
+# apt install libchromaprint-tools ffmpeg    # Linux (Debian/Ubuntu)
 ```
 
 ### Verify installation
+
+If you installed via Homebrew (Option 1), verify with the CLI:
 
 ```sh
 songid doctor
 ```
 
-This checks that fpcalc, ffmpeg, and the API key are all configured correctly.
+If you installed via Go (Option 2), only `songid-mcp` is available. Verify dependencies are on your PATH:
+
+```sh
+fpcalc -version
+ffmpeg -version
+```
+
+## Add the extension to goose
+
+<CLIExtensionInstructions command="songid-mcp" />
 
 ## Tools
 

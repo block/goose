@@ -746,7 +746,8 @@
     "installation_notes": "Install with: brew install james-see/tap/songid (requires chromaprint and ffmpeg for microphone capture). No API key required \u2014 works out of the box with built-in AcoustID key.",
     "is_builtin": false,
     "endorsed": false,
-    "environmentVariables": []
+    "environmentVariables": [],
+    "show_install_link": false
   },
   {
     "id": "tutorial-mcp",
