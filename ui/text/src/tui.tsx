@@ -547,6 +547,7 @@ function App({
   const clientRef = useRef<GooseClient | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const sessionCwdRef = useRef<string>(process.cwd());
+  const modelRef = useRef<string | undefined>(undefined);
   const streamBuf = useRef("");
   const sentInitialPrompt = useRef(false);
   const queueRef = useRef<string[]>([]);
@@ -800,6 +801,20 @@ function App({
                 handleToolCallUpdate(update);
               } else if (update.sessionUpdate === "usage_update") {
                 setUsage({ used: update.used, size: update.size });
+              } else if (update.sessionUpdate === "config_option_update") {
+                // Switching models can change the context limit, but the agent
+                // sends no fresh usage with the change. Drop the snapshot
+                // rather than divide by the previous model's limit until the
+                // next turn ends.
+                const option = update.configOptions.find(
+                  (o) => o.id === "model",
+                );
+                const modelId =
+                  option?.type === "select" ? option.currentValue : undefined;
+                if (modelId !== undefined && modelId !== modelRef.current) {
+                  modelRef.current = modelId;
+                  setUsage(null);
+                }
               }
             },
           }),
