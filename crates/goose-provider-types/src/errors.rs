@@ -134,6 +134,14 @@ impl From<anyhow::Error> for ProviderError {
         if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
             return provider_error_from_reqwest(reqwest_err);
         }
+        if error
+            .downcast_ref::<tokio::time::error::Elapsed>()
+            .is_some()
+        {
+            return ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            );
+        }
         ProviderError::ExecutionError(error.to_string())
     }
 }

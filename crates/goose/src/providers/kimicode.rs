@@ -19,7 +19,7 @@ use uuid::Uuid;
 use super::api_client::RequestBuilderDecorator;
 use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::oauth_device_flow::{
@@ -172,7 +172,8 @@ impl KimiCodeProvider {
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let client = Client::builder()
-            .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+            .connect_timeout(StdDuration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;
         let device_id = Self::get_or_create_device_id().await?;
         Ok(Self {
@@ -326,11 +327,19 @@ impl KimiCodeProvider {
             .headers(self.kimi_headers())
             .json(payload);
 
-        (self.request_builder)(builder)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))
+        let request = (self.request_builder)(builder)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        tokio::time::timeout(
+            StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            request.send(),
+        )
+        .await
+        .map_err(|_| {
+            ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            )
+        })?
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))
     }
 }
 
@@ -454,6 +463,7 @@ impl Provider for KimiCodeProvider {
         let resp = self
             .client
             .get(format!("{}/v1/models", self.api_base))
+            .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .bearer_auth(access_token)
             .headers(self.kimi_headers())
             .send()

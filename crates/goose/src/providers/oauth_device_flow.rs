@@ -287,7 +287,12 @@ async fn send_request<T: Serialize + ?Sized>(
     url: &str,
     body: &T,
 ) -> reqwest::Result<reqwest::Response> {
-    let builder = client.post(url).headers(cfg.extra_headers.clone());
+    let builder = client
+        .post(url)
+        .timeout(std::time::Duration::from_secs(
+            super::base::DEFAULT_PROVIDER_TIMEOUT_SECS,
+        ))
+        .headers(cfg.extra_headers.clone());
     let builder = match cfg.encoding {
         RequestEncoding::Form => builder.form(body),
         RequestEncoding::Json => builder.json(body),

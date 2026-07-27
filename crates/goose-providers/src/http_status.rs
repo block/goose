@@ -248,12 +248,23 @@ pub fn map_http_error_to_provider_error(
     error
 }
 
+/// Streaming requests carry no total-request deadline, so error-body reads
+/// must be bounded or a server that drips a non-2xx body stalls retries forever.
+const ERROR_BODY_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+pub async fn read_error_body(response: Response) -> Option<String> {
+    tokio::time::timeout(ERROR_BODY_READ_TIMEOUT, response.text())
+        .await
+        .ok()
+        .and_then(Result::ok)
+}
+
 pub async fn handle_status(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
     if !status.is_success() {
         let url = sanitize_url(response.url().as_str());
         let headers = response.headers().clone();
-        let body = response.text().await.unwrap_or_default();
+        let body = read_error_body(response).await.unwrap_or_default();
         let payload = serde_json::from_str::<Value>(&body).ok();
         let mut err = map_http_error_to_provider_error(status, payload.clone(), &url);
         if let ProviderError::RateLimitExceeded { details, .. } = &err {

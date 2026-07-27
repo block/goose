@@ -18,7 +18,7 @@ use crate::conversation::message::Message;
 use crate::providers::api_client::RequestBuilderDecorator;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use goose_providers::model::ModelConfig;
 
@@ -30,6 +30,7 @@ use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use crate::providers::retry::RetryConfig;
 use goose_providers::errors::ProviderError;
+use goose_providers::http_status::read_error_body;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
@@ -174,7 +175,8 @@ impl GcpVertexAIProvider {
         let host = Self::build_host_url(&location);
 
         let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+            .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;
 
         let auth = GcpAuth::new().await?;
@@ -327,11 +329,19 @@ impl GcpVertexAIProvider {
                 }
             }
 
-            let response = (self.request_builder)(request)
-                .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-                .send()
-                .await
-                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            let request = (self.request_builder)(request)
+                .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+            let response = tokio::time::timeout(
+                Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+                request.send(),
+            )
+            .await
+            .map_err(|_| {
+                ProviderError::NetworkError(
+                    "Request timed out — check your network connection and try again.".to_string(),
+                )
+            })?
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
             let status = response.status();
 
@@ -345,7 +355,8 @@ impl GcpVertexAIProvider {
                         }),
                     );
                 }
-                let msg = rate_limit_error_message(&response.text().await.unwrap_or_default());
+                let msg =
+                    rate_limit_error_message(&read_error_body(response).await.unwrap_or_default());
                 tracing::warn!("429 (attempt {rate_limit_attempts}/{max_retries}): {msg}");
                 last_error = Some(ProviderError::RateLimitExceeded {
                     details: msg,
@@ -389,7 +400,7 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let url = sanitize_url(response.url().as_str());
-                let response_text = response.text().await.unwrap_or_default();
+                let response_text = read_error_body(response).await.unwrap_or_default();
                 let payload = serde_json::from_str::<Value>(&response_text).ok();
                 return Err(map_http_error_to_provider_error(status, payload, &url));
             }
@@ -459,6 +470,7 @@ impl GcpVertexAIProvider {
         let response = match self
             .client
             .post(&url)
+            .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .header("Authorization", &auth_header)
             .json(&payload)
             .send()

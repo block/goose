@@ -3,7 +3,7 @@ use crate::conversation::message::Message;
 use crate::providers::api_client::RequestBuilderDecorator;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use crate::providers::google::GOOGLE_DOC_URL;
@@ -40,7 +40,8 @@ use tokio_util::io::StreamReader;
 
 static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
-        .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+        .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+        .read_timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
         .build()
         .expect("failed to build HTTP client")
 });
@@ -254,6 +255,7 @@ async fn exchange_code_for_tokens(
 
     let resp = client
         .post(GOOGLE_TOKEN_ENDPOINT)
+        .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()
@@ -281,6 +283,7 @@ async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
 
     let resp = client
         .post(GOOGLE_TOKEN_ENDPOINT)
+        .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()
@@ -343,6 +346,7 @@ async fn code_assist_request(access_token: &str, method: &str, body: &Value) -> 
     let client = &*HTTP_CLIENT;
     let resp = client
         .post(&url)
+        .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
         .header("Authorization", format!("Bearer {}", access_token))
         .header("Content-Type", "application/json")
         .json(body)
@@ -371,6 +375,7 @@ async fn code_assist_get(access_token: &str, path: &str) -> Result<Value> {
     let client = &*HTTP_CLIENT;
     let resp = client
         .get(&url)
+        .timeout(Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await?;
@@ -884,18 +889,25 @@ impl GeminiOAuthProvider {
             )
             .header("Content-Type", "application/json");
 
-        let response = (self.request_builder)(request.json(&wrapped))
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-            .send()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let request = (self.request_builder)(request.json(&wrapped))
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let response = tokio::time::timeout(
+            Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            request.send(),
+        )
+        .await
+        .map_err(|_| {
+            ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            )
+        })?
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = response
-                .text()
+            let text = goose_providers::http_status::read_error_body(response)
                 .await
-                .unwrap_or_else(|_| "unknown error".to_string());
+                .unwrap_or_else(|| "unknown error".to_string());
 
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 // Parse retry delay from the error message if available

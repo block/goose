@@ -154,6 +154,7 @@ impl Provider for TetrateProvider {
                     .api_client
                     .request("v1/chat/completions")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 let resp = handle_status(resp)
@@ -169,15 +170,18 @@ impl Provider for TetrateProvider {
 
                 if is_json {
                     // Streaming responses should be SSE; when we get JSON instead, parse it to map
-                    // explicit error payloads and otherwise fail as a protocol mismatch.
-                    let body = handle_response_openai_compat(resp)
+                    // explicit error payloads and otherwise fail as a protocol mismatch. The read
+                    // is bounded: this request is exempt from the total deadline.
+                    let body = goose_providers::http_status::read_error_body(resp)
                         .await
-                        .map_err(Self::enrich_credits_error)?;
-                    if body.get("error").is_some() {
-                        return Err(Self::error_from_tetrate_error_payload(
-                            body,
-                            "v1/chat/completions",
-                        ));
+                        .unwrap_or_default();
+                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body) {
+                        if payload.get("error").is_some() {
+                            return Err(Self::error_from_tetrate_error_payload(
+                                payload,
+                                "v1/chat/completions",
+                            ));
+                        }
                     }
 
                     return Err(ProviderError::ExecutionError(

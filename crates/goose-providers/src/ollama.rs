@@ -428,6 +428,7 @@ impl Provider for OllamaProvider {
                     .api_client
                     .request("v1/chat/completions")
                     .model_headers(model_config)?
+                    .streaming(true)
                     .response_post(&payload)
                     .await?;
                 handle_status(resp).await
