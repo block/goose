@@ -212,7 +212,7 @@ impl Connection for AcpServerConnection {
                         {
                             let t = terminal.clone();
                             async move |req: CreateTerminalRequest, responder, _cx| match t {
-                                Some(ref f) => responder.respond(f.on_create(&req.command)),
+                                Some(ref f) => responder.respond(f.on_create(&req.command, &req.args)),
                                 None => responder.respond_with_error(
                                     agent_client_protocol::Error::method_not_found(),
                                 ),

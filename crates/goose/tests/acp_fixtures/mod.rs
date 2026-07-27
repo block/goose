@@ -560,7 +560,7 @@ impl FsFixture {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum TerminalCall {
-    Create(String, String),      // (command, terminal_id)
+    Create(String, Vec<String>, String), // (command, args, terminal_id)
     WaitForExit(String, u32),    // (terminal_id, exit_code)
     Output(String, String, u32), // (terminal_id, text, exit_code)
     Release(String),             // terminal_id
@@ -616,11 +616,18 @@ impl TerminalFixture {
         }
     }
 
-    pub fn on_create(&self, command: &str) -> CreateTerminalResponse {
-        if let Some(TerminalCall::Create(expect_command, terminal_id)) = self.pop("create") {
+    pub fn on_create(&self, command: &str, args: &[String]) -> CreateTerminalResponse {
+        if let Some(TerminalCall::Create(expect_command, expect_args, terminal_id)) =
+            self.pop("create")
+        {
             if command != expect_command {
                 self.record_error(format!(
                     "create: expected command {expect_command}, got {command}"
+                ));
+            }
+            if args != expect_args {
+                self.record_error(format!(
+                    "create: expected args {expect_args:?}, got {args:?}"
                 ));
             }
             CreateTerminalResponse::new(TerminalId::new(terminal_id))
