@@ -672,6 +672,18 @@ pub struct MessageMetadata {
     pub steer: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
+    /// Set on the summary message produced by compaction, so the context
+    /// report can account for it separately from ordinary history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compaction_summary: Option<CompactionSummaryMetadata>,
+}
+
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactionSummaryMetadata {
+    /// False when the model's response could not be parsed as a structured
+    /// summary and its raw text was kept verbatim.
+    pub structured: bool,
 }
 
 impl Default for MessageMetadata {
@@ -682,6 +694,7 @@ impl Default for MessageMetadata {
             inference: None,
             steer: false,
             usage: None,
+            compaction_summary: None,
         }
     }
 }

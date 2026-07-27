@@ -492,24 +492,113 @@ impl MessageKind {
     }
 }
 
+/// Splits a rendered compaction summary into its `##` sections. Boundaries come
+/// from the rendered markdown rather than the parsed `StructuredSummary` so the
+/// breakdown reports what the context window actually holds, including when
+/// `compaction_summary.md` has been customized to drop or rename sections.
+///
+/// Fenced blocks are skipped over because `key_code` content can legally
+/// contain heading lines.
+fn summary_sections(text: &str) -> Vec<(String, String)> {
+    let mut sections: Vec<(String, String)> = Vec::new();
+    let mut open_fence: Option<usize> = None;
+
+    for line in text.lines() {
+        let backticks = line.trim_start().chars().take_while(|c| *c == '`').count();
+        match open_fence {
+            Some(len) if backticks >= len => open_fence = None,
+            Some(_) => {}
+            None if backticks >= 3 => open_fence = Some(backticks),
+            None => {
+                if let Some(heading) = line.strip_prefix("## ") {
+                    sections.push((heading.trim().to_string(), String::new()));
+                    continue;
+                }
+            }
+        }
+        if let Some((_, body)) = sections.last_mut() {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+
+    sections.retain_mut(|(_, body)| {
+        *body = body.trim().to_string();
+        !body.is_empty()
+    });
+    sections
+}
+
+fn compaction_summary_segment(
+    message: &Message,
+    counted_message: &Message,
+    structured: bool,
+    token_counter: &TokenCounter,
+) -> ContextSegment {
+    let text = message_text(message);
+    let parts: Vec<ContextPart> = if structured {
+        summary_sections(&text)
+            .into_iter()
+            .map(|(heading, body)| ContextPart {
+                token_count: token_counter.count_tokens(&body) as u64,
+                char_count: body.chars().count() as u64,
+                content_preview: Some(preview(&body)),
+                label: heading,
+                source: None,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    ContextSegment {
+        category: ContextCategory::CompactionSummary,
+        label: "Conversation summary".to_string(),
+        source: Some(
+            if structured {
+                "structured"
+            } else {
+                "raw fallback"
+            }
+            .to_string(),
+        ),
+        token_count: token_counter.count_message_tokens(counted_message) as u64,
+        char_count: text.chars().count() as u64,
+        content_preview: parts.is_empty().then(|| preview(&text)),
+        parts,
+    }
+}
+
 fn message_segments(
     display_messages: &[Message],
     counted_messages: &[Message],
     token_counter: &TokenCounter,
 ) -> Vec<ContextSegment> {
+    let mut summary_segments = Vec::new();
     let mut user_parts = Vec::new();
     let mut assistant_parts = Vec::new();
     let mut tool_call_parts = Vec::new();
     let mut tool_result_parts = Vec::new();
 
     for (index, message) in display_messages.iter().enumerate() {
+        let counted_message = counted_messages.get(index).unwrap_or(message);
+
+        if let Some(summary) = message.metadata.compaction_summary {
+            summary_segments.push(compaction_summary_segment(
+                message,
+                counted_message,
+                summary.structured,
+                token_counter,
+            ));
+            continue;
+        }
+
         let kind = MessageKind::classify(message);
         let role = match message.role {
             Role::Assistant => "assistant",
             _ => "user",
         };
         let text = message_text(message);
-        let counted_message = counted_messages.get(index).unwrap_or(message);
         let part = ContextPart {
             label: format!("#{} {role}", index + 1),
             source: None,
@@ -525,7 +614,7 @@ fn message_segments(
         }
     }
 
-    [
+    let message_kind_segments = [
         (MessageKind::User, user_parts),
         (MessageKind::Assistant, assistant_parts),
         (MessageKind::ToolCalls, tool_call_parts),
@@ -541,13 +630,18 @@ fn message_segments(
         char_count: parts.iter().map(|part| part.char_count).sum(),
         content_preview: None,
         parts,
-    })
-    .collect()
+    });
+
+    summary_segments
+        .into_iter()
+        .chain(message_kind_segments)
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::{CompactionSummaryMetadata, MessageMetadata};
     use std::sync::Arc;
 
     #[test]
@@ -655,5 +749,100 @@ mod tests {
             .sum();
         assert_eq!(segment_total, expected_total);
         assert_eq!(part_total, expected_total);
+    }
+
+    const RENDERED_SUMMARY: &str = "# Conversation Summary
+
+## User Intent
+- Fix the parser bug
+
+## Files + Code
+### src/parser.rs
+Fixed off-by-one in scan loop
+````
+## heading inside key_code
+fn scan() {}
+````
+
+## Next Step
+Finish the regression test
+";
+
+    fn summary_message(text: &str, structured: bool) -> Message {
+        Message::user()
+            .with_text(text)
+            .with_metadata(MessageMetadata {
+                compaction_summary: Some(CompactionSummaryMetadata { structured }),
+                ..MessageMetadata::agent_only()
+            })
+    }
+
+    #[test]
+    fn summary_sections_split_on_headings_outside_fences() {
+        let sections = summary_sections(RENDERED_SUMMARY);
+
+        let headings: Vec<&str> = sections
+            .iter()
+            .map(|(heading, _)| heading.as_str())
+            .collect();
+        assert_eq!(headings, vec!["User Intent", "Files + Code", "Next Step"]);
+        assert!(
+            sections[1].1.contains("## heading inside key_code"),
+            "a heading inside a fenced block must stay in its section"
+        );
+    }
+
+    #[tokio::test]
+    async fn compaction_summary_is_its_own_segment_and_leaves_totals_intact() {
+        let token_counter = TokenCounter::new().await.unwrap();
+        let messages = vec![
+            summary_message(RENDERED_SUMMARY, true),
+            Message::assistant().with_text("continuing where we left off"),
+            Message::user().with_text("now add the test"),
+        ];
+
+        let segments = message_segments(&messages, &messages, &token_counter);
+        let summary = segments
+            .iter()
+            .find(|segment| segment.category == ContextCategory::CompactionSummary)
+            .expect("summary should have its own segment");
+
+        assert_eq!(summary.source.as_deref(), Some("structured"));
+        assert_eq!(summary.parts.len(), 3);
+        assert!(summary.content_preview.is_none());
+        assert_eq!(
+            summary.token_count,
+            token_counter.count_message_tokens(&messages[0]) as u64
+        );
+
+        let expected_total: u64 = messages
+            .iter()
+            .map(|message| token_counter.count_message_tokens(message) as u64)
+            .sum();
+        let segment_total: u64 = segments.iter().map(|segment| segment.token_count).sum();
+        let conversation_total: u64 = segments
+            .iter()
+            .filter(|segment| segment.category == ContextCategory::Messages)
+            .map(|segment| segment.token_count)
+            .sum();
+
+        assert_eq!(segment_total, expected_total);
+        assert_eq!(conversation_total, expected_total - summary.token_count);
+    }
+
+    #[tokio::test]
+    async fn raw_fallback_summary_reports_no_sections() {
+        let token_counter = TokenCounter::new().await.unwrap();
+        let messages = vec![summary_message(
+            "I ran out of room and could not produce the summary document.",
+            false,
+        )];
+
+        let segments = message_segments(&messages, &messages, &token_counter);
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].source.as_deref(), Some("raw fallback"));
+        assert!(segments[0].parts.is_empty());
+        assert!(segments[0].content_preview.is_some());
     }
 }

@@ -321,6 +321,7 @@ pub enum ContextCategory {
     ExtensionInstructions,
     AdditionalInstructions,
     ToolDefinitions,
+    CompactionSummary,
     Messages,
 }
 

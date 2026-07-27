@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Arahan & petunjuk"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "Ringkasan pemadatan"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "Arahan sambungan"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "Cuba lagi"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "output model tidak berstruktur"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "berstruktur"
   },
   "contextXray.title": {
     "defaultMessage": "X-ray konteks"

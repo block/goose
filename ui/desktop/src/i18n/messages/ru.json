@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Инструкции и подсказки"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "Сводка сжатия"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "Инструкции расширений"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "Повторить"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "неструктурированный вывод модели"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "структурировано"
   },
   "contextXray.title": {
     "defaultMessage": "Рентген контекста"

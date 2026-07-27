@@ -16,6 +16,14 @@ const i18n = defineMessages({
     id: 'contextXray.toolCount',
     defaultMessage: '{count, plural, one {# tool} other {# tools}}',
   },
+  summaryStructured: {
+    id: 'contextXray.summaryStructured',
+    defaultMessage: 'structured',
+  },
+  summaryRawFallback: {
+    id: 'contextXray.summaryRawFallback',
+    defaultMessage: 'unstructured model output',
+  },
 });
 
 function ContentPreview({ text }: { text: string }) {
@@ -128,7 +136,11 @@ function SegmentRow({ segment, categoryTotal, colorClass }: SegmentRowProps) {
   const sourceText =
     segment.category === 'tool_definitions'
       ? intl.formatMessage(i18n.toolCount, { count: parts.length })
-      : segment.source;
+      : segment.category === 'compaction_summary'
+        ? intl.formatMessage(
+            segment.source === 'structured' ? i18n.summaryStructured : i18n.summaryRawFallback
+          )
+        : segment.source;
 
   const row = (
     <div className="w-full min-w-0">

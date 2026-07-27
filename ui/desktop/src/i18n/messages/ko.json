@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "지침 및 힌트"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "압축 요약"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "확장 프로그램 지침"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "다시 시도"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "비구조 모델 출력"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "구조화됨"
   },
   "contextXray.title": {
     "defaultMessage": "컨텍스트 엑스레이"

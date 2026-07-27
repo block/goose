@@ -4,6 +4,7 @@ export type ContextCategory =
   | 'extension_instructions'
   | 'additional_instructions'
   | 'tool_definitions'
+  | 'compaction_summary'
   | 'messages';
 
 export type ContextPart = {

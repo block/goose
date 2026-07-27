@@ -1,7 +1,9 @@
 pub mod structured;
 
 use crate::context_mgmt::structured::StructuredSummary;
-use crate::conversation::message::{ActionRequiredData, MessageMetadata};
+use crate::conversation::message::{
+    ActionRequiredData, CompactionSummaryMetadata, MessageMetadata,
+};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
@@ -135,7 +137,7 @@ pub async fn compact_messages(
 
     let messages_to_compact = messages.as_slice();
 
-    let (summary_message, summarization_usage) =
+    let (summary_message, summarization_usage, summary_metadata) =
         do_compact(provider, model_config, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
@@ -150,7 +152,10 @@ pub async fn compact_messages(
         final_messages.push(updated_msg);
     }
 
-    let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
+    let summary_msg = summary_message.with_metadata(MessageMetadata {
+        compaction_summary: Some(summary_metadata),
+        ..MessageMetadata::agent_only()
+    });
 
     let mut continuation_messages = vec![summary_msg];
 
@@ -365,7 +370,7 @@ async fn do_compact(
     model_config: &ModelConfig,
     session_id: &str,
     messages: &[Message],
-) -> Result<(Message, ProviderUsage), anyhow::Error> {
+) -> Result<(Message, ProviderUsage, CompactionSummaryMetadata), anyhow::Error> {
     let agent_visible_messages =
         Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
 
@@ -416,9 +421,13 @@ async fn do_compact(
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
-                apply_structured_summary(&mut response);
+                let structured = apply_structured_summary(&mut response);
 
-                return Ok((response, provider_usage));
+                return Ok((
+                    response,
+                    provider_usage,
+                    CompactionSummaryMetadata { structured },
+                ));
             }
             Err(e) => {
                 if matches!(e, ProviderError::ContextLengthExceeded(_)) {
@@ -440,24 +449,32 @@ async fn do_compact(
     ))
 }
 
-/// When the model didn't follow the structured output format (schema-ignoring
-/// models, user-customized prompts), the raw response text is kept unchanged
-/// as the summary.
-fn apply_structured_summary(response: &mut Message) {
+/// Returns whether the response was rewritten to the rendered structured
+/// summary. When the model didn't follow the structured output format
+/// (schema-ignoring models, user-customized prompts), the raw response text is
+/// kept unchanged as the summary.
+fn apply_structured_summary(response: &mut Message) -> bool {
     let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
-        return;
+        return false;
     };
     match summary.render() {
         Ok(rendered) if !rendered.trim().is_empty() => {
             response.content = vec![MessageContent::text(rendered)];
+            true
         }
-        Ok(_) => warn!(
-            "Structured compaction summary rendered empty (broken template override?), keeping raw output"
-        ),
-        Err(e) => warn!(
-            "Failed to render structured compaction summary, keeping raw output: {}",
-            e
-        ),
+        Ok(_) => {
+            warn!(
+                "Structured compaction summary rendered empty (broken template override?), keeping raw output"
+            );
+            false
+        }
+        Err(e) => {
+            warn!(
+                "Failed to render structured compaction summary, keeping raw output: {}",
+                e
+            );
+            false
+        }
     }
 }
 
@@ -875,7 +892,17 @@ mod tests {
         .await
         .unwrap();
 
-        let summary_text = compaction.conversation.agent_visible_messages()[0].as_concat_text();
+        let agent_messages = compaction.conversation.agent_visible_messages();
+        let summary_message = &agent_messages[0];
+        assert_eq!(
+            summary_message
+                .metadata
+                .compaction_summary
+                .map(|summary| summary.structured),
+            Some(true)
+        );
+
+        let summary_text = summary_message.as_concat_text();
         assert!(summary_text.contains("# Conversation Summary"));
         assert!(summary_text.contains("## User Intent"));
         assert!(summary_text.contains("- Fix the parser bug"));
@@ -892,6 +919,35 @@ mod tests {
         assert!(
             compaction.usage.usage.output_tokens.is_some(),
             "billable output tokens must survive the rewrite"
+        );
+    }
+
+    #[tokio::test]
+    async fn unparseable_response_is_marked_as_a_raw_fallback() {
+        let provider = MockProvider::new(
+            Message::assistant().with_text("A prose recap with no summary document."),
+            100_000,
+        );
+        let conversation =
+            Conversation::new_unvalidated(vec![Message::user().with_text("fix the parser bug")]);
+
+        let model_config = provider.config.clone();
+        let compaction = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            true,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            compaction.conversation.agent_visible_messages()[0]
+                .metadata
+                .compaction_summary
+                .map(|summary| summary.structured),
+            Some(false)
         );
     }
 

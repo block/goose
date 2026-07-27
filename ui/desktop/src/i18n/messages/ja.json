@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "指示とヒント"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "圧縮の要約"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "拡張機能の指示"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "再試行"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "非構造のモデル出力"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "構造化"
   },
   "contextXray.title": {
     "defaultMessage": "コンテキストX線"

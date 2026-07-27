@@ -22,6 +22,10 @@ export const categoryMessages = defineMessages({
     id: 'contextXray.category.toolDefinitions',
     defaultMessage: 'Tool definitions',
   },
+  compaction_summary: {
+    id: 'contextXray.category.compactionSummary',
+    defaultMessage: 'Compaction summary',
+  },
   messages: {
     id: 'contextXray.category.messages',
     defaultMessage: 'Conversation',
@@ -42,4 +46,5 @@ export const categoryColorClass: Record<ContextCategory, string> = {
   extension_instructions: 'bg-[#008300]',
   additional_instructions: 'bg-[#4a3aa7] dark:bg-[#9085e9]',
   turn_context: 'bg-[#e34948] dark:bg-[#e66767]',
+  compaction_summary: 'bg-[#b5359b] dark:bg-[#d76bc4]',
 };

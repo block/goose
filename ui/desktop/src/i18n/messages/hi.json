@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "निर्देश और संकेत"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "कॉम्पैक्शन सारांश"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "एक्सटेंशन निर्देश"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "पुनः प्रयास करें"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "असंरचित मॉडल आउटपुट"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "संरचित"
   },
   "contextXray.title": {
     "defaultMessage": "कॉन्टेक्स्ट एक्स-रे"

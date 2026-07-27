@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Istruzioni e suggerimenti"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "Riassunto della compattazione"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "Istruzioni delle estensioni"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "Riprova"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "output del modello non strutturato"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "strutturato"
   },
   "contextXray.title": {
     "defaultMessage": "Radiografia del contesto"

@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "指令與提示"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "壓縮摘要"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "擴充功能指令"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "重試"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "非結構化模型輸出"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "結構化"
   },
   "contextXray.title": {
     "defaultMessage": "上下文透視"

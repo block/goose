@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Hướng dẫn & gợi ý"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "Tóm tắt nén"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "Hướng dẫn tiện ích mở rộng"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "Thử lại"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "đầu ra mô hình phi cấu trúc"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "có cấu trúc"
   },
   "contextXray.title": {
     "defaultMessage": "X-quang ngữ cảnh"

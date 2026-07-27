@@ -739,7 +739,7 @@ export type ContextSegment = {
     parts?: Array<ContextPart>;
 };
 
-export type ContextCategory = 'system_prompt' | 'turn_context' | 'extension_instructions' | 'additional_instructions' | 'tool_definitions' | 'messages';
+export type ContextCategory = 'system_prompt' | 'turn_context' | 'extension_instructions' | 'additional_instructions' | 'tool_definitions' | 'compaction_summary' | 'messages';
 
 export type ContextPart = {
     label: string;

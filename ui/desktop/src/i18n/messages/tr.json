@@ -311,6 +311,9 @@
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Talimatlar ve ipuçları"
   },
+  "contextXray.category.compactionSummary": {
+    "defaultMessage": "Sıkıştırma özeti"
+  },
   "contextXray.category.extensionInstructions": {
     "defaultMessage": "Uzantı talimatları"
   },
@@ -394,6 +397,12 @@
   },
   "contextXray.retry": {
     "defaultMessage": "Yeniden dene"
+  },
+  "contextXray.summaryRawFallback": {
+    "defaultMessage": "yapılandırılmamış model çıktısı"
+  },
+  "contextXray.summaryStructured": {
+    "defaultMessage": "yapılandırılmış"
   },
   "contextXray.title": {
     "defaultMessage": "Bağlam röntgeni"
