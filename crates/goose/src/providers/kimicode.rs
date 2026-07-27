@@ -38,9 +38,14 @@ const KIMI_CODE_PROVIDER_NAME: &str = "kimi_code";
 pub const KIMI_CODE_DEFAULT_MODEL: &str = "kimi-for-coding";
 /// Known models for the provider metadata registration. The live catalogue is
 /// fetched from `/v1/models` at request time; this constant is only used for
-/// `ProviderMetadata`. As of 2025-10 Kimi Code exposes a single model,
-/// `kimi-for-coding`, and silently routes any other model name to it.
-pub const KIMI_CODE_KNOWN_MODELS: &[&str] = &["kimi-for-coding"];
+/// `ProviderMetadata`, e.g. when the catalogue fetch fails. As of 2026-07 the
+/// platform serves these ids verbatim (`k3`, not `kimi-k3`).
+pub const KIMI_CODE_KNOWN_MODELS: &[&str] = &[
+    "kimi-for-coding",
+    "kimi-for-coding-highspeed",
+    "k3",
+    "k3-256k",
+];
 
 const KIMI_CODE_DOC_URL: &str = "https://www.kimi.com/code/docs/en/";
 const KIMI_CODE_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
