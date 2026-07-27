@@ -8,7 +8,9 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
+use rmcp::transport::auth::{
+    AuthorizationSession, CredentialStore, OAuthClientConfig, OAuthState, StoredCredentials,
+};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -196,22 +198,39 @@ pub async fn oauth_flow_with_config(
         }
     });
 
-    let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
-    let mut request = AuthorizationRequest::new(redirect_uri.clone()).with_client_name("goose");
-    if let Some(client_id) = flow_config.client_id {
-        request = request.with_preregistered_client(client_id);
+    let mut oauth_state = if let Some(client_id) = flow_config.client_id {
+        let mut manager = AuthorizationManager::new(mcp_server_url).await?;
+        let metadata = manager.discover_metadata().await?;
+        manager.set_metadata(metadata);
+
+        let mut client_config = OAuthClientConfig::new(client_id, redirect_uri.clone());
         if let Some(client_secret) = flow_config.client_secret {
-            request = request.with_client_secret(client_secret);
+            client_config = client_config.with_client_secret(client_secret);
         }
+        manager.configure_client(client_config)?;
+
+        let authorization_url = manager.get_authorization_url(&[]).await?;
+        OAuthState::Session(AuthorizationSession::for_scope_upgrade(
+            manager,
+            authorization_url,
+            &redirect_uri,
+        ))
     } else {
-        request = request.with_client_metadata_url(
-            flow_config
-                .client_metadata_url
-                .unwrap_or_else(|| CLIENT_METADATA_URL.to_string()),
-        );
-    }
-    oauth_state.start_authorization(request).await?;
+        let client_metadata_url = flow_config
+            .client_metadata_url
+            .unwrap_or_else(|| CLIENT_METADATA_URL.to_string());
+        let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
+        oauth_state
+            .start_authorization_with_metadata_url(
+                &[],
+                redirect_uri.as_str(),
+                Some("goose"),
+                Some(client_metadata_url.as_str()),
+            )
+            .await?;
+        oauth_state
+    };
 
     let authorization_url = oauth_state.get_authorization_url().await?;
     let callback_url = if let Some(callback_url) =

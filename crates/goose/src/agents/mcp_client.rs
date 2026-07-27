@@ -23,11 +23,11 @@ use rmcp::{
         Role, ServerNotification, ServerResult,
     },
     service::{
-        ClientInitializeError, ClientLifecycleMode, ClientServiceExt, PeerRequestOptions,
-        RequestContext, RequestHandle, RunningService, ServiceRole,
+        ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
+        ServiceRole,
     },
     transport::IntoTransport,
-    ClientHandler, ErrorData, Peer, RoleClient, ServiceError,
+    ClientHandler, ErrorData, Peer, RoleClient, ServiceError, ServiceExt,
 };
 use serde_json::Value;
 use std::{
@@ -553,7 +553,12 @@ impl ClientHandler for GooseClient {
                 .build(),
             self.resolved_client_info(),
         )
-        .with_protocol_version(ProtocolVersion::V_2025_03_26)
+        .with_protocol_version(
+            self.capabilities
+                .protocol_version
+                .clone()
+                .unwrap_or(ProtocolVersion::V_2025_03_26),
+        )
     }
 }
 
@@ -561,7 +566,7 @@ impl ClientHandler for GooseClient {
 pub type ElicitationHandler =
     Arc<dyn Fn(&CreateElicitationRequestParams) -> CreateElicitationResult + Send + Sync>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
@@ -578,17 +583,6 @@ impl std::fmt::Debug for GooseMcpClientCapabilities {
             .field("elicitation_handler", &self.elicitation_handler.is_some())
             .field("protocol_version", &self.protocol_version)
             .finish()
-    }
-}
-
-impl Default for GooseMcpClientCapabilities {
-    fn default() -> Self {
-        Self {
-            mcpui: false,
-            host_info: None,
-            elicitation_handler: None,
-            protocol_version: None,
-        }
     }
 }
 
@@ -650,26 +644,7 @@ impl McpClient {
             working_dir,
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
-            if let Some(protocol_version) = capabilities.protocol_version {
-                client
-                    .serve_with_lifecycle(
-                        transport,
-                        ClientLifecycleMode::Discover {
-                            preferred_versions: vec![protocol_version],
-                        },
-                    )
-                    .await?
-            } else {
-                client
-                    .serve_with_lifecycle(
-                        transport,
-                        ClientLifecycleMode::Auto {
-                            preferred_versions: vec![ProtocolVersion::V_2026_07_28],
-                            legacy_version: Some(ProtocolVersion::LATEST),
-                        },
-                    )
-                    .await?
-            };
+            client.serve(transport).await?;
         let server_info = client.peer_info().map(|info| (*info).clone());
 
         Ok(Self {
