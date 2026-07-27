@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "mittel"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "aus"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Der Denkaufwand konnte nicht aktualisiert werden. Bitte erneut versuchen."
   },

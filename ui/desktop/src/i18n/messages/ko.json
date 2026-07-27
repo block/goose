@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "중간"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "끄기"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "사고 노력을 업데이트하지 못했습니다. 다시 시도해 주세요."
   },

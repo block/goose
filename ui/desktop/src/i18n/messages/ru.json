@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "средний"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "выключено"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Не удалось обновить уровень размышлений. Повторите попытку."
   },

@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "moyen"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "désactivé"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Impossible de mettre à jour l'effort de réflexion. Veuillez réessayer."
   },

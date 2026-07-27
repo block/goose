@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "sedang"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "nonaktif"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Tidak dapat memperbarui upaya berpikir. Silakan coba lagi."
   },

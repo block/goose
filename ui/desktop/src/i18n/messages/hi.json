@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "मध्यम"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "बंद"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "सोच-प्रयास अपडेट नहीं हो सका। कृपया फिर से प्रयास करें।"
   },

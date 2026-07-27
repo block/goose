@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "medio"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "desactivado"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "No se pudo actualizar el esfuerzo de razonamiento. Inténtalo de nuevo."
   },

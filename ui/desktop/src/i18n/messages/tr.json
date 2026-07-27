@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "orta"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "kapalı"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Düşünme eforu güncellenemedi. Lütfen tekrar deneyin."
   },

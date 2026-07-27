@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "medium"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "off"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Could not update the thinking effort. Please try again."
   },

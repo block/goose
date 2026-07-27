@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "中"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "オフ"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "思考エフォートを更新できませんでした。もう一度お試しください。"
   },

@@ -200,6 +200,58 @@ describe('EffortRecommendationNotification', () => {
     ).toBeInTheDocument();
   });
 
+  it('hides the downgrade button when the session was moved to a different effort', () => {
+    useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('max'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-12"
+      />
+    );
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByText(/already set/)).not.toBeInTheDocument();
+  });
+
+  it('does not apply a stale downgrade when the session effort was raised before the click lands', async () => {
+    getSnapshotMock.mockReturnValue(snapshotWithEffort('max'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-13"
+      />
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Switch thinking effort to medium to save tokens' })
+    );
+
+    expect(acpSetSessionThinkingEffortMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a localized name when the session was turned off below a downgrade recommendation', () => {
+    useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('off'));
+
+    renderWithIntl(
+      <EffortRecommendationNotification
+        notification={notification({
+          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
+        })}
+        sessionId="session-14"
+      />
+    );
+
+    expect(
+      screen.getByText('Thinking effort is already set to off for this session')
+    ).toBeInTheDocument();
+  });
+
   it('does not apply a downgrade when the session effort was lowered before the click lands', async () => {
     getSnapshotMock.mockReturnValue(snapshotWithEffort('low'));
 

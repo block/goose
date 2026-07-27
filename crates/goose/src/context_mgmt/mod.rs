@@ -116,7 +116,9 @@ fn message_thinking_estimate(message: &Message) -> i64 {
         .iter()
         .map(|content| match content {
             MessageContent::Thinking(thinking) => (thinking.thinking.len() / 4) as i64,
-            MessageContent::RedactedThinking(_) => 1,
+            // The payload is encrypted so the true count is unknowable; the
+            // blob length over-estimates it, which can only block a downgrade.
+            MessageContent::RedactedThinking(redacted) => (redacted.data.len() / 4) as i64,
             _ => 0,
         })
         .sum()
@@ -134,12 +136,11 @@ pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
         let Some(usage) = &message.metadata.usage else {
             continue;
         };
-        let Some(output_tokens) = usage.output_tokens else {
-            continue;
-        };
-        // Evidence-free turns consume the window but are not sampled, so
-        // stale telemetry from before a provider switch can never vouch for
-        // newer turns whose reasoning is invisible.
+        // Every usage-bearing turn consumes the window, even without an
+        // output count (Gemini omits candidatesTokenCount on thinking-only
+        // turns), so stale telemetry from before a provider switch can never
+        // vouch for newer turns whose reasoning is invisible. Evidence-free
+        // turns are consumed but not sampled.
         examined += 1;
         let thinking = usage
             .thinking_tokens
@@ -147,7 +148,7 @@ pub fn observed_thinking(conversation: &Conversation) -> ObservedThinking {
             .unwrap_or_else(|| message_thinking_estimate(message));
         if usage.thinking_tokens.is_some() || thinking > 0 {
             observed.sampled_turns += 1;
-            observed.output_tokens += output_tokens as i64;
+            observed.output_tokens += usage.output_tokens.unwrap_or(0) as i64;
             observed.thinking_tokens += thinking;
         }
         if examined == OBSERVED_THINKING_WINDOW {
@@ -251,6 +252,11 @@ pub fn build_effort_recommendation(
         return None;
     }
     let target = one_step_down(effective_current)?;
+    // A downgrade promises savings, so it must actually lower what the
+    // provider runs with (Gemini 3 coalesces Low back up to Medium).
+    if provider.effective_thinking_effort(model_config, Some(target)) >= effective_current {
+        return None;
+    }
     Some(EffortRecommendation {
         difficulty: difficulty.level,
         reason: difficulty.reason.clone(),
@@ -1539,6 +1545,18 @@ mod tests {
             "an explicit off is never adjusted downward"
         );
 
+        let gemini = ModelConfig::new("gemini-3-flash");
+        assert!(
+            nudge_observing(
+                &gemini,
+                DifficultyLevel::Low,
+                Some(ThinkingEffort::Medium),
+                Some(&idle),
+            )
+            .is_none(),
+            "Gemini 3 coalesces low back up to medium, so the downgrade would save nothing"
+        );
+
         let session_high = model.clone().with_thinking_effort(ThinkingEffort::High);
         {
             let _env = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("low"))]);
@@ -1655,6 +1673,69 @@ mod tests {
         let observed = observed_thinking(&conversation);
         assert_eq!(observed.sampled_turns, 0);
         assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_counts_thinking_only_turns_without_an_output_count() {
+        use crate::conversation::message::MessageUsage;
+
+        // Gemini omits candidatesTokenCount on thinking-only turns.
+        let mut thinking_only = Message::assistant().with_text("...");
+        thinking_only.metadata.usage = Some(Box::new(MessageUsage {
+            output_tokens: None,
+            thinking_tokens: Some(5000),
+            ..Default::default()
+        }));
+
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+            let mut idle = Message::assistant().with_text("done");
+            idle.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(500),
+                thinking_tokens: Some(0),
+                ..Default::default()
+            }));
+            messages.push(idle);
+        }
+        messages.push(thinking_only);
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation);
+        assert_eq!(observed.sampled_turns, OBSERVED_THINKING_MIN_TURNS + 1);
+        assert_eq!(observed.thinking_tokens, 5000);
+        assert!(
+            !observed.shows_idle_reasoning(),
+            "a heavy thinking-only turn must block a downgrade even without an output count"
+        );
+    }
+
+    #[test]
+    fn observed_thinking_estimates_redacted_thinking_from_the_blob_length() {
+        use crate::conversation::message::MessageUsage;
+
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+            let mut redacted = Message::assistant()
+                .with_redacted_thinking("x".repeat(4000))
+                .with_text("done");
+            redacted.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(10_000),
+                thinking_tokens: None,
+                ..Default::default()
+            }));
+            messages.push(redacted);
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation);
+        assert_eq!(
+            observed.thinking_tokens,
+            1000 * OBSERVED_THINKING_MIN_TURNS as i64
+        );
+        assert!(
+            !observed.shows_idle_reasoning(),
+            "hidden reasoning of unknowable size must not read as idle"
+        );
     }
 
     #[test]

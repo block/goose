@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "中"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "关闭"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "无法更新思考力度,请重试。"
   },

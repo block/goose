@@ -947,6 +947,9 @@
   "effortRecommendationNotification.effortMedium": {
     "defaultMessage": "trung bình"
   },
+  "effortRecommendationNotification.effortOff": {
+    "defaultMessage": "tắt"
+  },
   "effortRecommendationNotification.failed": {
     "defaultMessage": "Không thể cập nhật mức độ suy nghĩ. Vui lòng thử lại."
   },

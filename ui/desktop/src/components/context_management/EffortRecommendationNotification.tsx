@@ -31,6 +31,10 @@ const i18n = defineMessages({
     id: 'effortRecommendationNotification.failed',
     defaultMessage: 'Could not update the thinking effort. Please try again.',
   },
+  effortOff: {
+    id: 'effortRecommendationNotification.effortOff',
+    defaultMessage: 'off',
+  },
   effortLow: {
     id: 'effortRecommendationNotification.effortLow',
     defaultMessage: 'low',
@@ -50,6 +54,7 @@ const i18n = defineMessages({
 });
 
 const EFFORT_NAME_MESSAGES = {
+  off: i18n.effortOff,
   low: i18n.effortLow,
   medium: i18n.effortMedium,
   high: i18n.effortHigh,
@@ -111,6 +116,14 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
     (isLowering
       ? EFFORT_RANK[effort] <= EFFORT_RANK[recommendedEffort]
       : EFFORT_RANK[effort] >= EFFORT_RANK[recommendedEffort]);
+  // A downgrade offer is only valid while the session still runs at the
+  // effort it was made for; once the user moves it elsewhere, applying the
+  // old target would overwrite their newer choice.
+  const staleDowngrade = (effort: string | null): boolean =>
+    isLowering &&
+    effort !== null &&
+    effort !== recommendationTimeEffort &&
+    !satisfiesRecommendation(effort);
 
   const liveEffort = knownEffort(snapshot?.thinkingEffort);
   const currentEffort = liveEffort ?? recommendationTimeEffort;
@@ -127,6 +140,7 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
     const clickTimeOptions = clickTimeSnapshot?.thinkingEffortOptions ?? null;
     if (
       satisfiesRecommendation(clickTimeEffort) ||
+      staleDowngrade(clickTimeEffort) ||
       (clickTimeOptions !== null && !clickTimeOptions.includes(recommendedEffort))
     ) {
       return;
@@ -141,7 +155,7 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
   };
 
   const renderStatusLine = () => {
-    if (modelCannotApply) {
+    if (modelCannotApply || staleDowngrade(liveEffort)) {
       return null;
     }
     if (status === 'applied' && !liveOutsideRecommendation) {
@@ -152,7 +166,7 @@ export const EffortRecommendationNotification: React.FC<EffortRecommendationNoti
         </div>
       );
     }
-    if (alreadySatisfied) {
+    if (alreadySatisfied && currentEffort !== null) {
       const currentName =
         currentEffort in EFFORT_NAME_MESSAGES
           ? intl.formatMessage(
