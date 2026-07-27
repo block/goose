@@ -436,7 +436,12 @@ const SplashScreen = React.memo(function SplashScreen({
   const statusColor =
     status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
 
-  const contentHeight = frame.length + 1 + 1 + 1 + 1 + 2 + 1;
+  // frame, title (margin + line), tagline, then the status (margin + line).
+  const baseHeight = frame.length + 1 + 1 + 1 + 2 + 1;
+  // The cwd is the one dispensable row here, so on a short terminal it goes
+  // first rather than pushing the status out of the allotted height.
+  const showCwd = height >= baseHeight + 1;
+  const contentHeight = baseHeight + (showCwd ? 1 : 0);
 
   const topPad = Math.max(0, Math.floor((height - contentHeight) / 2));
 
@@ -468,9 +473,11 @@ const SplashScreen = React.memo(function SplashScreen({
       <Box alignItems="center">
         <Text color={TEXT_DIM}>your on-machine AI agent</Text>
       </Box>
-      <Box width={Math.min(safeWidth, 60)} justifyContent="center">
-        <Text color={TEXT_DIM} wrap="truncate-middle">{cwd}</Text>
-      </Box>
+      {showCwd && (
+        <Box width={Math.min(safeWidth, 60)} justifyContent="center">
+          <Text color={TEXT_DIM} wrap="truncate-middle">{cwd}</Text>
+        </Box>
+      )}
       <Box marginTop={2} gap={1} alignItems="center">
         {loading && <Spinner idx={spinIdx} />}
         <Text color={statusColor}>{status}</Text>
