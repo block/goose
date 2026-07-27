@@ -86,13 +86,11 @@ const OBSERVED_THINKING_MIN_TURNS: usize = 3;
 /// hard stretch at high effort runs well above this on every provider.
 const OBSERVED_THINKING_IDLE_MAX_UTILIZATION: f64 = 0.05;
 
-/// Thinking activity over the most recent assistant turns. Within the window
-/// only turns with a provider-reported reasoning token count on per-message
-/// usage (including an explicit 0) are sampled as idle evidence. When a
-/// provider (or proxy) strips the breakdown, reasoning is invisible: visible
-/// thinking content still adds its estimated size so it can block a
-/// downgrade, but an estimate never vouches for idleness - Claude models
-/// surface a summary that is a fraction of what `output_tokens` charges.
+/// Thinking activity over the most recent assistant turns. Only turns with a
+/// provider-reported reasoning token count (including an explicit 0) are
+/// sampled as idle evidence; estimated thinking content can block a downgrade
+/// but never vouches for idleness - Claude models surface a summary that is a
+/// fraction of what `output_tokens` charges.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ObservedThinking {
     pub sampled_turns: usize,
@@ -161,8 +159,6 @@ pub fn observed_thinking(
         {
             break;
         }
-        // Registered on every message so a reported turn's clones on split
-        // tool-call messages are never re-estimated on top of its count.
         let estimate = unseen_thinking_estimate(message, &mut seen_thinking);
         // A turn persisted without usage (e.g. cancelled mid-stream) still
         // surfaces its thinking content as blocking evidence.
@@ -170,11 +166,9 @@ pub fn observed_thinking(
             observed.thinking_tokens += estimate;
             continue;
         };
-        // Every usage-bearing turn consumes the window, even without an
-        // output count (Gemini omits candidatesTokenCount on thinking-only
-        // turns), so stale telemetry from before a provider switch can never
-        // vouch for newer turns whose reasoning is invisible. Evidence-free
-        // turns are consumed but not sampled.
+        // Usage-bearing turns consume the window even without an output count
+        // (Gemini omits candidatesTokenCount on thinking-only turns), so stale
+        // telemetry can never vouch for newer turns with invisible reasoning.
         examined += 1;
         match usage.thinking_tokens {
             Some(reported) => {
@@ -1477,8 +1471,6 @@ mod tests {
         assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
         assert_eq!(nudge.current_effort, ThinkingEffort::Low);
 
-        // Matching or higher current effort: nothing to raise, and without
-        // thinking telemetry there is never a downgrade either.
         assert!(build(DifficultyLevel::High, Some(ThinkingEffort::High)).is_none());
         assert!(build(DifficultyLevel::High, Some(ThinkingEffort::Max)).is_none());
         assert!(build(DifficultyLevel::Low, Some(ThinkingEffort::Medium)).is_none());
@@ -1513,8 +1505,6 @@ mod tests {
             Some(&idle),
         )
         .expect("a downgrade steps down a single level from the provider-effective value");
-        // gpt-5 has no max tier, so the provider-effective effort is high and
-        // the single step lands on medium.
         assert_eq!(nudge.current_effort, ThinkingEffort::High);
         assert_eq!(nudge.recommended_effort, ThinkingEffort::Medium);
 
@@ -1641,13 +1631,10 @@ mod tests {
         };
 
         let mut messages = vec![Message::user().with_text("go")];
-        // An early turn that reasoned hard, outside the window once enough
-        // newer turns exist.
         messages.push(with_usage(Some(5000), 6000));
         for _ in 0..OBSERVED_THINKING_WINDOW {
             messages.push(with_usage(Some(10), 500));
         }
-        // Assistant message without usage metadata: skipped, not sampled.
         messages.push(Message::assistant().with_text("note"));
         let conversation = Conversation::new_unvalidated(messages);
 
@@ -1703,9 +1690,6 @@ mod tests {
     fn observed_thinking_counts_split_tool_call_thinking_once() {
         use crate::conversation::message::MessageUsage;
 
-        // Parallel tool calls split one turn into several assistant messages
-        // that each carry a clone of the turn's thinking; usage lands on the
-        // last one.
         let mut messages = vec![Message::user().with_text("go")];
         for turn in 0..OBSERVED_THINKING_MIN_TURNS {
             let thinking = format!("{turn:04}{}", "x".repeat(3996));
@@ -1761,8 +1745,6 @@ mod tests {
     fn observed_thinking_never_reads_summarized_thinking_as_idle() {
         use crate::conversation::message::MessageUsage;
 
-        // Bedrock reports no thinking breakdown; Claude surfaces a short
-        // summary while output_tokens charges the full hidden reasoning.
         let mut messages = vec![Message::user().with_text("go")];
         for _ in 0..OBSERVED_THINKING_WINDOW {
             let mut summarized = Message::assistant()
@@ -1810,7 +1792,6 @@ mod tests {
     fn observed_thinking_counts_thinking_only_turns_without_an_output_count() {
         use crate::conversation::message::MessageUsage;
 
-        // Gemini omits candidatesTokenCount on thinking-only turns.
         let mut thinking_only = Message::assistant().with_text("...");
         thinking_only.metadata.usage = Some(Box::new(MessageUsage {
             output_tokens: None,
@@ -1870,7 +1851,7 @@ mod tests {
     }
 
     #[test]
-    fn observed_thinking_ignores_stale_telemetry_from_before_a_provider_switch() {
+    fn observed_thinking_window_is_consumed_by_unreported_turns() {
         use crate::conversation::message::MessageUsage;
 
         let with_usage = |thinking: Option<i32>| {
@@ -1883,8 +1864,6 @@ mod tests {
             message
         };
 
-        // Idle turns reported by the previous provider, then a window's worth
-        // of turns from a provider that strips the breakdown.
         let mut messages = vec![Message::user().with_text("go")];
         for _ in 0..OBSERVED_THINKING_MIN_TURNS {
             messages.push(with_usage(Some(0)));

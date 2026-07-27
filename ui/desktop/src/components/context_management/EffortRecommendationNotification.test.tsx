@@ -165,24 +165,6 @@ describe('EffortRecommendationNotification', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the already-set note when the session is at or below a downgrade recommendation', () => {
-    useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('low'));
-
-    renderWithIntl(
-      <EffortRecommendationNotification
-        notification={notification({
-          data: { difficulty: 'low', recommendedEffort: 'medium', currentEffort: 'high' },
-        })}
-        sessionId="session-9"
-      />
-    );
-
-    expect(
-      screen.getByText('Thinking effort is already set to low for this session')
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
-
   it('keeps the downgrade button when the live effort is still above the recommendation', () => {
     useAcpChatSessionSnapshotMock.mockReturnValue(snapshotWithEffort('high'));
 
@@ -250,6 +232,7 @@ describe('EffortRecommendationNotification', () => {
     expect(
       screen.getByText('Thinking effort is already set to off for this session')
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('does not apply a downgrade when the session effort was lowered before the click lands', async () => {
