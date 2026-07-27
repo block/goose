@@ -561,10 +561,10 @@ impl FsFixture {
 #[allow(dead_code)]
 pub enum TerminalCall {
     Create(String, Vec<String>, String), // (command, args, terminal_id)
-    WaitForExit(String, u32),    // (terminal_id, exit_code)
-    Output(String, String, u32), // (terminal_id, text, exit_code)
-    Release(String),             // terminal_id
-    Kill(String),                // terminal_id
+    WaitForExit(String, u32),            // (terminal_id, exit_code)
+    Output(String, String, u32),         // (terminal_id, text, exit_code)
+    Release(String),                     // terminal_id
+    Kill(String),                        // terminal_id
 }
 
 impl TerminalCall {
