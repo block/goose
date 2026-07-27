@@ -1524,13 +1524,7 @@ fn acp_tool_call_content_to_rmcp(
                 serde_json::Value::String(s) => s,
                 other => other.to_string(),
             };
-            out.push(RmcpContent::text(text).with_priority(0.0));
-        }
-    } else {
-        for item in &mut out {
-            if item.priority().is_none() {
-                *item = item.clone().with_priority(0.0);
-            }
+            out.push(RmcpContent::text(text));
         }
     }
     out
