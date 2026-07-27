@@ -103,11 +103,11 @@
   {
     "id": "bountyverdict",
     "name": "BountyVerdict Agent Decision Tools",
-    "description": "Remote, account-free MCP server for preflight decisions on public GitHub bounties, coding-agent repository instructions, GitHub Actions failures, flaky retries, and MCP tool-catalog changes. Six read-only tools return evidence-linked verdicts. A valid first unsigned call cannot charge and returns a structured selection preview plus the exact x402 USDC quote.",
+    "description": "Remote, account-free MCP server for preflight decisions on public GitHub bounties, coding-agent repository instructions, GitHub Actions failures, flaky retries, and MCP tool-catalog changes. One free deterministic selector, choose_github_agent_decision, routes requests to six paid, read-only tools that return evidence-linked verdicts. A valid unsigned paid-tool call cannot charge and returns a structured selection preview, exact x402 v2 Base USDC quote, and executable payment handoff.",
     "type": "streamable-http",
     "url": "https://bountyverdict-agent-production.mimirslab.workers.dev/mcp?source=goose-extensions",
     "link": "https://github.com/Mimirs402/bountyverdict",
-    "installation_notes": "No BountyVerdict account or API key is required. Connecting and listing tools are free. A valid unsigned tool call returns an exact x402 v2 Base USDC payment requirement; the standard goose MCP connection does not itself authorize or settle the payment.",
+    "installation_notes": "No BountyVerdict account or API key is required. Connecting, listing tools, and calling choose_github_agent_decision are free. A valid unsigned paid-tool call cannot charge and returns an exact x402 v2 Base USDC executable payment handoff; the standard goose MCP connection does not itself authorize or settle the payment.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []

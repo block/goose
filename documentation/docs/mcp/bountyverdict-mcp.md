@@ -13,7 +13,7 @@ BountyVerdict is an account-free, read-only MCP server that helps agents decide 
 :::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fbountyverdict-agent-production.mimirslab.workers.dev%2Fmcp%3Fsource%3Dgoose-extensions&id=bountyverdict&name=BountyVerdict%20Agent%20Decision%20Tools&description=Remote%2C%20account-free%20MCP%20server%20for%20preflight%20decisions%20on%20public%20GitHub%20bounties%2C%20coding-agent%20repository%20instructions%2C%20GitHub%20Actions%20failures%2C%20flaky%20retries%2C%20and%20MCP%20tool-catalog%20changes.%20Six%20read-only%20tools%20return%20evidence-linked%20verdicts.%20A%20valid%20first%20unsigned%20call%20cannot%20charge%20and%20returns%20a%20structured%20selection%20preview%20plus%20the%20exact%20x402%20USDC%20quote.)
+    [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fbountyverdict-agent-production.mimirslab.workers.dev%2Fmcp%3Fsource%3Dgoose-extensions&id=bountyverdict&name=BountyVerdict%20Agent%20Decision%20Tools&description=Remote%2C%20account-free%20MCP%20server%20for%20preflight%20decisions%20on%20public%20GitHub%20bounties%2C%20coding-agent%20repository%20instructions%2C%20GitHub%20Actions%20failures%2C%20flaky%20retries%2C%20and%20MCP%20tool-catalog%20changes.%20One%20free%20deterministic%20selector%2C%20choose_github_agent_decision%2C%20routes%20requests%20to%20six%20paid%2C%20read-only%20tools%20that%20return%20evidence-linked%20verdicts.%20A%20valid%20unsigned%20paid-tool%20call%20cannot%20charge%20and%20returns%20a%20structured%20selection%20preview%2C%20exact%20x402%20v2%20Base%20USDC%20quote%2C%20and%20executable%20payment%20handoff.)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     Start a session with the remote extension:
@@ -27,8 +27,9 @@ BountyVerdict is an account-free, read-only MCP server that helps agents decide 
 
 ## What BountyVerdict provides
 
-The server exposes six tools:
+The server exposes one free selector and six paid tools:
 
+- `choose_github_agent_decision` deterministically routes a task to the matching paid decision tool without requiring payment.
 - `check_github_bounty` checks one public GitHub bounty for assignment, claim competition, repository policy, reward provenance, and linked work.
 - `rank_github_bounties` compares two to ten bounties and returns the best eligible candidate.
 - `audit_agent_harness` checks repository agent instructions for risky or contradictory behavior.
@@ -62,7 +63,7 @@ No BountyVerdict account, API key, or environment variable is required.
 
 ## Payment boundary
 
-Connecting and listing tools are free. A valid first tool call is also unsigned and cannot charge. It returns a structured selection preview and the exact x402 v2 Base USDC payment requirement.
+Connecting, listing tools, and calling `choose_github_agent_decision` are free. A valid unsigned paid-tool call cannot charge. It returns a structured selection preview, the exact x402 v2 Base USDC quote, and an executable payment handoff.
 
 The standard goose MCP connection does not authorize or settle x402 payments. Receiving the paid result requires a separately authorized x402-aware wallet client to validate the quote and replay the exact request with payment. Never paste a private key, seed phrase, or wallet secret into the extension configuration.
 
