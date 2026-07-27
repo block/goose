@@ -192,6 +192,11 @@ export type MessageMetadata = {
   userVisible: boolean;
 };
 
+export type ToolSetUpdateContent = {
+  added: string[];
+  removed: string[];
+};
+
 export type MessageContent =
   | (TextContent & { type: 'text' })
   | (ImageContent & { type: 'image' })
@@ -202,7 +207,8 @@ export type MessageContent =
   | (FrontendToolRequest & { type: 'frontendToolRequest' })
   | (ThinkingContent & { type: 'thinking' })
   | (RedactedThinkingContent & { type: 'redactedThinking' })
-  | (SystemNotificationContent & { type: 'systemNotification' });
+  | (SystemNotificationContent & { type: 'systemNotification' })
+  | (ToolSetUpdateContent & { type: 'toolSetUpdate' });
 
 export type Message = {
   content: MessageContent[];

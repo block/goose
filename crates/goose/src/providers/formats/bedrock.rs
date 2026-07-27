@@ -149,6 +149,15 @@ fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
     }
 }
 
+fn is_bedrock_content(content: &MessageContent) -> bool {
+    !matches!(content, MessageContent::ToolSetUpdate(_))
+}
+
+/// Bedrock rejects a message with no content blocks, so drop it rather than convert it.
+pub fn has_bedrock_content(message: &Message) -> bool {
+    message.content.iter().any(is_bedrock_content)
+}
+
 pub fn to_bedrock_message_with_caching(
     message: &Message,
     enable_caching: bool,
@@ -156,6 +165,7 @@ pub fn to_bedrock_message_with_caching(
     let mut content_blocks: Vec<bedrock::ContentBlock> = message
         .content
         .iter()
+        .filter(|content| is_bedrock_content(content))
         .map(to_bedrock_message_content)
         .collect::<Result<_>>()?;
 
@@ -208,6 +218,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         }
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
+        }
+        MessageContent::ToolSetUpdate(_) => {
+            bail!("ToolSetUpdate is filtered before conversion; Bedrock rejects blank content")
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();

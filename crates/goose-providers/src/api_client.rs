@@ -408,6 +408,25 @@ impl<'a> ApiRequestBuilder<'a> {
         self
     }
 
+    /// A per-request header replaces the client default outright, so append instead.
+    pub fn append_header_value(self, key: &str, value: &str) -> Result<Self> {
+        let header_name = HeaderName::from_bytes(key.as_bytes())?;
+        let existing = self
+            .headers
+            .get(&header_name)
+            .or_else(|| self.client.default_headers.get(&header_name))
+            .and_then(|existing| existing.to_str().ok());
+
+        let merged = match existing {
+            Some(existing) if existing.split(',').any(|part| part.trim() == value) => {
+                existing.to_string()
+            }
+            Some(existing) => format!("{existing},{value}"),
+            None => value.to_string(),
+        };
+        self.header(key, &merged)
+    }
+
     /// Apply per-request headers from a model config, overriding any static
     /// client headers on key collision.
     pub fn model_headers(self, model_config: &crate::model::ModelConfig) -> Result<Self> {

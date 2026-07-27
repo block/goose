@@ -606,6 +606,33 @@ pub fn is_turn_context_text(text: &str) -> bool {
         && text.trim_end().ends_with(&format!("</{TURN_CONTEXT_TAG}>"))
 }
 
+/// Only agent-visible messages count, since those are the only ones the provider is sent,
+/// and deltas naming an undeclared tool are ignored because referencing one is a wire error.
+pub fn resolve_visible_tools(declared: &HashSet<String>, messages: &[Message]) -> HashSet<String> {
+    let mut visible = declared.clone();
+    for update in messages
+        .iter()
+        .filter(|message| message.is_agent_visible())
+        .flat_map(|message| message.content.iter())
+        .filter_map(|content| match content {
+            MessageContentBlock::ToolSetUpdate(update) => Some(update),
+            _ => None,
+        })
+    {
+        for name in update
+            .removed
+            .iter()
+            .filter(|name| declared.contains(*name))
+        {
+            visible.remove(name);
+        }
+        for name in update.added.iter().filter(|name| declared.contains(*name)) {
+            visible.insert(name.clone());
+        }
+    }
+    visible
+}
+
 pub fn effective_role(message: &Message) -> String {
     if message.role == Role::User && has_tool_response(message) {
         "tool".to_string()

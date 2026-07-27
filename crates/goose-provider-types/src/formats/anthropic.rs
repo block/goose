@@ -1,6 +1,7 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
-use crate::conversation::message::{Message, MessageContentBlock};
+use crate::conversation::message::{Message, MessageContentBlock, ToolSetUpdateContent};
+use crate::conversation::resolve_visible_tools;
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, ImageFormat};
@@ -48,10 +49,12 @@ pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
+    /// Set only by providers that also send the beta header; without it this is a 400.
+    pub mid_conversation_tool_changes: bool,
 }
 
 impl AnthropicFormatOptions {
-    fn for_model(self, model_config: &ModelConfig) -> Self {
+    fn for_model(self, provider_name: &str, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
             .request_param::<bool>("preserve_thinking_context")
             .unwrap_or(self.preserve_thinking_context);
@@ -66,8 +69,27 @@ impl AnthropicFormatOptions {
             preserve_unsigned_thinking,
             preserve_thinking_context,
             thinking_disabled,
+            mid_conversation_tool_changes: self.mid_conversation_tool_changes
+                && model_supports_mid_conversation_tool_changes(provider_name, model_config),
         }
     }
+}
+
+pub const MID_CONVERSATION_TOOL_CHANGES_BETA: &str = "mid-conversation-tool-changes-2026-07-01";
+
+const MID_CONVERSATION_TOOL_CHANGE_MODELS: &[&str] = &[
+    "anthropic/claude-opus-5",
+    "anthropic/claude-opus-4.8",
+    "anthropic/claude-fable-5",
+    "anthropic/claude-mythos-5",
+];
+
+pub fn model_supports_mid_conversation_tool_changes(
+    provider_name: &str,
+    model_config: &ModelConfig,
+) -> bool {
+    maybe_get_canonical_model(provider_name, &model_config.model_name)
+        .is_some_and(|model| MID_CONVERSATION_TOOL_CHANGE_MODELS.contains(&model.id.as_str()))
 }
 
 fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
@@ -146,6 +168,11 @@ const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
 const STOP_REASON_REFUSAL: &str = "refusal";
 const REFUSAL_FALLBACK_DETAILS: &str = "No additional details were provided.";
+const SYSTEM_ROLE: &str = "system";
+const TOOL_ADDITION_TYPE: &str = "tool_addition";
+const TOOL_REMOVAL_TYPE: &str = "tool_removal";
+const TOOL_REFERENCE_TYPE: &str = "tool_reference";
+const TOOL_FIELD: &str = "tool";
 
 /// Coerce a tool call's optional arguments into the JSON value Anthropic
 /// expects for the `input` field of a `tool_use` content block.
@@ -162,16 +189,45 @@ fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
     Value::Object(arguments.unwrap_or_default())
 }
 
+fn tool_reference(name: &str) -> Value {
+    json!({ TYPE_FIELD: TOOL_REFERENCE_TYPE, NAME_FIELD: name })
+}
+
+fn tool_set_update_blocks(update: &ToolSetUpdateContent, declared: &HashSet<String>) -> Vec<Value> {
+    update
+        .removed
+        .iter()
+        .filter(|name| declared.contains(*name))
+        .map(|name| json!({ TYPE_FIELD: TOOL_REMOVAL_TYPE, TOOL_FIELD: tool_reference(name) }))
+        .chain(
+            update
+                .added
+                .iter()
+                .filter(|name| declared.contains(*name))
+                .map(|name| {
+                    json!({ TYPE_FIELD: TOOL_ADDITION_TYPE, TOOL_FIELD: tool_reference(name) })
+                }),
+        )
+        .collect()
+}
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
-    format_messages_with_options(messages, AnthropicFormatOptions::default())
+    format_messages_with_options(messages, AnthropicFormatOptions::default()).messages
+}
+
+struct FormattedMessages {
+    messages: Vec<Value>,
+    /// `None` when the delta had no rendered predecessor, so has nowhere legal to sit.
+    tool_set_updates: Vec<(Option<usize>, ToolSetUpdateContent)>,
 }
 
 fn format_messages_with_options(
     messages: &[Message],
     options: AnthropicFormatOptions,
-) -> Vec<Value> {
+) -> FormattedMessages {
     let mut anthropic_messages = Vec::new();
+    let mut tool_set_updates: Vec<(Option<usize>, ToolSetUpdateContent)> = Vec::new();
 
     for message in messages {
         let role = match message.role {
@@ -179,6 +235,7 @@ fn format_messages_with_options(
             Role::Assistant => ASSISTANT_ROLE,
         };
 
+        let mut pending_updates: Vec<ToolSetUpdateContent> = Vec::new();
         let mut content = Vec::new();
         for msg_content in &message.content {
             match msg_content {
@@ -260,6 +317,9 @@ fn format_messages_with_options(
                 MessageContentBlock::SystemNotification(_) => {
                     // Skip
                 }
+                MessageContentBlock::ToolSetUpdate(update) => {
+                    pending_updates.push(update.clone());
+                }
                 MessageContentBlock::Thinking(thinking) => {
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
@@ -310,6 +370,9 @@ fn format_messages_with_options(
                 CONTENT_FIELD: content
             }));
         }
+
+        let anchor = anthropic_messages.len().checked_sub(1);
+        tool_set_updates.extend(pending_updates.into_iter().map(|update| (anchor, update)));
     }
 
     if anthropic_messages.is_empty() {
@@ -356,7 +419,55 @@ fn format_messages_with_options(
         }
     }
 
-    anthropic_messages
+    FormattedMessages {
+        messages: anthropic_messages,
+        tool_set_updates,
+    }
+}
+
+/// A `system` message is only accepted immediately after a `user` turn, and only if
+/// it ends the array or is followed by an `assistant` turn. Anything else is a 400.
+fn anchor_accepts_system_message(messages: &[Value], anchor: usize) -> bool {
+    let role_at = |index: usize| messages.get(index).and_then(|m| m.get(ROLE_FIELD));
+    role_at(anchor) == Some(&json!(USER_ROLE))
+        && match role_at(anchor + 1) {
+            Some(role) => role == &json!(ASSISTANT_ROLE),
+            None => true,
+        }
+}
+
+/// Returns false without touching `messages` if any delta cannot be placed legally. Skipping
+/// just that one would leave the model holding a tool the caller believes it withdrew, so the
+/// caller withdraws it instead by not declaring it at all.
+fn insert_tool_set_updates(
+    messages: &mut Vec<Value>,
+    updates: &[(Option<usize>, ToolSetUpdateContent)],
+    declared: &HashSet<String>,
+) -> bool {
+    let mut grouped: Vec<(usize, Vec<Value>)> = Vec::new();
+    for (anchor, update) in updates {
+        let blocks = tool_set_update_blocks(update, declared);
+        if blocks.is_empty() {
+            continue;
+        }
+        let Some(anchor) = anchor.filter(|a| anchor_accepts_system_message(messages, *a)) else {
+            return false;
+        };
+        match grouped.last_mut() {
+            Some((last_anchor, last_blocks)) if *last_anchor == anchor => {
+                last_blocks.extend(blocks)
+            }
+            _ => grouped.push((anchor, blocks)),
+        }
+    }
+
+    for (anchor, blocks) in grouped.into_iter().rev() {
+        messages.insert(
+            anchor + 1,
+            json!({ ROLE_FIELD: SYSTEM_ROLE, CONTENT_FIELD: blocks }),
+        );
+    }
+    true
 }
 
 fn relocate_turn_context_to_tail(messages: &mut [Value]) {
@@ -695,9 +806,28 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
-    let options = options.for_model(model_config);
-    let anthropic_messages = format_messages_with_options(messages, options);
-    let tool_specs = format_tools(tools);
+    let options = options.for_model(provider_name, model_config);
+    let FormattedMessages {
+        messages: mut anthropic_messages,
+        tool_set_updates,
+    } = format_messages_with_options(messages, options);
+
+    let mut declared_tools = tools;
+    let visible_tools;
+    if options.mid_conversation_tool_changes && !tool_set_updates.is_empty() {
+        let declared: HashSet<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
+        if !insert_tool_set_updates(&mut anthropic_messages, &tool_set_updates, &declared) {
+            let visible = resolve_visible_tools(&declared, messages);
+            visible_tools = tools
+                .iter()
+                .filter(|tool| visible.contains(tool.name.as_ref()))
+                .cloned()
+                .collect::<Vec<_>>();
+            declared_tools = &visible_tools;
+        }
+    }
+
+    let tool_specs = format_tools(declared_tools);
     let system_spec = format_system(system);
 
     if anthropic_messages.is_empty() {
@@ -743,6 +873,17 @@ pub fn create_request(
     );
 
     Ok(payload)
+}
+
+pub fn payload_needs_tool_change_beta(payload: &Value) -> bool {
+    payload
+        .get("messages")
+        .and_then(Value::as_array)
+        .is_some_and(|messages| {
+            messages
+                .iter()
+                .any(|message| message.get(ROLE_FIELD).and_then(Value::as_str) == Some(SYSTEM_ROLE))
+        })
 }
 
 /// Process streaming response from Anthropic's API
@@ -1266,10 +1407,10 @@ mod tests {
             &messages,
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
-                preserve_thinking_context: false,
-                thinking_disabled: false,
+                ..AnthropicFormatOptions::default()
             },
-        );
+        )
+        .messages;
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["role"], "assistant");
@@ -1501,7 +1642,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
-                thinking_disabled: false,
+                ..AnthropicFormatOptions::default()
             },
         )?;
 
@@ -2566,5 +2707,112 @@ mod tests {
                  last breakpoint at {breakpoint:?}"
             );
         }
+    }
+
+    fn named_tool(name: &str) -> Tool {
+        Tool::new(name.to_string(), "test tool", object!({"type": "object"}))
+    }
+
+    fn tool_set_update(added: &[&str], removed: &[&str]) -> Message {
+        Message::user().with_content(MessageContentBlock::ToolSetUpdate(ToolSetUpdateContent {
+            added: added.iter().map(|n| n.to_string()).collect(),
+            removed: removed.iter().map(|n| n.to_string()).collect(),
+        }))
+    }
+
+    #[test]
+    fn test_tool_set_update_renders_system_message_after_its_anchor() -> Result<()> {
+        let messages = vec![
+            Message::user().with_text("first"),
+            Message::assistant().with_text("ok"),
+            Message::user().with_text("second"),
+            tool_set_update(&["b"], &["a", "never_declared"]),
+        ];
+        let tools = vec![named_tool("a"), named_tool("b")];
+
+        let payload = create_request_with_options_provider(
+            &cfg("claude-opus-5"),
+            "system",
+            &messages,
+            &tools,
+            AnthropicFormatOptions {
+                mid_conversation_tool_changes: true,
+                ..AnthropicFormatOptions::default()
+            },
+        )?;
+
+        assert!(payload_needs_tool_change_beta(&payload));
+        let messages = payload["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[2]["content"][0]["text"], "second");
+        assert_eq!(messages[3]["role"], SYSTEM_ROLE);
+
+        let blocks = messages[3]["content"].as_array().unwrap();
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0]["type"], TOOL_REMOVAL_TYPE);
+        assert_eq!(blocks[0][TOOL_FIELD]["name"], "a");
+        assert_eq!(blocks[1]["type"], TOOL_ADDITION_TYPE);
+        assert_eq!(blocks[1][TOOL_FIELD]["name"], "b");
+
+        assert_eq!(payload["tools"].as_array().unwrap().len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_set_update_dropped_when_model_unsupported() -> Result<()> {
+        let messages = vec![
+            Message::user().with_text("first"),
+            tool_set_update(&[], &["a"]),
+        ];
+
+        let payload = create_request_with_options_provider(
+            &cfg("claude-sonnet-5"),
+            "system",
+            &messages,
+            &[named_tool("a")],
+            AnthropicFormatOptions {
+                mid_conversation_tool_changes: true,
+                ..AnthropicFormatOptions::default()
+            },
+        )?;
+
+        assert!(!payload_needs_tool_change_beta(&payload));
+        assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_unplaceable_tool_set_update_withdraws_the_tool_instead() -> Result<()> {
+        let with_no_predecessor = vec![
+            tool_set_update(&[], &["a"]),
+            Message::user().with_text("first"),
+        ];
+        // Renders as `user, system, user`, which the API rejects, because the
+        // thinking-only assistant turn between them contributes no content.
+        let followed_by_a_user_turn = vec![
+            Message::user().with_text("first"),
+            tool_set_update(&[], &["a"]),
+            Message::assistant().with_content(MessageContentBlock::thinking("unsigned", "")),
+            Message::user().with_text("second"),
+        ];
+
+        for messages in [with_no_predecessor, followed_by_a_user_turn] {
+            let payload = create_request_with_options_provider(
+                &cfg("claude-opus-5"),
+                "system",
+                &messages,
+                &[named_tool("a"), named_tool("b")],
+                AnthropicFormatOptions {
+                    mid_conversation_tool_changes: true,
+                    ..AnthropicFormatOptions::default()
+                },
+            )?;
+
+            assert!(!payload_needs_tool_change_beta(&payload));
+            let tools = payload["tools"].as_array().unwrap();
+            assert_eq!(tools.len(), 1);
+            assert_eq!(tools[0]["name"], "b");
+        }
+        Ok(())
     }
 }

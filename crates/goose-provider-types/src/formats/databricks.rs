@@ -231,7 +231,8 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 }
                 MessageContentBlock::SystemNotification(_)
                 | MessageContentBlock::ToolConfirmationRequest(_)
-                | MessageContentBlock::ActionRequired(_) => {}
+                | MessageContentBlock::ActionRequired(_)
+                | MessageContentBlock::ToolSetUpdate(_) => {}
             }
         }
 

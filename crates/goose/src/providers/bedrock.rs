@@ -28,7 +28,8 @@ use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     bedrock_anthropic_thinking_fields, bedrock_inference_config, from_bedrock_message,
-    from_bedrock_usage, to_bedrock_message_with_caching, to_bedrock_tool_config,
+    from_bedrock_usage, has_bedrock_content, to_bedrock_message_with_caching,
+    to_bedrock_tool_config,
 };
 
 pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
@@ -311,8 +312,10 @@ impl BedrockProvider {
             vec![bedrock::SystemContentBlock::Text(system.to_string())]
         };
 
-        let visible_messages: Vec<&Message> =
-            messages.iter().filter(|m| m.is_agent_visible()).collect();
+        let visible_messages: Vec<&Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible() && has_bedrock_content(m))
+            .collect();
 
         let last_idx = visible_messages.len().saturating_sub(1);
 

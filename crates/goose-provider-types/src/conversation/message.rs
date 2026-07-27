@@ -203,6 +203,21 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
+/// A change to the set of tools the model may call, recorded where it happened. Names are
+/// the prefixed names used in the request's `tools` array.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolSetUpdateContent {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+impl ToolSetUpdateContent {
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.removed.is_empty()
+    }
+}
+
 pub type MessageContent = MessageContentBlock;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -219,6 +234,7 @@ pub enum MessageContentBlock {
     Thinking(ThinkingContentBlock),
     RedactedThinking(RedactedThinkingContentBlock),
     SystemNotification(SystemNotificationContent),
+    ToolSetUpdate(ToolSetUpdateContent),
 }
 
 impl fmt::Display for MessageContentBlock {
@@ -260,6 +276,12 @@ impl fmt::Display for MessageContentBlock {
             MessageContentBlock::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
+            MessageContentBlock::ToolSetUpdate(u) => write!(
+                f,
+                "[ToolSetUpdate: +{} -{}]",
+                u.added.len(),
+                u.removed.len()
+            ),
         }
     }
 }
@@ -350,6 +372,7 @@ impl MessageContentBlock {
             MessageContentBlock::Text(_)
             | MessageContentBlock::Image(_)
             | MessageContentBlock::ToolResponse(_) => self.filter_for_audience(Role::User),
+            MessageContentBlock::ToolSetUpdate(_) => None,
             _ => Some(self.clone()),
         }
     }

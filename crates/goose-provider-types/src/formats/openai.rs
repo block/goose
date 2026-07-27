@@ -265,7 +265,8 @@ pub fn format_messages_with_options(
                 MessageContentBlock::RedactedThinking(_) => {
                     continue;
                 }
-                MessageContentBlock::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_)
+                | MessageContentBlock::ToolSetUpdate(_) => {
                     continue;
                 }
                 MessageContentBlock::ToolRequest(request) => match &request.tool_call {

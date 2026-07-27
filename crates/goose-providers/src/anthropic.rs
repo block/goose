@@ -16,7 +16,9 @@ use tokio_util::io::StreamReader;
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request, response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
+    create_request, model_supports_mid_conversation_tool_changes, payload_needs_tool_change_beta,
+    response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
+    MID_CONVERSATION_TOOL_CHANGES_BETA,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -89,7 +91,10 @@ impl AnthropicProviderBuilder {
             custom_models: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
-            format_options: AnthropicFormatOptions::default(),
+            format_options: AnthropicFormatOptions {
+                mid_conversation_tool_changes: true,
+                ..AnthropicFormatOptions::default()
+            },
         }
     }
 
@@ -237,6 +242,11 @@ impl Provider for AnthropicProvider {
         self.skip_canonical_filtering
     }
 
+    fn supports_mid_conversation_tool_changes(&self, model_config: &ModelConfig) -> bool {
+        self.format_options.mid_conversation_tool_changes
+            && model_supports_mid_conversation_tool_changes(&self.name, model_config)
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {
@@ -279,14 +289,22 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
+        let needs_tool_change_beta = payload_needs_tool_change_beta(&payload);
+
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
-                let request = self
+                let mut request = self
                     .api_client
                     .request("v1/messages")
                     .model_headers(model_config)?;
+                if needs_tool_change_beta {
+                    request = request.append_header_value(
+                        "anthropic-beta",
+                        MID_CONVERSATION_TOOL_CHANGES_BETA,
+                    )?;
+                }
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })
@@ -317,6 +335,8 @@ fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptio
         preserve_unsigned_thinking: preserves_thinking,
         preserve_thinking_context: preserves_thinking,
         thinking_disabled: false,
+        // A declarative endpoint speaks this wire format but need not implement the beta.
+        mid_conversation_tool_changes: false,
     }
 }
 

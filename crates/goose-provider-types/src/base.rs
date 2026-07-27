@@ -451,6 +451,12 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// When true the caller keeps every tool offered during the session in `tools` and
+    /// records toggles as `ToolSetUpdate` blocks instead of rewriting the array.
+    fn supports_mid_conversation_tool_changes(&self, _model_config: &ModelConfig) -> bool {
+        false
+    }
+
     /// Fetch inventory models filtered by canonical registry and usability.
     ///
     /// When `toolshim` is true, models that lack native tool-call support are
