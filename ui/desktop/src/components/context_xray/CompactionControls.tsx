@@ -16,7 +16,11 @@ const TOOL_PAIR_SUMMARIZATION_KEY = 'GOOSE_TOOL_PAIR_SUMMARIZATION';
 const TOOL_CALL_CUTOFF_KEY = 'GOOSE_TOOL_CALL_CUTOFF';
 const COMPACTION_MODEL_KEY = 'GOOSE_COMPACTION_MODEL';
 const FAST_MODEL_KEY = 'GOOSE_FAST_MODEL';
+const MIN_AUTO_COMPACT_PERCENT = 1;
 const MAX_AUTO_COMPACT_PERCENT = 99;
+// The agent treats a threshold of 1.0 (and anything outside 0..1) as auto-compact disabled,
+// and the ACP preference validator accepts 1.0 but rejects 0.
+const AUTO_COMPACT_OFF_PERCENT = 100;
 const DEFAULT_AUTO_COMPACT_PERCENT = 80;
 const MIN_TOOL_CALL_CUTOFF = 10;
 const MAX_TOOL_CALL_CUTOFF = 500;
@@ -33,9 +37,14 @@ const i18n = defineMessages({
     id: 'contextXray.compaction.thresholdLabel',
     defaultMessage: 'Auto-compact at',
   },
+  thresholdInputLabel: {
+    id: 'contextXray.compaction.thresholdInputLabel',
+    defaultMessage: 'Auto-compact at, percent',
+  },
   thresholdHelper: {
     id: 'contextXray.compaction.thresholdHelper',
-    defaultMessage: 'Compact the conversation automatically at this share of the context window.',
+    defaultMessage:
+      'Compact the conversation automatically at this share of the context window. Set 100% to turn auto-compaction off.',
   },
   summarizeLabel: {
     id: 'contextXray.compaction.summarizeLabel',
@@ -49,6 +58,10 @@ const i18n = defineMessages({
   keepLastLabel: {
     id: 'contextXray.compaction.keepLastLabel',
     defaultMessage: 'Keep last',
+  },
+  keepLastInputLabel: {
+    id: 'contextXray.compaction.keepLastInputLabel',
+    defaultMessage: 'Keep last, tool calls',
   },
   keepLastUnit: {
     id: 'contextXray.compaction.keepLastUnit',
@@ -93,6 +106,13 @@ function clampInteger(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
+function parseSettingInput(raw: string, min: number, max: number) {
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  const value = Math.round(Number(trimmed));
+  return Number.isFinite(value) && value >= min && value <= max ? value : null;
+}
+
 interface CompactionControlsProps {
   provider: string | null;
   contextLimit: number;
@@ -118,11 +138,12 @@ export function CompactionControls({
   const [fastModel, setFastModel] = useState<string | null>(null);
   const [configFastModel, setConfigFastModel] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const touchedRef = useRef(new Set<SettingField>());
-
-  const markTouched = useCallback((field: SettingField) => {
-    touchedRef.current.add(field);
-  }, []);
+  const writeIdsRef = useRef<Record<SettingField, number>>({
+    threshold: 0,
+    summarize: 0,
+    cutoff: 0,
+    model: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -136,21 +157,23 @@ export function CompactionControls({
           read(FAST_MODEL_KEY, false),
         ]);
         if (cancelled) return;
-        const touched = touchedRef.current;
-        if (!touched.has('threshold') && typeof threshold === 'number' && threshold > 0) {
-          const percent = clampInteger(threshold * 100, 1, MAX_AUTO_COMPACT_PERCENT);
+        if (typeof threshold === 'number') {
+          const percent =
+            threshold > 0 && threshold < 1
+              ? clampInteger(threshold * 100, MIN_AUTO_COMPACT_PERCENT, MAX_AUTO_COMPACT_PERCENT)
+              : AUTO_COMPACT_OFF_PERCENT;
           setThresholdInput(String(percent));
           setSavedThresholdPercent(percent);
         }
-        if (!touched.has('summarize') && typeof summarization === 'boolean') {
+        if (typeof summarization === 'boolean') {
           setSummarize(summarization);
         }
-        if (!touched.has('cutoff') && typeof cutoff === 'number' && cutoff >= 1) {
+        if (typeof cutoff === 'number' && cutoff >= 1) {
           const value = String(clampInteger(cutoff, 1, MAX_TOOL_CALL_CUTOFF));
           setCutoffInput(value);
           setSavedCutoff(value);
         }
-        if (!touched.has('model') && typeof model === 'string' && model) {
+        if (typeof model === 'string' && model) {
           setCompactionModel(model);
         }
         if (typeof fastModelOverride === 'string' && fastModelOverride) {
@@ -208,85 +231,104 @@ export function CompactionControls({
     [intl]
   );
 
+  const persistSetting = useCallback(
+    (field: SettingField, write: () => Promise<void>, rollback: () => void) => {
+      const writeId = ++writeIdsRef.current[field];
+      write().catch((err) => {
+        // A later write for this field already owns the value; rolling back would revive stale state.
+        if (writeId === writeIdsRef.current[field]) rollback();
+        showSaveError(err);
+      });
+    },
+    [showSaveError]
+  );
+
   const commitThreshold = useCallback(() => {
-    const trimmed = thresholdInput.trim();
-    const parsed = Number(trimmed);
-    if (trimmed === '' || !Number.isFinite(parsed)) {
+    const percent = parseSettingInput(
+      thresholdInput,
+      MIN_AUTO_COMPACT_PERCENT,
+      AUTO_COMPACT_OFF_PERCENT
+    );
+    if (percent === null) {
       setThresholdInput(String(savedThresholdPercent));
       return;
     }
-    const percent = clampInteger(parsed, 1, MAX_AUTO_COMPACT_PERCENT);
     setThresholdInput(String(percent));
     if (percent === savedThresholdPercent) return;
     const previous = savedThresholdPercent;
     setSavedThresholdPercent(percent);
-    acpSaveAutoCompactThreshold(percent / 100).catch((err) => {
-      setThresholdInput(String(previous));
-      setSavedThresholdPercent(previous);
-      showSaveError(err);
-    });
-  }, [thresholdInput, savedThresholdPercent, showSaveError]);
+    persistSetting(
+      'threshold',
+      () => acpSaveAutoCompactThreshold(percent / 100),
+      () => {
+        setThresholdInput(String(previous));
+        setSavedThresholdPercent(previous);
+      }
+    );
+  }, [thresholdInput, savedThresholdPercent, persistSetting]);
 
   const commitCutoff = useCallback(() => {
-    const trimmed = cutoffInput.trim();
-    if (trimmed === '') {
+    if (cutoffInput.trim() === '') {
       setCutoffInput('');
       if (savedCutoff === '') return;
       const previous = savedCutoff;
       setSavedCutoff('');
-      remove(TOOL_CALL_CUTOFF_KEY, false).catch((err) => {
-        setCutoffInput(previous);
-        setSavedCutoff(previous);
-        showSaveError(err);
-      });
+      persistSetting(
+        'cutoff',
+        () => remove(TOOL_CALL_CUTOFF_KEY, false),
+        () => {
+          setCutoffInput(previous);
+          setSavedCutoff(previous);
+        }
+      );
       return;
     }
-    const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed) || Math.round(parsed) < 1) {
+    const value = parseSettingInput(cutoffInput, 1, MAX_TOOL_CALL_CUTOFF);
+    if (value === null) {
       setCutoffInput(savedCutoff);
       return;
     }
-    const value = clampInteger(parsed, 1, MAX_TOOL_CALL_CUTOFF);
     setCutoffInput(String(value));
     if (String(value) === savedCutoff) return;
     const previous = savedCutoff;
     setSavedCutoff(String(value));
-    upsert(TOOL_CALL_CUTOFF_KEY, value, false).catch((err) => {
-      setCutoffInput(previous);
-      setSavedCutoff(previous);
-      showSaveError(err);
-    });
-  }, [cutoffInput, savedCutoff, upsert, remove, showSaveError]);
+    persistSetting(
+      'cutoff',
+      () => upsert(TOOL_CALL_CUTOFF_KEY, value, false),
+      () => {
+        setCutoffInput(previous);
+        setSavedCutoff(previous);
+      }
+    );
+  }, [cutoffInput, savedCutoff, upsert, remove, persistSetting]);
 
   const handleSummarizeChange = useCallback(
     (checked: boolean) => {
-      markTouched('summarize');
       const previous = summarize;
       setSummarize(checked);
-      upsert(TOOL_PAIR_SUMMARIZATION_KEY, checked, false).catch((err) => {
-        setSummarize(previous);
-        showSaveError(err);
-      });
+      persistSetting(
+        'summarize',
+        () => upsert(TOOL_PAIR_SUMMARIZATION_KEY, checked, false),
+        () => setSummarize(previous)
+      );
     },
-    [summarize, upsert, markTouched, showSaveError]
+    [summarize, upsert, persistSetting]
   );
 
   const handleModelChange = useCallback(
     (newValue: unknown) => {
-      markTouched('model');
       const option = newValue as ModelOption | null;
       const name = option?.value ?? null;
       const previous = compactionModel;
       setCompactionModel(name);
-      const persist = name
-        ? upsert(COMPACTION_MODEL_KEY, name, false)
-        : remove(COMPACTION_MODEL_KEY, false);
-      persist.catch((err) => {
-        setCompactionModel(previous);
-        showSaveError(err);
-      });
+      persistSetting(
+        'model',
+        () =>
+          name ? upsert(COMPACTION_MODEL_KEY, name, false) : remove(COMPACTION_MODEL_KEY, false),
+        () => setCompactionModel(previous)
+      );
     },
-    [compactionModel, upsert, remove, markTouched, showSaveError]
+    [compactionModel, upsert, remove, persistSetting]
   );
 
   const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -303,9 +345,7 @@ export function CompactionControls({
 
   return (
     <section className="flex w-full flex-col gap-3 border-t border-border-primary pt-4">
-      <h3 className="text-xs font-medium text-text-tertiary">
-        {intl.formatMessage(i18n.heading)}
-      </h3>
+      <h3 className="text-xs font-medium text-text-tertiary">{intl.formatMessage(i18n.heading)}</h3>
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-3">
@@ -316,14 +356,12 @@ export function CompactionControls({
             <Input
               id="xray-auto-compact-threshold"
               type="number"
-              min={1}
-              max={MAX_AUTO_COMPACT_PERCENT}
+              min={MIN_AUTO_COMPACT_PERCENT}
+              max={AUTO_COMPACT_OFF_PERCENT}
+              aria-label={intl.formatMessage(i18n.thresholdInputLabel)}
               className="w-20 text-right"
               value={thresholdInput}
-              onChange={(event) => {
-                markTouched('threshold');
-                setThresholdInput(event.target.value);
-              }}
+              onChange={(event) => setThresholdInput(event.target.value)}
               onBlur={commitThreshold}
               onKeyDown={blurOnEnter}
               disabled={!loaded}
@@ -360,15 +398,13 @@ export function CompactionControls({
               type="number"
               min={1}
               max={MAX_TOOL_CALL_CUTOFF}
+              aria-label={intl.formatMessage(i18n.keepLastInputLabel)}
               className="w-28 text-right"
               placeholder={intl.formatMessage(i18n.keepLastPlaceholder, {
                 count: autoToolCallCutoff,
               })}
               value={cutoffInput}
-              onChange={(event) => {
-                markTouched('cutoff');
-                setCutoffInput(event.target.value);
-              }}
+              onChange={(event) => setCutoffInput(event.target.value)}
               onBlur={commitCutoff}
               onKeyDown={blurOnEnter}
               disabled={!loaded || !summarize}

@@ -306,7 +306,7 @@
     "defaultMessage": "Elaborazione in corso..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Apri radiografia del contesto"
+    "defaultMessage": "{used} di {limit} token utilizzati, apri radiografia del contesto"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Istruzioni e suggerimenti"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Compattazione"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Mantieni le ultime, chiamate agli strumenti"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Mantieni le ultime"
@@ -366,7 +369,10 @@
     "defaultMessage": "Riassumi le vecchie chiamate agli strumenti"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Compatta automaticamente la conversazione a questa quota della finestra di contesto."
+    "defaultMessage": "Compatta automaticamente la conversazione a questa quota della finestra di contesto. Imposta 100% per disattivare la compattazione automatica."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Compattazione automatica a, percento"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Compattazione automatica a"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Radiografia del contesto"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Overhead del tokenizer"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# strumento} other {# strumenti}}"

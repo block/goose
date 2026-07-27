@@ -306,7 +306,7 @@
     "defaultMessage": "Memproses..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Buka x-ray konteks"
+    "defaultMessage": "{used} dari {limit} token terpakai, buka x-ray konteks"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Instruksi & petunjuk"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Pemadatan"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Simpan terakhir, panggilan alat"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Simpan terakhir"
@@ -366,7 +369,10 @@
     "defaultMessage": "Ringkas panggilan alat lama"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Padatkan percakapan secara otomatis pada porsi jendela konteks ini."
+    "defaultMessage": "Padatkan percakapan secara otomatis pada porsi jendela konteks ini. Setel 100% untuk menonaktifkan pemadatan otomatis."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Padatkan otomatis pada, persen"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Padatkan otomatis pada"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "X-ray konteks"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Overhead tokenizer"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, other {# alat}}"

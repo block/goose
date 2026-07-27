@@ -306,7 +306,7 @@
     "defaultMessage": "처리 중..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "컨텍스트 엑스레이 열기"
+    "defaultMessage": "{limit} 중 {used} 토큰 사용됨, 컨텍스트 엑스레이 열기"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "지침 및 힌트"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "압축"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "최근 유지, 도구 호출"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "최근 유지"
@@ -366,7 +369,10 @@
     "defaultMessage": "오래된 도구 호출 요약"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "컨텍스트 창의 이 비율에 도달하면 대화를 자동으로 압축합니다."
+    "defaultMessage": "컨텍스트 창의 이 비율에 도달하면 대화를 자동으로 압축합니다. 100%로 설정하면 자동 압축이 꺼집니다."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "자동 압축 기준, 퍼센트"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "자동 압축 기준"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "컨텍스트 엑스레이"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "토크나이저 오버헤드"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, other {도구 #개}}"

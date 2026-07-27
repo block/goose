@@ -1805,6 +1805,7 @@ export default function ChatInput({
             refreshSignal={totalTokens || 0}
             onCompact={() => handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] })}
             compactDisabled={!totalTokens}
+            agentBusy={isLoading}
           />
         )}
         <MentionPopover

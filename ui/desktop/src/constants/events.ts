@@ -13,6 +13,5 @@ export enum AppEvents {
   CLEAR_INITIAL_MESSAGE = 'clear-initial-message',
   MESSAGE_STREAM_FINISHED = 'message-stream-finished',
   SCROLL_CHAT_TO_BOTTOM = 'scroll-chat-to-bottom',
-  HIDE_ALERT_POPOVER = 'hide-alert-popover',
   RESPONSE_STYLE_CHANGED = 'responseStyleChanged',
 }

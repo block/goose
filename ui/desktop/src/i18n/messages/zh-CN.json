@@ -306,7 +306,7 @@
     "defaultMessage": "处理中…"
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "打开上下文透视"
+    "defaultMessage": "已使用 {used}/{limit} 个 token，打开上下文透视"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "指令与提示"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "压缩"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "保留最近，工具调用次数"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "保留最近"
@@ -366,7 +369,10 @@
     "defaultMessage": "总结旧的工具调用"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "当达到上下文窗口的此比例时自动压缩对话。"
+    "defaultMessage": "当达到上下文窗口的此比例时自动压缩对话。设置为 100% 可关闭自动压缩。"
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "自动压缩阈值，百分比"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "自动压缩阈值"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "上下文透视"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "分词器开销"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, other {# 个工具}}"

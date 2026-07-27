@@ -2,7 +2,7 @@ import { useIntl, defineMessages } from '../../i18n';
 import { cn } from '../../utils';
 import type { ContextReport } from '../../types/contextReport';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/Tooltip';
-import { categoryColorClass, categoryMessages, commonMessages } from './categories';
+import { categoryColorClass, categoryMessages } from './categories';
 import { formatTokenCount, formatPercentOf } from './format';
 
 const i18n = defineMessages({
@@ -57,7 +57,6 @@ export function CapacityMeter({ report }: { report: ContextReport }) {
   const contextLimit = report.model.contextLimit;
   const visibleSegments = report.segments.filter((segment) => segment.tokenCount > 0);
   const segmentTotal = report.segments.reduce((sum, segment) => sum + segment.tokenCount, 0);
-  const overheadTokens = Math.max(0, report.wireTotalTokens - segmentTotal);
   const usedTokens = Math.max(report.wireTotalTokens, segmentTotal);
   const usedPercent = contextLimit > 0 ? Math.min(100, (usedTokens / contextLimit) * 100) : 0;
   const shareOfUsed = (tokenCount: number) =>
@@ -68,7 +67,7 @@ export function CapacityMeter({ report }: { report: ContextReport }) {
       {usedTokens > 0 && (
         <div
           data-testid="xray-meter-used"
-          className="flex h-full shrink-0 gap-[2px]"
+          className="flex h-full gap-[2px]"
           style={{ width: `${usedPercent}%`, minWidth: USED_PORTION_MIN_WIDTH_PX }}
         >
           {visibleSegments.map((segment, index) => (
@@ -82,19 +81,15 @@ export function CapacityMeter({ report }: { report: ContextReport }) {
               roundedLeft={index === 0}
             />
           ))}
-          {overheadTokens > 0 && (
-            <MeterSegment
-              name={intl.formatMessage(commonMessages.tokenizerOverhead)}
-              tokenCount={overheadTokens}
-              contextLimit={contextLimit}
-              widthPercent={shareOfUsed(overheadTokens)}
-              colorClass="bg-border-primary"
-              roundedLeft={visibleSegments.length === 0}
-            />
-          )}
         </div>
       )}
-      <div className="h-full min-w-0 flex-1 rounded-r-[4px] bg-background-tertiary" aria-hidden="true" />
+      <div
+        className={cn(
+          'h-full min-w-0 flex-1 rounded-r-[4px] bg-background-tertiary',
+          usedTokens === 0 && 'rounded-l-[4px]'
+        )}
+        aria-hidden="true"
+      />
     </div>
   );
 }

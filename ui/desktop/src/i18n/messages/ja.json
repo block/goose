@@ -306,7 +306,7 @@
     "defaultMessage": "処理中..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "コンテキストX線を開く"
+    "defaultMessage": "{limit} 中 {used} トークン使用、コンテキストX線を開く"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "指示とヒント"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "圧縮"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "直近を保持、ツール呼び出し"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "直近を保持"
@@ -366,7 +369,10 @@
     "defaultMessage": "古いツール呼び出しを要約"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "コンテキストウィンドウのこの割合に達すると会話を自動的に圧縮します。"
+    "defaultMessage": "コンテキストウィンドウのこの割合に達すると会話を自動的に圧縮します。100% に設定すると自動圧縮を無効にします。"
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "自動圧縮のしきい値、パーセント"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "自動圧縮のしきい値"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "コンテキストX線"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "トークナイザーのオーバーヘッド"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, other {# 個のツール}}"

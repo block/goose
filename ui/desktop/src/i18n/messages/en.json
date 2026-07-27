@@ -306,7 +306,7 @@
     "defaultMessage": "Processing..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Open context x-ray"
+    "defaultMessage": "{used} of {limit} tokens used, open context x-ray"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Instructions & hints"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Compaction"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Keep last, tool calls"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Keep last"
@@ -366,7 +369,10 @@
     "defaultMessage": "Summarize old tool calls"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Compact the conversation automatically at this share of the context window."
+    "defaultMessage": "Compact the conversation automatically at this share of the context window. Set 100% to turn auto-compaction off."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Auto-compact at, percent"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Auto-compact at"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Context x-ray"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Tokenizer overhead"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count,plural,one{# tool} other{# tools}}"

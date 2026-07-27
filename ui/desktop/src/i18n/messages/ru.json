@@ -306,7 +306,7 @@
     "defaultMessage": "Обработка..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Открыть рентген контекста"
+    "defaultMessage": "Использовано {used} из {limit} токенов, открыть рентген контекста"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Инструкции и подсказки"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Сжатие"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Сохранять последние, вызовов инструментов"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Сохранять последние"
@@ -366,7 +369,10 @@
     "defaultMessage": "Сокращать старые вызовы инструментов"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Автоматически сжимать разговор при достижении этой доли контекстного окна."
+    "defaultMessage": "Автоматически сжимать разговор при достижении этой доли контекстного окна. Установите 100 %, чтобы отключить автосжатие."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Автосжатие при, процент"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Автосжатие при"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Рентген контекста"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Накладные расходы токенизатора"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# инструмент} few {# инструмента} many {# инструментов} other {# инструмента}}"

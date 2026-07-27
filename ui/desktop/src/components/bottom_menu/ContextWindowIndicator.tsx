@@ -10,7 +10,7 @@ interface ContextWindowIndicatorProps {
 const i18n = defineMessages({
   openXray: {
     id: 'contextWindowIndicator.openXray',
-    defaultMessage: 'Open context x-ray',
+    defaultMessage: '{used} of {limit} tokens used, open context x-ray',
   },
 });
 
@@ -38,7 +38,9 @@ export function ContextWindowIndicator({
 
   const percentage = Math.round((totalTokens / tokenLimit) * 100);
   const colorClass = getProgressColor(percentage, !!onOpenXray);
-  const text = `${formatTokenCount(totalTokens)} / ${formatTokenCount(tokenLimit)}`;
+  const used = formatTokenCount(totalTokens);
+  const limit = formatTokenCount(tokenLimit);
+  const text = `${used} / ${limit}`;
   const content = (
     <>
       <span className={`size-1.5 rounded-full ${getDotColor(percentage)}`} aria-hidden="true" />
@@ -54,7 +56,7 @@ export function ContextWindowIndicator({
     <div className="flex items-center h-full">
       <button
         type="button"
-        aria-label={intl.formatMessage(i18n.openXray)}
+        aria-label={intl.formatMessage(i18n.openXray, { used, limit })}
         className="flex min-h-5 cursor-pointer items-center gap-1.5 rounded px-1 hover:bg-background-secondary"
         onClick={onOpenXray}
       >

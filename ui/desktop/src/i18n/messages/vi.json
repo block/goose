@@ -306,7 +306,7 @@
     "defaultMessage": "Đang xử lý..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Mở x-quang ngữ cảnh"
+    "defaultMessage": "Đã dùng {used} trên {limit} token, mở x-quang ngữ cảnh"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Hướng dẫn & gợi ý"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Nén"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Giữ lại, lệnh gọi công cụ gần nhất"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Giữ lại"
@@ -366,7 +369,10 @@
     "defaultMessage": "Tóm tắt các lệnh gọi công cụ cũ"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Tự động nén cuộc trò chuyện khi đạt tỷ lệ này của cửa sổ ngữ cảnh."
+    "defaultMessage": "Tự động nén cuộc trò chuyện khi đạt tỷ lệ này của cửa sổ ngữ cảnh. Đặt 100% để tắt tự động nén."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Tự động nén tại, phần trăm"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Tự động nén tại"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "X-quang ngữ cảnh"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Chi phí bộ tách token"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, other {# công cụ}}"

@@ -306,7 +306,7 @@
     "defaultMessage": "Wird verarbeitet..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Kontext-Röntgen öffnen"
+    "defaultMessage": "{used} von {limit} Token verwendet, Kontext-Röntgen öffnen"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Anweisungen & Hinweise"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Komprimierung"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Letzte behalten, Werkzeugaufrufe"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Letzte behalten"
@@ -366,7 +369,10 @@
     "defaultMessage": "Alte Werkzeugaufrufe zusammenfassen"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Komprimiert die Unterhaltung automatisch bei diesem Anteil des Kontextfensters."
+    "defaultMessage": "Komprimiert die Unterhaltung automatisch bei diesem Anteil des Kontextfensters. Auf 100 % setzen, um die automatische Komprimierung zu deaktivieren."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Automatisch komprimieren bei, Prozent"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Automatisch komprimieren bei"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Kontext-Röntgen"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Tokenizer-Overhead"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}"

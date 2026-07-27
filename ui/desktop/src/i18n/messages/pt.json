@@ -306,7 +306,7 @@
     "defaultMessage": "A processar..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Abrir raio-x do contexto"
+    "defaultMessage": "{used} de {limit} tokens usados, abrir raio-x do contexto"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Instruções e dicas"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Compactação"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Manter últimas, chamadas de ferramentas"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Manter últimas"
@@ -366,7 +369,10 @@
     "defaultMessage": "Resumir chamadas de ferramentas antigas"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Compacta a conversa automaticamente nesta fração da janela de contexto."
+    "defaultMessage": "Compacta a conversa automaticamente nesta fração da janela de contexto. Defina 100% para desativar a compactação automática."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Compactar automaticamente em, por cento"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Compactar automaticamente em"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Raio-x do contexto"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Sobrecarga do tokenizador"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# ferramenta} other {# ferramentas}}"

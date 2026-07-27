@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { CapacityMeter } from './CapacityMeter';
 import { BreakdownList } from './BreakdownList';
 import { CompactionControls } from './CompactionControls';
-import { formatTokenCount, formatTokenCountPrecise, formatPercentOf } from './format';
+import { formatTokenCount, formatPercentOf } from './format';
 
 const i18n = defineMessages({
   title: {
@@ -71,6 +71,7 @@ interface ContextXraySheetProps {
   refreshSignal?: number;
   onCompact?: () => void;
   compactDisabled?: boolean;
+  agentBusy?: boolean;
 }
 
 export function ContextXraySheet({
@@ -80,6 +81,7 @@ export function ContextXraySheet({
   refreshSignal,
   onCompact,
   compactDisabled,
+  agentBusy = false,
 }: ContextXraySheetProps) {
   const intl = useIntl();
   const [report, setReport] = useState<ContextReport | null>(null);
@@ -87,16 +89,18 @@ export function ContextXraySheet({
   const [error, setError] = useState(false);
   const requestIdRef = useRef(0);
   const lastRefreshSignalRef = useRef(refreshSignal);
+  const compactionPendingRef = useRef(false);
+  const wasAgentBusyRef = useRef(agentBusy);
 
   const fetchReport = useCallback(
     async (showLoading = true, surfaceError = true) => {
       const requestId = ++requestIdRef.current;
       if (showLoading) setLoading(true);
-      if (surfaceError) setError(false);
       try {
         const result = await getContextReport(sessionId);
         if (requestId !== requestIdRef.current) return;
         setReport(result);
+        setError(false);
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
         console.error('Failed to load context report:', err);
@@ -128,6 +132,21 @@ export function ContextXraySheet({
     }, 500);
     return () => window.clearTimeout(timer);
   }, [open, refreshSignal, fetchReport]);
+
+  // Compaction usage updates are suppressed upstream, so refreshSignal does not move
+  // across a compaction - the agent falling back to idle is the completion signal.
+  useEffect(() => {
+    const wasAgentBusy = wasAgentBusyRef.current;
+    wasAgentBusyRef.current = agentBusy;
+    if (agentBusy || !wasAgentBusy || !compactionPendingRef.current) return;
+    compactionPendingRef.current = false;
+    void fetchReport(false, false);
+  }, [agentBusy, fetchReport]);
+
+  const handleCompact = useCallback(() => {
+    compactionPendingRef.current = true;
+    onCompact?.();
+  }, [onCompact]);
 
   const contextLimit = report?.model.contextLimit ?? 0;
 
@@ -181,7 +200,7 @@ export function ContextXraySheet({
               <>
                 <div>
                   <div className="text-3xl font-semibold text-text-primary">
-                    {formatTokenCountPrecise(report.wireTotalTokens)}
+                    {formatTokenCount(report.wireTotalTokens, true)}
                   </div>
                   <div className="mt-1 text-sm text-text-secondary">
                     {intl.formatMessage(i18n.heroDetail, {
@@ -195,8 +214,8 @@ export function ContextXraySheet({
                 <CompactionControls
                   provider={report.model.provider ?? null}
                   contextLimit={contextLimit}
-                  onCompact={onCompact}
-                  compactDisabled={compactDisabled}
+                  onCompact={onCompact ? handleCompact : undefined}
+                  compactDisabled={compactDisabled || agentBusy}
                 />
                 <div className="flex flex-col gap-1">
                   <p className="text-xs text-text-tertiary">

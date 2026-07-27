@@ -1,13 +1,17 @@
 // Pure formatting helpers for token usage stats. Unit labels are left to
 // the consuming component so they can be localized.
 
-/** `842`, `1.2k`, `12k`, `1.2M` - one decimal below 10k/10M, trailing `.0` stripped, k rolls over to M at 999.5k. */
-export function formatTokenCount(n: number): string {
+/**
+ * `842`, `1.2k`, `12k`, `1.2M` - one decimal below 10k/10M, trailing `.0` stripped, k rolls over to M at 999.5k.
+ * `precise` keeps the decimal at every magnitude (`12.3k`, `1.2M`) for headline figures.
+ */
+export function formatTokenCount(n: number, precise = false): string {
   if (n < 1000) {
     return Math.round(n).toString();
   }
   const [value, suffix] = n < 999_500 ? [n / 1000, 'k'] : [n / 1_000_000, 'M'];
-  const text = value < 10 ? value.toFixed(1).replace(/\.0$/, '') : Math.round(value).toString();
+  const text =
+    precise || value < 10 ? value.toFixed(1).replace(/\.0$/, '') : Math.round(value).toString();
   return `${text}${suffix}`;
 }
 

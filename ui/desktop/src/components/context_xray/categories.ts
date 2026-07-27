@@ -32,13 +32,6 @@ export const categoryMessages = defineMessages({
   },
 });
 
-export const commonMessages = defineMessages({
-  tokenizerOverhead: {
-    id: 'contextXray.tokenizerOverhead',
-    defaultMessage: 'Tokenizer overhead',
-  },
-});
-
 export const categoryColorClass: Record<ContextCategory, string> = {
   messages: 'bg-[#2a78d6] dark:bg-[#3987e5]',
   tool_definitions: 'bg-[#1baf7a] dark:bg-[#199e70]',

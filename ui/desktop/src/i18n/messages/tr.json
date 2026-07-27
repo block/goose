@@ -306,7 +306,7 @@
     "defaultMessage": "İşleniyor..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "Bağlam röntgenini aç"
+    "defaultMessage": "{limit} jetondan {used} kullanıldı, bağlam röntgenini aç"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "Talimatlar ve ipuçları"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "Sıkıştırma"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "Sonuncuları tut, araç çağrısı"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "Sonuncuları tut"
@@ -366,7 +369,10 @@
     "defaultMessage": "Eski araç çağrılarını özetle"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "Konuşmayı, bağlam penceresinin bu oranına ulaşıldığında otomatik olarak sıkıştırır."
+    "defaultMessage": "Konuşmayı, bağlam penceresinin bu oranına ulaşıldığında otomatik olarak sıkıştırır. Otomatik sıkıştırmayı kapatmak için 100% olarak ayarlayın."
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "Otomatik sıkıştırma eşiği, yüzde"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "Otomatik sıkıştırma eşiği"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "Bağlam röntgeni"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "Tokenizer ek yükü"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# araç} other {# araç}}"

@@ -306,7 +306,7 @@
     "defaultMessage": "प्रसंस्करण..."
   },
   "contextWindowIndicator.openXray": {
-    "defaultMessage": "कॉन्टेक्स्ट एक्स-रे खोलें"
+    "defaultMessage": "{limit} में से {used} टोकन उपयोग किए गए, कॉन्टेक्स्ट एक्स-रे खोलें"
   },
   "contextXray.category.additionalInstructions": {
     "defaultMessage": "निर्देश और संकेत"
@@ -334,6 +334,9 @@
   },
   "contextXray.compaction.heading": {
     "defaultMessage": "कॉम्पैक्शन"
+  },
+  "contextXray.compaction.keepLastInputLabel": {
+    "defaultMessage": "आख़िरी रखें, टूल कॉल"
   },
   "contextXray.compaction.keepLastLabel": {
     "defaultMessage": "आख़िरी रखें"
@@ -366,7 +369,10 @@
     "defaultMessage": "पुराने टूल कॉल का सारांश बनाएं"
   },
   "contextXray.compaction.thresholdHelper": {
-    "defaultMessage": "कॉन्टेक्स्ट विंडो के इस हिस्से पर पहुंचने पर बातचीत को स्वचालित रूप से संक्षिप्त करें।"
+    "defaultMessage": "कॉन्टेक्स्ट विंडो के इस हिस्से पर पहुंचने पर बातचीत को स्वचालित रूप से संक्षिप्त करें। ऑटो-कॉम्पैक्ट बंद करने के लिए 100% सेट करें।"
+  },
+  "contextXray.compaction.thresholdInputLabel": {
+    "defaultMessage": "इस स्तर पर ऑटो-कॉम्पैक्ट करें, प्रतिशत"
   },
   "contextXray.compaction.thresholdLabel": {
     "defaultMessage": "इस स्तर पर ऑटो-कॉम्पैक्ट करें"
@@ -406,9 +412,6 @@
   },
   "contextXray.title": {
     "defaultMessage": "कॉन्टेक्स्ट एक्स-रे"
-  },
-  "contextXray.tokenizerOverhead": {
-    "defaultMessage": "टोकनाइज़र ओवरहेड"
   },
   "contextXray.toolCount": {
     "defaultMessage": "{count, plural, one {# टूल} other {# टूल}}"

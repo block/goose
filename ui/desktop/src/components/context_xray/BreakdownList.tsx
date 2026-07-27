@@ -4,7 +4,7 @@ import { useIntl, defineMessages } from '../../i18n';
 import { cn } from '../../utils';
 import type { ContextCategory, ContextReport, ContextSegment } from '../../types/contextReport';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
-import { categoryColorClass, categoryMessages, commonMessages } from './categories';
+import { categoryColorClass, categoryMessages } from './categories';
 import { formatTokenCount, formatPercentOf } from './format';
 
 const i18n = defineMessages({
@@ -39,10 +39,7 @@ function DisclosureIcon({ open, visible }: { open: boolean; visible: boolean }) 
 
   return (
     <ChevronRight
-      className={cn(
-        'size-3 shrink-0 text-text-tertiary transition-transform',
-        open && 'rotate-90'
-      )}
+      className={cn('size-3 shrink-0 text-text-tertiary transition-transform', open && 'rotate-90')}
     />
   );
 }
@@ -223,9 +220,7 @@ function StaticLegendRow({
       >
         {name}
       </span>
-      <span className="font-mono text-xs text-text-primary/70">
-        {formatTokenCount(tokenCount)}
-      </span>
+      <span className="font-mono text-xs text-text-primary/70">{formatTokenCount(tokenCount)}</span>
       <span className="w-10 text-right font-mono text-xs text-text-tertiary">
         {formatPercentOf(tokenCount, contextLimit)}
       </span>
@@ -257,9 +252,7 @@ function CategoryRow({ category, segments, contextLimit }: CategoryRowProps) {
           <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
             {intl.formatMessage(categoryMessages[category])}
           </span>
-          <span className="font-mono text-xs text-text-primary/70">
-            {formatTokenCount(total)}
-          </span>
+          <span className="font-mono text-xs text-text-primary/70">{formatTokenCount(total)}</span>
           <span className="w-10 text-right font-mono text-xs text-text-tertiary">
             {formatPercentOf(total, contextLimit)}
           </span>
@@ -290,8 +283,6 @@ function CategoryRow({ category, segments, contextLimit }: CategoryRowProps) {
 export function BreakdownList({ report }: { report: ContextReport }) {
   const intl = useIntl();
   const contextLimit = report.model.contextLimit;
-  const segmentTotal = report.segments.reduce((sum, segment) => sum + segment.tokenCount, 0);
-  const overheadTokens = Math.max(0, report.wireTotalTokens - segmentTotal);
   const freeTokens = Math.max(0, contextLimit - report.wireTotalTokens);
 
   const grouped: { category: ContextCategory; segments: ContextSegment[] }[] = [];
@@ -314,15 +305,6 @@ export function BreakdownList({ report }: { report: ContextReport }) {
           contextLimit={contextLimit}
         />
       ))}
-      {overheadTokens > 0 && (
-        <StaticLegendRow
-          swatchClass="bg-border-primary"
-          name={intl.formatMessage(commonMessages.tokenizerOverhead)}
-          nameClass="text-text-secondary"
-          tokenCount={overheadTokens}
-          contextLimit={contextLimit}
-        />
-      )}
       <StaticLegendRow
         swatchClass="border border-border-primary bg-transparent"
         name={intl.formatMessage(i18n.free)}
