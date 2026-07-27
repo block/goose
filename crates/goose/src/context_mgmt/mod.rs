@@ -150,7 +150,10 @@ pub fn observed_thinking(
         {
             break;
         }
+        // A turn persisted without usage (e.g. cancelled mid-stream) still
+        // surfaces its thinking content as blocking evidence.
         let Some(usage) = &message.metadata.usage else {
+            observed.thinking_tokens += message_thinking_estimate(message);
             continue;
         };
         // Every usage-bearing turn consumes the window, even without an
@@ -1572,6 +1575,15 @@ mod tests {
             .is_none(),
             "Gemini 3 coalesces low back up to medium, so the downgrade would save nothing"
         );
+        let gemini_max = nudge_observing(
+            &gemini,
+            DifficultyLevel::Low,
+            Some(ThinkingEffort::Max),
+            Some(&idle),
+        )
+        .expect("max coalesces to high on Gemini 3; the real step down is medium");
+        assert_eq!(gemini_max.recommended_effort, ThinkingEffort::Medium);
+        assert_eq!(gemini_max.current_effort, ThinkingEffort::High);
 
         let session_high = model.clone().with_thinking_effort(ThinkingEffort::High);
         {
@@ -1671,6 +1683,31 @@ mod tests {
         );
         assert_eq!(observed.thinking_tokens, 1000);
         assert!(!observed.shows_idle_reasoning());
+    }
+
+    #[test]
+    fn observed_thinking_counts_cancelled_turns_without_usage_as_blocking_evidence() {
+        use crate::conversation::message::MessageUsage;
+
+        let mut messages = vec![Message::user().with_text("go")];
+        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+            let mut idle = Message::assistant().with_text("done");
+            idle.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(500),
+                thinking_tokens: Some(0),
+                ..Default::default()
+            }));
+            messages.push(idle);
+        }
+        messages.push(Message::assistant().with_thinking("x".repeat(4000), "sig"));
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
+        assert_eq!(observed.sampled_turns, OBSERVED_THINKING_MIN_TURNS);
+        assert!(
+            !observed.shows_idle_reasoning(),
+            "a reasoning-heavy turn cancelled before its usage trailer must still block"
+        );
     }
 
     #[test]

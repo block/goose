@@ -310,7 +310,8 @@ impl ModelConfig {
     /// `Off` no matter what is configured; always-on
     /// adaptive Anthropic models ignore `Off`
     /// (`formats::anthropic::adaptive_output_effort` maps it back to high);
-    /// Gemini 3 exposes only two thinking levels, so low and medium coincide;
+    /// Gemini 3 exposes only two thinking levels, so low/medium coincide and
+    /// so do high/max;
     /// OpenAI models run at the level the request formatter selects from the
     /// model's supported set, or at the API default when the configured value
     /// can't be expressed (e.g. `Off` on high-only gpt-5-pro).
@@ -328,10 +329,10 @@ impl ModelConfig {
             return effort;
         }
         if Self::is_gemini3_reasoning_model_name(&self.model_name) {
-            return if effort == ThinkingEffort::Low {
-                ThinkingEffort::Medium
-            } else {
-                effort
+            return match effort {
+                ThinkingEffort::Low => ThinkingEffort::Medium,
+                ThinkingEffort::Max => ThinkingEffort::High,
+                _ => effort,
             };
         }
         if self.is_openai_reasoning_model() {
