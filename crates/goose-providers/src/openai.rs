@@ -6,10 +6,10 @@ use crate::conversation::message::Message;
 use crate::conversation::token_usage::{CostSource, ProviderUsage};
 use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
-use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
     create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
 };
+use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
 use crate::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
@@ -573,6 +573,19 @@ impl ProviderDescriptor for OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    /// The chat formatter derives `reasoning_effort` only for OpenAI's own
+    /// reasoning-model names, plus the providers `sanitize_request_for_compat`
+    /// maps explicitly. Other model families served through a compatible
+    /// gateway (e.g. `google/gemini-3-*`) get no mapping, so an effort change
+    /// would not alter the request.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
+            return true;
+        }
+        let (model_name, _) = extract_reasoning_effort(&model_config.model_name);
+        is_openai_responses_model(&model_name)
     }
 
     fn skip_canonical_filtering(&self) -> bool {

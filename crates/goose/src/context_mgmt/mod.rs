@@ -111,15 +111,25 @@ impl ObservedThinking {
     }
 }
 
-fn message_thinking_estimate(message: &Message) -> i64 {
+/// Estimates thinking content not yet seen in this scan. Parallel tool calls
+/// split one provider turn into several messages that each carry a clone of
+/// the turn's thinking blocks, so content is counted once across the scan.
+fn unseen_thinking_estimate<'a>(
+    message: &'a Message,
+    seen: &mut std::collections::HashSet<&'a str>,
+) -> i64 {
     message
         .content
         .iter()
         .map(|content| match content {
-            MessageContent::Thinking(thinking) => (thinking.thinking.len() / 4) as i64,
+            MessageContent::Thinking(thinking) if seen.insert(&thinking.thinking) => {
+                (thinking.thinking.len() / 4) as i64
+            }
             // The payload is encrypted so the true count is unknowable; the
             // blob length over-estimates it, which can only block a downgrade.
-            MessageContent::RedactedThinking(redacted) => (redacted.data.len() / 4) as i64,
+            MessageContent::RedactedThinking(redacted) if seen.insert(&redacted.data) => {
+                (redacted.data.len() / 4) as i64
+            }
             _ => 0,
         })
         .sum()
@@ -132,6 +142,7 @@ pub fn observed_thinking(
 ) -> ObservedThinking {
     let mut observed = ObservedThinking::default();
     let mut examined = 0;
+    let mut seen_thinking = std::collections::HashSet::new();
     for message in conversation
         .messages()
         .iter()
@@ -150,10 +161,13 @@ pub fn observed_thinking(
         {
             break;
         }
+        // Registered on every message so a reported turn's clones on split
+        // tool-call messages are never re-estimated on top of its count.
+        let estimate = unseen_thinking_estimate(message, &mut seen_thinking);
         // A turn persisted without usage (e.g. cancelled mid-stream) still
         // surfaces its thinking content as blocking evidence.
         let Some(usage) = &message.metadata.usage else {
-            observed.thinking_tokens += message_thinking_estimate(message);
+            observed.thinking_tokens += estimate;
             continue;
         };
         // Every usage-bearing turn consumes the window, even without an
@@ -168,7 +182,7 @@ pub fn observed_thinking(
                 observed.output_tokens += usage.output_tokens.unwrap_or(0) as i64;
                 observed.thinking_tokens += reported as i64;
             }
-            None => observed.thinking_tokens += message_thinking_estimate(message),
+            None => observed.thinking_tokens += estimate,
         }
         if examined == OBSERVED_THINKING_WINDOW {
             break;
@@ -1686,6 +1700,39 @@ mod tests {
     }
 
     #[test]
+    fn observed_thinking_counts_split_tool_call_thinking_once() {
+        use crate::conversation::message::MessageUsage;
+
+        // Parallel tool calls split one turn into several assistant messages
+        // that each carry a clone of the turn's thinking; usage lands on the
+        // last one.
+        let mut messages = vec![Message::user().with_text("go")];
+        for turn in 0..OBSERVED_THINKING_MIN_TURNS {
+            let thinking = format!("{turn:04}{}", "x".repeat(3996));
+            messages.push(Message::assistant().with_thinking(&thinking, "sig"));
+            let mut reported = Message::assistant()
+                .with_thinking(&thinking, "sig")
+                .with_text("done");
+            reported.metadata.usage = Some(Box::new(MessageUsage {
+                output_tokens: Some(1000),
+                thinking_tokens: Some(40),
+                ..Default::default()
+            }));
+            messages.push(reported);
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let observed = observed_thinking(&conversation, "test-provider", "test-model");
+        assert_eq!(observed.sampled_turns, OBSERVED_THINKING_MIN_TURNS);
+        assert_eq!(
+            observed.thinking_tokens,
+            40 * OBSERVED_THINKING_MIN_TURNS as i64,
+            "cloned thinking on split messages must not stack on the reported count"
+        );
+        assert!(observed.shows_idle_reasoning());
+    }
+
+    #[test]
     fn observed_thinking_counts_cancelled_turns_without_usage_as_blocking_evidence() {
         use crate::conversation::message::MessageUsage;
 
@@ -1798,9 +1845,9 @@ mod tests {
         use crate::conversation::message::MessageUsage;
 
         let mut messages = vec![Message::user().with_text("go")];
-        for _ in 0..OBSERVED_THINKING_MIN_TURNS {
+        for turn in 0..OBSERVED_THINKING_MIN_TURNS {
             let mut redacted = Message::assistant()
-                .with_redacted_thinking("x".repeat(4000))
+                .with_redacted_thinking(format!("{turn:04}{}", "x".repeat(3996)))
                 .with_text("done");
             redacted.metadata.usage = Some(Box::new(MessageUsage {
                 output_tokens: Some(10_000),

@@ -18,7 +18,8 @@ use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::openai::{
-    create_request, get_cost, get_usage, response_to_message, response_to_streaming_message,
+    create_request, extract_reasoning_effort, get_cost, get_usage, is_openai_responses_model,
+    response_to_message, response_to_streaming_message,
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
@@ -73,6 +74,14 @@ impl OpenAiCompatibleProvider {
 impl Provider for OpenAiCompatibleProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    /// The chat formatter derives `reasoning_effort` only for OpenAI's own
+    /// reasoning-model names; other families served through this provider get
+    /// no mapping, so an effort change would not alter the request.
+    fn maps_thinking_effort(&self, model_config: &ModelConfig) -> bool {
+        let (model_name, _) = extract_reasoning_effort(&model_config.model_name);
+        is_openai_responses_model(&model_name)
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
