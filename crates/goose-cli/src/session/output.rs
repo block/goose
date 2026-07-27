@@ -520,7 +520,15 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
     match &resp.tool_result {
         Ok(result) => {
             for content in &result.content {
-                if let Some(audience) = content.audience() {
+                let annotations = match content {
+                    rmcp::model::ContentBlock::Text(t) => t.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Image(i) => i.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Audio(a) => a.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Resource(r) => r.annotations.as_ref(),
+                    rmcp::model::ContentBlock::ResourceLink(r) => r.annotations.as_ref(),
+                    _ => None,
+                };
+                if let Some(audience) = annotations.and_then(|a| a.audience.as_ref()) {
                     if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
@@ -531,10 +539,9 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     .ok()
                     .unwrap_or(DEFAULT_MIN_PRIORITY);
 
-                if content
-                    .priority()
-                    .is_some_and(|priority| priority < min_priority)
-                    || (content.priority().is_none() && !debug)
+                let priority = annotations.and_then(|a| a.priority);
+                if priority.is_some_and(|priority| priority < min_priority)
+                    || (priority.is_none() && !debug)
                 {
                     continue;
                 }

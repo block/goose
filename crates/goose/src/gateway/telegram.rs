@@ -161,14 +161,23 @@ impl TelegramGateway {
                         "Telegram rejected HTML, falling back to plain text"
                     );
                     for plain_chunk in split_message(text, MAX_MESSAGE_LENGTH) {
-                        self.client
+                        let plain_resp = self
+                            .client
                             .post(self.api_url("sendMessage"))
                             .json(&serde_json::json!({
                                 "chat_id": chat_id,
                                 "text": plain_chunk,
                             }))
                             .send()
+                            .await?
+                            .json::<TelegramResponse<serde_json::Value>>()
                             .await?;
+                        if !plain_resp.ok {
+                            anyhow::bail!(
+                                "Telegram sendMessage failed: {}",
+                                plain_resp.description.unwrap_or_default()
+                            );
+                        }
                     }
                     return Ok(());
                 }

@@ -4,9 +4,8 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParams, CallToolResult, Content, ElicitationAction, ImageContent,
-    JsonObject, PromptMessage, PromptMessageContent, PromptMessageRole, RawContent,
-    RawImageContent, RawTextContent, Role, TextContent,
+    CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ImageContent,
+    JsonObject, PromptMessage, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -19,7 +18,9 @@ pub enum ToolCallResult<T> {
 }
 
 /// Custom deserializer for MessageContent that sanitizes Unicode Tags in text content
-fn deserialize_sanitized_content<'de, D>(deserializer: D) -> Result<Vec<MessageContent>, D::Error>
+fn deserialize_sanitized_content<'de, D>(
+    deserializer: D,
+) -> Result<Vec<MessageContentBlock>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -47,12 +48,12 @@ where
         }
     }
 
-    let mut content: Vec<MessageContent> =
+    let mut content: Vec<MessageContentBlock> =
         serde_json::from_value(serde_json::Value::Array(migrated))
             .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
-        if let MessageContent::Text(text_content) = message_content {
+        if let MessageContentBlock::Text(text_content) = message_content {
             let original = &text_content.text;
             let sanitized = sanitize_unicode_tags(original);
             if *original != sanitized {
@@ -166,13 +167,13 @@ pub struct ActionRequired {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ThinkingContent {
+pub struct ThinkingContentBlock {
     pub thinking: String,
     pub signature: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RedactedThinkingContent {
+pub struct RedactedThinkingContentBlock {
     pub data: String,
 }
 
@@ -202,10 +203,12 @@ pub struct SystemNotificationContent {
     pub data: Option<serde_json::Value>,
 }
 
+pub type MessageContent = MessageContentBlock;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum MessageContent {
+pub enum MessageContentBlock {
     Text(TextContent),
     Image(ImageContent),
     ToolRequest(ToolRequest),
@@ -213,20 +216,20 @@ pub enum MessageContent {
     ToolConfirmationRequest(ToolConfirmationRequest),
     ActionRequired(ActionRequired),
     FrontendToolRequest(FrontendToolRequest),
-    Thinking(ThinkingContent),
-    RedactedThinking(RedactedThinkingContent),
+    Thinking(ThinkingContentBlock),
+    RedactedThinking(RedactedThinkingContentBlock),
     SystemNotification(SystemNotificationContent),
 }
 
-impl fmt::Display for MessageContent {
+impl fmt::Display for MessageContentBlock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MessageContent::Text(t) => write!(f, "{}", t.text),
-            MessageContent::Image(i) => write!(f, "[Image: {}]", i.mime_type),
-            MessageContent::ToolRequest(r) => {
+            MessageContentBlock::Text(t) => write!(f, "{}", t.text),
+            MessageContentBlock::Image(i) => write!(f, "[Image: {}]", i.mime_type),
+            MessageContentBlock::ToolRequest(r) => {
                 write!(f, "[ToolRequest: {}]", r.to_readable_string())
             }
-            MessageContent::ToolResponse(r) => write!(
+            MessageContentBlock::ToolResponse(r) => write!(
                 f,
                 "[ToolResponse: {}]",
                 match &r.tool_result {
@@ -234,10 +237,10 @@ impl fmt::Display for MessageContent {
                     Err(e) => format!("Error: {e}"),
                 }
             ),
-            MessageContent::ToolConfirmationRequest(r) => {
+            MessageContentBlock::ToolConfirmationRequest(r) => {
                 write!(f, "[ToolConfirmationRequest: {}]", r.tool_name)
             }
-            MessageContent::ActionRequired(a) => match &a.data {
+            MessageContentBlock::ActionRequired(a) => match &a.data {
                 ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                     write!(f, "[ActionRequired: ToolConfirmation for {}]", tool_name)
                 }
@@ -248,35 +251,42 @@ impl fmt::Display for MessageContent {
                     write!(f, "[ActionRequired: ElicitationResponse for {}]", id)
                 }
             },
-            MessageContent::FrontendToolRequest(r) => match &r.tool_call {
+            MessageContentBlock::FrontendToolRequest(r) => match &r.tool_call {
                 Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
                 Err(e) => write!(f, "[FrontendToolRequest: Error: {}]", e),
             },
-            MessageContent::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
-            MessageContent::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
-            MessageContent::SystemNotification(r) => {
+            MessageContentBlock::Thinking(t) => write!(f, "[Thinking: {}]", t.thinking),
+            MessageContentBlock::RedactedThinking(_r) => write!(f, "[RedactedThinking]"),
+            MessageContentBlock::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
         }
     }
 }
 
-impl MessageContent {
+fn content_audience(content: &ContentBlock) -> Option<&Vec<Role>> {
+    match content {
+        ContentBlock::Text(text) => text.annotations.as_ref()?.audience.as_ref(),
+        ContentBlock::Image(image) => image.annotations.as_ref()?.audience.as_ref(),
+        ContentBlock::Audio(audio) => audio.annotations.as_ref()?.audience.as_ref(),
+        ContentBlock::Resource(resource) => resource.annotations.as_ref()?.audience.as_ref(),
+        ContentBlock::ResourceLink(resource) => resource.annotations.as_ref()?.audience.as_ref(),
+        _ => None,
+    }
+}
+
+impl MessageContentBlock {
     pub fn text<S: Into<String>>(text: S) -> Self {
-        MessageContent::Text(
-            RawTextContent {
-                text: text.into(),
-                meta: None,
-            }
-            .no_annotation(),
-        )
+        MessageContentBlock::Text(TextContent::new(text))
     }
 
-    pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContent> {
+    pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContentBlock> {
         match self {
-            MessageContent::Text(text) => {
+            MessageContentBlock::Text(text) => {
                 if text
-                    .audience()
+                    .annotations
+                    .as_ref()
+                    .and_then(|a| a.audience.as_ref())
                     .map(|roles| roles.contains(&audience))
                     .unwrap_or(true)
                 {
@@ -285,9 +295,11 @@ impl MessageContent {
                     None
                 }
             }
-            MessageContent::Image(img) => {
+            MessageContentBlock::Image(img) => {
                 if img
-                    .audience()
+                    .annotations
+                    .as_ref()
+                    .and_then(|a| a.audience.as_ref())
                     .map(|roles| roles.contains(&audience))
                     .unwrap_or(true)
                 {
@@ -296,16 +308,16 @@ impl MessageContent {
                     None
                 }
             }
-            MessageContent::ToolResponse(res) => {
+            MessageContentBlock::ToolResponse(res) => {
                 let Ok(result) = &res.tool_result else {
                     return Some(self.clone());
                 };
 
-                let filtered_content: Vec<Content> = result
+                let filtered_content: Vec<ContentBlock> = result
                     .content
                     .iter()
                     .filter(|c| {
-                        c.audience()
+                        content_audience(c)
                             .map(|roles| roles.contains(&audience))
                             .unwrap_or(true)
                     })
@@ -316,13 +328,13 @@ impl MessageContent {
                 // (like Google) need to handle empty tool responses specially
                 let mut tool_result = result.clone();
                 tool_result.content = filtered_content;
-                Some(MessageContent::ToolResponse(ToolResponse {
+                Some(MessageContentBlock::ToolResponse(ToolResponse {
                     id: res.id.clone(),
                     tool_result: Ok(tool_result),
                     metadata: res.metadata.clone(),
                 }))
             }
-            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => {
+            MessageContentBlock::Thinking(_) | MessageContentBlock::RedactedThinking(_) => {
                 if audience == Role::Assistant {
                     Some(self.clone())
                 } else {
@@ -335,29 +347,22 @@ impl MessageContent {
 
     pub fn user_visible_content(&self) -> Option<MessageContent> {
         match self {
-            MessageContent::Text(_)
-            | MessageContent::Image(_)
-            | MessageContent::ToolResponse(_) => self.filter_for_audience(Role::User),
+            MessageContentBlock::Text(_)
+            | MessageContentBlock::Image(_)
+            | MessageContentBlock::ToolResponse(_) => self.filter_for_audience(Role::User),
             _ => Some(self.clone()),
         }
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
-        MessageContent::Image(
-            RawImageContent {
-                data: data.into(),
-                mime_type: mime_type.into(),
-                meta: None,
-            }
-            .no_annotation(),
-        )
+        MessageContentBlock::Image(ImageContent::new(data, mime_type))
     }
 
     pub fn tool_request<S: Into<String>>(
         id: S,
         tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
-        MessageContent::ToolRequest(ToolRequest {
+        MessageContentBlock::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
             metadata: None,
@@ -370,7 +375,7 @@ impl MessageContent {
         tool_call: ToolResult<CallToolRequestParams>,
         metadata: Option<&ProviderMetadata>,
     ) -> Self {
-        MessageContent::ToolRequest(ToolRequest {
+        MessageContentBlock::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
             metadata: metadata.cloned(),
@@ -379,7 +384,7 @@ impl MessageContent {
     }
 
     pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<CallToolResult>) -> Self {
-        MessageContent::ToolResponse(ToolResponse {
+        MessageContentBlock::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
             metadata: None,
@@ -391,7 +396,7 @@ impl MessageContent {
         tool_result: ToolResult<CallToolResult>,
         metadata: Option<&ProviderMetadata>,
     ) -> Self {
-        MessageContent::ToolResponse(ToolResponse {
+        MessageContentBlock::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
             metadata: metadata.cloned(),
@@ -404,7 +409,7 @@ impl MessageContent {
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        MessageContent::ActionRequired(ActionRequired {
+        MessageContentBlock::ActionRequired(ActionRequired {
             data: ActionRequiredData::ToolConfirmation {
                 id: id.into(),
                 tool_name,
@@ -419,7 +424,7 @@ impl MessageContent {
         message: String,
         requested_schema: serde_json::Value,
     ) -> Self {
-        MessageContent::ActionRequired(ActionRequired {
+        MessageContentBlock::ActionRequired(ActionRequired {
             data: ActionRequiredData::Elicitation {
                 id: id.into(),
                 message,
@@ -433,7 +438,7 @@ impl MessageContent {
         user_data: serde_json::Value,
         action: ElicitationAction,
     ) -> Self {
-        MessageContent::ActionRequired(ActionRequired {
+        MessageContentBlock::ActionRequired(ActionRequired {
             data: ActionRequiredData::ElicitationResponse {
                 id: id.into(),
                 user_data,
@@ -443,21 +448,21 @@ impl MessageContent {
     }
 
     pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
-        MessageContent::Thinking(ThinkingContent {
+        MessageContentBlock::Thinking(ThinkingContentBlock {
             thinking: thinking.into(),
             signature: signature.into(),
         })
     }
 
     pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
-        MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
+        MessageContentBlock::RedactedThinking(RedactedThinkingContentBlock { data: data.into() })
     }
 
     pub fn frontend_tool_request<S: Into<String>>(
         id: S,
         tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
-        MessageContent::FrontendToolRequest(FrontendToolRequest {
+        MessageContentBlock::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
             tool_call,
         })
@@ -467,7 +472,7 @@ impl MessageContent {
         notification_type: SystemNotificationType,
         msg: S,
     ) -> Self {
-        MessageContent::SystemNotification(SystemNotificationContent {
+        MessageContentBlock::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
             data: None,
@@ -479,7 +484,7 @@ impl MessageContent {
         msg: S,
         data: serde_json::Value,
     ) -> Self {
-        MessageContent::SystemNotification(SystemNotificationContent {
+        MessageContentBlock::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
             data: Some(data),
@@ -487,7 +492,7 @@ impl MessageContent {
     }
 
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
-        if let MessageContent::SystemNotification(ref notification) = self {
+        if let MessageContentBlock::SystemNotification(ref notification) = self {
             Some(notification)
         } else {
             None
@@ -495,7 +500,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
-        if let MessageContent::ToolRequest(ref tool_request) = self {
+        if let MessageContentBlock::ToolRequest(ref tool_request) = self {
             Some(tool_request)
         } else {
             None
@@ -503,7 +508,7 @@ impl MessageContent {
     }
 
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
-        if let MessageContent::ToolResponse(ref tool_response) = self {
+        if let MessageContentBlock::ToolResponse(ref tool_response) = self {
             Some(tool_response)
         } else {
             None
@@ -511,7 +516,7 @@ impl MessageContent {
     }
 
     pub fn as_action_required(&self) -> Option<&ActionRequired> {
-        if let MessageContent::ActionRequired(ref action_required) = self {
+        if let MessageContentBlock::ActionRequired(ref action_required) = self {
             Some(action_required)
         } else {
             None
@@ -537,44 +542,39 @@ impl MessageContent {
     /// Get the text content if this is a TextContent variant
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            MessageContent::Text(text) => Some(&text.text),
+            MessageContentBlock::Text(text) => Some(&text.text),
             _ => None,
         }
     }
 
     /// Get the thinking content if this is a ThinkingContent variant
-    pub fn as_thinking(&self) -> Option<&ThinkingContent> {
+    pub fn as_thinking(&self) -> Option<&ThinkingContentBlock> {
         match self {
-            MessageContent::Thinking(thinking) => Some(thinking),
+            MessageContentBlock::Thinking(thinking) => Some(thinking),
             _ => None,
         }
     }
 
     /// Get the redacted thinking content if this is a RedactedThinkingContent variant
-    pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
+    pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContentBlock> {
         match self {
-            MessageContent::RedactedThinking(redacted) => Some(redacted),
+            MessageContentBlock::RedactedThinking(redacted) => Some(redacted),
             _ => None,
         }
     }
 }
 
-impl From<Content> for MessageContent {
-    fn from(content: Content) -> Self {
-        match content.raw {
-            RawContent::Text(text) => {
-                MessageContent::Text(text.optional_annotate(content.annotations))
+impl From<ContentBlock> for MessageContentBlock {
+    fn from(content: ContentBlock) -> Self {
+        match content {
+            ContentBlock::Text(text) => MessageContentBlock::Text(text),
+            ContentBlock::Image(image) => MessageContentBlock::Image(image),
+            ContentBlock::ResourceLink(_link) => MessageContentBlock::text("[Resource link]"),
+            ContentBlock::Resource(resource) => {
+                MessageContentBlock::text(extract_text_from_resource(&resource.resource))
             }
-            RawContent::Image(image) => {
-                MessageContent::Image(image.optional_annotate(content.annotations))
-            }
-            RawContent::ResourceLink(_link) => MessageContent::text("[Resource link]"),
-            RawContent::Resource(resource) => {
-                MessageContent::text(extract_text_from_resource(&resource.resource))
-            }
-            RawContent::Audio(_) => {
-                MessageContent::text("[Audio content: not supported]".to_string())
-            }
+            ContentBlock::Audio(_) => MessageContentBlock::text("[Audio content: not supported]"),
+            _ => MessageContentBlock::text("[Unsupported content]"),
         }
     }
 }
@@ -583,20 +583,20 @@ impl From<PromptMessage> for Message {
     fn from(prompt_message: PromptMessage) -> Self {
         // Create a new message with the appropriate role
         let message = match prompt_message.role {
-            PromptMessageRole::User => Message::user(),
-            PromptMessageRole::Assistant => Message::assistant(),
+            Role::User => Message::user(),
+            Role::Assistant => Message::assistant(),
         };
 
         // Convert and add the content
         let content = match prompt_message.content {
-            PromptMessageContent::Text { text } => MessageContent::text(text),
-            PromptMessageContent::Image { image } => {
-                MessageContent::image(image.data.clone(), image.mime_type.clone())
+            ContentBlock::Text(text) => MessageContentBlock::Text(text),
+            ContentBlock::Image(image) => MessageContentBlock::Image(image),
+            ContentBlock::ResourceLink(_) => MessageContentBlock::text("[Resource link]"),
+            ContentBlock::Resource(resource) => {
+                MessageContentBlock::text(extract_text_from_resource(&resource.resource))
             }
-            PromptMessageContent::ResourceLink { .. } => MessageContent::text("[Resource link]"),
-            PromptMessageContent::Resource { resource } => {
-                MessageContent::text(extract_text_from_resource(&resource.resource))
-            }
+            ContentBlock::Audio(_) => MessageContentBlock::text("[Audio content: not supported]"),
+            _ => MessageContentBlock::text("[Unsupported content]"),
         };
 
         message.with_content(content)
@@ -765,12 +765,12 @@ pub struct Message {
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
-    pub content: Vec<MessageContent>,
+    pub content: Vec<MessageContentBlock>,
     pub metadata: MessageMetadata,
 }
 
 impl Message {
-    pub fn new(role: Role, created: i64, content: Vec<MessageContent>) -> Self {
+    pub fn new(role: Role, created: i64, content: Vec<MessageContentBlock>) -> Self {
         Message {
             id: None,
             role,
@@ -801,11 +801,20 @@ impl Message {
         for content in self
             .content
             .iter()
-            .filter_map(MessageContent::user_visible_content)
+            .filter_map(MessageContentBlock::user_visible_content)
         {
             match (filtered_content.last_mut(), content) {
-                (Some(MessageContent::Text(last_text)), MessageContent::Text(new_text))
-                    if last_text.audience() == new_text.audience() =>
+                (
+                    Some(MessageContentBlock::Text(last_text)),
+                    MessageContentBlock::Text(new_text),
+                ) if last_text
+                    .annotations
+                    .as_ref()
+                    .and_then(|a| a.audience.as_ref())
+                    == new_text
+                        .annotations
+                        .as_ref()
+                        .and_then(|a| a.audience.as_ref()) =>
                 {
                     last_text.text.push_str(&new_text.text);
                 }
@@ -859,7 +868,7 @@ impl Message {
     }
 
     /// Add any MessageContent to the message
-    pub fn with_content(mut self, content: MessageContent) -> Self {
+    pub fn with_content(mut self, content: MessageContentBlock) -> Self {
         self.content.push(content);
         self
     }
@@ -869,18 +878,12 @@ impl Message {
         let raw_text = text.into();
         let sanitized_text = sanitize_unicode_tags(&raw_text);
 
-        self.with_content(MessageContent::Text(
-            RawTextContent {
-                text: sanitized_text,
-                meta: None,
-            }
-            .no_annotation(),
-        ))
+        self.with_content(MessageContentBlock::Text(TextContent::new(sanitized_text)))
     }
 
     /// Add image content to the message
     pub fn with_image<S: Into<String>, T: Into<String>>(self, data: S, mime_type: T) -> Self {
-        self.with_content(MessageContent::image(data, mime_type))
+        self.with_content(MessageContentBlock::image(data, mime_type))
     }
 
     /// Add a tool request to the message
@@ -889,7 +892,7 @@ impl Message {
         id: S,
         tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
-        self.with_content(MessageContent::tool_request(id, tool_call))
+        self.with_content(MessageContentBlock::tool_request(id, tool_call))
     }
 
     pub fn with_tool_request_with_metadata<S: Into<String>>(
@@ -899,7 +902,7 @@ impl Message {
         metadata: Option<&ProviderMetadata>,
         tool_meta: Option<serde_json::Value>,
     ) -> Self {
-        self.with_content(MessageContent::ToolRequest(ToolRequest {
+        self.with_content(MessageContentBlock::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
             metadata: metadata.cloned(),
@@ -912,7 +915,7 @@ impl Message {
         id: S,
         result: ToolResult<CallToolResult>,
     ) -> Self {
-        self.with_content(MessageContent::tool_response(id, result))
+        self.with_content(MessageContentBlock::tool_response(id, result))
     }
 
     pub fn add_tool_response_with_metadata<S: Into<String>>(
@@ -922,7 +925,7 @@ impl Message {
         metadata: Option<&ProviderMetadata>,
     ) {
         self.content
-            .push(MessageContent::tool_response_with_metadata(
+            .push(MessageContentBlock::tool_response_with_metadata(
                 id, result, metadata,
             ));
     }
@@ -935,7 +938,7 @@ impl Message {
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        self.with_content(MessageContent::action_required(
+        self.with_content(MessageContentBlock::action_required(
             id, tool_name, arguments, prompt,
         ))
     }
@@ -945,7 +948,7 @@ impl Message {
         id: S,
         tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
-        self.with_content(MessageContent::frontend_tool_request(id, tool_call))
+        self.with_content(MessageContentBlock::frontend_tool_request(id, tool_call))
     }
 
     /// Add thinking content to the message
@@ -954,12 +957,12 @@ impl Message {
         thinking: S1,
         signature: S2,
     ) -> Self {
-        self.with_content(MessageContent::thinking(thinking, signature))
+        self.with_content(MessageContentBlock::thinking(thinking, signature))
     }
 
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
-        self.with_content(MessageContent::redacted_thinking(data))
+        self.with_content(MessageContentBlock::redacted_thinking(data))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
@@ -975,14 +978,14 @@ impl Message {
     pub fn is_tool_call(&self) -> bool {
         self.content
             .iter()
-            .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .any(|c| matches!(c, MessageContentBlock::ToolRequest(_)))
     }
 
     /// Check if the message is a tool response
     pub fn is_tool_response(&self) -> bool {
         self.content
             .iter()
-            .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            .any(|c| matches!(c, MessageContentBlock::ToolResponse(_)))
     }
 
     /// Retrieves all tool `id` from the message
@@ -990,8 +993,8 @@ impl Message {
         self.content
             .iter()
             .filter_map(|content| match content {
-                MessageContent::ToolRequest(req) => Some(req.id.as_str()),
-                MessageContent::ToolResponse(res) => Some(res.id.as_str()),
+                MessageContentBlock::ToolRequest(req) => Some(req.id.as_str()),
+                MessageContentBlock::ToolResponse(res) => Some(res.id.as_str()),
                 _ => None,
             })
             .collect()
@@ -1002,7 +1005,7 @@ impl Message {
         self.content
             .iter()
             .filter_map(|content| {
-                if let MessageContent::ToolRequest(req) = content {
+                if let MessageContentBlock::ToolRequest(req) = content {
                     Some(req.id.as_str())
                 } else {
                     None
@@ -1016,7 +1019,7 @@ impl Message {
         self.content
             .iter()
             .filter_map(|content| {
-                if let MessageContent::ToolResponse(res) = content {
+                if let MessageContentBlock::ToolResponse(res) = content {
                     Some(res.id.as_str())
                 } else {
                     None
@@ -1029,7 +1032,7 @@ impl Message {
     pub fn has_only_text_content(&self) -> bool {
         self.content
             .iter()
-            .all(|c| matches!(c, MessageContent::Text(_)))
+            .all(|c| matches!(c, MessageContentBlock::Text(_)))
     }
 
     pub fn with_system_notification<S: Into<String>>(
@@ -1037,8 +1040,11 @@ impl Message {
         notification_type: SystemNotificationType,
         msg: S,
     ) -> Self {
-        self.with_content(MessageContent::system_notification(notification_type, msg))
-            .with_metadata(MessageMetadata::user_only())
+        self.with_content(MessageContentBlock::system_notification(
+            notification_type,
+            msg,
+        ))
+        .with_metadata(MessageMetadata::user_only())
             .with_generated_id_if_missing()
     }
 
@@ -1048,7 +1054,7 @@ impl Message {
         msg: S,
         data: serde_json::Value,
     ) -> Self {
-        self.with_content(MessageContent::system_notification_with_data(
+        self.with_content(MessageContentBlock::system_notification_with_data(
             notification_type,
             msg,
             data,
@@ -1130,14 +1136,13 @@ pub struct TokenState {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        ActionRequiredData, Message, MessageContent, MessageMetadata, SystemNotificationType,
+        ActionRequiredData, Message, MessageContentBlock, MessageMetadata, SystemNotificationType,
     };
-    use crate::conversation::*;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParams, CallToolResult, PromptMessage, PromptMessageContent,
-        PromptMessageRole, RawEmbeddedResource, RawImageContent, RawTextContent, ResourceContents,
+        Annotations, CallToolResult, ElicitationAction, ErrorCode, ErrorData, ImageContent,
+        TextContent,
     };
-    use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
+    use rmcp::model::{CallToolRequestParams, ContentBlock, PromptMessage, ResourceContents, Role};
     use rmcp::object;
     use serde_json::Value;
 
@@ -1252,14 +1257,14 @@ mod tests {
         assert_eq!(message.content.len(), 2);
 
         // Check first content item
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "I'll help you with that.");
         } else {
             panic!("Expected Text content");
         }
 
         // Check second content item
-        if let MessageContent::ToolRequest(req) = &message.content[1] {
+        if let MessageContentBlock::ToolRequest(req) = &message.content[1] {
             assert_eq!(req.id, "tool123");
             if let Ok(tool_call) = &req.tool_call {
                 assert_eq!(tool_call.name, "test_tool");
@@ -1287,7 +1292,7 @@ mod tests {
         let message: Message = serde_json::from_value(json).unwrap();
         assert_eq!(message.content.len(), 2);
 
-        let MessageContent::Thinking(thinking) = &message.content[0] else {
+        let MessageContentBlock::Thinking(thinking) = &message.content[0] else {
             panic!("Expected Thinking content");
         };
         assert_eq!(thinking.thinking, "step by step");
@@ -1328,36 +1333,32 @@ mod tests {
         assert_eq!(provider_message.content.len(), 3);
         assert!(matches!(
             provider_message.content[0],
-            MessageContent::Thinking(_)
+            MessageContentBlock::Thinking(_)
         ));
         assert!(matches!(
             provider_message.content[1],
-            MessageContent::RedactedThinking(_)
+            MessageContentBlock::RedactedThinking(_)
         ));
     }
 
     #[test]
     fn test_user_visible_content_filters_audience_without_dropping_thinking() {
-        let assistant_text = RawTextContent {
-            text: "assistant text".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
-        let assistant_image = RawImageContent {
-            data: "assistant image".to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
-        let assistant_tool_content =
-            Content::text("assistant tool result").with_audience(vec![Role::Assistant]);
-        let user_tool_content = Content::text("user tool result").with_audience(vec![Role::User]);
+        let assistant_text = TextContent::new("assistant text")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let assistant_image = ImageContent::new("assistant image", "image/png")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let assistant_tool_content = ContentBlock::Text(
+            TextContent::new("assistant tool result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+        );
+        let user_tool_content = ContentBlock::Text(
+            TextContent::new("user tool result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
         let message = Message::assistant()
-            .with_content(MessageContent::Text(assistant_text))
+            .with_content(MessageContentBlock::Text(assistant_text))
             .with_text("shared text")
-            .with_content(MessageContent::Image(assistant_image))
+            .with_content(MessageContentBlock::Image(assistant_image))
             .with_tool_response(
                 "tool-1",
                 Ok(CallToolResult::success(vec![
@@ -1373,16 +1374,16 @@ mod tests {
         assert!(projected
             .content
             .iter()
-            .any(|content| matches!(content, MessageContent::Thinking(_))));
+            .any(|content| matches!(content, MessageContentBlock::Thinking(_))));
         assert!(!projected
             .content
             .iter()
-            .any(|content| matches!(content, MessageContent::Image(_))));
+            .any(|content| matches!(content, MessageContentBlock::Image(_))));
         let tool_response = projected
             .content
             .iter()
             .find_map(|content| match content {
-                MessageContent::ToolResponse(response) => Some(response),
+                MessageContentBlock::ToolResponse(response) => Some(response),
                 _ => None,
             })
             .expect("tool response should be preserved");
@@ -1400,24 +1401,16 @@ mod tests {
     #[test]
     fn test_user_visible_content_rejoins_text_across_hidden_blocks() {
         let user_text = |text: &str| {
-            MessageContent::Text(
-                RawTextContent {
-                    text: text.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::User]),
+            MessageContentBlock::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
             )
         };
-        let assistant_text = RawTextContent {
-            text: "provider state".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
+        let assistant_text = TextContent::new("provider state")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
         let message = Message::assistant()
             .with_content(user_text("Hello"))
-            .with_content(MessageContent::Text(assistant_text))
+            .with_content(MessageContentBlock::Text(assistant_text))
             .with_content(user_text(" world"));
 
         let projected = message.user_visible_content();
@@ -1442,7 +1435,7 @@ mod tests {
         let message: Message = serde_json::from_value(json).unwrap();
         assert_eq!(message.content.len(), 1);
 
-        let MessageContent::Text(text) = &message.content[0] else {
+        let MessageContentBlock::Text(text) = &message.content[0] else {
             panic!("Expected Text content");
         };
         assert_eq!(text.text, "still here");
@@ -1450,41 +1443,32 @@ mod tests {
 
     #[test]
     fn test_from_prompt_message_text() {
-        let prompt_content = PromptMessageContent::Text {
-            text: "Hello, world!".to_string(),
-        };
+        let prompt_content = ContentBlock::text("Hello, world!");
 
-        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
+        let prompt_message = PromptMessage::new(Role::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
-        if let MessageContent::Text(text_content) = &message.content[0] {
+        if let MessageContentBlock::Text(text_content) = &message.content[0] {
             assert_eq!(text_content.text, "Hello, world!");
         } else {
-            panic!("Expected MessageContent::Text");
+            panic!("Expected MessageContentBlock::Text");
         }
     }
 
     #[test]
     fn test_from_prompt_message_image() {
-        let prompt_content = PromptMessageContent::Image {
-            image: RawImageContent {
-                data: "base64data".to_string(),
-                mime_type: "image/jpeg".to_string(),
-                meta: None,
-            }
-            .no_annotation(),
-        };
+        let prompt_content = ContentBlock::image("base64data", "image/jpeg");
 
-        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
+        let prompt_message = PromptMessage::new(Role::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
-        if let MessageContent::Image(image_content) = &message.content[0] {
+        if let MessageContentBlock::Image(image_content) = &message.content[0] {
             assert_eq!(image_content.data, "base64data");
             assert_eq!(image_content.mime_type, "image/jpeg");
         } else {
-            panic!("Expected MessageContent::Image");
+            panic!("Expected MessageContentBlock::Image");
         }
     }
 
@@ -1497,34 +1481,23 @@ mod tests {
             meta: None,
         };
 
-        let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource {
-                resource,
-                meta: None,
-            }
-            .no_annotation(),
-        };
+        let prompt_content = ContentBlock::resource(resource);
 
-        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
+        let prompt_message = PromptMessage::new(Role::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
-        if let MessageContent::Text(text_content) = &message.content[0] {
+        if let MessageContentBlock::Text(text_content) = &message.content[0] {
             assert_eq!(text_content.text, "Resource content");
         } else {
-            panic!("Expected MessageContent::Text");
+            panic!("Expected MessageContentBlock::Text");
         }
     }
 
     #[test]
     fn test_from_prompt_message() {
         // Test user message conversion
-        let prompt_message = PromptMessage::new(
-            PromptMessageRole::User,
-            PromptMessageContent::Text {
-                text: "Hello, world!".to_string(),
-            },
-        );
+        let prompt_message = PromptMessage::new(Role::User, ContentBlock::text("Hello, world!"));
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::User);
@@ -1532,12 +1505,8 @@ mod tests {
         assert_eq!(message.as_concat_text(), "Hello, world!");
 
         // Test assistant message conversion
-        let prompt_message = PromptMessage::new(
-            PromptMessageRole::Assistant,
-            PromptMessageContent::Text {
-                text: "I can help with that.".to_string(),
-            },
-        );
+        let prompt_message =
+            PromptMessage::new(Role::Assistant, ContentBlock::text("I can help with that."));
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::Assistant);
@@ -1595,7 +1564,7 @@ mod tests {
         assert_eq!(message.as_concat_text(), "Helloworld");
 
         // Image content should be unchanged
-        if let MessageContent::Image(img) = &message.content[1] {
+        if let MessageContentBlock::Image(img) = &message.content[1] {
             assert_eq!(img.data, "base64data");
             assert_eq!(img.mime_type, "image/png");
         } else {
@@ -1806,7 +1775,7 @@ mod tests {
         let message: Message = serde_json::from_str(legacy_json).unwrap();
         assert_eq!(message.content.len(), 1);
 
-        if let MessageContent::ToolResponse(response) = &message.content[0] {
+        if let MessageContentBlock::ToolResponse(response) = &message.content[0] {
             assert_eq!(response.id, "tool123");
             if let Ok(result) = &response.tool_result {
                 assert_eq!(result.content.len(), 1);
@@ -1849,7 +1818,7 @@ mod tests {
         let message: Message = serde_json::from_str(new_json).unwrap();
         assert_eq!(message.content.len(), 1);
 
-        if let MessageContent::ToolResponse(response) = &message.content[0] {
+        if let MessageContentBlock::ToolResponse(response) = &message.content[0] {
             assert_eq!(response.id, "tool456");
             if let Ok(result) = &response.tool_result {
                 assert_eq!(result.content.len(), 1);
@@ -1925,7 +1894,7 @@ mod tests {
             let message: Message = serde_json::from_str(&json)
                 .unwrap_or_else(|e| panic!("{}: parse failed: {}", tc.name, e));
 
-            let MessageContent::ToolRequest(request) = &message.content[0] else {
+            let MessageContentBlock::ToolRequest(request) = &message.content[0] else {
                 panic!("{}: expected ToolRequest content", tc.name);
             };
 

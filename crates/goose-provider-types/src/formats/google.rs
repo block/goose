@@ -4,17 +4,14 @@ use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
-use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
-};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, Role, Tool};
 use serde::Serialize;
 use std::borrow::Cow;
 use uuid::Uuid;
 
-use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
-use std::ops::Deref;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
 const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
@@ -38,7 +35,7 @@ fn is_user_loop_boundary(message: &Message) -> bool {
         && message
             .content
             .iter()
-            .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
+            .any(|content| !matches!(content, MessageContentBlock::ToolResponse(_)))
 }
 
 fn insert_thought_signature(part: &mut Map<String, Value>, signature: &str) {
@@ -81,7 +78,8 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
             message.content.iter().any(|content| {
                 !matches!(
                     content,
-                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                    MessageContentBlock::ToolConfirmationRequest(_)
+                        | MessageContentBlock::ActionRequired(_)
                 )
             })
         })
@@ -91,7 +89,7 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
         .iter()
         .flat_map(|message| &message.content)
         .filter_map(|content| match content {
-            MessageContent::ToolRequest(request) => request
+            MessageContentBlock::ToolRequest(request) => request
                 .tool_call
                 .as_ref()
                 .ok()
@@ -124,12 +122,12 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
             let mut parts = Vec::new();
             for message_content in message.content.iter() {
                 match message_content {
-                    MessageContent::Text(text) => {
+                    MessageContentBlock::Text(text) => {
                         if !text.text.is_empty() {
                             parts.push(json!({"text": text.text}));
                         }
                     }
-                    MessageContent::ToolRequest(request) => match &request.tool_call {
+                    MessageContentBlock::ToolRequest(request) => match &request.tool_call {
                         Ok(tool_call) => {
                             let mut function_call_part = Map::new();
                             function_call_part.insert("id".to_string(), json!(request.id));
@@ -166,13 +164,13 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                             parts.push(json!({"text":format!("Error: {}", e)}));
                         }
                     },
-                    MessageContent::ToolResponse(response) => match &response.tool_result {
+                    MessageContentBlock::ToolResponse(response) => match &response.tool_result {
                         Ok(result) => {
                             let mut tool_content = Vec::new();
                             let mut media = Vec::new();
-                            for content in result.content.iter().map(|c| c.raw.clone()) {
+                            for content in result.content.iter().cloned() {
                                 match content {
-                                    RawContent::Image(image) => {
+                                    ContentBlock::Image(image) => {
                                         if nested_function_response_media {
                                             media.push(json!({
                                                 "inlineData": {
@@ -190,17 +188,17 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                                         }
                                     }
                                     _ => {
-                                        tool_content.push(content.no_annotation());
+                                        tool_content.push(content);
                                     }
                                 }
                             }
                             let mut text = tool_content
                                 .iter()
-                                .filter_map(|c| match c.deref() {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    RawContent::Resource(raw_embedded_resource) => Some(
-                                        raw_embedded_resource.clone().no_annotation().get_text(),
-                                    ),
+                                .filter_map(|c| match c {
+                                    ContentBlock::Text(t) => Some(t.text.clone()),
+                                    ContentBlock::Resource(raw_embedded_resource) => {
+                                        Some(raw_embedded_resource.clone().get_text())
+                                    }
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>()
@@ -237,8 +235,8 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                             parts.push(json!(part));
                         }
                     },
-                    MessageContent::Thinking(_) => {}
-                    MessageContent::Image(image) => {
+                    MessageContentBlock::Thinking(_) => {}
+                    MessageContentBlock::Image(image) => {
                         parts.push(json!({
                             "inline_data": {
                                 "mime_type": image.mime_type,
@@ -284,7 +282,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 fn process_response_part_impl(
     part: &Value,
     last_signature: &mut Option<String>,
-) -> Option<MessageContent> {
+) -> Option<MessageContentBlock> {
     let signature = part.get(THOUGHT_SIGNATURE_KEY).and_then(|v| v.as_str());
     let is_thought = part
         .get("thought")
@@ -302,11 +300,14 @@ fn process_response_part_impl(
         }
         if is_thought {
             match signature {
-                Some(sig) => Some(MessageContent::thinking(text.to_string(), sig.to_string())),
-                None => Some(MessageContent::thinking(text.to_string(), "")),
+                Some(sig) => Some(MessageContentBlock::thinking(
+                    text.to_string(),
+                    sig.to_string(),
+                )),
+                None => Some(MessageContentBlock::thinking(text.to_string(), "")),
             }
         } else {
-            Some(MessageContent::text(text.to_string()))
+            Some(MessageContentBlock::text(text.to_string()))
         }
     } else if text_value.is_some() {
         tracing::warn!(
@@ -331,7 +332,7 @@ fn process_response_part_impl(
                 )),
                 data: None,
             };
-            Some(MessageContent::tool_request(id, Err(error)))
+            Some(MessageContentBlock::tool_request(id, Err(error)))
         } else {
             let arguments = function_call
                 .get("args")
@@ -339,7 +340,7 @@ fn process_response_part_impl(
             let effective_signature = signature.or(last_signature.as_deref());
             let metadata = effective_signature.map(metadata_with_signature);
 
-            Some(MessageContent::tool_request_with_metadata(
+            Some(MessageContentBlock::tool_request_with_metadata(
                 id,
                 Ok({
                     let mut params = CallToolRequestParams::new(name.to_string());
@@ -742,19 +743,22 @@ mod tests {
     use super::*;
     use crate::conversation::message::Message;
     use rmcp::model::{CallToolRequestParams, CallToolResult};
-    use rmcp::{model::Content, object};
+    use rmcp::{model::ContentBlock, object};
     use serde_json::json;
     use std::collections::HashMap;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
-        Message::new(role, 0, vec![MessageContent::text(text.to_string())])
+        Message::new(role, 0, vec![MessageContentBlock::text(text.to_string())])
     }
 
     fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_request(id.to_string(), Ok(tool_call))],
+            vec![MessageContentBlock::tool_request(
+                id.to_string(),
+                Ok(tool_call),
+            )],
         )
     }
 
@@ -762,7 +766,7 @@ mod tests {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::action_required(
+            vec![MessageContentBlock::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -771,11 +775,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
+    fn set_up_tool_response_message(id: &str, tool_response: Vec<ContentBlock>) -> Message {
         Message::new(
             Role::Assistant,
             0,
-            vec![MessageContent::tool_response(
+            vec![MessageContentBlock::tool_response(
                 id.to_string(),
                 Ok(CallToolResult::success(tool_response)),
             )],
@@ -833,19 +837,15 @@ mod tests {
 
     #[test]
     fn test_message_to_google_spec_image_message() {
-        use rmcp::model::{AnnotateAble, RawImageContent};
+        use rmcp::model::ImageContent;
 
-        let image = RawImageContent {
-            mime_type: "image/png".to_string(),
-            data: "base64encodeddata".to_string(),
-            meta: None,
-        };
+        let image = ImageContent::new("base64encodeddata", "image/png");
         let messages = vec![Message::new(
             Role::User,
             0,
             vec![
-                MessageContent::text("What is in this image?".to_string()),
-                MessageContent::Image(image.no_annotation()),
+                MessageContentBlock::text("What is in this image?".to_string()),
+                MessageContentBlock::Image(image),
             ],
         )];
         let payload = format_messages(&messages, false);
@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn test_message_to_google_spec_tool_result_message() {
-        let tool_result: Vec<Content> = vec![Content::text("Hello")];
+        let tool_result: Vec<ContentBlock> = vec![ContentBlock::text("Hello")];
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
         let payload = format_messages(&messages, false);
         assert_eq!(payload.len(), 1);
@@ -910,7 +910,7 @@ mod tests {
     fn test_function_response_matches_function_call() {
         let messages = vec![
             set_up_tool_request_message("call_123", CallToolRequestParams::new("read_file")),
-            set_up_tool_response_message("call_123", vec![Content::text("contents")]),
+            set_up_tool_response_message("call_123", vec![ContentBlock::text("contents")]),
         ];
 
         let payload = format_messages(&messages, false);
@@ -932,8 +932,8 @@ mod tests {
             set_up_tool_response_message(
                 "call_123",
                 vec![
-                    Content::text("Screenshot captured"),
-                    Content::image("base64encodeddata", "image/png"),
+                    ContentBlock::text("Screenshot captured"),
+                    ContentBlock::image("base64encodeddata", "image/png"),
                 ],
             ),
         ];
@@ -959,10 +959,10 @@ mod tests {
 
     #[test]
     fn test_message_to_google_spec_tool_result_multiple_texts() {
-        let tool_result: Vec<Content> = vec![
-            Content::text("Hello"),
-            Content::text("World"),
-            Content::embedded_text("test_uri", "This is a test."),
+        let tool_result: Vec<ContentBlock> = vec![
+            ContentBlock::text("Hello"),
+            ContentBlock::text("World"),
+            ContentBlock::embedded_text("test_uri", "This is a test."),
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
@@ -1047,7 +1047,7 @@ mod tests {
         let message = response_to_message(response).unwrap();
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello, world!");
         } else {
             panic!("Expected text content");
@@ -1123,7 +1123,7 @@ mod tests {
 
     #[test]
     fn test_response_to_message_with_empty_content() {
-        let tool_result: Vec<Content> = Vec::new();
+        let tool_result: Vec<ContentBlock> = Vec::new();
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
         let payload = format_messages(&messages, false);
@@ -1172,7 +1172,7 @@ mod tests {
     }
 
     fn tool_result(text: &str) -> CallToolResult {
-        CallToolResult::success(vec![Content::text(text)])
+        CallToolResult::success(vec![ContentBlock::text(text)])
     }
 
     #[test]
@@ -1332,7 +1332,7 @@ mod tests {
             let (message, usage) = result.unwrap();
             if let Some(msg) = message {
                 message_ids.push(msg.id.clone());
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }
@@ -1373,7 +1373,7 @@ mod tests {
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::ToolRequest(req)) = msg.content.first() {
+                if let Some(MessageContentBlock::ToolRequest(req)) = msg.content.first() {
                     if let Ok(tool_call) = &req.tool_call {
                         tool_calls.push(tool_call.name.to_string());
                     }
@@ -1399,8 +1399,8 @@ mod tests {
                 if let Some(msg) = message {
                     for c in &msg.content {
                         match c {
-                            MessageContent::Text(t) => text.push_str(&t.text),
-                            MessageContent::Thinking(_) => thinking += 1,
+                            MessageContentBlock::Text(t) => text.push_str(&t.text),
+                            MessageContentBlock::Thinking(_) => thinking += 1,
                             _ => {}
                         }
                     }
@@ -1503,7 +1503,7 @@ data: [DONE]"#;
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }
@@ -1536,7 +1536,7 @@ data: [DONE]"#;
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                if let Some(MessageContentBlock::Text(text)) = msg.content.first() {
                     text_parts.push(text.text.clone());
                 }
             }

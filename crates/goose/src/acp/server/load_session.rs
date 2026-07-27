@@ -130,7 +130,9 @@ fn replay_conversation_to_client(
             match content_item {
                 MessageContent::Text(text) => {
                     let mut tc = TextContent::new(text.text.clone());
-                    if let Some(audience) = text.audience() {
+                    if let Some(audience) =
+                        text.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                    {
                         tc = tc.annotations(replay_audience_annotations(audience));
                     }
                     send_replay_content_chunk(cx, &session_id, message, ContentBlock::Text(tc))?;
@@ -138,7 +140,9 @@ fn replay_conversation_to_client(
                 MessageContent::Image(image) => {
                     let mut image_content =
                         ImageContent::new(image.data.clone(), image.mime_type.clone());
-                    if let Some(audience) = image.audience() {
+                    if let Some(audience) =
+                        image.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                    {
                         image_content =
                             image_content.annotations(replay_audience_annotations(audience));
                     }
@@ -165,6 +169,7 @@ fn replay_conversation_to_client(
                     let fields = tool_call_update_fields_from_response(
                         tool_response,
                         replay_tool_requests.get(&tool_response.id),
+                        true,
                     );
 
                     let update =

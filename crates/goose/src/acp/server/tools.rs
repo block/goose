@@ -91,7 +91,20 @@ impl GooseAcpAgent {
             params
         };
 
-        let ctx = crate::agents::ToolCallContext::new(session_id.clone(), None, None);
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+
+        let ctx = crate::agents::ToolCallContext::new(
+            session_id.clone(),
+            Some(session.working_dir),
+            None,
+        );
         let tool_result = agent
             .extension_manager
             .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
