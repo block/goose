@@ -144,6 +144,9 @@ pub struct ReplyContext {
     pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
     pub model_config: goose_providers::model::ModelConfig,
+    /// The hint files baked into `system_prompt`, kept so the context report can
+    /// break them down without re-reading them.
+    pub hint_sources: Vec<crate::hints::HintSource>,
 }
 
 pub struct ToolCategorizeResult {
@@ -751,7 +754,7 @@ impl Agent {
         }
         let initial_messages = conversation.messages().clone();
 
-        let (tools, toolshim_tools, system_prompt, model_config) = self
+        let (tools, toolshim_tools, system_prompt, model_config, hint_sources) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
@@ -784,6 +787,7 @@ impl Agent {
             tool_call_cut_off,
             initial_messages,
             model_config,
+            hint_sources,
         })
     }
 
@@ -1863,6 +1867,7 @@ impl Agent {
             goose_mode,
             initial_messages,
             model_config,
+            hint_sources: _,
         } = context;
 
         if let Some(project_addendum) = self.load_project_instructions(&session).await {
@@ -2660,7 +2665,7 @@ impl Agent {
                 can_drain_pending_steers = true;
 
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt, _) =
+                    (tools, toolshim_tools, system_prompt, _, _) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
 
@@ -2671,7 +2676,7 @@ impl Agent {
                         .await
                         .load_subdirectory_hints(&working_dir);
                     if has_new_hints && !tools_updated {
-                        (tools, toolshim_tools, system_prompt, _) =
+                        (tools, toolshim_tools, system_prompt, _, _) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                     }
                 }

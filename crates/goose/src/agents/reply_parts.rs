@@ -14,6 +14,9 @@ use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::{fix_conversation, Conversation};
+use crate::hints::{
+    build_gitignore, get_context_filenames, load_hint_files_with_sources, HintSource,
+};
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
@@ -182,11 +185,14 @@ impl Agent {
         }
     }
 
+    /// The returned hint files are the ones baked into the returned system
+    /// prompt: callers that describe the prompt (the context report) must reuse
+    /// them rather than re-read, or the two can disagree.
     pub async fn prepare_tools_and_prompt(
         &self,
         session_id: &str,
         working_dir: &std::path::Path,
-    ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
+    ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig, Vec<HintSource>)> {
         let mut tools = self.list_tools(session_id, None).await;
 
         let code_execution_active = self.is_code_execution_active().await;
@@ -262,6 +268,12 @@ impl Agent {
             self.tool_inspection_manager.apply_tool_annotations(&tools);
         }
 
+        let hint_sources = load_hint_files_with_sources(
+            working_dir,
+            &get_context_filenames(),
+            &build_gitignore(working_dir),
+        );
+
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager
             .builder()
@@ -269,7 +281,7 @@ impl Agent {
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
-            .with_hints(working_dir)
+            .with_hint_sources(&hint_sources)
             .with_goose_mode(goose_mode)
             .build();
 
@@ -284,7 +296,13 @@ impl Agent {
             tools = vec![];
         }
 
-        Ok((tools, toolshim_tools, system_prompt, model_config))
+        Ok((
+            tools,
+            toolshim_tools,
+            system_prompt,
+            model_config,
+            hint_sources,
+        ))
     }
 
     #[tracing::instrument(
@@ -926,7 +944,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (tools, _toolshim_tools, _system_prompt, _model_config) = agent
+        let (tools, _toolshim_tools, _system_prompt, _model_config, _hint_sources) = agent
             .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 
@@ -989,7 +1007,7 @@ mod tests {
             )
             .await?;
 
-        let (tools, toolshim_tools, _, _) = agent
+        let (tools, toolshim_tools, _, _, _) = agent
             .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 

@@ -10,6 +10,9 @@ use crate::mcp_utils::extract_text_from_resource;
 
 static TOKENIZER: OnceCell<Arc<CoreBPE>> = OnceCell::const_new();
 
+/// Per-message framing the provider adds around each message's content.
+const TOKENS_PER_MESSAGE: usize = 4;
+
 const MAX_TOKEN_CACHE_SIZE: usize = 1_024;
 
 // token use for various bits of a tool calls:
@@ -128,14 +131,13 @@ impl TokenCounter {
     }
 
     pub fn count_message_tokens(&self, message: &Message) -> usize {
-        let tokens_per_message = 4;
         let mut num_tokens = 0;
 
         if !message.metadata.agent_visible {
             return 0;
         }
 
-        num_tokens += tokens_per_message;
+        num_tokens += TOKENS_PER_MESSAGE;
         for content in &message.content {
             if let Some(text) = message_content_token_text(content) {
                 num_tokens += self.count_tokens(&text);
@@ -151,11 +153,10 @@ impl TokenCounter {
         messages: &[Message],
         tools: &[Tool],
     ) -> usize {
-        let tokens_per_message = 4;
         let mut num_tokens = 0;
 
         if !system_prompt.is_empty() {
-            num_tokens += self.count_tokens(system_prompt) + tokens_per_message;
+            num_tokens += self.count_tokens(system_prompt) + TOKENS_PER_MESSAGE;
         }
 
         for message in messages {
@@ -267,9 +268,12 @@ pub(crate) fn message_content_token_text(content: &MessageContent) -> Option<Str
             "[redacted thinking: {} base64 chars]",
             redacted.data.len()
         )),
+        // UI-only blocks. Every format converter drops these before the
+        // request goes out, so counting them would bill context that the
+        // provider never sees.
         MessageContent::ToolConfirmationRequest(_)
         | MessageContent::ActionRequired(_)
-        | MessageContent::SystemNotification(_) => Some(content.to_string()),
+        | MessageContent::SystemNotification(_) => None,
     }
 }
 
@@ -290,6 +294,7 @@ pub async fn create_token_counter() -> Result<TokenCounter, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::SystemNotificationType;
     use rmcp::model::{ErrorCode, ErrorData};
 
     #[tokio::test]
@@ -422,5 +427,33 @@ mod tests {
         assert!(message_content_token_text(&message.content[2])
             .unwrap()
             .contains("tool failed"));
+    }
+
+    #[tokio::test]
+    async fn ui_only_blocks_are_not_counted_but_provider_visible_ones_are() {
+        let counter = create_token_counter().await.unwrap();
+
+        let ui_only = Message::assistant()
+            .with_content(MessageContent::action_required(
+                "req-1",
+                "shell".to_string(),
+                serde_json::Map::new(),
+                Some("a prompt long enough to register as tokens".to_string()),
+            ))
+            .with_content(MessageContent::system_notification(
+                SystemNotificationType::InlineMessage,
+                "a notice the provider never receives",
+            ));
+        assert_eq!(
+            counter.count_message_tokens(&ui_only),
+            TOKENS_PER_MESSAGE,
+            "blocks every format converter drops must not be billed"
+        );
+
+        let thinking = Message::assistant().with_thinking("internal reasoning", "sig");
+        assert!(
+            counter.count_message_tokens(&thinking) > TOKENS_PER_MESSAGE,
+            "thinking is sent to the provider and must be counted"
+        );
     }
 }

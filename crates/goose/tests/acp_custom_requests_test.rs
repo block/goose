@@ -1338,6 +1338,29 @@ fn test_custom_context_report() {
                 })
         }));
 
+        // A compaction summary reports only its `##` sections, so its parts are a
+        // partial view by design; every other segment must account for itself.
+        for segment in segments
+            .iter()
+            .filter(|segment| segment["category"] != "compaction_summary")
+        {
+            let Some(parts) = segment["parts"].as_array() else {
+                continue;
+            };
+            for field in ["tokenCount", "charCount"] {
+                let part_sum: u64 = parts
+                    .iter()
+                    .map(|part| part[field].as_u64().expect(field))
+                    .sum();
+                assert_eq!(
+                    segment[field].as_u64().expect(field),
+                    part_sum,
+                    "{field} of segment {} is not the sum of its parts",
+                    segment["label"]
+                );
+            }
+        }
+
         let estimated = response["estimatedTotalTokens"]
             .as_u64()
             .expect("estimatedTotalTokens");

@@ -97,6 +97,11 @@ fn configured_compaction_model_name_from(config: &Config) -> Option<String> {
     }
 }
 
+/// Model for lightweight auxiliary tasks (session naming, tool-call labels).
+/// Resolution order:
+///   1. `GOOSE_FAST_MODEL`
+///   2. the provider's declared default fast model
+///   3. the supplied `model_config` (i.e. the main model)
 pub async fn get_fast_model(
     provider_name: &str,
     model_config: &ModelConfig,
@@ -104,6 +109,12 @@ pub async fn get_fast_model(
     resolve_lightweight_model(provider_name, model_config, configured_fast_model_name()).await
 }
 
+/// Model that performs compaction and tool-pair summarization. Resolution
+/// order is `get_fast_model`'s with a compaction-specific override in front:
+///   1. `GOOSE_COMPACTION_MODEL`
+///   2. `GOOSE_FAST_MODEL`
+///   3. the provider's declared default fast model
+///   4. the supplied `model_config` (i.e. the main model)
 pub async fn get_compaction_model(
     provider_name: &str,
     model_config: &ModelConfig,
@@ -302,6 +313,7 @@ fn get_goose_toolshim(config: &Config) -> Result<Option<bool>> {
     }
 }
 
+/// Resolve the global toolshim setting, defaulting to false when unset.
 pub fn global_toolshim() -> bool {
     get_goose_toolshim(Config::global())
         .ok()

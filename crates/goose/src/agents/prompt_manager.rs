@@ -7,11 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::{extension::ExtensionInfo, moim};
-use crate::hints::load_hints::build_gitignore;
-use crate::hints::{
-    combine_hint_sources, get_context_filenames, load_hint_files, HintSource,
-    SubdirectoryHintTracker,
-};
+use crate::hints::{combine_hint_sources, HintSource, SubdirectoryHintTracker};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -108,18 +104,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn with_hints(mut self, working_dir: &Path) -> Self {
-        let hints_filenames = get_context_filenames();
-        let ignore_patterns = build_gitignore(working_dir);
-
-        let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
-
-        if !hints.is_empty() {
-            self.hints = Some(hints);
-        }
-        self
-    }
-
     pub fn with_hint_sources(mut self, sources: &[HintSource]) -> Self {
         let hints = combine_hint_sources(sources);
         if !hints.is_empty() {
@@ -212,40 +196,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .collect()
     }
 
-    fn rendered_extension_instructions(
-        &self,
-        extensions: &[ExtensionInfo],
-        goose_mode: GooseMode,
-    ) -> Vec<bool> {
-        let markers: Vec<String> = (0..extensions.len())
-            .map(|index| format!("{CONTEXT_REPORT_EXTENSION_MARKER_PREFIX}{index}__"))
-            .collect();
-        let marked_extensions = extensions
-            .iter()
-            .zip(&markers)
-            .map(|(extension, marker)| {
-                let mut extension = extension.clone();
-                extension.instructions = marker.clone();
-                extension
-            })
-            .collect();
-        let rendered = self.render_base(marked_extensions, goose_mode, None);
-
-        markers
-            .iter()
-            .map(|marker| rendered.contains(marker))
-            .collect()
-    }
-
-    fn renders_moim_block(&self, extensions: Vec<ExtensionInfo>, goose_mode: GooseMode) -> bool {
-        self.render_base(
-            extensions,
-            goose_mode,
-            Some(CONTEXT_REPORT_MOIM_MARKER.to_string()),
-        )
-        .contains(CONTEXT_REPORT_MOIM_MARKER)
-    }
-
     pub fn build(self) -> String {
         let goose_mode = self.resolved_goose_mode();
         let base_prompt = self.render_base(
@@ -267,35 +217,64 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         }
     }
 
+    /// Decomposes the prompt `build` would produce into the pieces the context
+    /// report attributes separately: the template itself, each extension's
+    /// instructions, the MOIM block and the extras.
+    ///
+    /// The base is rendered with each variable-supplied body replaced by a marker
+    /// which is then stripped, rather than rendered empty: an empty value makes
+    /// the template's `{% if %}` guards drop literal scaffolding (the
+    /// `### Instructions` heading) that the real prompt does contain.
     pub fn build_segments(self) -> SystemPromptSegments {
         let goose_mode = self.resolved_goose_mode();
         let prepared = self.prepared_extensions();
-        let rendered_extension_instructions =
-            self.rendered_extension_instructions(&prepared, goose_mode);
-        let includes_moim = self.renders_moim_block(prepared.clone(), goose_mode);
 
-        let extension_instructions = prepared
+        let markers: Vec<Option<String>> = prepared
             .iter()
-            .zip(rendered_extension_instructions)
-            .filter(|(extension, rendered)| *rendered && !extension.instructions.is_empty())
-            .map(|(extension, _)| (extension.name.clone(), extension.instructions.clone()))
+            .enumerate()
+            .map(|(index, extension)| {
+                (!extension.instructions.is_empty())
+                    .then(|| format!("{CONTEXT_REPORT_EXTENSION_MARKER_PREFIX}{index}__"))
+            })
             .collect();
-
-        let blanked: Vec<ExtensionInfo> = prepared
-            .into_iter()
-            .map(|mut ext| {
-                ext.instructions = String::new();
-                ext
+        let marked_extensions: Vec<ExtensionInfo> = prepared
+            .iter()
+            .zip(&markers)
+            .map(|(extension, marker)| {
+                let mut extension = extension.clone();
+                extension.instructions = marker.clone().unwrap_or_default();
+                extension
             })
             .collect();
 
-        let base_template_blanked = self.render_base(blanked, goose_mode, None);
+        let moim_block = moim::system_prompt_block();
+        let mut base = self.render_base(
+            marked_extensions,
+            goose_mode,
+            moim_block
+                .as_ref()
+                .map(|_| CONTEXT_REPORT_MOIM_MARKER.to_string()),
+        );
+
+        let extension_instructions = prepared
+            .iter()
+            .zip(&markers)
+            .filter(|(_, marker)| marker.as_deref().is_some_and(|m| base.contains(m)))
+            .map(|(extension, _)| (extension.name.clone(), extension.instructions.clone()))
+            .collect();
+        let moim_block = moim_block.filter(|_| base.contains(CONTEXT_REPORT_MOIM_MARKER));
+
+        for marker in markers.iter().flatten() {
+            base = base.replace(marker.as_str(), "");
+        }
+        base = base.replace(CONTEXT_REPORT_MOIM_MARKER, "");
+
         let extras = self.finalize_extras(goose_mode);
 
         SystemPromptSegments {
-            base_template_blanked,
+            base_template_blanked: base,
             base_is_override: self.manager.system_prompt_override.is_some(),
-            moim_block: includes_moim.then(moim::system_prompt_block).flatten(),
+            moim_block,
             extension_instructions,
             extras,
         }
@@ -324,6 +303,8 @@ impl PromptManager {
         }
     }
 
+    /// Add an additional instruction to the system prompt with a key
+    /// Using the same key will replace the previous instruction
     pub fn add_system_prompt_extra(&mut self, key: String, instruction: String) {
         self.system_prompt_extras.insert(key, instruction);
     }
@@ -350,6 +331,7 @@ impl PromptManager {
         has_new
     }
 
+    /// Override the system prompt with custom text
     pub fn set_system_prompt_override(&mut self, template: String) {
         self.system_prompt_override = Some(template);
     }
@@ -540,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_hint_sources_combine_to_loaded_hints() {
-        use crate::hints::load_hint_files_with_sources;
+        use crate::hints::{build_gitignore, load_hint_files, load_hint_files_with_sources};
 
         let home_dir = tempfile::tempdir().unwrap();
         let home = home_dir.path().display().to_string();
@@ -576,6 +558,80 @@ mod tests {
             .build();
         assert!(prompt.contains("global hint content"));
         assert!(prompt.contains("project hint content"));
+    }
+
+    /// Everything `build` emits must be attributed to exactly one segment. The
+    /// only text `build_segments` does not own is the literal
+    /// `\n\n# Additional Instructions:\n\n` separator `build` inserts before the
+    /// extras, which the report sweeps into its residual bucket.
+    #[test]
+    fn test_build_segments_reconstruct_the_built_prompt_byte_for_byte() {
+        use crate::hints::HintScope;
+        use std::path::PathBuf;
+
+        let mut manager = PromptManager::new();
+        manager.add_system_prompt_extra("project".to_string(), "Project extra".to_string());
+
+        let hint_sources = vec![
+            HintSource {
+                path: PathBuf::from("/config/AGENTS.md"),
+                scope: HintScope::Global,
+                content: "Global hint body.".to_string(),
+            },
+            HintSource {
+                path: PathBuf::from("/repo/AGENTS.md"),
+                scope: HintScope::Project,
+                content: "Project hint body.".to_string(),
+            },
+        ];
+        let builder = || {
+            manager
+                .builder()
+                .with_extension(ExtensionInfo::new("extension_A", "<how to use A>", true))
+                .with_extension(ExtensionInfo::new("extension_B", "<how to use B>", false))
+                .with_extension(ExtensionInfo::new("extension_C", "", false))
+                .with_hint_sources(&hint_sources)
+                .with_goose_mode(GooseMode::Auto)
+        };
+
+        let prompt = builder().build();
+        let segments = builder().build_segments();
+
+        assert_eq!(
+            segments
+                .base_template_blanked
+                .matches("### Instructions")
+                .count(),
+            2,
+            "literal template scaffolding must survive in the base segment"
+        );
+
+        let (base_part, extras_part) = prompt
+            .split_once("\n\n# Additional Instructions:\n\n")
+            .expect("extras are present");
+        assert_eq!(
+            extras_part,
+            segments
+                .extras
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        );
+
+        let mut remaining = base_part.to_string();
+        if let Some(moim_block) = &segments.moim_block {
+            remaining = remaining.replacen(moim_block, "", 1);
+        }
+        for (name, instructions) in &segments.extension_instructions {
+            assert!(
+                remaining.contains(instructions),
+                "{name} instructions are not in the built prompt"
+            );
+            remaining = remaining.replacen(instructions, "", 1);
+        }
+
+        assert_eq!(remaining, segments.base_template_blanked);
     }
 
     #[test]

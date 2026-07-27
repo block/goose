@@ -202,7 +202,7 @@ async fn count_retained_context_tokens(conversation: &Conversation) -> Option<i3
                 .messages()
                 .iter()
                 .filter(|m| m.is_agent_visible())
-                .map(|msg| counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                .map(|msg| counter.count_message_tokens(msg))
                 .sum();
             Some(total as i32)
         }
@@ -251,13 +251,13 @@ pub async fn check_if_compaction_needed(
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
-            let token_counts: Vec<_> = messages
+            let estimated: usize = messages
                 .iter()
                 .filter(|m| m.is_agent_visible())
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .collect();
+                .map(|msg| token_counter.count_message_tokens(msg))
+                .sum();
 
-            (token_counts.iter().sum(), "estimated")
+            (estimated, "estimated")
         }
     };
 
@@ -325,6 +325,12 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
 // summarization prompt fits the compaction model's context window.
 const REMOVAL_PERCENTAGES: [u32; 5] = [0, 10, 20, 50, 100];
 
+// Share of the compaction model's window the summarization prompt may occupy,
+// leaving room for the summary itself. Distinct from
+// GOOSE_AUTO_COMPACT_THRESHOLD, which decides *when* to compact: a user who
+// compacts at 50% still wants the whole compaction window used here.
+const COMPACTION_PROMPT_FILL: f64 = 0.8;
+
 /// Pick the first removal percentage whose estimated prompt size fits the
 /// compaction model's context window, so a compaction model with a smaller
 /// window than the main model doesn't waste full-context attempts that are
@@ -347,7 +353,7 @@ async fn initial_removal_index(
         .get_context_limit(&compaction_model)
         .await
         .unwrap_or_else(|_| compaction_model.context_limit());
-    let budget = (context_limit as f64 * DEFAULT_COMPACTION_THRESHOLD) as usize;
+    let budget = (context_limit as f64 * COMPACTION_PROMPT_FILL) as usize;
 
     let Ok(token_counter) = create_token_counter().await else {
         return 0;
@@ -358,7 +364,7 @@ async fn initial_removal_index(
         .position(|&remove_percent| {
             let estimated_tokens: usize = filter_tool_responses(messages, remove_percent)
                 .iter()
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(*msg), &[]))
+                .map(|msg| token_counter.count_message_tokens(msg))
                 .sum();
             estimated_tokens <= budget
         })

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use anyhow::Result;
 use rmcp::model::{Role, Tool};
@@ -12,13 +11,14 @@ use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::Agent;
 use crate::conversation::message::Message;
 use crate::conversation::{is_turn_context_text, Conversation};
-use crate::hints::{
-    build_gitignore, get_context_filenames, load_hint_files_with_sources, HintScope, HintSource,
+use crate::hints::{combine_hint_sources, HintScope, HintSource};
+use crate::providers::toolshim::{
+    convert_tool_messages_to_text, format_tool_info, toolshim_system_prompt_appendix,
 };
-use crate::providers::toolshim::{convert_tool_messages_to_text, toolshim_system_prompt_appendix};
 use crate::token_counter::TokenCounter;
+use crate::utils::sanitize_unicode_tags;
 
-pub const MAX_PREVIEW_CHARS: usize = 2_000;
+const MAX_PREVIEW_CHARS: usize = 2_000;
 const TURN_CONTEXT_PLACEHOLDER_ID: &str = "context-report-turn-context-placeholder";
 const TURN_CONTEXT_PLACEHOLDER_TEXT: &str = "[context report placeholder]";
 
@@ -53,7 +53,6 @@ impl Agent {
     pub async fn build_context_report(
         &self,
         session_id: &str,
-        working_dir: &Path,
         token_counter: &TokenCounter,
     ) -> Result<ContextReportResponse> {
         let session = self
@@ -61,6 +60,7 @@ impl Agent {
             .session_manager
             .get_session(session_id, true)
             .await?;
+        let working_dir = session.working_dir.as_path();
         let persisted_conversation = session
             .conversation
             .clone()
@@ -75,6 +75,7 @@ impl Agent {
         let toolshim_tools = context.toolshim_tools;
         let mut system_prompt = context.system_prompt;
         let model_config = context.model_config;
+        let hint_sources = context.hint_sources;
         let project_addendum = self.load_project_instructions(&session).await;
         let conversation = if report_is_empty {
             Conversation::empty()
@@ -120,12 +121,6 @@ impl Agent {
         let goose_mode = *self.current_goose_mode.lock().await;
         let frontend_instructions = self.frontend_instructions.lock().await.clone();
         let code_execution_active = self.is_code_execution_active().await;
-
-        let hint_sources = {
-            let filenames = get_context_filenames();
-            let ignore = build_gitignore(working_dir);
-            load_hint_files_with_sources(working_dir, &filenames, &ignore)
-        };
 
         let pieces = {
             let prompt_manager = self.prompt_manager.lock().await;
@@ -348,23 +343,37 @@ fn turn_context_text(conversation: &Conversation) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Marginal diffing over a cumulative prefix, so the scope headers
+/// `combine_hint_sources` inserts are charged to the file that introduces them
+/// and the parts sum to the combined hint block the segment measures. The
+/// sanitization mirrors what the builder applies to every extra.
 fn hint_parts(sources: &[HintSource], token_counter: &TokenCounter) -> Vec<ContextPart> {
-    sources
-        .iter()
-        .map(|source| {
-            let scope = match source.scope {
+    let mut cumulative: Vec<HintSource> = Vec::with_capacity(sources.len());
+    let mut cumulative_tokens = 0usize;
+    let mut cumulative_chars = 0usize;
+    let mut parts = Vec::with_capacity(sources.len());
+
+    for source in sources {
+        cumulative.push(source.clone());
+        let combined = sanitize_unicode_tags(&combine_hint_sources(&cumulative));
+        let before_tokens = cumulative_tokens;
+        let before_chars = cumulative_chars;
+        cumulative_tokens = token_counter.count_tokens(&combined);
+        cumulative_chars = combined.chars().count();
+        parts.push(ContextPart {
+            label: match source.scope {
                 HintScope::Global => "global",
                 HintScope::Project => "project",
-            };
-            ContextPart {
-                label: scope.to_string(),
-                source: Some(source.path.display().to_string()),
-                token_count: token_counter.count_tokens(&source.content) as u64,
-                char_count: source.content.chars().count() as u64,
-                content_preview: Some(preview(&source.content)),
             }
-        })
-        .collect()
+            .to_string(),
+            source: Some(source.path.display().to_string()),
+            token_count: (cumulative_tokens - before_tokens) as u64,
+            char_count: (cumulative_chars - before_chars) as u64,
+            content_preview: Some(preview(&source.content)),
+        });
+    }
+
+    parts
 }
 
 fn tool_content(tool: &Tool) -> String {
@@ -417,28 +426,46 @@ fn tool_segments(tools: &[Tool], token_counter: &TokenCounter) -> Vec<ContextSeg
     segments
 }
 
+/// Toolshim tools live in the system prompt as `format_tool_info` text, not as a
+/// tool spec, so parts are marginal diffs over that same rendering with the fixed
+/// calling-convention preamble carried as its own part.
 fn toolshim_tool_segment(tools: &[Tool], token_counter: &TokenCounter) -> ContextSegment {
-    let appendix = toolshim_system_prompt_appendix(tools);
-    let parts: Vec<ContextPart> = tools
-        .iter()
-        .map(|tool| {
-            let content = tool_content(tool);
-            ContextPart {
-                label: tool.name.to_string(),
-                source: None,
-                token_count: token_counter.count_tokens(&content) as u64,
-                char_count: content.chars().count() as u64,
-                content_preview: Some(preview(&content)),
-            }
-        })
-        .collect();
+    let mut cumulative: Vec<Tool> = Vec::with_capacity(tools.len());
+    let mut appendix = toolshim_system_prompt_appendix(&cumulative);
+    let mut cumulative_tokens = token_counter.count_tokens(&appendix);
+    let mut cumulative_chars = appendix.chars().count();
+
+    let mut parts = Vec::with_capacity(tools.len() + 1);
+    parts.push(ContextPart {
+        label: "Tool calling instructions".to_string(),
+        source: None,
+        token_count: cumulative_tokens as u64,
+        char_count: cumulative_chars as u64,
+        content_preview: Some(preview(&appendix)),
+    });
+
+    for tool in tools {
+        cumulative.push(tool.clone());
+        appendix = toolshim_system_prompt_appendix(&cumulative);
+        let before_tokens = cumulative_tokens;
+        let before_chars = cumulative_chars;
+        cumulative_tokens = token_counter.count_tokens(&appendix);
+        cumulative_chars = appendix.chars().count();
+        parts.push(ContextPart {
+            label: tool.name.to_string(),
+            source: None,
+            token_count: (cumulative_tokens - before_tokens) as u64,
+            char_count: (cumulative_chars - before_chars) as u64,
+            content_preview: Some(preview(&format_tool_info(std::slice::from_ref(tool)))),
+        });
+    }
 
     ContextSegment {
         category: ContextCategory::ToolDefinitions,
         label: "Toolshim tool instructions".to_string(),
-        source: Some(format!("{} tools", parts.len())),
-        token_count: token_counter.count_tokens(&appendix) as u64,
-        char_count: appendix.chars().count() as u64,
+        source: Some(format!("{} tools", tools.len())),
+        token_count: cumulative_tokens as u64,
+        char_count: cumulative_chars as u64,
         content_preview: Some(preview(&appendix)),
         parts,
     }
@@ -749,6 +776,77 @@ mod tests {
             .sum();
         assert_eq!(segment_total, expected_total);
         assert_eq!(part_total, expected_total);
+    }
+
+    #[tokio::test]
+    async fn toolshim_segment_parts_account_for_every_appendix_token_exactly() {
+        let token_counter = TokenCounter::new().await.unwrap();
+        let tools = vec![
+            test_tool("alpha__read", "Read a file from disk.", Some("alpha")),
+            test_tool("beta__search", "Search the project tree.", Some("beta")),
+        ];
+
+        let segment = toolshim_tool_segment(&tools, &token_counter);
+        let appendix = toolshim_system_prompt_appendix(&tools);
+
+        assert_eq!(
+            segment.token_count,
+            token_counter.count_tokens(&appendix) as u64
+        );
+        assert_eq!(segment.char_count, appendix.chars().count() as u64);
+        assert_eq!(segment.parts.len(), tools.len() + 1);
+        assert_eq!(
+            segment.token_count,
+            segment
+                .parts
+                .iter()
+                .map(|part| part.token_count)
+                .sum::<u64>()
+        );
+        assert_eq!(
+            segment.char_count,
+            segment
+                .parts
+                .iter()
+                .map(|part| part.char_count)
+                .sum::<u64>()
+        );
+    }
+
+    #[tokio::test]
+    async fn hint_parts_account_for_the_combined_hint_block_exactly() {
+        let token_counter = TokenCounter::new().await.unwrap();
+        let sources = vec![
+            HintSource {
+                path: "/config/goose/AGENTS.md".into(),
+                scope: HintScope::Global,
+                content: "Never use an em dash.".to_string(),
+            },
+            HintSource {
+                path: "/repo/AGENTS.md".into(),
+                scope: HintScope::Project,
+                content: "Run cargo fmt before committing.".to_string(),
+            },
+            HintSource {
+                path: "/repo/CLAUDE.md".into(),
+                scope: HintScope::Project,
+                content: "Tests live in tests/.".to_string(),
+            },
+        ];
+
+        let combined = combine_hint_sources(&sources);
+        let parts = hint_parts(&sources, &token_counter);
+
+        assert_eq!(parts.len(), sources.len());
+        assert_eq!(
+            parts.iter().map(|part| part.token_count).sum::<u64>(),
+            token_counter.count_tokens(&combined) as u64,
+            "the scope headers combine_hint_sources adds must be charged to a part"
+        );
+        assert_eq!(
+            parts.iter().map(|part| part.char_count).sum::<u64>(),
+            combined.chars().count() as u64
+        );
     }
 
     const RENDERED_SUMMARY: &str = "# Conversation Summary
