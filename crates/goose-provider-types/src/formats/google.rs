@@ -172,8 +172,6 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                             let mut tool_content = Vec::new();
                             let mut media = Vec::new();
                             for content in result.content.iter().cloned() {
-                                // Images and embedded-resource blobs with a mime
-                                // type are forwarded as inline media.
                                 let inline = match &content {
                                     ContentBlock::Image(image) => {
                                         Some((image.mime_type.clone(), image.data.clone()))

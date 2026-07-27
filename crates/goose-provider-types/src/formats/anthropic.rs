@@ -230,8 +230,6 @@ fn format_messages_with_options(
                 MessageContentBlock::ToolResponse(tool_response) => {
                     match &tool_response.tool_result {
                         Ok(result) => {
-                            // Media present -> structured content blocks; otherwise a
-                            // single content string (preserving prior behavior).
                             let mut blocks: Vec<Value> = Vec::new();
                             let mut text_parts: Vec<String> = Vec::new();
                             let mut has_media = false;
