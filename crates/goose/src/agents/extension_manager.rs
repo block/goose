@@ -49,8 +49,8 @@ use crate::oauth::{oauth_flow, GooseCredentialStore};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Meta,
-    Prompt, Resource, ResourceContents, ServerInfo, Tool,
+    CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
+    Meta, Prompt, Resource, ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::{AuthClient, CredentialStore};
 use schemars::_private::NoSerialize;
@@ -1499,7 +1499,7 @@ impl ExtensionManager {
         session_id: &str,
         params: Value,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, ErrorData> {
+    ) -> Result<Vec<ContentBlock>, ErrorData> {
         let uri = require_str_parameter(&params, "uri")?;
         let extension_name = require_str_parameter(&params, "extension_name")?;
 
@@ -1510,7 +1510,7 @@ impl ExtensionManager {
         let mut result = Vec::new();
         for content in read_result.contents {
             if let ResourceContents::TextResourceContents { text, .. } = content {
-                result.push(Content::text(format!("{}\n\n{}", uri, text)));
+                result.push(ContentBlock::text(format!("{}\n\n{}", uri, text)));
             }
         }
         Ok(result)
@@ -1593,7 +1593,7 @@ impl ExtensionManager {
         session_id: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, ErrorData> {
+    ) -> Result<Vec<ContentBlock>, ErrorData> {
         let client = self
             .get_server_client(extension_name)
             .await
@@ -1623,7 +1623,7 @@ impl ExtensionManager {
                     .collect::<Vec<String>>()
                     .join("\n");
 
-                vec![Content::text(resource_list)]
+                vec![ContentBlock::text(resource_list)]
             })
     }
 
@@ -1632,7 +1632,7 @@ impl ExtensionManager {
         session_id: &str,
         params: Value,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, ErrorData> {
+    ) -> Result<Vec<ContentBlock>, ErrorData> {
         let extension = params.get("extension_name").and_then(|v| v.as_str());
 
         match extension {
@@ -1995,7 +1995,7 @@ impl ExtensionManager {
             .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
     }
 
-    pub async fn search_available_extensions(&self) -> Result<Vec<Content>, ErrorData> {
+    pub async fn search_available_extensions(&self) -> Result<Vec<ContentBlock>, ErrorData> {
         let mut output_parts = vec![];
 
         // First get disabled extensions from current config (skip hidden ones)
@@ -2059,7 +2059,7 @@ impl ExtensionManager {
             output_parts.push("No extensions that can be disabled.\n".to_string());
         }
 
-        Ok(vec![Content::text(output_parts.join("\n"))])
+        Ok(vec![ContentBlock::text(output_parts.join("\n"))])
     }
 
     async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {

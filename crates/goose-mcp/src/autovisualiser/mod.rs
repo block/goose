@@ -3,8 +3,8 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, Meta, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
+        ListResourcesResult, Meta, PaginatedRequestParams, ReadResourceRequestParams,
         ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
@@ -682,18 +682,11 @@ impl ServerHandler for AutoVisualiserRouter {
     ) -> Result<ListResourcesResult, ErrorData> {
         let resources = UI_RESOURCES
             .iter()
-            .map(|def| Resource {
-                raw: RawResource {
-                    uri: def.uri.to_string(),
-                    name: def.name.to_string(),
-                    title: Some(def.name.to_string()),
-                    description: Some(def.description.to_string()),
-                    mime_type: Some(MCP_APPS_MIME_TYPE.to_string()),
-                    size: None,
-                    icons: None,
-                    meta: None,
-                },
-                annotations: None,
+            .map(|def| {
+                Resource::new(def.uri, def.name)
+                    .with_title(def.name)
+                    .with_description(def.description)
+                    .with_mime_type(MCP_APPS_MIME_TYPE)
             })
             .collect();
 
@@ -922,7 +915,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/sankey")));
 
         Ok(result)
@@ -986,7 +979,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/radar")));
 
         Ok(result)
@@ -1067,7 +1060,7 @@ Example multiple charts (array of chart objects):
         };
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/donut")));
 
         Ok(result)
@@ -1129,7 +1122,7 @@ Example:
         );
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/treemap")));
 
         Ok(result)
@@ -1181,7 +1174,7 @@ Example:
         let text_fallback = format!("chord diagram: {} entities", entity_count);
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chord")));
 
         Ok(result)
@@ -1251,7 +1244,7 @@ Example:
         let text_fallback = format!("map: \"{}\" with {} marker(s)", title, marker_count);
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/map")));
 
         Ok(result)
@@ -1291,7 +1284,7 @@ graph TD;
         })?;
 
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/mermaid")));
 
         Ok(result)
@@ -1353,7 +1346,7 @@ Example:
         // The host fetches the template via read_resource and sends this data
         // to the template via the MCP Apps postMessage lifecycle.
         let mut result = CallToolResult::structured(data);
-        result.content = vec![Content::text(text_fallback)];
+        result.content = vec![ContentBlock::text(text_fallback)];
         result = result.with_meta(Some(ui_resource_meta("ui://autovisualiser/chart")));
 
         Ok(result)
@@ -1364,7 +1357,7 @@ Example:
 mod tests {
     use super::*;
     use rmcp::handler::server::wrapper::Parameters;
-    use rmcp::model::RawContent;
+    use rmcp::model::ContentBlock;
     use serde_json::json;
 
     #[test]
@@ -1507,7 +1500,7 @@ mod tests {
         text_contains: &str,
     ) {
         assert_eq!(tool_result.content.len(), 1);
-        if let RawContent::Text(text_content) = &tool_result.content[0].raw {
+        if let ContentBlock::Text(text_content) = &tool_result.content[0] {
             assert!(
                 text_content.text.contains(text_contains),
                 "Text fallback '{}' should contain '{}'",

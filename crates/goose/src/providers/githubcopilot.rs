@@ -42,8 +42,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
-use rmcp::model::{RawContent, Tool};
-use std::ops::Deref;
+use rmcp::model::{ContentBlock, Tool};
 
 const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
@@ -222,7 +221,7 @@ impl GithubCopilotProvider {
                 MessageContent::ToolResponse(resp) => resp.tool_result.as_ref().is_ok_and(|r| {
                     r.content
                         .iter()
-                        .any(|item| matches!(item.deref(), RawContent::Image(_)))
+                        .any(|item| matches!(item, ContentBlock::Image(_)))
                 }),
                 _ => false,
             })
@@ -790,9 +789,10 @@ mod tests {
     #[test]
     fn detects_images_in_tool_responses() {
         use crate::conversation::message::{Message, MessageContent};
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let image_content = Content::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
+        let image_content =
+            ContentBlock::image("aW1hZ2VkYXRh".to_string(), "image/png".to_string());
         let tool_result = Ok(CallToolResult::success(vec![image_content]));
 
         let messages =
@@ -800,7 +800,9 @@ mod tests {
                 .with_content(MessageContent::tool_response("call_123", tool_result))];
         assert!(GithubCopilotProvider::messages_contain_image(&messages));
 
-        let text_result = Ok(CallToolResult::success(vec![Content::text("no images")]));
+        let text_result = Ok(CallToolResult::success(vec![ContentBlock::text(
+            "no images",
+        )]));
         let messages_text_only =
             vec![Message::user()
                 .with_content(MessageContent::tool_response("call_456", text_result))];

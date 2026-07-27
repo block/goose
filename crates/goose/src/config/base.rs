@@ -1162,6 +1162,14 @@ impl Config {
         }
     }
 
+    pub fn get_goose_docs_root(&self) -> Result<Option<String>, ConfigError> {
+        match self.get_param::<String>("GOOSE_DOCS_ROOT") {
+            Ok(root) => Ok(Some(root.trim().to_string()).filter(|root| !root.is_empty())),
+            Err(ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn get_goose_thinking_effort(&self) -> Option<ThinkingEffort> {
         self.get_param::<String>("GOOSE_THINKING_EFFORT")
             .ok()
@@ -2561,6 +2569,48 @@ extensions:
                 ConfigError::DeserializeError(_)
             ));
         }
+    }
+
+    #[test]
+    fn get_goose_docs_root_reads_config_file() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+        config
+            .set_param("GOOSE_DOCS_ROOT", "/tmp/goose-docs")
+            .unwrap();
+
+        assert_eq!(
+            config.get_goose_docs_root().unwrap(),
+            Some("/tmp/goose-docs".to_string())
+        );
+    }
+
+    #[test]
+    fn get_goose_docs_root_reads_env_value() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", Some("/tmp/env-docs"))]);
+        let config = new_test_config();
+
+        assert_eq!(
+            config.get_goose_docs_root().unwrap(),
+            Some("/tmp/env-docs".to_string())
+        );
+    }
+
+    #[test]
+    fn get_goose_docs_root_returns_none_when_unset() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_docs_root().unwrap(), None);
+    }
+
+    #[test]
+    fn get_goose_docs_root_ignores_blank_value() {
+        let _guard = env_lock::lock_env([("GOOSE_DOCS_ROOT", None::<&str>)]);
+        let config = new_test_config();
+        config.set_param("GOOSE_DOCS_ROOT", "   ").unwrap();
+
+        assert_eq!(config.get_goose_docs_root().unwrap(), None);
     }
 
     #[test]

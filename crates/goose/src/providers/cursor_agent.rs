@@ -94,8 +94,8 @@ impl CursorAgentProvider {
                             let content_text = result
                                 .content
                                 .iter()
-                                .filter_map(|content| match &content.raw {
-                                    rmcp::model::RawContent::Text(text_content) => {
+                                .filter_map(|content| match content {
+                                    rmcp::model::ContentBlock::Text(text_content) => {
                                         Some(text_content.text.as_str())
                                     }
                                     _ => None,

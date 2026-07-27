@@ -1315,6 +1315,7 @@ impl CliSession {
                                                 output::render_text("Information request cancelled.", Some(Color::Yellow), true);
                                             }
                                             ElicitationAction::Accept => {}
+                                            _ => {}
                                         }
 
                                         let should_cancel = input.action == ElicitationAction::Cancel;
@@ -2007,6 +2008,7 @@ fn find_elicitation_request(message: &Message) -> Option<(String, String, Value)
 }
 
 /// Handle MCP notification event (logging or progress)
+#[expect(deprecated)]
 fn handle_mcp_notification(
     extension_id: &str,
     notification: &ServerNotification,
@@ -2380,20 +2382,12 @@ mod tests {
 
     #[test]
     fn planner_classification_excludes_user_only_content() {
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
-        let user_only = RawTextContent {
-            text: "user-only plan".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
-        let assistant_only = RawTextContent {
-            text: "agent classification text".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
+        let user_only = TextContent::new("user-only plan")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let assistant_only = TextContent::new("agent classification text")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
         let mixed = Message::assistant()
             .with_content(MessageContent::Text(user_only.clone()))
             .with_content(MessageContent::Text(assistant_only));
@@ -2410,15 +2404,11 @@ mod tests {
 
     #[test]
     fn planner_history_is_fixed_after_audience_projection() {
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let hidden_separator = MessageContent::Text(
-            RawTextContent {
-                text: "hidden separator".to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::User]),
+            TextContent::new("hidden separator")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
         );
         let history = Conversation::new_unvalidated([
             Message::user().with_text("first request"),

@@ -7,7 +7,7 @@ use agent_client_protocol::schema::v1::{
     ImageContent, Meta, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
     ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use rmcp::model::{CallToolResult, RawContent, ResourceContents};
+use rmcp::model::{CallToolResult, ContentBlock as RmcpContentBlock, ResourceContents};
 
 pub(crate) fn format_tool_name(tool_name: &str) -> String {
     let parts = ToolNameParts::from(tool_name);
@@ -215,14 +215,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
         Ok(result) => result
             .content
             .iter()
-            .filter_map(|content| match &content.raw {
-                RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
+            .filter_map(|content| match content {
+                RmcpContentBlock::Text(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Text(TextContent::new(val.text.clone())),
                 ))),
-                RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
+                RmcpContentBlock::Image(val) => Some(ToolCallContent::Content(Content::new(
                     ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
                 ))),
-                RawContent::Resource(val) => {
+                RmcpContentBlock::Resource(val) => {
                     let resource = match &val.resource {
                         ResourceContents::TextResourceContents {
                             mime_type,
@@ -242,12 +242,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                             BlobResourceContents::new(blob.clone(), uri.clone())
                                 .mime_type(mime_type.clone()),
                         ),
+                        _ => return None,
                     };
                     Some(ToolCallContent::Content(Content::new(
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
                     )))
                 }
-                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
+                RmcpContentBlock::Audio(_) | RmcpContentBlock::ResourceLink(_) => None,
+                _ => None,
             })
             .collect(),
         Err(error) => vec![ToolCallContent::Content(Content::new(ContentBlock::Text(
@@ -266,6 +268,7 @@ fn extract_tool_raw_output(tool_result: &ToolResult<CallToolResult>) -> Option<s
 pub(crate) fn tool_call_update_fields_from_response(
     tool_response: &ToolResponse,
     tool_request: Option<&ToolRequest>,
+    include_content_for_acp_aware_tools: bool,
 ) -> ToolCallUpdateFields {
     let is_failed = match &tool_response.tool_result {
         Ok(result) => result.is_error == Some(true),
@@ -285,7 +288,7 @@ pub(crate) fn tool_call_update_fields_from_response(
         .tool_result
         .as_ref()
         .is_ok_and(|result| result.is_acp_aware());
-    let include_content = is_failed || !is_acp_aware;
+    let include_content = include_content_for_acp_aware_tools || is_failed || !is_acp_aware;
     let include_locations = !is_acp_aware;
 
     if include_content {
@@ -309,7 +312,7 @@ pub(crate) fn tool_call_update_fields_from_response(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
+    use rmcp::model::{CallToolRequestParams, ContentBlock as RmcpContent};
     use std::path::PathBuf;
     use test_case::test_case;
 
@@ -719,7 +722,7 @@ mod tests {
             let response = response_from_tool_result(Ok(result));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Completed));
             assert_eq!(fields.raw_output, Some(raw_output));
@@ -737,7 +740,7 @@ mod tests {
                     "write failed",
                 )])));
 
-            let fields = tool_call_update_fields_from_response(&response, None);
+            let fields = tool_call_update_fields_from_response(&response, None, false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("write failed"));
@@ -752,12 +755,24 @@ mod tests {
             let response = response_from_tool_result(Ok(result.with_acp_aware_meta()));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Completed));
             assert_eq!(fields.raw_output, Some(raw_output));
             assert!(fields.content.is_none());
             assert!(fields.locations.is_none());
+        }
+
+        #[test]
+        fn includes_acp_aware_success_content_when_requested() {
+            let result = CallToolResult::success(vec![RmcpContent::text("write completed")])
+                .with_acp_aware_meta();
+            let response = response_from_tool_result(Ok(result));
+
+            let fields = tool_call_update_fields_from_response(&response, None, true);
+
+            assert_eq!(fields.status, Some(ToolCallStatus::Completed));
+            assert_eq!(first_tool_call_text(&fields), Some("write completed"));
         }
 
         #[test]
@@ -767,7 +782,7 @@ mod tests {
             })));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             let locations = fields.locations.as_deref().expect("expected location");
             assert_eq!(locations.len(), 1);
@@ -782,7 +797,7 @@ mod tests {
             let response = response_from_tool_result(Ok(result));
             let request = write_request("/tmp/request.txt");
 
-            let fields = tool_call_update_fields_from_response(&response, Some(&request));
+            let fields = tool_call_update_fields_from_response(&response, Some(&request), false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("write failed"));
@@ -797,7 +812,7 @@ mod tests {
                 None,
             )));
 
-            let fields = tool_call_update_fields_from_response(&response, None);
+            let fields = tool_call_update_fields_from_response(&response, None, false);
 
             assert_eq!(fields.status, Some(ToolCallStatus::Failed));
             assert_eq!(first_tool_call_text(&fields), Some("transport failed"));

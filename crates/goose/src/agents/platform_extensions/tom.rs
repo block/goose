@@ -4,7 +4,7 @@ use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities,
 };
 use tokio::io::AsyncReadExt;
@@ -51,7 +51,7 @@ impl McpClientTrait for TomClient {
         _arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        Ok(CallToolResult::error(vec![Content::text(format!(
+        Ok(CallToolResult::error(vec![ContentBlock::text(format!(
             "tom has no tools (called: {name})"
         ))]))
     }

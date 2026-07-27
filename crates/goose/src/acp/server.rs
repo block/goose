@@ -62,7 +62,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{AnnotateAble, RawTextContent, Role};
+use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -949,23 +949,16 @@ impl GooseAcpAgent {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let raw = RawTextContent {
-                            text: sanitize_unicode_tags(&text.text),
-                            meta: None,
-                        };
+                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
                         if audience.is_empty() {
-                            raw.no_annotation()
+                            raw
                         } else {
-                            raw.no_annotation().with_audience(audience)
+                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
                         }
                     } else {
                         // No annotations — regular user text.
                         let sanitized = sanitize_unicode_tags(&text.text);
-                        RawTextContent {
-                            text: sanitized,
-                            meta: None,
-                        }
-                        .no_annotation()
+                        RmcpTextContent::new(sanitized)
                     };
                     message = message.with_content(MessageContent::Text(annotated));
                 }
@@ -1089,7 +1082,8 @@ impl GooseAcpAgent {
             MessageContent::Image(image) => {
                 let mut image_content =
                     ImageContent::new(image.data.clone(), image.mime_type.clone());
-                if let Some(audience) = image.audience() {
+                if let Some(audience) = image.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                {
                     image_content = image_content.annotations(
                         Annotations::new().audience(
                             audience
@@ -1186,7 +1180,7 @@ impl GooseAcpAgent {
         session_id: &SessionId,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let fields = tool_call_update_fields_from_response(tool_response, tool_request);
+        let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
             .meta(trusted_update_meta(tool_response));

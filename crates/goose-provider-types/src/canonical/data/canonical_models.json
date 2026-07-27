@@ -14162,6 +14162,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/anthropic.claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/anthropic.claude-sonnet-4.5-20250929-v1:0",
     "name": "Claude Sonnet 4.5",
     "family": "claude-sonnet",
@@ -14337,6 +14370,39 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "amazon-bedrock/au.anthropic.claude-opus-5",
+    "name": "Claude Opus 5 (AU)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -14744,6 +14810,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/eu.anthropic.claude-opus-5",
+    "name": "Claude Opus 5 (EU)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.5,
+      "output": 27.5,
+      "cache_read": 0.55,
+      "cache_write": 6.875
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/eu.anthropic.claude-sonnet-4.5-20250929-v1:0",
     "name": "Claude Sonnet 4.5 (EU)",
     "family": "claude-sonnet",
@@ -15041,6 +15140,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/global.anthropic.claude-opus-5",
+    "name": "Claude Opus 5 (Global)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/global.anthropic.claude-sonnet-4.5-20250929-v1:0",
     "name": "Claude Sonnet 4.5 (Global)",
     "family": "claude-sonnet",
@@ -15305,6 +15437,39 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "amazon-bedrock/jp.anthropic.claude-opus-5",
+    "name": "Claude Opus 5 (JP)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -16849,6 +17014,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/us.anthropic.claude-opus-5",
+    "name": "Claude Opus 5 (US)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/us.anthropic.claude-sonnet-4.5-20250929-v1:0",
     "name": "Claude Sonnet 4.5 (US)",
     "family": "claude-sonnet",
@@ -17702,6 +17900,40 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "thinking_mode": "adaptive",
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -19411,6 +19643,39 @@
     "knowledge": "2025-12-31",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "azure-cognitive-services/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -22308,6 +22573,39 @@
     "knowledge": "2025-12-31",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "azure/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -44960,6 +45258,39 @@
     }
   },
   {
+    "id": "github-copilot/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 64000
+    }
+  },
+  {
     "id": "github-copilot/claude-sonnet-4",
     "name": "Claude Sonnet 4 (latest)",
     "family": "claude-sonnet",
@@ -48614,6 +48945,39 @@
     }
   },
   {
+    "id": "google-vertex-anthropic/claude-opus-5@default",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "google-vertex-anthropic/claude-sonnet-4",
     "name": "Claude Sonnet 4",
     "family": "claude-sonnet",
@@ -48987,6 +49351,39 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "google-vertex/claude-opus-5@default",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -69630,6 +70027,39 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "llmgateway/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -110216,6 +110646,39 @@
     }
   },
   {
+    "id": "opencode/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "opencode/claude-sonnet-4",
     "name": "Claude Sonnet 4",
     "family": "claude-sonnet",
@@ -113179,6 +113642,72 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/anthropic/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/anthropic/claude-opus-5-fast",
+    "name": "Claude Opus 5 (Fast)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",
@@ -146917,6 +147446,70 @@
     }
   },
   {
+    "id": "venice/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-23",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 6.0,
+      "output": 30.0,
+      "cache_read": 0.6,
+      "cache_write": 7.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "venice/claude-opus-5-fast",
+    "name": "Claude Opus 5 Fast",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-23",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 12.0,
+      "output": 60.0,
+      "cache_read": 1.2,
+      "cache_write": 15.0
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "venice/claude-sonnet-4.5",
     "name": "Claude Sonnet 4.5",
     "family": "claude-sonnet",
@@ -150778,6 +151371,72 @@
     "knowledge": "2026-01",
     "release_date": "2026-05-28",
     "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "vercel/anthropic/claude-opus-5",
+    "name": "Claude Opus 5",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "vercel/anthropic/claude-opus-5-fast",
+    "name": "Claude Opus 5 (Fast)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-05",
+    "release_date": "2026-07-24",
+    "last_updated": "2026-07-24",
     "modalities": {
       "input": [
         "text",

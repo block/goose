@@ -1,6 +1,6 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, ImageFormat};
@@ -9,7 +9,7 @@ use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, RawContent,
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, JsonObject,
     ResourceContents, Role, Tool,
 };
 use rmcp::object as json_object;
@@ -195,7 +195,7 @@ fn format_messages_with_options(
         let mut content = Vec::new();
         for msg_content in &message.content {
             match msg_content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text.text.trim().is_empty() {
                         content.push(json!({
                             TYPE_FIELD: TEXT_TYPE,
@@ -203,7 +203,7 @@ fn format_messages_with_options(
                         }));
                     }
                 }
-                MessageContent::ToolRequest(tool_request) => {
+                MessageContentBlock::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {
                             content.push(json!({
@@ -227,120 +227,124 @@ fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
-                    Ok(result) => {
-                        // Media present -> structured content blocks; otherwise a
-                        // single content string (preserving prior behavior).
-                        let mut blocks: Vec<Value> = Vec::new();
-                        let mut text_parts: Vec<String> = Vec::new();
-                        let mut has_media = false;
+                MessageContentBlock::ToolResponse(tool_response) => {
+                    match &tool_response.tool_result {
+                        Ok(result) => {
+                            // Media present -> structured content blocks; otherwise a
+                            // single content string (preserving prior behavior).
+                            let mut blocks: Vec<Value> = Vec::new();
+                            let mut text_parts: Vec<String> = Vec::new();
+                            let mut has_media = false;
 
-                        for c in result.content.iter() {
-                            if let Some(t) = c.as_text() {
-                                text_parts.push(t.text.clone());
-                                if !t.text.is_empty() {
-                                    blocks.push(json!({
-                                        TYPE_FIELD: TEXT_TYPE,
-                                        TEXT_TYPE: t.text.clone()
-                                    }));
-                                }
-                                continue;
-                            }
-                            if let Some(r) = c.as_resource() {
-                                // Claude only accepts a fixed set of media types, so
-                                // unsupported blobs fall back to text below rather than
-                                // being rejected by the provider.
-                                if let ResourceContents::BlobResourceContents {
-                                    blob,
-                                    mime_type,
-                                    ..
-                                } = &r.resource
-                                {
-                                    let mime = mime_type.as_deref().unwrap_or("");
-                                    if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&mime) {
-                                        has_media = true;
+                            for c in result.content.iter() {
+                                if let Some(t) = c.as_text() {
+                                    text_parts.push(t.text.clone());
+                                    if !t.text.is_empty() {
                                         blocks.push(json!({
-                                            TYPE_FIELD: IMAGE_TYPE,
-                                            SOURCE_FIELD: {
-                                                TYPE_FIELD: BASE64_TYPE,
-                                                MEDIA_TYPE_FIELD: mime,
-                                                DATA_FIELD: blob,
-                                            }
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: t.text.clone()
                                         }));
-                                        continue;
                                     }
-                                    if mime == "application/pdf" {
-                                        has_media = true;
+                                    continue;
+                                }
+                                if let Some(r) = c.as_resource() {
+                                    // Claude only accepts a fixed set of media types, so
+                                    // unsupported blobs fall back to text below rather than
+                                    // being rejected by the provider.
+                                    if let ResourceContents::BlobResourceContents {
+                                        blob,
+                                        mime_type,
+                                        ..
+                                    } = &r.resource
+                                    {
+                                        let mime = mime_type.as_deref().unwrap_or("");
+                                        if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&mime) {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: IMAGE_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
+                                        }
+                                        if mime == "application/pdf" {
+                                            has_media = true;
+                                            blocks.push(json!({
+                                                TYPE_FIELD: DOCUMENT_TYPE,
+                                                SOURCE_FIELD: {
+                                                    TYPE_FIELD: BASE64_TYPE,
+                                                    MEDIA_TYPE_FIELD: mime,
+                                                    DATA_FIELD: blob,
+                                                }
+                                            }));
+                                            continue;
+                                        }
+                                    }
+                                    let text = extract_text_from_resource(&r.resource);
+                                    if !text.is_empty() {
+                                        text_parts.push(text.clone());
                                         blocks.push(json!({
-                                            TYPE_FIELD: DOCUMENT_TYPE,
-                                            SOURCE_FIELD: {
-                                                TYPE_FIELD: BASE64_TYPE,
-                                                MEDIA_TYPE_FIELD: mime,
-                                                DATA_FIELD: blob,
-                                            }
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: text
                                         }));
-                                        continue;
+                                    }
+                                    continue;
+                                }
+                                if let ContentBlock::Image(image) = c {
+                                    if ANTHROPIC_IMAGE_MEDIA_TYPES
+                                        .contains(&image.mime_type.as_str())
+                                    {
+                                        has_media = true;
+                                        blocks.push(convert_image(
+                                            &image.clone(),
+                                            &ImageFormat::Anthropic,
+                                        ));
+                                    } else {
+                                        let marker = format!("[Image: {}]", image.mime_type);
+                                        text_parts.push(marker.clone());
+                                        blocks.push(json!({
+                                            TYPE_FIELD: TEXT_TYPE,
+                                            TEXT_TYPE: marker
+                                        }));
                                     }
                                 }
-                                let text = extract_text_from_resource(&r.resource);
-                                if !text.is_empty() {
-                                    text_parts.push(text.clone());
-                                    blocks.push(json!({
-                                        TYPE_FIELD: TEXT_TYPE,
-                                        TEXT_TYPE: text
-                                    }));
-                                }
-                                continue;
                             }
-                            if let RawContent::Image(image) = &c.raw {
-                                if ANTHROPIC_IMAGE_MEDIA_TYPES.contains(&image.mime_type.as_str()) {
-                                    has_media = true;
-                                    blocks.push(convert_image(
-                                        &image.clone().no_annotation(),
-                                        &ImageFormat::Anthropic,
-                                    ));
-                                } else {
-                                    let marker = format!("[Image: {}]", image.mime_type);
-                                    text_parts.push(marker.clone());
-                                    blocks.push(json!({
-                                        TYPE_FIELD: TEXT_TYPE,
-                                        TEXT_TYPE: marker
-                                    }));
-                                }
-                            }
+
+                            let content_value = if has_media {
+                                Value::Array(blocks)
+                            } else {
+                                Value::String(text_parts.join("\n"))
+                            };
+
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: content_value
+                            }));
                         }
-
-                        let content_value = if has_media {
-                            Value::Array(blocks)
-                        } else {
-                            Value::String(text_parts.join("\n"))
-                        };
-
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: content_value
-                        }));
+                        Err(tool_error) => {
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: format!("Error: {}", tool_error),
+                                IS_ERROR_FIELD: true
+                            }));
+                        }
                     }
-                    Err(tool_error) => {
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: format!("Error: {}", tool_error),
-                            IS_ERROR_FIELD: true
-                        }));
-                    }
-                },
-                MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
+                }
+                MessageContentBlock::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::ActionRequired(_action_required) => {
+                MessageContentBlock::ActionRequired(_action_required) => {
                     // Skip action required messages - they're for UI only
                 }
-                MessageContent::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) => {
                     // Skip
                 }
-                MessageContent::Thinking(thinking) => {
+                MessageContentBlock::Thinking(thinking) => {
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
                         if !thinking.signature.is_empty() {
@@ -359,7 +363,7 @@ fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::RedactedThinking(redacted) => {
+                MessageContentBlock::RedactedThinking(redacted) => {
                     if !options.thinking_disabled {
                         content.push(json!({
                             TYPE_FIELD: REDACTED_THINKING_TYPE,
@@ -367,10 +371,10 @@ fn format_messages_with_options(
                         }));
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     content.push(convert_image(image, &ImageFormat::Anthropic));
                 }
-                MessageContent::FrontendToolRequest(tool_request) => {
+                MessageContentBlock::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
@@ -847,7 +851,7 @@ where
     #[derive(Deserialize, Debug)]
     #[serde(tag = "type", rename_all = "snake_case")]
     #[allow(clippy::enum_variant_names)]
-    enum ContentDelta {
+    enum ContentBlockDelta {
         TextDelta { text: String },
         InputJsonDelta { partial_json: String },
         ThinkingDelta { thinking: String },
@@ -952,25 +956,25 @@ where
                 }
                 EVENT_CONTENT_BLOCK_DELTA => {
                     if let Some(delta) = event.data.get("delta") {
-                        match serde_json::from_value::<ContentDelta>(delta.clone()) {
-                            Ok(ContentDelta::TextDelta { text }) => {
+                        match serde_json::from_value::<ContentBlockDelta>(delta.clone()) {
+                            Ok(ContentBlockDelta::TextDelta { text }) => {
                                 let mut message = Message::assistant().with_text(&text);
                                 message.id = message_id.clone();
                                 yield (Some(message), None);
                             }
-                            Ok(ContentDelta::InputJsonDelta { partial_json }) => {
+                            Ok(ContentBlockDelta::InputJsonDelta { partial_json }) => {
                                 if let Some(tool_id) = &current_tool_id {
                                     if let Some((_name, args)) = accumulated_tool_calls.get_mut(tool_id) {
                                         args.push_str(&partial_json);
                                     }
                                 }
                             }
-                            Ok(ContentDelta::ThinkingDelta { thinking: t }) => {
+                            Ok(ContentBlockDelta::ThinkingDelta { thinking: t }) => {
                                 if let Some(ref mut state) = thinking {
                                     state.text.push_str(&t);
                                 }
                             }
-                            Ok(ContentDelta::SignatureDelta { signature: s }) => {
+                            Ok(ContentBlockDelta::SignatureDelta { signature: s }) => {
                                 if let Some(ref mut state) = thinking {
                                     state.signature.push_str(&s);
                                 }
@@ -1011,7 +1015,7 @@ where
                                         let mut message = Message::new(
                                             Role::Assistant,
                                             chrono::Utc::now().timestamp(),
-                                            vec![MessageContent::tool_request(tool_id, Err(error))],
+                                            vec![MessageContentBlock::tool_request(tool_id, Err(error))],
                                         );
                                         message.id = message_id.clone();
                                         yield (Some(message), None);
@@ -1025,7 +1029,7 @@ where
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
                                 chrono::Utc::now().timestamp(),
-                                vec![MessageContent::tool_request(tool_id, Ok(tool_call))],
+                                vec![MessageContentBlock::tool_request(tool_id, Ok(tool_call))],
                             );
                             message.id = message_id.clone();
                             yield (Some(message), None);
@@ -1131,7 +1135,7 @@ where
                     let mut message = Message::new(
                         Role::Assistant,
                         chrono::Utc::now().timestamp(),
-                        vec![MessageContent::tool_request(id, Err(error))],
+                        vec![MessageContentBlock::tool_request(id, Err(error))],
                     );
                     message.id = message_id.clone();
                     yield (Some(message), None);
@@ -1210,7 +1214,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello! How can I assist you today?");
         } else {
             panic!("Expected Text content");
@@ -1253,7 +1257,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
             assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
@@ -1290,7 +1294,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "internal reasoning");
             assert_eq!(thinking.signature, "");
         } else {
@@ -1323,7 +1327,7 @@ mod tests {
     #[test]
     fn test_message_to_anthropic_spec_skips_unsigned_thinking() {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::assistant().with_text("Hi there"),
         ];
 
@@ -1338,7 +1342,7 @@ mod tests {
     #[test]
     fn test_message_to_anthropic_spec_preserves_unsigned_thinking_when_enabled() {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::assistant().with_text("Hi there"),
         ];
 
@@ -1471,6 +1475,28 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_adaptive_thinking_for_opus_5() -> Result<()> {
+        // Claude 5 models reject the legacy thinking.type=enabled shape and
+        // require thinking.type=adaptive + output_config.effort.
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
+
+        let mut config = cfg("claude-opus-5");
+        config.max_tokens = Some(4096);
+        config.request_params = Some(params);
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert_eq!(payload["output_config"]["effort"], "high");
+        assert!(payload["thinking"].get("budget_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_enabled_thinking_with_budget() -> Result<()> {
         let _guard = env_lock::lock_env([
             ("GOOSE_THINKING_EFFORT", None::<&str>),
@@ -1547,7 +1573,7 @@ mod tests {
         let mut config = cfg("glm-4.7");
         config.max_tokens = Some(64000);
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::user().with_text("Continue"),
         ];
 
@@ -1591,7 +1617,7 @@ mod tests {
         config.request_params = Some(params);
         config.max_tokens = Some(64000);
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("internal", "")),
             Message::user().with_text("Continue"),
         ];
 
@@ -1667,9 +1693,9 @@ mod tests {
 
     #[test]
     fn test_tool_response_with_resource_content() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let resource_content = Content::embedded_text(
+        let resource_content = ContentBlock::embedded_text(
             "file:///test/file.txt",
             "This is the file content from a resource",
         );
@@ -1700,10 +1726,11 @@ mod tests {
 
     #[test]
     fn test_tool_response_with_mixed_content() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let text_content = Content::text("Summary: file loaded");
-        let resource_content = Content::embedded_text("file:///test/file.txt", "File content here");
+        let text_content = ContentBlock::text("Summary: file loaded");
+        let resource_content =
+            ContentBlock::embedded_text("file:///test/file.txt", "File content here");
 
         let messages = vec![
             Message::assistant().with_tool_request(
@@ -1731,21 +1758,14 @@ mod tests {
 
     #[test]
     fn test_tool_response_forwards_image_resource_as_image_block() {
-        use rmcp::model::{
-            AnnotateAble, CallToolResult, RawContent, RawEmbeddedResource, ResourceContents,
-        };
+        use rmcp::model::CallToolResult;
 
-        let resource = ResourceContents::BlobResourceContents {
+        let image = ContentBlock::resource(ResourceContents::BlobResourceContents {
             uri: "file:///shot.png".to_string(),
             mime_type: Some("image/png".to_string()),
             blob: "aGVsbG8=".to_string(),
             meta: None,
-        };
-        let image = RawContent::Resource(RawEmbeddedResource {
-            resource,
-            meta: None,
-        })
-        .no_annotation();
+        });
 
         let messages = vec![
             Message::assistant()
@@ -1764,23 +1784,16 @@ mod tests {
 
     #[test]
     fn test_tool_response_unsupported_image_mime_falls_back_to_text() {
-        use rmcp::model::{
-            AnnotateAble, CallToolResult, RawContent, RawEmbeddedResource, ResourceContents,
-        };
+        use rmcp::model::CallToolResult;
 
         // image/svg+xml is not a Claude-supported image type, so it must fall
         // through to text rather than an image block.
-        let resource = ResourceContents::BlobResourceContents {
+        let svg = ContentBlock::resource(ResourceContents::BlobResourceContents {
             uri: "file:///diagram.svg".to_string(),
             mime_type: Some("image/svg+xml".to_string()),
             blob: "aGVsbG8=".to_string(),
             meta: None,
-        };
-        let svg = RawContent::Resource(RawEmbeddedResource {
-            resource,
-            meta: None,
-        })
-        .no_annotation();
+        });
 
         let messages = vec![
             Message::assistant()
@@ -1797,14 +1810,9 @@ mod tests {
 
     #[test]
     fn test_tool_response_forwards_raw_image_as_image_block() {
-        use rmcp::model::{AnnotateAble, CallToolResult, RawContent, RawImageContent};
+        use rmcp::model::CallToolResult;
 
-        let image = RawContent::Image(RawImageContent {
-            data: "aGVsbG8=".to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        })
-        .no_annotation();
+        let image = ContentBlock::image("aGVsbG8=", "image/png");
 
         let messages = vec![
             Message::assistant()
@@ -1823,17 +1831,12 @@ mod tests {
 
     #[test]
     fn test_tool_response_unsupported_raw_image_mime_falls_back_to_text() {
-        use rmcp::model::{AnnotateAble, CallToolResult, RawContent, RawImageContent};
+        use rmcp::model::CallToolResult;
 
         // image/svg+xml is not a Claude-supported image type, so a raw image with
         // that mime must fall back to a text marker rather than an image block
         // (which the provider would reject).
-        let image = RawContent::Image(RawImageContent {
-            data: "aGVsbG8=".to_string(),
-            mime_type: "image/svg+xml".to_string(),
-            meta: None,
-        })
-        .no_annotation();
+        let image = ContentBlock::image("aGVsbG8=", "image/svg+xml");
 
         let messages = vec![
             Message::assistant()
@@ -2053,18 +2056,18 @@ mod tests {
             if let Ok((Some(msg), _usage)) = result {
                 for c in &msg.content {
                     match c {
-                        MessageContent::Thinking(t) => {
+                        MessageContentBlock::Thinking(t) => {
                             parts
                                 .thinking
                                 .push((t.thinking.clone(), t.signature.clone()));
                         }
-                        MessageContent::RedactedThinking(r) => {
+                        MessageContentBlock::RedactedThinking(r) => {
                             parts.redacted_thinking.push(r.data.clone());
                         }
-                        MessageContent::Text(t) => {
+                        MessageContentBlock::Text(t) => {
                             parts.text.push(t.text.clone());
                         }
-                        MessageContent::ToolRequest(req) => match &req.tool_call {
+                        MessageContentBlock::ToolRequest(req) => match &req.tool_call {
                             Ok(call) => parts.tool_calls.push(call.name.to_string()),
                             Err(e) => parts.tool_errors.push(e.message.to_string()),
                         },
@@ -2540,9 +2543,9 @@ mod tests {
                 ),
                 Message::user().with_tool_response(
                     "tool_1",
-                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                        "fn main() { run(); }",
-                    )])),
+                    Ok(CallToolResult::success(vec![
+                        rmcp::model::ContentBlock::text("fn main() { run(); }"),
+                    ])),
                 ),
                 Message::assistant().with_text("It calls `run()`."),
                 Message::user()
@@ -2629,9 +2632,9 @@ mod tests {
                 ),
                 Message::user().with_tool_response(
                     "tool_1",
-                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                        "fn main() { run(); }",
-                    )])),
+                    Ok(CallToolResult::success(vec![
+                        rmcp::model::ContentBlock::text("fn main() { run(); }"),
+                    ])),
                 ),
             ]
         }
