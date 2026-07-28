@@ -175,6 +175,8 @@ impl Agent {
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
         let mut tools = self.list_tools(session_id, None).await;
+        let counted_tool_names: Vec<String> =
+            tools.iter().map(|tool| tool.name.to_string()).collect();
 
         #[cfg(feature = "code-mode")]
         let code_execution_active = self
@@ -262,6 +264,7 @@ impl Agent {
                 .declare(
                     session_id,
                     &tools,
+                    counted_tool_names,
                     extensions_info,
                     self.frontend_instruction_entries().await,
                     (extension_count, tool_count),

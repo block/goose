@@ -27,6 +27,10 @@ struct Surface {
     /// reference, so a tool the array never held still costs one rewrite of it; withholding is
     /// what stops the model reading that tool as available before it was enabled.
     deferred: HashSet<String>,
+    /// Every tool the session has held, counted before the filters that decide what the model is
+    /// offered. `tool_count` is reported in those unfiltered terms, so an adjustment measured
+    /// against `tools` would shrink whenever a hidden tool's extension went away.
+    counted: HashSet<String>,
     extensions: Vec<ExtensionInfo>,
     frontend_instructions: Vec<(String, String)>,
 }
@@ -44,6 +48,7 @@ impl DeclaredSurfaces {
         &self,
         session_id: &str,
         enabled_tools: &[Tool],
+        counted_tool_names: Vec<String>,
         enabled_extensions: Vec<ExtensionInfo>,
         enabled_frontend_instructions: Vec<(String, String)>,
         enabled_counts: (usize, usize),
@@ -51,6 +56,9 @@ impl DeclaredSurfaces {
         let mut sessions = self.0.lock().await;
         let surface = sessions.entry(session_id.to_string()).or_default();
         surface.declare_tools(enabled_tools);
+
+        let counted_enabled = counted_tool_names.len();
+        surface.counted.extend(counted_tool_names);
 
         let enabled_extension_count = enabled_extensions.len();
         for extension in enabled_extensions {
@@ -91,7 +99,7 @@ impl DeclaredSurfaces {
                     .frontend_instructions
                     .len()
                     .saturating_sub(enabled_frontend_extension_count),
-            tool_count: enabled_counts.1 + surface.tools.len().saturating_sub(enabled_tools.len()),
+            tool_count: enabled_counts.1 + surface.counted.len().saturating_sub(counted_enabled),
             extensions: surface.extensions.clone(),
             frontend_instructions: render_frontend_instructions(&surface.frontend_instructions),
         }
@@ -327,19 +335,22 @@ mod tests {
         let apps = ExtensionInfo::new("apps", "build apps", false);
         let developer = ExtensionInfo::new("developer", "write code", false);
 
+        // `apps__hidden` is counted but never offered, as an app-only tool is.
         surfaces
             .declare(
                 "s",
                 &tools(&["apps__a", "developer__b"]),
+                names(&tools(&["apps__a", "apps__hidden", "developer__b"])),
                 vec![apps, developer.clone()],
                 Vec::new(),
-                (2, 2),
+                (2, 3),
             )
             .await;
         let prompt = surfaces
             .declare(
                 "s",
                 &tools(&["developer__b"]),
+                names(&tools(&["developer__b"])),
                 vec![developer],
                 Vec::new(),
                 (1, 1),
@@ -354,14 +365,21 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["apps", "developer"]
         );
-        assert_eq!((prompt.extension_count, prompt.tool_count), (2, 2));
+        assert_eq!((prompt.extension_count, prompt.tool_count), (2, 3));
 
         let other = ExtensionInfo::new("other", "do other things", false);
         let prompt = surfaces
-            .declare("s", &tools(&["other__c"]), vec![other], Vec::new(), (1, 1))
+            .declare(
+                "s",
+                &tools(&["other__c"]),
+                names(&tools(&["other__c"])),
+                vec![other],
+                Vec::new(),
+                (1, 1),
+            )
             .await;
 
-        assert_eq!((prompt.extension_count, prompt.tool_count), (3, 3));
+        assert_eq!((prompt.extension_count, prompt.tool_count), (3, 4));
     }
 
     #[tokio::test]
@@ -372,6 +390,7 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["apps__a", "developer__b"]),
+                names(&tools(&["apps__a", "developer__b"])),
                 Vec::new(),
                 vec![
                     ("developer".to_string(), "write code".to_string()),
@@ -389,6 +408,7 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["developer__b"]),
+                names(&tools(&["developer__b"])),
                 Vec::new(),
                 vec![("developer".to_string(), "write code".to_string())],
                 (1, 1),
