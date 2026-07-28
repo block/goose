@@ -27,6 +27,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::thread::JoinHandle;
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
@@ -47,6 +48,15 @@ use goose_providers::model::ModelConfig;
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
+
+/// Bound on the ACP startup handshake (`initialize`, `session/new`).
+///
+/// The adapter's child process is owned by the client-loop thread, so an unanswered startup
+/// request wedges that thread and keeps the process alive however the caller disposes of its
+/// `connect()` future. Failing the request instead lets the loop unwind to `run_with_child`,
+/// which kills the child. Generous enough for a cold adapter start; this is a wedge backstop,
+/// not a latency budget.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -1063,20 +1073,33 @@ async fn handle_requests(
     let mut init_tx = Some(init_tx);
 
     let client_capabilities = ClientCapabilities::new();
-    let init_response: InitializeResponse = cx
-        .send_request(
+    let initialized = tokio::time::timeout(
+        STARTUP_TIMEOUT,
+        cx.send_request(
             InitializeRequest::new(ProtocolVersion::LATEST)
                 .client_capabilities(client_capabilities),
         )
-        .block_task()
-        .await
-        .map_err(|err| {
-            let message = format!("ACP {} failed: {err}", AGENT_METHOD_NAMES.initialize);
-            if let Some(tx) = init_tx.take() {
-                let _ = tx.send(Err(anyhow::anyhow!(message.clone())));
-            }
-            agent_client_protocol::Error::internal_error().data(message)
-        })?;
+        .block_task(),
+    )
+    .await;
+    let init_response: InitializeResponse = match initialized {
+        Ok(Ok(response)) => Ok(response),
+        Ok(Err(err)) => Err(format!(
+            "ACP {} failed: {err}",
+            AGENT_METHOD_NAMES.initialize
+        )),
+        Err(_) => Err(format!(
+            "ACP {} timed out after {}s",
+            AGENT_METHOD_NAMES.initialize,
+            STARTUP_TIMEOUT.as_secs()
+        )),
+    }
+    .map_err(|message| {
+        if let Some(tx) = init_tx.take() {
+            let _ = tx.send(Err(anyhow::anyhow!(message.clone())));
+        }
+        agent_client_protocol::Error::internal_error().data(message)
+    })?;
 
     let supports_close = init_response
         .agent_capabilities
@@ -1094,22 +1117,29 @@ async fn handle_requests(
         match request {
             ClientRequest::NewSession { response_tx } => {
                 let mcp_servers = filter_supported_servers(&config.mcp_servers, &mcp_capabilities);
-                let session = cx
-                    .send_request(
+                let session = tokio::time::timeout(
+                    STARTUP_TIMEOUT,
+                    cx.send_request(
                         NewSessionRequest::new(config.work_dir.clone()).mcp_servers(mcp_servers),
                     )
-                    .block_task()
-                    .await;
+                    .block_task(),
+                )
+                .await;
                 let result = match session {
-                    Ok(session) => {
+                    Ok(Ok(session)) => {
                         session_ids.push(session.session_id.clone());
                         apply_session_config_options(&config, &cx, session.session_id.clone())
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
-                    Err(err) => Err(anyhow::anyhow!(
+                    Ok(Err(err)) => Err(anyhow::anyhow!(
                         "ACP {} failed: {err}",
                         AGENT_METHOD_NAMES.session_new
+                    )),
+                    Err(_) => Err(anyhow::anyhow!(
+                        "ACP {} timed out after {}s",
+                        AGENT_METHOD_NAMES.session_new,
+                        STARTUP_TIMEOUT.as_secs()
                     )),
                 };
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);

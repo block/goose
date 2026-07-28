@@ -79,12 +79,14 @@ export async function acpListProviderSupportedModels(providerId: string): Promis
 // (RecipeModelSelector awaits every provider via Promise.all) loading forever.
 const LIVE_MODELS_TIMEOUT_MS = 4000;
 
-// Model providers whose live supported-models endpoint returns *only* agent-usable models.
-// The first-party Anthropic API's /v1/models is all chat/tool-capable, so its raw list is safe
-// to surface directly. Other model providers (OpenAI, Google, OpenRouter, …) also return
-// embeddings, audio, and image models from their raw endpoint, which would fail an agent
-// request; for those we keep the canonical-filtered inventory list instead.
-const LIVE_UNION_MODEL_PROVIDERS = new Set(['anthropic']);
+// Providers whose live supported-models endpoint returns *only* agent-usable models but whose
+// inventory entry isn't category 'agent'. The first-party Anthropic API's /v1/models is all
+// chat/tool-capable. 'claude-code' is the pre-ACP Claude Code provider: still registered, but
+// absent from the curated setup catalog, so its category falls back to 'model' even though it
+// advertises nothing but Claude's own aliases. Other model providers (OpenAI, Google,
+// OpenRouter, …) also return embeddings, audio, and image models from their raw endpoint, which
+// would fail an agent request; for those we keep the canonical-filtered inventory list instead.
+const LIVE_UNION_MODEL_PROVIDERS = new Set(['anthropic', 'claude-code']);
 
 // Whether to union a provider's live supported-models list into the picker. Agent adapters
 // (category 'agent', e.g. Claude Code / Codex over ACP) advertise only the agent's own chat
