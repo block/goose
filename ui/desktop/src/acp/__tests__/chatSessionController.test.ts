@@ -214,7 +214,37 @@ describe('acpChatSessionController.submitMessage', () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(snapshotWithActivePrompt(null));
     vi.mocked(acpPromptSession).mockResolvedValue({ stopReason: 'cancelled' } as never);
     vi.mocked(acpChatSessionActions.clearPromptCancellation).mockReturnValue(undefined);
+    vi.mocked(acpChatSessionActions.isCurrentPromptAttempt).mockReturnValue(true);
     vi.mocked(acpChatSessionActions.finishPromptAttemptIfCurrent).mockReturnValue(true);
+  });
+
+  it('appends an agent-invisible notice when the response reaches max tokens', async () => {
+    vi.mocked(acpPromptSession).mockResolvedValue({ stopReason: 'max_tokens' } as never);
+    const existingMessage = userMessage();
+    const currentSnapshot: AcpChatSessionSnapshot = {
+      ...snapshotWithActivePrompt(null),
+      messages: [existingMessage],
+    };
+
+    await acpChatSessionController.submitMessage(SESSION_ID, existingMessage, {
+      getCurrentSnapshot: () => currentSnapshot,
+      onFinish: vi.fn(),
+    });
+
+    expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, [
+      existingMessage,
+      expect.objectContaining({
+        role: 'assistant',
+        content: [
+          expect.objectContaining({
+            type: 'systemNotification',
+            notificationType: 'inlineMessage',
+            msg: expect.stringContaining("couldn't finish"),
+          }),
+        ],
+        metadata: { userVisible: true, agentVisible: false },
+      }),
+    ]);
   });
 
   it('clears a pending cancellation barrier when the original prompt settles', async () => {

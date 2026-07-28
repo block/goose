@@ -60,6 +60,22 @@ export interface AcpChatSessionController {
   ): Promise<void>;
 }
 
+function createAcpMaxTokensMessage(): Message {
+  return {
+    id: uuidv7(),
+    role: 'assistant',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'systemNotification',
+        notificationType: 'inlineMessage',
+        msg: "This response couldn't finish because it reached the model's output limit. Ask the agent to continue.",
+      },
+    ],
+    metadata: { userVisible: true, agentVisible: false },
+  };
+}
+
 function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
   return {
     id: uuidv7(),
@@ -174,9 +190,19 @@ async function submitMessage(
   acpChatSessionActions.startPromptAttempt(sessionId, promptAttemptId);
 
   try {
-    await acpPromptSession(sessionId, userMessage);
+    const response = await acpPromptSession(sessionId, userMessage);
     if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
       return;
+    }
+    if (
+      response.stopReason === 'max_tokens' &&
+      acpChatSessionActions.isCurrentPromptAttempt(sessionId, promptAttemptId)
+    ) {
+      const messages = [
+        ...(options.getCurrentSnapshot()?.messages ?? []),
+        createAcpMaxTokensMessage(),
+      ];
+      acpChatSessionActions.setMessages(sessionId, messages);
     }
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish();

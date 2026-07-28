@@ -20,7 +20,7 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, delegation, advanced"
+    description: "Which test phases to run: all, basic, extensions, delegation, vision, max_tokens, advanced"
 
   - key: test_depth
     input_type: string
@@ -346,6 +346,34 @@ prompt: |
      not with a crash or FFI error.
 
   Log results to: {{ workspace_dir }}/phase3b_vision.md
+  {% endif %}
+
+  {% if "max_tokens" in test_phases %}
+  ## ✂️ PHASE 3C: Max-Token Continuation Testing
+
+  **Prerequisites**: Run this phase explicitly with an Anthropic model and a deliberately small
+  output budget, for example:
+  ```
+  GOOSE_MAX_TOKENS=64 goose run --recipe goose-self-test.yaml \
+    --params test_phases=max_tokens --params test_depth=quick
+  ```
+  Do not run this phase as part of the default `all` suite because it intentionally constrains
+  provider output and requires a provider/model that reports `max_tokens` stop reasons.
+
+  ### Automatic Continuation Test
+  1. Before starting, record the configured provider, model, and `GOOSE_MAX_TOKENS` value.
+  2. Produce a numbered list from 1 through 150, one item per line, with a unique short sentence
+     for each item. Do not summarize, omit numbers, or use tools to generate the answer.
+  3. Verify the response continues automatically across provider output-limit boundaries without
+     asking the user to say "continue".
+  4. Verify the final visible answer preserves earlier segments and maintains consecutive numbering.
+  5. If all automatic continuation attempts are exhausted, verify the client reports the response
+     as incomplete rather than presenting it as a normal completion.
+  6. If structured output is available, verify its final record reports
+     `status: "incomplete"` and `stop_reason: "max_tokens"`, with no non-JSON lines.
+
+  Log provider/model settings, continuation observations, final status, and pass/fail details to:
+  {{ workspace_dir }}/phase3c_max_tokens.md
   {% endif %}
 
   {% if test_phases == "all" or "advanced" in test_phases %}
