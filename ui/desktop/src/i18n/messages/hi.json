@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "आईडी:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "जवाब मॉडल की आउटपुट सीमा तक पहुँच गया। आंशिक सत्र: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "कार्य त्रुटि का निरीक्षण करें"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "अनुसूची विवरण"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "रन अधूरा है"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "अनुसूची सूचना"

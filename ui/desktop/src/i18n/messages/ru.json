@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Ответ достиг ограничения модели на объём вывода. Частичная сессия: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Ошибка проверки задания"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Детали расписания"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Выполнение не завершено"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Информация о расписании"

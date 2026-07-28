@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "応答がモデルの出力上限に達しました。部分的なセッション: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "ジョブ確認エラー"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "スケジュール詳細"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "実行が未完了です"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "スケジュール情報"

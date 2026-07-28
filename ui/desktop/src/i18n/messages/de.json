@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Die Antwort hat das Ausgabelimit des Modells erreicht. Teilsitzung: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Fehler beim Untersuchen des Auftrags"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Zeitplandetails"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Ausführung unvollständig"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Zeitplaninformationen"

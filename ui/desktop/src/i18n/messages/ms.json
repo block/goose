@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Respons mencapai had output model. Sesi separa: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Periksa Ralat Kerja"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Butiran Jadual"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Pelaksanaan tidak lengkap"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Maklumat Jadual"

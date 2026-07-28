@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID："
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "回應已達模型輸出限制。部分工作階段：{sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "檢查工作錯誤"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "排程詳細資料"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "執行未完成"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "排程資訊"

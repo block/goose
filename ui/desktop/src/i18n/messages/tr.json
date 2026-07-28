@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "Kimlik:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Yanıt, modelin çıktı sınırına ulaştı. Kısmi oturum: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "İş Hatasını İnceleyin"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Program Ayrıntıları"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Çalıştırma tamamlanmadı"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Program Bilgileri"

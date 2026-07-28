@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Respons mencapai batas output model. Sesi parsial: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Periksa Kesalahan Pekerjaan"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Detail Jadwal"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Proses tidak lengkap"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Informasi Jadwal"

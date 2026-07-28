@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "Phản hồi đã đạt giới hạn đầu ra của mô hình. Phiên một phần: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Lỗi kiểm tra công việc"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Chi tiết lịch trình"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Lần chạy chưa hoàn tất"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Thông tin lịch trình"

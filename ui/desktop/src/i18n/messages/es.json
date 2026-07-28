@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "La respuesta alcanzó el límite de salida del modelo. Sesión parcial: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "Error al inspeccionar el trabajo"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Detalles de la programación"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "Ejecución incompleta"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "Información de la programación"

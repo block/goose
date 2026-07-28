@@ -3290,6 +3290,9 @@
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
   },
+  "scheduleDetailView.incompleteSession": {
+    "defaultMessage": "응답이 모델의 출력 한도에 도달했습니다. 부분 세션: {sessionId}"
+  },
   "scheduleDetailView.inspectJobError": {
     "defaultMessage": "작업 검사 오류"
   },
@@ -3370,6 +3373,9 @@
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "일정 세부정보"
+  },
+  "scheduleDetailView.scheduleIncomplete": {
+    "defaultMessage": "실행 미완료"
   },
   "scheduleDetailView.scheduleInformation": {
     "defaultMessage": "일정 정보"
