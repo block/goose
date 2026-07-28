@@ -172,7 +172,6 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
     let config = Config::global();
     let mut model = ModelConfig {
         model_name: model_name.to_string(),
-        capability_model: None,
         context_limit: None,
         temperature: get_goose_temperature(config)?,
         max_tokens: None,

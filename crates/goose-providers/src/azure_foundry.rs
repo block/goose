@@ -330,6 +330,17 @@ impl AzureFoundryProvider {
     }
 }
 
+fn deployment_alias(alias: &str, config: &ModelConfig) -> String {
+    let suffix = match config.thinking_effort() {
+        Some(crate::thinking::ThinkingEffort::Low) => "-low",
+        Some(crate::thinking::ThinkingEffort::Medium) => "-medium",
+        Some(crate::thinking::ThinkingEffort::High) => "-high",
+        Some(crate::thinking::ThinkingEffort::Max) => "-xhigh",
+        _ => return alias.to_string(),
+    };
+    format!("{alias}{suffix}")
+}
+
 fn with_api_version(link: &str, api_version: Option<&str>) -> String {
     let Some(api_version) = api_version else {
         return link.to_string();
@@ -477,8 +488,9 @@ impl Provider for AzureFoundryProvider {
             config
         });
         let model_config = maas_config.as_ref().unwrap_or(model_config);
+        let wire_model = deployment_alias(&model_config.model_name, model_config);
         let deployment = if is_project_endpoint(&self.endpoint) {
-            self.deployment_for(&model_config.model_name).await
+            self.deployment_for(&wire_model).await
         } else {
             None
         };
@@ -491,33 +503,49 @@ impl Provider for AzureFoundryProvider {
             .map(|deployment| deployment.model_name.as_str())
             .unwrap_or(&model_config.model_name);
         let route = inference_route(self.responses.is_some(), publisher, underlying_model);
-        let capability_config = deployment
-            .filter(|deployment| deployment.model_name != model_config.model_name)
-            .map(|deployment| {
-                model_config
-                    .clone()
-                    .with_capability_model_name(deployment.model_name)
-            });
-        let request_config = capability_config.as_ref().unwrap_or(model_config);
-
+        let capability_model = deployment
+            .as_ref()
+            .map(|deployment| deployment.model_name.as_str())
+            .unwrap_or(&model_config.model_name);
+        let capability_config = if capability_model != model_config.model_name {
+            let mut config = model_config.clone();
+            config.model_name = capability_model.to_string();
+            config.with_canonical_limits(AZURE_FOUNDRY_PROVIDER_NAME)
+        } else {
+            model_config.clone()
+        };
         match route {
             InferenceRoute::ProjectResponses => {
                 self.responses
                     .as_ref()
                     .expect("checked above")
-                    .stream(request_config, system, messages, tools)
+                    .stream_for_model(
+                        &capability_config,
+                        &wire_model,
+                        capability_model,
+                        system,
+                        messages,
+                        tools,
+                    )
                     .await
             }
             InferenceRoute::AnthropicMessages => {
                 self.anthropic
                     .as_ref()
                     .expect("checked above")
-                    .stream(request_config, system, messages, tools)
+                    .stream_for_model(&capability_config, &wire_model, system, messages, tools)
                     .await
             }
             InferenceRoute::MaasChatCompletions | InferenceRoute::ProjectChatCompletions => {
                 self.chat
-                    .stream(request_config, system, messages, tools)
+                    .stream_for_model(
+                        &capability_config,
+                        &wire_model,
+                        capability_model,
+                        system,
+                        messages,
+                        tools,
+                    )
                     .await
             }
         }
@@ -862,6 +890,96 @@ mod tests {
             .unwrap()
             .get("capability_model")
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn suffixed_deployment_alias_is_preserved_on_the_wire() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "value": [{
+                    "type": "ModelDeployment",
+                    "name": "gpt-5-high",
+                    "modelName": "gpt-5",
+                    "modelPublisher": "OpenAI"
+                }]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/projects/test/openai/v1/responses"))
+            .and(body_partial_json(json!({"model": "gpt-5-high"})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(responses_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        let config = ModelConfig::new("gpt-5-high");
+        assert_eq!(config.model_name, "gpt-5");
+        provider
+            .complete(&config, "system", &[], &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn anthropic_alias_uses_underlying_output_limit_and_preserves_override() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "value": [{
+                    "type": "ModelDeployment",
+                    "name": "claude-prod",
+                    "modelName": "claude-sonnet-4-6",
+                    "modelPublisher": "Anthropic"
+                }]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/anthropic/v1/messages"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(anthropic_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        provider
+            .complete(&ModelConfig::new("claude-prod"), "system", &[], &[])
+            .await
+            .unwrap();
+        provider
+            .complete(
+                &ModelConfig::new("claude-prod").with_max_tokens(Some(12_345)),
+                "system",
+                &[],
+                &[],
+            )
+            .await
+            .unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        let max_tokens: Vec<i64> = requests
+            .iter()
+            .filter(|request| request.url.path().ends_with("/messages"))
+            .map(|request| {
+                request.body_json::<serde_json::Value>().unwrap()["max_tokens"]
+                    .as_i64()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(max_tokens, vec![128_000, 12_345]);
     }
 
     #[tokio::test]

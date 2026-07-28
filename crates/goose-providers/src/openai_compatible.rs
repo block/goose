@@ -18,7 +18,8 @@ use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::errors::ProviderError;
 use crate::formats::openai::{
-    create_request, get_cost, get_usage, response_to_message, response_to_streaming_message,
+    create_request, create_request_for_model_with_options, get_cost, get_usage,
+    response_to_message, response_to_streaming_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::responses_api_to_streaming_message;
 use crate::model::ModelConfig;
@@ -47,6 +48,83 @@ impl OpenAiCompatibleProvider {
     pub fn with_supports_streaming(mut self, supports_streaming: bool) -> Self {
         self.supports_streaming = supports_streaming;
         self
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_request_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        for_streaming: bool,
+    ) -> Result<Value, ProviderError> {
+        create_request_for_model_with_options(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            for_streaming,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        )
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to create request: {}", e)))
+    }
+
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let payload = self.build_request_for_model(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+            self.supports_streaming,
+        )?;
+        self.stream_payload(model_config, payload).await
+    }
+
+    async fn stream_payload(
+        &self,
+        model_config: &ModelConfig,
+        payload: Value,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut log = start_log(model_config, &payload)?;
+        let path = format!("{}chat/completions", self.completions_prefix);
+        let response = self
+            .with_retry(|| async {
+                handle_status(self.api_client.response_post(&path, &payload).await?).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        if self.supports_streaming {
+            stream_openai_compat(response, log)
+        } else {
+            let json = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+            let message = response_to_message(&json)?;
+            Ok(stream_from_single_message(
+                message,
+                ProviderUsage::new(model_config.model_name.clone(), get_usage(&json)),
+            ))
+        }
     }
 
     fn build_request(

@@ -693,18 +693,26 @@ pub fn create_request(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
-    let wire_model_name = model_config.model_name.clone();
-    let capability_model_config;
-    let model_config = if model_config.capability_model_name() != model_config.model_name {
-        capability_model_config = {
-            let mut config = model_config.clone();
-            config.model_name = model_config.capability_model_name().to_string();
-            config
-        };
-        &capability_model_config
-    } else {
-        model_config
-    };
+    create_request_for_model(
+        provider_name,
+        model_config,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_for_model(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);

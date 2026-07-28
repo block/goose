@@ -362,7 +362,6 @@ mod tests {
     fn model_config(model_name: &str) -> ModelConfig {
         ModelConfig {
             model_name: model_name.to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,

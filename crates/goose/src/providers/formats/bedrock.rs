@@ -81,7 +81,6 @@ fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
 
     let anthropic_config = ModelConfig {
         model_name: strip_bedrock_version_suffix(anthropic_model),
-        capability_model: None,
         ..model_config.clone()
     };
 
@@ -141,7 +140,6 @@ fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
     if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
         let anthropic_config = ModelConfig {
             model_name: strip_bedrock_version_suffix(anthropic_model),
-            capability_model: None,
             ..model_config.clone()
         };
         model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)

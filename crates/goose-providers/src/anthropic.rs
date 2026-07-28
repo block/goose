@@ -16,7 +16,8 @@ use tokio_util::io::StreamReader;
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request, response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
+    create_request, create_request_for_model, response_to_streaming_message,
+    AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -154,6 +155,53 @@ impl AnthropicProviderBuilder {
 }
 
 impl AnthropicProvider {
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request_for_model(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            wire_model,
+            system,
+            messages,
+            tools,
+            self.format_options,
+        )?;
+        payload["stream"] = Value::Bool(true);
+        let mut log = start_log(model_config, &payload)?;
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .request("v1/messages")
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        let stream = response.bytes_stream().map_err(io::Error::other);
+        Ok(Box::pin(try_stream! {
+            let reader = StreamReader::new(stream);
+            let framed = tokio_util::codec::FramedRead::new(reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
+            let messages = response_to_streaming_message(framed);
+            pin!(messages);
+            while let Some(message) = futures::StreamExt::next(&mut messages).await {
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                yield (message, usage);
+            }
+        }))
+    }
+
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let response = self.api_client.request("v1/models").api_get().await?;
 

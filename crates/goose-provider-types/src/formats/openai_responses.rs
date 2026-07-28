@@ -581,6 +581,24 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    create_responses_request_for_model(
+        model_config,
+        &model_config.model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+    )
+}
+
+pub fn create_responses_request_for_model(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
     if !system.is_empty() {
@@ -596,12 +614,11 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
-    let capability_model_name = model_config.capability_model_name();
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
-    let wire_model_name = if capability_model_name == model_config.model_name {
+    let wire_model_name = if wire_model_name == capability_model_name {
         &model_name
     } else {
-        &model_config.model_name
+        wire_model_name
     };
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
@@ -1334,7 +1351,6 @@ mod tests {
     fn test_history_preserves_chronological_order() {
         let model_config = ModelConfig {
             model_name: "gpt-5.2-codex".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1422,7 +1438,6 @@ mod tests {
     fn test_responses_tools_include_strict_false() {
         let model_config = ModelConfig {
             model_name: "gpt-5.4".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1466,7 +1481,6 @@ mod tests {
         ] {
             let model_config = ModelConfig {
                 model_name: model_name.to_string(),
-                capability_model: None,
                 context_limit: None,
                 temperature: None,
                 max_tokens: None,
@@ -1547,7 +1561,6 @@ mod tests {
         for model_name in ["gpt-5.4", "o3", "gpt-5-nano"] {
             let model_config = ModelConfig {
                 model_name: model_name.to_string(),
-                capability_model: None,
                 context_limit: None,
                 temperature: None,
                 max_tokens: None,
@@ -1598,7 +1611,6 @@ mod tests {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1621,7 +1633,6 @@ mod tests {
     fn test_request_params_override_store() {
         let model_config = ModelConfig {
             model_name: "o3".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1649,7 +1660,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1696,7 +1706,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1733,7 +1742,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1765,7 +1773,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1796,7 +1803,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1831,7 +1837,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1868,7 +1873,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1894,7 +1898,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1926,7 +1929,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -1958,7 +1960,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -2101,7 +2102,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -2142,7 +2142,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -2180,7 +2179,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,
@@ -2218,7 +2216,6 @@ mod tests {
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
-            capability_model: None,
             context_limit: None,
             temperature: None,
             max_tokens: None,

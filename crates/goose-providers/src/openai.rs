@@ -11,7 +11,8 @@ use crate::formats::openai::{
     create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+    create_responses_request, create_responses_request_for_model, get_responses_usage,
+    responses_api_to_message, ResponsesApiResponse,
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
@@ -271,6 +272,66 @@ impl OpenAiProviderBuilder {
 }
 
 impl OpenAiProvider {
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_responses_request_for_model(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+        )?;
+        payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
+        let mut log = start_log(model_config, &payload)?;
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .response_post(
+                            &Self::map_base_path(
+                                &self.base_path,
+                                "responses",
+                                OPEN_AI_DEFAULT_RESPONSES_PATH,
+                            ),
+                            &payload,
+                        )
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        if self.supports_streaming {
+            stream_responses_compat(response, log)
+        } else {
+            let json: serde_json::Value = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+            let parsed: ResponsesApiResponse = serde_json::from_value(json).map_err(|e| {
+                ProviderError::ExecutionError(format!(
+                    "Failed to parse responses API response: {}",
+                    e
+                ))
+            })?;
+            let message = responses_api_to_message(&parsed)?;
+            let usage = get_responses_usage(&parsed);
+            Ok(super::base::stream_from_single_message(
+                message,
+                ProviderUsage::new(model_config.model_name.clone(), usage),
+            ))
+        }
+    }
+
     #[doc(hidden)]
     pub fn new(api_client: ApiClient) -> Self {
         Self {
