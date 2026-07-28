@@ -480,10 +480,17 @@ fn fuzzy_filter_session_items(
     let mut scored: Vec<_> = items
         .iter()
         .filter_map(|item| {
+            // Match against both the display label (name/id/timestamp) and the
+            // working-directory hint so users can also filter by path, not just
+            // name or id (codex P2 on #10265).
             let label = item.1.to_lowercase();
-            let similarity = strsim::jaro_winkler(&label, &query);
-            let word_match_bonus =
-                query_words.iter().all(|word| label.contains(*word)) as u8 as f64;
+            let hint = item.2.to_lowercase();
+            let similarity = strsim::jaro_winkler(&label, &query)
+                .max(strsim::jaro_winkler(&hint, &query));
+            let word_match_bonus = query_words
+                .iter()
+                .all(|word| label.contains(*word) || hint.contains(*word))
+                as u8 as f64;
             let score = similarity + word_match_bonus;
             (score > 0.6).then_some((score, item))
         })
