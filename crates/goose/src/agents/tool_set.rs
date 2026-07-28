@@ -43,16 +43,33 @@ pub struct DeclaredPrompt {
     pub tool_count: usize,
 }
 
+/// What a session has enabled right now, as the prompt would describe it without a declared
+/// surface. The totals cover tool and extension sources the lists themselves do not hold.
+pub struct EnabledSurface {
+    /// Tool names taken before the filters that decide what the model is offered, which is the
+    /// unit `tool_total` is expressed in.
+    pub counted_tool_names: Vec<String>,
+    pub extensions: Vec<ExtensionInfo>,
+    pub frontend_instructions: Vec<(String, String)>,
+    pub extension_total: usize,
+    pub tool_total: usize,
+}
+
 impl DeclaredSurfaces {
     pub async fn declare(
         &self,
         session_id: &str,
         enabled_tools: &[Tool],
-        counted_tool_names: Vec<String>,
-        enabled_extensions: Vec<ExtensionInfo>,
-        enabled_frontend_instructions: Vec<(String, String)>,
-        enabled_counts: (usize, usize),
+        enabled: EnabledSurface,
     ) -> DeclaredPrompt {
+        let EnabledSurface {
+            counted_tool_names,
+            extensions: enabled_extensions,
+            frontend_instructions: enabled_frontend_instructions,
+            extension_total,
+            tool_total,
+        } = enabled;
+
         let mut sessions = self.0.lock().await;
         let surface = sessions.entry(session_id.to_string()).or_default();
         surface.declare_tools(enabled_tools);
@@ -87,10 +104,10 @@ impl DeclaredSurfaces {
             .frontend_instructions
             .sort_by(|(a, _), (b, _)| a.cmp(b));
 
-        // `enabled_counts` covers sources these lists do not hold, so add what the surface
-        // declares beyond the enabled set rather than recounting.
+        // The totals cover sources these lists do not hold, so add what the surface declares
+        // beyond the enabled set rather than recounting.
         DeclaredPrompt {
-            extension_count: enabled_counts.0
+            extension_count: extension_total
                 + surface
                     .extensions
                     .len()
@@ -99,7 +116,7 @@ impl DeclaredSurfaces {
                     .frontend_instructions
                     .len()
                     .saturating_sub(enabled_frontend_extension_count),
-            tool_count: enabled_counts.1 + surface.counted.len().saturating_sub(counted_enabled),
+            tool_count: tool_total + surface.counted.len().saturating_sub(counted_enabled),
             extensions: surface.extensions.clone(),
             frontend_instructions: render_frontend_instructions(&surface.frontend_instructions),
         }
@@ -355,20 +372,26 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["apps__a", "developer__b"]),
-                names(&tools(&["apps__a", "apps__hidden", "developer__b"])),
-                vec![apps, developer.clone()],
-                Vec::new(),
-                (2, 3),
+                EnabledSurface {
+                    counted_tool_names: names(&tools(&["apps__a", "apps__hidden", "developer__b"])),
+                    extensions: vec![apps, developer.clone()],
+                    frontend_instructions: Vec::new(),
+                    extension_total: 2,
+                    tool_total: 3,
+                },
             )
             .await;
         let prompt = surfaces
             .declare(
                 "s",
                 &tools(&["developer__b"]),
-                names(&tools(&["developer__b"])),
-                vec![developer],
-                Vec::new(),
-                (1, 1),
+                EnabledSurface {
+                    counted_tool_names: names(&tools(&["developer__b"])),
+                    extensions: vec![developer],
+                    frontend_instructions: Vec::new(),
+                    extension_total: 1,
+                    tool_total: 1,
+                },
             )
             .await;
 
@@ -387,10 +410,13 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["other__c"]),
-                names(&tools(&["other__c"])),
-                vec![other],
-                Vec::new(),
-                (1, 1),
+                EnabledSurface {
+                    counted_tool_names: names(&tools(&["other__c"])),
+                    extensions: vec![other],
+                    frontend_instructions: Vec::new(),
+                    extension_total: 1,
+                    tool_total: 1,
+                },
             )
             .await;
 
@@ -405,13 +431,16 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["apps__a", "developer__b"]),
-                names(&tools(&["apps__a", "developer__b"])),
-                Vec::new(),
-                vec![
-                    ("developer".to_string(), "write code".to_string()),
-                    ("apps".to_string(), "build apps".to_string()),
-                ],
-                (2, 2),
+                EnabledSurface {
+                    counted_tool_names: names(&tools(&["apps__a", "developer__b"])),
+                    extensions: Vec::new(),
+                    frontend_instructions: vec![
+                        ("developer".to_string(), "write code".to_string()),
+                        ("apps".to_string(), "build apps".to_string()),
+                    ],
+                    extension_total: 2,
+                    tool_total: 2,
+                },
             )
             .await;
         assert_eq!(
@@ -423,10 +452,16 @@ mod tests {
             .declare(
                 "s",
                 &tools(&["developer__b"]),
-                names(&tools(&["developer__b"])),
-                Vec::new(),
-                vec![("developer".to_string(), "write code".to_string())],
-                (1, 1),
+                EnabledSurface {
+                    counted_tool_names: names(&tools(&["developer__b"])),
+                    extensions: Vec::new(),
+                    frontend_instructions: vec![(
+                        "developer".to_string(),
+                        "write code".to_string(),
+                    )],
+                    extension_total: 1,
+                    tool_total: 1,
+                },
             )
             .await;
 

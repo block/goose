@@ -11,6 +11,7 @@ use tracing::debug;
 use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
+use crate::agents::tool_set::EnabledSurface;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::{fix_conversation, Conversation};
@@ -264,10 +265,13 @@ impl Agent {
                 .declare(
                     session_id,
                     &tools,
-                    counted_tool_names,
-                    extensions_info,
-                    self.frontend_instruction_entries().await,
-                    (extension_count, tool_count),
+                    EnabledSurface {
+                        counted_tool_names,
+                        extensions: extensions_info,
+                        frontend_instructions: self.frontend_instruction_entries().await,
+                        extension_total: extension_count,
+                        tool_total: tool_count,
+                    },
                 )
                 .await;
             extension_count = declared.extension_count;
