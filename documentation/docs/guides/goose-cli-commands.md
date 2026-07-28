@@ -812,7 +812,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 **Available Commands:**
 - **`/?` or `/help`** - Display the help menu
 - **`/builtin <names>`** - Add builtin extensions by name (comma-separated)
-- **`/clear`** - Clear the current chat history. With providers that keep their own conversation (ACP agents, Claude Code, Gemini CLI) this also starts the agent-side conversation over, so the model forgets what you just cleared
+- **`/clear`** - Clear the current chat history. With ACP agents, which keep their own conversation, this also starts the agent-side conversation over, so the model forgets what you just cleared. The Claude Code and Gemini CLI providers cannot yet be reset this way; there `/clear` empties goose's transcript, warns you that the model still holds the previous conversation, and leaves the token counter reflecting what the model can still see
 - **`/endplan`** - Exit plan mode and return to 'normal' goose mode
 - **`/exit` or `/quit`** - Exit the session
 - **`/extension <command>`** - Add a stdio extension (format: ENV1=val1 command args...)
