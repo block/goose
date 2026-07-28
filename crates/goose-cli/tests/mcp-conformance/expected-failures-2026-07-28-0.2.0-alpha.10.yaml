@@ -8,14 +8,42 @@
 # (stale entry) or if a scenario not listed here fails (unexpected failure), so
 # keep this list in sync as behavior changes.
 client:
-  # See https://github.com/aaif-goose/goose/issues for tracking.
+  # Goose does not yet implement the draft stateless lifecycle. Initialization
+  # is rejected for lacking MCP-Protocol-Version, so add_numbers is never called.
   - tools_call
+
+  # Goose does not send the draft MCP-Protocol-Version header or required _meta
+  # fields on every request, nor retry after an unsupported-version response.
   - request-metadata
+
+  # Goose registers a conventional dynamically assigned client ID instead of
+  # using a URL-based Client ID Metadata Document. This is a SHOULD warning.
   - auth/basic-cimd
+
+  # Goose only initiates OAuth when initialization fails. The challenge in this
+  # scenario arrives after initialization, so no scope-upgrade flow is started.
   - auth/scope-step-up
+
+  # Like scope-step-up, post-initialization 401 responses do not initiate OAuth;
+  # consequently the runner observes no authorization attempts or retry limit.
   - auth/scope-retry-limit
+
+  # Goose keeps using the original authorization-server registration after the
+  # protected-resource metadata changes instead of registering with the new AS.
   - auth/authorization-server-migration
+
+  # Goose accepts and uses authorization-server metadata whose issuer does not
+  # match the issuer used to construct the well-known metadata URL.
   - auth/metadata-issuer-mismatch
+
+  # Goose does not yet implement SEP-2322 request-state propagation for MRTR;
+  # the runner observes none of the expected state echo/isolation behavior.
   - sep-2322-client-request-state
+
+  # Goose's HTTP transport does not emit the draft Mcp-Method header on POST
+  # requests (and therefore cannot exercise the related Mcp-Name checks).
   - http-standard-headers
+
+  # Goose does not map tool parameters annotated with x-mcp-header into the
+  # corresponding Mcp-Param-* HTTP request headers.
   - http-custom-headers
