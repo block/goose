@@ -89,6 +89,16 @@ struct JsonMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     cost_usd: Option<f64>,
     status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop_reason: Option<String>,
+}
+
+fn completion_status(reached_max_tokens: bool) -> (String, Option<String>) {
+    if reached_max_tokens {
+        ("incomplete".to_string(), Some("max_tokens".to_string()))
+    } else {
+        ("completed".to_string(), None)
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -117,6 +127,9 @@ enum StreamEvent {
         cache_write_input_tokens: Option<i32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         cost_usd: Option<f64>,
+        status: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stop_reason: Option<String>,
     },
 }
 
@@ -1304,6 +1317,7 @@ impl CliSession {
     ) -> Result<()> {
         let is_json_mode = self.output_format == "json";
         let is_stream_json_mode = self.output_format == "stream-json";
+        let mut reached_max_tokens = false;
 
         let session_config = SessionConfig {
             id: self.session_id.clone(),
@@ -1480,7 +1494,8 @@ impl CliSession {
                         }
                         Some(Ok(AgentEvent::MessageUsage { .. })) => {}
                         Some(Ok(AgentEvent::MaxTokens)) => {
-                            if !is_json_mode {
+                            reached_max_tokens = true;
+                            if !is_json_mode && !is_stream_json_mode {
                                 output::render_text(
                                     "Response reached the model's output token limit. Ask the agent to continue.",
                                     Some(Color::Yellow),
@@ -1535,6 +1550,8 @@ impl CliSession {
             output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
 
+        let (completion_status, completion_stop_reason) = completion_status(reached_max_tokens);
+
         if is_json_mode {
             let metadata = match self
                 .agent
@@ -1550,7 +1567,8 @@ impl CliSession {
                     cache_read_input_tokens: totals.accumulated_usage.cache_read_input_tokens,
                     cache_write_input_tokens: totals.accumulated_usage.cache_write_input_tokens,
                     cost_usd: totals.accumulated_cost,
-                    status: "completed".to_string(),
+                    status: completion_status.clone(),
+                    stop_reason: completion_stop_reason.clone(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
@@ -1559,7 +1577,8 @@ impl CliSession {
                     cache_read_input_tokens: None,
                     cache_write_input_tokens: None,
                     cost_usd: None,
-                    status: "completed".to_string(),
+                    status: completion_status.clone(),
+                    stop_reason: completion_stop_reason.clone(),
                 },
             };
             let json_output = JsonOutput {
@@ -1600,6 +1619,8 @@ impl CliSession {
                 cache_read_input_tokens,
                 cache_write_input_tokens,
                 cost_usd,
+                status: completion_status,
+                stop_reason: completion_stop_reason,
             });
         } else {
             println!();
@@ -2550,6 +2571,51 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test_case(false, "completed", None; "completed")]
+    #[test_case(true, "incomplete", Some("max_tokens"); "max tokens")]
+    fn completion_status_reports_terminal_state(
+        reached_max_tokens: bool,
+        expected_status: &str,
+        expected_stop_reason: Option<&str>,
+    ) {
+        let (status, stop_reason) = completion_status(reached_max_tokens);
+
+        assert_eq!(status, expected_status);
+        assert_eq!(stop_reason.as_deref(), expected_stop_reason);
+    }
+
+    #[test]
+    fn structured_completion_serializes_max_tokens_state() {
+        let metadata = JsonMetadata {
+            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
+            cost_usd: None,
+            status: "incomplete".to_string(),
+            stop_reason: Some("max_tokens".to_string()),
+        };
+        let metadata = serde_json::to_value(metadata).unwrap();
+        assert_eq!(metadata["status"], "incomplete");
+        assert_eq!(metadata["stop_reason"], "max_tokens");
+
+        let event = serde_json::to_value(StreamEvent::Complete {
+            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_input_tokens: None,
+            cache_write_input_tokens: None,
+            cost_usd: None,
+            status: "incomplete".to_string(),
+            stop_reason: Some("max_tokens".to_string()),
+        })
+        .unwrap();
+        assert_eq!(event["type"], "complete");
+        assert_eq!(event["status"], "incomplete");
+        assert_eq!(event["stop_reason"], "max_tokens");
+    }
 
     #[test]
     fn planner_classification_excludes_user_only_content() {

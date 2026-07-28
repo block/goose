@@ -31,7 +31,7 @@ pub struct SubagentPromptContext {
 }
 
 type AgentMessagesFuture =
-    Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
+    Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>, bool)>> + Send>>;
 
 pub struct SubagentRunParams {
     pub config: AgentConfig,
@@ -46,19 +46,36 @@ pub struct SubagentRunParams {
 
 pub async fn run_subagent_task(params: SubagentRunParams) -> Result<String, anyhow::Error> {
     let return_last_only = params.return_last_only;
-    let (messages, final_output) = get_agent_messages(params).await.map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to execute task: {}", e),
-            None,
-        )
-    })?;
+    let (messages, final_output, reached_max_tokens) =
+        get_agent_messages(params).await.map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to execute task: {}", e),
+                None,
+            )
+        })?;
 
-    if let Some(output) = final_output {
-        return Ok(output);
+    resolve_subagent_output(
+        &messages,
+        final_output,
+        return_last_only,
+        reached_max_tokens,
+    )
+}
+
+fn resolve_subagent_output(
+    messages: &Conversation,
+    final_output: Option<String>,
+    return_last_only: bool,
+    reached_max_tokens: bool,
+) -> Result<String, anyhow::Error> {
+    let output = final_output.unwrap_or_else(|| extract_response_text(messages, return_last_only));
+    if reached_max_tokens {
+        return Err(anyhow!(
+            "Subagent response reached the model's output token limit and is incomplete. Partial output:\n\n{output}"
+        ));
     }
-
-    Ok(extract_response_text(&messages, return_last_only))
+    Ok(output)
 }
 
 fn extract_response_text(messages: &Conversation, return_last_only: bool) -> String {
@@ -169,6 +186,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
 
         let user_message = Message::user().with_text(user_task);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+        let mut reached_max_tokens = false;
 
         if let Some(activities) = recipe.activities {
             for activity in activities {
@@ -213,7 +231,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                 }
                 Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::MessageUsage { .. }) => {}
-                Ok(AgentEvent::MaxTokens) => {}
+                Ok(AgentEvent::MaxTokens) => reached_max_tokens = true,
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;
@@ -227,7 +245,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
 
         let final_output = get_final_output(&agent, has_response_schema).await;
 
-        Ok((conversation, final_output))
+        Ok((conversation, final_output, reached_max_tokens))
     })
 }
 
@@ -306,10 +324,47 @@ pub fn create_tool_notification(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_tool_notification, SUBAGENT_TOOL_REQUEST_TYPE};
-    use crate::conversation::message::MessageContent;
+    use super::{create_tool_notification, resolve_subagent_output, SUBAGENT_TOOL_REQUEST_TYPE};
+    use crate::conversation::message::Message;
+    use crate::conversation::{message::MessageContent, Conversation};
     use rmcp::model::{CallToolRequestParams, ServerNotification};
     use serde_json::json;
+
+    #[test]
+    fn incomplete_subagent_output_is_an_error_with_partial_text() {
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("task"),
+            Message::assistant().with_text("partial research"),
+        ]);
+
+        let error = resolve_subagent_output(&conversation, None, true, true).unwrap_err();
+
+        assert!(error.to_string().contains("output token limit"));
+        assert!(error.to_string().contains("partial research"));
+    }
+
+    #[test]
+    fn complete_subagent_output_remains_successful() {
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("task"),
+            Message::assistant().with_text("complete research"),
+        ]);
+
+        assert_eq!(
+            resolve_subagent_output(&conversation, None, true, false).unwrap(),
+            "complete research"
+        );
+        assert_eq!(
+            resolve_subagent_output(
+                &conversation,
+                Some("structured result".to_string()),
+                true,
+                false,
+            )
+            .unwrap(),
+            "structured result"
+        );
+    }
 
     #[test]
     #[expect(deprecated)]

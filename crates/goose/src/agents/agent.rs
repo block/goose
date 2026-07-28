@@ -1941,6 +1941,7 @@ impl Agent {
             let mut compaction_attempts = 0;
             let mut empty_turn_retries = 0u32;
             let mut max_token_continuations = 0u32;
+            let mut pending_max_tokens_stop = false;
             let mut retrying_after_empty_turn = false;
             let mut retrying_after_max_tokens = false;
             let mut last_assistant_text = String::new();
@@ -2731,7 +2732,7 @@ impl Agent {
                             "Provider repeatedly reached its output token limit; ending turn after {} continuations",
                             MAX_TOKEN_CONTINUATIONS
                         );
-                        yield AgentEvent::MaxTokens;
+                        pending_max_tokens_stop = true;
                         exit_chat = true;
                     }
                 }
@@ -2928,6 +2929,7 @@ impl Agent {
 
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;
+                    pending_max_tokens_stop = false;
                 }
 
                 if exit_chat {
@@ -2936,6 +2938,9 @@ impl Agent {
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
+                            if pending_max_tokens_stop {
+                                yield AgentEvent::MaxTokens;
+                            }
                             stop_hook_handled_for_exit = true;
                             break;
                         }
@@ -2945,9 +2950,13 @@ impl Agent {
                                 let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
                                 session_manager.add_message(&session_config.id, &message).await?;
                                 yield AgentEvent::Message(message);
+                                if pending_max_tokens_stop {
+                                    yield AgentEvent::MaxTokens;
+                                }
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
+                            pending_max_tokens_stop = false;
                             let message = stop_hook_denial_context_message(&plugin, &reason);
                             session_manager.add_message(&session_config.id, &message).await?;
                             conversation.push(message);
@@ -4090,6 +4099,81 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .as_concat_text(),
             "partial 8"
         );
+        Ok(())
+    }
+
+    struct RecoversAfterMaxTokensProvider {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for RecoversAfterMaxTokensProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            if call <= MAX_TOKEN_CONTINUATIONS as usize {
+                return Ok(Box::pin(futures::stream::iter(vec![
+                    Ok((
+                        Some(Message::assistant().with_text(format!("partial {call}"))),
+                        None,
+                    )),
+                    Err(ProviderError::MaxTokens),
+                ])));
+            }
+
+            Ok(stream_from_single_message(
+                Message::assistant().with_text("complete response"),
+                ProviderUsage::new("mock-model".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_name(&self) -> &str {
+            "recovers-after-max-tokens"
+        }
+    }
+
+    #[tokio::test]
+    async fn max_tokens_is_not_emitted_when_stop_hook_continues_and_run_succeeds() -> Result<()> {
+        let env = StopHookTestEnv::new(ALTERNATE_BLOCK_ALLOW_SCRIPT)?;
+        let provider = Arc::new(RecoversAfterMaxTokensProvider {
+            call_count: AtomicUsize::new(0),
+        });
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("write a very long response"),
+                session_config,
+                None,
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+
+        let mut emitted_max_tokens = false;
+        let mut visible_text = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            match event? {
+                AgentEvent::MaxTokens => emitted_max_tokens = true,
+                AgentEvent::Message(message) => visible_text.push(message.as_concat_text()),
+                _ => {}
+            }
+        }
+
+        assert!(!emitted_max_tokens);
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 10);
+        assert_eq!(env.hook_invocations(), 2);
+        assert!(visible_text.iter().any(|text| text == "complete response"));
         Ok(())
     }
 
