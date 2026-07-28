@@ -282,7 +282,15 @@ impl Agent {
 
     #[tracing::instrument(
         skip(provider, model_config, session_id, system_prompt, messages, tools, toolshim_tools),
-        fields(session.id = %session_id)
+        fields(
+            session.id = %session_id,
+            gen_ai.operation.name = "chat",
+            gen_ai.request.model = tracing::field::Empty,
+            gen_ai.response.model = tracing::field::Empty,
+            gen_ai.provider.name = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+        )
     )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
@@ -294,6 +302,34 @@ impl Agent {
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let config = model_config.clone();
+        let span = tracing::Span::current();
+        span.record("gen_ai.request.model", model_config.model_name.as_str());
+        span.record("gen_ai.provider.name", provider.get_name());
+
+        #[cfg(feature = "otel")]
+        {
+            use tracing_opentelemetry::OpenTelemetrySpanExt;
+            let last_user_text = messages
+                .iter()
+                .rev()
+                .find(|m| m.role == rmcp::model::Role::User)
+                .map(|m| {
+                    m.content
+                        .iter()
+                        .filter_map(|c| match c {
+                            MessageContent::Text(t) => Some(t.text.as_str()),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+            let inputs = json!({
+                "model": model_config.model_name,
+                "message": last_user_text,
+            });
+            span.set_attribute("mlflow.spanInputs", inputs.to_string());
+        }
 
         let projected_messages =
             Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
@@ -392,9 +428,29 @@ impl Agent {
                 // The toolshim interpreter call below must not count toward elapsed time.
                 if let Some(usage) = final_usage.as_mut() {
                     fill_stream_timing(usage, request_started, first_content_at);
+                    span.record("gen_ai.response.model", usage.model.as_str());
+                    if let Some(input_tokens) = usage.usage.input_tokens {
+                        span.record("gen_ai.usage.input_tokens", input_tokens);
+                    }
+                    if let Some(output_tokens) = usage.usage.output_tokens {
+                        span.record("gen_ai.usage.output_tokens", output_tokens);
+                    }
                 }
 
                 if let Some(msg) = accumulated_message {
+                    #[cfg(feature = "otel")]
+                    {
+                        use tracing_opentelemetry::OpenTelemetrySpanExt;
+                        let response_text = msg.content.iter()
+                            .filter_map(|c| match c {
+                                MessageContent::Text(t) => Some(t.text.as_str()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let outputs = json!({ "response": response_text });
+                        span.set_attribute("mlflow.spanOutputs", outputs.to_string());
+                    }
                     let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
                     yield (Some(processed), final_usage);
                 } else if final_usage.is_some() {
@@ -403,6 +459,8 @@ impl Agent {
                 }
             } else {
                 let mut first_content_at: Option<std::time::Instant> = None;
+                #[cfg(feature = "otel")]
+                let mut otel_response_text = String::new();
                 while let Some(result) = stream.next().await {
                     let (message, mut usage) = result?;
 
@@ -411,11 +469,32 @@ impl Agent {
                     {
                         first_content_at = Some(std::time::Instant::now());
                     }
+                    #[cfg(feature = "otel")]
+                    if let Some(ref msg) = message {
+                        for content in &msg.content {
+                            if let MessageContent::Text(t) = content {
+                                otel_response_text.push_str(&t.text);
+                            }
+                        }
+                    }
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
+                        span.record("gen_ai.response.model", usage.model.as_str());
+                        if let Some(input_tokens) = usage.usage.input_tokens {
+                            span.record("gen_ai.usage.input_tokens", input_tokens);
+                        }
+                        if let Some(output_tokens) = usage.usage.output_tokens {
+                            span.record("gen_ai.usage.output_tokens", output_tokens);
+                        }
                     }
 
                     yield (message, usage);
+                }
+                #[cfg(feature = "otel")]
+                if !otel_response_text.is_empty() {
+                    use tracing_opentelemetry::OpenTelemetrySpanExt;
+                    let outputs = json!({ "response": otel_response_text });
+                    span.set_attribute("mlflow.spanOutputs", outputs.to_string());
                 }
             }
         }))

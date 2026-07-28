@@ -1055,7 +1055,16 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
+    #[instrument(
+        skip(self, tool_call, request_id, cancellation_token, session),
+        fields(
+            input,
+            output,
+            session.id = %session.id,
+            gen_ai.operation.name = "execute_tool",
+            gen_ai.tool.call.arguments = tracing::field::Empty,
+        )
+    )]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -1068,6 +1077,17 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        if let Some(ref args) = tool_call.arguments {
+            tracing::Span::current().record(
+                "gen_ai.tool.call.arguments",
+                tracing::field::display(&serde_json::Value::Object(args.clone())),
+            );
+        }
+        #[cfg(feature = "otel")]
+        {
+            use tracing_opentelemetry::OpenTelemetrySpanExt;
+            tracing::Span::current().set_attribute("mlflow.spanInputs", input_summary.to_string());
+        }
 
         self.prompt_manager
             .lock()
@@ -1557,6 +1577,12 @@ impl Agent {
         let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
+        #[cfg(feature = "otel")]
+        {
+            use tracing_opentelemetry::OpenTelemetrySpanExt;
+            let inputs = serde_json::json!({ "message": message_text_for_trace });
+            tracing::Span::current().set_attribute("mlflow.spanInputs", inputs.to_string());
+        }
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
@@ -1928,6 +1954,16 @@ impl Agent {
             session.agent_type = "goose",
         );
         let inner = Box::pin(async_stream::try_stream! {
+            #[cfg(feature = "otel")]
+            {
+                use tracing_opentelemetry::OpenTelemetrySpanExt;
+                let input_text = conversation.messages().iter().rev()
+                    .find(|m| m.role == rmcp::model::Role::User)
+                    .map(|m| agent_visible_message_text(m))
+                    .unwrap_or_default();
+                let inputs = serde_json::json!({ "message": input_text });
+                tracing::Span::current().set_attribute("mlflow.spanInputs", inputs.to_string());
+            }
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
                 Config::global()
@@ -2921,6 +2957,12 @@ impl Agent {
 
             if !last_assistant_text.is_empty() {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
+                #[cfg(feature = "otel")]
+                {
+                    use tracing_opentelemetry::OpenTelemetrySpanExt;
+                    let outputs = serde_json::json!({ "response": last_assistant_text });
+                    tracing::Span::current().set_attribute("mlflow.spanOutputs", outputs.to_string());
+                }
             }
 
             if !stop_hook_handled_for_exit {
