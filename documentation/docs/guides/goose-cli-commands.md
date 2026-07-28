@@ -821,7 +821,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompt <n> [--info] [key=value...]`** - Get prompt info or execute a prompt
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
-- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information. Not available with providers that manage their own context, since goose cannot summarize a history it does not hold — use `/clear` instead
+- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information. Not available with providers that manage their own context, since goose cannot summarize a history it does not hold. Use `/clear` instead where the provider can reset its conversation, and start a new session where it cannot
 - **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
 - **`/skills [<name>...]`** - List available skills, or load one or more skills by name
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).

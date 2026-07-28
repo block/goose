@@ -537,7 +537,9 @@ pub fn stale_provider_context_message(provider_name: &str, error: &str) -> Strin
 pub fn compaction_unsupported_message(provider_name: &str) -> String {
     format!(
         "Compaction is not supported with '{provider_name}' because it manages its own \
-         conversation context. Use /clear to start the conversation over."
+         conversation context. Try /clear, which starts the agent's conversation over for \
+         providers that can reset it; if it reports that the previous conversation is still \
+         held, start a new session instead."
     )
 }
 
