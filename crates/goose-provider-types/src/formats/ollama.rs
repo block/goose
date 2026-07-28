@@ -393,7 +393,7 @@ data: [DONE]"#;
         let message = message.expect("expected invalid XML fallback message");
         assert_eq!(message.role, Role::Assistant);
         assert_eq!(message.content.len(), 1);
-        let MessageContent::Text(text) = &message.content[0] else {
+        let MessageContentBlock::Text(text) = &message.content[0] else {
             panic!("expected invalid XML fallback to remain text-only");
         };
         assert_eq!(text.text, "literal <function=not-a-tool should remain text");

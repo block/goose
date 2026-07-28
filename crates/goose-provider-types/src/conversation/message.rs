@@ -1045,7 +1045,7 @@ impl Message {
             msg,
         ))
         .with_metadata(MessageMetadata::user_only())
-            .with_generated_id_if_missing()
+        .with_generated_id_if_missing()
     }
 
     pub fn with_system_notification_with_data<S: Into<String>>(
