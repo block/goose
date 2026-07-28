@@ -1473,6 +1473,9 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
     if let Some(client_secret) = &script.oauth.client_secret {
         std::env::set_var("GOOSE_MCP_OAUTH_CLIENT_SECRET", client_secret);
     }
+    if let Some(client_metadata_url) = &script.oauth.client_metadata_url {
+        std::env::set_var("GOOSE_MCP_OAUTH_CLIENT_METADATA_URL", client_metadata_url);
+    }
 
     let config = goose::config::Config::global();
     let mut agent_config = AgentConfig::new(

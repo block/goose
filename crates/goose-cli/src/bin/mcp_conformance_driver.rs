@@ -23,6 +23,10 @@ fn script_for_scenario(scenario: Option<&str>) -> Value {
         Some("sse-retry") => json!({
             "steps": [{ "action": "callTool", "name": "test_reconnection", "arguments": {} }],
         }),
+        Some("auth/basic-cimd") => json!({
+            "steps": [{ "action": "listTools" }],
+            "oauth": { "clientMetadataUrl": "https://conformance-test.local/client-metadata.json" },
+        }),
         Some("auth/pre-registration") => json!({
             "steps": [{ "action": "listTools" }],
             "oauth": { "clientId": context.get("client_id"), "clientSecret": context.get("client_secret") },
