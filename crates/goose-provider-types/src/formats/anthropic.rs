@@ -93,7 +93,7 @@ pub fn defer_tool_loading(tool: &Tool) -> Tool {
     tool
 }
 
-fn offer_tool_immediately(tool: &Tool) -> Tool {
+pub fn offer_tool_immediately(tool: &Tool) -> Tool {
     let mut tool = tool.clone();
     if let Some(meta) = tool.meta.as_mut() {
         meta.0.remove(DEFER_LOADING_META_KEY);

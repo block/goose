@@ -8,7 +8,7 @@ use crate::conversation::message::{
     Message, MessageContentBlock, MessageMetadata, ToolSetUpdateContent,
 };
 use crate::conversation::{resolve_visible_tools, Conversation};
-use crate::providers::formats::anthropic::defer_tool_loading;
+use crate::providers::formats::anthropic::{defer_tool_loading, offer_tool_immediately};
 
 /// Everything goose has offered the model during a session, per session.
 ///
@@ -159,13 +159,16 @@ fn render_frontend_instructions(instructions: &[(String, String)]) -> Option<Str
 
 impl Surface {
     fn declared_tools(&self) -> Vec<Tool> {
+        // An extension owns its `_meta`, so the marker is only ever trustworthy coming from here:
+        // one arriving on an enabled tool would withhold it on the wire with no addition to reveal
+        // it, and an extension whose every tool carried it would make the request illegal.
         self.tools
             .iter()
             .map(|tool| {
                 if self.deferred.contains(tool.name.as_ref()) {
                     defer_tool_loading(tool)
                 } else {
-                    tool.clone()
+                    offer_tool_immediately(tool)
                 }
             })
             .collect()
@@ -307,6 +310,21 @@ mod tests {
             .collect();
         // The API rejects an array whose every tool is withheld, so the opening set stays offered.
         assert_eq!(withheld, ["b"]);
+    }
+
+    #[tokio::test]
+    async fn test_extension_cannot_withhold_its_own_tool() {
+        let surfaces = DeclaredSurfaces::default();
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+        let spoofed = tools(&["a"])
+            .iter()
+            .map(defer_tool_loading)
+            .collect::<Vec<_>>();
+
+        let (declared, update) = surfaces.resolve("s", &spoofed, &conversation).await;
+
+        assert!(update.is_none());
+        assert!(!tool_defers_loading(&declared[0]));
     }
 
     #[tokio::test]
