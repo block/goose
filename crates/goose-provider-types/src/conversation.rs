@@ -609,9 +609,8 @@ pub fn is_turn_context_text(text: &str) -> bool {
 /// Only agent-visible messages count, since those are the only ones the provider is sent,
 /// and deltas naming an undeclared tool are ignored because referencing one is a wire error.
 ///
-/// `initially_available` is what the tool array offers on its own: a withheld tool is declared
-/// but unavailable until an addition names it, so it starts outside this set while still being
-/// nameable by a delta.
+/// `initially_available` is what the tool array offers on its own, which excludes a withheld tool
+/// until an addition names it.
 pub fn resolve_visible_tools(
     declared: &HashSet<String>,
     initially_available: &HashSet<String>,

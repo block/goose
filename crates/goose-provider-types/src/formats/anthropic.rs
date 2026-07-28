@@ -79,9 +79,8 @@ pub const MID_CONVERSATION_TOOL_CHANGES_BETA: &str = "mid-conversation-tool-chan
 
 const DEFER_LOADING_FIELD: &str = "defer_loading";
 
-/// `_meta` marker for a declared tool the model has not been offered yet. A declared tool counts
-/// as available from the first turn unless its spec defers loading, which no later `tool_addition`
-/// can undo.
+/// `_meta` marker for a declared tool the model has not been offered yet. Without it a declared
+/// tool counts as available from the first turn, and no later `tool_addition` undoes that.
 const DEFER_LOADING_META_KEY: &str = "dev.goose/deferLoading";
 
 pub fn defer_tool_loading(tool: &Tool) -> Tool {
@@ -108,8 +107,7 @@ pub fn tool_defers_loading(tool: &Tool) -> bool {
 }
 
 /// Canonical ids, so dated names and regional or reseller aliases all resolve to one check. Mythos
-/// is restricted and absent from the generated registry, which leaves it inert here until the
-/// registry carries it rather than needing a second gate then.
+/// is absent from the generated registry, leaving it inert here until the registry carries it.
 const MID_CONVERSATION_TOOL_CHANGE_MODELS: &[&str] = &[
     "anthropic/claude-opus-5",
     "anthropic/claude-opus-4.8",

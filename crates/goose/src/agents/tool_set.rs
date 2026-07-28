@@ -13,8 +13,9 @@ use crate::providers::formats::anthropic::{defer_tool_loading, offer_tool_immedi
 /// Everything goose has offered the model during a session, per session.
 ///
 /// Anthropic hashes a request prefix as `tools` -> `system` -> `messages`, so the cache only
-/// survives if both stay byte-identical for the life of the conversation. Disabling an
-/// extension therefore leaves its tools declared and hides them with a delta instead.
+/// survives if the tools and the system prompt both stay byte-identical for the life of the
+/// conversation. Disabling an extension therefore leaves its tools declared and hides them with a
+/// delta instead.
 ///
 /// A cache, not a source of truth: it is rebuilt from what is enabled on session resume.
 #[derive(Default)]
@@ -23,13 +24,12 @@ pub struct DeclaredSurfaces(Mutex<HashMap<String, Surface>>);
 #[derive(Default)]
 struct Surface {
     tools: Vec<Tool>,
-    /// Names withheld in the array until an addition reveals them. An addition only carries a
-    /// reference, so a tool the array never held still costs one rewrite of it; withholding is
-    /// what stops the model reading that tool as available before it was enabled.
+    /// Names withheld in the array until an addition reveals them, which is what stops the model
+    /// reading a tool as available before it was enabled.
     deferred: HashSet<String>,
-    /// Every tool the session has held, counted before the filters that decide what the model is
-    /// offered. `tool_count` is reported in those unfiltered terms, so an adjustment measured
-    /// against `tools` would shrink whenever a hidden tool's extension went away.
+    /// Every tool the session has held, counted before the filters that decide what is offered.
+    /// `tool_count` is reported in those terms, so measuring against `tools` would shrink it
+    /// whenever a hidden tool's extension went away.
     counted: HashSet<String>,
     extensions: Vec<ExtensionInfo>,
     frontend_instructions: Vec<(String, String)>,
@@ -87,8 +87,8 @@ impl DeclaredSurfaces {
             .frontend_instructions
             .sort_by(|(a, _), (b, _)| a.cmp(b));
 
-        // `enabled_counts` covers tool sources the declared prompt lists do not hold, so add
-        // what the surface declares beyond the currently enabled set rather than recounting.
+        // `enabled_counts` covers sources these lists do not hold, so add what the surface
+        // declares beyond the enabled set rather than recounting.
         DeclaredPrompt {
             extension_count: enabled_counts.0
                 + surface
@@ -116,9 +116,8 @@ impl DeclaredSurfaces {
         let surface = sessions.entry(session_id.to_string()).or_default();
         let declared_names = surface.declare_tools(enabled_tools);
 
-        // What the array offers by itself. A withheld tool is declared but unavailable until an
-        // addition names it, so the model's view is this set with the recorded deltas replayed:
-        // one archived by compaction simply means the addition has to be made again.
+        // What the array offers by itself, which the recorded deltas then move: an addition
+        // archived by compaction simply has to be made again.
         let offered: HashSet<String> = declared_names
             .difference(&surface.deferred)
             .cloned()
@@ -159,9 +158,8 @@ fn render_frontend_instructions(instructions: &[(String, String)]) -> Option<Str
 
 impl Surface {
     fn declared_tools(&self) -> Vec<Tool> {
-        // An extension owns its `_meta`, so the marker is only ever trustworthy coming from here:
-        // one arriving on an enabled tool would withhold it on the wire with no addition to reveal
-        // it, and an extension whose every tool carried it would make the request illegal.
+        // An extension owns its `_meta`, so the marker is only trustworthy coming from here: one
+        // arriving on an enabled tool would withhold it with no addition to reveal it.
         self.tools
             .iter()
             .map(|tool| {
@@ -177,9 +175,8 @@ impl Surface {
     fn declare_tools(&mut self, enabled: &[Tool]) -> HashSet<String> {
         // Whichever of `declare` and `resolve` runs first for a turn lands here, so this is the
         // only place that can tell a tool the model has never been offered from one it has. The
-        // first non-empty array has to be offered outright: the API rejects one whose every tool
-        // is withheld, so a session that opens with nothing model-visible cannot withhold what it
-        // gains later.
+        // first non-empty array is offered outright because the API rejects one whose every tool
+        // is withheld.
         let opening = self.tools.is_empty();
         // A changed schema can arrive under an unchanged name, and keeping the old one would
         // have the model calling it with stale arguments.
