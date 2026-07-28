@@ -191,15 +191,18 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
-        let provider = self.provider().await?;
-        let provider_reset = provider.reset_context().await;
+        let provider = self.provider().await.ok();
+        let provider_reset = match &provider {
+            Some(provider) => provider.reset_context().await,
+            None => Ok(()),
+        };
 
         let manager = self.config.session_manager.clone();
         manager
             .replace_conversation(session_id, &Conversation::default())
             .await?;
 
-        if let Err(e) = provider_reset {
+        if let (Some(provider), Err(e)) = (&provider, provider_reset) {
             tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
             return Ok(Some(user_only_assistant_text(
                 stale_provider_context_message(provider.get_name(), &e.to_string()),

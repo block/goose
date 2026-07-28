@@ -271,6 +271,36 @@ async fn a_context_owning_provider_does_not_inherit_a_silent_reset() -> anyhow::
     Ok(())
 }
 
+/// A resumed session whose provider restore failed leaves the agent with no
+/// provider at all. There is still a local transcript to clear, and no
+/// provider-side context to go stale.
+#[tokio::test]
+async fn clear_falls_back_to_a_local_clear_without_a_provider() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+    let session = setup_session(&agent, &temp_dir, "clear-no-provider").await?;
+
+    let result = agent
+        .execute_command("/clear", &session.id)
+        .await?
+        .expect("/clear returns a message");
+    assert_eq!(message_text(&result), "Conversation cleared");
+
+    let updated = agent
+        .config
+        .session_manager
+        .get_session(&session.id, true)
+        .await?;
+    assert!(updated
+        .conversation
+        .expect("session has a conversation")
+        .messages()
+        .is_empty());
+    assert_eq!(updated.usage.total_tokens, Some(0));
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn compact_is_rejected_for_providers_that_own_their_context() -> anyhow::Result<()> {
     let temp_dir = TempDir::new()?;
