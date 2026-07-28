@@ -1092,6 +1092,8 @@ impl CliSession {
             }
         };
 
+        let extension_configs = self.agent.get_extension_configs().await;
+
         self.agent
             .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
             .await;
@@ -1099,6 +1101,37 @@ impl CliSession {
         self.session_id = new_session_id;
         self.messages.clear();
         self.run_mode = RunMode::Normal;
+
+        if let Err(e) = self
+            .agent
+            .update_goose_mode(self.agent.goose_mode().await, &self.session_id)
+            .await
+        {
+            output::render_error(&format!("Failed to apply the current mode: {}", e));
+        }
+
+        if !extension_configs.is_empty() {
+            output::goose_mode_message("Restarting extensions for the new session...");
+        }
+
+        // MCP clients pin themselves to the first session id they see a request for, so
+        // extensions must be torn down and re-added under the new session id.
+        for name in self.agent.list_extensions().await {
+            if let Err(e) = self.agent.remove_extension(&name, &self.session_id).await {
+                output::render_extension_error(&name, &e.to_string());
+            }
+        }
+
+        for config in extension_configs {
+            let name = config.name();
+            if let Err(e) = self.agent.add_extension(config, &self.session_id).await {
+                output::render_extension_error(&name, &e.to_string());
+            }
+        }
+
+        if let Err(e) = self.update_completion_cache().await {
+            output::render_error(&format!("Failed to refresh completions: {}", e));
+        }
 
         output::render_message(
             &Message::assistant()
@@ -2967,6 +3000,14 @@ mod tests {
             .await
             .unwrap();
 
+        let mut extension_data = goose::session::ExtensionData::new();
+        extension_data.set_extension_state("test", "v0", serde_json::json!("marker"));
+        sm.update(&old.id)
+            .extension_data(extension_data)
+            .apply()
+            .await
+            .unwrap();
+
         let old = sm.get_session(&old.id, false).await.unwrap();
 
         let new_id = create_successor_session(&sm, &old, GooseMode::Chat)
@@ -2993,5 +3034,11 @@ mod tests {
         let old_messages = reloaded_old.conversation.unwrap().messages().to_vec();
         assert_eq!(old_messages.len(), 1);
         assert_eq!(old_messages[0].as_concat_text(), "hello");
+        assert_eq!(
+            reloaded_old
+                .extension_data
+                .get_extension_state("test", "v0"),
+            Some(&serde_json::json!("marker"))
+        );
     }
 }
