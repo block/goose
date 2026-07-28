@@ -23,6 +23,7 @@
     "@inkeep/docusaurus": "^2.0.16",
     "@mdx-js/react": "^3.0.0",
     "autoprefixer": "^10.4.17",
+    "brace-expansion": "^1.1.16",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.7",
     "framer-motion": "^11.0.0",
@@ -43,8 +44,8 @@
     "@docusaurus/module-type-aliases": "3.7.0",
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
-    "gray-matter": "^4.0.3",
     "globby": "^13.2.2",
+    "gray-matter": "^4.0.3",
     "js-yaml": "^4.3.0",
     "typescript": "~5.6.2",
     "yaml-loader": "^0.8.1"
