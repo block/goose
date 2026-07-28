@@ -8,6 +8,7 @@ use crate::conversation::message::{
     Message, MessageContentBlock, MessageMetadata, ToolSetUpdateContent,
 };
 use crate::conversation::{resolve_visible_tools, Conversation};
+use crate::providers::formats::anthropic::defer_tool_loading;
 
 /// Everything goose has offered the model during a session, per session.
 ///
@@ -22,8 +23,10 @@ pub struct DeclaredSurfaces(Mutex<HashMap<String, Surface>>);
 #[derive(Default)]
 struct Surface {
     tools: Vec<Tool>,
-    /// Names last rendered into a tool array, which is what the model's view is relative to.
-    sent: HashSet<String>,
+    /// Names withheld in the array until an addition reveals them. An addition only carries a
+    /// reference, so a tool the array never held still costs one rewrite of it; withholding is
+    /// what stops the model reading that tool as available before it was enabled.
+    deferred: HashSet<String>,
     extensions: Vec<ExtensionInfo>,
     frontend_instructions: Vec<(String, String)>,
 }
@@ -105,17 +108,14 @@ impl DeclaredSurfaces {
         let surface = sessions.entry(session_id.to_string()).or_default();
         let declared_names = surface.declare_tools(enabled_tools);
 
-        // `declare` folds newly enabled tools in while building the prompt, and runs first, so the
-        // surface cannot say what the model has already been offered. Seeding from a set that
-        // already holds a brand-new tool leaves `added` empty and the array then reads as though
-        // the tool had been there from the first turn.
-        let sent = std::mem::take(&mut surface.sent);
-        let baseline = if sent.is_empty() {
-            &declared_names
-        } else {
-            &sent
-        };
-        let visible = resolve_visible_tools(baseline, conversation.messages());
+        // What the array offers by itself. A withheld tool is declared but unavailable until an
+        // addition names it, so the model's view is this set with the recorded deltas replayed:
+        // one archived by compaction simply means the addition has to be made again.
+        let offered: HashSet<String> = declared_names
+            .difference(&surface.deferred)
+            .cloned()
+            .collect();
+        let visible = resolve_visible_tools(&declared_names, &offered, conversation.messages());
         let enabled_names: HashSet<String> = enabled_tools
             .iter()
             .map(|tool| tool.name.to_string())
@@ -128,10 +128,8 @@ impl DeclaredSurfaces {
         update.added.sort();
         update.removed.sort();
 
-        surface.sent = declared_names;
-
         (
-            surface.tools.clone(),
+            surface.declared_tools(),
             (!update.is_empty()).then_some(update),
         )
     }
@@ -152,7 +150,26 @@ fn render_frontend_instructions(instructions: &[(String, String)]) -> Option<Str
 }
 
 impl Surface {
+    fn declared_tools(&self) -> Vec<Tool> {
+        self.tools
+            .iter()
+            .map(|tool| {
+                if self.deferred.contains(tool.name.as_ref()) {
+                    defer_tool_loading(tool)
+                } else {
+                    tool.clone()
+                }
+            })
+            .collect()
+    }
+
     fn declare_tools(&mut self, enabled: &[Tool]) -> HashSet<String> {
+        // Whichever of `declare` and `resolve` runs first for a turn lands here, so this is the
+        // only place that can tell a tool the model has never been offered from one it has. The
+        // first non-empty array has to be offered outright: the API rejects one whose every tool
+        // is withheld, so a session that opens with nothing model-visible cannot withhold what it
+        // gains later.
+        let opening = self.tools.is_empty();
         // A changed schema can arrive under an unchanged name, and keeping the old one would
         // have the model calling it with stale arguments.
         for tool in enabled {
@@ -162,7 +179,12 @@ impl Surface {
                 .find(|declared| declared.name == tool.name)
             {
                 Some(declared) => *declared = tool.clone(),
-                None => self.tools.push(tool.clone()),
+                None => {
+                    if !opening {
+                        self.deferred.insert(tool.name.to_string());
+                    }
+                    self.tools.push(tool.clone());
+                }
             }
         }
         // Order must not depend on when a tool was declared, so a resume rebuilds it byte-wise.
@@ -217,6 +239,7 @@ pub fn tool_set_update_message(update: ToolSetUpdateContent) -> Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::formats::anthropic::tool_defers_loading;
     use rmcp::object;
 
     fn tools(names: &[&str]) -> Vec<Tool> {
@@ -256,6 +279,26 @@ mod tests {
         let update = update.unwrap();
         assert_eq!(update.added, ["b", "c"]);
         assert!(update.removed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_tool_enabled_mid_session_is_withheld_until_announced() {
+        let surfaces = DeclaredSurfaces::default();
+        let conversation = Conversation::new_unvalidated(vec![Message::user().with_text("hi")]);
+
+        surfaces.resolve("s", &tools(&["a"]), &conversation).await;
+        let (declared, update) = surfaces
+            .resolve("s", &tools(&["a", "b"]), &conversation)
+            .await;
+
+        assert_eq!(update.unwrap().added, ["b"]);
+        let withheld: Vec<&str> = declared
+            .iter()
+            .filter(|tool| tool_defers_loading(tool))
+            .map(|tool| tool.name.as_ref())
+            .collect();
+        // The API rejects an array whose every tool is withheld, so the opening set stays offered.
+        assert_eq!(withheld, ["b"]);
     }
 
     #[tokio::test]

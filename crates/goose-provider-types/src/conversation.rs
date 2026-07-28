@@ -608,8 +608,16 @@ pub fn is_turn_context_text(text: &str) -> bool {
 
 /// Only agent-visible messages count, since those are the only ones the provider is sent,
 /// and deltas naming an undeclared tool are ignored because referencing one is a wire error.
-pub fn resolve_visible_tools(declared: &HashSet<String>, messages: &[Message]) -> HashSet<String> {
-    let mut visible = declared.clone();
+///
+/// `initially_available` is what the tool array offers on its own: a withheld tool is declared
+/// but unavailable until an addition names it, so it starts outside this set while still being
+/// nameable by a delta.
+pub fn resolve_visible_tools(
+    declared: &HashSet<String>,
+    initially_available: &HashSet<String>,
+    messages: &[Message],
+) -> HashSet<String> {
+    let mut visible = initially_available.clone();
     for update in messages
         .iter()
         .filter(|message| message.is_agent_visible())

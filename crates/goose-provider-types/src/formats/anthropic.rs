@@ -77,6 +77,36 @@ impl AnthropicFormatOptions {
 
 pub const MID_CONVERSATION_TOOL_CHANGES_BETA: &str = "mid-conversation-tool-changes-2026-07-01";
 
+const DEFER_LOADING_FIELD: &str = "defer_loading";
+
+/// `_meta` marker for a declared tool the model has not been offered yet. A declared tool counts
+/// as available from the first turn unless its spec defers loading, which no later `tool_addition`
+/// can undo.
+const DEFER_LOADING_META_KEY: &str = "dev.goose/deferLoading";
+
+pub fn defer_tool_loading(tool: &Tool) -> Tool {
+    let mut tool = tool.clone();
+    let mut meta = tool.meta.take().unwrap_or_default();
+    meta.0
+        .insert(DEFER_LOADING_META_KEY.to_string(), json!(true));
+    tool.meta = Some(meta);
+    tool
+}
+
+fn offer_tool_immediately(tool: &Tool) -> Tool {
+    let mut tool = tool.clone();
+    if let Some(meta) = tool.meta.as_mut() {
+        meta.0.remove(DEFER_LOADING_META_KEY);
+    }
+    tool
+}
+
+pub fn tool_defers_loading(tool: &Tool) -> bool {
+    tool.meta
+        .as_ref()
+        .is_some_and(|meta| meta.0.get(DEFER_LOADING_META_KEY) == Some(&json!(true)))
+}
+
 const MID_CONVERSATION_TOOL_CHANGE_MODELS: &[&str] = &[
     "anthropic/claude-opus-5",
     "anthropic/claude-opus-4.8",
@@ -532,17 +562,26 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 
     for tool in tools {
         if unique_tools.insert(tool.name.clone()) {
-            tool_specs.push(json!({
+            let mut spec = json!({
                 NAME_FIELD: tool.name,
                 "description": tool.description,
                 "input_schema": anthropic_flavored_input_schema(tool.input_schema.clone())
-            }));
+            });
+            if tool_defers_loading(tool) {
+                spec[DEFER_LOADING_FIELD] = json!(true);
+            }
+            tool_specs.push(spec);
         }
     }
 
     // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-    // will be cached as a single prefix.
-    if let Some(last_tool) = tool_specs.last_mut() {
+    // will be cached as a single prefix. A withheld tool is rejected outright if it also carries
+    // cache_control, so the breakpoint goes on the last spec that can hold one.
+    if let Some(last_tool) = tool_specs
+        .iter_mut()
+        .rev()
+        .find(|spec| spec.get(DEFER_LOADING_FIELD).is_none())
+    {
         last_tool.as_object_mut().unwrap().insert(
             CACHE_CONTROL_FIELD.to_string(),
             json!({ TYPE_FIELD: "ephemeral" }),
@@ -817,11 +856,18 @@ pub fn create_request(
     if options.mid_conversation_tool_changes && !tool_set_updates.is_empty() {
         let declared: HashSet<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
         if !insert_tool_set_updates(&mut anthropic_messages, &tool_set_updates, &declared) {
-            let visible = resolve_visible_tools(&declared, messages);
+            let offered: HashSet<String> = tools
+                .iter()
+                .filter(|tool| !tool_defers_loading(tool))
+                .map(|tool| tool.name.to_string())
+                .collect();
+            let visible = resolve_visible_tools(&declared, &offered, messages);
+            // Without the deltas the array is the only description of what is available, so a
+            // withheld tool has nothing left to reveal it.
             visible_tools = tools
                 .iter()
                 .filter(|tool| visible.contains(tool.name.as_ref()))
-                .cloned()
+                .map(offer_tool_immediately)
                 .collect::<Vec<_>>();
             declared_tools = &visible_tools;
         }
@@ -876,14 +922,27 @@ pub fn create_request(
 }
 
 pub fn payload_needs_tool_change_beta(payload: &Value) -> bool {
-    payload
+    let carries_delta = payload
         .get("messages")
         .and_then(Value::as_array)
         .is_some_and(|messages| {
             messages
                 .iter()
                 .any(|message| message.get(ROLE_FIELD).and_then(Value::as_str) == Some(SYSTEM_ROLE))
-        })
+        });
+
+    // A withheld tool outlives the delta that revealed it, so the header cannot depend on one
+    // still being in the request.
+    let withholds_a_tool = payload
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|tools| {
+            tools
+                .iter()
+                .any(|tool| tool.get(DEFER_LOADING_FIELD) == Some(&json!(true)))
+        });
+
+    carries_delta || withholds_a_tool
 }
 
 /// Process streaming response from Anthropic's API
