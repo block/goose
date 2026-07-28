@@ -481,21 +481,27 @@ impl GooseAcpAgent {
         &self,
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
-        let provider = self
-            .create_provider(&req.provider_id, Vec::new(), None)
-            .await
-            .internal_err_ctx("Failed to initialize provider")?;
-        let models =
-            tokio::time::timeout(SUPPORTED_MODELS_TIMEOUT, provider.fetch_supported_models())
+        // An ACP adapter can hang during startup as easily as during the fetch, so the
+        // deadline has to cover provider creation too.
+        let discover = async {
+            let provider = self
+                .create_provider(&req.provider_id, Vec::new(), None)
                 .await
-                .map_err(|_| {
-                    agent_client_protocol::Error::internal_error().data(format!(
-                        "Live model discovery for '{}' timed out after {}s",
-                        req.provider_id,
-                        SUPPORTED_MODELS_TIMEOUT.as_secs()
-                    ))
-                })?
-                .internal_err_ctx("Failed to fetch provider supported models")?;
+                .internal_err_ctx("Failed to initialize provider")?;
+            provider
+                .fetch_supported_models()
+                .await
+                .internal_err_ctx("Failed to fetch provider supported models")
+        };
+        let models = tokio::time::timeout(SUPPORTED_MODELS_TIMEOUT, discover)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::internal_error().data(format!(
+                    "Live model discovery for '{}' timed out after {}s",
+                    req.provider_id,
+                    SUPPORTED_MODELS_TIMEOUT.as_secs()
+                ))
+            })??;
 
         Ok(ProviderSupportedModelsListResponse {
             provider_id: req.provider_id,

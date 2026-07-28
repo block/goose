@@ -656,6 +656,9 @@ impl Provider for ClaudeCodeProvider {
         // but it's unavailable during model listing.
         // See: https://code.claude.com/docs/en/cli-reference#system-prompt-flags
         let mut cmd = self.build_stream_json_command();
+        // A caller that times out drops this future before the kill below runs, so the
+        // child has to reap itself rather than outlive the request.
+        cmd.kill_on_drop(true);
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to spawn CLI for model listing: {e}"))
         })?;
