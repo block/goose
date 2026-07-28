@@ -1697,6 +1697,18 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
+        if session.provider_name.as_deref() == Some(&provider_name) {
+            if let Some(extension_manager) = self
+                .context
+                .extension_manager
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+            {
+                if let Some(provider) = extension_manager.get_provider().lock().await.clone() {
+                    return Ok((provider, model_config));
+                }
+            }
+        }
         let provider = providers::create(&provider_name, Vec::new()).await?;
         Ok((provider, model_config))
     }

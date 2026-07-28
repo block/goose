@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use anyhow::Result;
-use rmcp::model::Role;
+use rmcp::model::{ElicitationAction, Role};
 use serde_json::json;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calculator_extension::CalculatorExtension;
 use super::dummy_api::{DummyApi, ProviderFeatures};
+use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::AgentEvent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
@@ -23,12 +24,14 @@ use crate::agents::state_machine::{
     UnknownToolOperation,
 };
 use crate::config::GooseMode;
-use crate::config::permission::PermissionManager;
+use crate::config::permission::{PermissionLevel, PermissionManager};
 use crate::conversation::Conversation;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 use crate::hooks::HookManager;
+use crate::permission::Permission;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::providers::base::Provider;
+use crate::security::security_inspector::SecurityInspector;
 use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use goose_providers::model::ModelConfig;
@@ -44,6 +47,7 @@ pub(super) struct TestPipeline {
     goose_mode: TokioMutex<GooseMode>,
     prompt_manager: TokioMutex<PromptManager>,
     tool_inspection_manager: ToolInspectionManager,
+    permission_manager: Arc<PermissionManager>,
     frontend_instructions: TokioMutex<Option<String>>,
     hook_manager: HookManager,
     stop_hook_block_cap: u32,
@@ -143,6 +147,17 @@ impl TestPipeline {
         self.model_config.context_limit()
     }
 
+    pub(super) async fn with_model(mut self, model: &str) -> Self {
+        self.model_config = ModelConfig::new(model).with_canonical_limits("openai");
+        self.session_manager
+            .update(&self.session_id)
+            .model_config(self.model_config.clone())
+            .apply()
+            .await
+            .unwrap();
+        self
+    }
+
     pub(super) fn working_dir(&self) -> &std::path::Path {
         self._temp_dir.path()
     }
@@ -165,6 +180,33 @@ impl TestPipeline {
             .apply()
             .await
             .unwrap();
+    }
+
+    pub(super) async fn set_recipe(&self, recipe: crate::recipe::Recipe) -> Result<()> {
+        self.session_manager
+            .update(&self.session_id)
+            .recipe(Some(recipe.clone()))
+            .apply()
+            .await?;
+        for extension in recipe.extensions.clone().unwrap_or_default() {
+            self.extension_manager
+                .add_extension(
+                    extension,
+                    Some(self._temp_dir.path().to_path_buf()),
+                    None,
+                    Some(&self.session_id),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn set_schedule_id(&self, schedule_id: String) -> Result<()> {
+        self.session_manager
+            .update(&self.session_id)
+            .schedule_id(Some(schedule_id))
+            .apply()
+            .await
     }
 
     pub(super) async fn set_goal(&self, goal: Option<String>) {
@@ -217,15 +259,254 @@ impl TestPipeline {
             events,
         })
     }
+
+    pub(super) async fn run_message(&self, message: Message) -> Result<TestRun> {
+        self.session_manager
+            .add_message(&self.session_id, &message)
+            .await?;
+        let events = run_machine(self).await?;
+        Ok(TestRun {
+            session: self.session().await?,
+            events,
+        })
+    }
+
+    pub(super) async fn seed<const N: usize>(&self, messages: [Message; N]) -> Result<()> {
+        for message in messages {
+            self.session_manager
+                .add_message(&self.session_id, &message)
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn resume(&self) -> Result<TestRun> {
+        let events = run_machine(self).await?;
+        Ok(TestRun {
+            session: self.session().await?,
+            events,
+        })
+    }
+
+    pub(super) async fn confirm(&self, id: &str, permission: Permission) -> Result<()> {
+        self.session_manager
+            .add_message(
+                &self.session_id,
+                &Message::user()
+                    .with_content(MessageContent::action_required_tool_confirmation_response(
+                        id, permission,
+                    ))
+                    .with_visibility(false, false),
+            )
+            .await
+    }
+
+    pub(super) fn set_permission(&self, tool: &str, level: PermissionLevel) {
+        self.permission_manager.update_user_permission(tool, level);
+    }
+
+    pub(super) async fn remove_extension(&self, name: &str) -> Result<()> {
+        self.extension_manager
+            .remove_extension(name)
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
+    pub(super) async fn add_extension(&self, name: &str) -> Result<()> {
+        self.extension_manager
+            .add_extension(
+                ExtensionConfig::Platform {
+                    name: name.to_string(),
+                    description: name.to_string(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                Some(self._temp_dir.path().to_path_buf()),
+                None,
+                Some(&self.session_id),
+            )
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
+    pub(super) async fn run_cancelled(
+        &self,
+        message: &str,
+        after: std::time::Duration,
+    ) -> Result<TestRun> {
+        let cancel = CancellationToken::new();
+        let scheduled_cancel = cancel.clone();
+        let cancel_task = tokio::spawn(async move {
+            tokio::time::sleep(after).await;
+            scheduled_cancel.cancel();
+        });
+        let result = self.run_with_cancel(message, cancel).await;
+        cancel_task.await?;
+        result
+    }
+
+    pub(super) async fn run_with_cancel(
+        &self,
+        message: &str,
+        cancel: CancellationToken,
+    ) -> Result<TestRun> {
+        self.session_manager
+            .add_message(&self.session_id, &Message::user().with_text(message))
+            .await?;
+        let machine = self.machine(cancel.clone());
+        let (tx, mut rx) = mpsc::channel(1024);
+        let emit = Emitter::new(tx, cancel);
+        let session = machine
+            .run(
+                self.session_manager.as_ref(),
+                &self.session_id,
+                emit.clone(),
+            )
+            .await?;
+        drop(emit);
+        let mut events = Vec::new();
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        Ok(TestRun { session, events })
+    }
+
+    pub(super) async fn run_with_elicitation(
+        &self,
+        message: &str,
+        action: ElicitationAction,
+        user_data: serde_json::Value,
+    ) -> Result<TestRun> {
+        self.session_manager
+            .add_message(&self.session_id, &Message::user().with_text(message))
+            .await?;
+        let cancel = CancellationToken::new();
+        let machine = self.machine(cancel.clone());
+        let (tx, mut rx) = mpsc::channel(1024);
+        let emit = Emitter::new(tx, cancel);
+        let mut events = Vec::new();
+        let mut answered = false;
+
+        loop {
+            let session = self.session().await?;
+            let step = machine.step(&session, emit.clone());
+            tokio::pin!(step);
+            let mut result = loop {
+                tokio::select! {
+                    result = &mut step => break result?,
+                    Some(event) = rx.recv() => {
+                        if let AgentEvent::Message(message) = &event {
+                            let elicitation_id = message.content.iter().find_map(|content| {
+                                match content {
+                                    MessageContent::ActionRequired(action) => match &action.data {
+                                        ActionRequiredData::Elicitation { id, .. } => Some(id.clone()),
+                                        _ => None,
+                                    },
+                                    _ => None,
+                                }
+                            });
+                            if let Some(id) = elicitation_id {
+                                let outcome = match &action {
+                                    ElicitationAction::Accept => {
+                                        ElicitationOutcome::Accept(user_data.clone())
+                                    }
+                                    ElicitationAction::Decline => ElicitationOutcome::Decline,
+                                    ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                                };
+                                let response = Message::user()
+                                    .with_generated_id()
+                                    .with_content(
+                                        MessageContent::action_required_elicitation_response(
+                                            id.clone(),
+                                            user_data.clone(),
+                                            action.clone(),
+                                        ),
+                                    )
+                                    .agent_only();
+                                crate::elicitation::complete_elicitation_with_message(
+                                    &self.session_manager,
+                                    &self.session_id,
+                                    &id,
+                                    outcome,
+                                    &response,
+                                )
+                                .await?;
+                                answered = true;
+                            }
+                        }
+                        events.push(event);
+                    }
+                }
+            };
+            let Some(ref mut result) = result else {
+                break;
+            };
+            machine
+                .apply(self.session_manager.as_ref(), &session, result, &emit)
+                .await?;
+            while let Ok(event) = rx.try_recv() {
+                events.push(event);
+            }
+            if result.yield_to_client {
+                break;
+            }
+        }
+        assert!(answered, "tool did not request elicitation");
+        drop(emit);
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        Ok(TestRun {
+            session: self.session().await?,
+            events,
+        })
+    }
+
+    pub(super) async fn set_system_prompt_override(&self, prompt: impl Into<String>) {
+        self.prompt_manager
+            .lock()
+            .await
+            .set_system_prompt_override(prompt.into());
+    }
+
+    pub(super) async fn clear_system_prompt_override(&self) {
+        self.prompt_manager
+            .lock()
+            .await
+            .clear_system_prompt_override();
+    }
 }
 
 pub(super) async fn test_pipeline() -> Result<(TestPipeline, Arc<DummyApi>)> {
     test_pipeline_with(ProviderFeatures::default()).await
 }
 
+pub(super) async fn test_pipeline_with_scheduler() -> Result<(
+    TestPipeline,
+    Arc<DummyApi>,
+    Arc<crate::scheduler::Scheduler>,
+)> {
+    let (pipeline, api, scheduler) =
+        test_pipeline_with_components(ProviderFeatures::default(), true).await?;
+    Ok((pipeline, api, scheduler.expect("scheduler was requested")))
+}
+
 pub(super) async fn test_pipeline_with(
     features: ProviderFeatures,
 ) -> Result<(TestPipeline, Arc<DummyApi>)> {
+    let (pipeline, api, _) = test_pipeline_with_components(features, false).await?;
+    Ok((pipeline, api))
+}
+
+async fn test_pipeline_with_components(
+    features: ProviderFeatures,
+    with_scheduler: bool,
+) -> Result<(
+    TestPipeline,
+    Arc<DummyApi>,
+    Option<Arc<crate::scheduler::Scheduler>>,
+)> {
     let api = Arc::new(DummyApi::start(features).await);
     let api_client = goose_providers::api_client::ApiClient::new_with_tls(
         api.uri(),
@@ -235,15 +516,29 @@ pub(super) async fn test_pipeline_with(
     let provider: Arc<dyn Provider> = Arc::new(
         goose_providers::openai::OpenAiProviderBuilder::new(api_client)
             .name("openai")
+            .preserve_thinking_context(features.preserves_thinking)
             .build(),
     );
     let temp_dir = tempfile::tempdir()?;
     let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let scheduler = if with_scheduler {
+        Some(
+            crate::scheduler::Scheduler::new(
+                temp_dir.path().join("schedule.json"),
+                session_manager.clone(),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let shared_provider = Arc::new(TokioMutex::new(Some(provider.clone())));
     let extension_manager = Arc::new(ExtensionManager::new(
         shared_provider.clone(),
         session_manager.clone(),
-        None,
+        scheduler
+            .clone()
+            .map(|scheduler| scheduler as Arc<dyn crate::scheduler_trait::SchedulerTrait>),
         "pipeline-test".to_string(),
         ExtensionManagerCapabilities {
             mcpui: false,
@@ -251,9 +546,11 @@ pub(super) async fn test_pipeline_with(
         },
         false,
     ));
+    let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().join("permissions")));
     let mut tool_inspection_manager = ToolInspectionManager::new();
+    tool_inspection_manager.add_inspector(Box::new(SecurityInspector::enabled()));
     tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-        Arc::new(PermissionManager::new(temp_dir.path().join("permissions"))),
+        permission_manager.clone(),
         shared_provider,
         session_manager.clone(),
     )));
@@ -261,7 +558,11 @@ pub(super) async fn test_pipeline_with(
         .create_session(
             temp_dir.path().to_path_buf(),
             "pipeline-test".to_string(),
-            SessionType::Hidden,
+            if with_scheduler {
+                SessionType::Scheduled
+            } else {
+                SessionType::Hidden
+            },
             GooseMode::Auto,
         )
         .await?;
@@ -282,6 +583,7 @@ pub(super) async fn test_pipeline_with(
         goose_mode: TokioMutex::new(GooseMode::Auto),
         prompt_manager: TokioMutex::new(PromptManager::new()),
         tool_inspection_manager,
+        permission_manager,
         frontend_instructions: TokioMutex::new(None),
         hook_manager: HookManager::default(),
         stop_hook_block_cap: 3,
@@ -338,8 +640,22 @@ pub(super) async fn test_pipeline_with(
             Some(&session_id),
         )
         .await?;
+    extension_manager
+        .add_extension(
+            ExtensionConfig::Platform {
+                name: crate::agents::platform_extensions::scheduler::EXTENSION_NAME.to_string(),
+                description: "Scheduler".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec![],
+            },
+            Some(pipeline._temp_dir.path().to_path_buf()),
+            None,
+            Some(&session_id),
+        )
+        .await?;
 
-    Ok((pipeline, api))
+    Ok((pipeline, api, scheduler))
 }
 
 pub(super) struct TestRun {
@@ -350,21 +666,41 @@ pub(super) struct TestRun {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum MessageKind {
     Agent,
+    Confirmation,
+    Thinking,
     ToolCall,
     ToolResponse,
+    User,
 }
 
 impl MessageKind {
     fn prefix(self) -> &'static str {
         match self {
             Self::Agent => "agent:",
+            Self::Confirmation => "confirmation:",
+            Self::Thinking => "thinking:",
             Self::ToolCall => "toolcall:",
             Self::ToolResponse => "toolresponse:",
+            Self::User => "user:",
         }
     }
 }
 
 impl TestRun {
+    pub(super) fn conversation(&self) -> &Conversation {
+        self.session
+            .conversation
+            .as_ref()
+            .expect("session has a conversation")
+    }
+
+    pub(super) fn history_replacements(&self) -> usize {
+        self.events
+            .iter()
+            .filter(|event| matches!(event, AgentEvent::HistoryReplaced(_)))
+            .count()
+    }
+
     pub(super) fn rendered_conversation(&self) -> Vec<String> {
         self.session
             .conversation
@@ -404,11 +740,49 @@ impl TestRun {
                         };
                         format!("toolresponse: {text}")
                     }
+                    MessageContent::ActionRequired(action) => match &action.data {
+                        ActionRequiredData::ToolConfirmation {
+                            id,
+                            tool_name,
+                            prompt,
+                            ..
+                        } => format!(
+                            "confirmation: {id} {tool_name} {}",
+                            prompt.as_deref().unwrap_or_default()
+                        ),
+                        _ => content.to_string(),
+                    },
+                    MessageContent::Thinking(thinking) => {
+                        format!("thinking: {}", thinking.thinking)
+                    }
                     MessageContent::Error(error) => format!("error: {}", error.message),
                     _ => content.to_string(),
                 })
             })
             .collect()
+    }
+
+    pub(super) fn assert_emitted(&self, contains: &str) {
+        let emitted = self
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                AgentEvent::Message(message) => Some(
+                    message
+                        .content
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                ),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            emitted.iter().any(|message| message.contains(contains)),
+            "no emitted message contains {contains:?}:\n{}",
+            emitted.join("\n")
+        );
     }
 
     pub(super) fn assert_message(&self, index: isize, kind: MessageKind, contains: &str) {

@@ -425,21 +425,6 @@ impl Agent {
             .await;
     }
 
-    pub(crate) async fn emit_user_prompt_submit_hook(&self, session_id: &str, prompt: &str) {
-        if !self
-            .hook_manager
-            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
-        {
-            return;
-        }
-        let ctx =
-            crate::hooks::HookContext::new(crate::hooks::HookEvent::UserPromptSubmit, session_id)
-                .with_message(prompt.to_string());
-        self.hook_manager
-            .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
-            .await;
-    }
-
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,

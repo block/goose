@@ -1,11 +1,18 @@
 use anyhow::Result;
+use rmcp::model::ElicitationAction;
 use serde_json::json;
 
-use super::calculator_extension::{value, ADD, DIVIDE};
-use super::pipeline::MessageKind::{Agent, ToolCall, ToolResponse};
+use super::calculator_extension::{
+    ADD, ADD_WITH_AUDIENCE, DIVIDE, REQUEST_VALUE, delayed_value, value,
+};
 use super::pipeline::MAX_TURNS;
+use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
 use super::test_pipeline;
+use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::config::GooseMode;
+use crate::config::permission::PermissionLevel;
 use crate::conversation::message::{Message, MessageContent};
+use crate::permission::Permission;
 
 #[tokio::test]
 async fn basic_tool_calling() -> Result<()> {
@@ -99,7 +106,7 @@ async fn multiple_tool_calls_are_paired_and_executed_once() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     pipeline.synchronize_calculator(2);
     api.on("run several calculations").calls([
-        ("first", ADD, value(1)),
+        ("first", ADD, delayed_value(1, 50)),
         ("duplicate", ADD, value(2)),
         ("duplicate", ADD, value(100)),
     ]);
@@ -109,8 +116,8 @@ async fn multiple_tool_calls_are_paired_and_executed_once() -> Result<()> {
 
     result.assert_message(1, ToolCall, ADD);
     result.assert_message(2, ToolCall, ADD);
-    result.assert_message(3, ToolResponse, "");
-    result.assert_message(4, ToolResponse, "");
+    result.assert_message(3, ToolResponse, "result: 2");
+    result.assert_message(4, ToolResponse, "result: 3");
     result.assert_message(-1, Agent, "done");
     assert_eq!(pipeline.calculator_total(), 3);
 
@@ -133,6 +140,164 @@ async fn multiple_tool_calls_are_paired_and_executed_once() -> Result<()> {
     response_ids.sort();
     assert_eq!(request_ids, ["duplicate", "first"]);
     assert_eq!(response_ids, request_ids);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn approvals_and_per_tool_permissions() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Approve).await;
+
+    pipeline.synchronize_calculator(2);
+    api.on("add one and two")
+        .calls([("first", ADD, value(1)), ("second", ADD, value(2))]);
+    api.on("result: 3").reply("both approved");
+
+    let awaiting_confirmation = pipeline.run(["add one and two"]).await?;
+    assert_eq!(pipeline.calculator_total(), 0);
+    awaiting_confirmation.assert_message(1, ToolCall, ADD);
+    awaiting_confirmation.assert_message(2, ToolCall, ADD);
+
+    pipeline.confirm("second", Permission::AllowOnce).await?;
+    pipeline.confirm("first", Permission::AllowOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-1, Agent, "both approved");
+    assert_eq!(pipeline.calculator_total(), 3);
+
+    api.on("deny this addition")
+        .calls([("denied", ADD, value(10))]);
+    api.on(DECLINED_RESPONSE).reply("I will not retry it");
+    pipeline.run(["deny this addition"]).await?;
+    pipeline.confirm("denied", Permission::DenyOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-2, ToolResponse, "DO NOT attempt to call this tool again");
+    result.assert_message(-1, Agent, "I will not retry it");
+    assert_eq!(pipeline.calculator_total(), 3);
+
+    pipeline.set_permission(ADD, PermissionLevel::AlwaysAllow);
+    pipeline.set_permission(DIVIDE, PermissionLevel::NeverAllow);
+    api.on("apply the saved permissions")
+        .calls([("allowed", ADD, value(1)), ("blocked", DIVIDE, value(2))]);
+    api.on("result: 4").reply("permissions applied");
+    let result = pipeline.run(["apply the saved permissions"]).await?;
+    result.assert_message(-3, ToolResponse, DECLINED_RESPONSE);
+    result.assert_message(-2, ToolResponse, "result: 4");
+    result.assert_message(-1, Agent, "permissions applied");
+    assert_eq!(pipeline.calculator_total(), 4);
+
+    let pipeline = pipeline.with_goose_mode(GooseMode::Auto).await;
+    pipeline.add_extension("developer").await?;
+    api.on("run a dangerous command").calls([(
+        "dangerous",
+        "shell",
+        json!({ "command": "rm -rf /" }),
+    )]);
+
+    let result = pipeline.run(["run a dangerous command"]).await?;
+    result.assert_message(-1, Confirmation, "Security Alert");
+
+    api.on(DECLINED_RESPONSE).reply("the command was not run");
+    pipeline.confirm("dangerous", Permission::DenyOnce).await?;
+    let result = pipeline.resume().await?;
+    result.assert_message(-2, ToolResponse, DECLINED_RESPONSE);
+    result.assert_message(-1, Agent, "the command was not run");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+
+    api.on("time out").call(ADD, delayed_value(10, 150));
+    api.on("calculator operation timed out")
+        .reply("recovered from timeout");
+    let result = pipeline.run(["time out"]).await?;
+    result.assert_message(-2, ToolResponse, "calculator operation timed out");
+    result.assert_message(-1, Agent, "recovered from timeout");
+    assert_eq!(pipeline.calculator_total(), 0);
+
+    api.on("cancel this").call(ADD, delayed_value(10, 500));
+    let result = pipeline
+        .run_cancelled("cancel this", std::time::Duration::from_millis(20))
+        .await?;
+    result.assert_message(-1, ToolResponse, "interrupted before completing");
+    assert_eq!(pipeline.calculator_total(), 0);
+
+    api.on("continue after cancellation").call(ADD, value(1));
+    api.on("result: 1").reply("continued");
+    let result = pipeline.run(["continue after cancellation"]).await?;
+    result.assert_message(-2, ToolResponse, "result: 1");
+    result.assert_message(-1, Agent, "continued");
+
+    api.on("show the result once")
+        .call(ADD_WITH_AUDIENCE, value(1));
+    api.on("result: 2").reply("shown once");
+    let result = pipeline.run(["show the result once"]).await?;
+    result.assert_message(-1, Agent, "shown once");
+    assert_eq!(
+        api.calls().last().unwrap().input_occurrences("result: 2"),
+        1
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn elicitation_accept_decline_and_cancel() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+
+    api.on("accept a value").call(REQUEST_VALUE, json!({}));
+    api.on("result: 7").reply("accepted");
+    let result = pipeline
+        .run_with_elicitation("accept a value", ElicitationAction::Accept, value(7))
+        .await?;
+    result.assert_message(-2, ToolResponse, "result: 7");
+    result.assert_message(-1, Agent, "accepted");
+    assert_eq!(pipeline.calculator_total(), 7);
+
+    api.on("decline a value").call(REQUEST_VALUE, json!({}));
+    api.on("elicitation declined").reply("declined");
+    let result = pipeline
+        .run_with_elicitation("decline a value", ElicitationAction::Decline, json!({}))
+        .await?;
+    result.assert_message(-2, ToolResponse, "elicitation declined");
+    result.assert_message(-1, Agent, "declined");
+
+    api.on("cancel a value").call(REQUEST_VALUE, json!({}));
+    api.on("elicitation cancelled").reply("cancelled");
+    let result = pipeline
+        .run_with_elicitation("cancel a value", ElicitationAction::Cancel, json!({}))
+        .await?;
+    result.assert_message(-2, ToolResponse, "elicitation cancelled");
+    result.assert_message(-1, Agent, "cancelled");
+    assert_eq!(pipeline.calculator_total(), 7);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn tool_availability_tracks_mode_and_extension_removal() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_goose_mode(GooseMode::Chat).await;
+    api.on("try the tool").call(ADD, value(1));
+    api.on(CHAT_MODE_TOOL_SKIPPED_RESPONSE)
+        .reply("here is the plan");
+
+    let result = pipeline.run(["try the tool"]).await?;
+    result.assert_message(-2, ToolResponse, "chat mode");
+    result.assert_message(-1, Agent, "here is the plan");
+    assert!(api.calls()[0].advertises_tool(ADD));
+    assert_eq!(pipeline.calculator_total(), 0);
+
+    let pipeline = pipeline.with_goose_mode(GooseMode::Auto).await;
+    pipeline.remove_extension("calculator").await?;
+    api.on("continue without the calculator")
+        .reply("calculator removed");
+    let result = pipeline.run(["continue without the calculator"]).await?;
+    result.assert_message(-1, Agent, "calculator removed");
+    assert!(!api.calls().last().unwrap().advertises_tool(ADD));
 
     Ok(())
 }

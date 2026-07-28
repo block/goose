@@ -57,63 +57,23 @@ tests.
 
 ## Lifecycle Scenarios
 
-- [ ] Extend the provider lifecycle scenario with reasoning, mixed text and
-  tool output, stable and custom system prompts, model-specific prompts,
-  unusual valid tool schemas, and recovery on a later turn after provider
-  errors
-  ([#2431](https://github.com/aaif-goose/goose/issues/2431),
-  [#4610](https://github.com/aaif-goose/goose/issues/4610),
-  [#1800](https://github.com/aaif-goose/goose/issues/1800),
-  [#4879](https://github.com/aaif-goose/goose/issues/4879),
+- [x] Extend the provider lifecycle scenario with the standard prompt after a
+  model change and unusual valid tool schemas
+  ([#4879](https://github.com/aaif-goose/goose/issues/4879),
   [#3348](https://github.com/aaif-goose/goose/issues/3348)).
 
-- [ ] Extend the tool lifecycle scenario with reverse-order confirmations,
-  deliberately delayed parallel results, cancellation, timeout recovery,
-  elicitation decline and cancel, denial guidance, chat-mode advertisement,
-  dynamic extension removal, per-tool permissions, audience-filtered output,
-  and dangerous-command approval
-  ([#5558](https://github.com/aaif-goose/goose/issues/5558),
-  [#9461](https://github.com/aaif-goose/goose/issues/9461),
-  [#1075](https://github.com/aaif-goose/goose/issues/1075),
-  [#9024](https://github.com/aaif-goose/goose/issues/9024),
-  [#1971](https://github.com/aaif-goose/goose/issues/1971),
-  [#3818](https://github.com/aaif-goose/goose/issues/3818),
-  [#5068](https://github.com/aaif-goose/goose/issues/5068),
-  [#1858](https://github.com/aaif-goose/goose/issues/1858),
-  [#1780](https://github.com/aaif-goose/goose/issues/1780),
-  [#6703](https://github.com/aaif-goose/goose/issues/6703)).
-
-- [ ] Extend the compaction lifecycle scenario across proactive, reactive, and
-  `/compact` paths. Cover usage replacement, continued inference, repeated
-  compaction and reload, provider failure after compaction, failed tool pairs,
-  false context-error text, genuinely small models, and large plain and
-  structured tool responses
-  ([#6588](https://github.com/aaif-goose/goose/issues/6588),
-  [#3538](https://github.com/aaif-goose/goose/issues/3538),
-  [#4529](https://github.com/aaif-goose/goose/issues/4529),
-  [#3779](https://github.com/aaif-goose/goose/issues/3779),
-  [#5164](https://github.com/aaif-goose/goose/issues/5164),
-  [#1102](https://github.com/aaif-goose/goose/issues/1102),
-  [#3944](https://github.com/aaif-goose/goose/issues/3944),
-  [#5255](https://github.com/aaif-goose/goose/issues/5255),
-  [#6714](https://github.com/aaif-goose/goose/issues/6714),
-  [#7027](https://github.com/aaif-goose/goose/issues/7027),
-  [#7846](https://github.com/aaif-goose/goose/issues/7846)).
-
-- [ ] Extend the steering lifecycle scenario with FIFO draining, steering
+- [x] Extend the steering lifecycle scenario with FIFO draining, steering
   during inference, cancellation, and compaction near the context limit
   ([#9037](https://github.com/aaif-goose/goose/issues/9037),
-  [#1600](https://github.com/aaif-goose/goose/issues/1600),
-  [#1513](https://github.com/aaif-goose/goose/issues/1513),
   [#1700](https://github.com/aaif-goose/goose/issues/1700),
   [#6579](https://github.com/aaif-goose/goose/issues/6579),
   [#8406](https://github.com/aaif-goose/goose/issues/8406)).
 
-- [ ] Add an MCP prompt lifecycle scenario that preserves every alternating
+- [x] Add an MCP prompt lifecycle scenario that preserves every alternating
   message returned by `/prompt`
   ([#6506](https://github.com/aaif-goose/goose/issues/6506)).
 
-- [ ] Add one recipe and scheduling lifecycle scenario. Cover final-output tool
+- [x] Add one recipe and scheduling lifecycle scenario. Cover final-output tool
   advertisement and invalid schemas, optional and parent parameters, intended
   extension tools, child `max_turns`, scheduled Auto mode, conditional
   scheduler advertisement, invalid schedules, persisted message counts, and
@@ -150,8 +110,8 @@ tests.
 
 ## Test Support
 
-- [ ] Let `DummyApi` emit reasoning and mixed completion chunks and gate a
-  response so cancellation and steering can happen while inference is active.
+- [x] Let `DummyApi` gate a response so cancellation and steering can happen
+  while inference is active.
 
 - [ ] Use the calculator's barrier and existing elicitation support to control
   completion order and cancellation without adding scripted command behavior.
@@ -163,22 +123,6 @@ tests.
   `trace_output`, and terminal usage without inspecting raw event fragments.
 
 ## API and Migration
-
-- [ ] Settle the construction API. Callers should be able to provide an ordered
-  set of steps and use `step`, `apply`, or `run` without depending on `Agent`.
-  Keep construction of Goose's standard pipeline beside `Agent::reply`.
-
-- [ ] Move or remove any remaining reply-entry behavior that prevents direct
-  state-machine use. Session naming can remain an explicit out-of-band caller
-  concern because it does not affect conversation state.
-
-- [ ] Decide which operations and supporting types are public enough for
-  callers to assemble a custom pipeline.
-
-- [ ] Verify tracing records the final assistant output and that usage reaches
-  the ACP and goosed terminal event after persistence and reload
-  ([#8586](https://github.com/aaif-goose/goose/issues/8586),
-  [#5604](https://github.com/aaif-goose/goose/issues/5604)).
 
 - [ ] Run the standard pipeline in production long enough to establish parity,
   remove the `GOOSE_STATE_MACHINE` flag, delete `reply_internal`, and remove

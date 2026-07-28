@@ -1,19 +1,21 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 #[derive(Clone, Copy)]
 pub(super) struct ProviderFeatures {
     pub(super) reports_usage: bool,
+    pub(super) preserves_thinking: bool,
 }
 
 impl Default for ProviderFeatures {
     fn default() -> Self {
         Self {
             reports_usage: true,
+            preserves_thinking: false,
         }
     }
 }
@@ -27,6 +29,11 @@ enum ApiResponse {
         require_advertised: bool,
     },
     ToolCalls(Vec<ApiToolCall>),
+    Mixed {
+        reasoning: String,
+        text: Option<String>,
+        call: Option<ApiToolCall>,
+    },
     NoChoices,
     ContextLimitError(String),
     ServerError(String),
@@ -47,6 +54,7 @@ struct ApiToolCall {
 struct ApiRule {
     matcher: ApiMatcher,
     response: ApiResponse,
+    gate: Option<ResponseGate>,
 }
 
 enum ApiMatcher {
@@ -67,6 +75,54 @@ pub(super) struct DummyApi {
 }
 
 #[derive(Clone)]
+pub(super) struct ResponseGate {
+    state: Arc<(Mutex<GateState>, Condvar)>,
+}
+
+#[derive(Default)]
+struct GateState {
+    entered: bool,
+    released: bool,
+}
+
+impl ResponseGate {
+    fn new() -> Self {
+        Self {
+            state: Arc::new((Mutex::new(GateState::default()), Condvar::new())),
+        }
+    }
+
+    fn block(&self) {
+        let (state, changed) = &*self.state;
+        let mut state = state.lock().unwrap();
+        state.entered = true;
+        changed.notify_all();
+        while !state.released {
+            state = changed.wait(state).unwrap();
+        }
+    }
+
+    pub(super) async fn entered(&self) {
+        let gate = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let (state, changed) = &*gate.state;
+            let mut state = state.lock().unwrap();
+            while !state.entered {
+                state = changed.wait(state).unwrap();
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    pub(super) fn release(&self) {
+        let (state, changed) = &*self.state;
+        state.lock().unwrap().released = true;
+        changed.notify_all();
+    }
+}
+
+#[derive(Clone)]
 pub(super) struct ApiCall {
     body: Value,
 }
@@ -80,6 +136,14 @@ impl ApiCall {
         request_input(&self.body).contains(needle)
     }
 
+    pub(super) fn uses_model(&self, model: &str) -> bool {
+        self.body["model"].as_str() == Some(model)
+    }
+
+    pub(super) fn input_occurrences(&self, needle: &str) -> usize {
+        request_input(&self.body).matches(needle).count()
+    }
+
     pub(super) fn system_contains(&self, needle: &str) -> bool {
         request_system(&self.body).contains(needle)
     }
@@ -90,6 +154,24 @@ impl ApiCall {
             .into_iter()
             .flatten()
             .any(|tool| tool["function"]["name"].as_str() == Some(name))
+    }
+
+    pub(super) fn tool_schema(&self, name: &str) -> Option<&Value> {
+        self.body["tools"]
+            .as_array()?
+            .iter()
+            .find(|tool| tool["function"]["name"].as_str() == Some(name))
+            .map(|tool| &tool["function"]["parameters"])
+    }
+
+    pub(super) fn input_has_image(&self, mime_type: &str, data: &str) -> bool {
+        let expected = format!("data:{mime_type};base64,{data}");
+        self.body["messages"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|message| message["content"].as_array().into_iter().flatten())
+            .any(|content| content["image_url"]["url"].as_str() == Some(expected.as_str()))
     }
 }
 
@@ -139,8 +221,20 @@ impl DummyApi {
 
     fn add_rule(&self, matcher: ApiMatcher, response: ApiResponse) -> usize {
         let mut rules = self.state.rules.lock().unwrap();
-        rules.push(ApiRule { matcher, response });
+        rules.push(ApiRule {
+            matcher,
+            response,
+            gate: None,
+        });
         rules.len() - 1
+    }
+
+    fn add_gated_rule(&self, matcher: ApiMatcher, response: ApiResponse, gate: ResponseGate) {
+        self.state.rules.lock().unwrap().push(ApiRule {
+            matcher,
+            response,
+            gate: Some(gate),
+        });
     }
 }
 
@@ -157,6 +251,21 @@ pub(super) struct ConfiguredResponse<'a> {
 impl<'a> ApiRuleBuilder<'a> {
     pub(super) fn reply(self, text: impl Into<String>) -> ConfiguredResponse<'a> {
         self.configured(ApiResponse::Reply(text.into()))
+    }
+
+    pub(super) fn hold_reply(self, text: impl Into<String>) -> ResponseGate {
+        let gate = ResponseGate::new();
+        self.api
+            .add_gated_rule(self.matcher, ApiResponse::Reply(text.into()), gate.clone());
+        gate
+    }
+
+    pub(super) fn reasoning(self, text: impl Into<String>) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::Mixed {
+            reasoning: text.into(),
+            text: None,
+            call: None,
+        })
     }
 
     pub(super) fn call(self, name: impl Into<String>, arguments: Value) -> ConfiguredResponse<'a> {
@@ -232,6 +341,34 @@ impl<'a> ApiRuleBuilder<'a> {
 }
 
 impl<'a> ConfiguredResponse<'a> {
+    pub(super) fn reply(self, text: impl Into<String>) -> Self {
+        let mut rules = self.api.state.rules.lock().unwrap();
+        let ApiResponse::Mixed {
+            text: response_text,
+            ..
+        } = &mut rules[self.rule].response
+        else {
+            panic!("reply can only follow reasoning");
+        };
+        *response_text = Some(text.into());
+        drop(rules);
+        self
+    }
+
+    pub(super) fn call(self, name: impl Into<String>, arguments: Value) -> Self {
+        let mut rules = self.api.state.rules.lock().unwrap();
+        let ApiResponse::Mixed { call, .. } = &mut rules[self.rule].response else {
+            panic!("call can only follow reasoning");
+        };
+        *call = Some(ApiToolCall {
+            id: String::new(),
+            name: name.into(),
+            arguments: arguments.to_string(),
+        });
+        drop(rules);
+        self
+    }
+
     pub(super) fn server_error(self, error: impl Into<String>) -> &'a DummyApi {
         let mut rules = self.api.state.rules.lock().unwrap();
         let response = &mut rules[self.rule].response;
@@ -265,7 +402,7 @@ impl DummyApiState {
 
         let input = request_input(&body);
         let system = request_system(&body);
-        let response = {
+        let (response, gate) = {
             let rules = self.rules.lock().unwrap();
             let rule = rules
                 .iter()
@@ -277,8 +414,11 @@ impl DummyApiState {
                 .unwrap_or_else(|| {
                     panic!("dummy API has no rule matching input {input:?}, system {system:?}")
                 });
-            rule.response.clone()
+            (rule.response.clone(), rule.gate.clone())
         };
+        if let Some(gate) = gate {
+            gate.block();
+        }
 
         let id = format!(
             "chatcmpl-test-{}",
@@ -310,6 +450,7 @@ impl DummyApiState {
                     &arguments,
                     input_tokens,
                     output_tokens,
+                    self.features.reports_usage,
                 ))
             }
             ApiResponse::ToolCalls(calls) => {
@@ -326,6 +467,36 @@ impl DummyApiState {
                     &calls,
                     input_tokens,
                     output_tokens,
+                    self.features.reports_usage,
+                ))
+            }
+            ApiResponse::Mixed {
+                reasoning,
+                text,
+                mut call,
+            } => {
+                if let Some(call) = &mut call {
+                    assert_tool_advertised(&body, &call.name);
+                    call.id = format!(
+                        "dummy-tool-call-{}",
+                        id.strip_prefix("chatcmpl-test-").unwrap()
+                    );
+                }
+                let output_tokens = reasoning.chars().count()
+                    + text.as_deref().unwrap_or_default().chars().count()
+                    + call
+                        .as_ref()
+                        .map(|call| call.name.chars().count() + call.arguments.chars().count())
+                        .unwrap_or_default();
+                sse_response(mixed_events(
+                    &id,
+                    model,
+                    &reasoning,
+                    text.as_deref(),
+                    call.as_ref(),
+                    input_tokens,
+                    output_tokens as i32,
+                    self.features.reports_usage,
                 ))
             }
             ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
@@ -499,6 +670,7 @@ fn tool_call_events(
     arguments: &str,
     input_tokens: i32,
     output_tokens: i32,
+    include_usage: bool,
 ) -> String {
     let tool_call_id = format!(
         "dummy-tool-call-{}",
@@ -514,6 +686,7 @@ fn tool_call_events(
         }],
         input_tokens,
         output_tokens,
+        include_usage,
     )
 }
 
@@ -523,14 +696,27 @@ fn tool_calls_events(
     calls: &[ApiToolCall],
     input_tokens: i32,
     output_tokens: i32,
+    include_usage: bool,
 ) -> String {
+    let mut events = String::new();
+    push_tool_call_events(&mut events, id, model, calls);
+    if include_usage {
+        push_event(
+            &mut events,
+            usage_event(id, model, input_tokens, output_tokens),
+        );
+    }
+    events.push_str("data: [DONE]\n\n");
+    events
+}
+
+fn push_tool_call_events(events: &mut String, id: &str, model: &str, calls: &[ApiToolCall]) {
     let argument_chunks = calls
         .iter()
         .map(|call| split_arguments(&call.arguments))
         .collect::<Vec<_>>();
-    let mut events = String::new();
     push_event(
-        &mut events,
+        events,
         json!({
             "id": id,
             "object": "chat.completion.chunk",
@@ -560,7 +746,7 @@ fn tool_calls_events(
     for chunk_index in 1..chunk_count {
         let finish_reason = (chunk_index + 1 == chunk_count).then_some("tool_calls");
         push_event(
-            &mut events,
+            events,
             json!({
                 "id": id,
                 "object": "chat.completion.chunk",
@@ -580,10 +766,74 @@ fn tool_calls_events(
             }),
         );
     }
-    push_event(
-        &mut events,
-        usage_event(id, model, input_tokens, output_tokens),
-    );
+}
+
+fn mixed_events(
+    id: &str,
+    model: &str,
+    reasoning: &str,
+    text: Option<&str>,
+    call: Option<&ApiToolCall>,
+    input_tokens: i32,
+    output_tokens: i32,
+    include_usage: bool,
+) -> String {
+    let mut events = String::new();
+    for chunk in split_reply(reasoning) {
+        push_event(
+            &mut events,
+            json!({
+                "id": id,
+                "object": "chat.completion.chunk",
+                "model": model,
+                "choices": [{
+                    "index": 0,
+                    "delta": { "reasoning_content": chunk },
+                    "finish_reason": null
+                }]
+            }),
+        );
+    }
+    if let Some(text) = text {
+        for chunk in split_reply(text) {
+            push_event(
+                &mut events,
+                json!({
+                    "id": id,
+                    "object": "chat.completion.chunk",
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": { "content": chunk },
+                        "finish_reason": null
+                    }]
+                }),
+            );
+        }
+    }
+    if let Some(call) = call {
+        push_tool_call_events(&mut events, id, model, std::slice::from_ref(call));
+    } else {
+        push_event(
+            &mut events,
+            json!({
+                "id": id,
+                "object": "chat.completion.chunk",
+                "model": model,
+                "choices": [{
+                    "index": 0,
+                    "delta": {},
+                    "finish_reason": "stop"
+                }]
+            }),
+        );
+    }
+    if include_usage {
+        push_event(
+            &mut events,
+            usage_event(id, model, input_tokens, output_tokens),
+        );
+    }
     events.push_str("data: [DONE]\n\n");
     events
 }

@@ -115,7 +115,7 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         If needed, adjust the explanation based on user preferences or questions.";
 
 impl Agent {
-    pub(crate) fn handle_approval_tool_requests<'a>(
+    pub(super) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
         tool_futures: &'a mut Vec<(String, ToolStream)>,

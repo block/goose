@@ -8,7 +8,7 @@ use crate::mcp_utils::ToolResult;
 use chrono::Utc;
 use rmcp::model::{Content, ErrorCode, ErrorData};
 
-use crate::recipe::Recipe;
+use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::scheduler::{
     open_regular_schedule_recipe, ValidatedScheduleRecipe, MAX_SCHEDULE_RECIPE_BYTES,
 };
@@ -176,16 +176,14 @@ impl ScheduleTool {
             .unwrap_or("background");
 
         let (content, canonical_recipe_path) = read_schedule_recipe(Path::new(recipe_path))?;
-        if recipe_path.ends_with(".json") {
-            serde_json::from_str::<Recipe>(&content)
-                .map_err(|_| recipe_file_error("Invalid JSON recipe"))?;
-        } else {
-            serde_yaml::from_str::<Recipe>(&content)
-                .map_err(|_| recipe_file_error("Invalid YAML recipe"))?;
-        }
+        let recipe_dir = canonical_recipe_path
+            .parent()
+            .map(|path| path.to_string_lossy().into_owned());
+        validate_recipe_template_from_content(&content, recipe_dir)
+            .map_err(|error| recipe_file_error(&error.to_string()))?;
 
         // Generate unique job ID
-        let job_id = format!("agent_created_{}", Utc::now().timestamp());
+        let job_id = format!("agent_created_{}", uuid::Uuid::new_v4());
 
         let recipe_base_dir = canonical_recipe_path
             .parent()
@@ -394,7 +392,10 @@ impl ScheduleTool {
                 let duration = Utc::now().signed_duration_since(start_time);
                 Ok(vec![Content::text(format!(
                     "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
-                    job_id, session_id, start_time.to_rfc3339(), duration.num_seconds()
+                    job_id,
+                    session_id,
+                    start_time.to_rfc3339(),
+                    duration.num_seconds()
                 ))])
             }
             Ok(None) => Ok(vec![Content::text(format!(

@@ -21,7 +21,7 @@ use goose_providers::model::ModelConfig;
 
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
-const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
+pub(super) const MAX_CONTEXT_ERROR_COMPACTIONS: usize = 2;
 
 fn compaction_part(
     total_tokens: Option<i32>,

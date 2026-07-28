@@ -1,23 +1,23 @@
 //! Builds a provider request and streams the next assistant response.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-use crate::agents::AgentEvent;
 use crate::agents::state_machine::operation::{
-    Emitter, Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
-    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
+    Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
+use crate::agents::AgentEvent;
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::{Conversation, EffectiveRole, effective_role};
+use crate::conversation::{effective_role, Conversation, EffectiveRole};
 use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
@@ -62,6 +62,7 @@ pub(super) fn record_chat_usage(span: &tracing::Span, usage: &ProviderUsage) {
 pub struct InferenceRunner<'a> {
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
+    #[cfg(feature = "code-mode")]
     extension_manager: Arc<ExtensionManager>,
     goose_mode: &'a Mutex<GooseMode>,
     prompt_manager: &'a Mutex<PromptManager>,
@@ -75,7 +76,8 @@ impl<'a> InferenceRunner<'a> {
     pub fn new(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,
-        extension_manager: Arc<ExtensionManager>,
+        #[cfg(feature = "code-mode")] extension_manager: Arc<ExtensionManager>,
+        #[cfg(not(feature = "code-mode"))] _extension_manager: Arc<ExtensionManager>,
         goose_mode: &'a Mutex<GooseMode>,
         prompt_manager: &'a Mutex<PromptManager>,
         tool_inspection_manager: &'a ToolInspectionManager,
@@ -85,6 +87,7 @@ impl<'a> InferenceRunner<'a> {
         Self {
             provider,
             model_config,
+            #[cfg(feature = "code-mode")]
             extension_manager,
             goose_mode,
             prompt_manager,

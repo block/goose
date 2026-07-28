@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 use tracing_futures::Instrument;
 
 use crate::agents::state_machine::operation::{
-    Emitter, Inference, InferenceInput, Operation, OperationFuture, OperationResult, StateEffect,
-    StepResult,
+    messages_since_kickoff, Emitter, Inference, InferenceInput, Operation, OperationFuture,
+    OperationResult, StateEffect, StepResult,
 };
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
@@ -195,13 +195,14 @@ impl<'a> StateMachine<'a> {
         session_manager: &SessionManager,
         session_id: &str,
         emit: Emitter,
-    ) -> Result<()> {
+    ) -> Result<Session> {
         let span = tracing::info_span!(
             target: "goose::state_machine",
             "invoke_agent goose",
             "gen_ai.operation.name" = "invoke_agent",
             "gen_ai.agent.name" = "goose",
             "gen_ai.conversation.id" = %session_id,
+            trace_input = tracing::field::Empty,
             trace_output = tracing::field::Empty,
             session.id = %session_id,
             session.user = %crate::session_context::session_user(),
@@ -210,6 +211,19 @@ impl<'a> StateMachine<'a> {
         );
 
         async {
+            let entry_session = session_manager.get_session(session_id, true).await?;
+            if let Some(input) = entry_session
+                .conversation
+                .as_ref()
+                .and_then(|conversation| messages_since_kickoff(conversation).ok())
+                .and_then(|messages| messages.first())
+                .map(Message::user_visible_content)
+                .map(|message| message.as_concat_text())
+                .filter(|text| !text.is_empty())
+            {
+                tracing::Span::current().record("trace_input", input.as_str());
+            }
+
             loop {
                 if self.cancel.is_cancelled() {
                     break;
@@ -225,23 +239,24 @@ impl<'a> StateMachine<'a> {
                 }
             }
 
-            let last_assistant_text = session_manager
-                .get_session(session_id, true)
-                .await?
+            let session = session_manager.get_session(session_id, true).await?;
+            let last_assistant_text = session
                 .conversation
-                .unwrap_or_default()
-                .messages()
-                .iter()
+                .as_ref()
+                .and_then(|conversation| messages_since_kickoff(conversation).ok())
+                .into_iter()
+                .flatten()
                 .rev()
                 .filter(|message| message.role == rmcp::model::Role::Assistant)
-                .map(Message::as_concat_text)
+                .map(Message::user_visible_content)
+                .map(|message| message.as_concat_text())
                 .find(|text| !text.is_empty())
                 .unwrap_or_default();
             if !last_assistant_text.is_empty() {
                 tracing::Span::current().record("trace_output", last_assistant_text.as_str());
             }
 
-            Ok(())
+            Ok(session)
         }
         .instrument(span)
         .await
