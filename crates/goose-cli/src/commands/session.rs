@@ -485,8 +485,8 @@ fn fuzzy_filter_session_items(
             // name or id (codex P2 on #10265).
             let label = item.1.to_lowercase();
             let hint = item.2.to_lowercase();
-            let similarity = strsim::jaro_winkler(&label, &query)
-                .max(strsim::jaro_winkler(&hint, &query));
+            let similarity =
+                strsim::jaro_winkler(&label, &query).max(strsim::jaro_winkler(&hint, &query));
             let word_match_bonus = query_words
                 .iter()
                 .all(|word| label.contains(*word) || hint.contains(*word))
@@ -497,10 +497,7 @@ fn fuzzy_filter_session_items(
         .collect();
 
     scored.sort_by(|a, b| b.0.total_cmp(&a.0));
-    scored
-        .into_iter()
-        .map(|(_, item)| item.clone())
-        .collect()
+    scored.into_iter().map(|(_, item)| item.clone()).collect()
 }
 
 /// Standalone fuzzy-search step for long session lists, avoiding the
