@@ -1,6 +1,7 @@
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{is_valid_function_name, sanitize_function_name};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::ThinkingEffort;
 use anyhow::Result;
@@ -196,9 +197,9 @@ pub fn format_messages(messages: &[Message], nested_function_response_media: boo
                                 .iter()
                                 .filter_map(|c| match c {
                                     ContentBlock::Text(t) => Some(t.text.clone()),
-                                    ContentBlock::Resource(raw_embedded_resource) => {
-                                        Some(raw_embedded_resource.clone().get_text())
-                                    }
+                                    ContentBlock::Resource(raw_embedded_resource) => Some(
+                                        extract_text_from_resource(&raw_embedded_resource.resource),
+                                    ),
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>()
@@ -903,6 +904,24 @@ mod tests {
         assert_eq!(
             payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
             "Hello"
+        );
+    }
+
+    #[test]
+    fn test_message_to_google_spec_sanitizes_resource_tool_response() {
+        let messages = vec![set_up_tool_response_message(
+            "response_id",
+            vec![ContentBlock::embedded_text(
+                "file:///result.txt",
+                "visible\u{E0041}text",
+            )],
+        )];
+
+        let payload = format_messages(&messages, false);
+
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
+            "visibletext"
         );
     }
 
