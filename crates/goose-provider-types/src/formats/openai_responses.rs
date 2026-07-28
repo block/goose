@@ -7,7 +7,7 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use crate::utils::sanitize_unicode_tags;
+use crate::utils::{sanitize_unicode_tags, strip_unicode_tags};
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
@@ -906,7 +906,7 @@ where
 
                 ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
                     is_text_response = true;
-                    let delta = sanitize_unicode_tags(&delta);
+                    let delta = strip_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -961,7 +961,7 @@ where
 
                 ResponsesStreamEvent::RefusalDelta { delta, .. } => {
                     is_text_response = true;
-                    let delta = sanitize_unicode_tags(&delta);
+                    let delta = strip_unicode_tags(&delta);
                     if !delta.is_empty() {
                         accumulated_text.push_str(&delta);
 
@@ -2062,14 +2062,36 @@ mod tests {
                     "item_id": "msg_1",
                     "output_index": 0,
                     "content_index": 0,
-                    "delta": "visible\u{E0041}text"
+                    "delta": "visible\u{E0041}te"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 3,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "xt e"
+                })
+            ),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 4,
+                    "item_id": "msg_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "\u{301}"
                 })
             ),
             format!(
                 "data: {}",
                 serde_json::json!({
                     "type": "response.refusal.delta",
-                    "sequence_number": 3,
+                    "sequence_number": 5,
                     "item_id": "msg_1",
                     "output_index": 0,
                     "content_index": 1,
@@ -2095,7 +2117,7 @@ mod tests {
             }
         }
 
-        assert_eq!(text, vec!["visibletext", "cannothelp"]);
+        assert_eq!(text.concat(), "visibletext e\u{301}cannothelp");
         Ok(())
     }
 
