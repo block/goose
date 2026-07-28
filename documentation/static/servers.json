@@ -101,6 +101,25 @@
     "environmentVariables": []
   },
   {
+    "id": "brainiall-tts",
+    "name": "Brainiall TTS",
+    "description": "Hosted multilingual text-to-speech with Brazilian Portuguese voices",
+    "url": "https://api.brainiall.com/mcp/tts/mcp",
+    "type": "streamable-http",
+    "link": "https://github.com/fasuizu-br/brainiall-tts-mcp",
+    "installation_notes": "Connect to the remote server and provide a Brainiall API key as a Bearer token.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer Brainiall API key",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "browserbase-mcp",
     "name": "Browserbase",
     "description": "Browser automation and web scraping",
