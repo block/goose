@@ -1101,6 +1101,8 @@ impl CliSession {
         self.session_id = new_session_id;
         self.messages.clear();
         self.run_mode = RunMode::Normal;
+        self.agent.set_goal(None).await;
+        self.agent.set_grind(None).await;
 
         if let Err(e) = self
             .agent
