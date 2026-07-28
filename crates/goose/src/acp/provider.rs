@@ -87,6 +87,11 @@ enum ClientRequest {
     },
 }
 
+enum SetConfigOptionOutcome {
+    Applied,
+    Rejected(anyhow::Error),
+}
+
 // tokio I/O handles can't move between runtimes, so the child process must be
 // spawned inside the OS thread. This closure lets start() share all other logic.
 type ClientLoopFn = Box<
@@ -315,6 +320,17 @@ impl AcpProvider {
         config_id: String,
         value: String,
     ) -> Result<()> {
+        match self.request_set_config_option(config_id, value).await? {
+            SetConfigOptionOutcome::Applied => Ok(()),
+            SetConfigOptionOutcome::Rejected(error) => Err(error),
+        }
+    }
+
+    async fn request_set_config_option(
+        &self,
+        config_id: String,
+        value: String,
+    ) -> Result<SetConfigOptionOutcome> {
         let session_id = self.acp_session_id();
         let (response_tx, response_rx) = oneshot::channel();
         self.tx
@@ -328,7 +344,10 @@ impl AcpProvider {
             })
             .await
             .context("ACP client is unavailable")?;
-        response_rx.await.context("ACP request cancelled")?
+        match response_rx.await.context("ACP request cancelled")? {
+            Ok(()) => Ok(SetConfigOptionOutcome::Applied),
+            Err(error) => Ok(SetConfigOptionOutcome::Rejected(error)),
+        }
     }
 
     /// Re-apply the model selection config option when the active session model
@@ -353,8 +372,20 @@ impl AcpProvider {
             }
         }
 
-        self.send_set_config_option("", config_id, model_name.to_string())
-            .await?;
+        match self
+            .request_set_config_option(config_id, model_name.to_string())
+            .await?
+        {
+            SetConfigOptionOutcome::Applied => {}
+            SetConfigOptionOutcome::Rejected(error) => {
+                tracing::warn!(
+                    model = model_name,
+                    error = %error,
+                    "ACP agent rejected model config option; continuing with current model"
+                );
+                return Ok(());
+            }
+        }
 
         let mut applied = self
             .applied_model
@@ -1985,6 +2016,48 @@ mod tests {
         }
 
         handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn stream_continues_after_model_config_rejection() {
+        let (tx, mut rx) = mpsc::channel(2);
+        let (mut provider, model) = test_provider_with_tx(Some(tx));
+        provider.model_config_option_id = Some("model".to_string());
+        provider.applied_model = Arc::new(Mutex::new(Some("old-model".to_string())));
+        let applied_model = provider.applied_model.clone();
+        let messages = vec![Message::user().with_text("continue this turn")];
+
+        let handle = tokio::spawn(async move { provider.stream(&model, "", &messages, &[]).await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => {
+                let _ = response_tx.send(Err(anyhow::anyhow!(
+                    "Invalid value for config option model: test-model"
+                )));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        assert!(matches!(
+            rx.recv().await.expect("expected a Prompt request"),
+            ClientRequest::Prompt { .. }
+        ));
+        let _stream = handle.await.unwrap().unwrap();
+        assert_eq!(applied_model.lock().unwrap().as_deref(), Some("old-model"));
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_propagates_client_failure() {
+        let (tx, rx) = mpsc::channel(1);
+        drop(rx);
+        let provider = test_provider_with_model_option(tx, None);
+
+        let error = provider
+            .apply_model_if_changed("new-model")
+            .await
+            .unwrap_err();
+
+        assert!(error.to_string().contains("ACP client is unavailable"));
     }
 
     #[tokio::test]
