@@ -2254,6 +2254,7 @@ impl GooseAcpAgent {
             .update_thinking_effort(session_id, effort)
             .await
             .internal_err_ctx("Failed to update thinking effort")?;
+        self.reset_provider_notification_task(session_id).await;
 
         Ok(())
     }
