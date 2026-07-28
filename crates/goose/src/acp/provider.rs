@@ -600,6 +600,13 @@ impl Provider for AcpProvider {
                         }
                     }
                     AcpUpdate::TerminalNotification(notification) => {
+                        let tool_call_id = notification
+                            .get("update")
+                            .and_then(|update| update.get("toolCallId"))
+                            .and_then(serde_json::Value::as_str);
+                        if tool_call_id.is_some_and(|id| rejected_tool_calls.contains(id)) {
+                            continue;
+                        }
                         let subscriber = notification_subscriber
                             .lock()
                             .ok()

@@ -23,22 +23,26 @@ use goose::providers::base::Provider;
 use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 
+fn nested_terminal_provider_config() -> AcpProviderConfig {
+    AcpProviderConfig {
+        command: "unused".into(),
+        args: Vec::new(),
+        env: Vec::new(),
+        env_remove: Vec::new(),
+        work_dir: std::path::PathBuf::new(),
+        mcp_servers: Vec::new(),
+        session_mode_id: None,
+        session_config_options: Vec::new(),
+        model_config_option_id: None,
+        mode_mapping: HashMap::new(),
+        notification_callback: None,
+    }
+}
+
 #[test]
 fn test_nested_terminal_notifications_follow_tool_call_start() {
     run_test(async {
-        let config = AcpProviderConfig {
-            command: "unused".into(),
-            args: Vec::new(),
-            env: Vec::new(),
-            env_remove: Vec::new(),
-            work_dir: std::path::PathBuf::new(),
-            mcp_servers: Vec::new(),
-            session_mode_id: None,
-            session_config_options: Vec::new(),
-            model_config_option_id: None,
-            mode_mapping: HashMap::new(),
-            notification_callback: None,
-        };
+        let config = nested_terminal_provider_config();
         let provider = AcpProvider::connect_with_transport(
             "nested-acp".to_string(),
             GooseMode::Auto,
@@ -127,6 +131,42 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
         })
         .await
         .expect("terminal burst should drain without dropping lifecycle events");
+    });
+}
+
+#[test]
+fn test_chat_mode_suppresses_rejected_terminal_notifications() {
+    run_test(async {
+        let provider = AcpProvider::connect_with_transport(
+            "nested-acp".to_string(),
+            GooseMode::Chat,
+            nested_terminal_provider_config(),
+            agent_client_protocol::DynConnectTo::new(nested_terminal_agent()),
+        )
+        .await
+        .unwrap();
+        let (_session_id, mut terminal_notifications) = provider
+            .take_acp_notification_receiver()
+            .expect("ACP provider should expose terminal notifications");
+        let mut stream = provider
+            .stream(
+                &ModelConfig::new("nested-model"),
+                "",
+                &[Message::user().with_text("run a foreground command")],
+                &[],
+            )
+            .await
+            .unwrap();
+
+        let mut visible_text = Vec::new();
+        while let Some(item) = stream.next().await {
+            if let Some(message) = item.unwrap().0 {
+                visible_text.push(message.as_concat_text());
+            }
+        }
+
+        assert!(terminal_notifications.try_recv().is_err());
+        assert_eq!(visible_text, vec!["Tool call was denied."]);
     });
 }
 
