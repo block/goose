@@ -6,13 +6,14 @@ describe('MCP app metadata binding', () => {
     const metadata = resolveMcpAppMetadata({
       ui: { resourceUri: 'ui://victim/render' },
       extensionName: 'victim',
-      toolName: 'render__secret',
+      toolName: 'victim__render',
+      toolNameIsActual: true,
     });
 
     expect(metadata).toEqual({
       resourceUri: 'ui://victim/render',
       extensionName: 'victim',
-      toolName: 'render__secret',
+      toolName: 'victim__render',
     });
   });
 
@@ -47,6 +48,7 @@ describe('MCP app metadata binding', () => {
       ui: { resourceUri: 'ui://victim/render' },
       extensionName: 'victim',
       toolName: 'render__secret',
+      toolNameIsActual: true,
     });
 
     expect(metadata).toEqual({

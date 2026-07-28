@@ -170,6 +170,7 @@ pub struct ExtensionManagerCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct GooseMcpAppToolAttachment {
     pub tool_name: String,
+    pub tool_name_is_actual: bool,
     pub extension_name: String,
     pub resource_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1360,6 +1361,7 @@ impl ExtensionManager {
 
         let mut attachment = GooseMcpAppToolAttachment {
             tool_name: resolved_tool.actual_tool_name.clone(),
+            tool_name_is_actual: true,
             extension_name: resolved_tool.extension_name.clone(),
             resource_uri: resource_uri.clone(),
             tool_meta: resolved_tool.tool_meta.clone(),
@@ -2911,6 +2913,7 @@ mod tests {
         let mut result = CallToolResult::success(vec![]);
         let attachment = GooseMcpAppToolAttachment {
             tool_name: "render__secret".to_string(),
+            tool_name_is_actual: true,
             extension_name: "weather".to_string(),
             resource_uri: "ui://weather/app".to_string(),
             tool_meta: None,
@@ -2934,6 +2937,7 @@ mod tests {
             Some(&serde_json::json!({
                 "mcpApp": {
                     "toolName": "render__secret",
+                    "toolNameIsActual": true,
                     "extensionName": "weather",
                     "resourceUri": "ui://weather/app",
                     "resourceResult": {

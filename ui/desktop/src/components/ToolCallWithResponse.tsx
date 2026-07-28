@@ -69,6 +69,7 @@ type UiMeta = {
   };
   extensionName?: string;
   toolName?: string;
+  toolNameIsActual?: boolean;
   subagent_session_id?: string;
 };
 
@@ -163,9 +164,11 @@ export function resolveMcpAppMetadata(
   const toolName = responseMeta?.toolName;
   if (resourceUri && extensionName && toolName) {
     const legacyPrefix = `${extensionName}__`;
-    const actualToolName = toolName.startsWith(legacyPrefix)
-      ? toolName.slice(legacyPrefix.length)
-      : toolName;
+    const actualToolName = responseMeta.toolNameIsActual
+      ? toolName
+      : toolName.startsWith(legacyPrefix)
+        ? toolName.slice(legacyPrefix.length)
+        : toolName;
     if (actualToolName) {
       return { resourceUri, extensionName, toolName: actualToolName };
     }
