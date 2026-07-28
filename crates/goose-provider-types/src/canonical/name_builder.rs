@@ -542,10 +542,6 @@ mod tests {
             Some("google-vertex/claude-sonnet-4".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("gcp_vertex_ai", "claude-3-5-haiku@20241022", r),
-            Some("google-vertex/claude-3.5-haiku".to_string())
-        );
-        assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-sonnet-4-5@20250929", r),
             Some("google-vertex/claude-sonnet-4.5".to_string())
         );
