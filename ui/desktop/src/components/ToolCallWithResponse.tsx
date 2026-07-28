@@ -12,7 +12,6 @@ import {
   ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
-import { LoadingStatus } from './ui/Dot';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -21,6 +20,8 @@ import type { ContentBlock } from '../types/message';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 import { defineMessages, useIntl } from '../i18n';
+
+type LoadingStatus = 'loading' | 'success' | 'error';
 
 const i18n = defineMessages({
   viewSubagentSession: {
