@@ -665,6 +665,10 @@ impl CliSession {
                 history.save(editor);
                 self.handle_clear().await?;
             }
+            InputResult::New => {
+                history.save(editor);
+                self.handle_new().await?;
+            }
             InputResult::PromptCommand(opts) => {
                 history.save(editor);
                 self.handle_prompt_command(opts).await?;
@@ -1068,6 +1072,41 @@ impl CliSession {
             self.debug,
         );
         Ok(())
+    }
+
+    async fn handle_new(&mut self) -> Result<()> {
+        let new_session_id = match self.prepare_successor_session().await {
+            Ok(id) => id,
+            Err(e) => {
+                output::render_error(&format!("Failed to start a new session: {}", e));
+                return Ok(());
+            }
+        };
+
+        self.agent
+            .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
+            .await;
+
+        self.session_id = new_session_id;
+        self.messages.clear();
+        self.run_mode = RunMode::Normal;
+
+        output::render_message(
+            &Message::assistant()
+                .with_text(format!("Started a new session · {}\n", self.session_id)),
+            self.debug,
+        );
+        Ok(())
+    }
+
+    async fn prepare_successor_session(&self) -> Result<String> {
+        let session_manager = &self.agent.config.session_manager;
+        let old_session = session_manager.get_session(&self.session_id, false).await?;
+        let new_session_id =
+            create_successor_session(session_manager, &old_session, self.agent.goose_mode().await)
+                .await?;
+        self.agent.persist_extension_state(&new_session_id).await?;
+        Ok(new_session_id)
     }
 
     async fn handle_recipe(&mut self, filepath_opt: Option<String>) {
@@ -1972,6 +2011,40 @@ impl CliSession {
     }
 }
 
+async fn create_successor_session(
+    session_manager: &SessionManager,
+    old_session: &goose::session::Session,
+    goose_mode: GooseMode,
+) -> Result<String> {
+    let new_session = session_manager
+        .create_session(
+            old_session.working_dir.clone(),
+            "CLI Session".to_string(),
+            old_session.session_type,
+            goose_mode,
+        )
+        .await?;
+
+    let mut builder = session_manager
+        .update(&new_session.id)
+        .recipe(old_session.recipe.clone())
+        .user_recipe_values(old_session.user_recipe_values.clone());
+
+    if let Some(provider_name) = old_session.provider_name.clone() {
+        builder = builder.provider_name(provider_name);
+    }
+    if let Some(model_config) = old_session.model_config.clone() {
+        builder = builder.model_config(model_config);
+    }
+    if let Some(project_id) = old_session.project_id.clone() {
+        builder = builder.project_id(Some(project_id));
+    }
+
+    builder.apply().await?;
+
+    Ok(new_session.id)
+}
+
 fn message_has_text(message: &Message) -> bool {
     message.content.iter().any(
         |content| matches!(content, MessageContent::Text(text) if !text.text.trim().is_empty()),
@@ -2852,5 +2925,64 @@ mod tests {
             CliSession::parse_streamable_http_extension(url, timeout),
             expected
         );
+    }
+
+    #[tokio::test]
+    async fn new_session_inherits_provider_model_and_working_dir() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let old = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "CLI Session".to_string(),
+                goose::session::SessionType::User,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+
+        sm.update(&old.id)
+            .provider_name("anthropic")
+            .model_config(goose_providers::model::ModelConfig::new("test-model"))
+            .accumulated_usage(goose_providers::conversation::token_usage::Usage::new(
+                Some(100),
+                Some(50),
+                Some(150),
+            ))
+            .apply()
+            .await
+            .unwrap();
+
+        sm.add_message(&old.id, &Message::user().with_text("hello"))
+            .await
+            .unwrap();
+
+        let old = sm.get_session(&old.id, false).await.unwrap();
+
+        let new_id = create_successor_session(&sm, &old, GooseMode::Chat)
+            .await
+            .unwrap();
+
+        assert_ne!(new_id, old.id);
+
+        let new_session = sm.get_session(&new_id, true).await.unwrap();
+        assert_eq!(new_session.provider_name, old.provider_name);
+        assert_eq!(
+            new_session.model_config.as_ref().map(|m| &m.model_name),
+            old.model_config.as_ref().map(|m| &m.model_name)
+        );
+        assert_eq!(new_session.goose_mode, GooseMode::Chat);
+        assert_eq!(new_session.working_dir, old.working_dir);
+        assert_eq!(new_session.session_type, old.session_type);
+        assert!(new_session.conversation.unwrap().messages().is_empty());
+        assert_eq!(new_session.usage.total_tokens, None);
+        assert_eq!(old.accumulated_usage.total_tokens, Some(150));
+        assert_eq!(new_session.accumulated_usage.total_tokens, None);
+
+        let reloaded_old = sm.get_session(&old.id, true).await.unwrap();
+        let old_messages = reloaded_old.conversation.unwrap().messages().to_vec();
+        assert_eq!(old_messages.len(), 1);
+        assert_eq!(old_messages[0].as_concat_text(), "hello");
     }
 }
