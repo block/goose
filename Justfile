@@ -423,8 +423,9 @@ mcp-conformance-build:
 # Example: just mcp-conformance 2025-11-25 auth
 # Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.10
 # Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.10 false
+# Example: just mcp-conformance 2025-11-25 all 0.2.0-alpha.10 true crates/goose-cli/tests/mcp-conformance/expected-failures-2025-11-25-0.2.0-alpha.10.yaml
 [doc("Run an MCP client conformance suite against Goose.")]
-mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.10" build="true":
+mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.10" build="true" baseline="":
   #!/usr/bin/env bash
   set -euo pipefail
   if [ "{{build}}" = "true" ]; then
@@ -433,7 +434,11 @@ mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alph
     echo "target/debug/mcp_conformance_driver not found; run 'just mcp-conformance-build' first" >&2
     exit 1
   fi
-  npx -y @modelcontextprotocol/conformance@{{conformance_version}} client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}"
+  baseline_args=()
+  if [ -n "{{baseline}}" ]; then
+    baseline_args=(--expected-failures "{{baseline}}")
+  fi
+  npx -y @modelcontextprotocol/conformance@{{conformance_version}} client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}" "${baseline_args[@]}"
 
 build-test-tools:
   cargo build -p goose-test

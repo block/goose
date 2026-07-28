@@ -58,10 +58,13 @@ jobs:
         include:
           - spec-version: "2025-11-25"
             conformance-version: "0.1.16"
+            baseline: "crates/goose-cli/tests/mcp-conformance/expected-failures-2025-11-25-0.1.16.yaml"
           - spec-version: "2025-11-25"
             conformance-version: "0.2.0-alpha.10"
+            baseline: "crates/goose-cli/tests/mcp-conformance/expected-failures-2025-11-25-0.2.0-alpha.10.yaml"
           - spec-version: "2026-07-28"
             conformance-version: "0.2.0-alpha.10"
+            baseline: "crates/goose-cli/tests/mcp-conformance/expected-failures-2026-07-28-0.2.0-alpha.10.yaml"
     steps:
       - name: Checkout Code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -83,4 +86,4 @@ jobs:
       - name: Run Conformance Suite
         run: |
           source ./bin/activate-hermit
-          just mcp-conformance "${{ matrix.spec-version }}" all "${{ matrix.conformance-version }}" false
+          just mcp-conformance "${{ matrix.spec-version }}" all "${{ matrix.conformance-version }}" false "${{ matrix.baseline }}"
