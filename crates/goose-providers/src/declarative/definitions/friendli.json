@@ -1,9 +1,9 @@
 {
   "name": "friendli",
   "engine": "openai",
-  "display_name": "Friendli",
-  "description": "Friendli serverless inference endpoints",
-  "api_key_env": "FRIENDLI_TOKEN",
+  "display_name": "Friendli AI",
+  "description": "Friendli Model APIs provide instant access to a curated set of models, powered by a proprietary inference stack called Friendli Engine for high-performance, cost-efficient inference.",
+  "api_key_env": "FRIENDLI_API_KEY",
   "base_url": "https://api.friendli.ai/serverless/v1",
   "catalog_provider_id": "friendli",
   "model_doc_link": "https://friendli.ai/docs/guides/serverless_endpoints/introduction",
