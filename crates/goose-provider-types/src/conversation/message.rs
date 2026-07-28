@@ -83,7 +83,7 @@ where
 pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
 pub type ToolResult<T> = Result<T, rmcp::model::ErrorData>;
 
-fn sanitize_tool_result_in_place(tool_result: &mut ToolResult<CallToolResult>) {
+pub(crate) fn sanitize_tool_result_in_place(tool_result: &mut ToolResult<CallToolResult>) {
     match tool_result {
         Ok(result) => {
             for content in &mut result.content {
@@ -1395,6 +1395,28 @@ mod tests {
         let json = serde_json::to_string(&message).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         let MessageContentBlock::ToolResponse(response) = &deserialized.content[0] else {
+            panic!("expected tool response");
+        };
+        let result = response.tool_result.as_ref().unwrap();
+        let ContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text content");
+        };
+        assert_eq!(text.text, "persistedtext");
+    }
+
+    #[test]
+    fn test_content_deserialization_sanitizes_persisted_tool_response() {
+        let content = vec![MessageContentBlock::ToolResponse(ToolResponse {
+            id: "tool-1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![ContentBlock::text(
+                "persisted\u{E0041}text",
+            )])),
+            metadata: None,
+        })];
+
+        let json = serde_json::to_string(&content).unwrap();
+        let deserialized: Vec<MessageContentBlock> = serde_json::from_str(&json).unwrap();
+        let MessageContentBlock::ToolResponse(response) = &deserialized[0] else {
             panic!("expected tool response");
         };
         let result = response.tool_result.as_ref().unwrap();
