@@ -354,7 +354,28 @@ impl Agent {
                 let mut first_content_at: Option<std::time::Instant> = None;
 
                 while let Some(result) = stream.next().await {
-                    let (msg_opt, usage_opt) = result?;
+                    let (msg_opt, usage_opt) = match result {
+                        Ok(item) => item,
+                        Err(error @ ProviderError::MaxTokens) => {
+                            if let Some(usage) = final_usage.as_mut() {
+                                fill_stream_timing(usage, request_started, first_content_at);
+                            }
+                            if let Some(message) = accumulated_message.take() {
+                                yield (
+                                    Some(sanitize_residual_markers(message)),
+                                    final_usage.take(),
+                                );
+                            } else if final_usage.is_some() {
+                                yield (None, final_usage.take());
+                            }
+                            Err(error)?;
+                            unreachable!();
+                        }
+                        Err(error) => {
+                            Err(error)?;
+                            unreachable!();
+                        }
+                    };
 
                     if let Some(msg) = msg_opt {
                         if first_content_at.is_none() && message_has_timing_content(&msg) {
@@ -710,6 +731,66 @@ mod tests {
             let usage = ProviderUsage::new("mock".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
+    }
+
+    #[derive(Clone)]
+    struct TruncatingToolshimProvider;
+
+    #[async_trait]
+    impl Provider for TruncatingToolshimProvider {
+        fn get_name(&self) -> &str {
+            "truncating-toolshim"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_text("partial opening <|tool_call_begin|> incomplete"),
+                    ),
+                    None,
+                )),
+                Err(ProviderError::MaxTokens),
+            ])))
+        }
+    }
+
+    #[tokio::test]
+    async fn toolshim_flushes_sanitized_partial_output_before_max_tokens() {
+        let mut stream = Agent::stream_response_from_provider(
+            Arc::new(TruncatingToolshimProvider),
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("write a long response")],
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let mut partial_text = Vec::new();
+        let mut saw_max_tokens = false;
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok((Some(message), _)) => partial_text.push(message.as_concat_text()),
+                Ok((None, _)) => {}
+                Err(ProviderError::MaxTokens) => saw_max_tokens = true,
+                Err(error) => panic!("unexpected error: {error}"),
+            }
+        }
+
+        assert!(saw_max_tokens);
+        assert_eq!(partial_text.len(), 1);
+        assert!(partial_text[0].contains("partial opening"));
+        assert!(!partial_text[0].contains("tool_call_begin"));
     }
 
     #[derive(Clone)]

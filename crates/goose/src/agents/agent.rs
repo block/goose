@@ -4014,6 +4014,84 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         Ok(())
     }
 
+    struct ToolshimMaxTokensThenCompletesProvider {
+        call_count: AtomicUsize,
+        second_call_messages: std::sync::Mutex<Vec<Message>>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for ToolshimMaxTokensThenCompletesProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+            if call == 0 {
+                return Ok(Box::pin(futures::stream::iter(vec![
+                    Ok((
+                        Some(
+                            Message::assistant()
+                                .with_text("partial opening <|tool_call_begin|> incomplete"),
+                        ),
+                        None,
+                    )),
+                    Err(ProviderError::MaxTokens),
+                ])));
+            }
+
+            *self.second_call_messages.lock().unwrap() = messages.to_vec();
+            Ok(stream_from_single_message(
+                Message::assistant().with_text("continued response"),
+                ProviderUsage::new("mock-model".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_name(&self) -> &str {
+            "toolshim-max-tokens-then-completes"
+        }
+    }
+
+    #[tokio::test]
+    async fn toolshim_max_tokens_persists_partial_output_before_continuing() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(ToolshimMaxTokensThenCompletesProvider {
+            call_count: AtomicUsize::new(0),
+            second_call_messages: std::sync::Mutex::new(Vec::new()),
+        });
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent
+            .update_provider(
+                provider.clone(),
+                goose_providers::model::ModelConfig::new("mock-model").with_toolshim(true),
+                &session_id,
+            )
+            .await?;
+
+        let messages =
+            run_stop_hook_test_turn(&agent, &session_id, "write a long response").await?;
+
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+        let visible = visible_texts(&messages);
+        assert!(visible
+            .iter()
+            .any(|text| text.contains("partial opening") && !text.contains("tool_call_begin")));
+        assert!(visible.iter().any(|text| text == "continued response"));
+        let second_call_messages = provider.second_call_messages.lock().unwrap();
+        assert!(second_call_messages.iter().any(|message| {
+            let text = message.as_concat_text();
+            text.contains("partial opening") && !text.contains("tool_call_begin")
+        }));
+        assert!(second_call_messages.iter().any(|message| message
+            .as_concat_text()
+            .contains(MAX_TOKEN_CONTINUATION_MESSAGE)));
+        Ok(())
+    }
+
     struct AlwaysMaxTokensProvider {
         call_count: AtomicUsize,
     }
