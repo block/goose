@@ -8,7 +8,14 @@
 # (stale entry) or if a scenario not listed here fails (unexpected failure), so
 # keep this list in sync as behavior changes.
 client:
-  # See https://github.com/aaif-goose/goose/issues for tracking.
+  # Goose registers a conventional dynamically assigned client ID instead of
+  # using a URL-based Client ID Metadata Document. This is a SHOULD warning.
   - auth/basic-cimd
+
+  # Goose only initiates OAuth when initialization fails. The challenge in this
+  # scenario arrives after initialization, so no scope-upgrade flow is started.
   - auth/scope-step-up
+
+  # Like scope-step-up, post-initialization 401 responses do not initiate OAuth;
+  # consequently the runner observes no authorization attempts or retry limit.
   - auth/scope-retry-limit
