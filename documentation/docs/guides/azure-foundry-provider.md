@@ -15,7 +15,7 @@ The `azure_foundry` provider connects goose to Azure AI Foundry deployments. It 
 
 For project endpoints, goose discovers deployments with `GET /deployments`. Deployment names can be customized; goose uses the returned `modelPublisher` to select the protocol and `modelName` to resolve model metadata such as the context window.
 
-Resource endpoints do not expose project deployment discovery. Goose routes recognizable model or deployment names by family: `gpt-5*` and supported o-series models use Responses, `claude-*` uses Anthropic Messages, and other names use Chat Completions. Use a project endpoint when aliases do not identify their underlying model family.
+Resource endpoints do not expose project deployment discovery. goose routes recognizable model or deployment names by family: `gpt-5*` and supported o-series models use Responses, `claude-*` uses Anthropic Messages, and other names use Chat Completions. Use a project endpoint when aliases do not identify their underlying model family.
 
 ## Configuration
 

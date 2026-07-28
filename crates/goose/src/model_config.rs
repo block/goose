@@ -14,7 +14,7 @@ pub fn model_config_from_user_config(
     provider_name: &str,
     model_name: impl AsRef<str>,
 ) -> Result<ModelConfig> {
-    let model = base_model_config_from_user_config(model_name.as_ref())?;
+    let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     materialize_model_config(provider_name, model)
 }
 
@@ -26,7 +26,7 @@ pub fn model_config_from_user_config_with_session_settings(
     context_limit: Option<usize>,
 ) -> Result<ModelConfig> {
     let config = Config::global();
-    let model = base_model_config_from_user_config(model_name.as_ref())?;
+    let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     let model = materialize_model_config_inner(model, provider_name, false)?
         .with_context_limit(context_limit)
         .with_inherited_session_settings_from(previous, request_params)
@@ -168,7 +168,10 @@ fn apply_openai_request_params(mut model: ModelConfig) -> ModelConfig {
     model
 }
 
-fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
+fn base_model_config_from_user_config(
+    provider_name: &str,
+    model_name: &str,
+) -> Result<ModelConfig> {
     let config = Config::global();
     let mut model = ModelConfig {
         model_name: model_name.to_string(),
@@ -180,6 +183,9 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
         request_params: None,
         reasoning: None,
     };
+    if provider_name == goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+        model = goose_providers::azure_foundry::preserve_deployment_name(model, model_name);
+    }
     model.normalize_effort_suffix();
     Ok(model)
 }
@@ -243,5 +249,38 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod azure_foundry_tests {
+    use super::*;
+
+    #[test]
+    fn deployment_name_survives_thinking_effort_changes() {
+        let config = base_model_config_from_user_config("azure_foundry", "gpt-5-high")
+            .unwrap()
+            .with_thinking_effort(ThinkingEffort::Off);
+
+        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(
+            config.request_param::<String>(
+                goose_providers::azure_foundry::AZURE_FOUNDRY_DEPLOYMENT_PARAM
+            ),
+            Some("gpt-5-high".to_string())
+        );
+    }
+
+    #[test]
+    fn none_suffixed_deployment_name_is_preserved() {
+        let config = base_model_config_from_user_config("azure_foundry", "gpt-5-none").unwrap();
+
+        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(
+            config.request_param::<String>(
+                goose_providers::azure_foundry::AZURE_FOUNDRY_DEPLOYMENT_PARAM
+            ),
+            Some("gpt-5-none".to_string())
+        );
     }
 }

@@ -19,6 +19,7 @@ use crate::openai_compatible::{handle_response_openai_compat, OpenAiCompatiblePr
 
 pub const AZURE_FOUNDRY_PROVIDER_NAME: &str = "azure_foundry";
 pub const AZURE_FOUNDRY_DEFAULT_MODEL: &str = "Phi-4";
+pub const AZURE_FOUNDRY_DEPLOYMENT_PARAM: &str = "azure_foundry_deployment";
 pub const AZURE_FOUNDRY_DOC_URL: &str =
     "https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/inference";
 
@@ -330,15 +331,20 @@ impl AzureFoundryProvider {
     }
 }
 
-fn deployment_alias(alias: &str, config: &ModelConfig) -> String {
-    let suffix = match config.thinking_effort() {
-        Some(crate::thinking::ThinkingEffort::Low) => "-low",
-        Some(crate::thinking::ThinkingEffort::Medium) => "-medium",
-        Some(crate::thinking::ThinkingEffort::High) => "-high",
-        Some(crate::thinking::ThinkingEffort::Max) => "-xhigh",
-        _ => return alias.to_string(),
-    };
-    format!("{alias}{suffix}")
+pub fn preserve_deployment_name(
+    model_config: ModelConfig,
+    deployment_name: impl Into<String>,
+) -> ModelConfig {
+    model_config.with_merged_request_params(HashMap::from([(
+        AZURE_FOUNDRY_DEPLOYMENT_PARAM.to_string(),
+        serde_json::Value::String(deployment_name.into()),
+    )]))
+}
+
+fn deployment_name(model_config: &ModelConfig) -> String {
+    model_config
+        .request_param::<String>(AZURE_FOUNDRY_DEPLOYMENT_PARAM)
+        .unwrap_or_else(|| model_config.model_name.clone())
 }
 
 fn with_api_version(link: &str, api_version: Option<&str>) -> String {
@@ -488,7 +494,7 @@ impl Provider for AzureFoundryProvider {
             config
         });
         let model_config = maas_config.as_ref().unwrap_or(model_config);
-        let wire_model = deployment_alias(&model_config.model_name, model_config);
+        let wire_model = deployment_name(model_config);
         let deployment = if is_project_endpoint(&self.endpoint) {
             self.deployment_for(&wire_model).await
         } else {
@@ -920,7 +926,11 @@ mod tests {
             .await;
 
         let provider = project_provider(&server);
-        let config = ModelConfig::new("gpt-5-high");
+        let config = preserve_deployment_name(
+            ModelConfig::new("gpt-5-high")
+                .with_thinking_effort(crate::thinking::ThinkingEffort::Off),
+            "gpt-5-high",
+        );
         assert_eq!(config.model_name, "gpt-5");
         provider
             .complete(&config, "system", &[], &[])
