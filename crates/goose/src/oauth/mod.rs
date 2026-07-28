@@ -28,6 +28,11 @@ pub struct OAuthFlowConfig {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
     pub client_metadata_url: Option<String>,
+    /// `WWW-Authenticate` header value from a 401/403 response. When present,
+    /// discovery is seeded from the challenge (its `resource_metadata` URL and
+    /// `scope` hint) instead of probing well-known locations.
+    #[serde(skip)]
+    pub challenge: Option<String>,
 }
 
 #[derive(Clone)]
@@ -126,10 +131,19 @@ pub async fn oauth_flow(
     mcp_server_url: &String,
     name: &String,
 ) -> Result<AuthorizationManager, anyhow::Error> {
+    oauth_flow_with_challenge(mcp_server_url, name, None).await
+}
+
+pub async fn oauth_flow_with_challenge(
+    mcp_server_url: &String,
+    name: &String,
+    challenge: Option<String>,
+) -> Result<AuthorizationManager, anyhow::Error> {
     let config = OAuthFlowConfig {
         client_id: std::env::var("GOOSE_MCP_OAUTH_CLIENT_ID").ok(),
         client_secret: std::env::var("GOOSE_MCP_OAUTH_CLIENT_SECRET").ok(),
         client_metadata_url: std::env::var("GOOSE_MCP_OAUTH_CLIENT_METADATA_URL").ok(),
+        challenge,
     };
     oauth_flow_with_config(mcp_server_url, name, config).await
 }
@@ -199,6 +213,9 @@ pub async fn oauth_flow_with_config(
     let mut oauth_state = OAuthState::new(mcp_server_url, None).await?;
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     let mut request = AuthorizationRequest::new(redirect_uri.clone()).with_client_name("goose");
+    if let Some(challenge) = flow_config.challenge {
+        request = request.with_challenge(challenge);
+    }
     if let Some(client_id) = flow_config.client_id {
         request = request.with_preregistered_client(client_id);
         if let Some(client_secret) = flow_config.client_secret {

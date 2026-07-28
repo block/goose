@@ -45,7 +45,7 @@ use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
-use crate::oauth::{oauth_flow, GooseCredentialStore};
+use crate::oauth::{oauth_flow, oauth_flow_with_challenge, GooseCredentialStore};
 use crate::prompt_template;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
@@ -505,6 +505,37 @@ fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>)
     res.as_ref().err().is_some_and(is_oauth_auth_failure)
 }
 
+/// Extract the `WWW-Authenticate` challenge from a failed initialization, so
+/// OAuth discovery can be seeded from the server's 401/403 response instead of
+/// probing well-known locations.
+fn auth_challenge_from_error(err: &ClientInitializeError) -> Option<String> {
+    let ClientInitializeError::TransportError {
+        error: DynamicTransportError { error, .. },
+        ..
+    } = err
+    else {
+        return None;
+    };
+
+    if let Some(http_err) = error.downcast_ref::<StreamableHttpError<reqwest::Error>>() {
+        return http_err.auth_challenge().map(str::to_string);
+    }
+
+    #[cfg(unix)]
+    if let Some(http_err) = error
+        .downcast_ref::<StreamableHttpError<rmcp::transport::common::unix_socket::UnixSocketError>>(
+        )
+    {
+        return http_err.auth_challenge().map(str::to_string);
+    }
+
+    None
+}
+
+fn auth_challenge_from_result(res: &Result<McpClient, ClientInitializeError>) -> Option<String> {
+    res.as_ref().err().and_then(auth_challenge_from_error)
+}
+
 async fn clear_credentials_on_post_refresh_auth_failure(
     credential_store: &dyn CredentialStore,
     name: &str,
@@ -782,7 +813,8 @@ async fn create_streamable_http_client(
     .await;
 
     if should_attempt_oauth_fallback(&client_res) {
-        match oauth_flow(&uri.to_string(), &name.to_string()).await {
+        let challenge = auth_challenge_from_result(&client_res);
+        match oauth_flow_with_challenge(&uri.to_string(), &name.to_string(), challenge).await {
             Ok(auth_manager) => {
                 connect_with_auth(
                     auth_manager,
