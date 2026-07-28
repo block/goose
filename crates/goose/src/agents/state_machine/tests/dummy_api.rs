@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -21,13 +21,20 @@ impl Default for ProviderFeatures {
 #[derive(Clone)]
 enum ApiResponse {
     Reply(String),
-    ToolCall { name: String, arguments: String },
+    ToolCall {
+        name: String,
+        arguments: String,
+        require_advertised: bool,
+    },
     ToolCalls(Vec<ApiToolCall>),
     NoChoices,
     ContextLimitError(String),
     ServerError(String),
     EmptyServerError,
-    ReplyThenServerError { reply: String, error: String },
+    ReplyThenServerError {
+        reply: String,
+        error: String,
+    },
 }
 
 #[derive(Clone)]
@@ -71,6 +78,10 @@ impl ApiCall {
 
     pub(super) fn input_contains(&self, needle: &str) -> bool {
         request_input(&self.body).contains(needle)
+    }
+
+    pub(super) fn system_contains(&self, needle: &str) -> bool {
+        request_system(&self.body).contains(needle)
     }
 
     pub(super) fn advertises_tool(&self, name: &str) -> bool {
@@ -152,6 +163,19 @@ impl<'a> ApiRuleBuilder<'a> {
         self.configured(ApiResponse::ToolCall {
             name: name.into(),
             arguments: arguments.to_string(),
+            require_advertised: true,
+        })
+    }
+
+    pub(super) fn unadvertised_call(
+        self,
+        name: impl Into<String>,
+        arguments: Value,
+    ) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::ToolCall {
+            name: name.into(),
+            arguments: arguments.to_string(),
+            require_advertised: false,
         })
     }
 
@@ -179,6 +203,7 @@ impl<'a> ApiRuleBuilder<'a> {
         self.configured(ApiResponse::ToolCall {
             name: name.into(),
             arguments: arguments.into(),
+            require_advertised: true,
         })
     }
 
@@ -269,7 +294,14 @@ impl DummyApiState {
                 self.features.reports_usage,
                 None,
             )),
-            ApiResponse::ToolCall { name, arguments } => {
+            ApiResponse::ToolCall {
+                name,
+                arguments,
+                require_advertised,
+            } => {
+                if require_advertised {
+                    assert_tool_advertised(&body, &name);
+                }
                 let output_tokens = name.chars().count() as i32 + arguments.chars().count() as i32;
                 sse_response(tool_call_events(
                     &id,
@@ -281,6 +313,9 @@ impl DummyApiState {
                 ))
             }
             ApiResponse::ToolCalls(calls) => {
+                for call in &calls {
+                    assert_tool_advertised(&body, &call.name);
+                }
                 let output_tokens = calls
                     .iter()
                     .map(|call| call.name.chars().count() + call.arguments.chars().count())
@@ -312,6 +347,19 @@ impl DummyApiState {
             )),
         }
     }
+}
+
+fn assert_tool_advertised(body: &Value, name: &str) {
+    let advertised = body["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|tool| tool["function"]["name"].as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        advertised.contains(&name),
+        "dummy API cannot call unadvertised tool {name:?}; advertised: {advertised:?}"
+    );
 }
 
 fn serialized_chars(value: &Value) -> i32 {

@@ -58,6 +58,10 @@ pub(super) struct TestPipeline {
 impl TestPipeline {
     pub(super) fn machine(&self, cancel: CancellationToken) -> StateMachine<'_> {
         let provider = self.provider.clone();
+        let tool_call_cutoff = crate::context_mgmt::compute_tool_call_cutoff(
+            self.model_config.context_limit(),
+            COMPACTION_THRESHOLD,
+        );
         let operations: Vec<Arc<dyn Operation + '_>> = vec![
             Arc::new(SteerOperation::new(
                 self.steer_queue.clone(),
@@ -73,7 +77,7 @@ impl TestPipeline {
             Arc::new(ToolPairCompactionOperation::new(
                 provider.clone(),
                 self.model_config.clone(),
-                10,
+                tool_call_cutoff,
                 true,
             )),
             Arc::new(ToolApprovalOperation::new(
@@ -137,6 +141,10 @@ impl TestPipeline {
 
     pub(super) fn context_limit(&self) -> usize {
         self.model_config.context_limit()
+    }
+
+    pub(super) fn working_dir(&self) -> &std::path::Path {
+        self._temp_dir.path()
     }
 
     pub(super) fn with_hook_manager(mut self, hook_manager: HookManager) -> Self {

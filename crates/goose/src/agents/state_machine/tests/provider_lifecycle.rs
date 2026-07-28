@@ -36,13 +36,11 @@ async fn missing_provider_usage_is_estimated() -> Result<()> {
     api.on("second turn").reply("still working");
     let result = pipeline.run(["second turn"]).await?;
     result.assert_message(-1, Agent, "still working");
-    assert!(
-        result
-            .session
-            .usage
-            .total_tokens
-            .is_some_and(|total| total > first_total)
-    );
+    assert!(result
+        .session
+        .usage
+        .total_tokens
+        .is_some_and(|total| total > first_total));
 
     Ok(())
 }

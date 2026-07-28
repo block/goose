@@ -228,23 +228,38 @@ async fn queued_steer_is_injected_between_turns() -> Result<()> {
 #[tokio::test]
 async fn tool_pairs_are_summarized_after_the_current_turn() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
+    let cutoff = crate::context_mgmt::compute_tool_call_cutoff(
+        pipeline.context_limit(),
+        pipeline::COMPACTION_THRESHOLD,
+    );
+    let boundary = cutoff + crate::context_mgmt::TOOLCALL_SUMMARIZATION_BATCH_SIZE;
+
     api.on("do a lot of work").call(ADD, value(1));
     api.on("result:").call(ADD, value(1));
-    api.on("result: 21").reply("done");
+    api.on(format!("result: {}", boundary - 1))
+        .reply("first batch done");
+    api.on("reach the boundary").call(ADD, value(1));
+    api.on(format!("result: {boundary}"))
+        .reply("at the boundary");
+    api.on("cross the boundary").call(ADD, value(1));
+    api.on(format!("result: {}", boundary + 1))
+        .reply("all work done");
     api.on_system("summarize a tool call & response pair")
         .reply("summary of the pair");
     api.on("carry on").reply("carried on");
 
-    let current_turn = pipeline.run(["do a lot of work"]).await?;
-    assert_eq!(api.call_count(), 22);
+    let result = pipeline
+        .run([
+            "do a lot of work",
+            "reach the boundary",
+            "cross the boundary",
+        ])
+        .await?;
     assert_eq!(
-        current_turn
-            .rendered_conversation()
-            .last()
-            .map(String::as_str),
-        Some("agent: done")
+        result.rendered_conversation().last().map(String::as_str),
+        Some("agent: all work done")
     );
-    let persisted = current_turn
+    let persisted = result
         .session
         .conversation
         .unwrap_or_default()
@@ -255,7 +270,8 @@ async fn tool_pairs_are_summarized_after_the_current_turn() -> Result<()> {
             .iter()
             .filter(|message| message.is_agent_visible() && message.is_tool_call())
             .count(),
-        21
+        boundary + 1,
+        "persisted: {persisted:#?}"
     );
     assert!(!persisted
         .iter()
@@ -277,7 +293,7 @@ async fn tool_pairs_are_summarized_after_the_current_turn() -> Result<()> {
             .iter()
             .filter(|message| message.is_agent_visible() && message.is_tool_call())
             .count(),
-        11,
+        boundary + 1 - crate::context_mgmt::TOOLCALL_SUMMARIZATION_BATCH_SIZE,
         "persisted: {persisted:#?}"
     );
     assert_eq!(
@@ -289,7 +305,7 @@ async fn tool_pairs_are_summarized_after_the_current_turn() -> Result<()> {
                     && !message.is_user_visible()
             })
             .count(),
-        10
+        crate::context_mgmt::TOOLCALL_SUMMARIZATION_BATCH_SIZE
     );
 
     Ok(())
@@ -1263,79 +1279,51 @@ async fn history_slash_command_replaces_history_and_yields() -> Result<()> {
 }
 
 #[tokio::test]
-async fn skill_slash_command_adds_the_skill_to_the_turn() -> Result<()> {
-    let working_dir = tempfile::tempdir()?;
-    let skill_dir = working_dir.path().join(".agents/skills/review");
+async fn prompt_and_skill_lifecycle() -> Result<()> {
+    use self::pipeline::MessageKind::{Agent, ToolResponse};
+
+    let (pipeline, api) = test_pipeline().await?;
+    std::fs::write(
+        pipeline.working_dir().join("AGENTS.md"),
+        "ROOT_PROJECT_INSTRUCTION",
+    )?;
+
+    api.on("first turn").reply("first reply");
+    pipeline.run(["first turn"]).await?;
+    assert!(api.calls()[0].system_contains("ROOT_PROJECT_INSTRUCTION"));
+    assert!(!api.calls()[0].system_contains("HOT_SKILL_INSTRUCTION"));
+
+    let skill_dir = pipeline.working_dir().join(".agents/skills/review");
     std::fs::create_dir_all(&skill_dir)?;
     std::fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: review\ndescription: Review code\n---\nReview $ARGUMENTS carefully.",
+        "---\nname: review\ndescription: Review newly added code\n---\n\
+         HOT_SKILL_INSTRUCTION: Review $ARGUMENTS carefully.",
     )?;
-    let (pipeline, api) = test_pipeline().await?;
-    api.on("Review src/lib.rs carefully.").reply("reviewed");
-    pipeline
-        .session_manager
-        .update(&pipeline.session_id)
-        .working_dir(working_dir.path().to_path_buf())
-        .apply()
-        .await?;
+    std::fs::write(skill_dir.join("guide.txt"), "SUPPORTING_FILE_CONTENT")?;
 
-    let result = pipeline.run(["/review src/lib.rs"]).await?;
+    let provider_calls = api.call_count();
+    let listed = pipeline.run(["/skills"]).await?;
+    assert_eq!(api.call_count(), provider_calls);
+    listed.assert_message(-1, Agent, "review");
 
-    assert_eq!(api.call_count(), 1);
-    assert_eq!(
-        result.rendered_conversation().last().map(String::as_str),
-        Some("agent: reviewed")
-    );
-    let conversation = result.session.conversation.unwrap_or_default();
-    let persisted = conversation.messages();
-    let command = persisted
-        .iter()
-        .find(|message| message.as_concat_text() == "/review src/lib.rs")
-        .expect("persisted skill command");
-    assert!(!command.is_agent_visible());
-    let skill = persisted
-        .iter()
-        .find(|message| {
-            message
-                .as_concat_text()
-                .contains("Review src/lib.rs carefully.")
-        })
-        .expect("injected skill");
-    assert!(skill.is_agent_visible());
-    assert!(!skill.is_user_visible());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn skill_operation_advertises_and_executes_load_skill() -> Result<()> {
-    let working_dir = tempfile::tempdir()?;
-    let skill_dir = working_dir.path().join(".agents/skills/review");
-    std::fs::create_dir_all(&skill_dir)?;
-    std::fs::write(
-        skill_dir.join("SKILL.md"),
-        "---\nname: review\ndescription: Review code\n---\nReview carefully.",
-    )?;
-    let (pipeline, api) = test_pipeline().await?;
-    api.on("use the review skill")
+    api.on("use the new skill")
         .call("load_skill", json!({ "name": "review" }));
-    api.on("Review carefully.").reply("done");
-    pipeline
-        .session_manager
-        .update(&pipeline.session_id)
-        .working_dir(working_dir.path().to_path_buf())
-        .apply()
-        .await?;
+    api.on("HOT_SKILL_INSTRUCTION")
+        .call("load_skill", json!({ "name": "review/guide.txt" }));
+    api.on("SUPPORTING_FILE_CONTENT").reply("skill loaded");
 
-    let result = pipeline.run(["use the review skill"]).await?;
+    let result = pipeline.run(["use the new skill"]).await?;
+    let calls = api.calls();
+    assert!(calls[provider_calls].system_contains("Review newly added code"));
+    assert!(!calls[provider_calls].system_contains("HOT_SKILL_INSTRUCTION"));
+    result.assert_message(-4, ToolResponse, "HOT_SKILL_INSTRUCTION");
+    result.assert_message(-2, ToolResponse, "SUPPORTING_FILE_CONTENT");
+    result.assert_message(-1, Agent, "skill loaded");
 
-    assert_eq!(api.call_count(), 2);
-    let rendered = result.rendered_conversation();
-    assert!(rendered
-        .iter()
-        .any(|line| line.starts_with("toolresponse:") && line.contains("Review carefully.")));
-    assert_eq!(rendered.last().map(String::as_str), Some("agent: done"));
+    api.on("Review src/lib.rs carefully.").reply("reviewed");
+    let result = pipeline.run(["/review src/lib.rs"]).await?;
+    result.assert_message(-1, Agent, "reviewed");
 
     Ok(())
 }

@@ -55,7 +55,7 @@ async fn recover_from_faulty_call() -> Result<()> {
 async fn recover_from_missing_tool() -> Result<()> {
     let (pipeline, api) = test_pipeline().await?;
     api.on("try the missing tool")
-        .call("missing__tool", json!({}));
+        .unadvertised_call("missing__tool", json!({}));
     api.on("Available tools").call(ADD, value(2));
     api.on("result: 2").reply("recovered");
 

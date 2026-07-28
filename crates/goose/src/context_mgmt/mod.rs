@@ -20,7 +20,7 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
-const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
+pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
 pub(crate) fn tool_pair_summarization_enabled() -> bool {
     Config::global()
