@@ -1297,6 +1297,19 @@ mod tests {
     }
 
     #[test]
+    fn refreshed_inventory_preserves_models_missing_from_canonical_registry() {
+        let models = enrich_model_ids_with_canonical(
+            "xai",
+            &["grok-4.5".to_string(), "grok-future-unlisted".to_string()],
+        );
+
+        assert!(models.iter().any(|model| model.id == "grok-4.5"));
+        assert!(models
+            .iter()
+            .any(|model| model.id == "grok-future-unlisted"));
+    }
+
+    #[test]
     fn databricks_v2_inventory_prefers_goose_model_ids_for_duplicate_names() {
         let models = enrich_model_ids_with_canonical(
             "databricks_v2",

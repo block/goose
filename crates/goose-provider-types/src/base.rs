@@ -472,10 +472,14 @@ pub trait Provider: Send + Sync {
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
             .filter_map(|model| {
-                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
-
-                let (provider, model_name) = canonical_id.split_once('/')?;
-                let canonical_model = registry.get(provider, model_name)?;
+                let canonical_model = map_to_canonical_model(provider_name, model, registry)
+                    .and_then(|canonical_id| {
+                        let (provider, model_name) = canonical_id.split_once('/')?;
+                        registry.get(provider, model_name)
+                    });
+                let Some(canonical_model) = canonical_model else {
+                    return Some((model.clone(), None));
+                };
 
                 if !canonical_model
                     .modalities
@@ -594,6 +598,31 @@ pub trait Provider: Send + Sync {
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    struct ModelInventoryProvider {
+        models: Vec<String>,
+    }
+
+    #[async_trait]
+    impl Provider for ModelInventoryProvider {
+        fn get_name(&self) -> &str {
+            "xai"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unimplemented!()
+        }
+
+        async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+            Ok(self.models.clone())
+        }
+    }
 
     fn content_from_str(s: String) -> MessageContentBlock {
         if let Some(img_data) = s.strip_prefix("*img:") {
@@ -715,6 +744,23 @@ mod tests {
         assert_eq!(message.content.len(), 2);
         assert_eq!(message.user_visible_content().as_concat_text(), "public");
         assert_eq!(message.agent_visible_content().as_concat_text(), "private");
+    }
+
+    #[tokio::test]
+    async fn recommended_models_preserve_unknown_future_models() {
+        let provider = ModelInventoryProvider {
+            models: vec![
+                "grok-4.5".to_string(),
+                "grok-future-unlisted".to_string(),
+                "grok-4.20-multi-agent".to_string(),
+            ],
+        };
+
+        let models = provider.fetch_recommended_models(false).await.unwrap();
+
+        assert!(models.contains(&"grok-4.5".to_string()));
+        assert!(models.contains(&"grok-future-unlisted".to_string()));
+        assert!(!models.contains(&"grok-4.20-multi-agent".to_string()));
     }
 
     #[test]
