@@ -1,6 +1,6 @@
 use super::base::Config;
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
+use crate::agents::extension::PLATFORM_EXTENSIONS;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
@@ -40,6 +40,18 @@ pub(crate) fn is_extension_available(config: &ExtensionConfig) -> bool {
     }
 }
 
+fn inject_name_if_missing(key: &str, value: serde_yaml::Value) -> serde_yaml::Value {
+    let name_key = serde_yaml::Value::String("name".to_string());
+    if let serde_yaml::Value::Mapping(mut map) = value {
+        if !map.contains_key(&name_key) {
+            map.insert(name_key, serde_yaml::Value::String(key.to_string()));
+        }
+        serde_yaml::Value::Mapping(map)
+    } else {
+        value
+    }
+}
+
 fn parse_extensions_map(raw: &Mapping) -> IndexMap<String, ExtensionEntry> {
     let mut extensions_map = IndexMap::with_capacity(raw.len());
     for (k, v) in raw {
@@ -48,7 +60,8 @@ fn parse_extensions_map(raw: &Mapping) -> IndexMap<String, ExtensionEntry> {
             continue;
         };
 
-        match serde_yaml::from_value::<ExtensionEntry>(v.clone()) {
+        let v = inject_name_if_missing(key, v.clone());
+        match serde_yaml::from_value::<ExtensionEntry>(v) {
             Ok(entry) => {
                 if !is_extension_available(&entry.config) {
                     continue;
@@ -586,6 +599,87 @@ extensions:
                 }
                 _ => {}
             }
+        }
+    }
+
+    #[test]
+    fn test_stdio_without_name_uses_map_key() {
+        let (config, _config_file, _secrets_file) = test_config(
+            r#"
+extensions:
+  firecrawl:
+    enabled: true
+    type: stdio
+    cmd: npx
+    args: ["-y", "firecrawl-mcp"]
+    envs:
+      FIRECRAWL_API_KEY: test-key
+"#,
+        );
+
+        let extensions = get_extensions_map_with_config(&config);
+        let entry = extensions.get("firecrawl").expect("firecrawl extension should parse");
+        assert_eq!(entry.config.name(), "firecrawl");
+        assert!(entry.enabled);
+    }
+
+    #[test]
+    fn test_stdio_env_alias_accepted() {
+        let (config, _config_file, _secrets_file) = test_config(
+            r#"
+extensions:
+  brave-search:
+    enabled: true
+    type: stdio
+    name: brave-search
+    cmd: npx
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    env:
+      BRAVE_API_KEY: test-key
+"#,
+        );
+
+        let extensions = get_extensions_map_with_config(&config);
+        let entry = extensions.get("brave-search").expect("brave-search extension should parse");
+        match &entry.config {
+            ExtensionConfig::Stdio { envs, .. } => {
+                assert_eq!(
+                    envs.get_env().get("BRAVE_API_KEY"),
+                    Some(&"test-key".to_string())
+                );
+            }
+            other => panic!("expected Stdio, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_stdio_env_alias_without_name_uses_map_key() {
+        let (config, _config_file, _secrets_file) = test_config(
+            r#"
+extensions:
+  brave-search:
+    enabled: true
+    type: stdio
+    cmd: npx
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    env:
+      BRAVE_API_KEY: test-key
+"#,
+        );
+
+        let extensions = get_extensions_map_with_config(&config);
+        let entry = extensions
+            .get("brave-search")
+            .expect("brave-search extension should parse when name is missing and env: is used");
+        assert_eq!(entry.config.name(), "brave-search");
+        match &entry.config {
+            ExtensionConfig::Stdio { envs, .. } => {
+                assert_eq!(
+                    envs.get_env().get("BRAVE_API_KEY"),
+                    Some(&"test-key".to_string())
+                );
+            }
+            other => panic!("expected Stdio, got {other:?}"),
         }
     }
 
