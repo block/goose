@@ -19,6 +19,15 @@ use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
 
+/// Maximum rows shown in a single paginated cliclack select before falling
+/// back to the separate fuzzy-search step.
+const MAX_SESSION_ROWS: usize = 10;
+/// Sentinel value for the "Search all sessions..." entry in the paginated
+/// picker (kept out of the way of real session ids).
+const SEARCH_SESSIONS_VALUE: &str = "__search_all_sessions__";
+/// Sentinel value for the "Cancel" entry.
+const CANCEL_SESSION_VALUE: &str = "cancel";
+
 fn display_path_with_tilde(path: &Path) -> String {
     #[cfg(not(target_os = "windows"))]
     if let Ok(home) = home_dir() {
@@ -433,9 +442,105 @@ fn export_session_to_markdown(
     markdown_output
 }
 
+/// Build the selectable (id, display, hint) tuples for the session picker.
+fn session_picker_items(sessions: &[Session]) -> Vec<(String, String, String)> {
+    sessions
+        .iter()
+        .map(|session| {
+            let desc = if session.name.is_empty() {
+                "(no name)"
+            } else {
+                &session.name
+            };
+            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
+            let display_text = format!(
+                "{} - {} ({})",
+                session_activity_at(session),
+                truncated_desc,
+                session.id
+            );
+            let hint = display_path_with_tilde(&session.working_dir);
+            (session.id.clone(), display_text, hint)
+        })
+        .collect()
+}
+
+/// Fuzzy-match session rows against a free-text query, mirroring the provider
+/// picker's `fuzzy_filter_provider_items` in `configure.rs`.
+fn fuzzy_filter_session_items(
+    items: &[(String, String, String)],
+    query: &str,
+) -> Vec<(String, String, String)> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return items.to_vec();
+    }
+
+    let query_words: Vec<_> = query.split_whitespace().collect();
+    let mut scored: Vec<_> = items
+        .iter()
+        .filter_map(|item| {
+            let label = item.1.to_lowercase();
+            let similarity = strsim::jaro_winkler(&label, &query);
+            let word_match_bonus =
+                query_words.iter().all(|word| label.contains(*word)) as u8 as f64;
+            let score = similarity + word_match_bonus;
+            (score > 0.6).then_some((score, item))
+        })
+        .collect();
+
+    scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+    scored
+        .into_iter()
+        .map(|(_, item)| item.clone())
+        .collect()
+}
+
+/// Standalone fuzzy-search step for long session lists, avoiding the
+/// `filter_mode` + `max_rows` combination that `cliclack` 0.5.5 mis-handles
+/// (see the provider picker in `configure.rs`).
+fn search_session_dialog(prompt: &str, items: &[(String, String, String)]) -> Result<String> {
+    let mut query = String::new();
+    loop {
+        let input: String = cliclack::input("Search sessions")
+            .placeholder("Filter by name, path, or id")
+            .default_input(&query)
+            .interact()?;
+        query = input.trim().to_string();
+
+        let filtered = fuzzy_filter_session_items(items, &query);
+        if filtered.is_empty() {
+            cliclack::log::warning("No matching sessions. Try a different search term.")?;
+            continue;
+        }
+
+        let mut display = filtered;
+        display.push((
+            SEARCH_SESSIONS_VALUE.to_string(),
+            "Search again...".to_string(),
+            "Enter a different search term".to_string(),
+        ));
+
+        match cliclack::select("Select a session")
+            .items(&display)
+            .max_rows(MAX_SESSION_ROWS)
+            .interact()?
+        {
+            s if s == SEARCH_SESSIONS_VALUE => continue,
+            id => return Ok(id),
+        }
+    }
+}
+
 /// Prompt the user to interactively select a session
 ///
-/// Shows a list of available sessions and lets the user select one
+/// Shows a list of available sessions and lets the user select one.
+///
+/// `cliclack` 0.5.5 does not reset its private list offset when filtering a
+/// paginated select, so we avoid combining `filter_mode` with `max_rows` (the
+/// same caveat handled in the provider picker in `configure.rs`): short lists
+/// use plain `filter_mode`, while long lists paginate and offer a separate
+/// fuzzy-search step.
 pub async fn prompt_interactive_session_selection(
     session_manager: &SessionManager,
     prompt: &str,
@@ -446,30 +551,47 @@ pub async fn prompt_interactive_session_selection(
         return Err(anyhow::anyhow!("No sessions found"));
     }
 
-    let mut selector = select(prompt).filter_mode().max_rows(10);
+    let items = session_picker_items(&sessions);
+    let cancel_value = CANCEL_SESSION_VALUE.to_string();
 
-    for session in sessions {
-        let desc = if session.name.is_empty() {
-            "(no name)"
-        } else {
-            &session.name
-        };
-        let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
-        let display_text = format!(
-            "{} - {} ({})",
-            session_activity_at(&session),
-            truncated_desc,
-            session.id
+    let selected_session_id = if items.len() <= MAX_SESSION_ROWS {
+        let mut short_items = items.clone();
+        short_items.push((
+            cancel_value.clone(),
+            "Cancel".to_string(),
+            "Cancel selection".to_string(),
+        ));
+        select(prompt)
+            .filter_mode()
+            .items(&short_items)
+            .interact()?
+    } else {
+        let mut paginated = items.clone();
+        paginated.insert(
+            MAX_SESSION_ROWS - 1,
+            (
+                SEARCH_SESSIONS_VALUE.to_string(),
+                "Search all sessions...".to_string(),
+                "Filter the complete session list".to_string(),
+            ),
         );
-        let hint = display_path_with_tilde(&session.working_dir);
+        paginated.push((
+            cancel_value.clone(),
+            "Cancel".to_string(),
+            "Cancel selection".to_string(),
+        ));
 
-        selector = selector.item(session.id, display_text, hint);
-    }
+        let chosen = select(prompt)
+            .items(&paginated)
+            .max_rows(MAX_SESSION_ROWS)
+            .interact()?;
 
-    let cancel_value = String::from("cancel");
-    selector = selector.item(cancel_value.clone(), "Cancel", "Cancel selection");
-
-    let selected_session_id: String = selector.interact()?;
+        if chosen == SEARCH_SESSIONS_VALUE {
+            search_session_dialog(prompt, &items)?
+        } else {
+            chosen
+        }
+    };
 
     if selected_session_id == cancel_value {
         return Err(anyhow::anyhow!("Selection canceled"));
