@@ -1566,6 +1566,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 match crate::commands::session::prompt_interactive_session_selection(
                     &session_manager,
                     "Select a session to export:",
+                    None,
                 )
                 .await
                 {
@@ -1596,6 +1597,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 match crate::commands::session::prompt_interactive_session_selection(
                     &session_manager,
                     "Select a session for diagnostics:",
+                    None,
                 )
                 .await
                 {
@@ -1673,6 +1675,7 @@ async fn handle_interactive_session(args: InteractiveSessionArgs) -> Result<()> 
         let session_id = crate::commands::session::prompt_interactive_session_selection(
             &session_manager,
             "Select a session to resume:",
+            Some(&[SessionType::User]),
         )
         .await?;
 

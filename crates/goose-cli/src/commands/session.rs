@@ -551,8 +551,21 @@ fn search_session_dialog(prompt: &str, items: &[(String, String, String)]) -> Re
 pub async fn prompt_interactive_session_selection(
     session_manager: &SessionManager,
     prompt: &str,
+    session_types: Option<&[SessionType]>,
 ) -> Result<String> {
-    let sessions = session_manager.list_sessions().await?;
+    // `None` keeps the previous behavior of listing every session type
+    // (used by export/diagnostics). `Some(types)` restricts the picker to the
+    // given types — the resume flow must only offer `SessionType::User`
+    // sessions, because resuming a `SessionType::Scheduled` run rebuilds the
+    // interactive session with `scheduled_job_id: None` and the next usage
+    // update would write `schedule_id = NULL`, detaching it from its schedule
+    // (see cli.rs `--select` resume path). Implicit resume already filters to
+    // `SessionType::User` via `list_sessions_by_types`, so this keeps the
+    // interactive picker consistent with it.
+    let sessions = match session_types {
+        Some(types) => session_manager.list_sessions_by_types(types).await?,
+        None => session_manager.list_sessions().await?,
+    };
 
     if sessions.is_empty() {
         return Err(anyhow::anyhow!("No sessions found"));
