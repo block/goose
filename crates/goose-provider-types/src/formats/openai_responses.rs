@@ -765,9 +765,10 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             content.push(MessageContentBlock::tool_request(
                                 id.clone(),
-                                Ok(CallToolRequestParams::new(name.clone()).with_arguments(
-                                    object(sanitize_tool_arguments(input.clone())?),
-                                )),
+                                Ok(CallToolRequestParams::new(strip_unicode_tags(name))
+                                    .with_arguments(object(sanitize_tool_arguments(
+                                        input.clone(),
+                                    )?))),
                             ));
                         }
                     }
@@ -787,7 +788,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
-                    Ok(CallToolRequestParams::new(name.clone())
+                    Ok(CallToolRequestParams::new(strip_unicode_tags(name))
                         .with_arguments(object(parsed_args))),
                 ));
             }
@@ -843,7 +844,7 @@ fn process_streaming_output_items(
 
                             content.push(MessageContentBlock::tool_request(
                                 id,
-                                Ok(CallToolRequestParams::new(name)
+                                Ok(CallToolRequestParams::new(strip_unicode_tags(&name))
                                     .with_arguments(object(parsed_args))),
                             ));
                         }
@@ -864,7 +865,8 @@ fn process_streaming_output_items(
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
-                    Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
+                    Ok(CallToolRequestParams::new(strip_unicode_tags(&name))
+                        .with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -1446,7 +1448,7 @@ mod tests {
                     role: "assistant".to_string(),
                     content: vec![ResponseContentBlock::ToolCall {
                         id: "call_1".to_string(),
-                        name: "shell".to_string(),
+                        name: "sh\u{E0041}ell".to_string(),
                         input: json!({"prompt": "visible e\u{301}\u{E0041}text"}),
                     }],
                 },
@@ -1454,7 +1456,7 @@ mod tests {
                     id: None,
                     status: Some("completed".to_string()),
                     call_id: Some("call_2".to_string()),
-                    name: "shell".to_string(),
+                    name: "sh\u{E0042}ell".to_string(),
                     arguments: serde_json::to_string(
                         &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
                     )
@@ -1471,6 +1473,7 @@ mod tests {
                 panic!("expected tool request content");
             };
             let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(tool_call.name, "shell");
             assert_eq!(
                 tool_call
                     .arguments
@@ -2367,7 +2370,7 @@ mod tests {
                 role: "assistant".to_string(),
                 content: vec![ContentBlockPart::ToolCall {
                     id: "call_1".to_string(),
-                    name: "shell".to_string(),
+                    name: "sh\u{E0041}ell".to_string(),
                     arguments: serde_json::to_string(
                         &json!({"prompt": "visible e\u{301}\u{E0041}text"}),
                     )?,
@@ -2377,7 +2380,7 @@ mod tests {
                 id: None,
                 status: Some("completed".to_string()),
                 call_id: Some("call_2".to_string()),
-                name: "shell".to_string(),
+                name: "sh\u{E0042}ell".to_string(),
                 arguments: serde_json::to_string(
                     &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
                 )?,
@@ -2390,6 +2393,7 @@ mod tests {
                 panic!("expected tool request content");
             };
             let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(tool_call.name, "shell");
             assert_eq!(
                 tool_call
                     .arguments
