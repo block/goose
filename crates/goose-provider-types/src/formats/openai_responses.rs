@@ -39,7 +39,7 @@ pub struct SummaryText {
 fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContentBlock> {
     let text: String = summary
         .iter()
-        .map(|s| s.text.as_str())
+        .map(|s| sanitize_unicode_tags(&s.text))
         .collect::<Vec<_>>()
         .join("\n");
     if text.is_empty() {
@@ -1203,8 +1203,8 @@ mod tests {
                     "type": "reasoning",
                     "id": "rs_1",
                     "summary": [
-                        { "type": "summary_text", "text": "Thinking about the question..." },
-                        { "type": "summary_text", "text": "The answer is straightforward." }
+                        { "type": "summary_text", "text": "Thinking\u{E0041} about the question..." },
+                        { "type": "summary_text", "text": "The answer is\u{E0042} straightforward." }
                     ]
                 },
                 {
@@ -1240,7 +1240,7 @@ mod tests {
             "type": "reasoning",
             "id": "rs_1",
             "summary": [
-                { "type": "summary_text", "text": "Let me think step by step." }
+                { "type": "summary_text", "text": "Let me\u{E0041} think step by step." }
             ]
         });
         let message_item = serde_json::json!({
