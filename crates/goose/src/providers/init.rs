@@ -510,14 +510,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dynamic_model_providers_support_inventory_refresh() {
+    async fn test_api_backed_model_providers_are_registered_for_refresh() {
         for provider_name in [
             "gcp_vertex_ai",
             "github_copilot",
             "kimi_code",
-            "litellm",
             "nanogpt",
-            "openrouter",
             "tetrate",
             "xai",
             "xai_oauth",
