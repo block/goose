@@ -528,7 +528,7 @@ fn search_session_dialog(prompt: &str, items: &[(String, String, String)]) -> Re
             "Enter a different search term".to_string(),
         ));
 
-        match cliclack::select("Select a session")
+        match cliclack::select(prompt)
             .items(&display)
             .max_rows(MAX_SESSION_ROWS)
             .interact()?
