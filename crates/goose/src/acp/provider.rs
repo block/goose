@@ -309,12 +309,12 @@ impl AcpProvider {
         response_rx.await.context("ACP request cancelled")?
     }
 
-    pub(crate) async fn send_set_config_option(
+    async fn send_set_config_option_response(
         &self,
         _goose_id: &str,
         config_id: String,
         value: String,
-    ) -> Result<()> {
+    ) -> Result<Result<()>> {
         let session_id = self.acp_session_id();
         let (response_tx, response_rx) = oneshot::channel();
         self.tx
@@ -328,7 +328,17 @@ impl AcpProvider {
             })
             .await
             .context("ACP client is unavailable")?;
-        response_rx.await.context("ACP request cancelled")?
+        response_rx.await.context("ACP request cancelled")
+    }
+
+    pub(crate) async fn send_set_config_option(
+        &self,
+        goose_id: &str,
+        config_id: String,
+        value: String,
+    ) -> Result<()> {
+        self.send_set_config_option_response(goose_id, config_id, value)
+            .await?
     }
 
     /// Re-apply the model selection config option when the active session model
@@ -353,8 +363,17 @@ impl AcpProvider {
             }
         }
 
-        self.send_set_config_option("", config_id, model_name.to_string())
-            .await?;
+        if let Err(error) = self
+            .send_set_config_option_response("", config_id, model_name.to_string())
+            .await?
+        {
+            tracing::warn!(
+                model = model_name,
+                %error,
+                "ACP agent rejected model config option; continuing with the previously applied model"
+            );
+            return Ok(());
+        }
 
         let mut applied = self
             .applied_model
@@ -1985,6 +2004,42 @@ mod tests {
         }
 
         handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_continues_when_adapter_rejects_model() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("old-model".to_string()));
+        let applied_model = Arc::clone(&provider.applied_model);
+
+        let handle =
+            tokio::spawn(async move { provider.apply_model_if_changed("new-model").await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => {
+                let _ = response_tx.send(Err(anyhow::anyhow!("invalid model")));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        handle.await.unwrap().unwrap();
+        assert_eq!(applied_model.lock().unwrap().as_deref(), Some("old-model"));
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_propagates_transport_failure() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("old-model".to_string()));
+
+        let handle =
+            tokio::spawn(async move { provider.apply_model_if_changed("new-model").await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => drop(response_tx),
+            _ => panic!("unexpected request kind"),
+        }
+
+        assert!(handle.await.unwrap().is_err());
     }
 
     #[tokio::test]
