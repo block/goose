@@ -554,6 +554,24 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Discard the provider-side conversation context, so that a `/clear` the
+    /// user sees is also a clear the model sees.
+    ///
+    /// The default is derived from [`Self::manages_own_context`] rather than
+    /// being unconditionally `Ok`: a provider holding the authoritative history
+    /// has to opt in to claiming it can drop it. Otherwise a new context-owning
+    /// provider would inherit a silent success and `/clear` would go back to
+    /// emptying goose's copy while the model kept everything.
+    async fn reset_context(&self) -> Result<(), ProviderError> {
+        if self.manages_own_context() {
+            return Err(ProviderError::NotImplemented(format!(
+                "'{}' has no way to discard the conversation it is holding",
+                self.get_name()
+            )));
+        }
+        Ok(())
+    }
+
     /// Configure OAuth authentication for this provider
     ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.

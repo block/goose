@@ -150,6 +150,13 @@ impl Agent {
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
+        let provider = self.provider().await?;
+        if provider.manages_own_context() {
+            return Ok(Some(user_only_assistant_text(
+                compaction_unsupported_message(provider.get_name()),
+            )));
+        }
+
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, true).await?;
         let conversation = session
@@ -158,7 +165,7 @@ impl Agent {
 
         let model_config = self.model_config_for_session(session_id).await?;
         let compaction = compact_messages(
-            self.provider().await?.as_ref(),
+            provider.as_ref(),
             &model_config,
             session_id,
             &conversation,
@@ -184,10 +191,20 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
+        let provider = self.provider().await?;
+        let provider_reset = provider.reset_context().await;
+
         let manager = self.config.session_manager.clone();
         manager
             .replace_conversation(session_id, &Conversation::default())
             .await?;
+
+        if let Err(e) = provider_reset {
+            tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
+            return Ok(Some(user_only_assistant_text(
+                stale_provider_context_message(provider.get_name(), &e.to_string()),
+            )));
+        }
 
         manager
             .update(session_id)
@@ -505,6 +522,23 @@ impl Agent {
             "Grind goal set. The agent will keep working until max_turns is reached:\n\n> {goal}"
         ))))
     }
+}
+
+/// Shown when `/clear` emptied goose's transcript but the provider still holds
+/// the real conversation. The token counters are deliberately left alone in that
+/// case, so the meter keeps reflecting what the model can still see.
+pub fn stale_provider_context_message(provider_name: &str, error: &str) -> String {
+    format!(
+        "Cleared goose's transcript, but '{provider_name}' still holds the previous conversation \
+         and will keep sending it to the model: {error}. Start a new session for a full reset."
+    )
+}
+
+pub fn compaction_unsupported_message(provider_name: &str) -> String {
+    format!(
+        "Compaction is not supported with '{provider_name}' because it manages its own \
+         conversation context. Use /clear to start the conversation over."
+    )
 }
 
 fn user_only_assistant_text(text: impl Into<String>) -> Message {

@@ -39,7 +39,10 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::agents::{
+    compaction_unsupported_message, stale_provider_context_message, Agent, SessionConfig,
+    COMPACT_TRIGGERS,
+};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
@@ -1039,6 +1042,9 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        let provider_reset = provider.reset_context().await;
+
         if let Err(e) = self
             .agent
             .config
@@ -1047,6 +1053,16 @@ impl CliSession {
             .await
         {
             output::render_error(&format!("Failed to clear session: {}", e));
+            return Ok(());
+        }
+
+        if let Err(e) = provider_reset {
+            self.messages.clear();
+            tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
+            output::render_error(&stale_provider_context_message(
+                provider.get_name(),
+                &e.to_string(),
+            ));
             return Ok(());
         }
 
@@ -1169,6 +1185,12 @@ impl CliSession {
     }
 
     async fn handle_compact(&mut self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        if provider.manages_own_context() {
+            output::render_error(&compaction_unsupported_message(provider.get_name()));
+            return Ok(());
+        }
+
         let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
         let should_summarize = match cliclack::confirm(prompt).initial_value(true).interact() {
             Ok(choice) => choice,

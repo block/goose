@@ -812,7 +812,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 **Available Commands:**
 - **`/?` or `/help`** - Display the help menu
 - **`/builtin <names>`** - Add builtin extensions by name (comma-separated)
-- **`/clear`** - Clear the current chat history
+- **`/clear`** - Clear the current chat history. With providers that keep their own conversation (ACP agents, Claude Code, Gemini CLI) this also starts the agent-side conversation over, so the model forgets what you just cleared
 - **`/endplan`** - Exit plan mode and return to 'normal' goose mode
 - **`/exit` or `/quit`** - Exit the session
 - **`/extension <command>`** - Add a stdio extension (format: ENV1=val1 command args...)
@@ -821,7 +821,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompt <n> [--info] [key=value...]`** - Get prompt info or execute a prompt
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
-- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
+- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information. Not available with providers that manage their own context, since goose cannot summarize a history it does not hold — use `/clear` instead
 - **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
 - **`/skills [<name>...]`** - List available skills, or load one or more skills by name
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
