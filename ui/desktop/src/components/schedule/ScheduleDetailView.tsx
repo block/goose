@@ -15,7 +15,7 @@ import {
   acpInspectRunningJob,
 } from '../../acp/schedules';
 import { ScheduleModal, NewSchedulePayload } from './ScheduleModal';
-import { toastError, toastSuccess } from '../../toasts';
+import { toastError, toastSuccess, toastWarning } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
@@ -60,6 +60,8 @@ const i18n = defineMessages({
   jobCancelled: { id: 'scheduleDetailView.jobCancelled', defaultMessage: 'Job Cancelled' },
   jobCancelledMsg: { id: 'scheduleDetailView.jobCancelledMsg', defaultMessage: 'The job was cancelled while starting up.' },
   scheduleCompleted: { id: 'scheduleDetailView.scheduleCompleted', defaultMessage: 'Run completed' },
+  scheduleIncomplete: { id: 'scheduleDetailView.scheduleIncomplete', defaultMessage: 'Run incomplete' },
+  incompleteSession: { id: 'scheduleDetailView.incompleteSession', defaultMessage: 'The response reached the model output limit. Partial session: {sessionId}' },
   completedSession: { id: 'scheduleDetailView.completedSession', defaultMessage: 'Session: {sessionId}' },
   runScheduleError: { id: 'scheduleDetailView.runScheduleError', defaultMessage: 'Run Schedule Error' },
   scheduleUnpaused: { id: 'scheduleDetailView.scheduleUnpaused', defaultMessage: 'Schedule Unpaused' },
@@ -165,6 +167,8 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       trackScheduleRunNow(true);
       if (result.status === 'completed' && result.sessionId) {
         toastSuccess({ title: intl.formatMessage(i18n.scheduleCompleted), msg: intl.formatMessage(i18n.completedSession, { sessionId: result.sessionId }) });
+      } else if (result.status === 'incomplete' && result.sessionId) {
+        toastWarning({ title: intl.formatMessage(i18n.scheduleIncomplete), msg: intl.formatMessage(i18n.incompleteSession, { sessionId: result.sessionId }) });
       }
       await fetchSessions(scheduleId);
       await fetchSchedule(scheduleId);

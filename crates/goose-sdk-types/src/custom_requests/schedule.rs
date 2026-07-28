@@ -95,6 +95,7 @@ pub struct RunScheduleNowResponse {
 pub enum RunScheduleNowStatus {
     #[default]
     Completed,
+    Incomplete,
     Cancelled,
 }
 

@@ -1026,6 +1026,35 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     )))
 }
 
+pub fn augment_truncated_message_with_complete_tool_calls(
+    message: Message,
+    tools: &[Tool],
+) -> Message {
+    let content = message
+        .content
+        .iter()
+        .filter_map(|content| match content {
+            MessageContent::Text(text) => Some(text.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let tool_calls = parse_tokenized_tool_calls(&content, tools);
+    if !tool_calls.is_empty() {
+        let cleaned = sanitize_message_after_tokenized_parse(message);
+        return sanitize_residual_markers(append_tool_calls_to_message(cleaned, tool_calls));
+    }
+
+    let tool_calls = parse_inline_json_tool_calls(&content, tools);
+    if !tool_calls.is_empty() {
+        let cleaned = sanitize_message_after_json_tool_parse(message);
+        return sanitize_residual_markers(append_tool_calls_to_message(cleaned, tool_calls));
+    }
+
+    sanitize_residual_markers(message)
+}
+
 pub async fn augment_message_with_selected_tool_interpreter(
     message: Message,
     tools: &[Tool],
@@ -1271,6 +1300,42 @@ mod tests {
             .content
             .iter()
             .any(|c| matches!(c, MessageContent::ToolRequest(_))));
+    }
+
+    #[test]
+    fn truncated_message_preserves_complete_call_and_discards_incomplete_suffix() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let message = Message::assistant().with_text(format!(
+            "{TOOL_CALLS_SECTION_BEGIN} \
+             {TOOL_CALL_BEGIN} functions.shell:0 {TOOL_CALL_ARGUMENT_BEGIN} \
+             {{\"command\":\"echo first\"}} {TOOL_CALL_END} \
+             {TOOL_CALL_BEGIN} functions.shell:1 {TOOL_CALL_ARGUMENT_BEGIN} \
+             {{\"command\":\"echo unfinished\""
+        ));
+
+        let result = augment_truncated_message_with_complete_tool_calls(message, &tools);
+        let requests = result
+            .content
+            .iter()
+            .filter_map(MessageContent::as_tool_request)
+            .collect::<Vec<_>>();
+
+        assert_eq!(requests.len(), 1);
+        let call = requests[0].tool_call.as_ref().unwrap();
+        assert_eq!(call.name, "shell");
+        assert_eq!(
+            call.arguments
+                .as_ref()
+                .and_then(|args| args.get("command"))
+                .and_then(serde_json::Value::as_str),
+            Some("echo first")
+        );
+        assert!(!has_tool_markers(&result.as_concat_text()));
+        assert!(!result.as_concat_text().contains("echo unfinished"));
     }
 
     // ── Regression tests: malformed marker leakage ──────────────────────

@@ -1911,7 +1911,11 @@ export const zRunScheduleNowRequest_unstable = z.object({
     scheduleId: z.string()
 });
 
-export const zRunScheduleNowStatus = z.enum(['completed', 'cancelled']);
+export const zRunScheduleNowStatus = z.enum([
+    'completed',
+    'incomplete',
+    'cancelled'
+]);
 
 export const zRunScheduleNowResponse_unstable = z.object({
     status: zRunScheduleNowStatus,

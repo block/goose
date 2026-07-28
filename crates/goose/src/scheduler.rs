@@ -33,10 +33,15 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 pub(crate) const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ScheduledRunOutcome {
+pub(crate) enum ScheduledRunOutcome {
     Normal,
     Incomplete,
     Error,
+}
+
+struct ScheduledExecutionResult {
+    session_id: String,
+    outcome: ScheduledRunOutcome,
 }
 
 impl ScheduledRunOutcome {
@@ -190,6 +195,7 @@ pub enum SchedulerError {
     PersistError(String),
     CronParseError(String),
     SchedulerInternalError(String),
+    IncompleteRun { session_id: String },
     AnyhowError(anyhow::Error),
 }
 
@@ -206,6 +212,10 @@ impl std::fmt::Display for SchedulerError {
             SchedulerError::SchedulerInternalError(e) => {
                 write!(f, "Scheduler internal error: {}", e)
             }
+            SchedulerError::IncompleteRun { session_id } => write!(
+                f,
+                "Scheduled run reached the model's output token limit. Partial session: {session_id}"
+            ),
             SchedulerError::AnyhowError(e) => write!(f, "Scheduler operation failed: {}", e),
         }
     }
@@ -866,7 +876,12 @@ impl Scheduler {
                 "Job '{}' was successfully cancelled",
                 sched_id
             ))),
-            Ok(session_id) => Ok(session_id),
+            Ok(result) if result.outcome == ScheduledRunOutcome::Incomplete => {
+                Err(SchedulerError::IncompleteRun {
+                    session_id: result.session_id,
+                })
+            }
+            Ok(result) => Ok(result.session_id),
             Err(e) => Err(SchedulerError::AnyhowError(anyhow!(
                 "Job '{}' failed: {}",
                 sched_id,
@@ -1014,9 +1029,12 @@ async fn execute_job(
     jobs: Arc<Mutex<JobsMap>>,
     job_id: String,
     cancel_token: CancellationToken,
-) -> Result<String> {
+) -> Result<ScheduledExecutionResult> {
     if job.source.is_empty() {
-        return Ok(job.id.to_string());
+        return Ok(ScheduledExecutionResult {
+            session_id: job.id.to_string(),
+            outcome: ScheduledRunOutcome::Normal,
+        });
     }
 
     let recipe_path = Path::new(&job.source);
@@ -1242,7 +1260,10 @@ async fn execute_job(
         });
     }
 
-    Ok(session.id)
+    Ok(ScheduledExecutionResult {
+        session_id: session.id,
+        outcome: run_outcome,
+    })
 }
 
 #[async_trait]

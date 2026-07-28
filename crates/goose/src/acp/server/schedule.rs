@@ -94,6 +94,10 @@ fn run_schedule_now_error(
         SchedulerError::JobNotFound(id) => {
             Err(agent_client_protocol::Error::resource_not_found(Some(id)))
         }
+        SchedulerError::IncompleteRun { session_id } => Ok(RunScheduleNowResponse {
+            status: RunScheduleNowStatus::Incomplete,
+            session_id: Some(session_id),
+        }),
         SchedulerError::AnyhowError(error)
             if error.to_string().contains("was successfully cancelled") =>
         {
@@ -339,5 +343,21 @@ impl GooseAcpAgent {
             job_start_time: job.process_start_time.map(|value| value.to_rfc3339()),
             running_duration_seconds,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn incomplete_schedule_error_returns_partial_session() {
+        let response = run_schedule_now_error(SchedulerError::IncompleteRun {
+            session_id: "partial-session".to_string(),
+        })
+        .unwrap();
+
+        assert!(matches!(response.status, RunScheduleNowStatus::Incomplete));
+        assert_eq!(response.session_id.as_deref(), Some("partial-session"));
     }
 }

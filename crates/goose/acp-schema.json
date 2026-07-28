@@ -4662,6 +4662,7 @@
       "type": "string",
       "enum": [
         "completed",
+        "incomplete",
         "cancelled"
       ]
     },

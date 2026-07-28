@@ -1849,7 +1849,7 @@ export type RunScheduleNowResponse_unstable = {
     sessionId?: string | null;
 };
 
-export type RunScheduleNowStatus = 'completed' | 'cancelled';
+export type RunScheduleNowStatus = 'completed' | 'incomplete' | 'cancelled';
 
 export type KillRunningJobRequest_unstable = {
     jobId: string;

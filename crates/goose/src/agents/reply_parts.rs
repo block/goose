@@ -18,7 +18,8 @@ use crate::conversation::{fix_conversation, Conversation};
 use crate::providers::base::stream_from_single_message;
 use crate::providers::base::{MessageStream, Provider};
 use crate::providers::toolshim::{
-    augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
+    augment_message_with_selected_tool_interpreter,
+    augment_truncated_message_with_complete_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
@@ -362,7 +363,10 @@ impl Agent {
                             }
                             if let Some(message) = accumulated_message.take() {
                                 yield (
-                                    Some(sanitize_residual_markers(message)),
+                                    Some(augment_truncated_message_with_complete_tool_calls(
+                                        message,
+                                        &toolshim_tools,
+                                    )),
                                     final_usage.take(),
                                 );
                             } else if final_usage.is_some() {
@@ -751,10 +755,15 @@ mod tests {
         ) -> Result<MessageStream, ProviderError> {
             Ok(Box::pin(futures::stream::iter(vec![
                 Ok((
-                    Some(
-                        Message::assistant()
-                            .with_text("partial opening <|tool_call_begin|> incomplete"),
-                    ),
+                    Some(Message::assistant().with_text(
+                        "partial opening \
+                             <|tool_calls_section_begin|> \
+                             <|tool_call_begin|> functions.shell:0 \
+                             <|tool_call_argument_begin|> {\"command\":\"echo first\"} \
+                             <|tool_call_end|> \
+                             <|tool_call_begin|> functions.shell:1 \
+                             <|tool_call_argument_begin|> {\"command\":\"echo unfinished\"",
+                    )),
                     None,
                 )),
                 Err(ProviderError::MaxTokens),
@@ -791,6 +800,51 @@ mod tests {
         assert_eq!(partial_text.len(), 1);
         assert!(partial_text[0].contains("partial opening"));
         assert!(!partial_text[0].contains("tool_call_begin"));
+    }
+
+    #[tokio::test]
+    async fn toolshim_flushes_complete_call_before_truncated_suffix() {
+        let tools = vec![Tool::new(
+            "shell".to_string(),
+            "Shell command execution".to_string(),
+            serde_json::Map::new(),
+        )];
+        let provider = Arc::new(TruncatingToolshimProvider);
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("write a long response")],
+            &[],
+            &tools,
+        )
+        .await
+        .unwrap();
+
+        let mut processed_message = None;
+        let mut saw_max_tokens = false;
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok((Some(message), _)) => processed_message = Some(message),
+                Ok((None, _)) => {}
+                Err(ProviderError::MaxTokens) => saw_max_tokens = true,
+                Err(error) => panic!("unexpected error: {error}"),
+            }
+        }
+
+        let processed_message = processed_message.expect("expected truncated prefix");
+        let requests = processed_message
+            .content
+            .iter()
+            .filter_map(MessageContent::as_tool_request)
+            .collect::<Vec<_>>();
+        assert!(saw_max_tokens);
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].tool_call.as_ref().unwrap().name, "shell");
+        assert!(!processed_message
+            .as_concat_text()
+            .contains("echo unfinished"));
     }
 
     #[derive(Clone)]
