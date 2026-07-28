@@ -327,17 +327,13 @@ impl<'a> ChatHistorySearch<'a> {
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
-    use rmcp::model::{AnnotateAble, RawTextContent};
+    use rmcp::model::{Annotations, TextContent};
     use sqlx::sqlite::SqlitePoolOptions;
 
     fn user_only_text(text: &str) -> MessageContent {
         MessageContent::Text(
-            RawTextContent {
-                text: text.to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::User]),
+            TextContent::new(text)
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
         )
     }
 

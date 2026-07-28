@@ -82,7 +82,10 @@ impl ProviderDef for ClaudeAcpProvider {
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: mode_mapping[&goose_mode].first().cloned(),
                 session_config_options: vec![],
-                model_config_option_id: None,
+                // claude-agent-acp advertises the model as a "model" select
+                // config option and applies session/set_config_option for it
+                // via query.setModel, so forward the picker's selection.
+                model_config_option_id: Some("model".to_string()),
                 mode_mapping,
                 notification_callback: None,
             };

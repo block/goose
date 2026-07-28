@@ -18,8 +18,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
-    ServerCapabilities, ServerNotification, Tool,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    Meta, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -104,7 +104,7 @@ fn merge_subrecipe_parameters(
 /// Result from handle_load_task_result with structured metadata for the caller
 #[derive(Debug)]
 struct TaskLoadResult {
-    content: Vec<Content>,
+    content: Vec<ContentBlock>,
     status: &'static str,
     turns: Option<u32>,
     duration_secs: Option<u64>,
@@ -961,7 +961,7 @@ impl SummonClient {
                 Err(error) => format!("Error: {}", error),
             };
             return Ok(TaskLoadResult {
-                content: vec![Content::text(format!(
+                content: vec![ContentBlock::text(format!(
                     "# Background Task Result: {}\n\n\
                      **Task:** {}\n\
                      **Status:** {}\n\
@@ -1011,7 +1011,7 @@ impl SummonClient {
                 }
 
                 return Ok(TaskLoadResult {
-                    content: vec![Content::text(output)],
+                    content: vec![ContentBlock::text(output)],
                     status: "running",
                     turns: Some(turns_taken),
                     duration_secs: Some(elapsed.as_secs()),
@@ -1043,7 +1043,7 @@ impl SummonClient {
                 };
 
                 return Ok(TaskLoadResult {
-                    content: vec![Content::text(format!(
+                    content: vec![ContentBlock::text(format!(
                         "# Background Task Result: {}\n\n\
                          **Task:** {}\n\
                          **Status:** ⊘ Cancelled\n\
@@ -1095,7 +1095,7 @@ impl SummonClient {
                         _ => "✗ Failed",
                     };
                     return Ok(TaskLoadResult {
-                        content: vec![Content::text(format!(
+                        content: vec![ContentBlock::text(format!(
                             "# Background Task Result: {}\n\n\
                              **Task:** {}\n\
                              **Status:** {}\n\
@@ -1132,7 +1132,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         working_dir: &Path,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         {
             let mut cache = self.source_cache.lock().await;
             *cache = None;
@@ -1142,7 +1142,7 @@ impl SummonClient {
         let completed = self.completed_tasks.lock().await;
 
         if sources.is_empty() && completed.is_empty() {
-            return Ok(vec![Content::text(
+            return Ok(vec![ContentBlock::text(
                 "No sources available for load/delegate.\n\n\
                  Sources are discovered from:\n\
                  • Current recipe's sub_recipes\n\
@@ -1188,7 +1188,7 @@ impl SummonClient {
         output.push_str("\nUse load(source: \"name\") to load into context.\n");
         output.push_str("Use delegate(source: \"name\") to run as subagent.");
 
-        Ok(vec![Content::text(output)])
+        Ok(vec![ContentBlock::text(output)])
     }
 
     async fn handle_load_source(
@@ -1196,7 +1196,7 @@ impl SummonClient {
         session_id: &str,
         name: &str,
         working_dir: &Path,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
@@ -1208,7 +1208,7 @@ impl SummonClient {
                     source.name, source.source_type, content
                 );
 
-                Ok(vec![Content::text(output)])
+                Ok(vec![ContentBlock::text(output)])
             }
             None => {
                 let sources = self.get_sources(session_id, working_dir).await;
@@ -1334,9 +1334,9 @@ impl SummonClient {
 
         match result {
             Ok(text) => {
-                Ok(CallToolResult::success(vec![Content::text(text)]).with_meta(Some(meta)))
+                Ok(CallToolResult::success(vec![ContentBlock::text(text)]).with_meta(Some(meta)))
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Delegation failed: {}",
                 e
             ))])
@@ -1788,7 +1788,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         params: DelegateParams,
-    ) -> Result<(Vec<Content>, String), String> {
+    ) -> Result<(Vec<ContentBlock>, String), String> {
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1889,7 +1889,7 @@ impl SummonClient {
             .await
             .insert(task_id.clone(), task);
 
-        let content = vec![Content::text(format!(
+        let content = vec![ContentBlock::text(format!(
             "Task {} started in background: \"{}\"\n\
              Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
@@ -1940,7 +1940,7 @@ impl McpClientTrait for SummonClient {
         match name {
             "load" => match self.handle_load(session_id, arguments).await {
                 Ok(result) => Ok(result),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {}",
                     error
                 ))])),
@@ -1951,13 +1951,13 @@ impl McpClientTrait for SummonClient {
                     .await
                 {
                     Ok(result) => Ok(result),
-                    Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                         "Error: {}",
                         error
                     ))])),
                 }
             }
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: Unknown tool: {}",
                 name
             ))])),
@@ -2744,10 +2744,10 @@ You review code."#;
         );
     }
 
-    fn extract_text(content: &Content) -> &str {
-        use rmcp::model::RawContent;
-        match &content.raw {
-            RawContent::Text(t) => t.text.as_str(),
+    fn extract_text(content: &ContentBlock) -> &str {
+        use rmcp::model::ContentBlock;
+        match content {
+            ContentBlock::Text(t) => t.text.as_str(),
             _ => panic!("Expected text content"),
         }
     }
@@ -2823,7 +2823,8 @@ You review code."#;
             .try_recv()
             .expect("subscriber should receive buffered notification");
         if let ServerNotification::LoggingMessageNotification(log) = notif {
-            let data = log.params.data.as_object().unwrap();
+            let params = serde_json::to_value(&log.params).unwrap();
+            let data = params.get("data").and_then(|v| v.as_object()).unwrap();
             assert_eq!(
                 data.get("subagent_id").and_then(|v| v.as_str()),
                 Some("20260204_1")

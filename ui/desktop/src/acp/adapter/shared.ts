@@ -10,6 +10,7 @@ export type AcpChatStateChange =
       type: 'sessionInfo';
       name?: string;
       activeRunId?: string | null;
+      gooseMode?: string;
     }
   | { type: 'localSteerConfirmed'; messageId: string }
   | { type: 'notification'; notification: NotificationEvent };
@@ -17,7 +18,10 @@ export type AcpChatStateChange =
 export interface AdapterState {
   messages: Message[];
   localSteerTextByMessageId: Map<string, string>;
+  toolCallStatesById: Map<string, ToolCallState>;
 }
+
+export type ToolCallState = Omit<ToolCallUpdate, '_meta'>;
 
 export interface GooseMessageMeta {
   messageId?: string;
@@ -77,6 +81,13 @@ export function getGooseActiveRunId(update: { _meta?: unknown }): string | null 
   return typeof goose.activeRunId === 'string' || goose.activeRunId === null
     ? goose.activeRunId
     : undefined;
+}
+
+export function getGooseQueuedSteer(update: { _meta?: unknown }): string | undefined {
+  if (!isRecord(update._meta)) return undefined;
+  const goose = update._meta.goose;
+  if (!isRecord(goose) || !isRecord(goose.queuedSteer)) return undefined;
+  return typeof goose.queuedSteer.messageId === 'string' ? goose.queuedSteer.messageId : undefined;
 }
 
 export function rawInputToArguments(rawInput: unknown): Record<string, unknown> {

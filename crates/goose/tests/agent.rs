@@ -396,8 +396,10 @@ mod tests {
 
             let text = result
                 .into_iter()
-                .filter_map(|content| match &content.raw {
-                    rmcp::model::RawContent::Text(text_content) => Some(text_content.text.clone()),
+                .filter_map(|content| match content {
+                    rmcp::model::ContentBlock::Text(text_content) => {
+                        Some(text_content.text.clone())
+                    }
                     _ => None,
                 })
                 .collect::<String>();
@@ -832,18 +834,19 @@ mod tests {
     mod tool_pair_summarization_tests {
         use super::*;
         use async_trait::async_trait;
-        use goose::agents::SessionConfig;
+        use goose::agents::{AgentConfig, SessionConfig};
         use goose::config::base::Config;
+        use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
-        use goose::session::session_manager::SessionType;
+        use goose::session::{SessionManager, SessionType};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
-        use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
+        use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
@@ -935,8 +938,16 @@ mod tests {
                 .set_param("GOOSE_TOOL_CALL_CUTOFF", 2)
                 .unwrap();
 
-            let agent = Agent::new();
-            let session_manager = agent.config.session_manager.clone();
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().join("data")));
+            let agent = Agent::with_config(AgentConfig::new(
+                Arc::clone(&session_manager),
+                Arc::new(PermissionManager::new(temp_dir.path().join("config"))),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            ));
             let provider = Arc::new(SummarizationTestProvider::new());
 
             let session = session_manager
@@ -973,11 +984,10 @@ mod tests {
                 let mut resp_msg = Message::user()
                     .with_tool_response(
                         &call_id,
-                        Ok(CallToolResult::success(vec![RawContent::text(format!(
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                             "content of file {}",
                             i
-                        ))
-                        .no_annotation()])),
+                        ))])),
                     )
                     .with_generated_id();
                 resp_msg.created = base_ts + i as i64 + 1;
@@ -3030,14 +3040,10 @@ mod tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                use rmcp::model::{AnnotateAble, RawTextContent, Role};
+                use rmcp::model::{Annotations, Role, TextContent};
 
-                let assistant_only = RawTextContent {
-                    text: "provider-private-state".to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::Assistant]);
+                let assistant_only = TextContent::new("provider-private-state")
+                    .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
                 Ok(stream_from_single_message(
                     Message::assistant().with_content(MessageContent::Text(assistant_only)),
                     usage(),
