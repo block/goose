@@ -414,10 +414,13 @@ win-total-rls *allparam:
   just win-run-rls
 
 # Run an MCP client conformance suite against Goose.
+# suite: all, core, extensions, backcompat, auth, metadata, draft, sep-835
+# Example: just mcp-conformance
 # Example: just mcp-conformance 2025-11-25 auth
-mcp-conformance version suite:
+# Example: just mcp-conformance 2025-11-25 auth 0.2.0-alpha.9
+mcp-conformance version="2025-11-25" suite="all" conformance_version="0.2.0-alpha.9":
   cargo build -p goose-cli --bin goose --bin mcp_conformance_driver
-  npx -y @modelcontextprotocol/conformance@0.2.0-alpha.9 client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}"
+  npx -y @modelcontextprotocol/conformance@{{conformance_version}} client --command "target/debug/mcp_conformance_driver" --spec-version "{{version}}" --suite "{{suite}}"
 
 build-test-tools:
   cargo build -p goose-test
