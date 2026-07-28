@@ -1014,15 +1014,8 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(
-                    tool_request,
-                    session_id,
-                    session_id_str,
-                    message_id,
-                    agent,
-                    cx,
-                )
-                .await?;
+                self.handle_tool_request(tool_request, session_id, session_id_str, agent, cx)
+                    .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
                 self.handle_tool_response(
@@ -1148,7 +1141,6 @@ impl GooseAcpAgent {
         tool_request: &ToolRequest,
         session_id: &SessionId,
         session_id_for_persist: &str,
-        message_id: Option<&str>,
         agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
@@ -1168,7 +1160,6 @@ impl GooseAcpAgent {
                 tool_call_notifier,
                 &self.session_manager,
                 session_id_for_persist,
-                message_id,
                 tool_request,
             );
         }
@@ -1847,12 +1838,7 @@ impl GooseAcpAgent {
 
                         let ready_chain = match content_item {
                             MessageContent::ToolRequest(tool_request) => {
-                                if let Some(message_id) = stored_message_id.as_deref() {
-                                    chain_tracker.record_request(
-                                        tool_request.clone(),
-                                        message_id.to_string(),
-                                    );
-                                }
+                                chain_tracker.record_request(tool_request.clone());
                                 None
                             }
                             MessageContent::ToolResponse(tool_response) => {

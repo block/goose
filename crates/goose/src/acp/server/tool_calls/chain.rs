@@ -15,14 +15,12 @@ struct ToolChainStep {
 
 #[derive(Debug)]
 struct TrackedToolChain {
-    message_id: String,
     steps: Vec<ToolChainStep>,
 }
 
 impl TrackedToolChain {
-    fn new(request: ToolRequest, message_id: String) -> Self {
+    fn new(request: ToolRequest) -> Self {
         Self {
-            message_id,
             steps: vec![ToolChainStep {
                 request,
                 responded: false,
@@ -61,14 +59,12 @@ impl TrackedToolChain {
 
     fn into_ready(self) -> ReadyToolChain {
         ReadyToolChain {
-            message_id: self.message_id,
             tool_requests: self.steps.into_iter().map(|step| step.request).collect(),
         }
     }
 }
 
 pub(crate) struct ReadyToolChain {
-    pub(crate) message_id: String,
     pub(crate) tool_requests: Vec<ToolRequest>,
 }
 
@@ -80,11 +76,11 @@ pub(crate) struct ToolChainTracker {
 }
 
 impl ToolChainTracker {
-    pub(crate) fn record_request(&mut self, request: ToolRequest, message_id: String) {
+    pub(crate) fn record_request(&mut self, request: ToolRequest) {
         if let Some(chain) = &mut self.current_chain {
             chain.add_request(request);
         } else {
-            self.current_chain = Some(TrackedToolChain::new(request, message_id));
+            self.current_chain = Some(TrackedToolChain::new(request));
         }
     }
 
@@ -155,20 +151,19 @@ mod tests {
         let mut tracker = ToolChainTracker::default();
 
         for id in ["a", "b", "c"] {
-            tracker.record_request(request(id), format!("message-{id}"));
+            tracker.record_request(request(id));
             assert!(tracker.record_response(id).is_none());
         }
 
         let ready = tracker.close_current_chain().expect("A-B-C is ready");
         assert_eq!(request_ids(&ready), ["a", "b", "c"]);
-        assert_eq!(ready.message_id, "message-a");
     }
 
     #[test]
     fn closed_chain_waits_for_its_last_response() {
         let mut tracker = ToolChainTracker::default();
         for id in ["a", "b", "c"] {
-            tracker.record_request(request(id), format!("message-{id}"));
+            tracker.record_request(request(id));
         }
         tracker.record_response("a");
         tracker.record_response("b");
@@ -183,19 +178,19 @@ mod tests {
     fn boundary_separates_request_runs_and_discards_singletons() {
         let mut tracker = ToolChainTracker::default();
         for id in ["a", "b"] {
-            tracker.record_request(request(id), format!("message-{id}"));
+            tracker.record_request(request(id));
             tracker.record_response(id);
         }
 
         let first = tracker.close_current_chain().expect("A-B is ready");
         assert_eq!(request_ids(&first), ["a", "b"]);
 
-        tracker.record_request(request("c"), "message-c".to_string());
+        tracker.record_request(request("c"));
         tracker.record_response("c");
         assert!(tracker.close_current_chain().is_none());
 
         for id in ["d", "e"] {
-            tracker.record_request(request(id), format!("message-{id}"));
+            tracker.record_request(request(id));
             tracker.record_response(id);
         }
         let second = tracker.close_current_chain().expect("D-E is ready");
