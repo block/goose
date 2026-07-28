@@ -1923,7 +1923,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_reasoning_preserved_on_all_tool_calls_when_thinking_in_separate_chunk(
+        async fn test_multi_tool_response_preserves_reasoning_and_message_id_correlation(
         ) -> Result<()> {
             use goose_providers::formats::openai::{
                 format_messages_with_options, OpenAiFormatOptions,
@@ -1972,8 +1972,23 @@ mod tests {
                 )
                 .await?;
             tokio::pin!(reply_stream);
+            let mut live_tool_message_id = None;
+            let mut usage_message_ids = Vec::new();
             while let Some(event) = reply_stream.next().await {
-                event?;
+                match event? {
+                    AgentEvent::Message(message)
+                        if message
+                            .content
+                            .iter()
+                            .any(|content| matches!(content, MessageContent::ToolRequest(_))) =>
+                    {
+                        live_tool_message_id = message.id;
+                    }
+                    AgentEvent::MessageUsage { message_id, .. } => {
+                        usage_message_ids.push(message_id);
+                    }
+                    _ => {}
+                }
             }
 
             let reloaded = session_manager.get_session(&session_id, true).await?;
@@ -1982,6 +1997,45 @@ mod tests {
                 .expect("should have conversation")
                 .messages()
                 .to_vec();
+
+            let live_tool_message_id =
+                live_tool_message_id.expect("live tool message must have a generated ID");
+            let persisted_tool_message_ids: Vec<&str> = messages
+                .iter()
+                .filter(|message| {
+                    message
+                        .content
+                        .iter()
+                        .any(|content| matches!(content, MessageContent::ToolRequest(_)))
+                })
+                .map(|message| {
+                    message
+                        .id
+                        .as_deref()
+                        .expect("persisted tool message must have an ID")
+                })
+                .collect();
+
+            assert_eq!(persisted_tool_message_ids.len(), 2);
+            assert_ne!(
+                persisted_tool_message_ids[0], persisted_tool_message_ids[1],
+                "split tool messages must keep distinct message IDs"
+            );
+            assert_eq!(
+                persisted_tool_message_ids
+                    .iter()
+                    .copied()
+                    .filter(|message_id| *message_id == live_tool_message_id.as_str())
+                    .count(),
+                1,
+                "exactly one persisted tool message must retain the live message ID"
+            );
+            assert!(
+                usage_message_ids.iter().any(|message_id| {
+                    message_id.as_deref() == Some(live_tool_message_id.as_str())
+                }),
+                "tool-turn usage must reference the live message ID"
+            );
 
             let spec = format_messages_with_options(
                 &messages,

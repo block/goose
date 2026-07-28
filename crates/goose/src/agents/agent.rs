@@ -8,7 +8,6 @@ use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
-use uuid::Uuid;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
@@ -321,12 +320,22 @@ fn agent_visible_message_text(message: &Message) -> String {
 fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
+    preferred_message_id: Option<&str>,
 ) -> Option<(Option<String>, MessageUsage)> {
-    let message = messages
-        .messages_mut()
-        .iter_mut()
-        .rev()
-        .find(|m| m.role == rmcp::model::Role::Assistant)?;
+    let message_index = preferred_message_id
+        .and_then(|preferred_message_id| {
+            messages.messages().iter().rposition(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.id.as_deref() == Some(preferred_message_id)
+            })
+        })
+        .or_else(|| {
+            messages
+                .messages()
+                .iter()
+                .rposition(|message| message.role == rmcp::model::Role::Assistant)
+        })?;
+    let message = &mut messages.messages_mut()[message_index];
     let has_user_visible_content = !message.user_visible_content().content.is_empty();
     let message_usage = MessageUsage::from_provider_usage(usage, false);
     message.metadata.usage = Some(Box::new(message_usage.clone()));
@@ -2140,6 +2149,7 @@ impl Agent {
                 let mut provider_produced_content = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
+                let mut preferred_turn_usage_message_id: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -2523,9 +2533,33 @@ impl Agent {
                                     merged
                                 };
 
+                                let response_message_id = response
+                                    .id
+                                    .as_deref()
+                                    .expect("provider stream responses have IDs");
+                                let has_existing_message_id_carrier = messages_to_add
+                                    .iter()
+                                    .any(|message| {
+                                        message.id.as_deref() == Some(response_message_id)
+                                    });
+                                let carrier_tool_call_id = if has_existing_message_id_carrier {
+                                    None
+                                } else {
+                                    remaining_requests
+                                        .first()
+                                        .or_else(|| frontend_requests.first())
+                                        .map(|request| request.id.as_str())
+                                };
+                                preferred_turn_usage_message_id =
+                                    Some(response_message_id.to_owned());
+
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-                                    let mut request_msg = Message::assistant()
-                                        .with_id(format!("msg_{}", Uuid::new_v4()));
+                                    let mut request_msg =
+                                        if carrier_tool_call_id == Some(request.id.as_str()) {
+                                            Message::assistant().with_id(response_message_id)
+                                        } else {
+                                            Message::assistant().with_generated_id()
+                                        };
 
                                     for thinking in &response_thinking {
                                         request_msg = request_msg.with_content(thinking.clone());
@@ -2927,6 +2961,7 @@ impl Agent {
                 }
 
                 if let Some(output) = pending_final_output.take() {
+                    preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
                     let message = push_message_with_id(
                         &mut messages_to_add,
@@ -2946,9 +2981,11 @@ impl Agent {
                 };
 
                 if let Some(usage) = pending_turn_usage.take() {
-                    if let Some((message_id, usage)) =
-                        attach_turn_usage(&mut messages_to_add, &usage)
-                    {
+                    if let Some((message_id, usage)) = attach_turn_usage(
+                        &mut messages_to_add,
+                        &usage,
+                        preferred_turn_usage_message_id.as_deref(),
+                    ) {
                         yield AgentEvent::MessageUsage { message_id, usage };
                     }
                 }
@@ -4496,7 +4533,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         ]);
 
         let (message_id, attached) =
-            attach_turn_usage(&mut conversation, &usage).expect("usage should attach");
+            attach_turn_usage(&mut conversation, &usage, None).expect("usage should attach");
 
         assert_eq!(message_id.as_deref(), Some("a2"));
         assert_eq!(attached.input_tokens, Some(1200));
@@ -4521,7 +4558,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let usage = ProviderUsage::new("test-model".to_string(), Usage::default());
         let mut conversation = Conversation::new_unvalidated([Message::user().with_text("hi")]);
 
-        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
         assert!(
             conversation.messages()[0].metadata.usage.is_none(),
             "user message must stay untouched"
@@ -4545,7 +4582,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .with_content(MessageContent::Text(assistant_only)),
         ]);
 
-        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
 
         let stored = conversation.messages()[1]
             .metadata
