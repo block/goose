@@ -140,8 +140,8 @@ fn write_schedule_recipe_bytes(destination: &Path, bytes: &[u8]) -> Result<(), S
     Ok(())
 }
 
-/// Environment variable that suppresses the cron scheduler for the whole
-/// process.
+/// Environment variable that suppresses every scheduler-ownership path
+/// reachable inside an ACP process.
 ///
 /// Hosts that run a pool of ACP workers (for example Buzz, which spawns one
 /// `goose acp` child per agent slot) would otherwise have every worker execute
