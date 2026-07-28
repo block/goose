@@ -72,6 +72,7 @@ impl OpenAiCompatibleProvider {
             for_streaming,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         )
         .map_err(|e| ProviderError::RequestFailed(format!("Failed to create request: {}", e)))
