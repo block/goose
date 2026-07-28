@@ -701,14 +701,14 @@ pub fn create_responses_request(
 
 fn sanitize_tool_arguments(value: Value) -> Value {
     match value {
-        Value::String(text) => Value::String(sanitize_unicode_tags(&text)),
+        Value::String(text) => Value::String(strip_unicode_tags(&text)),
         Value::Array(values) => {
             Value::Array(values.into_iter().map(sanitize_tool_arguments).collect())
         }
         Value::Object(values) => Value::Object(
             values
                 .into_iter()
-                .map(|(key, value)| (sanitize_unicode_tags(&key), sanitize_tool_arguments(value)))
+                .map(|(key, value)| (strip_unicode_tags(&key), sanitize_tool_arguments(value)))
                 .collect(),
         ),
         value => value,
@@ -1436,7 +1436,7 @@ mod tests {
                     content: vec![ResponseContentBlock::ToolCall {
                         id: "call_1".to_string(),
                         name: "shell".to_string(),
-                        input: json!({"prompt": "visible\u{E0041}text"}),
+                        input: json!({"prompt": "visible e\u{301}\u{E0041}text"}),
                     }],
                 },
                 ResponseOutputItem::FunctionCall {
@@ -1444,8 +1444,10 @@ mod tests {
                     status: Some("completed".to_string()),
                     call_id: Some("call_2".to_string()),
                     name: "shell".to_string(),
-                    arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0042}text"}))
-                        .unwrap(),
+                    arguments: serde_json::to_string(
+                        &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
+                    )
+                    .unwrap(),
                 },
             ],
             reasoning: None,
@@ -1463,7 +1465,7 @@ mod tests {
                     .arguments
                     .expect("expected arguments")
                     .get("prompt"),
-                Some(&json!("visibletext"))
+                Some(&json!("visible e\u{301}text"))
             );
         }
     }
@@ -2300,7 +2302,9 @@ mod tests {
                 content: vec![ContentBlockPart::ToolCall {
                     id: "call_1".to_string(),
                     name: "shell".to_string(),
-                    arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0041}text"}))?,
+                    arguments: serde_json::to_string(
+                        &json!({"prompt": "visible e\u{301}\u{E0041}text"}),
+                    )?,
                 }],
             },
             ResponseOutputItemInfo::FunctionCall {
@@ -2308,7 +2312,9 @@ mod tests {
                 status: Some("completed".to_string()),
                 call_id: Some("call_2".to_string()),
                 name: "shell".to_string(),
-                arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0042}text"}))?,
+                arguments: serde_json::to_string(
+                    &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
+                )?,
             },
         ];
 
@@ -2323,7 +2329,7 @@ mod tests {
                     .arguments
                     .expect("expected arguments")
                     .get("prompt"),
-                Some(&json!("visibletext"))
+                Some(&json!("visible e\u{301}text"))
             );
         }
 
