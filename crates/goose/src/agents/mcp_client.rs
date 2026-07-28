@@ -573,6 +573,12 @@ impl ClientHandler for GooseClient {
                 .build(),
             self.resolved_client_info(),
         )
+        .with_protocol_version(
+            self.capabilities
+                .protocol_version
+                .clone()
+                .unwrap_or(ProtocolVersion::LATEST),
+        )
     }
 }
 
@@ -657,14 +663,14 @@ impl McpClient {
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             if let Some(protocol_version) = capabilities.protocol_version {
-                client
-                    .serve_with_lifecycle(
-                        transport,
-                        ClientLifecycleMode::Discover {
-                            preferred_versions: vec![protocol_version],
-                        },
-                    )
-                    .await?
+                let lifecycle = if protocol_version >= ProtocolVersion::STANDARD_HEADERS {
+                    ClientLifecycleMode::Discover {
+                        preferred_versions: vec![protocol_version],
+                    }
+                } else {
+                    ClientLifecycleMode::Initialize
+                };
+                client.serve_with_lifecycle(transport, lifecycle).await?
             } else {
                 client
                     .serve_with_lifecycle(

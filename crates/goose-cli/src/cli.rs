@@ -1422,11 +1422,10 @@ enum McpProbeElicitation {
     Cancel,
 }
 
-#[expect(deprecated)]
 async fn handle_mcp_probe(extension_command: String, script_path: Option<String>) -> Result<()> {
     use goose::agents::{Agent, AgentConfig, ToolCallContext};
     use goose::config::ExtensionConfig;
-    use rmcp::model::{CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction};
+    use rmcp::model::{ElicitRequestParams, ElicitResult, ElicitationAction};
     use tokio_util::sync::CancellationToken;
 
     let script = if let Some(path) = script_path {
@@ -1493,14 +1492,12 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
         agent_config.elicitation_handler =
             Some(std::sync::Arc::new(move |request| match &action {
                 McpProbeElicitation::Accept { content } => {
-                    CreateElicitationResult::new(ElicitationAction::Accept)
-                        .with_content(content.clone())
+                    ElicitResult::new(ElicitationAction::Accept).with_content(content.clone())
                 }
                 McpProbeElicitation::AcceptSchemaDefaults => {
                     let content = match request {
-                        CreateElicitationRequestParams::FormElicitationParams {
-                            requested_schema,
-                            ..
+                        ElicitRequestParams::FormElicitationParams {
+                            requested_schema, ..
                         } => serde_json::to_value(requested_schema)
                             .ok()
                             .and_then(|schema| schema.get("properties").cloned())
@@ -1516,15 +1513,11 @@ async fn handle_mcp_probe(extension_command: String, script_path: Option<String>
                             .unwrap_or_default(),
                         _ => serde_json::Map::new(),
                     };
-                    CreateElicitationResult::new(ElicitationAction::Accept)
+                    ElicitResult::new(ElicitationAction::Accept)
                         .with_content(serde_json::Value::Object(content))
                 }
-                McpProbeElicitation::Decline => {
-                    CreateElicitationResult::new(ElicitationAction::Decline)
-                }
-                McpProbeElicitation::Cancel => {
-                    CreateElicitationResult::new(ElicitationAction::Cancel)
-                }
+                McpProbeElicitation::Decline => ElicitResult::new(ElicitationAction::Decline),
+                McpProbeElicitation::Cancel => ElicitResult::new(ElicitationAction::Cancel),
             }));
     }
     let agent = Agent::with_config(agent_config);
