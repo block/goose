@@ -73,35 +73,50 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
         ));
         assert!(terminal_notifications.try_recv().is_err());
 
-        let completion = stream.next();
-        tokio::pin!(completion);
-        let terminal_delta = tokio::select! {
-            biased;
-            update = terminal_notifications.recv() => update.expect("expected terminal output"),
-            _ = &mut completion => panic!("tool call completed before terminal output"),
-        };
-        assert!(terminal_delta["update"]["_meta"]
-            .get("terminal_output_delta")
-            .is_some());
-        let terminal_exit = tokio::select! {
-            biased;
-            update = terminal_notifications.recv() => update.expect("expected terminal exit"),
-            _ = &mut completion => panic!("tool call completed before terminal exit"),
-        };
-        assert!(terminal_exit["update"]["_meta"]
-            .get("terminal_exit")
-            .is_some());
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let completion = stream.next();
+            tokio::pin!(completion);
+            for expected_sequence in 0..128 {
+                let terminal_delta = tokio::select! {
+                    biased;
+                    update = terminal_notifications.recv() => {
+                        update.expect("expected terminal output")
+                    }
+                    _ = &mut completion => {
+                        panic!("tool call completed before terminal output burst")
+                    }
+                };
+                assert_eq!(
+                    terminal_delta["update"]["_meta"]["terminal_output_delta"]["sequence"],
+                    expected_sequence
+                );
+            }
+            let terminal_exit = tokio::select! {
+                biased;
+                update = terminal_notifications.recv() => update.expect("expected terminal exit"),
+                _ = &mut completion => panic!("tool call completed before terminal exit"),
+            };
+            assert!(terminal_exit["update"]["_meta"]
+                .get("terminal_exit")
+                .is_some());
 
-        let completion = completion
-            .await
-            .expect("expected a tool-call completion")
-            .unwrap()
-            .0
-            .expect("expected a message");
-        assert!(matches!(
-            completion.content.as_slice(),
-            [MessageContent::ToolResponse(_)]
-        ));
+            let completion = completion
+                .await
+                .expect("expected a tool-call completion")
+                .unwrap()
+                .0
+                .expect("expected a message");
+            assert!(matches!(
+                completion.content.as_slice(),
+                [MessageContent::ToolResponse(_)]
+            ));
+            assert!(
+                stream.next().await.is_none(),
+                "prompt stream must terminate"
+            );
+        })
+        .await
+        .expect("terminal burst should drain without dropping lifecycle events");
     });
 }
 

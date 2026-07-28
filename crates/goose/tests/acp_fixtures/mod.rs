@@ -367,20 +367,23 @@ pub fn nested_terminal_agent() -> impl agent_client_protocol::ConnectTo<AcpClien
                     meta.insert(key.to_string(), value);
                     meta
                 };
-                cx.send_notification(SessionNotification::new(
-                    request.session_id.clone(),
-                    SessionUpdate::ToolCallUpdate(
-                        ToolCallUpdate::new(tool_call_id, ToolCallUpdateFields::new()).meta(
-                            terminal_meta(
-                                "terminal_output_delta",
-                                serde_json::json!({
-                                    "terminal_id": "nested-terminal-1",
-                                    "data": "hello"
-                                }),
+                for sequence in 0..128 {
+                    cx.send_notification(SessionNotification::new(
+                        request.session_id.clone(),
+                        SessionUpdate::ToolCallUpdate(
+                            ToolCallUpdate::new(tool_call_id, ToolCallUpdateFields::new()).meta(
+                                terminal_meta(
+                                    "terminal_output_delta",
+                                    serde_json::json!({
+                                        "terminal_id": "nested-terminal-1",
+                                        "data": format!("chunk-{sequence}"),
+                                        "sequence": sequence
+                                    }),
+                                ),
                             ),
                         ),
-                    ),
-                ))?;
+                    ))?;
+                }
                 cx.send_notification(SessionNotification::new(
                     request.session_id.clone(),
                     SessionUpdate::ToolCallUpdate(

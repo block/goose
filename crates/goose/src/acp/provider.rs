@@ -841,24 +841,23 @@ impl AcpClientLoop {
                             }
                             _ => {}
                         }
-                        if let Some(tx) = prompt_response_tx
+                        let prompt_tx = prompt_response_tx
                             .lock()
                             .ok()
-                            .as_ref()
-                            .and_then(|g| g.as_ref())
-                        {
+                            .and_then(|guard| guard.as_ref().cloned());
+                        if let Some(tx) = prompt_tx {
                             match notification.update {
                                 SessionUpdate::AgentMessageChunk(ContentChunk {
                                     content: ContentBlock::Text(text),
                                     ..
                                 }) => {
-                                    let _ = tx.try_send(AcpUpdate::Text(text));
+                                    let _ = tx.send(AcpUpdate::Text(text)).await;
                                 }
                                 SessionUpdate::AgentThoughtChunk(ContentChunk {
                                     content: ContentBlock::Text(TextContent { text, .. }),
                                     ..
                                 }) => {
-                                    let _ = tx.try_send(AcpUpdate::Thought(text));
+                                    let _ = tx.send(AcpUpdate::Thought(text)).await;
                                 }
                                 SessionUpdate::ToolCall(tool_call) => {
                                     let id = tool_call.tool_call_id.0.to_string();
@@ -890,27 +889,31 @@ impl AcpClientLoop {
                                     // tool_meta for stable categorization, and the
                                     // goose.external_dispatch marker keeps `name` off the
                                     // agent loop's routing/auth paths.
-                                    let _ = tx.try_send(AcpUpdate::ToolCallStart {
-                                        id: id.clone(),
-                                        name: tool_call.title.clone(),
-                                        kind: tool_call.kind,
-                                        raw_input: tool_call.raw_input.clone(),
-                                    });
+                                    let _ = tx
+                                        .send(AcpUpdate::ToolCallStart {
+                                            id: id.clone(),
+                                            name: tool_call.title.clone(),
+                                            kind: tool_call.kind,
+                                            raw_input: tool_call.raw_input.clone(),
+                                        })
+                                        .await;
                                     if let Some(accumulated) = synchronous_accumulated {
                                         let content = if accumulated.content.is_empty() {
                                             None
                                         } else {
                                             Some(accumulated.content)
                                         };
-                                        let _ = tx.try_send(AcpUpdate::ToolCallComplete {
-                                            id,
-                                            raw_output: accumulated.raw_output,
-                                            content,
-                                            is_error: matches!(
-                                                initial_status,
-                                                ToolCallStatus::Failed
-                                            ),
-                                        });
+                                        let _ = tx
+                                            .send(AcpUpdate::ToolCallComplete {
+                                                id,
+                                                raw_output: accumulated.raw_output,
+                                                content,
+                                                is_error: matches!(
+                                                    initial_status,
+                                                    ToolCallStatus::Failed
+                                                ),
+                                            })
+                                            .await;
                                     }
                                 }
                                 SessionUpdate::ToolCallUpdate(update) => {
@@ -950,9 +953,9 @@ impl AcpClientLoop {
                                             &notification,
                                             notification["sessionId"].as_str().unwrap_or_default(),
                                         ) {
-                                            let _ = tx.try_send(AcpUpdate::TerminalNotification(
-                                                notification,
-                                            ));
+                                            let _ = tx
+                                                .send(AcpUpdate::TerminalNotification(notification))
+                                                .await;
                                         }
                                     }
                                     if let (Some(accumulated), Some(status)) =
@@ -963,12 +966,14 @@ impl AcpClientLoop {
                                         } else {
                                             Some(accumulated.content)
                                         };
-                                        let _ = tx.try_send(AcpUpdate::ToolCallComplete {
-                                            id,
-                                            raw_output: accumulated.raw_output,
-                                            content,
-                                            is_error: matches!(status, ToolCallStatus::Failed),
-                                        });
+                                        let _ = tx
+                                            .send(AcpUpdate::ToolCallComplete {
+                                                id,
+                                                raw_output: accumulated.raw_output,
+                                                content,
+                                                is_error: matches!(status, ToolCallStatus::Failed),
+                                            })
+                                            .await;
                                     }
                                 }
                                 _ => {}
@@ -997,10 +1002,11 @@ impl AcpClientLoop {
                             return Err(agent_client_protocol::Error::internal_error());
                         }
 
-                        tx.try_send(AcpUpdate::PermissionRequest {
+                        tx.send(AcpUpdate::PermissionRequest {
                             request: Box::new(request),
                             response_tx,
                         })
+                        .await
                         .map_err(|_| agent_client_protocol::Error::internal_error())?;
 
                         let response = response_rx.await.unwrap_or_else(|_| {
@@ -1202,13 +1208,15 @@ async fn handle_requests(
                 match response {
                     Ok(r) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Complete(r.stop_reason, r.usage)),
+                            response_tx
+                                .send(AcpUpdate::Complete(r.stop_reason, r.usage))
+                                .await,
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
                     Err(e) => {
                         log_undelivered(
-                            response_tx.try_send(AcpUpdate::Error(e.to_string())),
+                            response_tx.send(AcpUpdate::Error(e.to_string())).await,
                             AGENT_METHOD_NAMES.session_prompt,
                         );
                     }
