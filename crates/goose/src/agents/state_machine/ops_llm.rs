@@ -1,28 +1,32 @@
 //! Builds a provider request and streams the next assistant response.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::agents::state_machine::operation::{
-    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with, Emitter,
-    Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
-};
 use crate::agents::AgentEvent;
+use crate::agents::state_machine::operation::{
+    Emitter, Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
+    applied, messages_since_kickoff, not_applicable, trailing_error, yielded_with,
+};
+use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::{effective_role, Conversation, EffectiveRole};
+use crate::conversation::{Conversation, EffectiveRole, effective_role};
 use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use tokio::sync::Mutex;
 use tracing_futures::Instrument;
+
+const EMPTY_RESPONSE_MESSAGE: &str =
+    "The model returned an empty response. Please resend your message to continue.";
 
 pub(super) fn chat_span(
     provider: &dyn Provider,
@@ -231,7 +235,7 @@ impl Inference for InferenceRunner<'_> {
             .collect();
 
         let start = conversation.len() - messages.len();
-        let messages_for_provider: Vec<_> = conversation
+        let mut messages_for_provider: Vec<_> = conversation
             .messages()
             .iter()
             .enumerate()
@@ -305,6 +309,33 @@ impl Inference for InferenceRunner<'_> {
                     system_prompt,
                     &self.model_config,
                 );
+            let mut available_tools = tools
+                .iter()
+                .map(|tool| tool.name.as_ref())
+                .collect::<Vec<_>>();
+            available_tools.sort_unstable();
+            available_tools.dedup();
+            let available_tools = available_tools.join(", ");
+            for message in &mut messages_for_provider {
+                for content in &mut message.content {
+                    let MessageContent::ToolResponse(response) = content else {
+                        continue;
+                    };
+                    let Some(metadata) = &mut response.metadata else {
+                        continue;
+                    };
+                    if metadata.remove(UNCLAIMED_TOOL_ERROR).is_none() {
+                        continue;
+                    }
+                    let Ok(result) = &mut response.tool_result else {
+                        continue;
+                    };
+                    result.content.push(rmcp::model::Content::text(format!(
+                        "Available tools: [{}].",
+                        available_tools
+                    )));
+                }
+            }
 
             let context_limit = self
                 .provider
@@ -336,6 +367,7 @@ impl Inference for InferenceRunner<'_> {
 
             let mut accumulator = Conversation::empty();
             let mut usage_effects = Vec::new();
+            let mut tool_request_ids = std::collections::HashSet::new();
             loop {
                 tokio::select! {
                     biased;
@@ -354,7 +386,17 @@ impl Inference for InferenceRunner<'_> {
                             record_chat_usage(&span, &usage);
                             usage_effects.push(StateEffect::RecordUsage(usage));
                         }
-                        if let Some(chunk) = msg_opt {
+                        if let Some(mut chunk) = msg_opt {
+                            chunk.content.retain(|content| match content {
+                                MessageContent::ToolRequest(request) => {
+                                    tool_request_ids.insert(request.id.clone())
+                                }
+                                _ => true,
+                            });
+                            if chunk.content.is_empty() {
+                                accumulator.push(chunk);
+                                continue;
+                            }
                             emit.emit(AgentEvent::Message(chunk.clone())).await;
                             accumulator.push(chunk);
                         }
@@ -362,8 +404,37 @@ impl Inference for InferenceRunner<'_> {
                 }
             }
 
-            if accumulator.is_empty() {
-                return not_applicable(emit);
+            let empty_response = accumulator.iter().all(|message| {
+                message.content.iter().all(|content| match content {
+                    MessageContent::Text(text) => text.text.trim().is_empty(),
+                    MessageContent::Thinking(thinking) => thinking.thinking.trim().is_empty(),
+                    _ => false,
+                })
+            });
+            if empty_response {
+                let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
+                emit.emit(AgentEvent::Message(message.clone())).await;
+                usage_effects.push(message.into());
+                return yielded_with(usage_effects);
+            }
+
+            if usage_effects.is_empty() {
+                let mut usage = ProviderUsage::new(
+                    self.model_config.model_name.clone(),
+                    goose_providers::conversation::token_usage::Usage::default(),
+                );
+                if let Some(response) = accumulator.last() {
+                    crate::providers::usage_estimator::ensure_usage_tokens(
+                        &mut usage,
+                        &system_prompt,
+                        conversation_for_provider.messages(),
+                        response,
+                        &tools,
+                    )
+                    .await?;
+                    record_chat_usage(&tracing::Span::current(), &usage);
+                    usage_effects.push(StateEffect::RecordUsage(usage));
+                }
             }
 
             usage_effects.extend(accumulator.into_iter().map(Into::into));

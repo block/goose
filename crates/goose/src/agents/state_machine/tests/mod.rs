@@ -14,6 +14,7 @@ use crate::permission::Permission;
 mod calculator_extension;
 mod dummy_api;
 mod pipeline;
+mod provider_lifecycle;
 mod tool_lifecycle;
 
 fn tool_response_text(message: &Message) -> String {
@@ -798,7 +799,7 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
 
     let (pipeline, api) = test_pipeline().await?;
     api.on("ask me").call(REQUEST_VALUE, json!({}));
-    api.on(r#""value":7"#).reply("thanks");
+    api.on("result: 7").reply("thanks");
     pipeline
         .session_manager
         .add_message(&pipeline.session_id, &Message::user().with_text("ask me"))
@@ -869,10 +870,11 @@ async fn elicitation_blocks_tool_until_response_arrives() -> Result<()> {
         .find(|m| m.is_tool_response())
         .expect("a tool response");
     assert!(
-        tool_response_text(tool_response).contains(r#""value":7"#),
+        tool_response_text(tool_response).contains("result: 7"),
         "tool response: {tool_response:#?}"
     );
     assert_eq!(conversation.last().unwrap().as_concat_text(), "thanks");
+    assert_eq!(pipeline.calculator_total(), 7);
     assert_eq!(api.call_count(), 2);
 
     let request_position = conversation.messages().iter().position(|m| {

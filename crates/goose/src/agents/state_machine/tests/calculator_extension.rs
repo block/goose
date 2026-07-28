@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -17,6 +16,7 @@ use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
 use crate::agents::tool_execution::ToolCallContext;
 
 pub(super) const ADD: &str = "calculator__add";
+pub(super) const DIVIDE: &str = "calculator__divide";
 pub(super) const REQUEST_VALUE: &str = "calculator__request_value";
 
 pub(super) fn value(value: i64) -> Value {
@@ -24,7 +24,7 @@ pub(super) fn value(value: i64) -> Value {
 }
 
 #[derive(Deserialize, JsonSchema)]
-struct AddParams {
+struct ValueParams {
     value: i64,
 }
 
@@ -34,7 +34,8 @@ struct RequestValueParams {}
 pub(super) struct CalculatorExtension {
     info: InitializeResult,
     action_required: Arc<ActionRequiredManager>,
-    total: AtomicI64,
+    total: Mutex<i64>,
+    barrier: Mutex<Option<Arc<tokio::sync::Barrier>>>,
     notification_senders: Mutex<Vec<mpsc::Sender<ServerNotification>>>,
 }
 
@@ -47,13 +48,18 @@ impl CalculatorExtension {
                     "test".to_string(),
                 )),
             action_required,
-            total: AtomicI64::new(0),
+            total: Mutex::new(0),
+            barrier: Mutex::new(None),
             notification_senders: Mutex::new(Vec::new()),
         }
     }
 
     pub(super) fn total(&self) -> i64 {
-        self.total.load(Ordering::SeqCst)
+        *self.total.lock().unwrap()
+    }
+
+    pub(super) fn synchronize(&self, calls: usize) {
+        *self.barrier.lock().unwrap() = Some(Arc::new(tokio::sync::Barrier::new(calls)));
     }
 }
 
@@ -65,7 +71,7 @@ impl McpClientTrait for CalculatorExtension {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, McpError> {
-        let schema = serde_json::to_value(schema_for!(AddParams))
+        let schema = serde_json::to_value(schema_for!(ValueParams))
             .unwrap()
             .as_object()
             .unwrap()
@@ -77,7 +83,26 @@ impl McpClientTrait for CalculatorExtension {
             .clone();
         Ok(ListToolsResult {
             tools: vec![
-                Tool::new("add", "Add a value to the running total", Arc::new(schema)),
+                Tool::new(
+                    "add",
+                    "Add a value to the running total",
+                    Arc::new(schema.clone()),
+                ),
+                Tool::new(
+                    "divide",
+                    "Divide the running total by a value",
+                    Arc::new(schema.clone()),
+                ),
+                Tool::new(
+                    "multiply",
+                    "Multiply the running total by a value",
+                    Arc::new(schema.clone()),
+                ),
+                Tool::new(
+                    "subtract",
+                    "Subtract a value from the running total",
+                    Arc::new(schema),
+                ),
                 Tool::new(
                     "request_value",
                     "Ask the user for a value",
@@ -103,7 +128,7 @@ impl McpClientTrait for CalculatorExtension {
                     None,
                 ))
             })?;
-            let schema = serde_json::to_value(schema_for!(AddParams)).unwrap();
+            let schema = serde_json::to_value(schema_for!(ValueParams)).unwrap();
             let outcome = self
                 .action_required
                 .request_and_wait(
@@ -119,7 +144,14 @@ impl McpClientTrait for CalculatorExtension {
                 })?;
             return Ok(match outcome {
                 ElicitationOutcome::Accept(value) => {
-                    CallToolResult::success(vec![Content::text(value.to_string())])
+                    let params: ValueParams = serde_json::from_value(value).map_err(|error| {
+                        McpError::McpError(ErrorData::invalid_params(error.to_string(), None))
+                    })?;
+                    *self.total.lock().unwrap() = params.value;
+                    CallToolResult::success(vec![Content::text(format!(
+                        "result: {}",
+                        params.value
+                    ))])
                 }
                 ElicitationOutcome::Decline => {
                     CallToolResult::error(vec![Content::text("elicitation declined")])
@@ -129,19 +161,46 @@ impl McpClientTrait for CalculatorExtension {
                 }
             });
         }
-        if name != "add" {
-            return Err(McpError::McpError(ErrorData::invalid_params(
-                format!("unknown calculator tool {name:?}"),
-                None,
-            )));
-        }
-        let params: AddParams = serde_json::from_value(Value::Object(
+        let calculate: fn(i64, i64) -> Option<i64> = match name {
+            "add" => i64::checked_add,
+            "divide" => i64::checked_div,
+            "multiply" => i64::checked_mul,
+            "subtract" => i64::checked_sub,
+            _ => {
+                return Err(McpError::McpError(ErrorData::invalid_params(
+                    format!("unknown calculator tool {name:?}"),
+                    None,
+                )));
+            }
+        };
+        let params: ValueParams = serde_json::from_value(Value::Object(
             arguments.unwrap_or_default(),
         ))
         .map_err(|error| McpError::McpError(ErrorData::invalid_params(error.to_string(), None)))?;
-        let total = self.total.fetch_add(params.value, Ordering::SeqCst) + params.value;
+        let barrier = self.barrier.lock().unwrap().clone();
+        if let Some(barrier) = barrier {
+            let result = tokio::time::timeout(std::time::Duration::from_secs(2), barrier.wait())
+                .await
+                .map_err(|_| {
+                    McpError::McpError(ErrorData::internal_error(
+                        "calculator calls did not execute concurrently",
+                        None,
+                    ))
+                })?;
+            if result.is_leader() {
+                *self.barrier.lock().unwrap() = None;
+            }
+        }
+        let mut total = self.total.lock().unwrap();
+        *total = calculate(*total, params.value).ok_or_else(|| {
+            McpError::McpError(ErrorData::invalid_params(
+                "calculator operation failed",
+                None,
+            ))
+        })?;
         Ok(CallToolResult::success(vec![Content::text(format!(
-            "result: {total}"
+            "result: {}",
+            *total
         ))]))
     }
 

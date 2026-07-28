@@ -15,6 +15,8 @@ use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
 
+pub(super) const UNCLAIMED_TOOL_ERROR: &str = "goose.unclaimed_tool";
+
 pub struct UnknownToolOperation;
 
 #[async_trait]
@@ -43,23 +45,41 @@ impl Operation for UnknownToolOperation {
                 .unwrap_or("unknown");
             let span = tool_span(tool_name, &request.id, &session.id);
             span.record("error.type", "tool_not_available");
-            let message = match disposition {
-                ToolDisposition::ParseError(error) => {
-                    format!(
+            let (result, unclaimed) = match disposition {
+                ToolDisposition::ParseError(error) => (
+                    Ok(CallToolResult::error(vec![Content::text(format!(
                         "The tool call could not be parsed: {error}. Correct the arguments and try again."
-                    )
-                }
+                    ))])),
+                    false,
+                ),
                 ToolDisposition::Execute | ToolDisposition::Decline => request
                     .tool_call
                     .as_ref()
-                    .map(|tool_call| format!("Tool '{}' is not available.", tool_call.name))
-                    .unwrap_or_else(|error| format!("The tool call could not be parsed: {error}.")),
+                    .map(|tool_call| {
+                        (
+                            Ok(CallToolResult::error(vec![Content::text(format!(
+                                "Tool '{}' is not available.",
+                                tool_call.name
+                            ))])),
+                            true,
+                        )
+                    })
+                    .unwrap_or_else(|error| {
+                        (
+                            Ok(CallToolResult::error(vec![Content::text(format!(
+                                "The tool call could not be parsed: {error}."
+                            ))])),
+                            false,
+                        )
+                    }),
             };
-            response.add_tool_response_with_metadata(
-                request.id,
-                Ok(CallToolResult::error(vec![Content::text(message)])),
-                request.metadata.as_ref(),
-            );
+            let mut metadata = request.metadata.clone();
+            if unclaimed {
+                metadata
+                    .get_or_insert_default()
+                    .insert(UNCLAIMED_TOOL_ERROR.to_string(), true.into());
+            }
+            response.add_tool_response_with_metadata(request.id, result, metadata.as_ref());
         }
 
         emit.emit(AgentEvent::Message(response.clone())).await;

@@ -1,17 +1,40 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+
+#[derive(Clone, Copy)]
+pub(super) struct ProviderFeatures {
+    pub(super) reports_usage: bool,
+}
+
+impl Default for ProviderFeatures {
+    fn default() -> Self {
+        Self {
+            reports_usage: true,
+        }
+    }
+}
 
 #[derive(Clone)]
 enum ApiResponse {
     Reply(String),
     ToolCall { name: String, arguments: String },
+    ToolCalls(Vec<ApiToolCall>),
+    NoChoices,
     ContextLimitError(String),
     ServerError(String),
+    EmptyServerError,
     ReplyThenServerError { reply: String, error: String },
+}
+
+#[derive(Clone)]
+struct ApiToolCall {
+    id: String,
+    name: String,
+    arguments: String,
 }
 
 struct ApiRule {
@@ -25,6 +48,7 @@ enum ApiMatcher {
 }
 
 struct DummyApiState {
+    features: ProviderFeatures,
     rules: Mutex<Vec<ApiRule>>,
     calls: Mutex<Vec<ApiCall>>,
     next_response_id: AtomicUsize,
@@ -59,9 +83,10 @@ impl ApiCall {
 }
 
 impl DummyApi {
-    pub(super) async fn start() -> Self {
+    pub(super) async fn start(features: ProviderFeatures) -> Self {
         let server = MockServer::start().await;
         let state = Arc::new(DummyApiState {
+            features,
             rules: Mutex::new(Vec::new()),
             calls: Mutex::new(Vec::new()),
             next_response_id: AtomicUsize::new(1),
@@ -130,6 +155,22 @@ impl<'a> ApiRuleBuilder<'a> {
         })
     }
 
+    pub(super) fn calls<const N: usize>(
+        self,
+        calls: [(&str, &str, Value); N],
+    ) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::ToolCalls(
+            calls
+                .into_iter()
+                .map(|(id, name, arguments)| ApiToolCall {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                    arguments: arguments.to_string(),
+                })
+                .collect(),
+        ))
+    }
+
     pub(super) fn malformed_tool_call(
         self,
         name: impl Into<String>,
@@ -147,6 +188,14 @@ impl<'a> ApiRuleBuilder<'a> {
 
     pub(super) fn server_error(self, message: impl Into<String>) -> ConfiguredResponse<'a> {
         self.configured(ApiResponse::ServerError(message.into()))
+    }
+
+    pub(super) fn no_choices(self) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::NoChoices)
+    }
+
+    pub(super) fn empty_server_error(self) -> ConfiguredResponse<'a> {
+        self.configured(ApiResponse::EmptyServerError)
     }
 
     fn configured(self, response: ApiResponse) -> ConfiguredResponse<'a> {
@@ -217,6 +266,7 @@ impl DummyApiState {
                 &text,
                 input_tokens,
                 text.chars().count() as i32,
+                self.features.reports_usage,
                 None,
             )),
             ApiResponse::ToolCall { name, arguments } => {
@@ -230,18 +280,34 @@ impl DummyApiState {
                     output_tokens,
                 ))
             }
+            ApiResponse::ToolCalls(calls) => {
+                let output_tokens = calls
+                    .iter()
+                    .map(|call| call.name.chars().count() + call.arguments.chars().count())
+                    .sum::<usize>() as i32;
+                sse_response(tool_calls_events(
+                    &id,
+                    model,
+                    &calls,
+                    input_tokens,
+                    output_tokens,
+                ))
+            }
+            ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
             ApiResponse::ContextLimitError(message) => ResponseTemplate::new(400).set_body_json(
                 context_limit_error(format!("context_length_exceeded: {message}")),
             ),
             ApiResponse::ServerError(message) => {
                 sse_response(format!("data: {}\n\n", api_error(message)))
             }
+            ApiResponse::EmptyServerError => ResponseTemplate::new(500),
             ApiResponse::ReplyThenServerError { reply, error } => sse_response(reply_events(
                 &id,
                 model,
                 &reply,
                 input_tokens,
                 reply.chars().count() as i32,
+                self.features.reports_usage,
                 Some(&error),
             )),
         }
@@ -317,6 +383,7 @@ fn reply_events(
     text: &str,
     input_tokens: i32,
     output_tokens: i32,
+    include_usage: bool,
     error: Option<&str>,
 ) -> String {
     let mut events = String::new();
@@ -348,15 +415,32 @@ fn reply_events(
             }]
         }),
     );
-    push_event(
-        &mut events,
-        usage_event(id, model, input_tokens, output_tokens),
-    );
+    if include_usage {
+        push_event(
+            &mut events,
+            usage_event(id, model, input_tokens, output_tokens),
+        );
+    }
     if let Some(error) = error {
         push_event(&mut events, api_error(error));
     } else {
         events.push_str("data: [DONE]\n\n");
     }
+    events
+}
+
+fn no_choices_events(id: &str, model: &str) -> String {
+    let mut events = String::new();
+    push_event(
+        &mut events,
+        json!({
+            "id": id,
+            "object": "chat.completion.chunk",
+            "model": model,
+            "choices": []
+        }),
+    );
+    events.push_str("data: [DONE]\n\n");
     events
 }
 
@@ -368,11 +452,34 @@ fn tool_call_events(
     input_tokens: i32,
     output_tokens: i32,
 ) -> String {
-    let argument_chunks = split_arguments(arguments);
     let tool_call_id = format!(
         "dummy-tool-call-{}",
         id.strip_prefix("chatcmpl-test-").unwrap()
     );
+    tool_calls_events(
+        id,
+        model,
+        &[ApiToolCall {
+            id: tool_call_id,
+            name: name.to_string(),
+            arguments: arguments.to_string(),
+        }],
+        input_tokens,
+        output_tokens,
+    )
+}
+
+fn tool_calls_events(
+    id: &str,
+    model: &str,
+    calls: &[ApiToolCall],
+    input_tokens: i32,
+    output_tokens: i32,
+) -> String {
+    let argument_chunks = calls
+        .iter()
+        .map(|call| split_arguments(&call.arguments))
+        .collect::<Vec<_>>();
     let mut events = String::new();
     push_event(
         &mut events,
@@ -383,22 +490,27 @@ fn tool_call_events(
             "choices": [{
                 "index": 0,
                 "delta": {
-                    "tool_calls": [{
-                        "index": 0,
-                        "id": tool_call_id,
+                    "tool_calls": calls.iter().enumerate().map(|(index, call)| json!({
+                        "index": index,
+                        "id": call.id,
                         "type": "function",
                         "function": {
-                            "name": name,
-                            "arguments": argument_chunks.first().cloned().unwrap_or_default()
+                            "name": call.name,
+                            "arguments": argument_chunks[index].first().cloned().unwrap_or_default()
                         }
-                    }]
+                    })).collect::<Vec<_>>()
                 },
                 "finish_reason": null
             }]
         }),
     );
-    for (index, chunk) in argument_chunks.iter().enumerate().skip(1) {
-        let finish_reason = (index + 1 == argument_chunks.len()).then_some("tool_calls");
+    let chunk_count = argument_chunks
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or_default();
+    for chunk_index in 1..chunk_count {
+        let finish_reason = (chunk_index + 1 == chunk_count).then_some("tool_calls");
         push_event(
             &mut events,
             json!({
@@ -408,10 +520,12 @@ fn tool_call_events(
                 "choices": [{
                     "index": 0,
                     "delta": {
-                        "tool_calls": [{
-                            "index": 0,
-                            "function": { "arguments": chunk }
-                        }]
+                        "tool_calls": argument_chunks.iter().enumerate().map(|(index, chunks)| json!({
+                            "index": index,
+                            "function": {
+                                "arguments": chunks.get(chunk_index).cloned().unwrap_or_default()
+                            }
+                        })).collect::<Vec<_>>()
                     },
                     "finish_reason": finish_reason
                 }],

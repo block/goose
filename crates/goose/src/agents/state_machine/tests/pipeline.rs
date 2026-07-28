@@ -4,12 +4,13 @@ use std::sync::Arc;
 use anyhow::Result;
 use rmcp::model::Role;
 use serde_json::json;
-use tokio::sync::mpsc;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::calculator_extension::CalculatorExtension;
-use super::dummy_api::DummyApi;
+use super::dummy_api::{DummyApi, ProviderFeatures};
+use crate::agents::AgentEvent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
 use crate::agents::mcp_client::McpClientTrait;
@@ -21,11 +22,10 @@ use crate::agents::state_machine::{
     ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
     UnknownToolOperation,
 };
-use crate::agents::AgentEvent;
-use crate::config::permission::PermissionManager;
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, MessageContent};
+use crate::config::permission::PermissionManager;
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent};
 use crate::hooks::HookManager;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::providers::base::Provider;
@@ -189,6 +189,10 @@ impl TestPipeline {
         self.calculator.total()
     }
 
+    pub(super) fn synchronize_calculator(&self, calls: usize) {
+        self.calculator.synchronize(calls);
+    }
+
     pub(super) async fn run<const N: usize>(&self, user_messages: [&str; N]) -> Result<TestRun> {
         let mut events = Vec::new();
 
@@ -208,7 +212,13 @@ impl TestPipeline {
 }
 
 pub(super) async fn test_pipeline() -> Result<(TestPipeline, Arc<DummyApi>)> {
-    let api = Arc::new(DummyApi::start().await);
+    test_pipeline_with(ProviderFeatures::default()).await
+}
+
+pub(super) async fn test_pipeline_with(
+    features: ProviderFeatures,
+) -> Result<(TestPipeline, Arc<DummyApi>)> {
+    let api = Arc::new(DummyApi::start(features).await);
     let api_client = goose_providers::api_client::ApiClient::new_with_tls(
         api.uri(),
         goose_providers::api_client::AuthMethod::NoAuth,
@@ -332,6 +342,7 @@ pub(super) struct TestRun {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum MessageKind {
     Agent,
+    ToolCall,
     ToolResponse,
 }
 
@@ -339,6 +350,7 @@ impl MessageKind {
     fn prefix(self) -> &'static str {
         match self {
             Self::Agent => "agent:",
+            Self::ToolCall => "toolcall:",
             Self::ToolResponse => "toolresponse:",
         }
     }

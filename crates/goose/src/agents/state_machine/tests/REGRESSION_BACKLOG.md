@@ -2,23 +2,22 @@
 
 This backlog comes from a review of all 2,349 closed issues in
 `aaif-goose/goose` on 2026-07-25. Ten reviewers each screened a disjoint tenth
-of the issues, inspected relevant fixes, and compared them with the 43 current
-state-machine integration tests.
+of the issues, inspected relevant fixes, and compared them with the
+then-current state-machine integration tests.
 
 The goal is not to reproduce every old test. Each item below protects a real
 failure that can still occur at the state-machine boundary.
 
 ## First: likely current regressions
 
-- [ ] Empty provider responses must not silently end a turn
+- [x] Empty provider responses must not silently end a turn
   ([#10353](https://github.com/aaif-goose/goose/issues/10353),
   [#6470](https://github.com/aaif-goose/goose/issues/6470),
   [#1170](https://github.com/aaif-goose/goose/issues/1170)).
-  `InferenceRunner` currently returns `NotApplicable` when the accumulated
-  response is empty. Return a visible bounded error, persist no empty assistant
+  Empty responses now return a visible error, persist no empty assistant
   message, and allow the next user turn to succeed.
 
-- [ ] Duplicate tool-call IDs execute at most once
+- [x] Duplicate tool-call IDs execute at most once
   ([#9786](https://github.com/aaif-goose/goose/issues/9786),
   [#9756](https://github.com/aaif-goose/goose/issues/9756)).
   The legacy path deduplicates IDs before dispatch. Emit two `calculator__add`
@@ -38,7 +37,7 @@ failure that can still occur at the state-machine boundary.
   instructions, and assert the following provider system prompt contains them.
   This is still a TODO in `ToolExecutionOperation`.
 
-- [ ] Unknown-tool errors include callable alternatives
+- [x] Unknown-tool errors include callable alternatives
   ([#8166](https://github.com/aaif-goose/goose/issues/8166)).
   Extend the existing unknown-tool test to require `calculator__add` in the
   error returned to the model.
@@ -68,18 +67,18 @@ failure that can still occur at the state-machine boundary.
   Two calls more than a second apart must submit identical system prompts when
   nothing relevant changed.
 
-- [ ] Support successful responses without a usage event
+- [x] Support successful responses without a usage event
   ([#899](https://github.com/aaif-goose/goose/issues/899),
   [#1159](https://github.com/aaif-goose/goose/issues/1159)).
   Reply normally, omit usage, then complete another user turn.
 
-- [ ] Support an HTTP 200 response with no choices or messages
+- [x] Support an HTTP 200 response with no choices or messages
   ([#6470](https://github.com/aaif-goose/goose/issues/6470)).
 
 - [ ] Support an empty-body HTTP 500
   ([#5528](https://github.com/aaif-goose/goose/issues/5528)).
-  The persisted error should contain the status and a useful missing-body
-  explanation, and the next turn should recover.
+  The fixture and recovery test exist. The persisted error contains the status,
+  but the shared HTTP mapper still needs a useful missing-body explanation.
 
 - [ ] Support reasoning chunks and mixed text/tool completions
   ([#9675](https://github.com/aaif-goose/goose/issues/9675),
@@ -87,15 +86,14 @@ failure that can still occur at the state-machine boundary.
 
 ## Multiple tool calls
 
-Add one API response form that emits multiple tool calls with configurable IDs.
-Use it for all of these rather than adding issue-specific response helpers.
+The API response fixture supports multiple tool calls with configurable IDs.
 
-- [ ] Pair every parallel request with exactly one response
+- [x] Pair every parallel request with exactly one response
   ([#1367](https://github.com/aaif-goose/goose/issues/1367),
   [#5957](https://github.com/aaif-goose/goose/issues/5957),
   [#5997](https://github.com/aaif-goose/goose/issues/5997)).
 
-- [ ] Calls to one extension execute concurrently
+- [x] Calls to one extension execute concurrently
   ([#7201](https://github.com/aaif-goose/goose/issues/7201)).
   Two calculator calls should meet at a barrier instead of deadlocking behind
   one client lock.
@@ -111,7 +109,7 @@ Use it for all of these rather than adding issue-specific response helpers.
   response and a valid next provider call
   ([#7425](https://github.com/aaif-goose/goose/issues/7425)).
 
-- [ ] Repeated malformed calls remain bounded
+- [x] Repeated malformed calls remain bounded
   ([#7527](https://github.com/aaif-goose/goose/issues/7527)).
 
 ## Cancellation and steering
@@ -188,14 +186,15 @@ Use it for all of these rather than adding issue-specific response helpers.
 
 ## Tool errors and permissions
 
-- [ ] Empty streamed tool arguments normalize to `{}`, produce a useful tool
+- [x] Empty streamed tool arguments normalize to `{}`, produce a useful tool
   error, recover, and do not poison a later user turn
   ([#1108](https://github.com/aaif-goose/goose/issues/1108),
   [#1068](https://github.com/aaif-goose/goose/issues/1068)).
 
-- [ ] MCP runtime error text reaches the model unchanged
+- [x] MCP runtime error text reaches the model unchanged
   ([#6189](https://github.com/aaif-goose/goose/issues/6189)).
-  Add a genuine calculator `fail` operation.
+  Divide the calculator accumulator by zero and preserve the resulting MCP
+  error.
 
 - [ ] Elicitation decline and cancel both complete the waiting tool and allow
   inference to continue
@@ -337,7 +336,7 @@ These need a fixture that can build a second pipeline over an existing
 
 ## Observability and provider-view checks
 
-- [ ] Fragmented text streaming persists exactly one assistant message
+- [x] Fragmented text streaming persists exactly one assistant message
   ([#5576](https://github.com/aaif-goose/goose/issues/5576)).
 
 - [ ] `trace_output` contains the final assistant text
@@ -407,13 +406,11 @@ unless the implementation boundary changes.
 ## Suggested order
 
 1. Fix the tool-pair cutoff in `test_pipeline()`.
-2. Add empty-response recovery.
-3. Add multiple tool-call responses and duplicate-ID coverage.
-4. Add cancellation and next-turn recovery.
-5. Add `/compact` usage and repeated-compaction reload tests.
-6. Add missing-usage and empty-argument recovery.
-7. Add tool-pair client synchronization.
-8. Implement and test nested `AGENTS.md` discovery.
-9. Add the remaining tests that need no new fixture support.
-10. Add reconstruction, scheduler, MCP transport, and multi-session fixtures only
-    when work reaches those boundaries.
+2. Add reasoning and mixed text/tool response coverage.
+3. Add cancellation and next-turn recovery.
+4. Add `/compact` usage and repeated-compaction reload tests.
+5. Add tool-pair client synchronization.
+6. Implement and test nested `AGENTS.md` discovery.
+7. Add the remaining tests that need no new fixture support.
+8. Add reconstruction, scheduler, MCP transport, and multi-session fixtures only
+   when work reaches those boundaries.
