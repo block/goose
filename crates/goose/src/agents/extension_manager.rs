@@ -536,6 +536,29 @@ fn auth_challenge_from_result(res: &Result<McpClient, ClientInitializeError>) ->
     res.as_ref().err().and_then(auth_challenge_from_error)
 }
 
+/// Extract the `WWW-Authenticate` challenge from a post-initialization request
+/// failure (401 auth required or 403 insufficient scope), so a step-up
+/// authorization can be started reactively.
+fn auth_challenge_from_service_error(err: &ServiceError) -> Option<String> {
+    let ServiceError::TransportSend(DynamicTransportError { error, .. }) = err else {
+        return None;
+    };
+
+    if let Some(http_err) = error.downcast_ref::<StreamableHttpError<reqwest::Error>>() {
+        return http_err.auth_challenge().map(str::to_string);
+    }
+
+    #[cfg(unix)]
+    if let Some(http_err) = error
+        .downcast_ref::<StreamableHttpError<rmcp::transport::common::unix_socket::UnixSocketError>>(
+        )
+    {
+        return http_err.auth_challenge().map(str::to_string);
+    }
+
+    None
+}
+
 async fn clear_credentials_on_post_refresh_auth_failure(
     credential_store: &dyn CredentialStore,
     name: &str,
@@ -652,7 +675,7 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
-) -> ExtensionResult<Box<dyn McpClientTrait>> {
+) -> ExtensionResult<McpClient> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
     for (key, value) in headers {
@@ -678,17 +701,232 @@ async fn connect_with_auth(
         auth_client,
         StreamableHttpClientTransportConfig::with_uri(uri),
     );
-    Ok(Box::new(
-        McpClient::connect(
-            transport,
-            timeout,
-            provider,
-            client_name,
-            capabilities,
-            roots_dir.to_path_buf(),
+    Ok(McpClient::connect(
+        transport,
+        timeout,
+        provider,
+        client_name,
+        capabilities,
+        roots_dir.to_path_buf(),
+    )
+    .await?)
+}
+
+/// Connection parameters needed to re-establish an authorized streamable HTTP
+/// client after a post-initialization auth challenge (401/403).
+#[derive(Clone)]
+struct StreamableHttpConnectParams {
+    uri: String,
+    name: String,
+    timeout: Duration,
+    headers: HashMap<String, String>,
+    provider: SharedProvider,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
+    roots_dir: PathBuf,
+}
+
+/// Wraps a streamable HTTP `McpClient` and handles step-up authorization:
+/// when a request fails with a 401/403 carrying a `WWW-Authenticate`
+/// challenge after initialization succeeded, re-authorize using the challenge
+/// (requesting the union of scopes), reconnect, and retry the request once.
+struct OAuthStepUpClient {
+    inner: tokio::sync::RwLock<McpClient>,
+    server_info: Option<ServerInfo>,
+    params: StreamableHttpConnectParams,
+}
+
+impl OAuthStepUpClient {
+    fn new(inner: McpClient, params: StreamableHttpConnectParams) -> Self {
+        let server_info = inner.get_info().cloned();
+        Self {
+            inner: tokio::sync::RwLock::new(inner),
+            server_info,
+            params,
+        }
+    }
+
+    async fn step_up_reconnect(
+        &self,
+        challenge: String,
+    ) -> Result<(), crate::agents::mcp_client::Error> {
+        let params = &self.params;
+        let auth_manager = oauth_flow_with_challenge(&params.uri, &params.name, Some(challenge))
+            .await
+            .map_err(|e| {
+                crate::agents::mcp_client::Error::McpError(ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("step-up authorization failed: {e}"),
+                    None,
+                ))
+            })?;
+        let client = connect_with_auth(
+            auth_manager,
+            &params.uri,
+            params.timeout,
+            &params.headers,
+            params.provider.clone(),
+            params.client_name.clone(),
+            params.capabilities.clone(),
+            &params.roots_dir,
         )
-        .await?,
-    ))
+        .await
+        .map_err(|e| {
+            crate::agents::mcp_client::Error::McpError(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("reconnect after step-up authorization failed: {e}"),
+                None,
+            ))
+        })?;
+        *self.inner.write().await = client;
+        Ok(())
+    }
+
+    /// Run `op` against the current client; on an auth challenge, re-authorize
+    /// and retry once.
+    async fn with_step_up_retry<T, F>(&self, op: F) -> Result<T, crate::agents::mcp_client::Error>
+    where
+        F: for<'a> Fn(
+            &'a McpClient,
+        ) -> Pin<
+            Box<
+                dyn std::future::Future<Output = Result<T, crate::agents::mcp_client::Error>>
+                    + Send
+                    + 'a,
+            >,
+        >,
+    {
+        let first = {
+            let client = self.inner.read().await;
+            op(&client).await
+        };
+        match first {
+            Err(err) => {
+                if let Some(challenge) = auth_challenge_from_service_error(&err) {
+                    self.step_up_reconnect(challenge).await?;
+                    let client = self.inner.read().await;
+                    op(&client).await
+                } else {
+                    Err(err)
+                }
+            }
+            ok => ok,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl McpClientTrait for OAuthStepUpClient {
+    async fn list_tools(
+        &self,
+        session_id: &str,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<rmcp::model::ListToolsResult, crate::agents::mcp_client::Error> {
+        let session_id = session_id.to_string();
+        self.with_step_up_retry(move |client| {
+            let session_id = session_id.clone();
+            let next_cursor = next_cursor.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move {
+                client
+                    .list_tools(&session_id, next_cursor, cancel_token)
+                    .await
+            })
+        })
+        .await
+    }
+
+    async fn call_tool(
+        &self,
+        ctx: &ToolCallContext,
+        name: &str,
+        arguments: Option<rmcp::model::JsonObject>,
+        cancel_token: CancellationToken,
+    ) -> Result<CallToolResult, crate::agents::mcp_client::Error> {
+        let ctx = ctx.clone();
+        let name = name.to_string();
+        self.with_step_up_retry(move |client| {
+            let ctx = ctx.clone();
+            let name = name.clone();
+            let arguments = arguments.clone();
+            let cancel_token = cancel_token.clone();
+            Box::pin(async move { client.call_tool(&ctx, &name, arguments, cancel_token).await })
+        })
+        .await
+    }
+
+    fn get_info(&self) -> Option<&ServerInfo> {
+        self.server_info.as_ref()
+    }
+
+    async fn list_resources(
+        &self,
+        session_id: &str,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<rmcp::model::ListResourcesResult, crate::agents::mcp_client::Error> {
+        self.inner
+            .read()
+            .await
+            .list_resources(session_id, next_cursor, cancel_token)
+            .await
+    }
+
+    async fn read_resource(
+        &self,
+        session_id: &str,
+        uri: &str,
+        cancel_token: CancellationToken,
+    ) -> Result<rmcp::model::ReadResourceResult, crate::agents::mcp_client::Error> {
+        self.inner
+            .read()
+            .await
+            .read_resource(session_id, uri, cancel_token)
+            .await
+    }
+
+    async fn list_prompts(
+        &self,
+        session_id: &str,
+        next_cursor: Option<String>,
+        cancel_token: CancellationToken,
+    ) -> Result<rmcp::model::ListPromptsResult, crate::agents::mcp_client::Error> {
+        self.inner
+            .read()
+            .await
+            .list_prompts(session_id, next_cursor, cancel_token)
+            .await
+    }
+
+    async fn get_prompt(
+        &self,
+        session_id: &str,
+        name: &str,
+        arguments: Value,
+        cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, crate::agents::mcp_client::Error> {
+        self.inner
+            .read()
+            .await
+            .get_prompt(session_id, name, arguments, cancel_token)
+            .await
+    }
+
+    async fn subscribe(&self) -> tokio::sync::mpsc::Receiver<rmcp::model::ServerNotification> {
+        self.inner.read().await.subscribe().await
+    }
+
+    async fn get_moim(&self, session_id: &str) -> Option<String> {
+        self.inner.read().await.get_moim(session_id).await
+    }
+
+    async fn update_working_dir(
+        &self,
+        new_dir: PathBuf,
+    ) -> Result<(), crate::agents::mcp_client::Error> {
+        self.inner.read().await.update_working_dir(new_dir).await
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -757,6 +995,17 @@ async fn create_streamable_http_client(
         StreamableHttpClientTransportConfig::with_uri(uri),
     );
 
+    let connect_params = StreamableHttpConnectParams {
+        uri: uri.to_string(),
+        name: name.to_string(),
+        timeout: timeout_duration,
+        headers: headers.clone(),
+        provider: provider.clone(),
+        client_name: client_name.clone(),
+        capabilities: capabilities.clone(),
+        roots_dir: roots_dir.to_path_buf(),
+    };
+
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
@@ -787,10 +1036,16 @@ async fn create_streamable_http_client(
                             name
                         );
                     } else {
-                        return auth_result;
+                        return Ok(Box::new(OAuthStepUpClient::new(
+                            auth_result?,
+                            connect_params,
+                        )));
                     }
                 } else {
-                    return auth_result;
+                    return Ok(Box::new(OAuthStepUpClient::new(
+                        auth_result?,
+                        connect_params,
+                    )));
                 }
             }
             Err(e) => {
@@ -816,7 +1071,7 @@ async fn create_streamable_http_client(
         let challenge = auth_challenge_from_result(&client_res);
         match oauth_flow_with_challenge(&uri.to_string(), &name.to_string(), challenge).await {
             Ok(auth_manager) => {
-                connect_with_auth(
+                let client = connect_with_auth(
                     auth_manager,
                     uri,
                     timeout_duration,
@@ -826,12 +1081,16 @@ async fn create_streamable_http_client(
                     capabilities,
                     roots_dir,
                 )
-                .await
+                .await?;
+                Ok(Box::new(OAuthStepUpClient::new(client, connect_params)))
             }
             Err(_) => Ok(Box::new(client_res?)),
         }
     } else {
-        Ok(Box::new(client_res?))
+        Ok(Box::new(OAuthStepUpClient::new(
+            client_res?,
+            connect_params,
+        )))
     }
 }
 

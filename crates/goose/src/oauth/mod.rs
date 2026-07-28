@@ -157,7 +157,11 @@ pub async fn oauth_flow_with_config(
     let mut auth_manager = AuthorizationManager::new(mcp_server_url).await?;
     auth_manager.set_credential_store(credential_store.clone());
 
-    if auth_manager.initialize_from_store().await? {
+    // With a challenge in hand (e.g. a 403 insufficient_scope after a
+    // previously successful authorization), a refresh cannot satisfy the new
+    // scope requirement: skip straight to a full re-authorization that
+    // requests the union of scopes.
+    if auth_manager.initialize_from_store().await? && flow_config.challenge.is_none() {
         match auth_manager.refresh_token().await {
             Ok(_) => return Ok(auth_manager),
             Err(e) => warn!(
