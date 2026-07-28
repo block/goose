@@ -15,6 +15,7 @@ use futures::Stream;
 use rmcp::model::{object, CallToolRequestParams, ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
@@ -736,8 +737,19 @@ fn parse_tool_arguments(arguments: &str) -> anyhow::Result<Value> {
     }
 }
 
+fn sanitize_tool_request_id(id: &str, seen_ids: &mut HashSet<String>) -> anyhow::Result<String> {
+    let id = strip_unicode_tags(id);
+    if !seen_ids.insert(id.clone()) {
+        return Err(anyhow!(
+            "Responses tool calls contain duplicate ID after Unicode tag sanitization"
+        ));
+    }
+    Ok(id)
+}
+
 pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
     let mut content = Vec::new();
+    let mut tool_request_ids = HashSet::new();
 
     for item in &response.output {
         match item {
@@ -763,8 +775,9 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                             }
                         }
                         ResponseContentBlock::ToolCall { id, name, input } => {
+                            let id = sanitize_tool_request_id(id, &mut tool_request_ids)?;
                             content.push(MessageContentBlock::tool_request(
-                                id.clone(),
+                                id,
                                 Ok(CallToolRequestParams::new(strip_unicode_tags(name))
                                     .with_arguments(object(sanitize_tool_arguments(
                                         input.clone(),
@@ -784,6 +797,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 let request_id = call_id.clone().or_else(|| id.clone()).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
+                let request_id = sanitize_tool_request_id(&request_id, &mut tool_request_ids)?;
                 let parsed_args = parse_tool_arguments(arguments)?;
 
                 content.push(MessageContentBlock::tool_request(
@@ -814,6 +828,7 @@ fn process_streaming_output_items(
     is_text_response: bool,
 ) -> anyhow::Result<Vec<MessageContentBlock>> {
     let mut content = Vec::new();
+    let mut tool_request_ids = HashSet::new();
 
     for item in output_items {
         match item {
@@ -840,6 +855,7 @@ fn process_streaming_output_items(
                             name,
                             arguments,
                         } => {
+                            let id = sanitize_tool_request_id(&id, &mut tool_request_ids)?;
                             let parsed_args = parse_tool_arguments(&arguments)?;
 
                             content.push(MessageContentBlock::tool_request(
@@ -861,6 +877,7 @@ fn process_streaming_output_items(
                 let request_id = call_id.or(id).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
+                let request_id = sanitize_tool_request_id(&request_id, &mut tool_request_ids)?;
                 let parsed_args = parse_tool_arguments(&arguments)?;
 
                 content.push(MessageContentBlock::tool_request(
@@ -1447,7 +1464,7 @@ mod tests {
                     status: Some("completed".to_string()),
                     role: "assistant".to_string(),
                     content: vec![ResponseContentBlock::ToolCall {
-                        id: "call_1".to_string(),
+                        id: "call_\u{E0041}1".to_string(),
                         name: "sh\u{E0041}ell".to_string(),
                         input: json!({"prompt": "visible e\u{301}\u{E0041}text"}),
                     }],
@@ -1455,7 +1472,7 @@ mod tests {
                 ResponseOutputItem::FunctionCall {
                     id: None,
                     status: Some("completed".to_string()),
-                    call_id: Some("call_2".to_string()),
+                    call_id: Some("call_\u{E0042}2".to_string()),
                     name: "sh\u{E0042}ell".to_string(),
                     arguments: serde_json::to_string(
                         &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
@@ -1468,10 +1485,11 @@ mod tests {
         };
 
         let message = responses_api_to_message(&response).unwrap();
-        for content in message.content {
+        for (content, expected_id) in message.content.into_iter().zip(["call_1", "call_2"]) {
             let MessageContentBlock::ToolRequest(tool_request) = content else {
                 panic!("expected tool request content");
             };
+            assert_eq!(tool_request.id, expected_id);
             let tool_call = tool_request.tool_call.expect("expected valid tool call");
             assert_eq!(tool_call.name, "shell");
             assert_eq!(
@@ -1482,6 +1500,46 @@ mod tests {
                 Some(&json!("visible e\u{301}text"))
             );
         }
+    }
+
+    #[test]
+    fn test_responses_api_to_message_rejects_sanitized_tool_request_id_collisions() {
+        let response = ResponsesApiResponse {
+            id: "resp_1".to_string(),
+            object: "response".to_string(),
+            created_at: 0,
+            status: "completed".to_string(),
+            model: "gpt-5.3-codex".to_string(),
+            output: vec![
+                ResponseOutputItem::Message {
+                    id: Some("msg_1".to_string()),
+                    status: Some("completed".to_string()),
+                    role: "assistant".to_string(),
+                    content: vec![ResponseContentBlock::ToolCall {
+                        id: "call_1".to_string(),
+                        name: "shell".to_string(),
+                        input: json!({}),
+                    }],
+                },
+                ResponseOutputItem::FunctionCall {
+                    id: None,
+                    status: Some("completed".to_string()),
+                    call_id: Some("call_\u{E0041}1".to_string()),
+                    name: "shell".to_string(),
+                    arguments: "{}".to_string(),
+                },
+            ],
+            reasoning: None,
+            usage: None,
+        };
+
+        let error = responses_api_to_message(&response).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate ID after Unicode tag sanitization"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]
@@ -2369,7 +2427,7 @@ mod tests {
                 status: Some("completed".to_string()),
                 role: "assistant".to_string(),
                 content: vec![ContentBlockPart::ToolCall {
-                    id: "call_1".to_string(),
+                    id: "call_\u{E0041}1".to_string(),
                     name: "sh\u{E0041}ell".to_string(),
                     arguments: serde_json::to_string(
                         &json!({"prompt": "visible e\u{301}\u{E0041}text"}),
@@ -2379,7 +2437,7 @@ mod tests {
             ResponseOutputItemInfo::FunctionCall {
                 id: None,
                 status: Some("completed".to_string()),
-                call_id: Some("call_2".to_string()),
+                call_id: Some("call_\u{E0042}2".to_string()),
                 name: "sh\u{E0042}ell".to_string(),
                 arguments: serde_json::to_string(
                     &json!({"prompt": "visible e\u{301}\u{E0042}text"}),
@@ -2388,10 +2446,11 @@ mod tests {
         ];
 
         let content = process_streaming_output_items(output_items, false)?;
-        for content in content {
+        for (content, expected_id) in content.into_iter().zip(["call_1", "call_2"]) {
             let MessageContentBlock::ToolRequest(tool_request) = content else {
                 panic!("expected tool request content");
             };
+            assert_eq!(tool_request.id, expected_id);
             let tool_call = tool_request.tool_call.expect("expected valid tool call");
             assert_eq!(tool_call.name, "shell");
             assert_eq!(
@@ -2402,6 +2461,40 @@ mod tests {
                 Some(&json!("visible e\u{301}text"))
             );
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_streaming_output_items_reject_sanitized_tool_request_id_collisions(
+    ) -> anyhow::Result<()> {
+        let output_items = vec![
+            ResponseOutputItemInfo::Message {
+                id: Some("msg_1".to_string()),
+                status: Some("completed".to_string()),
+                role: "assistant".to_string(),
+                content: vec![ContentBlockPart::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "shell".to_string(),
+                    arguments: "{}".to_string(),
+                }],
+            },
+            ResponseOutputItemInfo::FunctionCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: Some("call_\u{E0041}1".to_string()),
+                name: "shell".to_string(),
+                arguments: "{}".to_string(),
+            },
+        ];
+
+        let error = process_streaming_output_items(output_items, false).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate ID after Unicode tag sanitization"),
+            "unexpected error: {error}"
+        );
 
         Ok(())
     }
