@@ -30,7 +30,7 @@
     "env": [
       "ABLIT_KEY"
     ],
-    "model_count": 1
+    "model_count": 2
   },
   {
     "id": "ai-router",
@@ -52,7 +52,7 @@
     "env": [
       "AIAND_API_KEY"
     ],
-    "model_count": 9
+    "model_count": 8
   },
   {
     "id": "aki-io",
@@ -206,7 +206,7 @@
     "env": [
       "BERGET_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 9
   },
   {
     "id": "blueclaw",
@@ -306,7 +306,7 @@
     "env": [
       "CROF_API_KEY"
     ],
-    "model_count": 23
+    "model_count": 24
   },
   {
     "id": "crossmodel",
@@ -550,6 +550,17 @@
       "HF_TOKEN"
     ],
     "model_count": 53
+  },
+  {
+    "id": "hyper",
+    "display_name": "Charm Hyper",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://hyper.charm.land/v1",
+    "doc": "https://hyper.charm.land",
+    "env": [
+      "HYPER_API_KEY"
+    ],
+    "model_count": 20
   },
   {
     "id": "iflowcn",
@@ -990,7 +1001,7 @@
     "env": [
       "NVIDIA_API_KEY"
     ],
-    "model_count": 84
+    "model_count": 98
   },
   {
     "id": "ofox",
@@ -1322,7 +1333,7 @@
     "env": [
       "SYNTHETIC_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 8
   },
   {
     "id": "tencent-coding-plan",
@@ -1542,7 +1553,7 @@
     "env": [
       "XPERSONA_API_KEY"
     ],
-    "model_count": 3
+    "model_count": 13
   },
   {
     "id": "zai",
