@@ -583,8 +583,8 @@ pub fn format_tools(tools: &[Tool], mid_conversation_tool_changes: bool) -> Vec<
     }
 
     // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-    // will be cached as a single prefix. A withheld tool is rejected outright if it also carries
-    // cache_control, so the breakpoint goes on the last spec that can hold one.
+    // will be cached as a single prefix. A withheld spec is rejected if it also carries
+    // cache_control, so the breakpoint goes on the last one that can hold it.
     if let Some(last_tool) = tool_specs
         .iter_mut()
         .rev()

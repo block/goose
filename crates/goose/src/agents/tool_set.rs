@@ -24,12 +24,10 @@ pub struct DeclaredSurfaces(Mutex<HashMap<String, Surface>>);
 #[derive(Default)]
 struct Surface {
     tools: Vec<Tool>,
-    /// Names withheld in the array until an addition reveals them, which is what stops the model
-    /// reading a tool as available before it was enabled.
+    /// Withheld in the array until an addition reveals them, so the model does not read a tool as
+    /// available before it was enabled.
     deferred: HashSet<String>,
-    /// Every tool the session has held, counted before the filters that decide what is offered.
-    /// `tool_count` is reported in those terms, so measuring against `tools` would shrink it
-    /// whenever a hidden tool's extension went away.
+    /// Counted before the filters that decide what is offered, the unit `tool_count` is in.
     counted: HashSet<String>,
     extensions: Vec<ExtensionInfo>,
     frontend_instructions: Vec<(String, String)>,
@@ -46,8 +44,7 @@ pub struct DeclaredPrompt {
 /// What a session has enabled right now, as the prompt would describe it without a declared
 /// surface. The totals cover tool and extension sources the lists themselves do not hold.
 pub struct EnabledSurface {
-    /// Tool names taken before the filters that decide what the model is offered, which is the
-    /// unit `tool_total` is expressed in.
+    /// Taken before the filters that decide what the model is offered, the unit `tool_total` is in.
     pub counted_tool_names: Vec<String>,
     pub extensions: Vec<ExtensionInfo>,
     pub frontend_instructions: Vec<(String, String)>,
@@ -104,8 +101,6 @@ impl DeclaredSurfaces {
             .frontend_instructions
             .sort_by(|(a, _), (b, _)| a.cmp(b));
 
-        // The totals cover sources these lists do not hold, so add what the surface declares
-        // beyond the enabled set rather than recounting.
         DeclaredPrompt {
             extension_count: extension_total
                 + surface
@@ -133,8 +128,7 @@ impl DeclaredSurfaces {
         let surface = sessions.entry(session_id.to_string()).or_default();
         let declared_names = surface.declare_tools(enabled_tools);
 
-        // What the array offers by itself, which the recorded deltas then move: an addition
-        // archived by compaction simply has to be made again.
+        // An addition archived by compaction simply has to be made again.
         let offered: HashSet<String> = declared_names
             .difference(&surface.deferred)
             .cloned()
@@ -175,8 +169,7 @@ fn render_frontend_instructions(instructions: &[(String, String)]) -> Option<Str
 
 impl Surface {
     fn declared_tools(&self) -> Vec<Tool> {
-        // An extension owns its `_meta`, so the marker is only trustworthy coming from here: one
-        // arriving on an enabled tool would withhold it with no addition to reveal it.
+        // A marker on an enabled tool is not goose's, and would withhold it for good.
         self.tools
             .iter()
             .map(|tool| {
@@ -191,12 +184,11 @@ impl Surface {
 
     fn declare_tools(&mut self, enabled: &[Tool]) -> HashSet<String> {
         // Whichever of `declare` and `resolve` runs first for a turn lands here, so this is the
-        // only place that can tell a tool the model has never been offered from one it has. The
-        // first non-empty array is offered outright because the API rejects one whose every tool
-        // is withheld.
+        // only place that can tell a never-offered tool from an offered one. The opening array is
+        // offered outright because the API rejects one whose every tool is withheld.
         let opening = self.tools.is_empty();
-        // A changed schema can arrive under an unchanged name, and keeping the old one would
-        // have the model calling it with stale arguments.
+        // A changed schema can arrive under an unchanged name, and a stale one means wrong
+        // arguments.
         for tool in enabled {
             match self
                 .tools
@@ -362,25 +354,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_declared_prompt_keeps_disabled_extensions() {
+    async fn test_declared_prompt_keeps_what_was_disabled() {
         let surfaces = DeclaredSurfaces::default();
         let apps = ExtensionInfo::new("apps", "build apps", false);
         let developer = ExtensionInfo::new("developer", "write code", false);
 
         // `apps__hidden` is counted but never offered, as an app-only tool is.
-        surfaces
+        let prompt = surfaces
             .declare(
                 "s",
                 &tools(&["apps__a", "developer__b"]),
                 EnabledSurface {
                     counted_tool_names: names(&tools(&["apps__a", "apps__hidden", "developer__b"])),
                     extensions: vec![apps, developer.clone()],
-                    frontend_instructions: Vec::new(),
-                    extension_total: 2,
+                    frontend_instructions: vec![
+                        ("ui".to_string(), "render things".to_string()),
+                        ("chat".to_string(), "talk".to_string()),
+                    ],
+                    extension_total: 4,
                     tool_total: 3,
                 },
             )
             .await;
+        assert_eq!(
+            prompt.frontend_instructions.as_deref(),
+            Some("chat: talk\n\nui: render things")
+        );
+        assert_eq!((prompt.extension_count, prompt.tool_count), (4, 3));
+
         let prompt = surfaces
             .declare(
                 "s",
@@ -394,7 +395,6 @@ mod tests {
                 },
             )
             .await;
-
         assert_eq!(
             prompt
                 .extensions
@@ -403,16 +403,19 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["apps", "developer"]
         );
-        assert_eq!((prompt.extension_count, prompt.tool_count), (2, 3));
+        assert_eq!(
+            prompt.frontend_instructions.as_deref(),
+            Some("chat: talk\n\nui: render things")
+        );
+        assert_eq!((prompt.extension_count, prompt.tool_count), (4, 3));
 
-        let other = ExtensionInfo::new("other", "do other things", false);
         let prompt = surfaces
             .declare(
                 "s",
                 &tools(&["other__c"]),
                 EnabledSurface {
                     counted_tool_names: names(&tools(&["other__c"])),
-                    extensions: vec![other],
+                    extensions: vec![ExtensionInfo::new("other", "do other things", false)],
                     frontend_instructions: Vec::new(),
                     extension_total: 1,
                     tool_total: 1,
@@ -420,55 +423,6 @@ mod tests {
             )
             .await;
 
-        assert_eq!((prompt.extension_count, prompt.tool_count), (3, 4));
-    }
-
-    #[tokio::test]
-    async fn test_declared_prompt_keeps_disabled_frontend_instructions() {
-        let surfaces = DeclaredSurfaces::default();
-
-        let prompt = surfaces
-            .declare(
-                "s",
-                &tools(&["apps__a", "developer__b"]),
-                EnabledSurface {
-                    counted_tool_names: names(&tools(&["apps__a", "developer__b"])),
-                    extensions: Vec::new(),
-                    frontend_instructions: vec![
-                        ("developer".to_string(), "write code".to_string()),
-                        ("apps".to_string(), "build apps".to_string()),
-                    ],
-                    extension_total: 2,
-                    tool_total: 2,
-                },
-            )
-            .await;
-        assert_eq!(
-            prompt.frontend_instructions.as_deref(),
-            Some("apps: build apps\n\ndeveloper: write code")
-        );
-
-        let prompt = surfaces
-            .declare(
-                "s",
-                &tools(&["developer__b"]),
-                EnabledSurface {
-                    counted_tool_names: names(&tools(&["developer__b"])),
-                    extensions: Vec::new(),
-                    frontend_instructions: vec![(
-                        "developer".to_string(),
-                        "write code".to_string(),
-                    )],
-                    extension_total: 1,
-                    tool_total: 1,
-                },
-            )
-            .await;
-
-        assert_eq!(
-            prompt.frontend_instructions.as_deref(),
-            Some("apps: build apps\n\ndeveloper: write code")
-        );
-        assert_eq!((prompt.extension_count, prompt.tool_count), (2, 2));
+        assert_eq!((prompt.extension_count, prompt.tool_count), (5, 4));
     }
 }

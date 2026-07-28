@@ -2078,8 +2078,8 @@ impl Agent {
                 );
 
                 // Deltas and the tool array have to agree, so a turn sending the enabled array
-                // must not carry deltas describing the declared one. Only recording a *new* delta
-                // needs a user turn after it, which keeps the array from oscillating.
+                // must not carry deltas describing the declared one. Only a *new* delta needs a
+                // user turn after it, which keeps the array from oscillating.
                 let (provider_tools, provider_conversation) = if mid_conversation_tool_changes {
                     let (declared_tools, update) = self
                         .declared_surfaces
