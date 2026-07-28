@@ -26,6 +26,17 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
+
+const TERMINAL_KILL_GRACE_PERIOD: Duration = Duration::from_secs(5);
+
+async fn wait_after_terminal_kill<F, T>(wait: F, grace_period: Duration) -> Result<T, &'static str>
+where
+    F: std::future::Future<Output = T>,
+{
+    timeout(grace_period, wait)
+        .await
+        .map_err(|_| "terminal did not exit within the post-kill grace period")
+}
 use tokio_util::sync::CancellationToken;
 
 async fn acp_read_text_file(
@@ -361,13 +372,22 @@ impl AcpTools {
                                 None,
                             ))
                         })?;
-                    self.cx
+                    let killed_wait = self
+                        .cx
                         .send_request(WaitForTerminalExitRequest::new(
                             self.session_id.clone(),
                             terminal_id.clone(),
                         ))
-                        .block_task()
+                        .block_task();
+                    wait_after_terminal_kill(killed_wait, TERMINAL_KILL_GRACE_PERIOD)
                         .await
+                        .map_err(|message| {
+                            McpError::McpError(rmcp::model::ErrorData::new(
+                                rmcp::model::ErrorCode::INTERNAL_ERROR,
+                                message,
+                                None,
+                            ))
+                        })?
                         .map_err(|e| {
                             McpError::McpError(rmcp::model::ErrorData::new(
                                 rmcp::model::ErrorCode::INTERNAL_ERROR,
@@ -481,6 +501,25 @@ impl McpClientTrait for AcpTools {
 mod tests {
     use super::*;
     use crate::agents::ToolCallContext;
+
+    #[tokio::test]
+    async fn post_kill_wait_is_bounded() {
+        let result =
+            wait_after_terminal_kill(std::future::pending::<()>(), Duration::from_millis(1)).await;
+
+        assert_eq!(
+            result,
+            Err("terminal did not exit within the post-kill grace period")
+        );
+    }
+
+    #[tokio::test]
+    async fn post_kill_wait_returns_successful_exit() {
+        assert_eq!(
+            wait_after_terminal_kill(async { 0 }, TERMINAL_KILL_GRACE_PERIOD).await,
+            Ok(0)
+        );
+    }
 
     #[test]
     fn terminal_shell_guidance_keeps_persistent_commands_foregrounded() {
