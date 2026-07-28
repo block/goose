@@ -34,7 +34,7 @@ An OAuth window will open in your browser when goose first connects to the exten
 
 [Unstructured Transform](https://unstructured.io) is a hosted service that turns raw documents into agent-ready data: clean, structured output that agents, LLMs, and RAG pipelines can act on directly instead of wrestling with file formats. It partitions files into typed elements, then optionally enriches, chunks, and embeds them, so the output arrives ready for retrieval and reasoning. The Transform MCP server is fully remote, so there is nothing to install or run locally.
 
-The extension provides four tools that goose drives end to end: `request_file_upload_url`, `transform_files`, `check_transform_status`, and `get_transform_results`. Uploads and result downloads use pre-signed URLs, which goose handles with its built-in shell tools.
+The extension provides the tools goose drives end to end for a parse: `request_file_upload_url`, `start_transform_job`, `check_job_status`, and `get_job_results`. Uploads and result downloads use pre-signed URLs, which goose handles with its built-in shell tools.
 
 ## Configuration
 
