@@ -1075,6 +1075,15 @@ impl CliSession {
     }
 
     async fn handle_new(&mut self) -> Result<()> {
+        let provider = self.agent.provider().await?;
+        if provider.manages_own_context() {
+            output::render_error(&format!(
+                "Starting a new session is not supported for provider '{}' because it manages its own conversation context.",
+                provider.get_name()
+            ));
+            return Ok(());
+        }
+
         let new_session_id = match self.prepare_successor_session().await {
             Ok(id) => id,
             Err(e) => {
