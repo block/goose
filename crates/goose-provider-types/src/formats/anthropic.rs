@@ -106,6 +106,12 @@ pub fn tool_defers_loading(tool: &Tool) -> bool {
         .is_some_and(|meta| meta.0.get(DEFER_LOADING_META_KEY) == Some(&json!(true)))
 }
 
+/// An extension owns the `_meta` it returns, so a marker arriving with a listed tool is not goose's:
+/// honoring it would withhold that tool with no `tool_addition` able to reveal it.
+pub fn discard_defer_loading_marker(meta: &mut JsonObject) {
+    meta.remove(DEFER_LOADING_META_KEY);
+}
+
 /// Canonical ids, so dated names and regional or reseller aliases all resolve to one check. Mythos
 /// is absent from the generated registry, leaving it inert here until the registry carries it.
 const MID_CONVERSATION_TOOL_CHANGE_MODELS: &[&str] = &[
@@ -557,7 +563,7 @@ fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObj
 }
 
 /// Convert internal Tool format to Anthropic's API tool specification
-pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
+pub fn format_tools(tools: &[Tool], mid_conversation_tool_changes: bool) -> Vec<Value> {
     let mut unique_tools = HashSet::new();
     let mut tool_specs = Vec::new();
 
@@ -568,7 +574,8 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
                 "description": tool.description,
                 "input_schema": anthropic_flavored_input_schema(tool.input_schema.clone())
             });
-            if tool_defers_loading(tool) {
+            // `defer_loading` is beta-only, so a request that did not opt in must not carry it.
+            if mid_conversation_tool_changes && tool_defers_loading(tool) {
                 spec[DEFER_LOADING_FIELD] = json!(true);
             }
             tool_specs.push(spec);
@@ -874,7 +881,7 @@ pub fn create_request(
         }
     }
 
-    let tool_specs = format_tools(declared_tools);
+    let tool_specs = format_tools(declared_tools, options.mid_conversation_tool_changes);
     let system_spec = format_system(system);
 
     if anthropic_messages.is_empty() {
@@ -1511,7 +1518,7 @@ mod tests {
             ),
         ];
 
-        let spec = format_tools(&tools);
+        let spec = format_tools(&tools, false);
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["name"], "calculator");
@@ -2838,6 +2845,54 @@ mod tests {
 
         assert!(!payload_needs_tool_change_beta(&payload));
         assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_defer_loading_is_beta_only_and_never_shares_a_spec_with_cache_control() -> Result<()> {
+        let messages = vec![Message::user().with_text("first")];
+        let tools = [defer_tool_loading(&named_tool("a")), named_tool("b")];
+
+        let on = create_request_with_options_provider(
+            &cfg("claude-opus-5"),
+            "system",
+            &messages,
+            &tools,
+            AnthropicFormatOptions {
+                mid_conversation_tool_changes: true,
+                ..AnthropicFormatOptions::default()
+            },
+        )?;
+        let specs = on["tools"].as_array().unwrap();
+        assert_eq!(specs[0][DEFER_LOADING_FIELD], json!(true));
+        // Both fields on one spec is a 400, so the breakpoint moves to the last offered spec.
+        assert!(specs[0].get(CACHE_CONTROL_FIELD).is_none());
+        assert!(specs[1].get(CACHE_CONTROL_FIELD).is_some());
+        assert!(payload_needs_tool_change_beta(&on));
+
+        for (model, options) in [
+            ("claude-opus-5", AnthropicFormatOptions::default()),
+            (
+                "claude-sonnet-5",
+                AnthropicFormatOptions {
+                    mid_conversation_tool_changes: true,
+                    ..AnthropicFormatOptions::default()
+                },
+            ),
+        ] {
+            let off = create_request_with_options_provider(
+                &cfg(model),
+                "system",
+                &messages,
+                &tools,
+                options,
+            )?;
+            let specs = off["tools"].as_array().unwrap();
+            assert!(specs
+                .iter()
+                .all(|spec| spec.get(DEFER_LOADING_FIELD).is_none()));
+            assert!(!payload_needs_tool_change_beta(&off));
+        }
         Ok(())
     }
 

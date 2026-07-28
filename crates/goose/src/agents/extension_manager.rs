@@ -47,6 +47,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::{oauth_flow, GooseCredentialStore};
 use crate::prompt_template;
+use crate::providers::formats::anthropic::discard_defer_loading_marker;
 use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData, GetPromptResult,
@@ -1434,6 +1435,7 @@ impl ExtensionManager {
                                 TOOL_EXTENSION_META_KEY.to_string(),
                                 serde_json::Value::String(name.clone()),
                             );
+                            discard_defer_loading_marker(&mut meta_map);
 
                             tool.name = public_name.into();
                             tool.meta = Some(rmcp::model::Meta(meta_map));
