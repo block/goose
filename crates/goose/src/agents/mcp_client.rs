@@ -578,7 +578,7 @@ impl ClientHandler for GooseClient {
 
 pub type ElicitationHandler = Arc<dyn Fn(&ElicitRequestParams) -> ElicitResult + Send + Sync>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GooseMcpClientCapabilities {
     pub mcpui: bool,
     pub host_info: Option<GooseMcpHostInfo>,
@@ -595,17 +595,6 @@ impl std::fmt::Debug for GooseMcpClientCapabilities {
             .field("elicitation_handler", &self.elicitation_handler.is_some())
             .field("protocol_version", &self.protocol_version)
             .finish()
-    }
-}
-
-impl Default for GooseMcpClientCapabilities {
-    fn default() -> Self {
-        Self {
-            mcpui: false,
-            host_info: None,
-            elicitation_handler: None,
-            protocol_version: None,
-        }
     }
 }
 
