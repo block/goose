@@ -1,5 +1,6 @@
 use crate::acp::server::{AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions};
 use crate::agents::GoosePlatform;
+use crate::scheduler::scheduler_disabled_by_env;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
@@ -8,31 +9,9 @@ use std::sync::Arc;
 use tokio::sync::OnceCell;
 use tracing::info;
 
-/// Environment variable that suppresses the cron scheduler in `goose acp`.
-///
-/// Hosts that run a pool of ACP workers (for example Buzz, which spawns one
-/// `goose acp` child per agent slot) would otherwise have every worker execute
-/// the user's personal schedule, so a single cron entry fires once per worker.
-/// Such hosts set this variable on every child they spawn.
-pub const GOOSE_ACP_SCHEDULER_DISABLED_ENV: &str = "GOOSE_ACP_SCHEDULER_DISABLED";
-
-/// Reads [`GOOSE_ACP_SCHEDULER_DISABLED`] straight from the process
-/// environment.
-///
-/// Deliberately not routed through [`crate::config::Config`]: this must be a
-/// read-only, environment-only switch, and the config layer both falls back to
-/// persisted YAML and coerces values like `"1"` into JSON numbers that fail to
-/// deserialize as `bool`.
-///
-/// Only `true` disables scheduling, matched case-insensitively after trimming
-/// surrounding whitespace. Unset, `false`, and unparseable values all leave
-/// scheduling enabled, so a typo can never silently disable a user's cron jobs.
-///
-/// [`GOOSE_ACP_SCHEDULER_DISABLED`]: GOOSE_ACP_SCHEDULER_DISABLED_ENV
-fn scheduler_disabled_by_env() -> bool {
-    std::env::var(GOOSE_ACP_SCHEDULER_DISABLED_ENV)
-        .is_ok_and(|value| value.trim().eq_ignore_ascii_case("true"))
-}
+/// Re-exported so callers that reach the switch through the ACP surface keep
+/// working; the switch itself is process-wide and lives with the scheduler.
+pub use crate::scheduler::GOOSE_ACP_SCHEDULER_DISABLED_ENV;
 
 pub struct AcpServerFactoryConfig {
     pub builtins: Vec<String>,
@@ -124,22 +103,6 @@ impl AcpServer {
 mod tests {
     use super::*;
     use serial_test::serial;
-    use test_case::test_case;
-
-    #[test_case(None, false ; "unset keeps scheduling enabled")]
-    #[test_case(Some("true"), true ; "true disables scheduling")]
-    #[test_case(Some("TRUE"), true ; "value is case insensitive")]
-    #[test_case(Some("  true  "), true ; "surrounding whitespace is trimmed")]
-    #[test_case(Some("false"), false ; "false keeps scheduling enabled")]
-    #[test_case(Some("1"), false ; "one keeps scheduling enabled")]
-    #[test_case(Some(""), false ; "empty keeps scheduling enabled")]
-    #[test_case(Some("yes please"), false ; "unparseable keeps scheduling enabled")]
-    #[serial]
-    fn scheduler_disabled_by_env_only_honors_true(value: Option<&str>, expected: bool) {
-        let _guard = env_lock::lock_env([(GOOSE_ACP_SCHEDULER_DISABLED_ENV, value)]);
-
-        assert_eq!(scheduler_disabled_by_env(), expected);
-    }
 
     #[tokio::test]
     #[serial]

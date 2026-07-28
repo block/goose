@@ -392,16 +392,32 @@ prompt: |
      cp "$ACP_ROOT/data/schedule.json" "$ACP_ROOT/expected.json"
      ```
   2. Speak JSON-RPC to a child with the flag set. `goose acp` does not exit on stdin EOF, so bound
-     it with `timeout`:
+     it yourself. Do not use `timeout` — it is not a macOS system utility. Background the child,
+     poll for the response, and reap it on every exit path, including signals: this test exists
+     because orphaned `goose` processes are the bug under investigation.
      ```
+     out={{ workspace_dir }}/acp_disabled.jsonl
+     : > "$out"
      { printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{}}}'
        sleep 2
        printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"_goose/unstable/schedules/list","params":{}}'
-       sleep 3
-     } | GOOSE_ACP_SCHEDULER_DISABLED=true GOOSE_PATH_ROOT="$ACP_ROOT" timeout 30 goose acp > {{ workspace_dir }}/acp_disabled.jsonl
+       sleep 30
+     } | GOOSE_ACP_SCHEDULER_DISABLED=true GOOSE_PATH_ROOT="$ACP_ROOT" goose acp > "$out" &
+     child=$!
+     trap 'kill "$child" 2>/dev/null; exit 143' INT TERM
+     trap 'kill "$child" 2>/dev/null' EXIT
+     i=0
+     while [ "$i" -lt 30 ]; do
+       grep -q '"id":2' "$out" && break
+       sleep 1
+       i=$((i+1))
+     done
+     kill "$child" 2>/dev/null
      ```
-  3. **Expected**: the `id:2` response is an error with code `-32601` and data
-     `scheduler is disabled in this ACP runtime` — not a job list, and not a crash.
+  3. **Expected**: the `id:2` response in `$out` is an error with code `-32601` and data
+     `scheduler is disabled in this ACP runtime` — not a job list, and not a crash. Assert on that
+     captured response, never on the child's exit status: the child is signalled, so its status
+     reports termination rather than anything about the feature.
   4. **Expected**: `diff "$ACP_ROOT/data/schedule.json" "$ACP_ROOT/expected.json"` reports no
      difference. A disabled runtime never reads the file, so it cannot rewrite the stale
      `currently_running` flag the way an enabled scheduler does at startup.
