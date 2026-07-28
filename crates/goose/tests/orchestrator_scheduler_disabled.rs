@@ -31,6 +31,10 @@ use rmcp::model::CallToolRequestParams;
 /// unchanged file proves the read never happened.
 const STALE_RUNNING_JOB: &str = r#"[{"id":"sentinel","source":"/nonexistent/sentinel.yaml","cron":"0 0 0 * * *","currently_running":true}]"#;
 
+/// Named so the assertion on the tool's output can prove `list_sessions`
+/// produced a real listing rather than an error rendered as success.
+const SESSION_NAME: &str = "orchestrator-disabled";
+
 #[tokio::test]
 async fn orchestrator_tool_call_starts_no_scheduler_when_disabled() {
     let root = tempfile::tempdir().unwrap();
@@ -70,8 +74,10 @@ async fn orchestrator_tool_call_starts_no_scheduler_when_disabled() {
     let session = session_manager
         .create_session(
             root.path().to_path_buf(),
-            "orchestrator-disabled".to_string(),
-            SessionType::Hidden,
+            SESSION_NAME.to_string(),
+            // `list_sessions` reports only User and Scheduled sessions, and the
+            // assertion below needs this one to appear in the listing.
+            SessionType::User,
             GooseMode::default(),
         )
         .await
@@ -102,11 +108,29 @@ async fn orchestrator_tool_call_starts_no_scheduler_when_disabled() {
         )
         .await;
     let tool_result = result.expect("orchestrator tool call is dispatchable");
-    let call_result = tool_result.result.await;
+    // The orchestrator converts every internal failure — including one from
+    // resolving the agent manager — into `Ok(CallToolResult::error(..))`, so
+    // the Rust `Ok` alone would also cover a run that never reached the
+    // singleton. Assert on the MCP-level outcome and its payload instead.
+    let call_result = tool_result
+        .result
+        .await
+        .expect("orchestrator tool call is dispatchable");
+    assert_ne!(
+        call_result.is_error,
+        Some(true),
+        "the orchestrator tool must not return an MCP error, otherwise it might \
+         never have reached the agent manager: {call_result:?}"
+    );
+    let listing = call_result
+        .content
+        .iter()
+        .filter_map(|block| block.as_text().map(|text| text.text.as_str()))
+        .collect::<String>();
     assert!(
-        call_result.is_ok(),
-        "the orchestrator tool must succeed, otherwise it might never have \
-         reached the agent manager: {call_result:?}"
+        listing.contains(SESSION_NAME),
+        "the listing must name the session this test created, proving \
+         list_sessions ran past the agent manager: {listing:?}"
     );
 
     assert_eq!(

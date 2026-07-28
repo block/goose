@@ -149,12 +149,17 @@ fn write_schedule_recipe_bytes(destination: &Path, bytes: &[u8]) -> Result<(), S
 /// Such hosts set this variable on every child they spawn.
 ///
 /// The `ACP` in the name records who sets the variable, not the only thing it
-/// gates: it is honored everywhere a [`Scheduler`] would otherwise be built,
-/// including the process-global [`crate::execution::manager::AgentManager`].
-/// That manager is reachable from inside an ACP process through the
-/// `orchestrator` platform extension, so gating only the ACP server factory
-/// would let an extension resurrect cron execution in a process whose host
-/// asked for none.
+/// gates: it is honored at every scheduler-ownership path reachable inside an
+/// ACP process — both the ACP server factory and the process-global
+/// [`crate::execution::manager::AgentManager`]. That manager is reachable from
+/// inside an ACP process through the `orchestrator` platform extension, so
+/// gating only the ACP server factory would let an extension resurrect cron
+/// execution in a process whose host asked for none.
+///
+/// The `goose schedule` CLI subcommands build their own [`Scheduler`] without
+/// consulting this variable. They are deliberately left alone: they are not
+/// reachable inside an ACP worker, and a user invoking them is asking for
+/// scheduling explicitly.
 pub const GOOSE_ACP_SCHEDULER_DISABLED_ENV: &str = "GOOSE_ACP_SCHEDULER_DISABLED";
 
 /// Reads [`GOOSE_ACP_SCHEDULER_DISABLED_ENV`] straight from the process
