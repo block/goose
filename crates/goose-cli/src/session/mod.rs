@@ -1098,6 +1098,8 @@ impl CliSession {
             .emit_hook(goose::hooks::HookEvent::SessionEnd, &self.session_id)
             .await;
 
+        self.agent.discard_pending_steers(&self.session_id).await;
+
         self.session_id = new_session_id;
         self.messages.clear();
         self.run_mode = RunMode::Normal;
@@ -1124,10 +1126,12 @@ impl CliSession {
             }
         }
 
+        let mut unavailable = Vec::new();
         for config in extension_configs {
             let name = config.name();
             if let Err(e) = self.agent.add_extension(config, &self.session_id).await {
                 output::render_extension_error(&name, &e.to_string());
+                unavailable.push(name);
             }
         }
 
@@ -1135,11 +1139,14 @@ impl CliSession {
             output::render_error(&format!("Failed to refresh completions: {}", e));
         }
 
-        output::render_message(
-            &Message::assistant()
-                .with_text(format!("Started a new session · {}\n", self.session_id)),
-            self.debug,
-        );
+        let mut started = format!("Started a new session · {}\n", self.session_id);
+        if !unavailable.is_empty() {
+            started.push_str(&format!(
+                "Continuing without these extensions: {}\n",
+                unavailable.join(", ")
+            ));
+        }
+        output::render_message(&Message::assistant().with_text(started), self.debug);
         Ok(())
     }
 
