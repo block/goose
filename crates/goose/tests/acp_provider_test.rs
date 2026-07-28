@@ -108,6 +108,7 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
             assert!(terminal_exit["update"]["_meta"]
                 .get("terminal_exit")
                 .is_some());
+            assert!(terminal_exit["update"].get("status").is_none());
             assert!(
                 futures::poll!(&mut completion).is_pending(),
                 "completion must wait for terminal exit acknowledgement"

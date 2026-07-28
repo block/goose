@@ -1,6 +1,6 @@
 use crate::acp::custom_notifications::*;
 use crate::acp::custom_requests::*;
-use crate::acp::fs::AcpTools;
+use crate::acp::fs::{AcpTools, ClientTerminalShell};
 pub(super) use crate::acp::response_builder::{
     build_config_options, build_mode_state, build_model_state, build_provider_options,
     build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
@@ -223,6 +223,7 @@ pub struct GooseAcpAgent {
     builtins: Vec<String>,
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
+    client_terminal_shell: OnceCell<ClientTerminalShell>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
     client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
@@ -324,6 +325,8 @@ struct ClientCapabilitiesMeta {
 struct GooseClientCapabilities {
     #[serde(rename = "mcpHostCapabilities", default)]
     mcp_host_capabilities: Option<GooseMcpHostCapabilities>,
+    #[serde(rename = "terminalShell", default)]
+    terminal_shell: Option<ClientTerminalShell>,
     #[serde(rename = "customNotifications", default)]
     custom_notifications: Option<bool>,
     #[serde(rename = "recipeParameterRequests", default)]
@@ -646,6 +649,7 @@ impl GooseAcpAgent {
             builtins: options.builtins,
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
+            client_terminal_shell: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
             client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
@@ -817,6 +821,7 @@ impl GooseAcpAgent {
             fs_read: client_fs_capabilities.read_text_file,
             fs_write: client_fs_capabilities.write_text_file,
             terminal: client_terminal,
+            terminal_shell: self.client_terminal_shell.get().cloned(),
         });
         let info = client.get_info().cloned();
 
@@ -1465,6 +1470,12 @@ impl GooseAcpAgent {
         let _ = self.client_terminal.set(args.client_capabilities.terminal);
         let goose_client_capabilities =
             extract_client_capabilities_meta(&args).and_then(|meta| meta.goose);
+        if let Some(terminal_shell) = goose_client_capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.terminal_shell.clone())
+        {
+            let _ = self.client_terminal_shell.set(terminal_shell);
+        }
         let _ = self.client_mcp_host_info.set(extract_client_mcp_host_info(
             &args,
             goose_client_capabilities.as_ref(),
@@ -2814,6 +2825,34 @@ print(\"hello, world\")
         assert!(extract_client_supports_goose_custom_notifications(
             goose_client_capabilities.as_ref()
         ));
+    }
+
+    #[test]
+    fn test_terminal_shell_capability_reads_client_meta() {
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
+                .client_capabilities(
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(
+                        serde_json::json!({
+                            "goose": {
+                                "terminalShell": {
+                                    "executable": "cmd",
+                                    "argsPrefix": ["/C"]
+                                }
+                            }
+                        })
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                    ),
+                );
+        let shell = extract_client_capabilities_meta(&request)
+            .and_then(|meta| meta.goose)
+            .and_then(|goose| goose.terminal_shell)
+            .unwrap();
+
+        assert_eq!(shell.executable, "cmd");
+        assert_eq!(shell.args_prefix, vec!["/C"]);
     }
 
     #[test]

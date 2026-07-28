@@ -126,6 +126,15 @@ async function getConnection(): Promise<AcpConnection> {
   return pendingConnection;
 }
 
+export function terminalShellForPlatform(platform: string): {
+  executable: string;
+  argsPrefix: string[];
+} {
+  return platform === 'win32'
+    ? { executable: 'cmd', argsPrefix: ['/C'] }
+    : { executable: 'sh', argsPrefix: ['-c'] };
+}
+
 async function openConnection(generation: number): Promise<AcpConnection> {
   const wsUrl = await window.electron.getAcpUrl();
   if (!wsUrl) {
@@ -147,6 +156,7 @@ async function openConnection(generation: number): Promise<AcpConnection> {
           _meta: {
             goose: {
               mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
+              terminalShell: terminalShellForPlatform(window.electron.platform),
               customNotifications: true,
               recipeParameterRequests: true,
             },

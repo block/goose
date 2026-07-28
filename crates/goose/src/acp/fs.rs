@@ -76,6 +76,14 @@ async fn acp_write_text_file(
     Ok(())
 }
 
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClientTerminalShell {
+    pub(crate) executable: String,
+    #[serde(default)]
+    pub(crate) args_prefix: Vec<String>,
+}
+
 pub(crate) struct AcpTools {
     pub(crate) inner: Arc<dyn McpClientTrait>,
     pub(crate) cx: ConnectionTo<Client>,
@@ -84,14 +92,23 @@ pub(crate) struct AcpTools {
     pub(crate) fs_read: bool,
     pub(crate) fs_write: bool,
     pub(crate) terminal: bool,
+    pub(crate) terminal_shell: Option<ClientTerminalShell>,
 }
 
 fn create_terminal_request(
     session_id: &SessionId,
     params: &ShellParams,
     ctx: &crate::agents::ToolCallContext,
+    terminal_shell: Option<&ClientTerminalShell>,
 ) -> CreateTerminalRequest {
-    let (shell, args) = terminal_shell_command(&params.command);
+    let (shell, args) = match terminal_shell {
+        Some(shell) => {
+            let mut args = shell.args_prefix.clone();
+            args.push(params.command.clone());
+            (shell.executable.clone(), args)
+        }
+        None => terminal_shell_command(&params.command),
+    };
     CreateTerminalRequest::new(session_id.clone(), shell)
         .args(args)
         .env(vec![EnvVariable::new("AGENT_SESSION_ID", &ctx.session_id)])
@@ -279,7 +296,12 @@ impl AcpTools {
 
         let create_res = self
             .cx
-            .send_request(create_terminal_request(&self.session_id, &params, ctx))
+            .send_request(create_terminal_request(
+                &self.session_id,
+                &params,
+                ctx,
+                self.terminal_shell.as_ref(),
+            ))
             .block_task()
             .await
             .map_err(|e| {
@@ -533,6 +555,25 @@ mod tests {
     }
 
     #[test]
+    fn terminal_request_uses_client_negotiated_shell() {
+        let request = create_terminal_request(
+            &SessionId::new("acp-session"),
+            &ShellParams {
+                command: "echo test".to_string(),
+                timeout_secs: None,
+            },
+            &ToolCallContext::new("agent-session".to_string(), None, None),
+            Some(&ClientTerminalShell {
+                executable: "cmd".to_string(),
+                args_prefix: vec!["/C".to_string()],
+            }),
+        );
+
+        assert_eq!(request.command, "cmd");
+        assert_eq!(request.args, vec!["/C", "echo test"]);
+    }
+
+    #[test]
     fn terminal_request_uses_configured_shell_and_includes_agent_session_id() {
         let session_id = SessionId::new("acp-session");
         let params = ShellParams {
@@ -545,7 +586,7 @@ mod tests {
             None,
         );
 
-        let request = create_terminal_request(&session_id, &params, &ctx);
+        let request = create_terminal_request(&session_id, &params, &ctx, None);
 
         #[cfg(not(windows))]
         {

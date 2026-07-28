@@ -387,23 +387,18 @@ pub fn nested_terminal_agent() -> impl agent_client_protocol::ConnectTo<AcpClien
                 cx.send_notification(SessionNotification::new(
                     request.session_id.clone(),
                     SessionUpdate::ToolCallUpdate(
-                        ToolCallUpdate::new(tool_call_id, ToolCallUpdateFields::new()).meta(
-                            terminal_meta(
-                                "terminal_exit",
-                                serde_json::json!({
-                                    "terminal_id": "nested-terminal-1",
-                                    "exit_code": 0
-                                }),
-                            ),
-                        ),
+                        ToolCallUpdate::new(
+                            tool_call_id,
+                            ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+                        )
+                        .meta(terminal_meta(
+                            "terminal_exit",
+                            serde_json::json!({
+                                "terminal_id": "nested-terminal-1",
+                                "exit_code": 0
+                            }),
+                        )),
                     ),
-                ))?;
-                cx.send_notification(SessionNotification::new(
-                    request.session_id.clone(),
-                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-                        tool_call_id,
-                        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
-                    )),
                 ))?;
                 responder.respond(PromptResponse::new(StopReason::EndTurn))
             },

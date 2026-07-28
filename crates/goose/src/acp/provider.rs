@@ -7,7 +7,7 @@ use agent_client_protocol::schema::v1::{
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId,
     SessionModeState, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
-    ToolCallStatus, ToolKind,
+    ToolCallStatus, ToolCallUpdate, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -959,10 +959,15 @@ impl AcpClientLoop {
                                     } else {
                                         None
                                     };
+                                    let terminal_update = ToolCallUpdate::new(
+                                        update.tool_call_id.clone(),
+                                        agent_client_protocol::schema::v1::ToolCallUpdateFields::new(),
+                                    )
+                                    .meta(update.meta.clone());
                                     if let Ok(notification) =
                                         serde_json::to_value(SessionNotification::new(
                                             notification.session_id.clone(),
-                                            SessionUpdate::ToolCallUpdate(update.clone()),
+                                            SessionUpdate::ToolCallUpdate(terminal_update),
                                         ))
                                     {
                                         if crate::acp::is_terminal_notification(

@@ -235,3 +235,23 @@ describe('ACP connection ownership', () => {
     expect(listener).toHaveBeenLastCalledWith(false);
   });
 });
+
+describe('terminalShellForPlatform', () => {
+  it('uses cmd on Windows clients', async () => {
+    const { terminalShellForPlatform } = await import('../acpConnection');
+
+    expect(terminalShellForPlatform('win32')).toEqual({
+      executable: 'cmd',
+      argsPrefix: ['/C'],
+    });
+  });
+
+  it.each(['darwin', 'linux'])('uses sh on %s clients', async (platform) => {
+    const { terminalShellForPlatform } = await import('../acpConnection');
+
+    expect(terminalShellForPlatform(platform)).toEqual({
+      executable: 'sh',
+      argsPrefix: ['-c'],
+    });
+  });
+});
