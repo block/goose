@@ -172,6 +172,9 @@ prompt: |
   2. Document all available extensions
   3. Test enabling and disabling dynamic extensions (if any available)
   4. Verify extension isolation between enabled extensions
+  5. Mid-session toggles must take effect in the same turn: after disabling an extension its tools
+     must no longer be offered to you, and after enabling the builtin `memory` extension storing and
+     retrieving a memory must succeed without starting a new session
 
   Log results to: {{ workspace_dir }}/phase2_extensions.md
   {% endif %}

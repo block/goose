@@ -107,6 +107,9 @@ pub fn tool_defers_loading(tool: &Tool) -> bool {
         .is_some_and(|meta| meta.0.get(DEFER_LOADING_META_KEY) == Some(&json!(true)))
 }
 
+/// Canonical ids, so dated names and regional or reseller aliases all resolve to one check. Mythos
+/// is restricted and absent from the generated registry, which leaves it inert here until the
+/// registry carries it rather than needing a second gate then.
 const MID_CONVERSATION_TOOL_CHANGE_MODELS: &[&str] = &[
     "anthropic/claude-opus-5",
     "anthropic/claude-opus-4.8",
