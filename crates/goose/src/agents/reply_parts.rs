@@ -306,10 +306,13 @@ impl Agent {
         span.record("gen_ai.request.model", model_config.model_name.as_str());
         span.record("gen_ai.provider.name", provider.get_name());
 
+        let projected_messages =
+            Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
+
         #[cfg(feature = "otel")]
         {
             use tracing_opentelemetry::OpenTelemetrySpanExt;
-            let last_user_text = messages
+            let last_user_text = projected_messages
                 .iter()
                 .rev()
                 .find(|m| m.role == rmcp::model::Role::User)
@@ -330,9 +333,6 @@ impl Agent {
             });
             span.set_attribute("mlflow.spanInputs", inputs.to_string());
         }
-
-        let projected_messages =
-            Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
         let (filtered_messages, _) =
             fix_conversation(Conversation::new_unvalidated(projected_messages));
 

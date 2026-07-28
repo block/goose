@@ -1959,7 +1959,7 @@ impl Agent {
                 use tracing_opentelemetry::OpenTelemetrySpanExt;
                 let input_text = conversation.messages().iter().rev()
                     .find(|m| m.role == rmcp::model::Role::User)
-                    .map(|m| agent_visible_message_text(m))
+                    .map(agent_visible_message_text)
                     .unwrap_or_default();
                 let inputs = serde_json::json!({ "message": input_text });
                 tracing::Span::current().set_attribute("mlflow.spanInputs", inputs.to_string());
