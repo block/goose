@@ -32,6 +32,33 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 
 pub(crate) const MAX_SCHEDULE_RECIPE_BYTES: u64 = 1024 * 1024;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ScheduledRunOutcome {
+    Normal,
+    Incomplete,
+    Error,
+}
+
+impl ScheduledRunOutcome {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Incomplete => "incomplete",
+            Self::Error => "error",
+        }
+    }
+}
+
+fn scheduled_run_outcome(stream_error: bool, reached_max_tokens: bool) -> ScheduledRunOutcome {
+    if stream_error {
+        ScheduledRunOutcome::Error
+    } else if reached_max_tokens {
+        ScheduledRunOutcome::Incomplete
+    } else {
+        ScheduledRunOutcome::Normal
+    }
+}
+
 pub struct ValidatedScheduleRecipe {
     bytes: Vec<u8>,
     source: PathBuf,
@@ -1121,6 +1148,7 @@ async fn execute_job(
     let mut stream = std::pin::pin!(stream);
 
     let mut stream_error = false;
+    let mut reached_max_tokens = false;
     while let Some(message_result) = stream.next().await {
         tokio::task::yield_now().await;
 
@@ -1131,6 +1159,7 @@ async fn execute_job(
             Ok(AgentEvent::HistoryReplaced(updated)) => {
                 conversation = updated;
             }
+            Ok(AgentEvent::MaxTokens) => reached_max_tokens = true,
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Error in agent stream: {}", e);
@@ -1139,6 +1168,8 @@ async fn execute_job(
             }
         }
     }
+
+    let run_outcome = scheduled_run_outcome(stream_error, reached_max_tokens);
 
     agent
         .config
@@ -1151,7 +1182,7 @@ async fn execute_job(
 
     {
         let session_duration = start_time.elapsed();
-        let exit_type = if stream_error { "error" } else { "normal" };
+        let exit_type = run_outcome.as_str();
         let (total_tokens, message_count) = agent
             .config
             .session_manager
@@ -1199,7 +1230,7 @@ async fn execute_job(
             );
             props.insert(
                 "status".to_string(),
-                serde_json::Value::String("completed".to_string()),
+                serde_json::Value::String(run_outcome.as_str().to_string()),
             );
             props.insert(
                 "duration_seconds".to_string(),
@@ -1303,6 +1334,27 @@ mod tests {
         let recipe_path = dir.join(format!("{}.yaml", name));
         fs::write(&recipe_path, "prompt: test\n").unwrap();
         recipe_path
+    }
+
+    #[test]
+    fn scheduled_run_outcome_reports_normal_incomplete_and_error() {
+        assert_eq!(
+            scheduled_run_outcome(false, false),
+            ScheduledRunOutcome::Normal
+        );
+        assert_eq!(
+            scheduled_run_outcome(false, true),
+            ScheduledRunOutcome::Incomplete
+        );
+        assert_eq!(
+            scheduled_run_outcome(true, false),
+            ScheduledRunOutcome::Error
+        );
+        assert_eq!(
+            scheduled_run_outcome(true, true),
+            ScheduledRunOutcome::Error
+        );
+        assert_eq!(ScheduledRunOutcome::Incomplete.as_str(), "incomplete");
     }
 
     #[test]

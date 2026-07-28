@@ -26,6 +26,29 @@ use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "orchestrator";
 
+fn orchestrator_response_result(
+    session_id: &str,
+    response_parts: &[String],
+    reached_max_tokens: bool,
+) -> CallToolResult {
+    let response = if response_parts.is_empty() {
+        "Agent completed without producing text output.".to_string()
+    } else {
+        format!(
+            "## Response from session {session_id}\n\n{}",
+            response_parts.join("\n\n")
+        )
+    };
+
+    if reached_max_tokens {
+        CallToolResult::error(vec![ContentBlock::text(format!(
+            "Agent response reached the model's output token limit and is incomplete.\n\n{response}"
+        ))])
+    } else {
+        CallToolResult::success(vec![ContentBlock::text(response)])
+    }
+}
+
 struct CancelTokenGuard {
     manager: Arc<AgentManager>,
     session_id: String,
@@ -508,6 +531,7 @@ impl OrchestratorClient {
 
         let mut response_parts: Vec<String> = Vec::new();
         let mut cancelled = false;
+        let mut reached_max_tokens = false;
 
         loop {
             tokio::select! {
@@ -524,6 +548,7 @@ impl OrchestratorClient {
                                 response_parts.push(text);
                             }
                         }
+                        Some(Ok(AgentEvent::MaxTokens)) => reached_max_tokens = true,
                         Some(Ok(_)) => {}
                         Some(Err(e)) => {
                             response_parts.push(format!("Error during agent processing: {}", e));
@@ -543,17 +568,11 @@ impl OrchestratorClient {
             return Err("Cancelled by parent session".into());
         }
 
-        if response_parts.is_empty() {
-            Ok(CallToolResult::success(vec![ContentBlock::text(
-                "Agent completed without producing text output.",
-            )]))
-        } else {
-            Ok(CallToolResult::success(vec![ContentBlock::text(format!(
-                "## Response from session {}\n\n{}",
-                session_id,
-                response_parts.join("\n\n")
-            ))]))
-        }
+        Ok(orchestrator_response_result(
+            &session_id,
+            &response_parts,
+            reached_max_tokens,
+        ))
     }
 
     async fn handle_interrupt_agent(
@@ -683,6 +702,33 @@ mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
     use rmcp::model::{Annotations, Role, TextContent};
+
+    #[test]
+    fn truncated_orchestrator_response_is_an_error_with_partial_output() {
+        let result =
+            orchestrator_response_result("child-session", &["partial research".to_string()], true);
+
+        assert_eq!(result.is_error, Some(true));
+        let text = result.content[0].as_text().unwrap().text.as_str();
+        assert!(text.contains("output token limit"));
+        assert!(text.contains("partial research"));
+    }
+
+    #[test]
+    fn complete_orchestrator_response_remains_successful() {
+        let result = orchestrator_response_result(
+            "child-session",
+            &["complete research".to_string()],
+            false,
+        );
+
+        assert_eq!(result.is_error, Some(false));
+        assert!(result.content[0]
+            .as_text()
+            .unwrap()
+            .text
+            .contains("complete research"));
+    }
 
     #[test]
     fn first_last_projection_drops_hidden_endpoints_and_content() {
