@@ -36,6 +36,8 @@ An OAuth window will open in your browser when goose first connects to the exten
 
 The extension provides the tools goose drives end to end for a parse: `request_file_upload_url`, `start_transform_job`, `check_job_status`, and `get_job_results`. Uploads and result downloads use pre-signed URLs, which goose handles with its built-in shell tools.
 
+It also provides two tools for structured data extraction, which returns named fields as JSON rather than converting a whole document: `suggest_extraction_schema_for_file` drafts a schema from a parsed document, and `start_extraction_job` runs the extraction against a schema. Both reuse `check_job_status` and `get_job_results`.
+
 ## Configuration
 
 <Tabs groupId="interface">
@@ -95,7 +97,21 @@ goose requests a pre-signed upload URL, uploads the file with its shell tools, s
 
 The upload and download URLs are pre-signed and reject requests that carry an `Authorization` header, which is why the example prompt calls it out.
 
-Parsing requests have the following limits, which the server also reports back to goose through its tool responses:
+### Extracting Structured Data
+
+To pull named fields out of a document instead of converting the whole thing, ask goose for an extraction:
+
+```
+Use the unstructured-transform tools to extract the vendor, invoice number, line items, and total from ./invoice.pdf as JSON. Suggest a schema first and show it to me before running the extraction.
+```
+
+Extraction runs on the element JSON that a parse produces, not on the raw file, so goose parses the document first and then extracts from the `output_ref` that `get_job_results` returns for it. That means two jobs run back to back, so an extraction takes longer than a parse alone. If you have no schema, goose can draft one with `suggest_extraction_schema_for_file` and show it to you before extracting; if you describe the fields you want, it can write the schema itself.
+
+Results come back inline rather than behind a download URL, one object per file, wrapped with the source filename, file type, timestamp, and the element JSON reference they were taken from. Keep that wrapper if you save the results, since it is what ties each record back to its document.
+
+Extraction can only surface what the parse captured, so if a result comes back sparse or empty the parse is usually the cause rather than the schema. Ask goose to re-parse the file at higher fidelity and extract again. For prompt patterns, see [Structured data extraction](https://docs.unstructured.io/transform/sde).
+
+Parsing and extraction requests have the following limits, which the server also reports back to goose through its tool responses:
 
 - Each file must be 50 MB or less in size.
 - Each request must have 10 files or fewer.
