@@ -699,6 +699,32 @@ pub fn create_responses_request(
     Ok(payload)
 }
 
+fn sanitize_tool_arguments(value: Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(sanitize_unicode_tags(&text)),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(sanitize_tool_arguments).collect())
+        }
+        Value::Object(values) => Value::Object(
+            values
+                .into_iter()
+                .map(|(key, value)| (sanitize_unicode_tags(&key), sanitize_tool_arguments(value)))
+                .collect(),
+        ),
+        value => value,
+    }
+}
+
+fn parse_tool_arguments(arguments: &str) -> Value {
+    if arguments.is_empty() {
+        json!({})
+    } else {
+        serde_json::from_str(arguments)
+            .map(sanitize_tool_arguments)
+            .unwrap_or_else(|_| json!({}))
+    }
+}
+
 pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Result<Message> {
     let mut content = Vec::new();
 
@@ -728,8 +754,9 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             content.push(MessageContentBlock::tool_request(
                                 id.clone(),
-                                Ok(CallToolRequestParams::new(name.clone())
-                                    .with_arguments(object(input.clone()))),
+                                Ok(CallToolRequestParams::new(name.clone()).with_arguments(
+                                    object(sanitize_tool_arguments(input.clone())),
+                                )),
                             ));
                         }
                     }
@@ -745,11 +772,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 let request_id = call_id.clone().or_else(|| id.clone()).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
-                let parsed_args = if arguments.is_empty() {
-                    json!({})
-                } else {
-                    serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
-                };
+                let parsed_args = parse_tool_arguments(arguments);
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
@@ -805,11 +828,7 @@ fn process_streaming_output_items(
                             name,
                             arguments,
                         } => {
-                            let parsed_args = if arguments.is_empty() {
-                                json!({})
-                            } else {
-                                serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                            };
+                            let parsed_args = parse_tool_arguments(&arguments);
 
                             content.push(MessageContentBlock::tool_request(
                                 id,
@@ -830,11 +849,7 @@ fn process_streaming_output_items(
                 let request_id = call_id.or(id).ok_or_else(|| {
                     anyhow!("Responses function_call output missing call_id and id")
                 })?;
-                let parsed_args = if arguments.is_empty() {
-                    json!({})
-                } else {
-                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
-                };
+                let parsed_args = parse_tool_arguments(&arguments);
 
                 content.push(MessageContentBlock::tool_request(
                     request_id,
@@ -1403,6 +1418,54 @@ mod tests {
             panic!("expected tool request content");
         };
         assert_eq!(tool_request.id, "call_abc");
+    }
+
+    #[test]
+    fn test_responses_api_to_message_sanitizes_tool_arguments() {
+        let response = ResponsesApiResponse {
+            id: "resp_1".to_string(),
+            object: "response".to_string(),
+            created_at: 0,
+            status: "completed".to_string(),
+            model: "gpt-5.3-codex".to_string(),
+            output: vec![
+                ResponseOutputItem::Message {
+                    id: Some("msg_1".to_string()),
+                    status: Some("completed".to_string()),
+                    role: "assistant".to_string(),
+                    content: vec![ResponseContentBlock::ToolCall {
+                        id: "call_1".to_string(),
+                        name: "shell".to_string(),
+                        input: json!({"prompt": "visible\u{E0041}text"}),
+                    }],
+                },
+                ResponseOutputItem::FunctionCall {
+                    id: None,
+                    status: Some("completed".to_string()),
+                    call_id: Some("call_2".to_string()),
+                    name: "shell".to_string(),
+                    arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0042}text"}))
+                        .unwrap(),
+                },
+            ],
+            reasoning: None,
+            usage: None,
+        };
+
+        let message = responses_api_to_message(&response).unwrap();
+        for content in message.content {
+            let MessageContentBlock::ToolRequest(tool_request) = content else {
+                panic!("expected tool request content");
+            };
+            let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(
+                tool_call
+                    .arguments
+                    .expect("expected arguments")
+                    .get("prompt"),
+                Some(&json!("visibletext"))
+            );
+        }
     }
 
     #[test]
@@ -2225,6 +2288,46 @@ mod tests {
             error.to_string().contains("missing call_id and id"),
             "unexpected error: {error}"
         );
+    }
+
+    #[test]
+    fn test_streaming_output_items_sanitize_tool_arguments() -> anyhow::Result<()> {
+        let output_items = vec![
+            ResponseOutputItemInfo::Message {
+                id: Some("msg_1".to_string()),
+                status: Some("completed".to_string()),
+                role: "assistant".to_string(),
+                content: vec![ContentBlockPart::ToolCall {
+                    id: "call_1".to_string(),
+                    name: "shell".to_string(),
+                    arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0041}text"}))?,
+                }],
+            },
+            ResponseOutputItemInfo::FunctionCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: Some("call_2".to_string()),
+                name: "shell".to_string(),
+                arguments: serde_json::to_string(&json!({"prompt": "visible\u{E0042}text"}))?,
+            },
+        ];
+
+        let content = process_streaming_output_items(output_items, false)?;
+        for content in content {
+            let MessageContentBlock::ToolRequest(tool_request) = content else {
+                panic!("expected tool request content");
+            };
+            let tool_call = tool_request.tool_call.expect("expected valid tool call");
+            assert_eq!(
+                tool_call
+                    .arguments
+                    .expect("expected arguments")
+                    .get("prompt"),
+                Some(&json!("visibletext"))
+            );
+        }
+
+        Ok(())
     }
 
     #[test]
