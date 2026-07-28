@@ -10,6 +10,7 @@ use goose_providers::{
     api_client::{ApiClient, AuthMethod, TlsConfig},
     base::ProviderDescriptor,
 };
+use url::Url;
 
 pub struct AnthropicProviderDef;
 
@@ -43,7 +44,7 @@ async fn from_env(
     // first-party Anthropic endpoint, whose models are all chat/tool-capable. A custom
     // ANTHROPIC_HOST may front an Anthropic-compatible proxy that also serves non-chat models,
     // so keep the canonical filter there to avoid surfacing models unusable in agent sessions.
-    let is_first_party_host = host.trim_end_matches('/') == "https://api.anthropic.com";
+    let is_first_party_host = is_first_party_anthropic_host(&host);
 
     let auth = AuthMethod::ApiKey {
         header_name: "x-api-key".to_string(),
@@ -60,6 +61,19 @@ async fn from_env(
     Ok(AnthropicProviderBuilder::new(api_client)
         .skip_canonical_filtering(is_first_party_host)
         .build())
+}
+
+/// Compare against the official endpoint on normalized components rather than raw text, so
+/// equivalent spellings (`https://API.ANTHROPIC.COM`, `https://api.anthropic.com:443/`) are
+/// recognized as first party.
+fn is_first_party_anthropic_host(host: &str) -> bool {
+    let Ok(url) = Url::parse(host) else {
+        return false;
+    };
+    url.scheme() == "https"
+        && url.host_str() == Some("api.anthropic.com")
+        && url.port_or_known_default() == Some(443)
+        && matches!(url.path(), "" | "/")
 }
 
 pub fn from_custom_config(
@@ -193,5 +207,35 @@ mod tests {
         let config =
             base_declarative_config(vec![ModelInfo::new("m1".to_string(), 200000)], Some(false));
         assert_eq!(built_timeout(config), std::time::Duration::from_secs(600));
+    }
+
+    #[test]
+    fn first_party_host_detection_normalizes_equivalent_urls() {
+        for host in [
+            "https://api.anthropic.com",
+            "https://api.anthropic.com/",
+            "https://API.ANTHROPIC.COM",
+            "https://api.anthropic.com:443",
+            "https://API.Anthropic.Com:443/",
+        ] {
+            assert!(
+                is_first_party_anthropic_host(host),
+                "{host} should be recognized as the first-party endpoint"
+            );
+        }
+
+        for host in [
+            "http://api.anthropic.com",
+            "https://api.anthropic.com:8443",
+            "https://api.anthropic.com/v1/proxy",
+            "https://proxy.example.com",
+            "https://api.anthropic.com.evil.example",
+            "not a url",
+        ] {
+            assert!(
+                !is_first_party_anthropic_host(host),
+                "{host} should not be treated as the first-party endpoint"
+            );
+        }
     }
 }
