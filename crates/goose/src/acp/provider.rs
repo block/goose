@@ -1213,9 +1213,14 @@ async fn handle_requests(
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        apply_session_config_options(&config, &cx, session.session_id.clone())
-                            .await?;
-                        apply_session_mode(&config, &goose_mode, &cx, session).await
+                        // A `?` here would tear down the whole client loop instead of
+                        // reporting the failure to the caller through response_tx.
+                        match apply_session_config_options(&config, &cx, session.session_id.clone())
+                            .await
+                        {
+                            Ok(()) => apply_session_mode(&config, &goose_mode, &cx, session).await,
+                            Err(err) => Err(err),
+                        }
                     }
                     Err(err) => Err(anyhow::anyhow!(
                         "ACP {} failed: {err}",
