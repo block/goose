@@ -77,7 +77,7 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
             let completion = stream.next();
             tokio::pin!(completion);
             for expected_sequence in 0..128 {
-                let terminal_delta = tokio::select! {
+                let (terminal_delta, forwarded_tx) = tokio::select! {
                     biased;
                     update = terminal_notifications.recv() => {
                         update.expect("expected terminal output")
@@ -90,8 +90,13 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
                     terminal_delta["update"]["_meta"]["terminal_output_delta"]["sequence"],
                     expected_sequence
                 );
+                assert!(
+                    futures::poll!(&mut completion).is_pending(),
+                    "completion must wait for terminal delivery acknowledgement"
+                );
+                let _ = forwarded_tx.send(());
             }
-            let terminal_exit = tokio::select! {
+            let (terminal_exit, forwarded_tx) = tokio::select! {
                 biased;
                 update = terminal_notifications.recv() => update.expect("expected terminal exit"),
                 _ = &mut completion => panic!("tool call completed before terminal exit"),
@@ -99,6 +104,11 @@ fn test_nested_terminal_notifications_follow_tool_call_start() {
             assert!(terminal_exit["update"]["_meta"]
                 .get("terminal_exit")
                 .is_some());
+            assert!(
+                futures::poll!(&mut completion).is_pending(),
+                "completion must wait for terminal exit acknowledgement"
+            );
+            let _ = forwarded_tx.send(());
 
             let completion = completion
                 .await

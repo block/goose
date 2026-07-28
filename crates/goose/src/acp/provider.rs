@@ -153,7 +153,8 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    notification_subscriber: Arc<Mutex<Option<mpsc::UnboundedSender<serde_json::Value>>>>,
+    notification_subscriber:
+        Arc<Mutex<Option<mpsc::UnboundedSender<crate::providers::base::AcpNotification>>>>,
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
@@ -247,8 +248,9 @@ impl AcpProvider {
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
-        let notification_subscriber =
-            Arc::new(Mutex::new(None::<mpsc::UnboundedSender<serde_json::Value>>));
+        let notification_subscriber = Arc::new(Mutex::new(
+            None::<mpsc::UnboundedSender<crate::providers::base::AcpNotification>>,
+        ));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -420,7 +422,10 @@ impl Provider for AcpProvider {
 
     fn take_acp_notification_receiver(
         &self,
-    ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {
+    ) -> Option<(
+        String,
+        mpsc::UnboundedReceiver<crate::providers::base::AcpNotification>,
+    )> {
         let (sender, receiver) = mpsc::unbounded_channel();
         *self.notification_subscriber.lock().ok()? = Some(sender);
         Some((self.session.id.0.to_string(), receiver))
@@ -595,12 +600,16 @@ impl Provider for AcpProvider {
                         }
                     }
                     AcpUpdate::TerminalNotification(notification) => {
-                        if let Ok(mut subscriber) = notification_subscriber.lock() {
-                            let disconnected = subscriber
-                                .as_ref()
-                                .is_some_and(|sender| sender.send(notification).is_err());
-                            if disconnected {
-                                *subscriber = None;
+                        let subscriber = notification_subscriber
+                            .lock()
+                            .ok()
+                            .and_then(|guard| guard.as_ref().cloned());
+                        if let Some(subscriber) = subscriber {
+                            let (forwarded_tx, forwarded_rx) = oneshot::channel();
+                            if subscriber.send((notification, forwarded_tx)).is_ok() {
+                                let _ = forwarded_rx.await;
+                            } else if let Ok(mut guard) = notification_subscriber.lock() {
+                                *guard = None;
                             }
                         }
                     }

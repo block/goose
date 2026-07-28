@@ -3,7 +3,7 @@ use futures::Stream;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
@@ -286,6 +286,8 @@ pub type MessageStream = Pin<
     Box<dyn Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> + Send>,
 >;
 
+pub type AcpNotification = (serde_json::Value, oneshot::Sender<()>);
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PermissionRouting {
     ActionRequired,
@@ -402,7 +404,7 @@ pub trait Provider: Send + Sync {
     /// A single outer ACP session owns the stream until the provider is replaced.
     fn take_acp_notification_receiver(
         &self,
-    ) -> Option<(String, mpsc::UnboundedReceiver<serde_json::Value>)> {
+    ) -> Option<(String, mpsc::UnboundedReceiver<AcpNotification>)> {
         None
     }
 

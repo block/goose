@@ -1853,23 +1853,28 @@ impl GooseAcpAgent {
                 let forward_session_id = args.session_id.clone();
                 let forward_cx = cx.clone();
                 let task = tokio::spawn(async move {
-                    while let Some(notification) = notifications.recv().await {
-                        match rescope_terminal_notification(
+                    while let Some((notification, forwarded_tx)) = notifications.recv().await {
+                        let should_continue = match rescope_terminal_notification(
                             notification,
                             &provider_session_id,
                             &forward_session_id,
                         ) {
                             Ok(Some(notification)) => {
-                                if forward_cx.send_notification(notification).is_err() {
-                                    break;
-                                }
+                                forward_cx.send_notification(notification).is_ok()
                             }
-                            Ok(None) => continue,
-                            Err(error) => warn!(
-                                %error,
-                                session = %forward_session_id.0,
-                                "could not decode ACP provider terminal notification"
-                            ),
+                            Ok(None) => true,
+                            Err(error) => {
+                                warn!(
+                                    %error,
+                                    session = %forward_session_id.0,
+                                    "could not decode ACP provider terminal notification"
+                                );
+                                true
+                            }
+                        };
+                        let _ = forwarded_tx.send(());
+                        if !should_continue {
+                            break;
                         }
                     }
                 });
