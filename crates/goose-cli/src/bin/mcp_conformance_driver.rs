@@ -70,7 +70,11 @@ fn script_for_scenario(scenario: Option<&str>) -> Value {
         }),
     };
 
-    if let Ok(protocol_version) = std::env::var("MCP_CONFORMANCE_PROTOCOL_VERSION") {
+    // Runner 0.1.16 does not set MCP_CONFORMANCE_PROTOCOL_VERSION; default to
+    // the 2025-11-25 spec version those scenarios expect.
+    let protocol_version = std::env::var("MCP_CONFORMANCE_PROTOCOL_VERSION")
+        .unwrap_or_else(|_| "2025-11-25".to_string());
+    {
         script["protocolVersion"] = json!(protocol_version);
     }
     script

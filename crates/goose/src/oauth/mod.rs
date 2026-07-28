@@ -8,7 +8,9 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
+use rmcp::transport::auth::{
+    AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials, WWWAuthenticateParams,
+};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -218,6 +220,26 @@ pub async fn oauth_flow_with_config(
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     let mut request = AuthorizationRequest::new(redirect_uri.clone()).with_client_name("goose");
     if let Some(challenge) = flow_config.challenge {
+        // SEP-2350: a re-authorization triggered by a scope challenge requests
+        // the union of previously-granted scopes and the newly challenged
+        // scopes. The fresh AuthorizationManager has no scope memory, so seed
+        // the union from the credential store.
+        let mut scopes: Vec<String> = credential_store
+            .load()
+            .await
+            .ok()
+            .flatten()
+            .map(|stored| stored.granted_scopes)
+            .unwrap_or_default();
+        if let Ok(base_url) = url::Url::parse(mcp_server_url) {
+            if let Some(challenged) = WWWAuthenticateParams::parse(&challenge, &base_url).scope {
+                scopes.extend(challenged.split_whitespace().map(str::to_string));
+            }
+        }
+        scopes.dedup();
+        if !scopes.is_empty() {
+            request = request.with_scopes(scopes);
+        }
         request = request.with_challenge(challenge);
     }
     if let Some(client_id) = flow_config.client_id {
