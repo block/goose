@@ -16,24 +16,6 @@ export function getSessionDisplayName(session: Session): string {
   return session.name;
 }
 
-export function resumeSession(session: Session, setView: setViewType) {
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage: undefined,
-  };
-
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
-    })
-  );
-
-  setView('pair', {
-    disableAnimation: true,
-    resumeSessionId: session.id,
-  });
-}
-
 interface CreateSessionOptions {
   recipeDeeplink?: string;
   recipeId?: string;
