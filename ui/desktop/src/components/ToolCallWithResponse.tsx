@@ -162,7 +162,13 @@ export function resolveMcpAppMetadata(
   const extensionName = responseMeta?.extensionName;
   const toolName = responseMeta?.toolName;
   if (resourceUri && extensionName && toolName) {
-    return { resourceUri, extensionName, toolName };
+    const legacyPrefix = `${extensionName}__`;
+    const actualToolName = toolName.startsWith(legacyPrefix)
+      ? toolName.slice(legacyPrefix.length)
+      : toolName;
+    if (actualToolName) {
+      return { resourceUri, extensionName, toolName: actualToolName };
+    }
   }
 
   return null;
