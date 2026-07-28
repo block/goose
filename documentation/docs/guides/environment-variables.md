@@ -312,6 +312,15 @@ REM Windows: use a POSIX-like shell instead of cmd.exe
 set GOOSE_SHELL=C:\cygwin64\bin\bash.exe
 ```
 
+:::note
+You only ever set `GOOSE_SHELL` to a shell executable path or name. goose injects the command-line flags automatically based on the shell, so there is no need to add them yourself:
+
+- **PowerShell** (`pwsh`, `powershell`) → `-NoProfile -NonInteractive -Command`
+- **cmd** → `/C`
+- **POSIX shells** (bash, zsh, … on Windows via Cygwin/MSYS2) → `-c`
+- On Unix the default shell (`bash`, falling back to `sh`) is invoked as `<shell> -c`
+:::
+
 ## Security and Privacy
 
 These variables control security features, credential storage, and anonymous usage data collection.

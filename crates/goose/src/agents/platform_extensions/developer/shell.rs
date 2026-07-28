@@ -84,13 +84,13 @@ fn unix_shell_command_args(command_line: &str) -> [&str; 2] {
     ["-c", command_line]
 }
 
-/// Resolve the preferred Unix shell for command execution, respecting GOOSE_SHELL.
+/// Resolve the shell used to run Developer extension commands on Windows,
+/// respecting `GOOSE_SHELL`.
 ///
-/// Auto-detected shells are returned as basenames (e.g. `"bash"`) so that
-/// `Command::new` resolves them on `PATH` at spawn time — this also keeps
-/// Flatpak happy, where absolute paths from inside the sandbox don't match
-/// the host filesystem. `GOOSE_SHELL` is passed through as-is.
-///
+/// Defaults to `cmd` when `GOOSE_SHELL` is unset. The invocation flags are
+/// chosen automatically from the executable name in `build_shell_command`,
+/// so callers only ever provide a bare executable path or name — see that
+/// function for the flag mapping.
 #[cfg(windows)]
 fn windows_shell() -> String {
     std::env::var("GOOSE_SHELL").unwrap_or_else(|_| "cmd".to_string())
@@ -624,6 +624,18 @@ async fn run_command(
     })
 }
 
+/// Build the `Command` that executes a single command line via the configured shell.
+///
+/// The invocation flags are selected automatically from the shell executable
+/// name, so setting `GOOSE_SHELL` to a bare executable is enough — users never
+/// need to supply command-style flags themselves:
+///
+/// - PowerShell (`pwsh`, `powershell`) → `-NoProfile -NonInteractive -Command`
+/// - cmd (`cmd`) → `/C`
+/// - POSIX shells (bash, zsh, … via Cygwin/MSYS2) → `-c`
+///
+/// On Unix the default shell (`bash`, falling back to `sh`) is likewise invoked
+/// as `<shell> -c <line>`.
 fn build_shell_command(
     command_line: &str,
     working_dir: Option<&std::path::Path>,
