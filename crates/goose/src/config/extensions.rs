@@ -1,6 +1,6 @@
 use super::base::Config;
-use crate::agents::ExtensionConfig;
 use crate::agents::extension::PLATFORM_EXTENSIONS;
+use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
@@ -618,7 +618,9 @@ extensions:
         );
 
         let extensions = get_extensions_map_with_config(&config);
-        let entry = extensions.get("firecrawl").expect("firecrawl extension should parse");
+        let entry = extensions
+            .get("firecrawl")
+            .expect("firecrawl extension should parse");
         assert_eq!(entry.config.name(), "firecrawl");
         assert!(entry.enabled);
     }
@@ -640,7 +642,9 @@ extensions:
         );
 
         let extensions = get_extensions_map_with_config(&config);
-        let entry = extensions.get("brave-search").expect("brave-search extension should parse");
+        let entry = extensions
+            .get("brave-search")
+            .expect("brave-search extension should parse");
         match &entry.config {
             ExtensionConfig::Stdio { envs, .. } => {
                 assert_eq!(
