@@ -1213,9 +1213,6 @@ async fn handle_requests(
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
-                        if let Ok(mut guard) = active_session.lock() {
-                            *guard = Some(session.session_id.clone());
-                        }
                         apply_session_config_options(&config, &cx, session.session_id.clone())
                             .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
@@ -1225,6 +1222,13 @@ async fn handle_requests(
                         AGENT_METHOD_NAMES.session_new
                     )),
                 };
+                // A session that failed setup is never returned to the caller, so it
+                // never becomes the session goose prompts against.
+                if let Ok(session) = result.as_ref() {
+                    if let Ok(mut guard) = active_session.lock() {
+                        *guard = Some(session.session_id.clone());
+                    }
+                }
                 log_undelivered(response_tx.send(result), AGENT_METHOD_NAMES.session_new);
             }
             ClientRequest::CloseSession { session_id } => {
