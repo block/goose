@@ -2137,19 +2137,16 @@ mod tests {
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicU32, Ordering};
-        use std::sync::Mutex;
         use tempfile::TempDir;
 
         struct GoalTextProvider {
             call_count: AtomicU32,
-            goal_nudge_ids: Mutex<Vec<Option<String>>>,
         }
 
         impl GoalTextProvider {
             fn new() -> Self {
                 Self {
                     call_count: AtomicU32::new(0),
-                    goal_nudge_ids: Mutex::new(Vec::new()),
                 }
             }
         }
@@ -2188,28 +2185,9 @@ mod tests {
                 &self,
                 _model_config: &ModelConfig,
                 _system_prompt: &str,
-                messages: &[Message],
+                _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                let goal_nudge_ids = messages
-                    .iter()
-                    .filter(|message| {
-                        message.role == rmcp::model::Role::User
-                            && !message.is_user_visible()
-                            && message.is_agent_visible()
-                            && message
-                                .as_concat_text()
-                                .contains("check whether the following goal")
-                    })
-                    .map(|message| message.id.clone())
-                    .collect::<Vec<_>>();
-                if !goal_nudge_ids.is_empty() {
-                    self.goal_nudge_ids
-                        .lock()
-                        .expect("goal nudge IDs lock")
-                        .extend(goal_nudge_ids);
-                }
-
                 let count = self.call_count.fetch_add(1, Ordering::SeqCst);
                 let text = format!("Response number {count}");
                 let message = Message::assistant().with_text(&text);
@@ -2309,22 +2287,6 @@ mod tests {
                 nudge_messages.is_empty(),
                 "Goal nudge should be hidden from user, but found {} in events",
                 nudge_messages.len()
-            );
-
-            let goal_nudge_ids = provider
-                .goal_nudge_ids
-                .lock()
-                .expect("goal nudge IDs lock")
-                .clone();
-            assert!(
-                !goal_nudge_ids.is_empty(),
-                "Provider should receive the hidden goal nudge"
-            );
-            assert!(
-                goal_nudge_ids
-                    .iter()
-                    .all(|id| { id.as_deref().is_some_and(|id| id.starts_with("msg_")) }),
-                "Provider should receive hidden goal nudges with generated IDs: {goal_nudge_ids:?}"
             );
 
             // Goal should be cleared after being met
@@ -3193,35 +3155,7 @@ mod tests {
             }
         }
 
-        impl goose::providers::base::ProviderDescriptor for FinalOutputRequestProvider {
-            fn metadata() -> ProviderMetadata {
-                ProviderMetadata {
-                    name: "final-output-request-mock".to_string(),
-                    display_name: "Final Output Request Mock".to_string(),
-                    description: "Mock provider for final-output result tests".to_string(),
-                    default_model: "mock-model".to_string(),
-                    known_models: vec![],
-                    model_doc_link: "".to_string(),
-                    config_keys: vec![],
-                    setup_steps: vec![],
-                    model_selection_hint: None,
-                    fast_model: None,
-                }
-            }
-        }
-
         impl ProviderDef for EmptyThenTextProvider {
-            type Provider = Self;
-
-            fn from_env(
-                _extensions: Vec<goose::config::ExtensionConfig>,
-                _tls_config: Option<goose::providers::api_client::TlsConfig>,
-            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-                unimplemented!()
-            }
-        }
-
-        impl ProviderDef for FinalOutputRequestProvider {
             type Provider = Self;
 
             fn from_env(

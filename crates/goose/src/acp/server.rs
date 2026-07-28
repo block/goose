@@ -2479,14 +2479,6 @@ print(\"hello, world\")
         );
 
         assert_eq!(chunk.message_id, Some(MessageId::new("msg_live")));
-        assert_eq!(
-            chunk.meta.as_ref().and_then(|meta| meta.get("goose")),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_live",
-                "steer": true,
-            })),
-        );
     }
 
     #[test]

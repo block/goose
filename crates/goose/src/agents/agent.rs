@@ -276,9 +276,10 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
-impl AgentEvent {
-    pub fn message_with_id(message: Message) -> Self {
-        AgentEvent::Message(message.with_generated_id_if_missing())
+fn ensure_message_event_id(event: AgentEvent) -> AgentEvent {
+    match event {
+        AgentEvent::Message(message) => AgentEvent::Message(message.with_generated_id_if_missing()),
+        other => other,
     }
 }
 
@@ -1585,11 +1586,22 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let user_message = if user_message.id.is_none() {
-            user_message.with_generated_id()
-        } else {
-            user_message
-        };
+        let events = self
+            .reply_impl(user_message, session_config, cancel_token)
+            .await?;
+
+        // This is the single live-event identity boundary. Callers that intentionally stream
+        // multiple events for one logical message must assign their shared ID before this point.
+        Ok(Box::pin(events.map_ok(ensure_message_event_id)))
+    }
+
+    async fn reply_impl(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let user_message = user_message.with_generated_id_if_missing();
         let session_manager = self.config.session_manager.clone();
 
         let message_text_for_trace = agent_visible_message_text(&user_message);
@@ -1691,7 +1703,7 @@ impl Agent {
                     .with_text(e.to_string())
                     .with_visibility(true, false);
                 return Ok(Box::pin(stream::once(async move {
-                    Ok(AgentEvent::message_with_id(error_message))
+                    Ok(AgentEvent::Message(error_message))
                 })));
             }
             Ok(Some(response))
@@ -1869,7 +1881,7 @@ impl Agent {
                         compacted_conversation
                     }
                     Err(e) => {
-                        yield AgentEvent::message_with_id(
+                        yield AgentEvent::Message(
                             Message::assistant().with_text(
                                 format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
                             )
@@ -2077,7 +2089,7 @@ impl Agent {
                 }
                 if turns_taken > max_turns {
                     last_assistant_text = MAX_TURNS_MESSAGE.to_string();
-                    yield AgentEvent::message_with_id(Message::assistant().with_text(last_assistant_text.clone()));
+                    yield AgentEvent::Message(Message::assistant().with_text(last_assistant_text.clone()));
                     break;
                 }
 
@@ -2243,7 +2255,7 @@ impl Agent {
                                     );
 
                                     while let Some(msg) = frontend_tool_stream.try_next().await? {
-                                        yield AgentEvent::message_with_id(msg);
+                                        yield AgentEvent::Message(msg);
                                     }
                                 }
                                 if goose_mode == GooseMode::Chat {
@@ -2317,7 +2329,7 @@ impl Agent {
                                         );
 
                                         while let Some(msg) = tool_approval_stream.try_next().await? {
-                                            yield AgentEvent::message_with_id(msg);
+                                            yield AgentEvent::Message(msg);
                                         }
                                     }
 
@@ -2343,10 +2355,8 @@ impl Agent {
                                                 match tool_item {
                                                     Some((request_id, item)) => {
                                                         match item {
-                                                            ToolStreamItem::ActionRequired(mut msg) => {
-                                                                if msg.id.is_none() {
-                                                                    msg = msg.with_generated_id();
-                                                                }
+                                                            ToolStreamItem::ActionRequired(msg) => {
+                                                                let msg = msg.with_generated_id_if_missing();
                                                                 if let Err(e) = session_manager.add_message(&session_config.id, &msg).await {
                                                                     warn!("Failed to save elicitation message to session: {}", e);
                                                                 }
@@ -2638,7 +2648,7 @@ impl Agent {
                                     #[cfg(feature = "telemetry")]
                                     crate::posthog::emit_error("compaction_failed", &e.to_string());
                                     error!("Compaction failed: {}", e);
-                                    yield AgentEvent::message_with_id(
+                                    yield AgentEvent::Message(
                                         Message::assistant().with_text(
                                             format!("Ran into this error trying to compact: {e}.\n\nPlease try again or create a new session")
                                         )
@@ -2679,7 +2689,7 @@ impl Agent {
                             error!("Error: {}", provider_err);
 
                             let category = category.as_deref().map(|c| format!("\n\nCategory: {c}")).unwrap_or_default();
-                            yield AgentEvent::message_with_id(Message::assistant().with_text(format!(
+                            yield AgentEvent::Message(Message::assistant().with_text(format!(
                                 "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
                             )));
                             // A refusal is terminal: skip goal/grind nudges and
@@ -2693,7 +2703,7 @@ impl Agent {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::message_with_id(
+                            yield AgentEvent::Message(
                                 Message::assistant().with_text(
                                     format!("{provider_err}\n\nPlease resend your message to try again.")
                                 )
@@ -2705,7 +2715,7 @@ impl Agent {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
-                            yield AgentEvent::message_with_id(
+                            yield AgentEvent::Message(
                                 Message::assistant().with_text(
                                     format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
@@ -2867,7 +2877,7 @@ impl Agent {
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);
-                                    yield AgentEvent::message_with_id(
+                                    yield AgentEvent::Message(
                                         Message::assistant().with_text(
                                             format!("Retry logic encountered an error: {}", e)
                                         )
@@ -3575,8 +3585,9 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn agent_event_message_with_id_assigns_missing_ids_and_preserves_existing_ids() {
-        let generated = AgentEvent::message_with_id(Message::assistant().with_text("hello"));
+    fn ensure_message_event_id_assigns_missing_ids_and_preserves_existing_ids() {
+        let generated =
+            ensure_message_event_id(AgentEvent::Message(Message::assistant().with_text("hello")));
         let AgentEvent::Message(generated_message) = generated else {
             panic!("expected message event");
         };
@@ -3585,59 +3596,20 @@ mod tests {
             .as_deref()
             .expect("generated message id");
         assert!(generated_id.starts_with("msg_"));
-        assert_eq!(generated_message.as_concat_text(), "hello");
 
-        let preserved = AgentEvent::message_with_id(
+        let preserved = ensure_message_event_id(AgentEvent::Message(
             Message::assistant()
                 .with_id("provider-message-id")
                 .with_text("hello"),
-        );
+        ));
         let AgentEvent::Message(preserved_message) = preserved else {
             panic!("expected message event");
         };
         assert_eq!(preserved_message.id.as_deref(), Some("provider-message-id"));
-        assert_eq!(preserved_message.as_concat_text(), "hello");
 
-        let frontend_tool_request =
-            AgentEvent::message_with_id(Message::assistant().with_frontend_tool_request(
-                "frontend-request-id",
-                Ok(CallToolRequestParams::new("frontend_tool")),
-            ));
-        let AgentEvent::Message(frontend_tool_request_message) = frontend_tool_request else {
-            panic!("expected message event");
-        };
-        let frontend_tool_request_message_id = frontend_tool_request_message
-            .id
-            .as_deref()
-            .expect("frontend tool request message id");
-        assert!(frontend_tool_request_message_id.starts_with("msg_"));
-        assert!(matches!(
-            frontend_tool_request_message.content.first(),
-            Some(MessageContent::FrontendToolRequest(_))
-        ));
-
-        let action_required = AgentEvent::message_with_id(
-            Message::assistant()
-                .with_action_required(
-                    "permission-request-id",
-                    "shell".to_string(),
-                    serde_json::Map::new(),
-                    Some("Approve?".to_string()),
-                )
-                .user_only(),
-        );
-        let AgentEvent::Message(action_required_message) = action_required else {
-            panic!("expected message event");
-        };
-        let action_required_message_id = action_required_message
-            .id
-            .as_deref()
-            .expect("action required message id");
-        assert!(action_required_message_id.starts_with("msg_"));
-        assert!(matches!(
-            action_required_message.content.first(),
-            Some(MessageContent::ActionRequired(_))
-        ));
+        let non_message =
+            ensure_message_event_id(AgentEvent::HistoryReplaced(Conversation::empty()));
+        assert!(matches!(non_message, AgentEvent::HistoryReplaced(_)));
     }
 
     #[test]

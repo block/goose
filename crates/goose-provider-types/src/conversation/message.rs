@@ -1045,7 +1045,6 @@ impl Message {
             msg,
         ))
         .with_metadata(MessageMetadata::user_only())
-        .with_generated_id_if_missing()
     }
 
     pub fn with_system_notification_with_data<S: Into<String>>(
@@ -1060,7 +1059,6 @@ impl Message {
             data,
         ))
         .with_metadata(MessageMetadata::user_only())
-        .with_generated_id_if_missing()
     }
 
     pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
@@ -1136,7 +1134,7 @@ pub struct TokenState {
 #[cfg(test)]
 mod tests {
     use crate::conversation::message::{
-        ActionRequiredData, Message, MessageContentBlock, MessageMetadata, SystemNotificationType,
+        ActionRequiredData, Message, MessageContentBlock, MessageMetadata,
     };
     use rmcp::model::{
         Annotations, CallToolResult, ElicitationAction, ErrorCode, ErrorData, ImageContent,
@@ -1597,37 +1595,6 @@ mod tests {
         // By default, messages should be both user and agent visible
         assert!(message.is_user_visible());
         assert!(message.is_agent_visible());
-    }
-
-    #[test]
-    fn test_system_notification_helpers_assign_message_ids() {
-        let message = Message::assistant()
-            .with_system_notification(SystemNotificationType::InlineMessage, "Notice");
-        let message_id = message
-            .id
-            .as_deref()
-            .expect("system notification should have a message ID");
-        assert!(message_id.starts_with("msg_"));
-
-        let message_with_data = Message::assistant().with_system_notification_with_data(
-            SystemNotificationType::CreditsExhausted,
-            "Credits exhausted",
-            serde_json::json!({"top_up_url": "https://example.com"}),
-        );
-        let message_id = message_with_data
-            .id
-            .as_deref()
-            .expect("system notification with data should have a message ID");
-        assert!(message_id.starts_with("msg_"));
-
-        let explicit_id = Message::assistant()
-            .with_id("provider-system-notification-id")
-            .with_system_notification(SystemNotificationType::ProgressMessage, "Loading")
-            .id;
-        assert_eq!(
-            explicit_id.as_deref(),
-            Some("provider-system-notification-id")
-        );
     }
 
     #[test]
