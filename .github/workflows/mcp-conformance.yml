@@ -84,6 +84,8 @@ jobs:
         run: chmod +x target/debug/goose target/debug/mcp_conformance_driver
 
       - name: Run Conformance Suite
+        env:
+          GOOSE_DISABLE_KEYRING: "1"
         run: |
           source ./bin/activate-hermit
           just mcp-conformance "${{ matrix.spec-version }}" all "${{ matrix.conformance-version }}" false "${{ matrix.baseline }}"

@@ -83,9 +83,18 @@ fn main() {
     let script = script_for_scenario(scenario.as_deref());
 
     let goose = std::env::var("GOOSE_BIN").unwrap_or_else(|_| "target/debug/goose".to_string());
+    let path_root = tempfile::Builder::new()
+        .prefix("goose-mcp-conformance-")
+        .tempdir()
+        .unwrap_or_else(|err| {
+            eprintln!("failed to create temporary GOOSE_PATH_ROOT: {err}");
+            std::process::exit(1);
+        });
     let mut child = Command::new(&goose)
         .args(["mcp-probe", target, "--script", "-"])
         .env("GOOSE_OAUTH_AUTOMATIC_CALLBACK", "1")
+        .env("GOOSE_DISABLE_KEYRING", "1")
+        .env("GOOSE_PATH_ROOT", path_root.path())
         .stdin(Stdio::piped())
         .spawn()
         .unwrap_or_else(|err| {
