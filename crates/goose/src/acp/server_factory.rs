@@ -30,6 +30,13 @@ impl AcpServer {
         }
     }
 
+    /// Start the scheduler now instead of on first client connect, so a
+    /// headless `goose serve` runs scheduled jobs; on failure `create_agent`
+    /// retries. No-op when the scheduler is disabled.
+    pub async fn start_scheduler(&self) -> Result<()> {
+        self.scheduler().await.map(|_| ())
+    }
+
     async fn scheduler(&self) -> Result<Option<Arc<dyn SchedulerTrait>>> {
         if !self.config.enable_scheduler {
             return Ok(None);
@@ -120,5 +127,33 @@ mod tests {
         let server = server(root.path().to_path_buf(), true);
 
         assert!(server.scheduler().await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn start_scheduler_initializes_before_any_client_connects() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), true);
+
+        assert!(!server.scheduler.initialized());
+        server.start_scheduler().await.unwrap();
+        assert!(server.scheduler.initialized());
+    }
+
+    #[tokio::test]
+    async fn start_scheduler_is_idempotent() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), true);
+
+        server.start_scheduler().await.unwrap();
+        server.start_scheduler().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn start_scheduler_does_not_construct_one_when_disabled() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        server.start_scheduler().await.unwrap();
+        assert!(!server.scheduler.initialized());
     }
 }
