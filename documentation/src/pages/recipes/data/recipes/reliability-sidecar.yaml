@@ -25,11 +25,12 @@ instructions: |
      send secrets, personal data, record content, or the raw task text to Agent
      Enhancer.
 
-  2. Use the Agent Enhancer extension progressively:
-     - call `lab.search_tools` for a workflow reliability planner;
-     - call `lab.describe_tool` for `workflow-guard-planner`;
-     - invoke `workflow-guard-planner` through `lab.invoke_tool` with its complete
-       version-1 contract.
+  2. Use the Agent Enhancer extension through the owner-qualified tool names
+     Goose exposes:
+     - call `agent-enhancer__lab.search_tools` for a workflow reliability planner;
+     - call `agent-enhancer__lab.describe_tool` for `workflow-guard-planner`;
+     - invoke `workflow-guard-planner` through
+       `agent-enhancer__lab.invoke_tool` with its complete version-1 contract.
      Record assumptions explicitly. Treat the returned candidate tools as a
      plan, not proof that the destination supports them.
 
