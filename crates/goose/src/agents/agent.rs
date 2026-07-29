@@ -1948,6 +1948,7 @@ impl Agent {
             let turn_start_compaction_info =
                 super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
                     .await;
+            let turn_start_turns_taken = turns_taken;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2031,7 +2032,7 @@ impl Agent {
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
-                    turns_taken,
+                    turn_start_turns_taken,
                     max_turns,
                     turn_start,
                     turn_start_compaction_info.clone(),
