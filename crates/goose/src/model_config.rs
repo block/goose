@@ -32,12 +32,20 @@ pub fn model_config_from_user_config_with_session_settings(
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(apply_canonical_limits(provider_name, model))
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
     let model = materialize_model_config_inner(model, provider_name, true)?;
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(apply_canonical_limits(provider_name, model))
+}
+
+fn apply_canonical_limits(provider_name: &str, model: ModelConfig) -> ModelConfig {
+    if provider_name == goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+        model
+    } else {
+        model.with_canonical_limits(provider_name)
+    }
 }
 
 fn materialize_model_config_inner(
@@ -263,6 +271,7 @@ mod azure_foundry_tests {
             .with_thinking_effort(ThinkingEffort::Off);
 
         assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(config.context_limit, None);
         assert_eq!(
             config.request_param::<String>(
                 goose_providers::azure_foundry::AZURE_FOUNDRY_DEPLOYMENT_PARAM

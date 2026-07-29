@@ -476,7 +476,7 @@ impl Provider for AzureFoundryProvider {
             return Ok(context_limit);
         }
         Ok(self
-            .fetch_model_info(&model_config.model_name)
+            .fetch_model_info(&deployment_name(model_config))
             .await?
             .context_limit)
     }
@@ -833,6 +833,41 @@ mod tests {
                 .unwrap(),
             400_000
         );
+    }
+
+    #[tokio::test]
+    async fn canonical_like_alias_context_uses_underlying_model() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "value": [{
+                    "type": "ModelDeployment",
+                    "name": "gpt-5-high",
+                    "modelName": "custom-128k-model",
+                    "modelPublisher": "OpenAI"
+                }]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        let config = preserve_deployment_name(ModelConfig::new("gpt-5-high"), "gpt-5-high");
+        assert_eq!(provider.get_context_limit(&config).await.unwrap(), 128_000);
+    }
+
+    #[tokio::test]
+    async fn explicit_context_limit_overrides_deployment_metadata() {
+        let server = MockServer::start().await;
+        let provider = project_provider(&server);
+        let config = preserve_deployment_name(
+            ModelConfig::new("gpt-5-high").with_context_limit(Some(64_000)),
+            "gpt-5-high",
+        );
+
+        assert_eq!(provider.get_context_limit(&config).await.unwrap(), 64_000);
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]
