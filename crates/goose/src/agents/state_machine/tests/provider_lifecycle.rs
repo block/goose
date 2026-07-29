@@ -94,6 +94,28 @@ async fn provider_lifecycle() -> Result<()> {
         "provider response id was not preserved: {:?}",
         mixed_response.id
     );
+    let emitted_mixed_response = result
+        .events
+        .iter()
+        .find_map(|event| match event {
+            AgentEvent::Message(message)
+                if message.content.iter().any(
+                    |content| matches!(content, MessageContent::ToolRequest(request) if request.tool_call.is_err()),
+                ) =>
+            {
+                Some(message)
+            }
+            _ => None,
+        })
+        .expect("emitted mixed response with malformed tool call");
+    assert_eq!(emitted_mixed_response.id, mixed_response.id);
+    assert!(result.events.iter().any(|event| {
+        matches!(
+            event,
+            AgentEvent::MessageUsage { message_id, .. }
+                if message_id == &mixed_response.id
+        )
+    }));
     assert_eq!(
         mixed_response
             .content

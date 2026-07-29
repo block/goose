@@ -9,7 +9,6 @@ use crate::agents::state_machine::operation::{
     applied, ends_turn, messages_since_kickoff, not_applicable, yielded, yielded_with, Emitter,
     Operation, OperationResult,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
@@ -69,11 +68,11 @@ impl Operation for StopHookOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         if !ends_turn(messages) {
-            return not_applicable(emit);
+            return not_applicable();
         }
         let last_assistant_text = conversation
             .last()
@@ -92,11 +91,10 @@ impl Operation for StopHookOperation {
                 let blocks = self.consecutive_blocks.fetch_add(1, Ordering::Relaxed) + 1;
                 if blocks > self.block_cap {
                     let warning = block_cap_warning(&plugin, self.block_cap);
-                    emit.emit(AgentEvent::Message(warning.clone())).await;
+                    let warning = emit.message(warning).await;
                     yielded_with([warning.into()])
                 } else {
-                    emit.emit(AgentEvent::Message(denial_notification(&plugin)))
-                        .await;
+                    emit.message(denial_notification(&plugin)).await;
                     applied([denial_context_message(&plugin, &reason).into()])
                 }
             }

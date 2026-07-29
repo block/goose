@@ -42,6 +42,7 @@ async fn max_turns_counts_inference_calls_and_injects_budget() -> Result<()> {
     assert!(!calls[first_budgeted_call - 1].input_contains("<turn-budget>"));
     assert!(calls[first_budgeted_call].input_contains("<turn-budget>"));
     result.assert_message(-1, Agent, state_machine::MAX_TURNS_MESSAGE);
+    result.assert_emitted_message_matches_persisted(state_machine::MAX_TURNS_MESSAGE);
 
     Ok(())
 }

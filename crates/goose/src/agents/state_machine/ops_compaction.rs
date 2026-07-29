@@ -11,7 +11,6 @@ use crate::agents::state_machine::operation::{
     yielded_with, Emitter, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_llm::{chat_span, record_chat_usage};
-use crate::agents::AgentEvent;
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
 use crate::conversation::{Conversation, EffectiveRole};
@@ -75,7 +74,7 @@ impl CompactionOperation {
     async fn command_error(
         conversation: &Conversation,
         message: String,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let command = messages_since_kickoff(conversation)?
             .first()
@@ -89,8 +88,8 @@ impl CompactionOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::SetMessageVisibility {
                 message_id,
@@ -101,7 +100,7 @@ impl CompactionOperation {
         ])
     }
 
-    async fn clear(conversation: &Conversation, emit: Emitter) -> Result<OperationResult> {
+    async fn clear(conversation: &Conversation, emit: &Emitter) -> Result<OperationResult> {
         let command = messages_since_kickoff(conversation)?
             .first()
             .cloned()
@@ -110,8 +109,8 @@ impl CompactionOperation {
         let response = Message::assistant()
             .with_text("Conversation cleared")
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command.clone())).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        let command = emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             Conversation::default().into(),
             command.into(),
@@ -131,12 +130,12 @@ impl Operation for CompactionOperation {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         match command.command {
             "clear" => return Self::clear(conversation, emit).await,
             "compact" => {}
-            _ => return not_applicable(emit),
+            _ => return not_applicable(),
         }
 
         let span = chat_span(
@@ -173,8 +172,8 @@ impl Operation for CompactionOperation {
         let response = Message::assistant()
             .with_text("Compaction complete")
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::ReplaceConversation {
                 conversation: compacted,
@@ -205,10 +204,10 @@ impl Operation for CompactionOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         if self.manages_own_context {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let messages = messages_since_kickoff(conversation)?;
@@ -226,15 +225,15 @@ impl Operation for CompactionOperation {
                 })
                 .count();
             if context_errors > MAX_CONTEXT_ERROR_COMPACTIONS {
-                return not_applicable(emit);
+                return not_applicable();
             }
         } else {
             if last_effective_role(messages)? != EffectiveRole::User {
-                return not_applicable(emit);
+                return not_applicable();
             }
             match session.usage.total_tokens {
                 Some(tokens) if tokens > 0 && self.over_threshold(tokens as usize) => {}
-                _ => return not_applicable(emit),
+                _ => return not_applicable(),
             }
         }
 
@@ -242,7 +241,7 @@ impl Operation for CompactionOperation {
         let conversation = if reactive_context_error {
             let mut messages = conversation.messages().to_vec();
             let Some(last) = messages.last_mut() else {
-                return not_applicable(emit);
+                return not_applicable();
             };
             last.metadata.agent_visible = false;
             conversation_with_hidden_error = Conversation::new_unvalidated(messages);
@@ -252,21 +251,17 @@ impl Operation for CompactionOperation {
         };
 
         let threshold_percentage = (self.threshold * 100.0) as u32;
-        emit.emit(AgentEvent::Message(
-            Message::assistant().with_system_notification(
-                SystemNotificationType::InlineMessage,
-                format!(
-                    "Exceeded auto-compact threshold of {threshold_percentage}%. \
+        emit.message(Message::assistant().with_system_notification(
+            SystemNotificationType::InlineMessage,
+            format!(
+                "Exceeded auto-compact threshold of {threshold_percentage}%. \
                      Performing auto-compaction..."
-                ),
             ),
         ))
         .await;
-        emit.emit(AgentEvent::Message(
-            Message::assistant().with_system_notification(
-                SystemNotificationType::ThinkingMessage,
-                COMPACTION_THINKING_TEXT,
-            ),
+        emit.message(Message::assistant().with_system_notification(
+            SystemNotificationType::ThinkingMessage,
+            COMPACTION_THINKING_TEXT,
         ))
         .await;
 
@@ -290,11 +285,9 @@ impl Operation for CompactionOperation {
                 let compacted = result.conversation;
                 let usage = result.usage;
                 record_chat_usage(&span, &usage);
-                emit.emit(AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::InlineMessage,
-                        "Compaction complete",
-                    ),
+                emit.message(Message::assistant().with_system_notification(
+                    SystemNotificationType::InlineMessage,
+                    "Compaction complete",
                 ))
                 .await;
                 applied([StateEffect::ReplaceConversation {
@@ -304,11 +297,9 @@ impl Operation for CompactionOperation {
             }
             Err(e) => {
                 span.record("error.type", "compaction_error");
-                emit.emit(AgentEvent::Message(Message::assistant().with_text(
-                    format!(
-                        "Ran into this error trying to compact: {e}.\n\n\
+                emit.message(Message::assistant().with_text(format!(
+                    "Ran into this error trying to compact: {e}.\n\n\
                      Please try again or create a new session"
-                    ),
                 )))
                 .await;
                 yielded()

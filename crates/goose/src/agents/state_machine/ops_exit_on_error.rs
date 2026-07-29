@@ -21,10 +21,10 @@ impl Operation for ExitOnErrorOperation {
         &self,
         _session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult> {
         if trailing_error(conversation).is_none() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         yielded()

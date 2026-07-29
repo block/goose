@@ -84,7 +84,7 @@ pub trait Operation: Send + Sync {
         _session: &Session,
         _conversation: &Conversation,
         result: OperationResult,
-        _emit: Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult> {
         Ok(result)
     }
@@ -94,9 +94,9 @@ pub trait Operation: Send + Sync {
         _command: &SlashCommand<'_>,
         _session: &Session,
         _conversation: &Conversation,
-        emit: Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult> {
-        not_applicable(emit)
+        not_applicable()
     }
 
     async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
@@ -123,9 +123,9 @@ pub trait Operation: Send + Sync {
         &self,
         _session: &Session,
         _conversation: &Conversation,
-        emit: Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult> {
-        not_applicable(emit)
+        not_applicable()
     }
 }
 
@@ -143,7 +143,7 @@ pub trait Inference: Operation {
         session: &Session,
         conversation: &Conversation,
         input: InferenceInput,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult>;
 }
 
@@ -152,13 +152,21 @@ pub struct StepResult {
     pub yield_to_client: bool,
 }
 
+impl StepResult {
+    pub(super) fn ensure_message_ids(&mut self) {
+        for effect in &mut self.effects {
+            effect.ensure_message_ids();
+        }
+    }
+}
+
 pub enum OperationResult {
-    NotApplicable(Emitter),
+    NotApplicable,
     Applied(StepResult),
 }
 
-pub fn not_applicable(emit: Emitter) -> Result<OperationResult> {
-    Ok(OperationResult::NotApplicable(emit))
+pub fn not_applicable() -> Result<OperationResult> {
+    Ok(OperationResult::NotApplicable)
 }
 
 pub fn applied(effects: impl IntoIterator<Item = StateEffect>) -> Result<OperationResult> {
@@ -202,18 +210,37 @@ pub enum StateEffect {
     RecordUsage(ProviderUsage),
 }
 
+impl StateEffect {
+    pub(super) fn ensure_message_ids(&mut self) {
+        let messages = match self {
+            StateEffect::AppendMessage(message) => std::slice::from_mut(message),
+            StateEffect::ReplaceConversation { conversation, .. } => {
+                conversation.messages_mut().as_mut_slice()
+            }
+            _ => return,
+        };
+        for message in messages {
+            if message.id.is_none() {
+                message.id = Some(format!("msg_{}", uuid::Uuid::new_v4()));
+            }
+        }
+    }
+}
+
 impl From<Message> for StateEffect {
     fn from(message: Message) -> Self {
-        StateEffect::AppendMessage(message)
+        StateEffect::AppendMessage(message.with_generated_id_if_missing())
     }
 }
 
 impl From<Conversation> for StateEffect {
     fn from(conversation: Conversation) -> Self {
-        StateEffect::ReplaceConversation {
+        let mut effect = StateEffect::ReplaceConversation {
             conversation,
             usage: None,
-        }
+        };
+        effect.ensure_message_ids();
+        effect
     }
 }
 
@@ -230,6 +257,12 @@ impl Emitter {
 
     pub async fn emit(&self, event: AgentEvent) {
         let _ = self.tx.send(event).await;
+    }
+
+    pub async fn message(&self, message: Message) -> Message {
+        let message = message.with_generated_id_if_missing();
+        self.emit(AgentEvent::Message(message.clone())).await;
+        message
     }
 
     pub fn cancel_token(&self) -> &CancellationToken {

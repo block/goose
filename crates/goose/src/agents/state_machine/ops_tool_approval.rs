@@ -9,7 +9,6 @@ use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
     StateEffect,
 };
-use crate::agents::AgentEvent;
 use crate::config::permission::PermissionLevel;
 use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent, ToolRequest};
@@ -50,11 +49,11 @@ impl Operation for ToolApprovalOperation<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let goose_mode = *self.goose_mode.lock().await;
         if goose_mode == GooseMode::Chat {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let state = ApprovalState::from_messages(messages_since_kickoff(conversation)?);
@@ -125,10 +124,8 @@ impl Operation for ToolApprovalOperation<'_> {
                         tool_call.arguments.clone().unwrap_or_default(),
                         security_message,
                     )
-                    .user_only()
-                    .with_generated_id();
-                emit.emit(AgentEvent::Message(action_required.clone()))
-                    .await;
+                    .user_only();
+                let action_required = emit.message(action_required).await;
                 effects.push(action_required.into());
 
                 if let Some(finding_id) =
@@ -146,7 +143,7 @@ impl Operation for ToolApprovalOperation<'_> {
         }
 
         if effects.is_empty() {
-            not_applicable(emit)
+            not_applicable()
         } else {
             applied(effects)
         }

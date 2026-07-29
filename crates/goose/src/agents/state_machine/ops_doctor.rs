@@ -8,7 +8,6 @@ use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
     OperationResult, SlashCommand, StateEffect,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -26,10 +25,10 @@ impl Operation for DoctorOperation {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         if command.command != "doctor" {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let command_message = messages_since_kickoff(conversation)?
@@ -53,8 +52,8 @@ impl Operation for DoctorOperation {
         if result.role == Role::Assistant {
             let command_message = command_message.with_visibility(true, false);
             let result = result.with_visibility(true, false);
-            emit.emit(AgentEvent::Message(command_message)).await;
-            emit.emit(AgentEvent::Message(result.clone())).await;
+            emit.message(command_message).await;
+            let result = emit.message(result).await;
             return yielded_with([
                 StateEffect::SetMessageVisibility {
                     message_id,

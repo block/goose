@@ -10,7 +10,6 @@ use crate::agents::state_machine::operation::{
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -29,14 +28,14 @@ impl Operation for UnknownToolOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let pending = pending_tool_requests(messages_since_kickoff(conversation)?);
         if pending.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
-        let mut response = Message::user().with_generated_id();
+        let mut response = Message::user();
         for (request, disposition) in pending {
             let tool_name = request
                 .tool_call
@@ -82,7 +81,7 @@ impl Operation for UnknownToolOperation {
             response.add_tool_response_with_metadata(request.id, result, metadata.as_ref());
         }
 
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        let response = emit.message(response).await;
         applied([response.into()])
     }
 }

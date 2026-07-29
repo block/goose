@@ -17,7 +17,6 @@ use crate::agents::state_machine::operation::{
 use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::session::Session;
@@ -77,7 +76,7 @@ impl RecipeOperation {
         &self,
         conversation: &Conversation,
         message: String,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let command = messages_since_kickoff(conversation)?
             .first()
@@ -91,8 +90,8 @@ impl RecipeOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::SetMessageVisibility {
                 message_id,
@@ -115,14 +114,14 @@ impl Operation for RecipeOperation {
         command: &SlashCommand<'_>,
         _session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let (recipe, prompt) = match crate::slash_commands::recipe_slash_command::resolve_command(
             command.command,
             command.params_str,
         ) {
             Ok(Some(recipe)) => recipe,
-            Ok(None) => return not_applicable(emit),
+            Ok(None) => return not_applicable(),
             Err(error) => return self.command_error(conversation, error, emit).await,
         };
 
@@ -182,10 +181,10 @@ impl Operation for RecipeOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let Some(mut final_output) = Self::final_output(session)? else {
-            return not_applicable(emit);
+            return not_applicable();
         };
 
         let messages = messages_since_kickoff(conversation)?;
@@ -217,27 +216,27 @@ impl Operation for RecipeOperation {
                 }
                 _ => {}
             }
-            let mut response = Message::user().with_generated_id();
+            let mut response = Message::user();
             response.add_tool_response_with_metadata(request.id, output, request.metadata.as_ref());
-            emit.emit(AgentEvent::Message(response.clone())).await;
+            let response = emit.message(response).await;
             return applied([response.into()]);
         }
 
         if let Some(output) = Self::successful_final_output(messages) {
             if last_effective_role(messages)? == EffectiveRole::Tool {
                 let message = Message::assistant().with_text(output);
-                emit.emit(AgentEvent::Message(message.clone())).await;
+                let message = emit.message(message).await;
                 return applied([message.into()]);
             }
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         if ends_turn(messages) {
             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-            emit.emit(AgentEvent::Message(message.clone())).await;
+            let message = emit.message(message).await;
             return applied([message.into()]);
         }
 
-        not_applicable(emit)
+        not_applicable()
     }
 }

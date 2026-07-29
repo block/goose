@@ -8,7 +8,6 @@ use crate::agents::state_machine::operation::{
     applied, last_effective_role, messages_since_kickoff, not_applicable, yielded, Emitter,
     Operation, OperationResult,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::session::Session;
@@ -33,11 +32,11 @@ impl Operation for BangShellOperation {
         &self,
         _session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         let Some(kickoff) = messages.first() else {
-            return not_applicable(emit);
+            return not_applicable();
         };
         let kickoff_text = kickoff.as_concat_text();
         let Some(command) = kickoff_text
@@ -46,14 +45,14 @@ impl Operation for BangShellOperation {
             .map(str::trim_start)
             .filter(|command| !command.is_empty())
         else {
-            return not_applicable(emit);
+            return not_applicable();
         };
 
         if messages.len() > 1 {
             return if last_effective_role(messages)? == EffectiveRole::Tool {
                 yielded()
             } else {
-                not_applicable(emit)
+                not_applicable()
             };
         }
 
@@ -64,9 +63,8 @@ impl Operation for BangShellOperation {
             )]),
         );
         let request = Message::assistant()
-            .with_generated_id()
             .with_tool_request(format!("bang_shell_{}", uuid::Uuid::now_v7()), Ok(call));
-        emit.emit(AgentEvent::Message(request.clone())).await;
+        let request = emit.message(request).await;
 
         applied([request.into()])
     }

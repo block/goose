@@ -13,7 +13,6 @@ use crate::agents::state_machine::operation::{
     OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::types::RetryConfig;
-use crate::agents::AgentEvent;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -74,12 +73,12 @@ impl Operation for RetryOperation<'_> {
         command: &SlashCommand<'_>,
         _session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let target = match command.command {
             "goal" => &self.goal,
             "grind" => &self.grind,
-            _ => return not_applicable(emit),
+            _ => return not_applicable(),
         };
         let label = if command.command == "goal" {
             "goal"
@@ -129,8 +128,8 @@ impl Operation for RetryOperation<'_> {
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
         let command_message = command_message.with_visibility(true, false);
         let response = response.with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command_message)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command_message).await;
+        let response = emit.message(response).await;
 
         let mut effects = vec![
             StateEffect::SetMessageVisibility {
@@ -159,12 +158,12 @@ impl Operation for RetryOperation<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         if self.finished.load(Ordering::Relaxed)
             || !ends_turn(messages_since_kickoff(conversation)?)
         {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         if !self.goal_nudged.load(Ordering::Relaxed) {
@@ -178,11 +177,9 @@ impl Operation for RetryOperation<'_> {
                 let message = Message::user()
                     .with_text(&nudge)
                     .with_visibility(false, true);
-                emit.emit(AgentEvent::Message(
-                    Message::assistant().with_system_notification(
-                        SystemNotificationType::InlineMessage,
-                        format!("Goal: {goal}"),
-                    ),
+                emit.message(Message::assistant().with_system_notification(
+                    SystemNotificationType::InlineMessage,
+                    format!("Goal: {goal}"),
                 ))
                 .await;
                 return applied([message.into()]);
@@ -198,11 +195,9 @@ impl Operation for RetryOperation<'_> {
             let message = Message::user()
                 .with_text(&nudge)
                 .with_visibility(false, true);
-            emit.emit(AgentEvent::Message(
-                Message::assistant().with_system_notification(
-                    SystemNotificationType::InlineMessage,
-                    format!("Grind: {grind}"),
-                ),
+            emit.message(Message::assistant().with_system_notification(
+                SystemNotificationType::InlineMessage,
+                format!("Grind: {grind}"),
             ))
             .await;
             return applied([message.into()]);
@@ -212,7 +207,7 @@ impl Operation for RetryOperation<'_> {
         *self.grind.lock().await = None;
 
         let Some(retry_config) = Self::retry_config(session) else {
-            return not_applicable(emit);
+            return not_applicable();
         };
 
         let retry_timeout = retry_config
@@ -227,12 +222,12 @@ impl Operation for RetryOperation<'_> {
                 self.finished.store(true, Ordering::Relaxed);
                 let message = Message::assistant()
                     .with_text(format!("Retry logic encountered an error: {error}"));
-                emit.emit(AgentEvent::Message(message.clone())).await;
+                let message = emit.message(message).await;
                 return applied([message.into()]);
             }
         };
         if success {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         if self.attempts.load(Ordering::Relaxed) >= retry_config.max_retries {
@@ -246,7 +241,7 @@ impl Operation for RetryOperation<'_> {
                 "retry_max_exceeded",
                 &format!("Max retries ({}) exceeded", retry_config.max_retries),
             );
-            emit.emit(AgentEvent::Message(message.clone())).await;
+            let message = emit.message(message).await;
             return applied([message.into()]);
         }
 
@@ -259,7 +254,7 @@ impl Operation for RetryOperation<'_> {
                 self.finished.store(true, Ordering::Relaxed);
                 let message = Message::assistant()
                     .with_text(format!("Retry logic encountered an error: {error}"));
-                emit.emit(AgentEvent::Message(message.clone())).await;
+                let message = emit.message(message).await;
                 return applied([message.into()]);
             }
         }

@@ -324,10 +324,7 @@ impl TestPipeline {
             events.extend(run_machine(self).await?);
         }
 
-        Ok(TestRun {
-            session: self.session().await?,
-            events,
-        })
+        Ok(TestRun::new(self.session().await?, events))
     }
 
     pub(super) async fn run_message(&self, message: Message) -> Result<TestRun> {
@@ -335,10 +332,7 @@ impl TestPipeline {
             .add_message(&self.session_id, &message)
             .await?;
         let events = run_machine(self).await?;
-        Ok(TestRun {
-            session: self.session().await?,
-            events,
-        })
+        Ok(TestRun::new(self.session().await?, events))
     }
 
     pub(super) async fn run_reconstructing_each_step(
@@ -358,7 +352,7 @@ impl TestPipeline {
         loop {
             let session = self.session().await?;
             let machine = self.machine(cancel.clone());
-            let Some(mut result) = machine.step(&session, emit.clone()).await? else {
+            let Some(mut result) = machine.step(&session, &emit).await? else {
                 break;
             };
             machine
@@ -381,10 +375,7 @@ impl TestPipeline {
         while let Some(event) = rx.recv().await {
             events.push(event);
         }
-        let result = TestRun {
-            session: self.session().await?,
-            events,
-        };
+        let result = TestRun::new(self.session().await?, events);
         Ok((self, result, applied_steps))
     }
 
@@ -399,10 +390,7 @@ impl TestPipeline {
 
     pub(super) async fn resume(&self) -> Result<TestRun> {
         let events = run_machine(self).await?;
-        Ok(TestRun {
-            session: self.session().await?,
-            events,
-        })
+        Ok(TestRun::new(self.session().await?, events))
     }
 
     pub(super) async fn confirm(&self, id: &str, permission: Permission) -> Result<()> {
@@ -465,7 +453,7 @@ impl TestPipeline {
         while let Some(event) = rx.recv().await {
             events.push(event);
         }
-        Ok(TestRun { session, events })
+        Ok(TestRun::new(session, events))
     }
 
     pub(super) async fn run_with_cancel(
@@ -491,7 +479,7 @@ impl TestPipeline {
         while let Some(event) = rx.recv().await {
             events.push(event);
         }
-        Ok(TestRun { session, events })
+        Ok(TestRun::new(session, events))
     }
 
     pub(super) async fn run_with_elicitation(
@@ -512,7 +500,7 @@ impl TestPipeline {
 
         loop {
             let session = self.session().await?;
-            let step = machine.step(&session, emit.clone());
+            let step = machine.step(&session, &emit);
             tokio::pin!(step);
             let mut result = loop {
                 tokio::select! {
@@ -580,10 +568,7 @@ impl TestPipeline {
         while let Some(event) = rx.recv().await {
             events.push(event);
         }
-        Ok(TestRun {
-            session: self.session().await?,
-            events,
-        })
+        Ok(TestRun::new(self.session().await?, events))
     }
 
     pub(super) async fn set_system_prompt_override(&self, prompt: impl Into<String>) {
@@ -845,6 +830,28 @@ pub(super) enum MessageKind {
 }
 
 impl TestRun {
+    fn new(session: Session, events: Vec<AgentEvent>) -> Self {
+        let conversation = session
+            .conversation
+            .as_ref()
+            .expect("session has a conversation");
+        for message in conversation.messages() {
+            assert!(
+                message.id.is_some(),
+                "persisted message has no id: {message:#?}"
+            );
+        }
+        for event in &events {
+            if let AgentEvent::Message(message) = event {
+                assert!(
+                    message.id.is_some(),
+                    "emitted message has no id: {message:#?}"
+                );
+            }
+        }
+        Self { session, events }
+    }
+
     pub(super) fn conversation(&self) -> &Conversation {
         self.session
             .conversation
@@ -880,6 +887,26 @@ impl TestRun {
             "no emitted message contains {contains:?}:\n{}",
             emitted.join("\n")
         );
+    }
+
+    pub(super) fn assert_emitted_message_matches_persisted(&self, contains: &str) {
+        let emitted = self
+            .events
+            .iter()
+            .find_map(|event| match event {
+                AgentEvent::Message(message) if message.as_concat_text().contains(contains) => {
+                    Some(message)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no emitted message contains {contains:?}"));
+        let persisted = self
+            .conversation()
+            .messages()
+            .iter()
+            .find(|message| message.as_concat_text().contains(contains))
+            .unwrap_or_else(|| panic!("no persisted message contains {contains:?}"));
+        assert_eq!(emitted.id, persisted.id);
     }
 
     pub(super) fn assert_message(&self, index: isize, kind: MessageKind, contains: &str) {
@@ -971,7 +998,7 @@ pub(super) async fn run_machine(pipeline: &TestPipeline) -> Result<Vec<AgentEven
     let mut events = Vec::new();
     loop {
         let session = pipeline.session().await?;
-        let Some(mut result) = machine.step(&session, emit.clone()).await? else {
+        let Some(mut result) = machine.step(&session, &emit).await? else {
             break;
         };
         machine

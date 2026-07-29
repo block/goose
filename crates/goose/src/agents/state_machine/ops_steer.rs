@@ -11,7 +11,6 @@ use crate::agents::state_machine::operation::{
     applied, ends_turn, last_effective_role, messages_since_kickoff, not_applicable, Emitter,
     Operation, OperationResult,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::{Conversation, EffectiveRole};
 use crate::hooks::{HookContext, HookEvent, HookManager};
@@ -43,13 +42,13 @@ impl Operation for SteerOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         let between_turns =
             ends_turn(messages) || last_effective_role(messages)? == EffectiveRole::Tool;
         if !between_turns {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let pending: Vec<_> = self
@@ -60,7 +59,7 @@ impl Operation for SteerOperation {
             .map(Message::with_steer)
             .collect();
         if pending.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let mut effects = Vec::with_capacity(pending.len());
@@ -70,7 +69,7 @@ impl Operation for SteerOperation {
             self.hook_manager
                 .emit(HookEvent::UserPromptSubmit, context)
                 .await;
-            emit.emit(AgentEvent::Message(message.clone())).await;
+            let message = emit.message(message).await;
             effects.push(message.into());
         }
         applied(effects)

@@ -7,6 +7,7 @@ use goose::agents::state_machine::{
     yielded_with, Emitter, Inference, InferenceInput, Operation, OperationResult, StateEffect,
     StateMachine, Step,
 };
+use goose::agents::AgentEvent;
 use goose::config::GooseMode;
 use goose::conversation::message::Message;
 use goose::conversation::Conversation;
@@ -57,7 +58,7 @@ impl Inference for TestInference {
         _session: &Session,
         conversation: &Conversation,
         input: InferenceInput,
-        _emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         assert_eq!(
             input.prompt_parts,
@@ -70,8 +71,11 @@ impl Inference for TestInference {
             .find(|message| message.role == rmcp::model::Role::User)
             .map(Message::as_concat_text)
             .unwrap();
+        let message = emit
+            .message(Message::assistant().with_text(format!("{prompt} answered")))
+            .await;
         yielded_with([
-            StateEffect::from(Message::assistant().with_text(format!("{prompt} answered"))),
+            StateEffect::from(message),
             StateEffect::RecordUsage(ProviderUsage::new(
                 "test-model".to_string(),
                 Usage::new(Some(5), Some(7), Some(12)),
@@ -146,7 +150,7 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
         .await?;
 
     let cancel = CancellationToken::new();
-    let (tx, _rx) = mpsc::channel(16);
+    let (tx, mut rx) = mpsc::channel(16);
     let emit = Emitter::new(tx, cancel.clone());
     let machine = StateMachine::new(
         vec![
@@ -157,21 +161,23 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     );
 
     let session = session_manager.get_session(&session.id, true).await?;
-    let mut result = machine.step(&session, emit.clone()).await?.unwrap();
+    let mut result = machine.step(&session, &emit).await?.unwrap();
     machine
         .apply(&session_manager, &session, &mut result, &emit)
         .await?;
     assert!(result.yield_to_client);
     let session = session_manager.get_session(&session.id, true).await?;
-    assert_eq!(
-        session
-            .conversation
-            .as_ref()
-            .and_then(Conversation::last)
-            .map(Message::as_concat_text)
-            .as_deref(),
-        Some("first turn answered")
-    );
+    let persisted = session
+        .conversation
+        .as_ref()
+        .and_then(Conversation::last)
+        .expect("persisted inference response");
+    let emitted = match rx.recv().await {
+        Some(AgentEvent::Message(message)) => message,
+        other => panic!("expected emitted inference response, got {other:?}"),
+    };
+    assert_eq!(emitted.id, persisted.id);
+    assert_eq!(persisted.as_concat_text(), "first turn answered");
 
     session_manager
         .add_message(&session.id, &Message::user().with_text("second turn"))

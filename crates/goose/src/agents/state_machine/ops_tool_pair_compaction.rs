@@ -51,10 +51,10 @@ impl Operation for ToolPairCompactionOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        _emit: &Emitter,
     ) -> Result<OperationResult> {
         if !self.enabled {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let protected = messages_since_kickoff(conversation)?
@@ -64,7 +64,7 @@ impl Operation for ToolPairCompactionOperation {
             .count();
         let tool_ids = tool_ids_to_summarize(conversation, self.cutoff, protected);
         if tool_ids.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
         let mut effects: Vec<StateEffect> = Vec::new();
         let mut hidden_messages: std::collections::HashSet<String> = Default::default();
@@ -156,7 +156,7 @@ impl Operation for ToolPairCompactionOperation {
         }
 
         if effects.is_empty() {
-            not_applicable(emit)
+            not_applicable()
         } else {
             applied(effects)
         }

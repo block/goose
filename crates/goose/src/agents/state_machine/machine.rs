@@ -37,21 +37,16 @@ impl<'a> StateMachine<'a> {
         Self { steps, cancel }
     }
 
-    pub async fn step(&self, session: &Session, emit: Emitter) -> Result<Option<StepResult>> {
+    pub async fn step(&self, session: &Session, emit: &Emitter) -> Result<Option<StepResult>> {
         let conversation = session
             .conversation
             .as_ref()
             .ok_or_else(|| anyhow!("state-machine session loaded without conversation"))?;
-        let mut emitter = Some(emit);
 
         for step in &self.steps {
-            let emit = emitter
-                .take()
-                .ok_or_else(|| anyhow!("step did not return the event emitter"))?;
-            let cancel_emit = emit.clone();
             let name = step.operation().name();
             let result = if self.cancel.is_cancelled() {
-                OperationResult::NotApplicable(emit)
+                OperationResult::NotApplicable
             } else {
                 let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
@@ -76,15 +71,16 @@ impl<'a> StateMachine<'a> {
             let cancelled = self.cancel.is_cancelled();
             let result = if cancelled {
                 step.operation()
-                    .cancel(session, conversation, result, cancel_emit)
+                    .cancel(session, conversation, result, emit)
                     .await?
             } else {
                 result
             };
 
             match result {
-                OperationResult::NotApplicable(emit) => emitter = Some(emit),
+                OperationResult::NotApplicable => {}
                 OperationResult::Applied(mut result) => {
+                    result.ensure_message_ids();
                     if cancelled {
                         result.yield_to_client = true;
                     }
@@ -104,6 +100,7 @@ impl<'a> StateMachine<'a> {
         result: &mut StepResult,
         emit: &Emitter,
     ) -> Result<()> {
+        result.ensure_message_ids();
         usage::enrich(session, &mut result.effects);
 
         for effect in &result.effects {
@@ -234,7 +231,7 @@ impl<'a> StateMachine<'a> {
 
             loop {
                 let session = session_manager.get_session(session_id, true).await?;
-                let Some(mut result) = self.step(&session, emit.clone()).await? else {
+                let Some(mut result) = self.step(&session, &emit).await? else {
                     break;
                 };
                 self.apply(session_manager, &session, &mut result, &emit)

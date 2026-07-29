@@ -4,7 +4,6 @@ use crate::agents::state_machine::operation::{
     assistant_turn_count, messages_since_kickoff, not_applicable, yielded_with, Emitter, Operation,
     OperationResult,
 };
-use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::session::Session;
@@ -54,15 +53,15 @@ impl Operation for MaxTurnsOperation {
         &self,
         _session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         if assistant_turn_count(messages) < self.max_turns {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let message = Message::assistant().with_text(MAX_TURNS_MESSAGE);
-        emit.emit(AgentEvent::Message(message.clone())).await;
+        let message = emit.message(message).await;
         yielded_with([message.into()])
     }
 }

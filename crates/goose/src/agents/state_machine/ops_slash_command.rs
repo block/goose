@@ -50,30 +50,29 @@ impl Operation for SlashCommandOperation<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         let Some(user_message) = messages.first() else {
-            return not_applicable(emit);
+            return not_applicable();
         };
         let message_text = user_message.as_concat_text();
         if messages.len() != 1 {
-            return not_applicable(emit);
+            return not_applicable();
         }
         let Some(command) = parse_slash_command(&message_text) else {
-            return not_applicable(emit);
+            return not_applicable();
         };
 
-        let mut emit = emit;
         for operation in &self.operations {
             match operation
                 .run_command(&command, session, conversation, emit)
                 .await?
             {
-                OperationResult::NotApplicable(next) => emit = next,
+                OperationResult::NotApplicable => {}
                 applied @ OperationResult::Applied(_) => return Ok(applied),
             }
         }
-        not_applicable(emit)
+        not_applicable()
     }
 }

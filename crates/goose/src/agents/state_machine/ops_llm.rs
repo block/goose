@@ -8,7 +8,6 @@ use crate::agents::state_machine::operation::{
     Inference, InferenceInput, Operation, OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::state_machine::ops_unknown_tool::UNCLAIMED_TOOL_ERROR;
-use crate::agents::AgentEvent;
 use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
@@ -143,7 +142,7 @@ impl<'a> InferenceRunner<'a> {
         tracing::Span::current().record("error.type", err.telemetry_type());
         tracing::error!("LLM provider error: {err}");
         let message = Message::from_provider_error(err);
-        emit.emit(AgentEvent::Message(message.clone())).await;
+        let message = emit.message(message).await;
         vec![message.into()]
     }
 }
@@ -159,7 +158,7 @@ impl Operation for InferenceRunner<'_> {
         _session: &Session,
         conversation: &Conversation,
         result: OperationResult,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let mut answered = conversation
             .messages()
@@ -196,7 +195,7 @@ impl Operation for InferenceRunner<'_> {
             }
         }
 
-        let mut response = Message::user().with_generated_id();
+        let mut response = Message::user();
         for request in requests {
             if !answered.contains(&request.id) {
                 response.add_tool_response_with_metadata(
@@ -212,9 +211,9 @@ impl Operation for InferenceRunner<'_> {
             return Ok(result);
         }
 
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        let response = emit.message(response).await;
         match result {
-            OperationResult::NotApplicable(_) => applied([response.into()]),
+            OperationResult::NotApplicable => applied([response.into()]),
             OperationResult::Applied(mut step) => {
                 step.effects.push(response.into());
                 Ok(OperationResult::Applied(step))
@@ -227,10 +226,10 @@ impl Operation for InferenceRunner<'_> {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         if command.command != "status" {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let context_limit = self
@@ -271,11 +270,9 @@ impl Operation for InferenceRunner<'_> {
             .id
             .clone()
             .ok_or_else(|| anyhow!("Persisted slash command message has no id"))?;
-        emit.emit(AgentEvent::Message(
-            command_message.with_visibility(true, false),
-        ))
-        .await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command_message.with_visibility(true, false))
+            .await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::SetMessageVisibility {
                 message_id,
@@ -294,11 +291,11 @@ impl Inference for InferenceRunner<'_> {
         session: &Session,
         conversation: &Conversation,
         mut input: InferenceInput,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
         if trailing_error(conversation).is_some() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let answered: std::collections::HashSet<&str> = conversation
@@ -334,7 +331,7 @@ impl Inference for InferenceRunner<'_> {
                 EffectiveRole::User | EffectiveRole::Tool
             )
         }) {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         self.emit_entry_hooks(session, conversation, messages).await;
@@ -435,7 +432,7 @@ impl Inference for InferenceRunner<'_> {
 
             let mut stream = match stream {
                 Ok(stream) => stream,
-                Err(err) => return applied(self.error_outcome(&err, &emit).await),
+                Err(err) => return applied(self.error_outcome(&err, emit).await),
             };
 
             let mut accumulator = Conversation::empty();
@@ -450,7 +447,7 @@ impl Inference for InferenceRunner<'_> {
                         let (msg_opt, usage_opt) = match result {
                             Ok(chunk) => chunk,
                             Err(err) => {
-                                usage_effects.extend(self.error_outcome(&err, &emit).await);
+                                usage_effects.extend(self.error_outcome(&err, emit).await);
                                 return applied(usage_effects);
                             }
                         };
@@ -470,7 +467,7 @@ impl Inference for InferenceRunner<'_> {
                                 accumulator.push(chunk);
                                 continue;
                             }
-                            emit.emit(AgentEvent::Message(chunk.clone())).await;
+                            let chunk = emit.message(chunk).await;
                             accumulator.push(chunk);
                         }
                     }
@@ -486,7 +483,7 @@ impl Inference for InferenceRunner<'_> {
             });
             if empty_response {
                 let message = Message::assistant().with_text(EMPTY_RESPONSE_MESSAGE);
-                emit.emit(AgentEvent::Message(message.clone())).await;
+                let message = emit.message(message).await;
                 usage_effects.push(message.into());
                 return yielded_with(usage_effects);
             }

@@ -18,7 +18,6 @@ use crate::agents::state_machine::ops_toolcalling::{
     pending_tool_requests, tool_span, ToolDisposition,
 };
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::AgentEvent;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
@@ -206,7 +205,7 @@ impl SkillOperation {
     async fn command_response(
         conversation: &Conversation,
         message: String,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let command = messages_since_kickoff(conversation)?
             .first()
@@ -220,8 +219,8 @@ impl SkillOperation {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::SetMessageVisibility {
                 message_id,
@@ -244,7 +243,7 @@ impl Operation for SkillOperation {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         if command.command == "skills" {
             return Self::command_response(
@@ -263,7 +262,7 @@ impl Operation for SkillOperation {
             Some(&session.working_dir),
         ) {
             Ok(Some(prompt)) => prompt,
-            Ok(None) => return not_applicable(emit),
+            Ok(None) => return not_applicable(),
             Err(error) => return Self::command_response(conversation, error, emit).await,
         };
         let command_message = messages_since_kickoff(conversation)?
@@ -305,7 +304,7 @@ impl Operation for SkillOperation {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let pending: Vec<_> = pending_tool_requests(messages_since_kickoff(conversation)?)
             .into_iter()
@@ -317,10 +316,10 @@ impl Operation for SkillOperation {
             })
             .collect();
         if pending.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
-        let mut response = Message::user().with_generated_id();
+        let mut response = Message::user();
         for (request, disposition) in pending {
             let result = match disposition {
                 ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => {
@@ -355,7 +354,7 @@ impl Operation for SkillOperation {
                 request.metadata.as_ref(),
             );
         }
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        let response = emit.message(response).await;
         applied([response.into()])
     }
 }

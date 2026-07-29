@@ -275,7 +275,7 @@ impl<'a> ToolExecutionOperation<'a> {
     async fn command_response(
         conversation: &Conversation,
         message: String,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let command = messages_since_kickoff(conversation)?
             .first()
@@ -289,8 +289,8 @@ impl<'a> ToolExecutionOperation<'a> {
         let response = Message::assistant()
             .with_text(message)
             .with_visibility(true, false);
-        emit.emit(AgentEvent::Message(command)).await;
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        emit.message(command).await;
+        let response = emit.message(response).await;
         yielded_with([
             StateEffect::SetMessageVisibility {
                 message_id,
@@ -306,7 +306,7 @@ impl<'a> ToolExecutionOperation<'a> {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let prompts = match self
             .extension_manager
@@ -360,7 +360,7 @@ impl<'a> ToolExecutionOperation<'a> {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let params: Vec<_> = command.params_str.split_whitespace().collect();
         let Some(prompt_name) = params.first() else {
@@ -571,7 +571,7 @@ impl Operation for ToolExecutionOperation<'_> {
         command: &SlashCommand<'_>,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         match command.command {
             "prompts" => {
@@ -579,7 +579,7 @@ impl Operation for ToolExecutionOperation<'_> {
                     .await
             }
             "prompt" => self.run_prompt(command, session, conversation, emit).await,
-            _ => not_applicable(emit),
+            _ => not_applicable(),
         }
     }
 
@@ -650,11 +650,11 @@ impl Operation for ToolExecutionOperation<'_> {
         &self,
         session: &Session,
         conversation: &Conversation,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<OperationResult> {
         let mut pending = pending_tool_requests(messages_since_kickoff(conversation)?);
         if pending.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         let known_tools: HashSet<_> = self
@@ -673,11 +673,11 @@ impl Operation for ToolExecutionOperation<'_> {
         });
         let requests: Vec<_> = pending.iter().map(|(request, _)| request.clone()).collect();
         if requests.is_empty() {
-            return not_applicable(emit);
+            return not_applicable();
         }
 
         if *self.goose_mode.lock().await == GooseMode::Chat {
-            let mut response = Message::user().with_generated_id();
+            let mut response = Message::user();
             for (request, disposition) in &pending {
                 let result = match disposition {
                     ToolDisposition::ParseError(parse_error) => {
@@ -695,7 +695,7 @@ impl Operation for ToolExecutionOperation<'_> {
                     request.metadata.as_ref(),
                 );
             }
-            emit.emit(AgentEvent::Message(response.clone())).await;
+            let response = emit.message(response).await;
             return applied([response.into()]);
         }
 
@@ -744,7 +744,7 @@ impl Operation for ToolExecutionOperation<'_> {
         }
 
         let mut combined = futures::stream::select_all(tool_streams);
-        let mut response = Message::user().with_generated_id();
+        let mut response = Message::user();
         let mut effects = Vec::new();
         for (request, disposition) in &pending {
             match disposition {
@@ -793,11 +793,8 @@ impl Operation for ToolExecutionOperation<'_> {
                             emit.emit(AgentEvent::McpNotification((request_id, msg)))
                                 .await;
                         }
-                        ToolStreamItem::ActionRequired(mut msg) => {
-                            if msg.id.is_none() {
-                                msg = msg.with_generated_id();
-                            }
-                            emit.emit(AgentEvent::Message(msg.clone())).await;
+                        ToolStreamItem::ActionRequired(msg) => {
+                            let msg = emit.message(msg).await;
                             effects.push(msg.into());
                         }
                     }
@@ -827,7 +824,7 @@ impl Operation for ToolExecutionOperation<'_> {
             effects.push(self.extension_state_effect(session).await?);
         }
 
-        emit.emit(AgentEvent::Message(response.clone())).await;
+        let response = emit.message(response).await;
         effects.push(response.into());
         applied(effects)
     }
