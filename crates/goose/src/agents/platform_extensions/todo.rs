@@ -151,6 +151,7 @@ impl McpClientTrait for TodoClient {
             tools: Self::get_tools(),
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

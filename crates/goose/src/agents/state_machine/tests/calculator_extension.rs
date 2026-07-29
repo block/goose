@@ -123,47 +123,43 @@ impl McpClientTrait for CalculatorExtension {
             .as_object()
             .unwrap()
             .clone();
-        Ok(ListToolsResult {
-            tools: vec![
-                Tool::new(
-                    "add",
-                    "Add a value to the running total",
-                    Arc::new(schema.clone()),
-                ),
-                Tool::new(
-                    "add_values",
-                    "Add named values to the running total",
-                    Arc::new(add_values_schema),
-                ),
-                Tool::new(
-                    "add_with_audience",
-                    "Add a value and return output for both the agent and user",
-                    Arc::new(schema.clone()),
-                ),
-                Tool::new(
-                    "divide",
-                    "Divide the running total by a value",
-                    Arc::new(schema.clone()),
-                ),
-                Tool::new(
-                    "multiply",
-                    "Multiply the running total by a value",
-                    Arc::new(schema.clone()),
-                ),
-                Tool::new(
-                    "subtract",
-                    "Subtract a value from the running total",
-                    Arc::new(schema),
-                ),
-                Tool::new(
-                    "request_value",
-                    "Ask the user for a value",
-                    Arc::new(request_value_schema),
-                ),
-            ],
-            next_cursor: None,
-            meta: None,
-        })
+        Ok(ListToolsResult::with_all_items(vec![
+            Tool::new(
+                "add",
+                "Add a value to the running total",
+                Arc::new(schema.clone()),
+            ),
+            Tool::new(
+                "add_values",
+                "Add named values to the running total",
+                Arc::new(add_values_schema),
+            ),
+            Tool::new(
+                "add_with_audience",
+                "Add a value and return output for both the agent and user",
+                Arc::new(schema.clone()),
+            ),
+            Tool::new(
+                "divide",
+                "Divide the running total by a value",
+                Arc::new(schema.clone()),
+            ),
+            Tool::new(
+                "multiply",
+                "Multiply the running total by a value",
+                Arc::new(schema.clone()),
+            ),
+            Tool::new(
+                "subtract",
+                "Subtract a value from the running total",
+                Arc::new(schema),
+            ),
+            Tool::new(
+                "request_value",
+                "Ask the user for a value",
+                Arc::new(request_value_schema),
+            ),
+        ]))
     }
 
     async fn call_tool(
@@ -320,15 +316,11 @@ impl McpClientTrait for CalculatorExtension {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListPromptsResult, McpError> {
-        Ok(ListPromptsResult {
-            prompts: vec![Prompt::new(
-                "explain_addition",
-                Some("Explain an earlier answer"),
-                None,
-            )],
-            next_cursor: None,
-            meta: None,
-        })
+        Ok(ListPromptsResult::with_all_items(vec![Prompt::new(
+            "explain_addition",
+            Some("Explain an earlier answer"),
+            None,
+        )]))
     }
 
     async fn get_prompt(

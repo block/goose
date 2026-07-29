@@ -2173,6 +2173,11 @@ impl Agent {
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
+            let turn_start = chrono::Local::now();
+            let turn_start_compaction_info =
+                super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
+                    .await;
+            let turn_start_turns_taken = turns_taken;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2271,9 +2276,12 @@ impl Agent {
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
-                    turns_taken,
+                    turn_start_turns_taken,
                     max_turns,
-                ).await;
+                    turn_start,
+                    turn_start_compaction_info.clone(),
+                )
+                .await;
 
                 let mut stream = crate::agents::reply_parts::stream_response_from_provider(
                     self.provider().await?,

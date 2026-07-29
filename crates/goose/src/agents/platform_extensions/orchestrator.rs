@@ -626,6 +626,7 @@ impl McpClientTrait for OrchestratorClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

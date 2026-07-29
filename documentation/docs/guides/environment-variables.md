@@ -478,7 +478,7 @@ These variables configure the `goose serve` ACP server process. They are alterna
 ```bash
 # Start a goose ACP server reachable on the local network over TLS
 GOOSE_SERVER__SECRET_KEY='a-long-random-secret' \
-goose serve --platform desktop --host 0.0.0.0 --port 3000 --tls
+goose serve --platform desktop --enable-scheduler --host 0.0.0.0 --port 3000 --tls
 ```
 
 When TLS is enabled, `goose serve` prints a `GOOSED_CERT_FINGERPRINT=...` line on startup. goose Desktop can use this fingerprint to pin the server certificate. See [Running a Remote goose Server](/docs/guides/remote-goose-server) for the full setup.

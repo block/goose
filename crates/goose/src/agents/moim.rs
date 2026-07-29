@@ -36,12 +36,49 @@ pub fn system_prompt_block() -> Option<String> {
     }
 }
 
+pub(super) async fn compute_compaction_info(
+    session_id: &str,
+    extension_manager: &ExtensionManager,
+) -> Option<String> {
+    let session = extension_manager
+        .get_context()
+        .session_manager
+        .get_session(session_id, false)
+        .await
+        .ok();
+    let session_model_config = session
+        .as_ref()
+        .and_then(|session| session.model_config.clone());
+    let context_limit = if let Some(model_config) = session_model_config.as_ref() {
+        let provider = extension_manager.get_provider().lock().await.clone();
+        match provider {
+            Some(provider) => provider
+                .get_context_limit(model_config)
+                .await
+                .ok()
+                .or_else(|| Some(model_config.context_limit())),
+            None => Some(model_config.context_limit()),
+        }
+    } else {
+        None
+    };
+    let total_tokens = session
+        .as_ref()
+        .and_then(|session| session.usage.total_tokens);
+    let compaction_threshold = crate::config::Config::global()
+        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+        .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
+    compaction_remaining_line(total_tokens, context_limit, compaction_threshold)
+}
+
 pub async fn inject_moim(
     session_id: &str,
     conversation: Conversation,
     extension_manager: &ExtensionManager,
     turns_taken: u32,
     max_turns: u32,
+    turn_start: chrono::DateTime<chrono::Local>,
+    compaction_info: Option<String>,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) {
         return conversation;
@@ -77,21 +114,11 @@ pub async fn inject_moim(
         .as_ref()
         .map(|session| session.working_dir.clone())
         .unwrap_or_else(|| PathBuf::from("."));
-    let total_tokens = session
-        .as_ref()
-        .and_then(|session| session.usage.total_tokens);
-    let compaction_threshold = crate::config::Config::global()
-        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-        .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
     let extension_parts = extension_manager.collect_moim_parts(session_id).await;
     let mut parts = extension_parts;
-    parts.extend(compaction_part(
-        total_tokens,
-        context_limit,
-        compaction_threshold,
-    ));
+    parts.extend(compaction_info.map(|value| tag("compaction", &value)));
     parts.extend(turn_budget_part(turns_taken, max_turns));
-    inject_moim_parts(conversation, &working_dir, context_limit, parts)
+    inject_moim_parts(conversation, &working_dir, context_limit, parts, turn_start)
 }
 
 pub(crate) fn inject_moim_parts(
@@ -99,12 +126,13 @@ pub(crate) fn inject_moim_parts(
     working_dir: &Path,
     context_limit: Option<usize>,
     parts: Vec<String>,
+    turn_start: chrono::DateTime<chrono::Local>,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) || should_skip_moim(context_limit) {
         return conversation;
     }
 
-    let moim = compose_moim(working_dir, parts);
+    let moim = compose_moim(working_dir, parts, turn_start);
 
     let mut messages = conversation.messages().clone();
     let Some(idx) = messages
@@ -145,8 +173,12 @@ fn should_skip_moim(context_limit: Option<usize>) -> bool {
     context_limit.is_some_and(|limit| limit < MIN_CONTEXT_FOR_MOIM)
 }
 
-fn compose_moim(working_dir: &Path, parts: Vec<String>) -> String {
-    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00 %:z");
+fn compose_moim(
+    working_dir: &Path,
+    parts: Vec<String>,
+    turn_start: chrono::DateTime<chrono::Local>,
+) -> String {
+    let timestamp = turn_start.format("%Y-%m-%d %H:%M:00 %:z");
     let mut lines = vec![
         open_tag(TURN_CONTEXT_TAG),
         tag(CURRENT_TIME_TAG, &timestamp.to_string()),
@@ -183,7 +215,7 @@ fn escape_xml_text(value: &str) -> String {
         .replace('>', "&gt;")
 }
 
-fn compaction_part(
+fn compaction_remaining_line(
     total_tokens: Option<i32>,
     context_limit: Option<usize>,
     threshold: f64,
@@ -200,12 +232,9 @@ fn compaction_part(
         return None;
     }
 
-    Some(tag(
-        "compaction",
-        &format!(
-            "~{}k tokens remaining",
-            compaction_at.saturating_sub(total_tokens) / 1000
-        ),
+    Some(format!(
+        "~{}k tokens remaining",
+        compaction_at.saturating_sub(total_tokens) / 1000
     ))
 }
 
@@ -257,7 +286,7 @@ mod tests {
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -284,7 +313,7 @@ mod tests {
             .unwrap();
 
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
 
         assert_eq!(result.messages().len(), 1);
         assert!(is_moim(&result.messages()[0].content[0]));
@@ -312,7 +341,7 @@ mod tests {
             Message::assistant().with_text("reply"),
             Message::user().with_text("user only").user_only(),
         ]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 2);
@@ -347,7 +376,7 @@ mod tests {
                 .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ]);
 
-        let result = inject_moim(&session.id, conv, &em, 0, 100).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -379,9 +408,16 @@ mod tests {
             max_turns: u32,
             mut parts: Vec<String>,
         ) -> String {
-            parts.extend(compaction_part(total_tokens, context_limit, 0.8));
+            parts.extend(
+                compaction_remaining_line(total_tokens, context_limit, 0.8)
+                    .map(|value| tag("compaction", &value)),
+            );
             parts.extend(turn_budget_part(turns_taken, max_turns));
-            compose_moim(Path::new("/Users/me/code/goose"), parts)
+            compose_moim(
+                Path::new("/Users/me/code/goose"),
+                parts,
+                chrono::Local::now(),
+            )
         }
 
         #[test]

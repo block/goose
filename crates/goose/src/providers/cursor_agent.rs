@@ -23,7 +23,13 @@ use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "composer-2", "composer-2-fast"];
+pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &[
+    "auto",
+    "composer-2",
+    "composer-2-fast",
+    "composer-2.5",
+    "composer-2.5-fast",
+];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 

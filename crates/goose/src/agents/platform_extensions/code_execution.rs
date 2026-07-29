@@ -560,6 +560,7 @@ impl McpClientTrait for CodeExecutionClient {
             meta: None,
             next_cursor: None,
             tools,
+            ..Default::default()
         })
     }
 

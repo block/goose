@@ -1395,7 +1395,7 @@ mod tests {
         let agent = crate::agents::Agent::new();
 
         let registry_tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }))
-            .with_meta(rmcp::model::Meta(
+            .with_meta(rmcp::model::MetaObject(
                 serde_json::json!({ "ui": { "visibility": ["model"] } })
                     .as_object()
                     .unwrap()
@@ -1487,7 +1487,7 @@ mod tests {
         let mut tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }));
         if let Some(v) = meta_json {
             let obj = v.as_object().unwrap().clone();
-            tool = tool.with_meta(rmcp::model::Meta(obj));
+            tool = tool.with_meta(rmcp::model::MetaObject(obj));
         }
         tool
     }

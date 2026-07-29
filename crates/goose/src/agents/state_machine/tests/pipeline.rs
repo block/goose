@@ -173,6 +173,15 @@ impl TestPipeline {
         self
     }
 
+    pub(super) async fn with_provider_name(self, provider_name: &str) -> Result<Self> {
+        self.session_manager
+            .update(&self.session_id)
+            .provider_name(provider_name)
+            .apply()
+            .await?;
+        self.reconstruct().await
+    }
+
     pub(super) fn with_max_turns(mut self, max_turns: u32) -> Self {
         self.max_turns = max_turns;
         self

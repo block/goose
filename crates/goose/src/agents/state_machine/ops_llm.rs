@@ -380,11 +380,17 @@ impl Inference for InferenceRunner<'_> {
                 .get_context_limit(&self.model_config)
                 .await
                 .unwrap_or_else(|_| self.model_config.context_limit());
+            let turn_start = messages_since_kickoff(conversation)?
+                .first()
+                .and_then(|message| chrono::DateTime::from_timestamp(message.created, 0))
+                .map(|timestamp| timestamp.with_timezone(&chrono::Local))
+                .unwrap_or_else(chrono::Local::now);
             let conversation_for_provider = crate::agents::moim::inject_moim_parts(
                 Conversation::new_unvalidated(messages_for_provider),
                 &session.working_dir,
                 Some(context_limit),
                 input.moim_parts,
+                turn_start,
             );
 
             let stream = crate::agents::reply_parts::stream_response_from_provider(

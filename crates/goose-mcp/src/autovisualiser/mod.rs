@@ -4,8 +4,9 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, Meta, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ListResourcesResult, MetaObject, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
@@ -18,8 +19,8 @@ use std::path::PathBuf;
 const MCP_APPS_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
 /// Build a Meta object with `_meta.ui.resourceUri` for linking a tool to a UI resource.
-fn ui_resource_meta(uri: &str) -> Meta {
-    let mut meta = Meta::new();
+fn ui_resource_meta(uri: &str) -> MetaObject {
+    let mut meta = MetaObject::new();
     meta.0
         .insert("ui".to_string(), json!({ "resourceUri": uri }));
     meta
@@ -694,6 +695,7 @@ impl ServerHandler for AutoVisualiserRouter {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -701,10 +703,10 @@ impl ServerHandler for AutoVisualiserRouter {
         &self,
         params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let html = self.get_template_html(&params.uri)?;
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0
             .insert("ui".to_string(), json!({ "prefersBorder": true }));
 
@@ -715,7 +717,7 @@ impl ServerHandler for AutoVisualiserRouter {
             meta: Some(meta),
         };
 
-        Ok(ReadResourceResult::new(vec![resource_contents]))
+        Ok(ReadResourceResult::new(vec![resource_contents]).into())
     }
 }
 

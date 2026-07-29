@@ -45,11 +45,9 @@ impl McpClientTrait for SchedulerClient {
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        Ok(ListToolsResult {
-            tools: vec![manage_schedule_tool()],
-            next_cursor: None,
-            meta: None,
-        })
+        Ok(ListToolsResult::with_all_items(
+            vec![manage_schedule_tool()],
+        ))
     }
 
     async fn call_tool(

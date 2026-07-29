@@ -94,6 +94,7 @@ impl McpClientTrait for SummarizeClient {
             tools: Self::get_tools(),
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

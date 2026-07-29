@@ -227,7 +227,7 @@ pub async fn run_config_mcp<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -460,7 +460,7 @@ pub async fn run_load_mode<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -560,7 +560,7 @@ pub async fn run_load_model<C: Connection>() {
 pub async fn run_load_session_mcp<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let mcp_url = mcp.url.clone();
 
     // Two rounds of tool call + tool result: one for new session, one for loaded session.
@@ -751,7 +751,7 @@ async fn run_mode_set_impl<C: Connection>(via: SetModeVia) {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = C::expected_session_id();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
 
     let config_yaml = format!(
         "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
@@ -1101,7 +1101,7 @@ pub async fn run_permission_persistence<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "Use the get_code tool and output only its result.";
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -1194,7 +1194,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let prompt =
         "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -1241,7 +1241,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
 
 pub async fn run_prompt_image<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -1318,7 +1318,7 @@ pub async fn run_prompt_image_attachment<C: Connection>() {
 
 pub async fn run_prompt_mcp<C: Connection>() {
     let expected_session_id = C::expected_session_id();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new().await;
     let openai = OpenAiFixture::new(
         vec![
             (

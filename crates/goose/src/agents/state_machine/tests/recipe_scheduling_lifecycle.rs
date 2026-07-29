@@ -110,6 +110,7 @@ async fn recipe_delegation_respects_mode_and_child_turn_limit() -> Result<()> {
     result.assert_message(-1, Agent, "delegation stayed in chat");
 
     let (pipeline, api) = test_pipeline().await?;
+    let pipeline = pipeline.with_provider_name("state-machine-test").await?;
     let child_path = pipeline.working_dir().join("bounded-child.yaml");
     std::fs::write(
         &child_path,
