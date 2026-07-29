@@ -1080,6 +1080,11 @@ where
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
+            let mut max_tokens_reached = chunk
+                .choices
+                .first()
+                .and_then(|choice| choice.finish_reason.as_deref())
+                == Some("length");
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -1095,7 +1100,7 @@ where
                     }
                 }
 
-                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+                let is_complete = chunk.choices[0].finish_reason.is_some();
 
                 if !is_complete {
                     let mut done = false;
@@ -1144,6 +1149,9 @@ where
                                                 }
                                             }
                                         }
+                                    }
+                                    if tool_chunk.choices[0].finish_reason.as_deref() == Some("length") {
+                                        max_tokens_reached = true;
                                     }
                                     if tool_chunk.choices[0].finish_reason.is_some() {
                                         done = true;
@@ -1338,6 +1346,10 @@ where
                 }
             } else if usage.is_some() {
                 yield (None, usage)
+            }
+
+            if max_tokens_reached {
+                Err(ProviderError::MaxTokens)?;
             }
         }
 
@@ -2822,6 +2834,61 @@ data: [DONE]
         assert_usage_yielded_once(&result, 100, 20, 120);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_finish_preserves_text_and_usage_before_error() {
+        let response_lines = r#"data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"truncated text"},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15},"id":"1"}
+data: [DONE]"#;
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let (message, usage) = messages.next().await.unwrap().unwrap();
+        let message = message.expect("partial message should be yielded");
+        assert!(matches!(
+            message.content.as_slice(),
+            [MessageContentBlock::Text(text)] if text.text == "truncated text"
+        ));
+        let usage = usage.expect("usage should be yielded with partial content");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.usage.total_tokens, Some(15));
+
+        let error = messages.next().await.unwrap().unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<ProviderError>(),
+            Some(&ProviderError::MaxTokens)
+        );
+        assert!(messages.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_finish_preserves_partial_tool_call_and_usage() {
+        let response_lines = r#"data: {"model":"m","choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":"{\"command\":\"ls"}}]},"index":0,"finish_reason":null}],"id":"1"}
+data: {"model":"m","choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28},"id":"1"}
+data: [DONE]"#;
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let (message, usage) = messages.next().await.unwrap().unwrap();
+        let message = message.expect("partial tool call should be yielded");
+        assert!(matches!(
+            message.content.as_slice(),
+            [MessageContentBlock::ToolRequest(request)] if request.tool_call.is_err()
+        ));
+        let usage = usage.expect("usage should be yielded with partial tool call");
+        assert_eq!(usage.usage.input_tokens, Some(20));
+        assert_eq!(usage.usage.output_tokens, Some(8));
+        assert_eq!(usage.usage.total_tokens, Some(28));
+
+        let error = messages.next().await.unwrap().unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<ProviderError>(),
+            Some(&ProviderError::MaxTokens)
+        );
+        assert!(messages.next().await.is_none());
     }
 
     #[tokio::test]

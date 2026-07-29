@@ -349,7 +349,7 @@ prompt: |
   {% endif %}
 
   {% if "max_tokens" in test_phases %}
-  ## ✂️ PHASE 3C: Max-Token Continuation Testing
+  ## ✂️ PHASE 3C: Max-Token Truncation Testing
 
   **Prerequisites**: Run this phase explicitly with an Anthropic model and a deliberately small
   output budget, for example:
@@ -360,19 +360,18 @@ prompt: |
   Do not run this phase as part of the default `all` suite because it intentionally constrains
   provider output and requires a provider/model that reports `max_tokens` stop reasons.
 
-  ### Automatic Continuation Test
+  ### Incomplete Response Test
   1. Before starting, record the configured provider, model, and `GOOSE_MAX_TOKENS` value.
   2. Produce a numbered list from 1 through 150, one item per line, with a unique short sentence
      for each item. Do not summarize, omit numbers, or use tools to generate the answer.
-  3. Verify the response continues automatically across provider output-limit boundaries without
-     asking the user to say "continue".
-  4. Verify the final visible answer preserves earlier segments and maintains consecutive numbering.
-  5. If all automatic continuation attempts are exhausted, verify the client reports the response
-     as incomplete rather than presenting it as a normal completion.
+  3. Verify the partial response remains visible when the provider reaches its output limit.
+  4. Verify goose does not make a hidden continuation request and reports the response as incomplete
+     rather than presenting it as a normal completion.
+  5. Ask the agent to continue and verify it can use the preserved partial response as context.
   6. If structured output is available, verify its final record reports
      `status: "incomplete"` and `stop_reason: "max_tokens"`, with no non-JSON lines.
 
-  Log provider/model settings, continuation observations, final status, and pass/fail details to:
+  Log provider/model settings, truncation observations, final status, and pass/fail details to:
   {{ workspace_dir }}/phase3c_max_tokens.md
   {% endif %}
 

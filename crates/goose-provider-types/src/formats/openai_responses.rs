@@ -207,6 +207,11 @@ pub enum ResponsesStreamEvent {
         sequence_number: i32,
         response: ResponseMetadata,
     },
+    #[serde(rename = "response.incomplete")]
+    ResponseIncomplete {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
     #[serde(rename = "response.failed")]
     ResponseFailed { sequence_number: i32, error: Value },
     #[serde(rename = "response.function_call_arguments.delta")]
@@ -262,6 +267,7 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
             | "response.content_part.done"
             | "response.output_text.done"
             | "response.completed"
+            | "response.incomplete"
             | "response.failed"
             | "response.function_call_arguments.delta"
             | "response.function_call_arguments.done"
@@ -310,6 +316,13 @@ pub struct ResponseMetadata {
     pub usage: Option<ResponseUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incomplete_details: Option<ResponseIncompleteDetails>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseIncompleteDetails {
+    pub reason: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -857,6 +870,7 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
         let mut is_text_response = false;
+        let mut terminal_error: Option<ProviderError> = None;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -944,6 +958,33 @@ where
                     break 'outer;
                 }
 
+                ResponsesStreamEvent::ResponseIncomplete { response, .. } => {
+                    let model = model_name.as_ref().unwrap_or(&response.model);
+                    let usage = response.usage.as_ref().map_or_else(
+                        Usage::default,
+                        ResponseUsage::to_usage,
+                    );
+                    final_usage = Some(ProviderUsage::new(model.clone(), usage));
+
+                    if !response.output.is_empty() {
+                        output_items = response.output;
+                    }
+
+                    terminal_error = Some(match response.incomplete_details {
+                        Some(details) if details.reason == "max_output_tokens" => {
+                            ProviderError::MaxTokens
+                        }
+                        Some(details) => ProviderError::RequestFailed(format!(
+                            "Responses API response incomplete: {}",
+                            details.reason
+                        )),
+                        None => ProviderError::RequestFailed(
+                            "Responses API response incomplete without a reason".to_string(),
+                        ),
+                    });
+                    break 'outer;
+                }
+
                 ResponsesStreamEvent::FunctionCallArgumentsDelta { .. } => {
                     // Function call arguments are being streamed, but we'll get the complete
                     // arguments in the OutputItemDone event, so we can ignore deltas for now
@@ -1007,6 +1048,10 @@ where
             yield (Some(message), final_usage);
         } else if let Some(usage) = final_usage {
             yield (None, Some(usage));
+        }
+
+        if let Some(error) = terminal_error {
+            Err(error)?;
         }
     }
 }
@@ -1322,6 +1367,66 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_responses_stream_incomplete_max_tokens_preserves_partial_output_and_usage() {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"partial output"}"#.to_string(),
+            r#"data: {"type":"response.incomplete","sequence_number":3,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}}"#.to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+        let results: Vec<_> = messages.collect().await;
+
+        assert!(results.iter().any(|result| {
+            matches!(result, Ok((Some(message), _)) if message.as_concat_text() == "partial output")
+        }));
+        assert!(results.iter().any(|result| {
+            matches!(result, Ok((_, Some(usage)))
+                if usage.usage.input_tokens == Some(10)
+                    && usage.usage.output_tokens == Some(20)
+                    && usage.usage.total_tokens == Some(30))
+        }));
+        assert!(results.iter().any(|result| {
+            result
+                .as_ref()
+                .err()
+                .and_then(|error| error.downcast_ref::<ProviderError>())
+                == Some(&ProviderError::MaxTokens)
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_unknown_incomplete_reason_is_not_max_tokens() {
+        let lines = vec![
+            r#"data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[],"incomplete_details":{"reason":"content_filter"},"usage":{"input_tokens":10,"output_tokens":2,"total_tokens":12}}}"#.to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+        let results: Vec<_> = messages.collect().await;
+
+        assert!(results.iter().any(|result| matches!(
+            result,
+            Ok((_, Some(usage))) if usage.usage.total_tokens == Some(12)
+        )));
+        let error = results
+            .iter()
+            .find_map(|result| result.as_ref().err())
+            .expect("incomplete response should emit an error");
+        assert_ne!(
+            error.downcast_ref::<ProviderError>(),
+            Some(&ProviderError::MaxTokens)
+        );
+        assert!(matches!(
+            error.downcast_ref::<ProviderError>(),
+            Some(ProviderError::RequestFailed(message)) if message.contains("content_filter")
+        ));
+    }
+
     #[test]
     fn test_history_preserves_chronological_order() {
         let model_config = ModelConfig {
@@ -1449,8 +1554,11 @@ mod tests {
             .as_array()
             .expect("tools should be an array");
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["strict"], json!(false),
-            "Responses API defaults strict to true, but MCP tool schemas are not strict-compatible; must explicitly set strict: false");
+        assert_eq!(
+            tools[0]["strict"],
+            json!(false),
+            "Responses API defaults strict to true, but MCP tool schemas are not strict-compatible; must explicitly set strict: false"
+        );
     }
 
     #[test]

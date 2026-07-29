@@ -430,6 +430,7 @@ where
         let mut last_signature: Option<String> = None;
         let stream_id = Uuid::new_v4().to_string();
         let mut incomplete_data: Option<String> = None;
+        let mut truncated_by_limit = false;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -506,6 +507,17 @@ where
                 }
             }
 
+            if chunk
+                .get("candidates")
+                .and_then(Value::as_array)
+                .and_then(|candidates| candidates.first())
+                .and_then(|candidate| candidate.get("finishReason"))
+                .and_then(Value::as_str)
+                == Some("MAX_TOKENS")
+            {
+                truncated_by_limit = true;
+            }
+
             let parts = chunk
                 .get("candidates")
                 .and_then(|v| v.as_array())
@@ -530,6 +542,10 @@ where
 
         if let Some(usage) = final_usage {
             yield (None, Some(usage));
+        }
+
+        if truncated_by_limit {
+            Err(ProviderError::MaxTokens)?;
         }
     }
 }
@@ -1355,6 +1371,71 @@ mod tests {
             message_ids.iter().all(|id| id == first_id),
             "All streaming messages should have the same ID"
         );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_max_tokens_preserves_partial_output_and_usage() {
+        use futures::StreamExt;
+
+        let response = concat!(
+            r#"data: {"candidates":[{"content":{"role":"model","parts":[{"text":"partial response"}]},"finishReason":"MAX_TOKENS"}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":20,"totalTokenCount":30},"modelVersion":"gemini-test"}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines = response.lines().map(|line| Ok(line.to_string()));
+        let mut stream =
+            std::pin::pin!(response_to_streaming_message(futures::stream::iter(lines),));
+        let mut partial_text = None;
+        let mut final_usage = None;
+        let mut max_tokens_error = false;
+
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok((Some(message), _)) => partial_text = Some(message.as_concat_text()),
+                Ok((_, Some(usage))) => final_usage = Some(usage),
+                Ok((None, None)) => {}
+                Err(error) => {
+                    max_tokens_error =
+                        error.downcast_ref::<ProviderError>() == Some(&ProviderError::MaxTokens);
+                }
+            }
+        }
+
+        assert_eq!(partial_text.as_deref(), Some("partial response"));
+        let usage = final_usage.expect("usage should be emitted before the error");
+        assert_eq!(usage.model, "gemini-test");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(20));
+        assert!(max_tokens_error);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_normal_completion_does_not_return_max_tokens() {
+        use futures::StreamExt;
+
+        let response = concat!(
+            r#"data: {"candidates":[{"content":{"role":"model","parts":[{"text":"complete response"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2,"totalTokenCount":6},"modelVersion":"gemini-test"}"#,
+            "\n",
+            "data: [DONE]"
+        );
+        let lines = response.lines().map(|line| Ok(line.to_string()));
+        let mut stream =
+            std::pin::pin!(response_to_streaming_message(futures::stream::iter(lines),));
+        let mut partial_text = None;
+        let mut final_usage = None;
+
+        while let Some(result) = stream.next().await {
+            let (message, usage) = result.expect("normal completion should not return an error");
+            if let Some(message) = message {
+                partial_text = Some(message.as_concat_text());
+            }
+            if usage.is_some() {
+                final_usage = usage;
+            }
+        }
+
+        assert_eq!(partial_text.as_deref(), Some("complete response"));
+        assert_eq!(final_usage.unwrap().usage.total_tokens, Some(6));
     }
 
     #[tokio::test]

@@ -47,7 +47,7 @@ struct PendingConfirmation {
 
 fn max_tokens_warning(reached_max_tokens: bool) -> Option<OutgoingMessage> {
     reached_max_tokens.then(|| OutgoingMessage::Text {
-        body: "⚠️ This response repeatedly reached the model's output limit and couldn't finish. Try narrowing your request or splitting it into parts."
+        body: "⚠️ This response reached the model's output limit and couldn't finish. Ask the agent to continue, narrow your request, or split it into parts."
             .to_string(),
     })
 }
@@ -761,13 +761,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn max_tokens_warning_is_user_visible_only_when_exhausted() {
+    fn max_tokens_warning_is_user_visible_only_when_incomplete() {
         assert!(max_tokens_warning(false).is_none());
         let Some(OutgoingMessage::Text { body }) = max_tokens_warning(true) else {
-            panic!("max token exhaustion should produce a text warning");
+            panic!("max token truncation should produce a text warning");
         };
         assert!(body.contains("output limit"));
-        assert!(body.contains("splitting it into parts"));
+        assert!(body.contains("Ask the agent to continue"));
     }
 
     #[test]
