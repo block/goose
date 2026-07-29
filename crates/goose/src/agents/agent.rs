@@ -1945,6 +1945,9 @@ impl Agent {
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
             let turn_start = chrono::Local::now();
+            let turn_start_compaction_info =
+                super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
+                    .await;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -2031,7 +2034,9 @@ impl Agent {
                     turns_taken,
                     max_turns,
                     turn_start,
-                ).await;
+                    turn_start_compaction_info.clone(),
+                )
+                .await;
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,

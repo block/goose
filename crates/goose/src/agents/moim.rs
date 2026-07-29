@@ -36,6 +36,41 @@ pub fn system_prompt_block() -> Option<String> {
     }
 }
 
+pub(super) async fn compute_compaction_info(
+    session_id: &str,
+    extension_manager: &ExtensionManager,
+) -> Option<String> {
+    let session = extension_manager
+        .get_context()
+        .session_manager
+        .get_session(session_id, false)
+        .await
+        .ok();
+    let session_model_config = session
+        .as_ref()
+        .and_then(|session| session.model_config.clone());
+    let context_limit = if let Some(model_config) = session_model_config.as_ref() {
+        let provider = extension_manager.get_provider().lock().await.clone();
+        match provider {
+            Some(provider) => provider
+                .get_context_limit(model_config)
+                .await
+                .ok()
+                .or_else(|| Some(model_config.context_limit())),
+            None => Some(model_config.context_limit()),
+        }
+    } else {
+        None
+    };
+    let total_tokens = session
+        .as_ref()
+        .and_then(|session| session.usage.total_tokens);
+    let compaction_threshold = crate::config::Config::global()
+        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+        .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
+    compaction_remaining_line(total_tokens, context_limit, compaction_threshold)
+}
+
 pub async fn inject_moim(
     session_id: &str,
     conversation: Conversation,
@@ -43,6 +78,7 @@ pub async fn inject_moim(
     turns_taken: u32,
     max_turns: u32,
     turn_start: chrono::DateTime<chrono::Local>,
+    compaction_info: Option<String>,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) {
         return conversation;
@@ -78,15 +114,7 @@ pub async fn inject_moim(
         .as_ref()
         .map(|session| session.working_dir.clone())
         .unwrap_or_else(|| PathBuf::from("."));
-    let total_tokens = session
-        .as_ref()
-        .and_then(|session| session.usage.total_tokens);
-    let compaction_threshold = crate::config::Config::global()
-        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-        .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
     let extension_parts = extension_manager.collect_moim_parts(session_id).await;
-    let compaction_info =
-        compaction_remaining_line(total_tokens, context_limit, compaction_threshold);
     let moim = compose_moim(
         &working_dir,
         compaction_info,
@@ -255,7 +283,7 @@ mod tests {
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now()).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -282,7 +310,7 @@ mod tests {
             .unwrap();
 
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now()).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
 
         assert_eq!(result.messages().len(), 1);
         assert!(is_moim(&result.messages()[0].content[0]));
@@ -310,7 +338,7 @@ mod tests {
             Message::assistant().with_text("reply"),
             Message::user().with_text("user only").user_only(),
         ]);
-        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now()).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 2);
@@ -345,7 +373,7 @@ mod tests {
                 .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ]);
 
-        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now()).await;
+        let result = inject_moim(&session.id, conv, &em, 0, 100, chrono::Local::now(), None).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
