@@ -228,7 +228,7 @@
     "env": [
       "CHUTES_API_KEY"
     ],
-    "model_count": 14
+    "model_count": 15
   },
   {
     "id": "clarifai",
@@ -703,7 +703,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 185
+    "model_count": 186
   },
   {
     "id": "llmtr",
@@ -858,6 +858,17 @@
       "MOARK_API_KEY"
     ],
     "model_count": 2
+  },
+  {
+    "id": "modal",
+    "display_name": "Modal",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://inference.us-west.modal.direct/v1",
+    "doc": "https://modal.com/docs/guide/endpoints",
+    "env": [
+      "MODAL_PROXY_TOKEN"
+    ],
+    "model_count": 1
   },
   {
     "id": "model-oracle-ai",
@@ -1498,7 +1509,7 @@
     "env": [
       "WANDB_API_KEY"
     ],
-    "model_count": 30
+    "model_count": 31
   },
   {
     "id": "xiaomi",
