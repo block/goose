@@ -13,7 +13,8 @@ use crate::formats::openai::{
     create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+    create_responses_request_with_reasoning_mode_support, get_responses_usage,
+    responses_api_to_message, ResponsesApiResponse,
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
@@ -696,7 +697,13 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if self.should_use_responses_api_for_provider(&model_config.model_name) {
-            let mut payload = create_responses_request(model_config, system, messages, tools)?;
+            let mut payload = create_responses_request_with_reasoning_mode_support(
+                model_config,
+                system,
+                messages,
+                tools,
+                self.reasoning_mode_support_for_inventory(&model_config.model_name),
+            )?;
             payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
 
             let mut log = start_log(model_config, &payload)?;

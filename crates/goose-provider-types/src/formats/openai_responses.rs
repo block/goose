@@ -572,6 +572,22 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    create_responses_request_with_reasoning_mode_support(
+        model_config,
+        system,
+        messages,
+        tools,
+        model_config.supports_reasoning_mode(),
+    )
+}
+
+pub fn create_responses_request_with_reasoning_mode_support(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    supports_reasoning_mode: bool,
+) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
     if !system.is_empty() {
@@ -612,7 +628,11 @@ pub fn create_responses_request(
     };
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
-    let reasoning_mode = model_config.reasoning_mode().map_err(anyhow::Error::msg)?;
+    let reasoning_mode = if supports_reasoning_mode {
+        model_config.reasoning_mode().map_err(anyhow::Error::msg)?
+    } else {
+        None
+    };
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
@@ -1503,12 +1523,30 @@ mod tests {
             std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
         );
 
-        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+        let result = create_responses_request_with_reasoning_mode_support(
+            &model_config,
+            "You are helpful.",
+            &[],
+            &[],
+            true,
+        )
+        .unwrap();
 
         assert_eq!(result["model"], "team-prod");
         assert_eq!(result["reasoning"]["mode"], "pro");
         assert!(result["reasoning"].get("effort").is_none());
         assert!(result["reasoning"].get("summary").is_none());
+    }
+
+    #[test]
+    fn test_responses_request_omits_reasoning_mode_for_unsupported_model() {
+        let model_config = ModelConfig::new("gpt-5.5").with_merged_request_params(
+            std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+        );
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert!(result.get("reasoning").is_none());
     }
 
     #[test]
