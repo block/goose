@@ -83,6 +83,31 @@ describe('fetchModelCapabilities', () => {
       supportsReasoningMode: false,
     });
   });
+
+  it('revalidates mutable Databricks routes before returning inventory support', async () => {
+    vi.mocked(acpListProviderModels).mockResolvedValue([
+      {
+        id: 'databricks-gpt-5.6',
+        name: 'Databricks GPT-5.6',
+        reasoning: true,
+        supportsReasoningMode: true,
+      },
+    ]);
+    vi.mocked(acpGetProviderModelCapabilities).mockResolvedValue({
+      supportsReasoningMode: false,
+    });
+
+    await expect(
+      fetchModelCapabilities('databricks', 'databricks-gpt-5.6')
+    ).resolves.toEqual({
+      reasoning: true,
+      supportsReasoningMode: false,
+    });
+    expect(acpGetProviderModelCapabilities).toHaveBeenCalledWith(
+      'databricks',
+      'databricks-gpt-5.6'
+    );
+  });
 });
 
 describe('fetchModelsForProviders', () => {

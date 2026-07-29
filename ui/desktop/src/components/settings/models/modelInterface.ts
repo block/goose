@@ -121,7 +121,7 @@ export async function fetchModelCapabilities(
     // Resolve the configured route below even when inventory is unavailable.
   }
   const reasoning = match?.reasoning ?? fallback?.reasoning ?? null;
-  if (match?.supportsReasoningMode != null) {
+  if (provider !== 'databricks' && match?.supportsReasoningMode != null) {
     return {
       reasoning,
       supportsReasoningMode: match.supportsReasoningMode,
@@ -136,7 +136,8 @@ export async function fetchModelCapabilities(
   } catch {
     return {
       reasoning,
-      supportsReasoningMode: fallback?.supportsReasoningMode ?? null,
+      supportsReasoningMode:
+        match?.supportsReasoningMode ?? fallback?.supportsReasoningMode ?? null,
     };
   }
 }
