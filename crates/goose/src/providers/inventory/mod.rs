@@ -984,6 +984,22 @@ pub fn declarative_inventory_identity(
                     .collect::<Vec<_>>(),
             )?,
         );
+        if config
+            .models
+            .iter()
+            .any(|model| model.supports_reasoning_mode.is_some())
+        {
+            identity.public_inputs.insert(
+                "model_reasoning_capabilities".to_string(),
+                serde_json::to_string(
+                    &config
+                        .models
+                        .iter()
+                        .map(|model| (&model.name, model.supports_reasoning_mode))
+                        .collect::<Vec<_>>(),
+                )?,
+            );
+        }
     }
     if let Some(headers) = &config.headers {
         identity
@@ -1416,6 +1432,35 @@ mod tests {
             .unwrap();
 
         assert_ne!(left.inventory_key, right.inventory_key);
+    }
+
+    #[test]
+    fn declarative_inventory_identity_changes_with_reasoning_mode_capability() {
+        let mut config: DeclarativeProviderConfig = serde_json::from_value(serde_json::json!({
+            "name": "test-openai",
+            "engine": "openai",
+            "display_name": "Test OpenAI",
+            "base_url": "https://example.com/v1",
+            "models": [{
+                "name": "team-prod",
+                "context_limit": 4096,
+                "supports_reasoning_mode": true
+            }],
+            "requires_auth": false
+        }))
+        .unwrap();
+        let enabled = declarative_inventory_identity(&config)
+            .unwrap()
+            .into_identity()
+            .unwrap();
+
+        config.models[0].supports_reasoning_mode = Some(false);
+        let disabled = declarative_inventory_identity(&config)
+            .unwrap()
+            .into_identity()
+            .unwrap();
+
+        assert_ne!(enabled.inventory_key, disabled.inventory_key);
     }
 
     #[test]

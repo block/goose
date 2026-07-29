@@ -402,6 +402,7 @@ export const SwitchModelModal = ({
   }, []);
 
   useEffect(() => {
+    reasoningRequestId.current += 1;
     if (!provider || !model) return;
 
     const selectedOption = modelOptions
