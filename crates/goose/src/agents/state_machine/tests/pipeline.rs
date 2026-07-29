@@ -442,11 +442,7 @@ impl TestPipeline {
         let (tx, mut rx) = mpsc::channel(1024);
         let emit = Emitter::new(tx, cancel);
         let session = machine
-            .run(
-                self.session_manager.as_ref(),
-                &self.session_id,
-                emit.clone(),
-            )
+            .run(self.session_manager.as_ref(), &self.session_id, &emit)
             .await?;
         drop(emit);
         let mut events = Vec::new();
@@ -468,11 +464,7 @@ impl TestPipeline {
         let (tx, mut rx) = mpsc::channel(1024);
         let emit = Emitter::new(tx, cancel);
         let session = machine
-            .run(
-                self.session_manager.as_ref(),
-                &self.session_id,
-                emit.clone(),
-            )
+            .run(self.session_manager.as_ref(), &self.session_id, &emit)
             .await?;
         drop(emit);
         let mut events = Vec::new();

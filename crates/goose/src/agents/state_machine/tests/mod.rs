@@ -5,6 +5,7 @@ use self::pipeline::MessageKind::{Agent, ToolCall};
 use self::pipeline::{test_pipeline, MAX_TURNS};
 use crate::agents::state_machine;
 
+mod agent_reply;
 mod calculator_extension;
 mod compaction_lifecycle;
 mod dummy_api;

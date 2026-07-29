@@ -1723,16 +1723,20 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
             let emit = Emitter::new(tx, cancel.clone());
-            let run = machine.run(session_manager.as_ref(), &session_id, emit);
-            tokio::pin!(run);
-            let result = loop {
-                tokio::select! {
-                    biased;
-                    Some(event) = rx.recv() => yield event,
-                    result = &mut run => break result,
+            let result = {
+                let run = machine.run(session_manager.as_ref(), &session_id, &emit);
+                tokio::pin!(run);
+                loop {
+                    tokio::select! {
+                        biased;
+                        Some(event) = rx.recv() => yield event,
+                        result = &mut run => break result,
+                    }
                 }
             };
             result?;
+            // Without this the drain below never ends: `run` only borrows the emitter.
+            drop(emit);
             while let Some(event) = rx.recv().await {
                 yield event;
             }

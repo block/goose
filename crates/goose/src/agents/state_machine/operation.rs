@@ -244,7 +244,6 @@ impl From<Conversation> for StateEffect {
     }
 }
 
-#[derive(Clone)]
 pub struct Emitter {
     tx: mpsc::Sender<AgentEvent>,
     cancel: CancellationToken,

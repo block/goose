@@ -185,7 +185,7 @@ async fn custom_pipeline_supports_step_apply_run_tracing_and_usage() -> Result<(
     let fields = TraceFields::default();
     let subscriber = tracing_subscriber::registry().with(fields.clone());
     let _guard = tracing::subscriber::set_default(subscriber);
-    let session = machine.run(&session_manager, &session.id, emit).await?;
+    let session = machine.run(&session_manager, &session.id, &emit).await?;
 
     assert_eq!(
         session

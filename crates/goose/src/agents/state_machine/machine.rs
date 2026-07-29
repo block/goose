@@ -276,7 +276,7 @@ impl<'a> StateMachine<'a> {
         &self,
         session_manager: &SessionManager,
         session_id: &str,
-        emit: Emitter,
+        emit: &Emitter,
     ) -> Result<Session> {
         let span = tracing::info_span!(
             target: "goose::state_machine",
@@ -308,10 +308,10 @@ impl<'a> StateMachine<'a> {
 
             loop {
                 let session = session_manager.get_session(session_id, true).await?;
-                let Some(mut result) = self.step(&session, &emit).await? else {
+                let Some(mut result) = self.step(&session, emit).await? else {
                     break;
                 };
-                self.apply(session_manager, &session, &mut result, &emit)
+                self.apply(session_manager, &session, &mut result, emit)
                     .await?;
                 if result.yield_to_client {
                     break;
