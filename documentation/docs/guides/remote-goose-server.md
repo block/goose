@@ -128,6 +128,7 @@ Create a LaunchAgent plist at `~/Library/LaunchAgents/com.goose.serve.external.p
       <string>serve</string>
       <string>--platform</string>
       <string>desktop</string>
+      <string>--enable-scheduler</string>
       <string>--host</string>
       <string>0.0.0.0</string>
       <string>--port</string>
