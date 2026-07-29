@@ -140,6 +140,9 @@ impl<'a> StateMachine<'a> {
             match result {
                 OperationResult::NotApplicable => {}
                 OperationResult::Applied(mut result) => {
+                    // `step` and `apply` are separate entry points; a caller that
+                    // drives steps itself still gets effects it can persist.
+                    result.ensure_message_ids();
                     if cancelled {
                         result.yield_to_client = true;
                     }
