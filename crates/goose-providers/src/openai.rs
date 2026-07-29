@@ -143,6 +143,7 @@ pub struct OpenAiProvider {
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
+    declared_model_info: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -164,6 +165,7 @@ pub struct OpenAiProviderBuilder {
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
+    declared_model_info: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -180,6 +182,7 @@ impl OpenAiProviderBuilder {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            declared_model_info: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
@@ -239,6 +242,11 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn declared_model_info(mut self, declared_model_info: Option<Vec<ModelInfo>>) -> Self {
+        self.declared_model_info = declared_model_info;
+        self
+    }
+
     pub fn dynamic_models(mut self, dynamic_models: Option<bool>) -> Self {
         self.dynamic_models = dynamic_models;
         self
@@ -264,6 +272,7 @@ impl OpenAiProviderBuilder {
             supports_streaming: self.supports_streaming,
             name: self.name,
             custom_models: self.custom_models,
+            declared_model_info: self.declared_model_info,
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
@@ -284,6 +293,7 @@ impl OpenAiProvider {
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
             custom_models: None,
+            declared_model_info: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
@@ -433,6 +443,18 @@ impl OpenAiProvider {
     fn supports_reasoning_mode_for_model(&self, model_name: &str) -> bool {
         ModelConfig::new(model_name).supports_reasoning_mode()
             && self.should_use_responses_api_for_provider(model_name)
+    }
+
+    fn reasoning_mode_support_for_inventory(&self, model_name: &str) -> bool {
+        let declared_support = self
+            .declared_model_info
+            .as_ref()
+            .and_then(|models| models.iter().find(|model| model.name == model_name))
+            .and_then(|model| model.supports_reasoning_mode);
+
+        declared_support
+            .map(|supports| supports && self.should_use_responses_api_for_provider(model_name))
+            .unwrap_or_else(|| self.supports_reasoning_mode_for_model(model_name))
     }
 
     fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
@@ -597,7 +619,7 @@ impl Provider for OpenAiProvider {
             .map(|model_name| {
                 let mut info = model_info_for_provider_model(self.get_name(), model_name);
                 info.supports_reasoning_mode =
-                    Some(self.supports_reasoning_mode_for_model(model_name));
+                    Some(self.reasoning_mode_support_for_inventory(model_name));
                 info
             })
             .collect())
@@ -793,6 +815,7 @@ pub fn from_declarative_config(
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
 ) -> Result<OpenAiProviderBuilder> {
+    let declared_model_info = (!config.models.is_empty()).then(|| config.models.clone());
     let custom_models = if !config.models.is_empty() {
         Some(
             config
@@ -874,6 +897,7 @@ pub fn from_declarative_config(
         .supports_streaming(config.supports_streaming.unwrap_or(true))
         .name(config.name.clone())
         .custom_models(custom_models)
+        .declared_model_info(declared_model_info)
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
         .preserve_thinking_context(config.preserves_thinking))
@@ -931,6 +955,7 @@ mod tests {
             supports_streaming: true,
             name: name.to_string(),
             custom_models: None,
+            declared_model_info: None,
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
@@ -1195,6 +1220,36 @@ mod tests {
         provider.base_path = "openai/v1/chat/completions".to_string();
         let custom_chat_route = provider.fetch_recommended_model_info(false).await.unwrap();
         assert_eq!(custom_chat_route[0].supports_reasoning_mode, Some(false));
+    }
+
+    #[tokio::test]
+    async fn dynamic_inventory_preserves_declared_reasoning_mode_support_for_aliases() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{"id": "team-prod"}]
+            })))
+            .mount(&server)
+            .await;
+
+        let mut config = custom_config(&format!("{}/v1", server.uri()));
+        config.base_path = Some("v1/responses".to_string());
+        config.dynamic_models = Some(true);
+        let mut alias = ModelInfo::new("team-prod", 4096);
+        alias.supports_reasoning_mode = Some(true);
+        config.models = vec![alias];
+
+        let provider = from_declarative_config(config, None, crate::declarative::EnvKeyResolver)
+            .unwrap()
+            .build();
+
+        let models = provider.fetch_recommended_model_info(false).await.unwrap();
+        assert_eq!(models[0].name, "team-prod");
+        assert_eq!(models[0].supports_reasoning_mode, Some(true));
     }
 
     #[test]
