@@ -8,10 +8,10 @@ use goose_sdk_types::custom_requests::{
 };
 use tokio::fs;
 
-use super::{build_session_info, GooseAcpAgent, ResultExt};
-use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+use super::{GooseAcpAgent, ResultExt, build_session_info};
 use crate::recipe::Recipe;
-use crate::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob, SchedulerError};
+use crate::recipe::validate_recipe::validate_recipe_template_from_content;
+use crate::scheduler::{ScheduledJob, SchedulerError, get_default_scheduled_recipes_dir};
 use crate::scheduler_trait::SchedulerTrait;
 use std::sync::Arc;
 
@@ -123,12 +123,12 @@ fn scheduled_job_to_dto(job: ScheduledJob) -> ScheduledJobDto {
 }
 
 impl GooseAcpAgent {
-    pub(super) fn scheduler(
+    pub(super) fn require_scheduler(
         &self,
     ) -> Result<Arc<dyn SchedulerTrait>, agent_client_protocol::Error> {
         self.agent_manager.scheduler().ok_or_else(|| {
             agent_client_protocol::Error::method_not_found()
-                .data("scheduler is disabled in this ACP runtime")
+                .data("Scheduled recipe execution is not enabled")
         })
     }
 
@@ -137,7 +137,7 @@ impl GooseAcpAgent {
         _req: ListSchedulesRequest,
     ) -> Result<ListSchedulesResponse, agent_client_protocol::Error> {
         let jobs = self
-            .scheduler()?
+            .require_scheduler()?
             .list_scheduled_jobs()
             .await
             .into_iter()
@@ -152,7 +152,7 @@ impl GooseAcpAgent {
         req: ListScheduleSessionsRequest,
     ) -> Result<ListScheduleSessionsResponse, agent_client_protocol::Error> {
         let sessions = self
-            .scheduler()?
+            .require_scheduler()?
             .sessions(&req.schedule_id, req.limit)
             .await
             .internal_err_ctx("Failed to fetch schedule sessions")?
@@ -167,7 +167,7 @@ impl GooseAcpAgent {
         &self,
         req: CreateScheduleRequest,
     ) -> Result<CreateScheduleResponse, agent_client_protocol::Error> {
-        let scheduler = self.scheduler()?;
+        let scheduler = self.require_scheduler()?;
         let id = req.id.trim().to_string();
         validate_schedule_id(&id)?;
 
@@ -224,7 +224,7 @@ impl GooseAcpAgent {
         &self,
         req: DeleteScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.scheduler()?
+        self.require_scheduler()?
             .remove_scheduled_job(&req.schedule_id, false)
             .await
             .map_err(schedule_not_found_or_internal)?;
@@ -236,7 +236,7 @@ impl GooseAcpAgent {
         &self,
         req: PauseScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.scheduler()?
+        self.require_scheduler()?
             .pause_schedule(&req.schedule_id)
             .await
             .map_err(schedule_state_error)?;
@@ -248,7 +248,7 @@ impl GooseAcpAgent {
         &self,
         req: UnpauseScheduleRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.scheduler()?
+        self.require_scheduler()?
             .unpause_schedule(&req.schedule_id)
             .await
             .map_err(schedule_not_found_or_internal)?;
@@ -262,7 +262,7 @@ impl GooseAcpAgent {
     ) -> Result<UpdateScheduleResponse, agent_client_protocol::Error> {
         let schedule_id = req.schedule_id;
         let cron = req.cron;
-        let scheduler = self.scheduler()?;
+        let scheduler = self.require_scheduler()?;
         scheduler
             .update_schedule(&schedule_id, cron)
             .await
@@ -287,7 +287,7 @@ impl GooseAcpAgent {
         &self,
         req: RunScheduleNowRequest,
     ) -> Result<RunScheduleNowResponse, agent_client_protocol::Error> {
-        match self.scheduler()?.run_now(&req.schedule_id).await {
+        match self.require_scheduler()?.run_now(&req.schedule_id).await {
             Ok(session_id) => Ok(RunScheduleNowResponse {
                 status: RunScheduleNowStatus::Completed,
                 session_id: Some(session_id),
@@ -300,7 +300,7 @@ impl GooseAcpAgent {
         &self,
         req: KillRunningJobRequest,
     ) -> Result<KillRunningJobResponse, agent_client_protocol::Error> {
-        self.scheduler()?
+        self.require_scheduler()?
             .kill_running_job(&req.job_id)
             .await
             .map_err(schedule_state_error)?;
@@ -315,7 +315,7 @@ impl GooseAcpAgent {
         req: InspectRunningJobRequest,
     ) -> Result<InspectRunningJobResponse, agent_client_protocol::Error> {
         let job = self
-            .scheduler()?
+            .require_scheduler()?
             .list_scheduled_jobs()
             .await
             .into_iter()
@@ -356,7 +356,7 @@ mod tests {
         );
         assert_eq!(
             error.data.as_ref().and_then(serde_json::Value::as_str),
-            Some("scheduler is disabled in this ACP runtime")
+            Some("Scheduled recipe execution is not enabled")
         );
     }
 
@@ -398,10 +398,12 @@ mod tests {
             .await
             .expect_err("schedule creation must be unsupported");
         assert_scheduler_disabled(create_error);
-        assert!(!get_default_scheduled_recipes_dir()
-            .unwrap()
-            .join("nightly.yaml")
-            .exists());
+        assert!(
+            !get_default_scheduled_recipes_dir()
+                .unwrap()
+                .join("nightly.yaml")
+                .exists()
+        );
 
         let schedule_recipe_error = agent
             .on_schedule_recipe(ScheduleRecipeRequest {

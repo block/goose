@@ -10,24 +10,24 @@ use fs_err as fs;
 use goose_sdk_types::custom_requests::{
     DecodeRecipeRequest, DecodeRecipeResponse, DeleteRecipeRequest, EmptyResponse,
     EncodeRecipeRequest, EncodeRecipeResponse, ListRecipesRequest, ListRecipesResponse,
-    ParseRecipeRequest, ParseRecipeResponse, RecipeDto, RecipeParameterDto, RecipeParamsAction,
-    RecipeParamsResponse, RecipeToYamlRequest, RecipeToYamlResponse, RequestRecipeParams,
-    SaveRecipeRequest, SaveRecipeResponse, ScanRecipeRequest, ScanRecipeResponse,
-    ScheduleRecipeRequest, SetRecipeSlashCommandRequest, REQUEST_RECIPE_PARAMS_METHOD,
+    ParseRecipeRequest, ParseRecipeResponse, REQUEST_RECIPE_PARAMS_METHOD, RecipeDto,
+    RecipeParameterDto, RecipeParamsAction, RecipeParamsResponse, RecipeToYamlRequest,
+    RecipeToYamlResponse, RequestRecipeParams, SaveRecipeRequest, SaveRecipeResponse,
+    ScanRecipeRequest, ScanRecipeResponse, ScheduleRecipeRequest, SetRecipeSlashCommandRequest,
 };
 use tokio::sync::oneshot;
 
 mod conversions;
 
-use super::{meta_string, GooseAcpAgent, ResultExt};
+use super::{GooseAcpAgent, ResultExt, meta_string};
 use crate::agents::Agent;
-use crate::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+use crate::recipe::build_recipe::{RecipeError, build_recipe_from_template};
 use crate::recipe::local_recipes::{self, get_recipe_library_dir};
 use crate::recipe::manifest::{
     list_recipe_file_manifests, load_recipe_from_path, short_id_from_path,
 };
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
-use crate::recipe::{strip_error_location, Recipe, RecipeParameter};
+use crate::recipe::{Recipe, RecipeParameter, strip_error_location};
 use crate::recipe_deeplink;
 use crate::session::{Session, SessionType};
 use crate::slash_commands::recipe_slash_command;
@@ -201,7 +201,7 @@ impl GooseAcpAgent {
         &self,
         req: ScheduleRecipeRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        let scheduler = self.scheduler()?;
+        let scheduler = self.require_scheduler()?;
         let file_path = self.resolve_recipe_path_by_id(&req.id).await?;
         if let Err(err) = scheduler
             .schedule_recipe(file_path, req.cron_schedule)

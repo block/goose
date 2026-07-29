@@ -839,7 +839,7 @@ enum Command {
         )]
         builtins: Vec<String>,
 
-        #[arg(long, help = "Enable scheduler ownership in this ACP runtime")]
+        #[arg(long, help = "Enable scheduled recipe execution")]
         enable_scheduler: bool,
     },
 
@@ -888,7 +888,7 @@ enum Command {
         )]
         allowed_origins: Vec<String>,
 
-        #[arg(long, help = "Enable scheduler ownership in this ACP runtime")]
+        #[arg(long, help = "Enable scheduled recipe execution")]
         enable_scheduler: bool,
     },
 
@@ -1848,7 +1848,9 @@ fn parse_run_input(
             Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            eprintln!(
+                "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+            );
             std::process::exit(1);
         }
     }
