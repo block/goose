@@ -2822,7 +2822,7 @@ mod tests {
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
-        use goose_test_support::{IgnoreSessionId, McpFixture};
+        use goose_test_support::McpFixture;
         use rmcp::model::{CallToolRequestParams, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -2891,7 +2891,7 @@ mod tests {
         #[tokio::test]
         async fn live_tool_result_projects_user_content_but_persists_canonical_result() -> Result<()>
         {
-            let mcp = McpFixture::new(Arc::new(IgnoreSessionId)).await;
+            let mcp = McpFixture::new().await;
             let extension =
                 ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
             let temp_dir = tempfile::tempdir()?;

@@ -1,4 +1,3 @@
-use crate::ExpectedSessionId;
 use rmcp::model::{
     Annotations, CallToolResult, ContentBlock, Implementation, InitializeResult, ProtocolVersion,
     Role, ServerCapabilities, ServerInfo, TextContent,
@@ -7,7 +6,6 @@ use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 use rmcp::{tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler};
-use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 pub const FAKE_CODE: &str = "test-uuid-12345-67890";
@@ -73,7 +71,7 @@ impl Drop for McpFixture {
 }
 
 impl McpFixture {
-    pub async fn new(_expected_session_id: Arc<dyn ExpectedSessionId>) -> Self {
+    pub async fn new() -> Self {
         let service_factory = || Ok::<_, std::io::Error>(McpFixtureServer::new());
 
         let service = StreamableHttpService::new(

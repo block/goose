@@ -220,7 +220,7 @@ impl ProviderFixture {
         let guard = env_lock::lock_env(env_vars);
 
         let expected_session_id = (config.expected_session_id)();
-        let mcp = McpFixture::new(expected_session_id.clone()).await;
+        let mcp = McpFixture::new().await;
 
         let mcp_extension =
             ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
