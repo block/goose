@@ -129,9 +129,9 @@ async fn session_prompt_and_tool_hooks_fire_at_their_boundaries() -> Result<()> 
 
     pipeline.run(["/status"]).await?;
     assert_eq!(prompt_submit.invocations(), 0);
-    pipeline.run(["add one"]).await?;
+    let (_, result, _) = pipeline.run_reconstructing_each_step("add one").await?;
+    result.assert_message(-1, Agent, "done");
     assert_eq!(api.call_count(), 2);
-    assert_eq!(pipeline.calculator_total(), 1);
     assert_eq!(prompt_submit.invocations(), 1);
 
     let pre_tool = HookTestEnv::new("PreToolUse", LOG_AND_BLOCK_SCRIPT);

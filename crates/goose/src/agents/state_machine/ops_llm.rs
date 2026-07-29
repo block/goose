@@ -1,6 +1,5 @@
 //! Builds a provider request and streams the next assistant response.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::agents::state_machine::operation::{
@@ -12,7 +11,6 @@ use crate::agents::{ExtensionManager, PromptManager};
 use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{effective_role, Conversation, EffectiveRole};
-use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::session::Session;
 use crate::tool_inspection::ToolInspectionManager;
@@ -68,8 +66,6 @@ pub struct InferenceRunner<'a> {
     prompt_manager: &'a Mutex<PromptManager>,
     tool_inspection_manager: &'a ToolInspectionManager,
     frontend_instructions: &'a Mutex<Option<String>>,
-    hook_manager: HookManager,
-    entry_hooks_emitted: AtomicBool,
 }
 
 impl<'a> InferenceRunner<'a> {
@@ -83,7 +79,6 @@ impl<'a> InferenceRunner<'a> {
         prompt_manager: &'a Mutex<PromptManager>,
         tool_inspection_manager: &'a ToolInspectionManager,
         frontend_instructions: &'a Mutex<Option<String>>,
-        hook_manager: HookManager,
     ) -> Self {
         Self {
             provider,
@@ -94,45 +89,6 @@ impl<'a> InferenceRunner<'a> {
             prompt_manager,
             tool_inspection_manager,
             frontend_instructions,
-            hook_manager,
-            entry_hooks_emitted: AtomicBool::new(false),
-        }
-    }
-
-    async fn emit_entry_hooks(
-        &self,
-        session: &Session,
-        conversation: &Conversation,
-        messages: &[Message],
-    ) {
-        if self.entry_hooks_emitted.swap(true, Ordering::Relaxed) {
-            return;
-        }
-
-        let messages_before_kickoff =
-            &conversation.messages()[..conversation.len() - messages.len()];
-        if messages_before_kickoff.iter().all(|message| {
-            !message.is_agent_visible() || message.agent_visible_content().content.is_empty()
-        }) {
-            self.hook_manager
-                .emit(
-                    HookEvent::SessionStart,
-                    HookContext::new(HookEvent::SessionStart, &session.id),
-                )
-                .await;
-        }
-
-        let prompt = messages
-            .first()
-            .map(Message::as_concat_text)
-            .unwrap_or_default();
-        if !prompt.is_empty() {
-            self.hook_manager
-                .emit(
-                    HookEvent::UserPromptSubmit,
-                    HookContext::new(HookEvent::UserPromptSubmit, &session.id).with_message(prompt),
-                )
-                .await;
         }
     }
 
@@ -333,8 +289,6 @@ impl Inference for InferenceRunner<'_> {
         }) {
             return not_applicable();
         }
-
-        self.emit_entry_hooks(session, conversation, messages).await;
 
         let span = chat_span(
             self.provider.as_ref(),

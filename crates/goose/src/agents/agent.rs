@@ -1630,7 +1630,6 @@ impl Agent {
             &self.prompt_manager,
             &self.tool_inspection_manager,
             &self.frontend_instructions,
-            self.hook_manager.clone(),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
@@ -1646,7 +1645,7 @@ impl Agent {
             .chain(std::iter::once(Step::Inference(inference)))
             .collect();
 
-        StateMachine::new(steps, cancel)
+        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
     }
 
     pub(crate) async fn reply_with_state_machine(

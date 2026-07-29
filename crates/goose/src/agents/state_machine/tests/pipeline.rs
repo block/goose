@@ -122,7 +122,6 @@ impl TestPipeline {
             &self.prompt_manager,
             &self.tool_inspection_manager,
             &self.frontend_instructions,
-            self.hook_manager.clone(),
         ));
         let mut command_handlers = operations.clone();
         command_handlers.push(inference.clone());
@@ -134,7 +133,7 @@ impl TestPipeline {
             .chain(std::iter::once(Step::Inference(inference)))
             .collect();
 
-        StateMachine::new(steps, cancel)
+        StateMachine::new(steps, cancel).with_hook_manager(self.hook_manager.clone())
     }
 
     pub(super) async fn with_goose_mode(self, mode: GooseMode) -> Self {
@@ -266,7 +265,7 @@ impl TestPipeline {
 
     pub(super) async fn reconstruct(&self) -> Result<Self> {
         let session = self.session().await?;
-        build_test_pipeline(
+        Ok(build_test_pipeline(
             self.session_manager.clone(),
             self.api.clone(),
             self.provider_features,
@@ -274,7 +273,8 @@ impl TestPipeline {
             session,
             self._temp_dir.clone(),
         )
-        .await
+        .await?
+        .with_hook_manager(self.hook_manager.clone()))
     }
 
     pub(super) async fn new_session(&self, working_dir: std::path::PathBuf) -> Result<Self> {

@@ -11,6 +11,9 @@ use crate::agents::state_machine::operation::{
 use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
+use crate::conversation::Conversation;
+use crate::conversation::{effective_role, EffectiveRole};
+use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::{Session, SessionManager};
 
 pub enum Step<'a> {
@@ -30,11 +33,82 @@ impl Step<'_> {
 pub struct StateMachine<'a> {
     steps: Vec<Step<'a>>,
     cancel: CancellationToken,
+    hook_manager: HookManager,
 }
 
 impl<'a> StateMachine<'a> {
     pub fn new(steps: Vec<Step<'a>>, cancel: CancellationToken) -> Self {
-        Self { steps, cancel }
+        Self {
+            steps,
+            cancel,
+            hook_manager: HookManager::default(),
+        }
+    }
+
+    pub fn with_hook_manager(mut self, hook_manager: HookManager) -> Self {
+        self.hook_manager = hook_manager;
+        self
+    }
+
+    async fn emit_entry_hooks(&self, session: &Session, conversation: &Conversation) -> Result<()> {
+        let messages = messages_since_kickoff(conversation)?;
+        if Self::has_agent_reply(messages) {
+            return Ok(());
+        }
+
+        let messages_before_kickoff =
+            &conversation.messages()[..conversation.len() - messages.len()];
+        if messages_before_kickoff.iter().all(|message| {
+            !message.is_agent_visible() || message.agent_visible_content().content.is_empty()
+        }) {
+            self.hook_manager
+                .emit(
+                    HookEvent::SessionStart,
+                    HookContext::new(HookEvent::SessionStart, &session.id)
+                        .with_working_dir(session.working_dir.to_string_lossy().to_string()),
+                )
+                .await;
+        }
+
+        let prompt = messages
+            .first()
+            .map(Message::as_concat_text)
+            .unwrap_or_default();
+        if !prompt.is_empty() {
+            self.hook_manager
+                .emit(
+                    HookEvent::UserPromptSubmit,
+                    HookContext::new(HookEvent::UserPromptSubmit, &session.id)
+                        .with_message(prompt)
+                        .with_working_dir(session.working_dir.to_string_lossy().to_string()),
+                )
+                .await;
+        }
+        Ok(())
+    }
+
+    fn has_agent_reply(messages: &[Message]) -> bool {
+        messages.iter().any(|message| {
+            message.role == rmcp::model::Role::Assistant
+                && ((message.is_user_visible() && message.is_agent_visible())
+                    || message.error_kind().is_some())
+        })
+    }
+
+    fn inference_is_applicable(conversation: &Conversation) -> bool {
+        conversation
+            .messages()
+            .iter()
+            .rev()
+            .filter(|message| message.is_agent_visible())
+            .map(Message::agent_visible_content)
+            .find(|message| !message.content.is_empty())
+            .is_some_and(|message| {
+                matches!(
+                    effective_role(&message),
+                    EffectiveRole::User | EffectiveRole::Tool
+                )
+            })
     }
 
     pub async fn step(&self, session: &Session, emit: &Emitter) -> Result<Option<StepResult>> {
@@ -51,6 +125,9 @@ impl<'a> StateMachine<'a> {
                 let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
+                        if Self::inference_is_applicable(conversation) {
+                            self.emit_entry_hooks(session, conversation).await?;
+                        }
                         let mut input = InferenceInput::default();
                         for operation in self.steps.iter().map(|step| step.operation()) {
                             input
