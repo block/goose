@@ -874,15 +874,6 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
-        let protocol_version = {
-            let client = self.client.lock().await;
-            client.peer_info().map(|info| info.protocol_version.clone())
-        };
-        if protocol_version.as_ref() == Some(&ProtocolVersion::V_2026_07_28) {
-            let client = self.client.lock().await;
-            return client.call_tool(params).await;
-        }
-
         let request = ClientRequest::CallToolRequest(Request::new(params));
 
         let result = self
