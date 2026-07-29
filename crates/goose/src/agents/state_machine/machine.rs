@@ -12,7 +12,6 @@ use crate::agents::state_machine::usage;
 use crate::agents::AgentEvent;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::conversation::{effective_role, EffectiveRole};
 use crate::hooks::{HookContext, HookEvent, HookManager};
 use crate::session::{Session, SessionManager};
 
@@ -95,22 +94,6 @@ impl<'a> StateMachine<'a> {
         })
     }
 
-    fn inference_is_applicable(conversation: &Conversation) -> bool {
-        conversation
-            .messages()
-            .iter()
-            .rev()
-            .filter(|message| message.is_agent_visible())
-            .map(Message::agent_visible_content)
-            .find(|message| !message.content.is_empty())
-            .is_some_and(|message| {
-                matches!(
-                    effective_role(&message),
-                    EffectiveRole::User | EffectiveRole::Tool
-                )
-            })
-    }
-
     pub async fn step(&self, session: &Session, emit: &Emitter) -> Result<Option<StepResult>> {
         let conversation = session
             .conversation
@@ -125,7 +108,7 @@ impl<'a> StateMachine<'a> {
                 let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
                     Step::Operation(operation) => operation.run(session, conversation, emit),
                     Step::Inference(inference) => {
-                        if Self::inference_is_applicable(conversation) {
+                        if inference.applies(conversation) {
                             self.emit_entry_hooks(session, conversation).await?;
                         }
                         let mut input = InferenceInput::default();

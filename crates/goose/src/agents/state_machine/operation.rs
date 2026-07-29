@@ -138,6 +138,10 @@ pub struct InferenceInput {
 
 #[async_trait]
 pub trait Inference: Operation {
+    /// Whether the next step would reach the provider. The machine asks before
+    /// firing the hooks that mark the start of a turn.
+    fn applies(&self, conversation: &Conversation) -> bool;
+
     async fn infer(
         &self,
         session: &Session,

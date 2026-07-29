@@ -53,6 +53,10 @@ impl Operation for TestInference {
 
 #[async_trait]
 impl Inference for TestInference {
+    fn applies(&self, _conversation: &Conversation) -> bool {
+        true
+    }
+
     async fn infer(
         &self,
         _session: &Session,

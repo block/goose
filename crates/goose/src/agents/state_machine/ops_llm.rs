@@ -68,6 +68,43 @@ pub struct InferenceRunner<'a> {
     frontend_instructions: &'a Mutex<Option<String>>,
 }
 
+/// The agent-visible conversation as the provider sees it: tool requests left
+/// unanswered by an earlier turn are dropped, since nothing will answer them now.
+fn messages_for_provider(conversation: &Conversation, turn: &[Message]) -> Vec<Message> {
+    let answered: std::collections::HashSet<&str> = conversation
+        .messages()
+        .iter()
+        .flat_map(|message| message.get_tool_response_ids())
+        .collect();
+    let start = conversation.len() - turn.len();
+    conversation
+        .messages()
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.is_agent_visible())
+        .map(|(index, message)| {
+            let mut message = message.agent_visible_content();
+            if index < start {
+                message.content.retain(|content| match content {
+                    MessageContent::ToolRequest(request) => answered.contains(request.id.as_str()),
+                    _ => true,
+                });
+            }
+            message
+        })
+        .filter(|message| !message.content.is_empty())
+        .collect()
+}
+
+fn ends_with_provider_turn(messages: &[Message]) -> bool {
+    messages.last().is_some_and(|message| {
+        matches!(
+            effective_role(message),
+            EffectiveRole::User | EffectiveRole::Tool
+        )
+    })
+}
+
 impl<'a> InferenceRunner<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -242,6 +279,14 @@ impl Operation for InferenceRunner<'_> {
 
 #[async_trait]
 impl Inference for InferenceRunner<'_> {
+    fn applies(&self, conversation: &Conversation) -> bool {
+        let Ok(turn) = messages_since_kickoff(conversation) else {
+            return false;
+        };
+        trailing_error(conversation).is_none()
+            && ends_with_provider_turn(&messages_for_provider(conversation, turn))
+    }
+
     async fn infer(
         &self,
         session: &Session,
@@ -254,39 +299,8 @@ impl Inference for InferenceRunner<'_> {
             return not_applicable();
         }
 
-        let answered: std::collections::HashSet<&str> = conversation
-            .messages()
-            .iter()
-            .flat_map(|m| m.get_tool_response_ids())
-            .collect();
-
-        let start = conversation.len() - messages.len();
-        let mut messages_for_provider: Vec<_> = conversation
-            .messages()
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| m.is_agent_visible())
-            .map(|(idx, m)| {
-                let mut m = m.agent_visible_content();
-                if idx < start {
-                    m.content.retain(|c| match c {
-                        MessageContent::ToolRequest(request) => {
-                            answered.contains(request.id.as_str())
-                        }
-                        _ => true,
-                    });
-                }
-                m
-            })
-            .filter(|m| !m.content.is_empty())
-            .collect();
-
-        if !messages_for_provider.last().is_some_and(|message| {
-            matches!(
-                effective_role(message),
-                EffectiveRole::User | EffectiveRole::Tool
-            )
-        }) {
+        let mut messages_for_provider = messages_for_provider(conversation, messages);
+        if !ends_with_provider_turn(&messages_for_provider) {
             return not_applicable();
         }
 
