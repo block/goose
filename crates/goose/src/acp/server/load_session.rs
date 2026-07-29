@@ -247,7 +247,7 @@ impl GooseAcpAgent {
 
         session = self
             .session_manager
-            .get_session(&session_id_str, true)
+            .get_session(&session_id_str, false)
             .await
             .internal_err_ctx("Failed to reload session")?;
 
