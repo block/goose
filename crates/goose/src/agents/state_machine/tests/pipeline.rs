@@ -2,8 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use anyhow::Result;
-use rmcp::model::{ElicitationAction, Role};
-use serde_json::json;
+use rmcp::model::ElicitationAction;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as TokioMutex;
 use tokio_util::sync::CancellationToken;
@@ -231,10 +230,6 @@ impl TestPipeline {
             .await
     }
 
-    pub(super) async fn set_goal(&self, goal: Option<String>) {
-        *self.goal.lock().await = goal;
-    }
-
     pub(super) async fn get_goal(&self) -> Option<String> {
         self.goal.lock().await.clone()
     }
@@ -344,6 +339,53 @@ impl TestPipeline {
             session: self.session().await?,
             events,
         })
+    }
+
+    pub(super) async fn run_reconstructing_each_step(
+        mut self,
+        message: &str,
+    ) -> Result<(Self, TestRun, usize)> {
+        self.session_manager
+            .add_message(&self.session_id, &Message::user().with_text(message))
+            .await?;
+
+        let cancel = CancellationToken::new();
+        let (tx, mut rx) = mpsc::channel(1024);
+        let emit = Emitter::new(tx, cancel.clone());
+        let mut events = Vec::new();
+        let mut applied_steps = 0;
+
+        loop {
+            let session = self.session().await?;
+            let machine = self.machine(cancel.clone());
+            let Some(mut result) = machine.step(&session, emit.clone()).await? else {
+                break;
+            };
+            machine
+                .apply(self.session_manager.as_ref(), &session, &mut result, &emit)
+                .await?;
+            applied_steps += 1;
+            while let Ok(event) = rx.try_recv() {
+                events.push(event);
+            }
+
+            let yield_to_client = result.yield_to_client;
+            drop(machine);
+            self = self.reconstruct().await?;
+            if yield_to_client {
+                break;
+            }
+        }
+
+        drop(emit);
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        let result = TestRun {
+            session: self.session().await?,
+            events,
+        };
+        Ok((self, result, applied_steps))
     }
 
     pub(super) async fn seed<const N: usize>(&self, messages: [Message; N]) -> Result<()> {
@@ -795,23 +837,11 @@ pub(super) struct TestRun {
 pub(super) enum MessageKind {
     Agent,
     Confirmation,
+    Error,
     Thinking,
     ToolCall,
     ToolResponse,
     User,
-}
-
-impl MessageKind {
-    fn prefix(self) -> &'static str {
-        match self {
-            Self::Agent => "agent:",
-            Self::Confirmation => "confirmation:",
-            Self::Thinking => "thinking:",
-            Self::ToolCall => "toolcall:",
-            Self::ToolResponse => "toolresponse:",
-            Self::User => "user:",
-        }
-    }
 }
 
 impl TestRun {
@@ -827,67 +857,6 @@ impl TestRun {
             .iter()
             .filter(|event| matches!(event, AgentEvent::HistoryReplaced(_)))
             .count()
-    }
-
-    pub(super) fn rendered_conversation(&self) -> Vec<String> {
-        self.session
-            .conversation
-            .as_ref()
-            .into_iter()
-            .flat_map(Conversation::messages)
-            .flat_map(|message| {
-                message.content.iter().map(move |content| match content {
-                    MessageContent::Text(text) => {
-                        let role = match message.role {
-                            Role::User => "user",
-                            Role::Assistant => "agent",
-                        };
-                        format!("{role}: {}", text.text)
-                    }
-                    MessageContent::ToolRequest(request) => match &request.tool_call {
-                        Ok(call) => {
-                            let arguments = call
-                                .arguments
-                                .clone()
-                                .map(serde_json::Value::Object)
-                                .unwrap_or_else(|| json!({}));
-                            format!("toolcall: {}({arguments})", call.name)
-                        }
-                        Err(error) => format!("toolcall error: {}", error.message),
-                    },
-                    MessageContent::ToolResponse(response) => {
-                        let text = match response.tool_result.as_ref() {
-                            Ok(result) => result
-                                .content
-                                .iter()
-                                .filter_map(|content| {
-                                    content.as_text().map(|text| text.text.clone())
-                                })
-                                .collect::<String>(),
-                            Err(error) => error.message.to_string(),
-                        };
-                        format!("toolresponse: {text}")
-                    }
-                    MessageContent::ActionRequired(action) => match &action.data {
-                        ActionRequiredData::ToolConfirmation {
-                            id,
-                            tool_name,
-                            prompt,
-                            ..
-                        } => format!(
-                            "confirmation: {id} {tool_name} {}",
-                            prompt.as_deref().unwrap_or_default()
-                        ),
-                        _ => content.to_string(),
-                    },
-                    MessageContent::Thinking(thinking) => {
-                        format!("thinking: {}", thinking.thinking)
-                    }
-                    MessageContent::Error(error) => format!("error: {}", error.message),
-                    _ => content.to_string(),
-                })
-            })
-            .collect()
     }
 
     pub(super) fn assert_emitted(&self, contains: &str) {
@@ -914,7 +883,17 @@ impl TestRun {
     }
 
     pub(super) fn assert_message(&self, index: isize, kind: MessageKind, contains: &str) {
-        let messages = self.rendered_conversation();
+        let messages = self
+            .conversation()
+            .messages()
+            .iter()
+            .flat_map(|message| {
+                message
+                    .content
+                    .iter()
+                    .map(move |content| (message, content))
+            })
+            .collect::<Vec<_>>();
         let resolved = if index < 0 {
             messages.len() as isize + index
         } else {
@@ -922,20 +901,64 @@ impl TestRun {
         };
         assert!(
             resolved >= 0 && resolved < messages.len() as isize,
-            "message index {index} is out of bounds:\n{}",
-            messages.join("\n")
+            "message index {index} is out of bounds for {} content blocks",
+            messages.len()
         );
-        let message = &messages[resolved as usize];
-        let content = message.strip_prefix(kind.prefix()).unwrap_or_else(|| {
-            panic!(
-                "message {index} is not {kind:?}: {message}\n\n{}",
-                messages.join("\n")
-            )
-        });
+        let (message, content) = messages[resolved as usize];
+        let content = match (kind, content) {
+            (MessageKind::Agent, MessageContent::Text(text))
+                if message.role == rmcp::model::Role::Assistant =>
+            {
+                text.text.clone()
+            }
+            (MessageKind::User, MessageContent::Text(text))
+                if message.role == rmcp::model::Role::User =>
+            {
+                text.text.clone()
+            }
+            (MessageKind::Thinking, MessageContent::Thinking(thinking)) => {
+                thinking.thinking.clone()
+            }
+            (MessageKind::ToolCall, MessageContent::ToolRequest(request)) => {
+                match &request.tool_call {
+                    Ok(call) => {
+                        let arguments = call
+                            .arguments
+                            .clone()
+                            .map(serde_json::Value::Object)
+                            .unwrap_or_default();
+                        format!("{}({arguments})", call.name)
+                    }
+                    Err(error) => error.message.to_string(),
+                }
+            }
+            (MessageKind::ToolResponse, MessageContent::ToolResponse(response)) => {
+                match response.tool_result.as_ref() {
+                    Ok(result) => result
+                        .content
+                        .iter()
+                        .filter_map(|content| content.as_text().map(|text| text.text.clone()))
+                        .collect(),
+                    Err(error) => error.message.to_string(),
+                }
+            }
+            (MessageKind::Confirmation, MessageContent::ActionRequired(action)) => {
+                match &action.data {
+                    ActionRequiredData::ToolConfirmation {
+                        id,
+                        tool_name,
+                        prompt,
+                        ..
+                    } => format!("{id} {tool_name} {}", prompt.as_deref().unwrap_or_default()),
+                    _ => panic!("message {index} is not a tool confirmation: {content:?}"),
+                }
+            }
+            (MessageKind::Error, MessageContent::Error(error)) => error.message.clone(),
+            _ => panic!("message {index} is not {kind:?}: {content:?}"),
+        };
         assert!(
             content.contains(contains),
-            "message {index} does not contain {contains:?}: {message}\n\n{}",
-            messages.join("\n")
+            "message {index} does not contain {contains:?}: {content:?}"
         );
     }
 }

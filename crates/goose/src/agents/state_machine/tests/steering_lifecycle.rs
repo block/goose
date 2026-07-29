@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use super::pipeline::{self, MessageKind::Agent, test_pipeline};
+use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::conversation::message::Message;
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
@@ -97,13 +97,11 @@ async fn cancellation_preserves_queued_steering_for_resume() -> Result<()> {
     let (cancelled, ()) = tokio::join!(run, steer);
     let cancelled = cancelled?;
     assert!(pipeline.has_pending_steers().await);
-    assert!(
-        !cancelled
-            .conversation()
-            .messages()
-            .iter()
-            .any(|message| message.as_concat_text() == "use the queued direction")
-    );
+    assert!(!cancelled
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "use the queued direction"));
 
     let resumed = pipeline.resume().await?;
     resumed.assert_message(-1, Agent, "queued direction applied");
@@ -116,12 +114,11 @@ async fn cancellation_preserves_queued_steering_for_resume() -> Result<()> {
         .collect::<Vec<_>>();
     assert_eq!(steers.len(), 1);
     assert!(steers[0].metadata.steer);
-    assert!(
-        api.calls()
-            .last()
-            .expect("resumed inference request")
-            .input_contains("use the queued direction")
-    );
+    assert!(api
+        .calls()
+        .last()
+        .expect("resumed inference request")
+        .input_contains("use the queued direction"));
 
     Ok(())
 }

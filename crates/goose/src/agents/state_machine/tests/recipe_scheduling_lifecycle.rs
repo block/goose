@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::json;
 
 use super::pipeline::{
-    MessageKind::Agent, MessageKind::ToolResponse, test_pipeline, test_pipeline_with_scheduler,
+    test_pipeline, test_pipeline_with_scheduler, MessageKind::Agent, MessageKind::ToolResponse,
 };
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};

@@ -1,11 +1,14 @@
 use anyhow::Result;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage as ProviderTokenUsage};
 use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
+use crate::agents::state_machine;
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
 use crate::context_mgmt::{compute_tool_call_cutoff, TOOLCALL_SUMMARIZATION_BATCH_SIZE};
 use crate::conversation::message::{Message, MessageErrorKind};
+use crate::conversation::Conversation;
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
 const SUMMARIZE_TOOL_PAIR: &str = "summarize a tool call & response pair";
@@ -60,6 +63,72 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
 
     let continued = pipeline.run(["after manual compaction"]).await?;
     continued.assert_message(-1, Agent, "still working");
+
+    pipeline.set_total_tokens(100).await;
+    let cleared = pipeline.run(["/clear"]).await?;
+    assert_eq!(cleared.history_replacements(), 1);
+    assert_eq!(cleared.conversation().messages().len(), 2);
+    assert!(cleared
+        .conversation()
+        .messages()
+        .iter()
+        .all(|message| message.is_user_visible() && !message.is_agent_visible()));
+    assert_eq!(cleared.session.usage.total_tokens, Some(0));
+
+    let (pipeline, _api) = test_pipeline().await?;
+    pipeline.set_total_tokens(100).await;
+    let machine =
+        state_machine::StateMachine::new(Vec::new(), tokio_util::sync::CancellationToken::new());
+    let (tx, _rx) = tokio::sync::mpsc::channel(4);
+    let emit = state_machine::Emitter::new(tx, tokio_util::sync::CancellationToken::new());
+    let apply = async |effects: Vec<state_machine::StateEffect>| -> Result<()> {
+        let session = pipeline.session().await?;
+        let mut result = state_machine::StepResult {
+            effects,
+            yield_to_client: false,
+        };
+        machine
+            .apply(
+                pipeline.session_manager.as_ref(),
+                &session,
+                &mut result,
+                &emit,
+            )
+            .await
+    };
+
+    let replacement = Conversation::new_unvalidated([
+        Message::user().with_text("keep this"),
+        Message::assistant().with_text("and this"),
+    ]);
+    apply(vec![replacement.into()]).await?;
+    let recounted = pipeline.session().await?.usage.total_tokens;
+    assert!(recounted.is_some_and(|tokens| tokens > 0 && tokens < 100));
+
+    let replacement = Conversation::new_unvalidated([Message::user().with_text("new context")]);
+    let usage = ProviderUsage::new(
+        "scripted-model".to_string(),
+        ProviderTokenUsage::new(Some(10), Some(5), Some(15)),
+    );
+    apply(vec![
+        replacement.into(),
+        state_machine::StateEffect::RecordUsage(usage),
+        Message::assistant()
+            .with_text("response after replacement")
+            .into(),
+    ])
+    .await?;
+
+    let reloaded = pipeline.session().await?;
+    assert_eq!(reloaded.usage.total_tokens, Some(15));
+    assert_eq!(
+        reloaded
+            .conversation
+            .and_then(|conversation| conversation.last().cloned())
+            .and_then(|message| message.metadata.usage)
+            .and_then(|usage| usage.total_tokens),
+        Some(15)
+    );
 
     Ok(())
 }

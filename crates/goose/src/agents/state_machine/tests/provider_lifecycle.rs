@@ -2,10 +2,11 @@ use anyhow::Result;
 
 use super::calculator_extension::{named_values, value, ADD, ADD_VALUES};
 use super::dummy_api::ProviderFeatures;
-use super::pipeline::test_pipeline_with;
-use super::pipeline::MessageKind::{Agent, Thinking, ToolCall, ToolResponse};
+use super::pipeline::MessageKind::{Agent, Error, Thinking, ToolCall, ToolResponse};
+use super::pipeline::{test_pipeline, test_pipeline_with};
+use crate::agents::AgentEvent;
 use crate::conversation::fix_conversation;
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent, MessageErrorKind};
 use crate::conversation::Conversation;
 
 #[tokio::test]
@@ -172,12 +173,7 @@ async fn provider_lifecycle() -> Result<()> {
 
     api.on("return an empty server error").empty_server_error();
     let result = pipeline.run(["return an empty server error"]).await?;
-    let error = result
-        .rendered_conversation()
-        .last()
-        .cloned()
-        .expect("persisted provider error");
-    assert!(error.starts_with("error:") && error.contains("500"));
+    result.assert_message(-1, Error, "500");
 
     api.on("after server error")
         .reply("recovered from server error");
@@ -202,6 +198,83 @@ async fn provider_lifecycle() -> Result<()> {
     let call = api.calls().last().cloned().expect("provider request");
     assert!(call.uses_model("gpt-4.1"));
     assert!(call.system_contains("general-purpose AI agent called goose"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn usage_and_provider_errors_survive_persistence() -> Result<()> {
+    let (pipeline, api) = test_pipeline().await?;
+    api.on("hello").reply("hi there");
+
+    let result = pipeline.run(["hello"]).await?;
+    let input_tokens = api.calls()[0].input_tokens();
+    let output_tokens = "hi there".chars().count() as i32;
+    let total_tokens = input_tokens + output_tokens;
+
+    assert_eq!(result.session.usage.total_tokens, Some(total_tokens));
+    assert_eq!(result.session.usage.input_tokens, Some(input_tokens));
+    assert_eq!(result.session.usage.output_tokens, Some(output_tokens));
+    assert!(result.events.iter().any(
+        |event| matches!(event, AgentEvent::Usage(usage) if usage.usage.total_tokens == Some(total_tokens))
+    ));
+    assert!(result
+        .events
+        .iter()
+        .any(|event| matches!(event, AgentEvent::MessageUsage { .. })));
+    let assistant = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| message.role == rmcp::model::Role::Assistant)
+        .expect("assistant response");
+    assert_eq!(
+        assistant
+            .metadata
+            .usage
+            .as_ref()
+            .and_then(|usage| usage.total_tokens),
+        Some(total_tokens)
+    );
+
+    api.on("stream then fail")
+        .reply("partial response")
+        .server_error("boom");
+    let result = pipeline.run(["stream then fail"]).await?;
+    let stream_total =
+        api.calls().last().unwrap().input_tokens() + "partial response".chars().count() as i32;
+    assert_eq!(result.session.usage.total_tokens, Some(stream_total));
+    assert!(result.events.iter().any(
+        |event| matches!(event, AgentEvent::Usage(usage) if usage.usage.total_tokens == Some(stream_total))
+    ));
+    assert!(!result
+        .events
+        .iter()
+        .any(|event| matches!(event, AgentEvent::MessageUsage { .. })));
+    assert!(!result
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "partial response"));
+    let error = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| message.error_kind().is_some())
+        .expect("persisted stream error");
+    assert!(error.metadata.usage.is_none());
+
+    api.on("fail immediately").server_error("immediate boom");
+    let result = pipeline.run(["fail immediately"]).await?;
+    result.assert_message(-1, Error, "immediate boom");
+    let error = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| message.error_kind() == Some(MessageErrorKind::Other))
+        .expect("persisted provider error");
+    assert!(error.is_user_visible());
+    assert!(!error.is_agent_visible());
 
     Ok(())
 }

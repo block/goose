@@ -5,13 +5,36 @@ use serde_json::json;
 use super::calculator_extension::{value, ADD, REQUEST_VALUE};
 use super::dummy_api::ProviderFeatures;
 use super::pipeline::test_pipeline_with;
-use super::pipeline::MessageKind::{Agent, ToolResponse};
+use super::pipeline::MessageKind::{Agent, ToolCall, ToolResponse};
 use crate::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::tool_execution::CHAT_MODE_TOOL_SKIPPED_RESPONSE;
 use crate::config::GooseMode;
 use crate::recipe::{Recipe, Response};
 use goose_providers::model::ModelConfig;
+
+#[tokio::test]
+async fn tool_turn_reconstructs_after_every_applied_step() -> Result<()> {
+    let (pipeline, api) = super::pipeline::test_pipeline().await?;
+    api.on("add one").call(ADD, value(1));
+    api.on("result: 1").reply("the total is one");
+
+    let (pipeline, result, applied_steps) =
+        pipeline.run_reconstructing_each_step("add one").await?;
+
+    assert!(applied_steps >= 3);
+    assert_eq!(api.call_count(), 2);
+    result.assert_message(1, ToolCall, ADD);
+    result.assert_message(2, ToolResponse, "result: 1");
+    result.assert_message(-1, Agent, "the total is one");
+
+    api.on("continue after reconstruction")
+        .reply("still working");
+    let continued = pipeline.run(["continue after reconstruction"]).await?;
+    continued.assert_message(-1, Agent, "still working");
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn reconstruction_and_session_isolation() -> Result<()> {
