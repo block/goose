@@ -1,0 +1,4 @@
+phase1	file operations	PASS	created/replaced/inserted/undo-simulated/deleted/recreated unicode files
+phase1	shell workflows	PASS	chain, failure handling, env vars, nonexistent command tested
+phase1	file operations	PASS	created/replaced/inserted/undo-simulated/deleted/recreated unicode files
+phase1	shell workflows	PASS	chain, failure handling, env vars, nonexistent command tested

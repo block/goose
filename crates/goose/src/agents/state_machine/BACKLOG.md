@@ -7,11 +7,13 @@ tests.
 
 ## Correctness
 
-- [ ] Remove hidden execution state from operations. After any applied step it
+- [x] Remove hidden execution state from operations. After any applied step it
   must be possible to discard the machine, reconstruct the same pipeline from
-  the persisted session, and produce the same next step. This currently fails
-  for retry attempts and completion, goal nudging, in-memory goal and grind
-  values, stop-hook block counts, and inference entry-hook accounting.
+  the persisted session, and produce the same next step. Operations record what
+  they did on the messages they append, through `Operation::set_message_meta`
+  and `message_meta`, and read it back from the conversation. Goal and grind
+  values are caller-owned inputs that must be supplied when reconstructing a
+  pipeline.
 
 - [ ] Add a reconstruction test that discards and rebuilds the machine after
   every applied step in a tool-calling turn. Extend it to retries, stop-hook

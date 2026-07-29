@@ -265,7 +265,9 @@ impl TestPipeline {
 
     pub(super) async fn reconstruct(&self) -> Result<Self> {
         let session = self.session().await?;
-        Ok(build_test_pipeline(
+        let goal = self.goal.lock().await.clone();
+        let grind = self.grind.lock().await.clone();
+        let pipeline = build_test_pipeline(
             self.session_manager.clone(),
             self.api.clone(),
             self.provider_features,
@@ -274,7 +276,11 @@ impl TestPipeline {
             self._temp_dir.clone(),
         )
         .await?
-        .with_hook_manager(self.hook_manager.clone()))
+        .with_hook_manager(self.hook_manager.clone())
+        .with_stop_hook_block_cap(self.stop_hook_block_cap);
+        *pipeline.goal.lock().await = goal;
+        *pipeline.grind.lock().await = grind;
+        Ok(pipeline)
     }
 
     pub(super) async fn new_session(&self, working_dir: std::path::PathBuf) -> Result<Self> {

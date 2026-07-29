@@ -79,6 +79,18 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 pub trait Operation: Send + Sync {
     fn name(&self) -> &'static str;
 
+    /// Note on a message something this operation did, so that a pipeline rebuilt
+    /// from the persisted conversation reaches the same conclusion. Notes record
+    /// past actions only — anything an operation would have to compute again does
+    /// not belong here.
+    fn set_message_meta(&self, message: &mut Message, key: &str, value: serde_json::Value) {
+        message.metadata.set_operation_note(self.name(), key, value);
+    }
+
+    fn message_meta<'a>(&self, message: &'a Message, key: &str) -> Option<&'a serde_json::Value> {
+        message.metadata.operation_note(self.name(), key)
+    }
+
     async fn cancel(
         &self,
         _session: &Session,

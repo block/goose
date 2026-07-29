@@ -1,7 +1,5 @@
 //! Lets stop hooks accept or block a completed assistant turn.
 
-use std::sync::atomic::{AtomicU32, Ordering};
-
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -13,6 +11,8 @@ use crate::conversation::message::{Message, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::hooks::{HookContext, HookDecision, HookEvent, HookManager};
 use crate::session::Session;
+
+pub(super) const DENIED: &str = "denied";
 
 fn denial_context_message(plugin: &str, reason: &str) -> Message {
     Message::user()
@@ -45,7 +45,6 @@ fn block_cap_warning(plugin: &str, cap: u32) -> Message {
 pub struct StopHookOperation {
     hook_manager: HookManager,
     block_cap: u32,
-    consecutive_blocks: AtomicU32,
 }
 
 impl StopHookOperation {
@@ -53,7 +52,6 @@ impl StopHookOperation {
         Self {
             hook_manager,
             block_cap,
-            consecutive_blocks: AtomicU32::new(0),
         }
     }
 }
@@ -88,14 +86,20 @@ impl Operation for StopHookOperation {
         {
             HookDecision::Allow => yielded(),
             HookDecision::Deny { reason, plugin } => {
-                let blocks = self.consecutive_blocks.fetch_add(1, Ordering::Relaxed) + 1;
+                let blocks = messages
+                    .iter()
+                    .filter(|message| self.message_meta(message, DENIED).is_some())
+                    .count() as u32
+                    + 1;
                 if blocks > self.block_cap {
                     let warning = block_cap_warning(&plugin, self.block_cap);
                     let warning = emit.message(warning).await;
                     yielded_with([warning.into()])
                 } else {
+                    let mut denial = denial_context_message(&plugin, &reason);
+                    self.set_message_meta(&mut denial, DENIED, serde_json::json!(true));
                     emit.message(denial_notification(&plugin)).await;
-                    applied([denial_context_message(&plugin, &reason).into()])
+                    applied([denial.into()])
                 }
             }
         }

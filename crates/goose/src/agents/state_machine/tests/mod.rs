@@ -4,6 +4,7 @@ use self::calculator_extension::{value, ADD};
 use self::pipeline::MessageKind::{Agent, ToolCall};
 use self::pipeline::{test_pipeline, MAX_TURNS};
 use crate::agents::state_machine;
+use crate::agents::state_machine::ops_retry::NUDGED;
 
 mod agent_reply;
 mod calculator_extension;
@@ -55,7 +56,9 @@ async fn goal_starts_nudges_and_clears_when_met() -> Result<()> {
         .reply("did some work");
     api.on("fully met").reply("goal is met");
 
-    let result = pipeline.run(["/goal finish the migration"]).await?;
+    let (pipeline, result, _) = pipeline
+        .run_reconstructing_each_step("/goal finish the migration")
+        .await?;
 
     assert_eq!(api.call_count(), 2);
     assert!(pipeline.get_goal().await.is_none());
@@ -90,6 +93,15 @@ async fn goal_starts_nudges_and_clears_when_met() -> Result<()> {
                 && message.is_agent_visible()
         })
         .expect("hidden goal nudge");
+    assert_eq!(
+        result
+            .conversation()
+            .messages()
+            .iter()
+            .filter(|message| message.metadata.operation_note("retry", NUDGED).is_some())
+            .count(),
+        1
+    );
 
     Ok(())
 }

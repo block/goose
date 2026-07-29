@@ -735,6 +735,11 @@ pub struct MessageMetadata {
     pub steer: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
+    /// What an operation did to this message, keyed by operation name. Read back
+    /// from the persisted conversation so a rebuilt pipeline knows what already
+    /// happened. Never sent to providers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Box<serde_json::Map<String, serde_json::Value>>>,
 }
 
 impl Default for MessageMetadata {
@@ -745,11 +750,31 @@ impl Default for MessageMetadata {
             inference: None,
             steer: false,
             usage: None,
+            operations: None,
         }
     }
 }
 
 impl MessageMetadata {
+    pub fn operation_note(&self, operation: &str, key: &str) -> Option<&serde_json::Value> {
+        self.operations
+            .as_ref()?
+            .get(operation)?
+            .as_object()?
+            .get(key)
+    }
+
+    pub fn set_operation_note(&mut self, operation: &str, key: &str, value: serde_json::Value) {
+        let notes = self.operations.get_or_insert_with(Box::default);
+        if let Some(notes) = notes
+            .entry(operation)
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
+            .as_object_mut()
+        {
+            notes.insert(key.to_string(), value);
+        }
+    }
+
     /// Create metadata for messages visible only to the agent
     pub fn agent_only() -> Self {
         MessageMetadata {

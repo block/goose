@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{test_pipeline, MessageKind::Agent, MessageKind::ToolResponse, MAX_TURNS};
+use crate::agents::state_machine::ops_stop_hook::DENIED;
 use crate::conversation::message::{MessageContent, SystemNotificationType};
 
 struct HookTestEnv {
@@ -69,7 +70,7 @@ async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
     api.on("hello").reply("response");
     api.on("blocked ending this turn").reply("response");
 
-    let result = pipeline.run(["hello"]).await?;
+    let (_, result, _) = pipeline.run_reconstructing_each_step("hello").await?;
     assert_eq!(api.call_count(), 3);
     assert_eq!(blocked.invocations(), 3);
     assert_eq!(
@@ -80,6 +81,18 @@ async fn stop_hooks_allow_block_and_skip_non_stop_exits() -> Result<()> {
             .filter(|message| message
                 .as_concat_text()
                 .contains("blocked ending this turn"))
+            .count(),
+        2
+    );
+    assert_eq!(
+        result
+            .conversation()
+            .messages()
+            .iter()
+            .filter(|message| message
+                .metadata
+                .operation_note("stop_hook", DENIED)
+                .is_some())
             .count(),
         2
     );

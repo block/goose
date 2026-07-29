@@ -177,7 +177,9 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
         .expect("valid recipe");
     pipeline.set_recipe(recipe).await?;
 
-    let exhausted = pipeline.run(["do the thing"]).await?;
+    let (_pipeline, exhausted, _) = pipeline
+        .run_reconstructing_each_step("do the thing")
+        .await?;
     assert_eq!(exhausted.history_replacements(), 1);
     assert_eq!(api.call_count(), 2);
     exhausted.assert_message(-1, Agent, "Maximum retry attempts (1) exceeded");

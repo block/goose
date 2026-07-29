@@ -2,7 +2,6 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use crate::agents::retry::{
@@ -18,14 +17,15 @@ use crate::conversation::Conversation;
 use crate::session::Session;
 use tokio::sync::Mutex;
 
+pub(super) const NUDGED: &str = "nudged";
+pub(super) const ATTEMPTS: &str = "attempts";
+pub(super) const FINISHED: &str = "finished";
+
 pub struct RetryOperation<'a> {
     goal: &'a Mutex<Option<String>>,
     grind: &'a Mutex<Option<String>>,
     retry_timeout: Duration,
     on_failure_timeout: Duration,
-    attempts: AtomicU32,
-    goal_nudged: AtomicBool,
-    finished: AtomicBool,
 }
 
 impl<'a> RetryOperation<'a> {
@@ -40,9 +40,6 @@ impl<'a> RetryOperation<'a> {
             grind,
             retry_timeout,
             on_failure_timeout,
-            attempts: AtomicU32::new(0),
-            goal_nudged: AtomicBool::new(false),
-            finished: AtomicBool::new(false),
         }
     }
 
@@ -59,6 +56,35 @@ impl<'a> RetryOperation<'a> {
         Ok(Conversation::new_unvalidated(
             conversation.messages()[..=kickoff].to_vec(),
         ))
+    }
+
+    fn goal_was_nudged(&self, messages: &[Message]) -> bool {
+        messages
+            .iter()
+            .any(|message| self.message_meta(message, NUDGED).is_some())
+    }
+
+    fn finished(&self, messages: &[Message]) -> bool {
+        messages
+            .iter()
+            .any(|message| self.message_meta(message, FINISHED).is_some())
+    }
+
+    /// Attempts are counted on the kickoff message because a retry replaces the
+    /// conversation with everything up to and including it — the only message
+    /// that outlives the attempt it belongs to.
+    fn attempts(&self, messages: &[Message]) -> u32 {
+        messages
+            .first()
+            .and_then(|message| self.message_meta(message, ATTEMPTS))
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0) as u32
+    }
+
+    fn ending(&self, message: Message) -> Message {
+        let mut message = message;
+        self.set_message_meta(&mut message, FINISHED, serde_json::json!(true));
+        message
     }
 }
 
@@ -160,23 +186,22 @@ impl Operation for RetryOperation<'_> {
         conversation: &Conversation,
         emit: &Emitter,
     ) -> Result<OperationResult> {
-        if self.finished.load(Ordering::Relaxed)
-            || !ends_turn(messages_since_kickoff(conversation)?)
-        {
+        let messages = messages_since_kickoff(conversation)?;
+        if self.finished(messages) || !ends_turn(messages) {
             return not_applicable();
         }
 
-        if !self.goal_nudged.load(Ordering::Relaxed) {
+        if !self.goal_was_nudged(messages) {
             if let Some(goal) = self.goal.lock().await.clone() {
-                self.goal_nudged.store(true, Ordering::Relaxed);
                 let nudge = format!(
                     "Before finishing, check whether the following goal has been fully met:\n\n\
                      **Goal:** {goal}\n\n\
                      If not, continue working toward it."
                 );
-                let message = Message::user()
+                let mut message = Message::user()
                     .with_text(&nudge)
                     .with_visibility(false, true);
+                self.set_message_meta(&mut message, NUDGED, serde_json::json!(true));
                 emit.message(Message::assistant().with_system_notification(
                     SystemNotificationType::InlineMessage,
                     format!("Goal: {goal}"),
@@ -219,9 +244,10 @@ impl Operation for RetryOperation<'_> {
         let success = match success {
             Ok(success) => success,
             Err(error) => {
-                self.finished.store(true, Ordering::Relaxed);
-                let message = Message::assistant()
-                    .with_text(format!("Retry logic encountered an error: {error}"));
+                let message = self.ending(
+                    Message::assistant()
+                        .with_text(format!("Retry logic encountered an error: {error}")),
+                );
                 let message = emit.message(message).await;
                 return applied([message.into()]);
             }
@@ -230,12 +256,12 @@ impl Operation for RetryOperation<'_> {
             return not_applicable();
         }
 
-        if self.attempts.load(Ordering::Relaxed) >= retry_config.max_retries {
-            self.finished.store(true, Ordering::Relaxed);
-            let message = Message::assistant().with_text(format!(
+        let attempts = self.attempts(messages);
+        if attempts >= retry_config.max_retries {
+            let message = self.ending(Message::assistant().with_text(format!(
                 "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
                 retry_config.max_retries
-            ));
+            )));
             #[cfg(feature = "telemetry")]
             crate::posthog::emit_error(
                 "retry_max_exceeded",
@@ -251,15 +277,19 @@ impl Operation for RetryOperation<'_> {
                 .map(Duration::from_secs)
                 .unwrap_or(self.on_failure_timeout);
             if let Err(error) = execute_on_failure_command_with_timeout(command, timeout).await {
-                self.finished.store(true, Ordering::Relaxed);
-                let message = Message::assistant()
-                    .with_text(format!("Retry logic encountered an error: {error}"));
+                let message = self.ending(
+                    Message::assistant()
+                        .with_text(format!("Retry logic encountered an error: {error}")),
+                );
                 let message = emit.message(message).await;
                 return applied([message.into()]);
             }
         }
 
-        self.attempts.fetch_add(1, Ordering::Relaxed);
-        applied([Self::reset_conversation(conversation)?.into()])
+        let mut reset = Self::reset_conversation(conversation)?;
+        if let Some(kickoff) = reset.messages_mut().last_mut() {
+            self.set_message_meta(kickoff, ATTEMPTS, serde_json::json!(attempts + 1));
+        }
+        applied([reset.into()])
     }
 }
