@@ -97,9 +97,7 @@ describe('fetchModelCapabilities', () => {
       supportsReasoningMode: false,
     });
 
-    await expect(
-      fetchModelCapabilities('databricks', 'databricks-gpt-5.6')
-    ).resolves.toEqual({
+    await expect(fetchModelCapabilities('databricks', 'databricks-gpt-5.6')).resolves.toEqual({
       reasoning: true,
       supportsReasoningMode: false,
     });

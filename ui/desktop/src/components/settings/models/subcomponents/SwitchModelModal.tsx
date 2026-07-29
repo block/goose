@@ -36,6 +36,7 @@ import type {
 import { trackModelChanged } from '../../../../utils/analytics';
 import {
   reasoningModeForSelection,
+  reasoningModeForSubmission,
   resolvedReasoningModeCapability,
   shouldSyncSessionReasoningMode,
   supportsReasoningMode,
@@ -348,6 +349,7 @@ export const SwitchModelModal = ({
     sessionReasoningMode ?? 'standard'
   );
   const [selectedModelReasoning, setSelectedModelReasoning] = useState<boolean | null>(null);
+  const [isReasoningCapabilityPending, setIsReasoningCapabilityPending] = useState(false);
   const [selectedModelReasoningModeCapability, setSelectedModelReasoningModeCapability] = useState<
     boolean | null
   >(null);
@@ -381,14 +383,21 @@ export const SwitchModelModal = ({
       fallback?: { reasoning?: boolean | null; supportsReasoningMode?: boolean | null }
     ) => {
       const requestId = ++reasoningRequestId.current;
+      setIsReasoningCapabilityPending(true);
       setSelectedModelReasoning(fallback?.reasoning ?? null);
       setSelectedModelReasoningModeCapability(fallback?.supportsReasoningMode ?? null);
-      fetchModelCapabilities(providerName, modelName, fallback).then((capabilities) => {
-        if (requestId === reasoningRequestId.current) {
-          setSelectedModelReasoning(capabilities.reasoning);
-          setSelectedModelReasoningModeCapability(capabilities.supportsReasoningMode);
-        }
-      });
+      fetchModelCapabilities(providerName, modelName, fallback)
+        .then((capabilities) => {
+          if (requestId === reasoningRequestId.current) {
+            setSelectedModelReasoning(capabilities.reasoning);
+            setSelectedModelReasoningModeCapability(capabilities.supportsReasoningMode);
+          }
+        })
+        .finally(() => {
+          if (requestId === reasoningRequestId.current) {
+            setIsReasoningCapabilityPending(false);
+          }
+        });
     },
     []
   );
@@ -406,7 +415,10 @@ export const SwitchModelModal = ({
 
   useEffect(() => {
     reasoningRequestId.current += 1;
-    if (!provider || !model) return;
+    if (!provider || !model) {
+      setIsReasoningCapabilityPending(false);
+      return;
+    }
 
     const selectedOption = modelOptions
       .flatMap((group) => group.options)
@@ -420,6 +432,7 @@ export const SwitchModelModal = ({
       return;
     }
 
+    setIsReasoningCapabilityPending(true);
     setSelectedModelReasoning(null);
     setSelectedModelReasoningModeCapability(null);
     const timeout = setTimeout(() => {
@@ -494,10 +507,23 @@ export const SwitchModelModal = ({
         };
         acpSaveThinkingEffort(effort).catch(console.warn);
       }
-      if (showReasoningModeControl) {
+      const submittedReasoningMode = reasoningModeForSubmission(
+        showReasoningModeControl,
+        isReasoningCapabilityPending,
+        selectedProviderName,
+        selectedModelName,
+        currentProvider,
+        currentModel,
+        sessionReasoningMode,
+        reasoningMode
+      );
+      if (submittedReasoningMode) {
         modelObj = {
           ...modelObj,
-          request_params: { ...modelObj.request_params, reasoning_mode: reasoningMode },
+          request_params: {
+            ...modelObj.request_params,
+            reasoning_mode: submittedReasoningMode,
+          },
         };
       } else if (modelObj.request_params?.reasoning_mode) {
         const requestParams = { ...modelObj.request_params };

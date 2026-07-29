@@ -70,6 +70,25 @@ export function reasoningModeForSelection(
     : fallbackMode;
 }
 
+export function reasoningModeForSubmission(
+  controlVisible: boolean,
+  capabilityPending: boolean,
+  selectedProvider: string | null | undefined,
+  selectedModel: string | null | undefined,
+  currentProvider: string | null | undefined,
+  currentModel: string | null | undefined,
+  sessionReasoningMode: ReasoningMode | null | undefined,
+  selectedReasoningMode: ReasoningMode
+): ReasoningMode | null {
+  if (controlVisible) {
+    return selectedReasoningMode;
+  }
+
+  return capabilityPending && selectedProvider === currentProvider && selectedModel === currentModel
+    ? (sessionReasoningMode ?? null)
+    : null;
+}
+
 export function shouldSyncSessionReasoningMode(
   selectedProvider: string | null | undefined,
   selectedModel: string | null | undefined,

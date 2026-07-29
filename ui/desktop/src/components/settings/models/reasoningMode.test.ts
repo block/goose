@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseReasoningMode,
   reasoningModeForSelection,
+  reasoningModeForSubmission,
   resolvedReasoningModeCapability,
   shouldSyncSessionReasoningMode,
   supportsReasoningMode,
@@ -90,6 +91,60 @@ describe('GPT-5.6 reasoning mode', () => {
     ).toBe('pro');
     expect(
       reasoningModeForSelection('openai', 'gpt-5.6-sol', 'openai', 'gpt-5.6', 'pro', 'standard')
+    ).toBe('standard');
+  });
+
+  it('preserves the current session mode while its capability is resolving', () => {
+    expect(
+      reasoningModeForSubmission(
+        false,
+        true,
+        'databricks',
+        'team-prod',
+        'databricks',
+        'team-prod',
+        'pro',
+        'standard'
+      )
+    ).toBe('pro');
+    expect(
+      reasoningModeForSubmission(
+        false,
+        true,
+        'databricks',
+        'team-next',
+        'databricks',
+        'team-prod',
+        'pro',
+        'standard'
+      )
+    ).toBeNull();
+    expect(
+      reasoningModeForSubmission(
+        false,
+        false,
+        'databricks',
+        'team-prod',
+        'databricks',
+        'team-prod',
+        'pro',
+        'standard'
+      )
+    ).toBeNull();
+  });
+
+  it('submits the selected mode when the control is available', () => {
+    expect(
+      reasoningModeForSubmission(
+        true,
+        false,
+        'openai',
+        'gpt-5.6',
+        'openai',
+        'gpt-5.6',
+        'pro',
+        'standard'
+      )
     ).toBe('standard');
   });
 
