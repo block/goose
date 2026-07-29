@@ -494,7 +494,10 @@ impl Provider for AzureFoundryProvider {
             config
         });
         let model_config = maas_config.as_ref().unwrap_or(model_config);
-        let wire_model = deployment_name(model_config);
+        let wire_model = self
+            .maas_model
+            .clone()
+            .unwrap_or_else(|| deployment_name(model_config));
         let deployment = if is_project_endpoint(&self.endpoint) {
             self.deployment_for(&wire_model).await
         } else {
@@ -1017,8 +1020,9 @@ mod tests {
             None,
         )
         .unwrap();
+        let config = preserve_deployment_name(ModelConfig::new("wrong-model"), "wrong-model");
         provider
-            .complete(&ModelConfig::new("wrong-model"), "system", &[], &[])
+            .complete(&config, "system", &[], &[])
             .await
             .unwrap();
         let request = server.received_requests().await.unwrap().pop().unwrap();
