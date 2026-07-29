@@ -948,8 +948,12 @@ impl Agent {
         let model_name = config
             .get_goose_model()
             .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
-        crate::model_config::model_config_from_user_config(&provider_name, &model_name)
-            .map_err(|e| anyhow!("Could not resolve model config: {e}"))
+        crate::model_config::model_config_from_user_config_with_provider_defaults(
+            &provider_name,
+            &model_name,
+        )
+        .await
+        .map_err(|e| anyhow!("Could not resolve model config: {e}"))
     }
 
     /// When set, all stdio extensions will be started via `docker exec` in the specified container.

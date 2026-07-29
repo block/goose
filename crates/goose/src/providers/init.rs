@@ -417,6 +417,15 @@ mod tests {
             .await
             .expect("custom providers should refresh");
 
+        let resolved_config =
+            crate::model_config::model_config_from_user_config_with_provider_defaults(
+                "custom_inf",
+                "kimi-k2.5",
+            )
+            .await
+            .expect("custom_inf model config should resolve with provider defaults");
+        assert_eq!(resolved_config.context_limit, Some(256_000));
+
         let inf_entry = get_from_registry("custom_inf")
             .await
             .expect("custom_inf entry should exist");

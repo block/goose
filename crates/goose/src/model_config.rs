@@ -18,6 +18,17 @@ pub fn model_config_from_user_config(
     materialize_model_config(provider_name, model)
 }
 
+pub async fn model_config_from_user_config_with_provider_defaults(
+    provider_name: &str,
+    model_name: impl AsRef<str>,
+) -> Result<ModelConfig> {
+    let model = model_config_from_user_config(provider_name, model_name)?;
+    match crate::providers::get_from_registry(provider_name).await {
+        Ok(entry) => entry.normalize_model_config(model),
+        Err(_) => Ok(model),
+    }
+}
+
 pub fn model_config_from_user_config_with_session_settings(
     provider_name: &str,
     model_name: impl AsRef<str>,

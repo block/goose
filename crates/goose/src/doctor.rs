@@ -170,9 +170,12 @@ async fn try_create_and_test(
     provider_name: &str,
     model_name: &str,
 ) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), ProviderError> {
-    let model_config =
-        crate::model_config::model_config_from_user_config(provider_name, model_name)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+    let model_config = crate::model_config::model_config_from_user_config_with_provider_defaults(
+        provider_name,
+        model_name,
+    )
+    .await
+    .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
     let provider = providers::create(provider_name, vec![])
         .await
@@ -221,7 +224,12 @@ async fn try_other_providers(
         };
         let model_name = entry.metadata().default_model.clone();
         let model_config =
-            match crate::model_config::model_config_from_user_config(&meta.name, &model_name) {
+            match crate::model_config::model_config_from_user_config_with_provider_defaults(
+                &meta.name,
+                &model_name,
+            )
+            .await
+            {
                 Ok(config) => config,
                 Err(_) => continue,
             };
