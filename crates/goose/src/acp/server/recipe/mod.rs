@@ -10,24 +10,24 @@ use fs_err as fs;
 use goose_sdk_types::custom_requests::{
     DecodeRecipeRequest, DecodeRecipeResponse, DeleteRecipeRequest, EmptyResponse,
     EncodeRecipeRequest, EncodeRecipeResponse, ListRecipesRequest, ListRecipesResponse,
-    ParseRecipeRequest, ParseRecipeResponse, REQUEST_RECIPE_PARAMS_METHOD, RecipeDto,
-    RecipeParameterDto, RecipeParamsAction, RecipeParamsResponse, RecipeToYamlRequest,
-    RecipeToYamlResponse, RequestRecipeParams, SaveRecipeRequest, SaveRecipeResponse,
-    ScanRecipeRequest, ScanRecipeResponse, ScheduleRecipeRequest, SetRecipeSlashCommandRequest,
+    ParseRecipeRequest, ParseRecipeResponse, RecipeDto, RecipeParameterDto, RecipeParamsAction,
+    RecipeParamsResponse, RecipeToYamlRequest, RecipeToYamlResponse, RequestRecipeParams,
+    SaveRecipeRequest, SaveRecipeResponse, ScanRecipeRequest, ScanRecipeResponse,
+    ScheduleRecipeRequest, SetRecipeSlashCommandRequest, REQUEST_RECIPE_PARAMS_METHOD,
 };
 use tokio::sync::oneshot;
 
 mod conversions;
 
-use super::{GooseAcpAgent, ResultExt, meta_string};
+use super::{meta_string, GooseAcpAgent, ResultExt};
 use crate::agents::Agent;
-use crate::recipe::build_recipe::{RecipeError, build_recipe_from_template};
+use crate::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use crate::recipe::local_recipes::{self, get_recipe_library_dir};
 use crate::recipe::manifest::{
     list_recipe_file_manifests, load_recipe_from_path, short_id_from_path,
 };
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
-use crate::recipe::{Recipe, RecipeParameter, strip_error_location};
+use crate::recipe::{strip_error_location, Recipe, RecipeParameter};
 use crate::recipe_deeplink;
 use crate::session::{Session, SessionType};
 use crate::slash_commands::recipe_slash_command;

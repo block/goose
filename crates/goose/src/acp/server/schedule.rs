@@ -8,10 +8,10 @@ use goose_sdk_types::custom_requests::{
 };
 use tokio::fs;
 
-use super::{GooseAcpAgent, ResultExt, build_session_info};
-use crate::recipe::Recipe;
+use super::{build_session_info, GooseAcpAgent, ResultExt};
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
-use crate::scheduler::{ScheduledJob, SchedulerError, get_default_scheduled_recipes_dir};
+use crate::recipe::Recipe;
+use crate::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob, SchedulerError};
 use crate::scheduler_trait::SchedulerTrait;
 use std::sync::Arc;
 
@@ -398,12 +398,10 @@ mod tests {
             .await
             .expect_err("schedule creation must be unsupported");
         assert_scheduler_disabled(create_error);
-        assert!(
-            !get_default_scheduled_recipes_dir()
-                .unwrap()
-                .join("nightly.yaml")
-                .exists()
-        );
+        assert!(!get_default_scheduled_recipes_dir()
+            .unwrap()
+            .join("nightly.yaml")
+            .exists());
 
         let schedule_recipe_error = agent
             .on_schedule_recipe(ScheduleRecipeRequest {
