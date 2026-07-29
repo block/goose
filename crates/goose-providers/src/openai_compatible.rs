@@ -2,11 +2,14 @@ use crate::conversation::token_usage::{CostSource, ProviderUsage};
 use crate::images::ImageFormat;
 use anyhow::Error;
 use async_stream::try_stream;
+use bytes::Bytes;
+use futures::Stream;
 use futures::TryStreamExt;
 use reqwest::Response;
 #[cfg(test)]
 use reqwest::StatusCode;
 use serde_json::Value;
+use std::pin::Pin;
 use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -106,9 +109,11 @@ impl OpenAiCompatibleProvider {
     ) -> Result<MessageStream, ProviderError> {
         let mut log = start_log(model_config, &payload)?;
         let path = format!("{}chat/completions", self.completions_prefix);
-        let response = self
+        // For streaming, pre-read the first body chunk inside the retry scope so a
+        // 200 OK whose connection dies before any body bytes still retries.
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                handle_status(
+                let mut response = handle_status(
                     self.api_client
                         .request(&path)
                         .model_headers(model_config)?
@@ -116,14 +121,20 @@ impl OpenAiCompatibleProvider {
                         .response_post(&payload)
                         .await?,
                 )
-                .await
+                .await?;
+                let first_chunk = if self.supports_streaming {
+                    Some(first_body_chunk(&mut response).await?)
+                } else {
+                    None
+                };
+                Ok((response, first_chunk))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
         if self.supports_streaming {
-            stream_openai_compat(response, log)
+            stream_openai_compat_with_prefix(response, first_chunk, log)
         } else {
             let json = response.json().await.map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
@@ -232,11 +243,53 @@ pub use super::http_status::{
 // Legacy alias kept for callers that haven't migrated their import path yet.
 pub use super::http_status::handle_response as handle_response_openai_compat;
 
+/// Reads the first chunk of a streaming response body.
+///
+/// A `200 OK` whose connection dies before delivering any body bytes only
+/// fails here, while the caller is still inside its `with_retry` scope —
+/// afterwards the failure would surface as a mid-stream item error where
+/// retry is unreachable. A clean EOF is also an error: an empty body is
+/// never a valid answer to a streaming request, and `Ok(None)` here would
+/// otherwise complete the retry scope with a stream that yields nothing.
+pub async fn first_body_chunk(response: &mut Response) -> Result<Bytes, ProviderError> {
+    response
+        .chunk()
+        .await
+        .map_err(ProviderError::stream_decode_error)?
+        .ok_or_else(|| {
+            ProviderError::stream_decode_error("stream ended before the first body chunk")
+        })
+}
+
+fn body_stream_with_prefix(
+    response: Response,
+    first_chunk: Option<Bytes>,
+) -> Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send>> {
+    Box::pin(async_stream::stream! {
+        if let Some(chunk) = first_chunk {
+            yield Ok(chunk);
+        }
+        let body = response.bytes_stream().map_err(std::io::Error::other);
+        tokio::pin!(body);
+        while let Some(item) = body.next().await {
+            yield item;
+        }
+    })
+}
+
 pub fn stream_openai_compat(
     response: Response,
+    log: Option<Box<dyn RequestLogHandle>>,
+) -> Result<MessageStream, ProviderError> {
+    stream_openai_compat_with_prefix(response, None, log)
+}
+
+pub fn stream_openai_compat_with_prefix(
+    response: Response,
+    first_chunk: Option<Bytes>,
     mut log: Option<Box<dyn RequestLogHandle>>,
 ) -> Result<MessageStream, ProviderError> {
-    let stream = response.bytes_stream().map_err(std::io::Error::other);
+    let stream = body_stream_with_prefix(response, first_chunk);
 
     Ok(Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);
@@ -258,9 +311,17 @@ pub fn stream_openai_compat(
 
 pub fn stream_responses_compat(
     response: Response,
+    log: Option<Box<dyn RequestLogHandle>>,
+) -> Result<MessageStream, ProviderError> {
+    stream_responses_compat_with_prefix(response, None, log)
+}
+
+pub fn stream_responses_compat_with_prefix(
+    response: Response,
+    first_chunk: Option<Bytes>,
     mut log: Option<Box<dyn RequestLogHandle>>,
 ) -> Result<MessageStream, ProviderError> {
-    let stream = response.bytes_stream().map_err(std::io::Error::other);
+    let stream = body_stream_with_prefix(response, first_chunk);
 
     Ok(Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);

@@ -5225,6 +5225,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
+ "bytes",
  "chrono",
  "env-lock",
  "futures",

@@ -17,7 +17,8 @@ use crate::formats::openai_responses::{
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
-    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
+    first_body_chunk, handle_response_openai_compat, handle_status,
+    stream_openai_compat_with_prefix, stream_responses_compat_with_prefix,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
 use crate::thinking::ThinkingEffort;
@@ -301,9 +302,11 @@ impl OpenAiProvider {
         payload: serde_json::Value,
     ) -> Result<MessageStream, ProviderError> {
         let mut log = start_log(model_config, &payload)?;
-        let response = self
+        // For streaming, pre-read the first body chunk inside the retry scope so a
+        // 200 OK whose connection dies before any body bytes still retries.
+        let (response, first_chunk) = self
             .with_retry(|| async {
-                handle_status(
+                let mut response = handle_status(
                     self.api_client
                         .request(&Self::map_base_path(
                             &self.base_path,
@@ -315,14 +318,20 @@ impl OpenAiProvider {
                         .response_post(&payload)
                         .await?,
                 )
-                .await
+                .await?;
+                let first_chunk = if self.supports_streaming {
+                    Some(first_body_chunk(&mut response).await?)
+                } else {
+                    None
+                };
+                Ok((response, first_chunk))
             })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
         if self.supports_streaming {
-            stream_responses_compat(response, log)
+            stream_responses_compat_with_prefix(response, first_chunk, log)
         } else {
             let json: serde_json::Value = response.json().await.map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
@@ -792,16 +801,25 @@ impl Provider for OpenAiProvider {
             let payload = self.sanitize_request_for_compat(payload, model_config);
             let mut log = start_log(model_config, &payload)?;
 
-            let response = self
+            // For streaming, pre-read the first body chunk inside the retry scope so a
+            // 200 OK whose connection dies before any body bytes still retries.
+            let (response, first_chunk) = self
                 .with_retry(|| async {
-                    let resp = self
-                        .api_client
-                        .request(&self.base_path)
-                        .model_headers(model_config)?
-                        .streaming(self.supports_streaming)
-                        .response_post(&payload)
-                        .await?;
-                    handle_status(resp).await
+                    let mut response = handle_status(
+                        self.api_client
+                            .request(&self.base_path)
+                            .model_headers(model_config)?
+                            .streaming(self.supports_streaming)
+                            .response_post(&payload)
+                            .await?,
+                    )
+                    .await?;
+                    let first_chunk = if self.supports_streaming {
+                        Some(first_body_chunk(&mut response).await?)
+                    } else {
+                        None
+                    };
+                    Ok((response, first_chunk))
                 })
                 .await
                 .inspect_err(|e| {
@@ -809,7 +827,7 @@ impl Provider for OpenAiProvider {
                 })?;
 
             if self.supports_streaming {
-                stream_openai_compat(response, log)
+                stream_openai_compat_with_prefix(response, first_chunk, log)
             } else {
                 let json: serde_json::Value = response.json().await.map_err(|e| {
                     ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
@@ -1701,5 +1719,165 @@ mod tests {
         assert_eq!(payload["stream"], json!(true));
         assert_eq!(payload["stream_options"], json!({"include_usage": true}));
         assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn stream_retries_when_connection_drops_before_first_body_bytes() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::{TcpListener, TcpStream};
+        use tokio_stream::StreamExt;
+
+        async fn read_request(socket: &mut TcpStream) {
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            loop {
+                let n = socket.read(&mut chunk).await.unwrap();
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            // First attempt: 200 headers promise a 1024-byte body, then the
+            // connection drops without delivering any of it — consuming the
+            // body fails with reqwest's "error decoding response body".
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: 1024\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            socket.shutdown().await.unwrap();
+
+            // Retried attempt: a complete SSE response.
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            let body = concat!(
+                "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,",
+                "\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,",
+                "\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\n",
+                "data: [DONE]\n\n",
+            );
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            socket.shutdown().await.unwrap();
+        });
+
+        let provider = OpenAiProvider {
+            api_client: ApiClient::new_with_tls(format!("http://{addr}"), AuthMethod::NoAuth, None)
+                .unwrap(),
+            ..make_provider("openai")
+        };
+
+        let model_config = ModelConfig::new("gpt-4o");
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = provider
+            .stream(&model_config, "system", &messages, &[])
+            .await
+            .expect("dropped pre-body connection should be transparently retried");
+
+        let mut text = String::new();
+        while let Some(item) = stream.next().await {
+            let (message, _usage) = item.expect("stream item should be ok");
+            if let Some(message) = message {
+                text.push_str(&message.as_concat_text());
+            }
+        }
+        server.await.unwrap();
+        assert_eq!(text, "hello");
+    }
+
+    #[tokio::test]
+    async fn stream_retries_when_connection_closes_cleanly_before_first_body_bytes() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::{TcpListener, TcpStream};
+        use tokio_stream::StreamExt;
+
+        async fn read_request(socket: &mut TcpStream) {
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            loop {
+                let n = socket.read(&mut chunk).await.unwrap();
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            // First attempt: connection-close framing with zero body bytes —
+            // a clean EOF, so chunk() returns Ok(None) rather than an error.
+            // An empty body is not a valid streaming response and must be
+            // retried like any other pre-first-token failure.
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            socket.shutdown().await.unwrap();
+
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            let body = concat!(
+                "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"created\":1,",
+                "\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,",
+                "\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\n",
+                "data: [DONE]\n\n",
+            );
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            socket.shutdown().await.unwrap();
+        });
+
+        let provider = OpenAiProvider {
+            api_client: ApiClient::new_with_tls(format!("http://{addr}"), AuthMethod::NoAuth, None)
+                .unwrap(),
+            ..make_provider("openai")
+        };
+
+        let model_config = ModelConfig::new("gpt-4o");
+        let messages = vec![Message::user().with_text("hi")];
+        let mut stream = provider
+            .stream(&model_config, "system", &messages, &[])
+            .await
+            .expect("clean pre-body EOF should be transparently retried");
+
+        let mut text = String::new();
+        while let Some(item) = stream.next().await {
+            let (message, _usage) = item.expect("stream item should be ok");
+            if let Some(message) = message {
+                text.push_str(&message.as_concat_text());
+            }
+        }
+        server.await.unwrap();
+        assert_eq!(text, "hello");
     }
 }
