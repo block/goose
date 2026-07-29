@@ -14,7 +14,7 @@ STDOUT: {"result":{"content":[{"type":"text","text":"The sum of 1 and 2 is 3."}]
 STDIN: {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"agent-session-id":"test-session-id","agent-tool-call-request-id":"test-id","progressToken":3},"name":"trigger-long-running-operation","arguments":{"duration":1,"steps":5}}}
 STDOUT: {"method":"notifications/progress","params":{"progress":1,"total":5,"progressToken":3},"jsonrpc":"2.0"}
 STDOUT: {"method":"roots/list","jsonrpc":"2.0","id":0}
-STDIN: {"jsonrpc":"2.0","id":0,"result":{"roots":[{"uri":"file:///Users/jackamadeo/development/goose/crates/goose","name":"working_directory"}]}}
+STDIN: {"jsonrpc":"2.0","id":0,"result":{"roots":[{"uri":"file:///tmp/goose_test","name":"working_directory"}]}}
 STDOUT: {"method":"notifications/message","params":{"level":"info","logger":"everything-server","data":"Roots updated: 1 root(s) received from client"},"jsonrpc":"2.0"}
 STDOUT: {"method":"notifications/progress","params":{"progress":2,"total":5,"progressToken":3},"jsonrpc":"2.0"}
 STDOUT: {"method":"notifications/progress","params":{"progress":3,"total":5,"progressToken":3},"jsonrpc":"2.0"}

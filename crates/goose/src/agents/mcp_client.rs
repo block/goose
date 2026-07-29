@@ -18,9 +18,9 @@ use rmcp::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
         InitializeRequestParams, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, Notification, PaginatedRequestParams, ProtocolVersion,
-        ReadResourceRequestParams, ReadResourceResult, Request, RequestId, RequestOptionalParam,
-        Role, ServerNotification, ServerResult,
+        ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResult, Request, RequestId, RequestOptionalParam, Role, ServerNotification,
+        ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -531,11 +531,11 @@ impl ClientHandler for GooseClient {
             })
     }
 
-    #[expect(deprecated)]
     fn get_info(&self) -> ClientInfo {
         let extensions = self.resolved_extensions();
 
         InitializeRequestParams::new(
+            #[expect(deprecated)]
             ClientCapabilities::builder()
                 .enable_roots()
                 .enable_extensions_with(extensions)
@@ -544,7 +544,6 @@ impl ClientHandler for GooseClient {
                 .build(),
             self.resolved_client_info(),
         )
-        .with_protocol_version(ProtocolVersion::LATEST)
     }
 }
 
