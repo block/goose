@@ -42,6 +42,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           path: pr-content
+          persist-credentials: false
+          # This checkout is untrusted data only. Scanner code and its Dockerfile
+          # come from the separate trusted base checkout above.
+          allow-unsafe-pr-checkout: true
           sparse-checkout: |
             documentation/src/pages/recipes/data/recipes/
 
