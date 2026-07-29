@@ -18,9 +18,9 @@ use rmcp::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
         ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
         InitializeRequestParams, InitializeResult, ListPromptsResult, ListResourcesResult,
-        ListToolsResult, Notification, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResult, Request, RequestId, RequestOptionalParam, Role, ServerNotification,
-        ServerResult,
+        ListToolsResult, Notification, PaginatedRequestParams, ProtocolVersion,
+        ReadResourceRequestParams, ReadResourceResult, Request, RequestId, RequestOptionalParam,
+        Role, ServerNotification, ServerResult,
     },
     service::{
         ClientInitializeError, ClientLifecycleMode, ClientServiceExt, PeerRequestOptions,
