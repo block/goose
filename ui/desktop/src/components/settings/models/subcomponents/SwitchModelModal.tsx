@@ -366,7 +366,10 @@ export const SwitchModelModal = ({
         selectedModelReasoningModeCapability,
         selectedPredefinedModel?.supports_reasoning_mode
       )
-    : (selectedModelOption?.supportsReasoningMode ?? selectedModelReasoningModeCapability);
+    : resolvedReasoningModeCapability(
+        selectedModelReasoningModeCapability,
+        selectedModelOption?.supportsReasoningMode
+      );
   const showReasoningModeControl = Boolean(
     sessionId &&
     supportsReasoningMode(selectedProviderName, selectedModelName, selectedProviderCapability)
