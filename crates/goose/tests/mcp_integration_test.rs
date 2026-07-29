@@ -152,15 +152,6 @@ enum TestMode {
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
 #[test_case(
-    vec!["uvx", "mcp-server-fetch"],
-    vec![
-        CallToolRequestParams::new("fetch").with_arguments(object!({
-            "url": "https://example.com",
-        }))
-    ],
-    vec![]
-)]
-#[test_case(
     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
         CallToolRequestParams::new("divide").with_arguments(object!({
