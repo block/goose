@@ -8,18 +8,10 @@
 # (stale entry) or if a scenario not listed here fails (unexpected failure), so
 # keep this list in sync as behavior changes.
 #
-# Recorded against rmcp 3.0.0-beta.3: 159 passed, 12 failed, 3 warnings.
+# Recorded against rmcp 3.0.0: 185 passed, 7 failed, 2 warnings.
 # Root causes are still under investigation; the notes below record the
 # observed symptom only.
 client:
-  # Fails during initialization under the 3.0 client lifecycle.
-  - tools_call
-
-  # Elicitation defaults (SEP-1034) are not applied; all 5 checks fail.
-  - elicitation-sep1034-client-defaults
-
-  # The streamable HTTP transport does not honour SSE `retry:` reconnect hints.
-  - sse-retry
 
   # Authorization-server metadata discovery fails for this variant's alternate
   # well-known location.
@@ -36,3 +28,7 @@ client:
   # Goose only initiates OAuth when initialization fails. The challenge in this
   # scenario arrives after initialization, so no scope-upgrade flow is started.
   - auth/scope-step-up
+
+  # Goose exhausts the authorization retry budget before this scenario's
+  # recovery flow can complete.
+  - auth/scope-retry-limit

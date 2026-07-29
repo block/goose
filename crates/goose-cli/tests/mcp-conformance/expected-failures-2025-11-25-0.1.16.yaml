@@ -8,7 +8,7 @@
 # (stale entry) or if a scenario not listed here fails (unexpected failure), so
 # keep this list in sync as behavior changes.
 #
-# Recorded against rmcp 3.0.0-beta.3: 160 passed, 12 failed, 2 warnings.
+# Recorded against rmcp 3.0.0: 160 passed, 12 failed, 2 warnings.
 # Root causes are still under investigation; the notes below record the
 # observed symptom only.
 client:
