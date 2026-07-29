@@ -5,7 +5,6 @@ use crate::agents::state_machine::operation::StateEffect;
 use crate::conversation::message::MessageUsage;
 use crate::conversation::Conversation;
 use crate::session::{Session, SessionManager};
-use crate::token_counter::create_token_counter;
 
 fn attach_to_last_assistant(effects: &mut [StateEffect], usage: &ProviderUsage) {
     let Some(message) = effects.iter_mut().rev().find_map(|effect| match effect {
@@ -81,15 +80,8 @@ pub(super) async fn record(
 }
 
 pub(super) async fn estimate_context(conversation: &Conversation) -> Result<TokenUsage> {
-    let token_counter = create_token_counter()
+    let tokens = crate::context_mgmt::count_context_tokens(conversation)
         .await
-        .map_err(|error| anyhow!("Failed to create token counter: {error}"))?;
-    let tokens = conversation
-        .messages()
-        .iter()
-        .filter(|message| message.is_agent_visible())
-        .map(|message| token_counter.count_chat_tokens("", std::slice::from_ref(message), &[]))
-        .sum::<usize>()
-        .try_into()?;
+        .ok_or_else(|| anyhow!("Failed to count the conversation"))?;
     Ok(TokenUsage::new(Some(tokens), None, Some(tokens)))
 }

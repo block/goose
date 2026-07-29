@@ -176,7 +176,7 @@ pub async fn compact_messages(
     }
 
     let conversation = Conversation::new_unvalidated(final_messages);
-    let retained_context_tokens = count_retained_context_tokens(&conversation)
+    let retained_context_tokens = count_context_tokens(&conversation)
         .await
         .or(summarization_usage.usage.output_tokens)
         .unwrap_or(0);
@@ -188,10 +188,9 @@ pub async fn compact_messages(
     })
 }
 
-/// Estimate the tokens of the agent-visible conversation retained after
-/// compaction, counted the same way as the fallback estimation in
-/// `check_if_compaction_needed`.
-async fn count_retained_context_tokens(conversation: &Conversation) -> Option<i32> {
+/// Estimate the tokens of the agent-visible conversation, counted the same way
+/// as the fallback estimation in `check_if_compaction_needed`.
+pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Option<i32> {
     match create_token_counter().await {
         Ok(counter) => {
             let total: usize = conversation
