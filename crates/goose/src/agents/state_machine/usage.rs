@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use goose_providers::conversation::token_usage::{CostSource, ProviderUsage, Usage as TokenUsage};
 
 use crate::agents::state_machine::operation::StateEffect;
@@ -80,8 +80,6 @@ pub(super) async fn record(
 }
 
 pub(super) async fn estimate_context(conversation: &Conversation) -> Result<TokenUsage> {
-    let tokens = crate::context_mgmt::count_context_tokens(conversation)
-        .await
-        .ok_or_else(|| anyhow!("Failed to count the conversation"))?;
+    let tokens = crate::context_mgmt::count_context_tokens(conversation).await?;
     Ok(TokenUsage::new(Some(tokens), None, Some(tokens)))
 }

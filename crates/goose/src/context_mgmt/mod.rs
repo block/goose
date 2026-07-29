@@ -176,10 +176,13 @@ pub async fn compact_messages(
     }
 
     let conversation = Conversation::new_unvalidated(final_messages);
-    let retained_context_tokens = count_context_tokens(&conversation)
-        .await
-        .or(summarization_usage.usage.output_tokens)
-        .unwrap_or(0);
+    let retained_context_tokens = match count_context_tokens(&conversation).await {
+        Ok(tokens) => tokens,
+        Err(error) => {
+            warn!("Failed to count retained context tokens, using billable output tokens: {error}");
+            summarization_usage.usage.output_tokens.unwrap_or(0)
+        }
+    };
 
     Ok(CompactionResult {
         conversation,
@@ -190,25 +193,17 @@ pub async fn compact_messages(
 
 /// Estimate the tokens of the agent-visible conversation, counted the same way
 /// as the fallback estimation in `check_if_compaction_needed`.
-pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Option<i32> {
-    match create_token_counter().await {
-        Ok(counter) => {
-            let total: usize = conversation
-                .messages()
-                .iter()
-                .filter(|m| m.is_agent_visible())
-                .map(|msg| counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .sum();
-            Some(total as i32)
-        }
-        Err(e) => {
-            warn!(
-                "Failed to count retained context tokens, using billable output tokens: {}",
-                e
-            );
-            None
-        }
-    }
+pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<i32> {
+    let counter = create_token_counter()
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
+    let total: usize = conversation
+        .messages()
+        .iter()
+        .filter(|message| message.is_agent_visible())
+        .map(|message| counter.count_chat_tokens("", std::slice::from_ref(message), &[]))
+        .sum();
+    Ok(total.try_into()?)
 }
 
 /// Check if messages exceed the auto-compaction threshold
