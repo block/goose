@@ -310,6 +310,8 @@ fn assert_conversation_compacted(conversation: &Conversation) {
         }
     }
 
+    // The projected replay of the preserved user message is agent-only. Any
+    // ordinary messages appended after it should remain visible to both sides.
     let continuation_end = summary_index + 2;
     for (idx, msg) in messages.iter().enumerate() {
         if idx >= continuation_end {

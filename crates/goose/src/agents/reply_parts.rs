@@ -11,7 +11,7 @@ use tracing::debug;
 use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
-use crate::config::Config;
+use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent, MessageUsage, ToolRequest};
 use crate::conversation::{fix_conversation, Conversation};
 #[cfg(test)]
@@ -188,6 +188,7 @@ impl Agent {
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
         let tools = self.list_tools(session_id, None).await;
+
         #[cfg(feature = "code-mode")]
         let code_execution_active = self
             .extension_manager
@@ -195,6 +196,7 @@ impl Agent {
             .await;
         #[cfg(not(feature = "code-mode"))]
         let code_execution_active = false;
+
         let tools = prepare_inference_tools(tools, code_execution_active);
 
         // Prepare system prompt
@@ -202,21 +204,27 @@ impl Agent {
             .extension_manager
             .get_extensions_info(working_dir)
             .await;
+        let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
+
         let model_config = self.model_config_for_session(session_id).await?;
+
         let goose_mode = *self.current_goose_mode.lock().await;
-        let frontend_instructions = self.frontend_instructions.lock().await.clone();
-        let (extension_count, _) = self.total_extension_and_tool_counts(session_id).await;
-        let mut prompt_manager = self.prompt_manager.lock().await;
-        prompt_manager.load_subdirectory_hints(working_dir);
+
+        if goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager.apply_tool_annotations(&tools);
+        }
+
+        let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
-            .with_frontend_instructions(frontend_instructions)
-            .with_extension_and_tool_counts(extension_count, tools.len())
+            .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
+            .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_goose_mode(goose_mode)
             .build();
+
         let (tools, toolshim_tools, system_prompt) =
             prepare_tools_for_provider(tools, system_prompt, &model_config);
 
@@ -238,6 +246,9 @@ pub(crate) fn prepare_inference_tools(
             .filter_map(|mut tool| match disclosure_style {
                 pctx_code_mode::config::ToolDisclosure::Catalog
                 | pctx_code_mode::config::ToolDisclosure::Filesystem => {
+                    // in catalog & filesystem styles, progressive search is handled
+                    // by pctx, so we want to omit all non-first-class extensions
+                    // from the standard tool list
                     if crate::agents::extension_manager::get_tool_owner(&tool).is_some_and(
                         |owner| crate::agents::extension_manager::is_first_class_extension(&owner),
                     ) || crate::agents::extension_manager::get_tool_resource_uri(&tool).is_some()
@@ -248,6 +259,10 @@ pub(crate) fn prepare_inference_tools(
                     }
                 }
                 pctx_code_mode::config::ToolDisclosure::Sidecar => {
+                    // in sidecar style there is no progressive search, just a way to chain tools
+                    // together with typescript
+                    // add output schema to description since many model providers drop the
+                    // output schema when presenting tools to the model
                     let output_schema = tool
                         .output_schema
                         .as_ref()
@@ -270,7 +285,11 @@ pub(crate) fn prepare_inference_tools(
     #[cfg(not(feature = "code-mode"))]
     let _ = code_execution_active;
 
+    // Filter out tools not visible to the model per MCP Apps visibility spec.
+    // Tools with `_meta.ui.visibility` that doesn't include "model" are app-only.
     tools.retain(is_tool_visible_to_model);
+
+    // Stable tool ordering is important for multi session prompt caching.
     tools.sort_by(|a, b| a.name.cmp(&b.name));
     tools
 }
@@ -595,12 +614,15 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
+    /// `post_compaction_context_tokens` is `Some` when this usage came from a
+    /// compaction call: the value (the retained summary size, not the billable
+    /// output) becomes the session's new context baseline.
     pub(crate) async fn update_session_metrics(
         &self,
         session_id: &str,
         schedule_id: Option<String>,
         usage: &ProviderUsage,
-        is_compaction_usage: bool,
+        post_compaction_context_tokens: Option<i32>,
     ) -> Result<ProviderUsage> {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
@@ -611,14 +633,12 @@ impl Agent {
         let mut enriched = usage.clone();
         enriched.cost = chunk_cost;
         enriched.cost_source = cost_source;
-        let ledger = MessageUsage::from_provider_usage(&enriched, is_compaction_usage);
+        let ledger =
+            MessageUsage::from_provider_usage(&enriched, post_compaction_context_tokens.is_some());
 
-        let current_usage = if is_compaction_usage {
-            // After compaction: summary output becomes new input context
-            let new_input = usage.usage.output_tokens;
-            Usage::new(new_input, None, new_input)
-        } else {
-            usage.usage
+        let current_usage = match post_compaction_context_tokens {
+            Some(retained) => Usage::new(Some(retained), None, Some(retained)),
+            None => usage.usage,
         };
 
         manager
@@ -702,6 +722,7 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 mod tests {
     use super::*;
     use crate::agents::{AgentConfig, GoosePlatform};
+    use crate::config::permission::PermissionLevel;
     use crate::config::{GooseMode, PermissionManager};
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
@@ -709,7 +730,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{Annotations, Role, TextContent};
+    use rmcp::model::{Annotations, Role, TextContent, ToolAnnotations};
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
@@ -960,6 +981,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn prepare_toolshim_tools_applies_writable_annotations() -> anyhow::Result<()> {
+        let data_dir = tempfile::tempdir()?;
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let permission_manager = Arc::new(PermissionManager::new(data_path));
+        permission_manager
+            .update_smart_approve_permission("frontend__write_tool", PermissionLevel::AlwaysAllow);
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::clone(&permission_manager),
+            None,
+            GooseMode::SmartApprove,
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "test-toolshim-annotations".to_string(),
+                SessionType::Hidden,
+                GooseMode::SmartApprove,
+            )
+            .await?;
+        let model_config = ModelConfig::new("test-model").with_toolshim(true);
+        agent
+            .update_provider(Arc::new(MockProvider), model_config, &session.id)
+            .await?;
+        agent
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: vec![Tool::new(
+                        "frontend__write_tool",
+                        "Write tool",
+                        object!({ "type": "object", "properties": { } }),
+                    )
+                    .annotate(ToolAnnotations::new().read_only(false))],
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
+            .await?;
+
+        let (tools, toolshim_tools, _, _) = agent
+            .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
+            .await?;
+
+        assert!(tools.is_empty());
+        assert!(toolshim_tools
+            .iter()
+            .any(|tool| tool.name == "frontend__write_tool"));
+        assert_eq!(
+            permission_manager.get_smart_approve_permission("frontend__write_tool"),
+            Some(PermissionLevel::AskBefore)
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_stream_error_propagation() {
         use futures::StreamExt;
 
@@ -997,6 +1081,241 @@ mod tests {
             error_seen,
             "Error should have been propagated, not silently ignored"
         );
+    }
+
+    struct MixedMessageIdStreamProvider;
+
+    #[async_trait]
+    impl Provider for MixedMessageIdStreamProvider {
+        fn get_name(&self) -> &str {
+            "mixed-message-id-stream"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("Hel")), None)),
+                Ok((Some(Message::assistant().with_text("lo")), None)),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-a",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve A?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-b",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve B?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-id")
+                            .with_text("done"),
+                    ),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("next")), None)),
+                Ok((Some(Message::assistant().with_text("a")), None)),
+                Ok((
+                    Some(Message::assistant().with_tool_request(
+                        "tool-t",
+                        Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                    )),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("b")), None)),
+            ]
+                as Vec<StreamItem>)))
+        }
+    }
+
+    #[tokio::test]
+    async fn normal_provider_stream_groups_only_contiguous_mergeable_chunks() -> anyhow::Result<()>
+    {
+        let provider = Arc::new(MixedMessageIdStreamProvider);
+        let mut stream = stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 9);
+
+        let ids = messages
+            .iter()
+            .map(|message| {
+                message
+                    .id
+                    .as_deref()
+                    .expect("streamed provider message should have an ID")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(messages[0].as_concat_text(), "Hel");
+        assert_eq!(messages[1].as_concat_text(), "lo");
+        assert_eq!(ids[0], ids[1]);
+        assert!(ids[0].starts_with("msg_"));
+
+        assert!(matches!(
+            messages[2].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert!(matches!(
+            messages[3].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert_ne!(ids[2], ids[3]);
+        assert_ne!(ids[2], ids[0]);
+        assert_ne!(ids[3], ids[0]);
+
+        assert_eq!(messages[4].as_concat_text(), "done");
+        assert_eq!(ids[4], "provider-id");
+
+        assert_eq!(messages[5].as_concat_text(), "next");
+        assert_eq!(messages[6].as_concat_text(), "a");
+        assert_ne!(ids[5], ids[0]);
+        assert_eq!(ids[5], ids[6]);
+
+        assert!(matches!(
+            messages[7].content.first(),
+            Some(MessageContent::ToolRequest(_))
+        ));
+        assert_ne!(ids[7], ids[5]);
+
+        assert_eq!(messages[8].as_concat_text(), "b");
+        assert_ne!(ids[8], ids[5]);
+        assert_ne!(ids[8], ids[7]);
+
+        Ok(())
+    }
+
+    struct ToolshimMessageIdProvider {
+        messages: Vec<Message>,
+    }
+
+    #[async_trait]
+    impl Provider for ToolshimMessageIdProvider {
+        fn get_name(&self) -> &str {
+            "toolshim-message-id"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            let items = self
+                .messages
+                .iter()
+                .cloned()
+                .map(|message| Ok((Some(message), None)))
+                .collect::<Vec<StreamItem>>();
+            Ok(Box::pin(futures::stream::iter(items)))
+        }
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_assigns_missing_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![
+                Message::assistant().with_text("Hel"),
+                Message::assistant().with_text("lo"),
+            ],
+        });
+        let mut stream = stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "Hello");
+        let id = messages[0]
+            .id
+            .as_deref()
+            .expect("toolshim provider message should have an ID");
+        assert!(id.starts_with("msg_"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_preserves_provider_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![Message::assistant()
+                .with_id("provider-toolshim-id")
+                .with_text("hello")],
+        });
+        let mut stream = stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "hello");
+        assert_eq!(messages[0].id.as_deref(), Some("provider-toolshim-id"));
+
+        Ok(())
     }
 
     #[tokio::test]

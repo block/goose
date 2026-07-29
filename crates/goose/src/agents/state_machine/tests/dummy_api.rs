@@ -446,16 +446,19 @@ impl DummyApiState {
             "chatcmpl-test-{}",
             self.next_response_id.fetch_add(1, Ordering::Relaxed)
         );
+        let meta = |output_tokens: i32| ResponseMeta {
+            id: &id,
+            model,
+            input_tokens,
+            output_tokens,
+            include_usage: self.features.reports_usage,
+            cache_read_tokens: self.features.cache_read_tokens,
+            cache_write_tokens: self.features.cache_write_tokens,
+        };
         match response {
             ApiResponse::Reply(text) => sse_response(reply_events(
-                &id,
-                model,
+                &meta(text.chars().count() as i32),
                 &text,
-                input_tokens,
-                text.chars().count() as i32,
-                self.features.reports_usage,
-                self.features.cache_read_tokens,
-                self.features.cache_write_tokens,
                 None,
             )),
             ApiResponse::ToolCall {
@@ -467,17 +470,7 @@ impl DummyApiState {
                     assert_tool_advertised(&body, &name);
                 }
                 let output_tokens = name.chars().count() as i32 + arguments.chars().count() as i32;
-                sse_response(tool_call_events(
-                    &id,
-                    model,
-                    &name,
-                    &arguments,
-                    input_tokens,
-                    output_tokens,
-                    self.features.reports_usage,
-                    self.features.cache_read_tokens,
-                    self.features.cache_write_tokens,
-                ))
+                sse_response(tool_call_events(&meta(output_tokens), &name, &arguments))
             }
             ApiResponse::ToolCalls(calls) => {
                 for call in &calls {
@@ -487,16 +480,7 @@ impl DummyApiState {
                     .iter()
                     .map(|call| call.name.chars().count() + call.arguments.chars().count())
                     .sum::<usize>() as i32;
-                sse_response(tool_calls_events(
-                    &id,
-                    model,
-                    &calls,
-                    input_tokens,
-                    output_tokens,
-                    self.features.reports_usage,
-                    self.features.cache_read_tokens,
-                    self.features.cache_write_tokens,
-                ))
+                sse_response(tool_calls_events(&meta(output_tokens), &calls))
             }
             ApiResponse::Mixed {
                 reasoning,
@@ -517,16 +501,10 @@ impl DummyApiState {
                         .map(|call| call.name.chars().count() + call.arguments.chars().count())
                         .unwrap_or_default();
                 sse_response(mixed_events(
-                    &id,
-                    model,
+                    &meta(output_tokens as i32),
                     &reasoning,
                     text.as_deref(),
                     call.as_ref(),
-                    input_tokens,
-                    output_tokens as i32,
-                    self.features.reports_usage,
-                    self.features.cache_read_tokens,
-                    self.features.cache_write_tokens,
                 ))
             }
             ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
@@ -538,14 +516,8 @@ impl DummyApiState {
             }
             ApiResponse::EmptyServerError => ResponseTemplate::new(500),
             ApiResponse::ReplyThenServerError { reply, error } => sse_response(reply_events(
-                &id,
-                model,
+                &meta(reply.chars().count() as i32),
                 &reply,
-                input_tokens,
-                reply.chars().count() as i32,
-                self.features.reports_usage,
-                self.features.cache_read_tokens,
-                self.features.cache_write_tokens,
                 Some(&error),
             )),
         }
@@ -628,17 +600,18 @@ fn collect_strings<'a>(value: &'a Value, strings: &mut Vec<&'a str>) {
     }
 }
 
-fn reply_events(
-    id: &str,
-    model: &str,
-    text: &str,
+struct ResponseMeta<'a> {
+    id: &'a str,
+    model: &'a str,
     input_tokens: i32,
     output_tokens: i32,
     include_usage: bool,
     cache_read_tokens: Option<i32>,
     cache_write_tokens: Option<i32>,
-    error: Option<&str>,
-) -> String {
+}
+
+fn reply_events(meta: &ResponseMeta, text: &str, error: Option<&str>) -> String {
+    let ResponseMeta { id, model, .. } = meta;
     let mut events = String::new();
     for chunk in split_reply(text) {
         push_event(
@@ -668,18 +641,8 @@ fn reply_events(
             }]
         }),
     );
-    if include_usage {
-        push_event(
-            &mut events,
-            usage_event(
-                id,
-                model,
-                input_tokens,
-                output_tokens,
-                cache_read_tokens,
-                cache_write_tokens,
-            ),
-        );
+    if meta.include_usage {
+        push_event(&mut events, usage_event(meta));
     }
     if let Some(error) = error {
         push_event(&mut events, api_error(error));
@@ -704,61 +667,26 @@ fn no_choices_events(id: &str, model: &str) -> String {
     events
 }
 
-fn tool_call_events(
-    id: &str,
-    model: &str,
-    name: &str,
-    arguments: &str,
-    input_tokens: i32,
-    output_tokens: i32,
-    include_usage: bool,
-    cache_read_tokens: Option<i32>,
-    cache_write_tokens: Option<i32>,
-) -> String {
+fn tool_call_events(meta: &ResponseMeta, name: &str, arguments: &str) -> String {
     let tool_call_id = format!(
         "dummy-tool-call-{}",
-        id.strip_prefix("chatcmpl-test-").unwrap()
+        meta.id.strip_prefix("chatcmpl-test-").unwrap()
     );
     tool_calls_events(
-        id,
-        model,
+        meta,
         &[ApiToolCall {
             id: tool_call_id,
             name: name.to_string(),
             arguments: arguments.to_string(),
         }],
-        input_tokens,
-        output_tokens,
-        include_usage,
-        cache_read_tokens,
-        cache_write_tokens,
     )
 }
 
-fn tool_calls_events(
-    id: &str,
-    model: &str,
-    calls: &[ApiToolCall],
-    input_tokens: i32,
-    output_tokens: i32,
-    include_usage: bool,
-    cache_read_tokens: Option<i32>,
-    cache_write_tokens: Option<i32>,
-) -> String {
+fn tool_calls_events(meta: &ResponseMeta, calls: &[ApiToolCall]) -> String {
     let mut events = String::new();
-    push_tool_call_events(&mut events, id, model, calls);
-    if include_usage {
-        push_event(
-            &mut events,
-            usage_event(
-                id,
-                model,
-                input_tokens,
-                output_tokens,
-                cache_read_tokens,
-                cache_write_tokens,
-            ),
-        );
+    push_tool_call_events(&mut events, meta.id, meta.model, calls);
+    if meta.include_usage {
+        push_event(&mut events, usage_event(meta));
     }
     events.push_str("data: [DONE]\n\n");
     events
@@ -823,17 +751,12 @@ fn push_tool_call_events(events: &mut String, id: &str, model: &str, calls: &[Ap
 }
 
 fn mixed_events(
-    id: &str,
-    model: &str,
+    meta: &ResponseMeta,
     reasoning: &str,
     text: Option<&str>,
     call: Option<&ApiToolCall>,
-    input_tokens: i32,
-    output_tokens: i32,
-    include_usage: bool,
-    cache_read_tokens: Option<i32>,
-    cache_write_tokens: Option<i32>,
 ) -> String {
+    let ResponseMeta { id, model, .. } = meta;
     let mut events = String::new();
     for chunk in split_reply(reasoning) {
         push_event(
@@ -884,31 +807,23 @@ fn mixed_events(
             }),
         );
     }
-    if include_usage {
-        push_event(
-            &mut events,
-            usage_event(
-                id,
-                model,
-                input_tokens,
-                output_tokens,
-                cache_read_tokens,
-                cache_write_tokens,
-            ),
-        );
+    if meta.include_usage {
+        push_event(&mut events, usage_event(meta));
     }
     events.push_str("data: [DONE]\n\n");
     events
 }
 
-fn usage_event(
-    id: &str,
-    model: &str,
-    input_tokens: i32,
-    output_tokens: i32,
-    cache_read_tokens: Option<i32>,
-    cache_write_tokens: Option<i32>,
-) -> Value {
+fn usage_event(meta: &ResponseMeta) -> Value {
+    let ResponseMeta {
+        id,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        ..
+    } = meta;
     json!({
         "id": id,
         "object": "chat.completion.chunk",
@@ -941,21 +856,20 @@ fn push_event(events: &mut String, value: Value) {
 
 fn split_reply(text: &str) -> Vec<String> {
     let mut chunks = Vec::new();
-    let mut start = 0;
+    let mut chunk = String::new();
     let mut spaces = 0;
-    for (index, character) in text.char_indices() {
+    for character in text.chars() {
+        chunk.push(character);
         if character == ' ' {
             spaces += 1;
             if spaces == 2 {
-                let end = index + character.len_utf8();
-                chunks.push(text[start..end].to_string());
-                start = end;
+                chunks.push(std::mem::take(&mut chunk));
                 spaces = 0;
             }
         }
     }
-    if start < text.len() {
-        chunks.push(text[start..].to_string());
+    if !chunk.is_empty() {
+        chunks.push(chunk);
     }
     if chunks.is_empty() {
         chunks.push(String::new());

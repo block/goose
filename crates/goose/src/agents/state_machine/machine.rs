@@ -151,7 +151,7 @@ impl<'a> StateMachine<'a> {
                 StateEffect::SetRecipe(recipe) => {
                     session_manager
                         .update(&session.id)
-                        .recipe(recipe.clone())
+                        .recipe(recipe.as_ref().clone())
                         .apply()
                         .await?;
                 }

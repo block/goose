@@ -18,20 +18,22 @@ pub const MANAGE_SCHEDULE_TOOL_NAME_COMPLETE: &str = "scheduler__manage_schedule
 
 pub struct SchedulerClient {
     info: InitializeResult,
-    schedule_tool: Option<ScheduleTool>,
+    schedule_tool: ScheduleTool,
 }
 
 impl SchedulerClient {
-    pub fn new(context: PlatformExtensionContext) -> Self {
+    pub fn new(context: PlatformExtensionContext) -> Option<Self> {
+        let scheduler = context.scheduler?;
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Scheduler"));
-        let schedule_tool = context
-            .scheduler
-            .map(|scheduler| ScheduleTool::new(scheduler, context.session_manager));
-        Self {
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Scheduler"))
+            .with_instructions(
+                "Create, list, update, pause, resume, and remove scheduled recipe runs, \
+                 and inspect the sessions they produced.",
+            );
+        Some(Self {
             info,
-            schedule_tool,
-        }
+            schedule_tool: ScheduleTool::new(scheduler, context.session_manager),
+        })
     }
 }
 
@@ -44,11 +46,7 @@ impl McpClientTrait for SchedulerClient {
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
-            tools: self
-                .schedule_tool
-                .as_ref()
-                .map(|_| vec![manage_schedule_tool()])
-                .unwrap_or_default(),
+            tools: vec![manage_schedule_tool()],
             next_cursor: None,
             meta: None,
         })
@@ -66,13 +64,8 @@ impl McpClientTrait for SchedulerClient {
                 "Unknown tool: {name}"
             ))]));
         }
-        let Some(schedule_tool) = &self.schedule_tool else {
-            return Ok(CallToolResult::error(vec![ContentBlock::text(
-                "Scheduler not available",
-            )]));
-        };
         let arguments = serde_json::Value::Object(arguments.unwrap_or_default());
-        Ok(match schedule_tool.execute(arguments).await {
+        Ok(match self.schedule_tool.execute(arguments).await {
             Ok(content) => CallToolResult::success(content),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(error.to_string())]),
         })

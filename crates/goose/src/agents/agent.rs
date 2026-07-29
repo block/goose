@@ -6,7 +6,6 @@ use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
-use uuid::Uuid;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
@@ -284,6 +283,40 @@ pub enum AgentEvent {
     HistoryReplaced(Conversation),
 }
 
+fn ensure_message_event_id(event: AgentEvent) -> AgentEvent {
+    match event {
+        AgentEvent::Message(message) => AgentEvent::Message(message.with_generated_id_if_missing()),
+        other => other,
+    }
+}
+
+fn push_message_with_id(messages: &mut Conversation, message: Message) -> Message {
+    let message = message.with_generated_id_if_missing();
+    messages.push(message.clone());
+    message
+}
+
+async fn persist_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    message: Message,
+) -> Result<Message> {
+    let message = message.with_generated_id_if_missing();
+    session_manager.add_message(session_id, &message).await?;
+    Ok(message)
+}
+
+async fn persist_and_push_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    conversation: &mut Conversation,
+    message: Message,
+) -> Result<Message> {
+    let message = persist_message_with_id(session_manager, session_id, message).await?;
+    conversation.push(message.clone());
+    Ok(message)
+}
+
 fn project_message_for_user_event(message: &Message) -> Message {
     message.user_visible_content()
 }
@@ -292,15 +325,25 @@ fn agent_visible_message_text(message: &Message) -> String {
     message.agent_visible_content().as_concat_text()
 }
 
-pub(crate) fn attach_turn_usage(
+fn attach_turn_usage(
     messages: &mut Conversation,
     usage: &ProviderUsage,
+    preferred_message_id: Option<&str>,
 ) -> Option<(Option<String>, MessageUsage)> {
-    let message = messages
-        .messages_mut()
-        .iter_mut()
-        .rev()
-        .find(|m| m.role == rmcp::model::Role::Assistant)?;
+    let message_index = preferred_message_id
+        .and_then(|preferred_message_id| {
+            messages.messages().iter().rposition(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.id.as_deref() == Some(preferred_message_id)
+            })
+        })
+        .or_else(|| {
+            messages
+                .messages()
+                .iter()
+                .rposition(|message| message.role == rmcp::model::Role::Assistant)
+        })?;
+    let message = &mut messages.messages_mut()[message_index];
     let has_user_visible_content = !message.user_visible_content().content.is_empty();
     let message_usage = MessageUsage::from_provider_usage(usage, false);
     message.metadata.usage = Some(Box::new(message_usage.clone()));
@@ -428,19 +471,26 @@ impl Agent {
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookContext {
         crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
             .with_last_assistant_message(last_assistant_message.to_string())
+            .with_working_dir(working_dir.to_string())
     }
 
-    pub(crate) async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
+    pub(crate) async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+    ) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await;
     }
@@ -449,11 +499,12 @@ impl Agent {
         &self,
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookDecision {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await
     }
@@ -731,10 +782,6 @@ impl Agent {
             .await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
-
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
-        }
 
         let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
         {
@@ -1703,6 +1750,22 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let events = self
+            .reply_impl(user_message, session_config, cancel_token)
+            .await?;
+
+        // This is the single live-event identity boundary. Callers that intentionally stream
+        // multiple events for one logical message must assign their shared ID before this point.
+        Ok(Box::pin(events.map_ok(ensure_message_event_id)))
+    }
+
+    async fn reply_impl(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let user_message = user_message.with_generated_id_if_missing();
         let session_manager = self.config.session_manager.clone();
 
         let message_text_for_trace = agent_visible_message_text(&user_message);
@@ -1802,14 +1865,6 @@ impl Agent {
         let command_result = self
             .execute_command(&message_text, &session_config.id)
             .await;
-        let command_starts_turn = crate::agents::execute_commands::parse_slash_command(
-            &message_text,
-        )
-        .is_some_and(|parsed| {
-            matches!(parsed.command, "goal" | "grind")
-                && !parsed.params_str.is_empty()
-                && !matches!(parsed.params_str, "off" | "clear" | "none")
-        });
 
         let mut command_preamble: Vec<AgentEvent> = Vec::new();
 
@@ -1823,8 +1878,11 @@ impl Agent {
                 })));
             }
             Ok(Some(response))
-                if response.role == rmcp::model::Role::Assistant && command_starts_turn =>
+                if response.role == rmcp::model::Role::Assistant
+                    && crate::agents::execute_commands::command_starts_turn(&message_text) =>
             {
+                let response = response.with_generated_id_if_missing();
+
                 // Setting a goal/grind should immediately start a turn so the
                 // agent begins pursuing it, rather than waiting for the next
                 // user prompt. Record the command and its confirmation as
@@ -1860,6 +1918,8 @@ impl Agent {
                 ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
+                let response = response.with_generated_id_if_missing();
+
                 session_manager
                     .add_message(
                         &session_config.id,
@@ -1975,11 +2035,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok(result) => {
-                        let compacted_conversation = result.conversation;
-                        let summarization_usage = result.usage;
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -2133,8 +2192,13 @@ impl Agent {
                                 .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
                                 .await;
                         }
-                        session_manager.add_message(&session_config.id, &message).await?;
-                        conversation.push(message.clone());
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
                         yield AgentEvent::Message(message);
                     }
                 }
@@ -2145,13 +2209,15 @@ impl Agent {
                 };
                 if let Some(output) = final_output {
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
+                    let message = Message::assistant()
+                        .with_text(output)
+                        .with_generated_id_if_missing();
                     yield AgentEvent::Message(message.clone());
                     session_manager.add_message(&session_config.id, &message).await?;
                     conversation.push(message);
 
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2161,15 +2227,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                             continue;
@@ -2237,6 +2311,7 @@ impl Agent {
                 let mut provider_produced_content = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
+                let mut preferred_turn_usage_message_id: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -2253,7 +2328,7 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
                                 yield AgentEvent::Usage(enriched.clone());
                                 pending_turn_usage = Some(enriched);
                             }
@@ -2452,10 +2527,8 @@ impl Agent {
                                                 match tool_item {
                                                     Some((request_id, item)) => {
                                                         match item {
-                                                            ToolStreamItem::ActionRequired(mut msg) => {
-                                                                if msg.id.is_none() {
-                                                                    msg = msg.with_generated_id();
-                                                                }
+                                                            ToolStreamItem::ActionRequired(msg) => {
+                                                                let msg = msg.with_generated_id_if_missing();
                                                                 if let Err(e) = session_manager.add_message(&session_config.id, &msg).await {
                                                                     warn!("Failed to save elicitation message to session: {}", e);
                                                                 }
@@ -2622,9 +2695,33 @@ impl Agent {
                                     merged
                                 };
 
+                                let response_message_id = response
+                                    .id
+                                    .as_deref()
+                                    .expect("provider stream responses have IDs");
+                                let has_existing_message_id_carrier = messages_to_add
+                                    .iter()
+                                    .any(|message| {
+                                        message.id.as_deref() == Some(response_message_id)
+                                    });
+                                let carrier_tool_call_id = if has_existing_message_id_carrier {
+                                    None
+                                } else {
+                                    remaining_requests
+                                        .first()
+                                        .or_else(|| frontend_requests.first())
+                                        .map(|request| request.id.as_str())
+                                };
+                                preferred_turn_usage_message_id =
+                                    Some(response_message_id.to_owned());
+
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-                                    let mut request_msg = Message::assistant()
-                                        .with_id(format!("msg_{}", Uuid::new_v4()));
+                                    let mut request_msg =
+                                        if carrier_tool_call_id == Some(request.id.as_str()) {
+                                            Message::assistant().with_id(response_message_id)
+                                        } else {
+                                            Message::assistant().with_generated_id()
+                                        };
 
                                     for thinking in &response_thinking {
                                         request_msg = request_msg.with_content(thinking.clone());
@@ -2735,12 +2832,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok(result) => {
-                                    let compacted_conversation = result.conversation;
-                                    let usage = result.usage;
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2874,8 +2969,10 @@ impl Agent {
                     match final_output {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
+                            let message = push_message_with_id(
+                                &mut messages_to_add,
+                                Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE),
+                            );
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
@@ -2896,7 +2993,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2914,7 +3011,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2954,8 +3051,10 @@ impl Agent {
                                     } else {
                                         warn!("Provider returned an empty response after retries; ending turn");
                                         last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
-                                        let message = Message::assistant().with_text(EMPTY_TURN_MESSAGE);
-                                        messages_to_add.push(message.clone());
+                                        let message = push_message_with_id(
+                                            &mut messages_to_add,
+                                            Message::assistant().with_text(EMPTY_TURN_MESSAGE),
+                                        );
                                         yield AgentEvent::Message(message);
                                         exit_chat = true;
                                     }
@@ -2964,8 +3063,8 @@ impl Agent {
                                     // Surface and persist the failure message
                                     // through the normal path so recipes don't
                                     // exit silently when retries are exhausted.
+                                    let message = push_message_with_id(&mut messages_to_add, message);
                                     last_assistant_text = message.as_concat_text();
-                                    messages_to_add.push(message.clone());
                                     yield AgentEvent::Message(message);
                                     exit_chat = true;
                                 }
@@ -3024,9 +3123,12 @@ impl Agent {
                 }
 
                 if let Some(output) = pending_final_output.take() {
+                    preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
-                    messages_to_add.push(message.clone());
+                    let message = push_message_with_id(
+                        &mut messages_to_add,
+                        Message::assistant().with_text(output),
+                    );
                     yield AgentEvent::Message(message);
                 }
 
@@ -3041,9 +3143,11 @@ impl Agent {
                 };
 
                 if let Some(usage) = pending_turn_usage.take() {
-                    if let Some((message_id, usage)) =
-                        attach_turn_usage(&mut messages_to_add, &usage)
-                    {
+                    if let Some((message_id, usage)) = attach_turn_usage(
+                        &mut messages_to_add,
+                        &usage,
+                        preferred_turn_usage_message_id.as_deref(),
+                    ) {
                         yield AgentEvent::MessageUsage { message_id, usage };
                     }
                 }
@@ -3059,7 +3163,7 @@ impl Agent {
 
                 if exit_chat {
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -3069,15 +3173,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                         }
@@ -3092,7 +3204,7 @@ impl Agent {
             }
 
             if !stop_hook_handled_for_exit {
-                self.emit_stop_hook(&session_config.id, &last_assistant_text).await;
+                self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
         Ok(inner)
@@ -3672,6 +3784,34 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    fn ensure_message_event_id_assigns_missing_ids_and_preserves_existing_ids() {
+        let generated =
+            ensure_message_event_id(AgentEvent::Message(Message::assistant().with_text("hello")));
+        let AgentEvent::Message(generated_message) = generated else {
+            panic!("expected message event");
+        };
+        let generated_id = generated_message
+            .id
+            .as_deref()
+            .expect("generated message id");
+        assert!(generated_id.starts_with("msg_"));
+
+        let preserved = ensure_message_event_id(AgentEvent::Message(
+            Message::assistant()
+                .with_id("provider-message-id")
+                .with_text("hello"),
+        ));
+        let AgentEvent::Message(preserved_message) = preserved else {
+            panic!("expected message event");
+        };
+        assert_eq!(preserved_message.id.as_deref(), Some("provider-message-id"));
+
+        let non_message =
+            ensure_message_event_id(AgentEvent::HistoryReplaced(Conversation::empty()));
+        assert!(matches!(non_message, AgentEvent::HistoryReplaced(_)));
+    }
+
+    #[test]
     fn resolve_use_login_shell_path_defaults_by_platform() {
         assert!(resolve_use_login_shell_path(
             None,
@@ -4107,8 +4247,13 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .reply(Message::user().with_text("hi"), session_config, None)
             .await?;
         tokio::pin!(reply_stream);
+        let mut emitted_refusal_id = None;
         while let Some(event) = reply_stream.next().await {
-            event?;
+            if let AgentEvent::Message(message) = event? {
+                if message.as_concat_text().contains("provider refused") {
+                    emitted_refusal_id = message.id;
+                }
+            }
         }
 
         assert_eq!(
@@ -4116,6 +4261,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             1,
             "a refused request must not be resent"
         );
+        let emitted_refusal_id =
+            emitted_refusal_id.expect("refusal message should be emitted with an ID");
+        assert!(emitted_refusal_id.starts_with("msg_"));
         Ok(())
     }
 
@@ -4330,6 +4478,34 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             })
         }));
 
+        let stored_session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let stored_messages = stored_session
+            .conversation
+            .expect("session should have stored conversation");
+        let stop_hook_context_messages = stored_messages
+            .messages()
+            .iter()
+            .filter(|message| {
+                message.role == rmcp::model::Role::User
+                    && !message.is_user_visible()
+                    && message.is_agent_visible()
+                    && message
+                        .as_concat_text()
+                        .contains("Address this policy hook denial")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(stop_hook_context_messages.len(), 2);
+        assert!(stop_hook_context_messages.iter().all(|message| {
+            message
+                .id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("msg_"))
+        }));
+
         Ok(())
     }
 
@@ -4519,7 +4695,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         ]);
 
         let (message_id, attached) =
-            attach_turn_usage(&mut conversation, &usage).expect("usage should attach");
+            attach_turn_usage(&mut conversation, &usage, None).expect("usage should attach");
 
         assert_eq!(message_id.as_deref(), Some("a2"));
         assert_eq!(attached.input_tokens, Some(1200));
@@ -4544,7 +4720,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let usage = ProviderUsage::new("test-model".to_string(), Usage::default());
         let mut conversation = Conversation::new_unvalidated([Message::user().with_text("hi")]);
 
-        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
         assert!(
             conversation.messages()[0].metadata.usage.is_none(),
             "user message must stay untouched"
@@ -4568,7 +4744,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .with_content(MessageContent::Text(assistant_only)),
         ]);
 
-        assert!(attach_turn_usage(&mut conversation, &usage).is_none());
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
 
         let stored = conversation.messages()[1]
             .metadata

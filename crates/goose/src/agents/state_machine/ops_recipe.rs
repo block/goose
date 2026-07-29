@@ -150,7 +150,7 @@ impl Operation for RecipeOperation {
                 user_visible: true,
                 agent_visible: false,
             },
-            StateEffect::SetRecipe(Some(recipe)),
+            StateEffect::SetRecipe(Box::new(Some(recipe))),
             Message::user()
                 .with_text(prompt)
                 .with_visibility(false, true)

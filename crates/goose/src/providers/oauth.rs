@@ -504,11 +504,13 @@ mod tests {
 
     #[test]
     fn test_token_cache() -> Result<()> {
-        let directory = tempfile::tempdir()?;
-        let cache = TokenCache {
-            cache_path: directory.path().join("token.json"),
-        };
+        let cache = TokenCache::new(
+            "https://example.com",
+            "test-client",
+            &["scope1".to_string()],
+        );
 
+        // Test with expiration time
         let token_data = TokenData {
             access_token: "test-token".to_string(),
             refresh_token: Some("test-refresh-token".to_string()),
@@ -522,6 +524,7 @@ mod tests {
         assert_eq!(loaded_token.refresh_token, token_data.refresh_token);
         assert!(loaded_token.expires_at.is_some());
 
+        // Test without expiration time
         let token_data_no_expiry = TokenData {
             access_token: "test-token-2".to_string(),
             refresh_token: Some("test-refresh-token-2".to_string()),

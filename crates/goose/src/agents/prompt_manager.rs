@@ -543,24 +543,30 @@ mod tests {
             )
             .await
             .unwrap();
+        let scheduler = crate::scheduler::Scheduler::new(
+            tmp_dir.path().join("schedules"),
+            session_manager.clone(),
+        )
+        .await
+        .unwrap();
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
-            scheduler: None,
+            scheduler: Some(scheduler),
             session: Some(Arc::new(session)),
             use_login_shell_path: false,
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
             .values()
-            .map(|def| {
-                let client = (def.client_factory)(context.clone());
+            .filter_map(|def| {
+                let client = (def.client_factory)(context.clone())?;
                 let instructions = client.get_instructions().unwrap_or_default();
                 let has_resources = client
                     .get_info()
                     .and_then(|i| i.capabilities.resources.as_ref())
                     .is_some();
-                ExtensionInfo::new(def.name, &instructions, has_resources)
+                Some(ExtensionInfo::new(def.name, &instructions, has_resources))
             })
             .collect();
 

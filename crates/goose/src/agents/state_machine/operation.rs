@@ -197,7 +197,7 @@ pub enum StateEffect {
         user_visible: bool,
         agent_visible: bool,
     },
-    SetRecipe(Option<Recipe>),
+    SetRecipe(Box<Option<Recipe>>),
     SetExtensionData(ExtensionData),
     RecordUsage(ProviderUsage),
 }

@@ -1036,7 +1036,12 @@ impl ExtensionManager {
                             context.session = Some(Arc::new(session));
                         }
                     }
-                    (def.client_factory)(context)
+                    // A platform extension the host cannot provide (no scheduler
+                    // service, say) declines rather than registering with no tools.
+                    let Some(client) = (def.client_factory)(context) else {
+                        return Ok(());
+                    };
+                    client
                 } else {
                     // Builtin MCP server extension
                     let timeout_secs = resolve_timeout(timeout);

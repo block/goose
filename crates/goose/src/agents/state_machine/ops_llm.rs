@@ -74,6 +74,7 @@ pub struct InferenceRunner<'a> {
 }
 
 impl<'a> InferenceRunner<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         provider: Arc<dyn Provider>,
         model_config: ModelConfig,

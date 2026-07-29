@@ -1111,6 +1111,15 @@ impl GooseAcpAgent {
                     notification,
                 )?;
             }
+            MessageContent::Error(error) => {
+                let chunk =
+                    ContentChunk::new(ContentBlock::Text(TextContent::new(error.message.clone())))
+                        .meta(message_update_meta(message_id, message_created, steer));
+                cx.send_notification(SessionNotification::new(
+                    session_id.clone(),
+                    SessionUpdate::AgentMessageChunk(chunk),
+                ))?;
+            }
             _ => {}
         }
         Ok(())
@@ -1284,6 +1293,19 @@ fn prompt_error_from_message_content(
             if notification.notification_type == SystemNotificationType::CreditsExhausted =>
         {
             Some(credits_exhausted_prompt_error(notification))
+        }
+        MessageContent::Error(error)
+            if error.kind == crate::conversation::message::MessageErrorKind::CreditsExhausted =>
+        {
+            let mut data = serde_json::Map::new();
+            data.insert(
+                "reason".to_string(),
+                serde_json::Value::String("credits_exhausted".to_string()),
+            );
+            Some(
+                agent_client_protocol::Error::new(-32603, error.message.clone())
+                    .data(serde_json::Value::Object(data)),
+            )
         }
         _ => None,
     }
