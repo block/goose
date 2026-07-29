@@ -718,6 +718,12 @@ impl MessageUsage {
     }
 }
 
+/// Notes an operation left on a message, keyed by operation name. Nested rather
+/// than free-form so metadata that is not shaped like notes fails to load
+/// instead of being silently ignored.
+pub type OperationNotes =
+    std::collections::BTreeMap<String, serde_json::Map<String, serde_json::Value>>;
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility and model inference details
 #[serde(rename_all = "camelCase")]
@@ -739,7 +745,7 @@ pub struct MessageMetadata {
     /// from the persisted conversation so a rebuilt pipeline knows what already
     /// happened. Never sent to providers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operations: Option<Box<serde_json::Map<String, serde_json::Value>>>,
+    pub operations: Option<Box<OperationNotes>>,
 }
 
 impl Default for MessageMetadata {
@@ -757,22 +763,15 @@ impl Default for MessageMetadata {
 
 impl MessageMetadata {
     pub fn operation_note(&self, operation: &str, key: &str) -> Option<&serde_json::Value> {
-        self.operations
-            .as_ref()?
-            .get(operation)?
-            .as_object()?
-            .get(key)
+        self.operations.as_ref()?.get(operation)?.get(key)
     }
 
     pub fn set_operation_note(&mut self, operation: &str, key: &str, value: serde_json::Value) {
-        let notes = self.operations.get_or_insert_with(Box::default);
-        if let Some(notes) = notes
-            .entry(operation)
-            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
-            .as_object_mut()
-        {
-            notes.insert(key.to_string(), value);
-        }
+        self.operations
+            .get_or_insert_with(Box::default)
+            .entry(operation.to_string())
+            .or_default()
+            .insert(key.to_string(), value);
     }
 
     /// Create metadata for messages visible only to the agent
