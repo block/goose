@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 
 use crate::agents::state_machine::operation::{
     applied, messages_since_kickoff, not_applicable, Emitter, Operation, OperationResult,
@@ -47,7 +47,7 @@ impl Operation for UnknownToolOperation {
             span.record("error.type", "tool_not_available");
             let (result, unclaimed) = match disposition {
                 ToolDisposition::ParseError(error) => (
-                    Ok(CallToolResult::error(vec![Content::text(format!(
+                    Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                         "The tool call could not be parsed: {error}. Correct the arguments and try again."
                     ))])),
                     false,
@@ -57,7 +57,7 @@ impl Operation for UnknownToolOperation {
                     .as_ref()
                     .map(|tool_call| {
                         (
-                            Ok(CallToolResult::error(vec![Content::text(format!(
+                            Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                                 "Tool '{}' is not available.",
                                 tool_call.name
                             ))])),
@@ -66,7 +66,7 @@ impl Operation for UnknownToolOperation {
                     })
                     .unwrap_or_else(|error| {
                         (
-                            Ok(CallToolResult::error(vec![Content::text(format!(
+                            Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                                 "The tool call could not be parsed: {error}."
                             ))])),
                             false,

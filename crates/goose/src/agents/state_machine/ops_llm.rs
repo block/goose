@@ -201,7 +201,7 @@ impl Operation for InferenceRunner<'_> {
                 response.add_tool_response_with_metadata(
                     request.id,
                     Ok(rmcp::model::CallToolResult::error(vec![
-                        rmcp::model::Content::text(CANCELLED_TOOL_RESPONSE),
+                        rmcp::model::ContentBlock::text(CANCELLED_TOOL_RESPONSE),
                     ])),
                     request.metadata.as_ref(),
                 );
@@ -402,7 +402,7 @@ impl Inference for InferenceRunner<'_> {
                     let Ok(result) = &mut response.tool_result else {
                         continue;
                     };
-                    result.content.push(rmcp::model::Content::text(format!(
+                    result.content.push(rmcp::model::ContentBlock::text(format!(
                         "Available tools: [{}].",
                         available_tools
                     )));
@@ -438,7 +438,6 @@ impl Inference for InferenceRunner<'_> {
             };
 
             let mut accumulator = Conversation::empty();
-            let mut response_id: Option<String> = None;
             let mut usage_effects = Vec::new();
             let mut tool_request_ids = std::collections::HashSet::new();
             loop {
@@ -460,14 +459,6 @@ impl Inference for InferenceRunner<'_> {
                             usage_effects.push(StateEffect::RecordUsage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
-                            if let Some(id) = &response_id {
-                                chunk.id = Some(id.clone());
-                            } else {
-                                if chunk.id.is_none() {
-                                    chunk = chunk.with_generated_id();
-                                }
-                                response_id = chunk.id.clone();
-                            }
                             chunk.content.retain(|content| match content {
                                 MessageContent::ToolRequest(request) => {
                                     tool_request_ids.insert(request.id.clone())

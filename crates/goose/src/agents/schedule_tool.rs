@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::mcp_utils::ToolResult;
 use chrono::Utc;
-use rmcp::model::{Content, ErrorCode, ErrorData};
+use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
 
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::scheduler::{
@@ -72,7 +72,7 @@ impl ScheduleTool {
         }
     }
 
-    pub async fn execute(&self, arguments: serde_json::Value) -> ToolResult<Vec<Content>> {
+    pub async fn execute(&self, arguments: serde_json::Value) -> ToolResult<Vec<ContentBlock>> {
         let action = arguments
             .get("action")
             .and_then(|v| v.as_str())
@@ -127,7 +127,7 @@ impl ScheduleTool {
     async fn handle_list_jobs(
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let jobs = scheduler.list_scheduled_jobs().await;
         let jobs_json = serde_json::to_string_pretty(&jobs).map_err(|e| {
             ErrorData::new(
@@ -136,7 +136,7 @@ impl ScheduleTool {
                 None,
             )
         })?;
-        Ok(vec![Content::text(format!(
+        Ok(vec![ContentBlock::text(format!(
             "Scheduled Jobs:\n{}",
             jobs_json
         ))])
@@ -146,7 +146,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let recipe_path = arguments
             .get("recipe_path")
             .and_then(|v| v.as_str())
@@ -208,7 +208,7 @@ impl ScheduleTool {
             )
             .await
         {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully created scheduled job '{}' for recipe '{}' with cron expression '{}' in {} mode",
                 job_id, recipe_path, cron_expression, execution_mode
             ))]),
@@ -225,7 +225,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -238,7 +238,7 @@ impl ScheduleTool {
             })?;
 
         match scheduler.run_now(job_id).await {
-            Ok(session_id) => Ok(vec![Content::text(format!(
+            Ok(session_id) => Ok(vec![ContentBlock::text(format!(
                 "Successfully started job '{}'. Session ID: {}",
                 job_id, session_id
             ))]),
@@ -255,7 +255,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -268,7 +268,7 @@ impl ScheduleTool {
             })?;
 
         match scheduler.pause_schedule(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully paused job '{}'",
                 job_id
             ))]),
@@ -285,7 +285,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -298,7 +298,7 @@ impl ScheduleTool {
             })?;
 
         match scheduler.unpause_schedule(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully unpaused job '{}'",
                 job_id
             ))]),
@@ -315,7 +315,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -328,7 +328,7 @@ impl ScheduleTool {
             })?;
 
         match scheduler.remove_scheduled_job(job_id, false).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully removed schedule for job '{}'",
                 job_id
             ))]),
@@ -345,7 +345,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -358,7 +358,7 @@ impl ScheduleTool {
             })?;
 
         match scheduler.kill_running_job(job_id).await {
-            Ok(()) => Ok(vec![Content::text(format!(
+            Ok(()) => Ok(vec![ContentBlock::text(format!(
                 "Successfully killed running job '{}'",
                 job_id
             ))]),
@@ -375,7 +375,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -390,7 +390,7 @@ impl ScheduleTool {
         match scheduler.get_running_job_info(job_id).await {
             Ok(Some((session_id, start_time))) => {
                 let duration = Utc::now().signed_duration_since(start_time);
-                Ok(vec![Content::text(format!(
+                Ok(vec![ContentBlock::text(format!(
                     "Job '{}' is currently running:\n- Session ID: {}\n- Started: {}\n- Duration: {} seconds",
                     job_id,
                     session_id,
@@ -398,7 +398,7 @@ impl ScheduleTool {
                     duration.num_seconds()
                 ))])
             }
-            Ok(None) => Ok(vec![Content::text(format!(
+            Ok(None) => Ok(vec![ContentBlock::text(format!(
                 "Job '{}' is not currently running",
                 job_id
             ))]),
@@ -415,7 +415,7 @@ impl ScheduleTool {
         &self,
         scheduler: Arc<dyn SchedulerTrait>,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let job_id = arguments
             .get("job_id")
             .and_then(|v| v.as_str())
@@ -435,7 +435,7 @@ impl ScheduleTool {
         match scheduler.sessions(job_id, limit).await {
             Ok(sessions) => {
                 if sessions.is_empty() {
-                    Ok(vec![Content::text(format!(
+                    Ok(vec![ContentBlock::text(format!(
                         "No sessions found for job '{}'",
                         job_id
                     ))])
@@ -452,7 +452,7 @@ impl ScheduleTool {
                         })
                         .collect();
 
-                    Ok(vec![Content::text(format!(
+                    Ok(vec![ContentBlock::text(format!(
                         "Sessions for job '{}':\n{}",
                         job_id,
                         sessions_info.join("\n")
@@ -471,7 +471,7 @@ impl ScheduleTool {
     async fn handle_session_content(
         &self,
         arguments: serde_json::Value,
-    ) -> ToolResult<Vec<Content>> {
+    ) -> ToolResult<Vec<ContentBlock>> {
         let session_id = arguments
             .get("session_id")
             .and_then(|v| v.as_str())
@@ -506,7 +506,7 @@ impl ScheduleTool {
             }
         };
 
-        Ok(vec![Content::text(format!(
+        Ok(vec![ContentBlock::text(format!(
             "Session '{}' Content:\n\nSession:\n{}",
             session_id, metadata_json
         ))])

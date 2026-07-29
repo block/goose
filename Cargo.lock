@@ -532,9 +532,9 @@ dependencies = [
 
 [[package]]
 name = "async-utility"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a34a3b57207a7a1007832416c3e4862378c8451b4e8e093e436f48c2d3d2c151"
+checksum = "188f83b9a198af8c336e505611edb00d6d2ac5c694241c5a4f9a12316938cfe9"
 dependencies = [
  "futures-util",
  "gloo-timers",
@@ -4908,7 +4908,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4986,7 +4986,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "rubato",
  "rustls",
  "schemars 1.2.1",
@@ -5044,7 +5044,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "quote",
  "syn 2.0.118",
@@ -5052,7 +5052,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -5082,7 +5082,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5108,7 +5108,7 @@ dependencies = [
 
 [[package]]
 name = "goose-download-manager"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -5120,7 +5120,7 @@ dependencies = [
 
 [[package]]
 name = "goose-local-inference"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5128,6 +5128,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "encoding_rs",
+ "env-lock",
  "etcetera 0.11.0",
  "fs2",
  "futures",
@@ -5141,7 +5142,7 @@ dependencies = [
  "minijinja",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5155,7 +5156,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5169,7 +5170,7 @@ dependencies = [
  "once_cell",
  "process-wrap",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -5185,7 +5186,7 @@ dependencies = [
 
 [[package]]
 name = "goose-provider-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5198,7 +5199,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5214,7 +5215,7 @@ dependencies = [
 
 [[package]]
 name = "goose-providers"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5229,7 +5230,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 2.2.0",
  "sec1",
  "serde",
  "serde_json",
@@ -5246,14 +5247,16 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
  "anyhow",
+ "base64 0.22.1",
  "futures",
  "goose-providers",
  "goose-sdk-types",
+ "rmcp 2.2.0",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -5263,7 +5266,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5274,7 +5277,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5282,12 +5285,12 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.43.0"
+version = "1.44.0"
 dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp",
+ "rmcp 2.2.0",
  "serde_json",
  "tokio",
 ]
@@ -7017,9 +7020,9 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.44.4"
+version = "0.44.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98cf5d15d70d1f8f4059e5f79923ac15891eb691d2843d01191e0585fb064d70"
+checksum = "e826dd648489de2c5b293920e20b92932ef820302007c1987c758d4d06eeb2cf"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -7852,7 +7855,7 @@ dependencies = [
  "deno_error",
  "pctx_config",
  "pctx_registry",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -7863,9 +7866,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_mode"
-version = "0.3.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d9f5ffc774d0c440e780aaa2593fbf5c5710e5b5c63a6b498116d3f46a09fe0"
+checksum = "f55b3476b133078b55bc808aad1ff880428bf3de3127415ec33ceab50ef230d9"
 dependencies = [
  "futures",
  "pctx_codegen",
@@ -7883,9 +7886,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_codegen"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b05191d9a37d1101f3a78e770e1a2b5521e75ce718f1165fb15ac16025d297b"
+checksum = "a56b53c02b41420f6bd3baa7046a5a7509a38114fffa52f737f44c9044eac646"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -7918,7 +7921,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.1",
  "opentelemetry_sdk 0.31.0",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "shlex 1.3.0",
@@ -7965,13 +7968,13 @@ dependencies = [
 
 [[package]]
 name = "pctx_registry"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f5a53bf73ba98a5352e788391f47c33af096c696c64e130110b85cc51336e20"
+checksum = "251c06ac888c315c7e23d210e4e9ffa88d5dc08225c0d8de96f1263837d72896"
 dependencies = [
  "deno_error",
  "pctx_config",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -9075,6 +9078,32 @@ checksum = "1d1f571c72940a19d9532fe52dbea8bc9912bf1d766c2970bb824056b86f3f59"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "http 1.4.2",
+ "pastey",
+ "pin-project-lite",
+ "process-wrap",
+ "reqwest 0.13.4",
+ "rmcp-macros 1.8.0",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sse-stream",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14db48ee17a9ba61810ab1a9c1beb7d06d8136ae39ac25a1137f10d357af01af"
+dependencies = [
+ "async-trait",
  "bytes",
  "chrono",
  "futures",
@@ -9089,7 +9118,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros",
+ "rmcp-macros 2.2.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -9109,6 +9138,19 @@ name = "rmcp-macros"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aad0035b69380782d78ea95b508327e6deaa2235909053e596eea8f27b5e1d5"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "783d787bf21813b285f13019adc49e11af501c658890c1e519f31f937c68b7e3"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",

@@ -160,7 +160,7 @@ impl Agent {
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
         let model_config = self.model_config_for_session(session_id).await?;
-        let (compacted_conversation, usage) = compact_messages(
+        let compaction = compact_messages(
             self.provider().await?.as_ref(),
             &model_config,
             session_id,
@@ -170,10 +170,10 @@ impl Agent {
         .await?;
 
         manager
-            .replace_conversation(session_id, &compacted_conversation)
+            .replace_conversation(session_id, &compaction.conversation)
             .await?;
 
-        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
+        self.update_session_metrics(session_id, session.schedule_id, &compaction.usage, true)
             .await?;
 
         Ok(Some(user_only_assistant_text("Compaction complete")))

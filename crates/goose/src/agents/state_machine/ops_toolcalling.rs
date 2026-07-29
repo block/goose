@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorData, Role, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorData, Role, Tool};
 
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -681,11 +681,11 @@ impl Operation for ToolExecutionOperation<'_> {
             for (request, disposition) in &pending {
                 let result = match disposition {
                     ToolDisposition::ParseError(parse_error) => {
-                        CallToolResult::error(vec![Content::text(format!(
+                        CallToolResult::error(vec![ContentBlock::text(format!(
                             "The tool call could not be parsed: {parse_error}."
                         ))])
                     }
-                    _ => CallToolResult::success(vec![Content::text(
+                    _ => CallToolResult::success(vec![ContentBlock::text(
                         CHAT_MODE_TOOL_SKIPPED_RESPONSE,
                     )]),
                 };
@@ -752,7 +752,7 @@ impl Operation for ToolExecutionOperation<'_> {
                 ToolDisposition::Decline => {
                     response.add_tool_response_with_metadata(
                         request.id.clone(),
-                        Ok(CallToolResult::error(vec![Content::text(
+                        Ok(CallToolResult::error(vec![ContentBlock::text(
                             DECLINED_RESPONSE,
                         )])),
                         request.metadata.as_ref(),
@@ -761,7 +761,7 @@ impl Operation for ToolExecutionOperation<'_> {
                 ToolDisposition::ParseError(parse_error) => {
                     response.add_tool_response_with_metadata(
                         request.id.clone(),
-                        Ok(CallToolResult::error(vec![Content::text(format!(
+                        Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                             "The tool call could not be parsed: {parse_error}. \
                              Correct the arguments and try again."
                         ))])),
@@ -815,7 +815,7 @@ impl Operation for ToolExecutionOperation<'_> {
             if !answered.contains(request.id.as_str()) {
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult::error(vec![Content::text(
+                    Ok(CallToolResult::error(vec![ContentBlock::text(
                         "Tool call was interrupted before completing",
                     )])),
                     request.metadata.as_ref(),

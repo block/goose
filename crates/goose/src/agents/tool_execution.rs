@@ -13,7 +13,7 @@ use crate::config::permission::PermissionLevel;
 use crate::conversation::message::Message;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
-use rmcp::model::{Content, ServerNotification};
+use rmcp::model::{ContentBlock, ServerNotification};
 
 /// Context passed through the tool call dispatch chain.
 #[derive(Clone)]
@@ -193,7 +193,7 @@ impl Agent {
                     if let Some(response) = request_to_response_map.get_mut(&request.id) {
                         response.add_tool_response_with_metadata(
                             request.id.clone(),
-                            Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                            Ok(CallToolResult::error(vec![ContentBlock::text(DECLINED_RESPONSE)])),
                             request.metadata.as_ref(),
                         );
                     }

@@ -168,6 +168,19 @@ fn message_has_timing_content(message: &Message) -> bool {
         .any(|content| !matches!(content, MessageContent::SystemNotification(_)))
 }
 
+fn is_mergeable_assistant_chunk(message: &Message) -> bool {
+    message.role == rmcp::model::Role::Assistant
+        && !message.content.is_empty()
+        && message.content.iter().all(|content| {
+            matches!(
+                content,
+                MessageContent::Text(_)
+                    | MessageContent::Thinking(_)
+                    | MessageContent::RedactedThinking(_)
+            )
+        })
+}
+
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
@@ -362,7 +375,8 @@ pub(crate) async fn stream_response_from_provider(
                                     (
                                         Some(MessageContent::Text(last_text)),
                                         MessageContent::Text(new_text),
-                                    ) if last_text.audience() == new_text.audience() => {
+                                    ) if last_text.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                                        == new_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) => {
                                         last_text.text.push_str(&new_text.text);
                                     }
                                     _ => {
@@ -391,13 +405,14 @@ pub(crate) async fn stream_response_from_provider(
 
             if let Some(msg) = accumulated_message {
                 let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
-                yield (Some(processed), final_usage);
+                yield (Some(processed.with_generated_id_if_missing()), final_usage);
             } else if final_usage.is_some() {
                 // Preserve usage-only responses (no message content)
                 yield (None, final_usage);
             }
         } else {
             let mut first_content_at: Option<std::time::Instant> = None;
+            let mut active_mergeable_assistant_id: Option<String> = None;
             while let Some(result) = stream.next().await {
                 let (message, mut usage) = result?;
 
@@ -409,6 +424,21 @@ pub(crate) async fn stream_response_from_provider(
                 if let Some(usage) = usage.as_mut() {
                     fill_stream_timing(usage, request_started, first_content_at);
                 }
+
+                let message = message.map(|message| {
+                    if message.id.is_some() {
+                        active_mergeable_assistant_id = None;
+                        message
+                    } else if is_mergeable_assistant_chunk(&message) {
+                        let id = active_mergeable_assistant_id
+                            .get_or_insert_with(|| format!("msg_{}", uuid::Uuid::new_v4()))
+                            .clone();
+                        message.with_id(id)
+                    } else {
+                        active_mergeable_assistant_id = None;
+                        message.with_generated_id()
+                    }
+                });
 
                 yield (message, usage);
             }
@@ -510,7 +540,7 @@ impl Agent {
                     // Always keep externally-dispatched requests visible, even if
                     // their name happens to overlap a registered frontend tool —
                     // they're observation-only and must not be removed from history.
-                    let should_include = if coerced_req.is_externally_dispatched() {
+                    let should_include = if coerced_req.was_executed_externally() {
                         true
                     } else if let Ok(tool_call) = &coerced_req.tool_call {
                         !self.is_frontend_tool(&tool_call.name).await
@@ -547,7 +577,7 @@ impl Agent {
         for request in tool_requests {
             // Skip externally-dispatched requests (e.g. claude-acp); the
             // provider already executed the tool. Stays in filtered_message.
-            if request.is_externally_dispatched() {
+            if request.was_executed_externally() {
                 continue;
             }
             if let Ok(tool_call) = &request.tool_call {
@@ -679,7 +709,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role};
+    use rmcp::model::{Annotations, Role, TextContent};
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
@@ -733,12 +763,8 @@ mod tests {
 
     #[tokio::test]
     async fn provider_input_drops_rows_empty_after_agent_projection() {
-        let user_only = RawTextContent {
-            text: "user-only ACP output".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
+        let user_only = TextContent::new("user-only ACP output")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
         let messages = vec![
             Message::assistant().with_content(MessageContent::Text(user_only)),
             Message::user().with_text("current request"),
@@ -768,12 +794,8 @@ mod tests {
 
     #[tokio::test]
     async fn provider_input_refixes_roles_after_agent_projection() {
-        let user_only = RawTextContent {
-            text: "hidden separator".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
+        let user_only = TextContent::new("hidden separator")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
         let messages = vec![
             Message::user().with_text("first request"),
             Message::assistant().with_content(MessageContent::Text(user_only)),
@@ -808,8 +830,10 @@ mod tests {
 
     #[tokio::test]
     async fn provider_input_refixes_tool_result_emptied_by_agent_projection() {
-        let user_only_result =
-            rmcp::model::Content::text("hidden result").with_audience(vec![Role::User]);
+        let user_only_result = rmcp::model::ContentBlock::Text(
+            TextContent::new("hidden result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
         let messages = vec![
             Message::user().with_text("run the tool"),
             Message::assistant().with_tool_request(
@@ -1024,12 +1048,8 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_excludes_assistant_only_text_from_user_events() {
         let agent = crate::agents::Agent::new();
-        let assistant_only = RawTextContent {
-            text: "assistant-only".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
+        let assistant_only = TextContent::new("assistant-only")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
         let response = Message::assistant()
             .with_content(MessageContent::Text(assistant_only))
             .with_text("user-visible")
@@ -1088,7 +1108,7 @@ mod tests {
             other => panic!("expected ToolRequest, got {other:?}"),
         };
         assert!(
-            tool_req.is_externally_dispatched(),
+            tool_req.was_executed_externally(),
             "goose.external_dispatch marker was clobbered by coercion; merged tool_meta = {:?}",
             tool_req.tool_meta
         );

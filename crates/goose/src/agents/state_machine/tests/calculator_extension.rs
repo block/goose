@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, ErrorData, GetPromptResult, Implementation, InitializeResult,
-    JsonObject, ListPromptsResult, ListToolsResult, Prompt, PromptMessage, PromptMessageRole, Role,
+    Annotations, CallToolResult, ContentBlock, ErrorData, GetPromptResult, Implementation,
+    InitializeResult, JsonObject, ListPromptsResult, ListToolsResult, Prompt, PromptMessage, Role,
     ServerCapabilities, ServerNotification, Tool,
 };
 use schemars::{schema_for, JsonSchema};
@@ -201,16 +201,16 @@ impl McpClientTrait for CalculatorExtension {
                         McpError::McpError(ErrorData::invalid_params(error.to_string(), None))
                     })?;
                     *self.total.lock().unwrap() = params.value;
-                    CallToolResult::success(vec![Content::text(format!(
+                    CallToolResult::success(vec![ContentBlock::text(format!(
                         "result: {}",
                         params.value
                     ))])
                 }
                 ElicitationOutcome::Decline => {
-                    CallToolResult::error(vec![Content::text("elicitation declined")])
+                    CallToolResult::error(vec![ContentBlock::text("elicitation declined")])
                 }
                 ElicitationOutcome::Cancel => {
-                    CallToolResult::error(vec![Content::text("elicitation cancelled")])
+                    CallToolResult::error(vec![ContentBlock::text("elicitation cancelled")])
                 }
             });
         }
@@ -300,11 +300,18 @@ impl McpClientTrait for CalculatorExtension {
         self.completed.notify_one();
         if name == "add_with_audience" {
             return Ok(CallToolResult::success(vec![
-                Content::text(result.clone()).with_audience(vec![Role::Assistant]),
-                Content::text(result).with_audience(vec![Role::User]),
+                ContentBlock::Text(
+                    rmcp::model::TextContent::new(result.clone()).with_annotations(
+                        Annotations::default().with_audience(vec![Role::Assistant]),
+                    ),
+                ),
+                ContentBlock::Text(
+                    rmcp::model::TextContent::new(result)
+                        .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+                ),
             ]));
         }
-        Ok(CallToolResult::success(vec![Content::text(result)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(result)]))
     }
 
     async fn list_prompts(
@@ -338,9 +345,9 @@ impl McpClientTrait for CalculatorExtension {
             )));
         }
         Ok(GetPromptResult::new(vec![
-            PromptMessage::new_text(PromptMessageRole::User, "What is two plus two?"),
-            PromptMessage::new_text(PromptMessageRole::Assistant, "Four."),
-            PromptMessage::new_text(PromptMessageRole::User, "Why?"),
+            PromptMessage::new_text(Role::User, "What is two plus two?"),
+            PromptMessage::new_text(Role::Assistant, "Four."),
+            PromptMessage::new_text(Role::User, "Why?"),
         ]))
     }
 

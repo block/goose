@@ -128,17 +128,11 @@ impl<'a> StateMachine<'a> {
                         .await?;
                 }
                 StateEffect::PatchToolRequestMeta {
-                    message_id,
                     tool_call_id,
                     patch,
                 } => {
                     session_manager
-                        .update_tool_request_meta(
-                            &session.id,
-                            message_id,
-                            tool_call_id,
-                            patch.clone(),
-                        )
+                        .update_tool_request_meta(&session.id, tool_call_id, patch.clone())
                         .await?;
                 }
                 StateEffect::SetMessageVisibility {

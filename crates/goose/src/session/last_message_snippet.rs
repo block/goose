@@ -207,16 +207,11 @@ mod tests {
     }
 
     fn assistant_audience_text(text: &str) -> MessageContent {
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use rmcp::model::TextContent;
 
-        MessageContent::Text(
-            RawTextContent {
-                text: text.to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::Assistant]),
-        )
+        MessageContent::Text(TextContent::new(text.to_string()).with_annotations(
+            rmcp::model::Annotations::default().with_audience(vec![Role::Assistant]),
+        ))
     }
 
     #[test]
@@ -306,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_live_last_message_snippet_ignores_tool_messages() {
-        use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
+        use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -333,7 +328,7 @@ mod tests {
             &id,
             &Message::user().with_tool_response(
                 "t1",
-                Ok(CallToolResult::success(vec![Content::text("done")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
             ),
         )
         .await

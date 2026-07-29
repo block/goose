@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock};
 
 use super::calculator_extension::{value, ADD};
 use super::pipeline::{self, test_pipeline, MessageKind::Agent};
@@ -242,9 +242,9 @@ async fn parallel_and_failed_tool_pairs_are_compacted_as_complete_messages() -> 
                 Ok(CallToolRequestParams::new(ADD).with_arguments(serde_json::Map::new())),
             );
             let result = if n == 0 {
-                CallToolResult::error(vec![Content::text("failed calculation")])
+                CallToolResult::error(vec![ContentBlock::text("failed calculation")])
             } else {
-                CallToolResult::success(vec![Content::text("result")])
+                CallToolResult::success(vec![ContentBlock::text("result")])
             };
             response.add_tool_response_with_metadata(id.clone(), Ok(result), None);
         }
@@ -316,7 +316,7 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
     let mut response = Message::user();
     response.add_tool_response_with_metadata(
         "large-result",
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             large_result.clone(),
         )])),
         None,

@@ -85,6 +85,14 @@ async fn provider_lifecycle() -> Result<()> {
             )
         })
         .expect("mixed response with malformed tool call");
+    assert!(
+        mixed_response
+            .id
+            .as_deref()
+            .is_some_and(|id| id.starts_with("chatcmpl-test-")),
+        "provider response id was not preserved: {:?}",
+        mixed_response.id
+    );
     assert_eq!(
         mixed_response
             .content

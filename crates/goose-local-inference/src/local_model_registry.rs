@@ -516,7 +516,12 @@ impl LocalModelRegistry {
         let mut changed = false;
 
         for mut entry in featured_entries {
-            if !self.models.iter().any(|m| m.id == entry.id) {
+            if let Some(existing) = self.models.iter_mut().find(|m| m.id == entry.id) {
+                if existing.size_bytes == 0 && entry.size_bytes > 0 {
+                    existing.size_bytes = entry.size_bytes;
+                    changed = true;
+                }
+            } else {
                 entry.enrich_with_featured_mmproj();
                 self.models.push(entry);
                 changed = true;
@@ -559,7 +564,6 @@ impl LocalModelRegistry {
             if let Some(entry) = self.models.iter_mut().find(|m| m.id == id) {
                 entry.local_path = Paths::in_data_dir("models").join(&entry.filename);
                 entry.storage = LocalModelStorage::GooseManaged;
-                entry.size_bytes = 0;
                 entry.shard_files.clear();
             }
             self.save()
@@ -724,6 +728,67 @@ mod tests {
         assert!(!entry.is_downloading());
 
         get_download_manager().clear_completed(&download_id);
+    }
+
+    #[test]
+    fn delete_featured_model_preserves_size_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root.path().to_str().unwrap()))]);
+
+        let mut entry = test_entry("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M");
+        entry.local_path = root.path().join("model.gguf");
+        entry.size_bytes = 12345;
+
+        let mut registry = LocalModelRegistry {
+            models: vec![entry],
+        };
+        registry
+            .delete_model("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M")
+            .unwrap();
+
+        let kept = registry
+            .get_model("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M")
+            .expect("featured model entry should remain after deletion");
+        assert_eq!(kept.size_bytes, 12345);
+        assert!(!kept.is_downloaded());
+    }
+
+    #[test]
+    fn sync_with_featured_backfills_size_without_touching_settings() {
+        let root = tempfile::tempdir().unwrap();
+        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root.path().to_str().unwrap()))]);
+
+        let mut existing = test_entry("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M");
+        existing.settings.enable_thinking = true;
+        existing.storage = LocalModelStorage::HuggingFaceCache;
+
+        let mut resolved = test_entry("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M");
+        resolved.size_bytes = 999;
+        resolved.settings.enable_thinking = false;
+
+        let mut registry = LocalModelRegistry {
+            models: vec![existing],
+        };
+        registry.sync_with_featured(vec![resolved]);
+
+        let updated = registry
+            .get_model("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M")
+            .unwrap();
+        assert_eq!(updated.size_bytes, 999);
+        assert!(updated.settings.enable_thinking);
+        assert_eq!(updated.storage, LocalModelStorage::HuggingFaceCache);
+
+        let mut refreshed = test_entry("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M");
+        refreshed.size_bytes = 777;
+        registry.sync_with_featured(vec![refreshed]);
+        assert_eq!(
+            registry
+                .get_model("unsloth/gemma-4-E4B-it-GGUF:Q4_K_M")
+                .unwrap()
+                .size_bytes,
+            999,
+            "non-zero size should not be overwritten"
+        );
     }
 
     #[test]

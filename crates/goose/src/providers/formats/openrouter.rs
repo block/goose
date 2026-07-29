@@ -89,13 +89,13 @@ pub fn add_reasoning_details_to_request(payload: &mut Value, messages: &[Message
     }
 }
 
-fn reasoning_effort_for_openrouter(effort: ThinkingEffort) -> &'static str {
+fn reasoning_effort_for_openrouter(effort: ThinkingEffort) -> Option<&'static str> {
     match effort {
-        ThinkingEffort::Off => "none",
-        ThinkingEffort::Low => "low",
-        ThinkingEffort::Medium => "medium",
-        ThinkingEffort::High => "high",
-        ThinkingEffort::Max => "xhigh",
+        ThinkingEffort::Off => None,
+        ThinkingEffort::Low => Some("low"),
+        ThinkingEffort::Medium => Some("medium"),
+        ThinkingEffort::High => Some("high"),
+        ThinkingEffort::Max => Some("xhigh"),
     }
 }
 
@@ -113,14 +113,19 @@ pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
         let clamped_effort = obj
             .remove("reasoning_effort")
             .and_then(|value| value.as_str().map(str::to_owned));
+        if effort == ThinkingEffort::Off {
+            return;
+        }
         if clamped_effort.is_none() && !model_config.is_reasoning_model() {
             return;
         }
 
-        obj.insert(
-            "reasoning".to_string(),
-            json!({ "effort": clamped_effort.as_deref().unwrap_or_else(|| reasoning_effort_for_openrouter(effort)) }),
-        );
+        let effort = clamped_effort
+            .as_deref()
+            .or_else(|| reasoning_effort_for_openrouter(effort));
+        if let Some(effort) = effort {
+            obj.insert("reasoning".to_string(), json!({ "effort": effort }));
+        }
     }
 }
 
@@ -226,13 +231,11 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_reasoning_config_disables_reasoning_capable_model() {
+    fn test_apply_reasoning_config_omits_off_reasoning_capable_model() {
         let mut payload = json!({
             "model": "google/gemini-2.5-flash",
             "messages": []
         });
-        // Reasoning-capable model (per canonical) with thinking explicitly off, as a
-        // fast-model config is built: OpenRouter must still emit the disable object.
         let mut model_config = ModelConfig::new("google/gemini-2.5-flash");
         model_config.reasoning = Some(true);
         let mut params = HashMap::new();
@@ -241,7 +244,7 @@ mod tests {
 
         apply_reasoning_config(&mut payload, &model_config);
 
-        assert_eq!(payload["reasoning"], json!({ "effort": "none" }));
+        assert!(payload.get("reasoning").is_none());
     }
 
     #[test]
@@ -295,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_reasoning_config_off_disables_reasoning() {
+    fn test_apply_reasoning_config_off_omits_reasoning() {
         let mut payload = json!({
             "model": "x-ai/grok-4",
             "messages": []
@@ -308,6 +311,25 @@ mod tests {
 
         apply_reasoning_config(&mut payload, &model_config);
 
-        assert_eq!(payload["reasoning"], json!({ "effort": "none" }));
+        assert!(payload.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_off_ignores_clamped_effort() {
+        let mut payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning_effort": "low"
+        });
+        let mut model_config = ModelConfig::new("openai/gpt-5");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+        model_config.reasoning = Some(true);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert!(payload.get("reasoning").is_none());
+        assert!(payload.get("reasoning_effort").is_none());
     }
 }

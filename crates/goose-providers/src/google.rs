@@ -26,6 +26,9 @@ pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
     // Gemini 3 models
     "gemini-3-pro-preview",
     "gemini-3-pro-image-preview",
@@ -93,11 +96,19 @@ impl GoogleProvider {
 
     async fn post_stream(
         &self,
-        model_name: &str,
+        model_config: &ModelConfig,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
-        let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
-        let response = self.api_client.response_post(&path, payload).await?;
+        let path = format!(
+            "v1beta/models/{}:streamGenerateContent?alt=sse",
+            model_config.model_name
+        );
+        let response = self
+            .api_client
+            .request(&path)
+            .model_headers(model_config)?
+            .response_post(payload)
+            .await?;
         handle_status(response).await
     }
 }
@@ -181,7 +192,7 @@ impl Provider for GoogleProvider {
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
-            .with_retry(|| async { self.post_stream(&model_config.model_name, &payload).await })
+            .with_retry(|| async { self.post_stream(model_config, &payload).await })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);

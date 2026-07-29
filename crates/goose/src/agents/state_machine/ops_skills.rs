@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
-use rmcp::model::{CallToolResult, Content, JsonObject, Tool};
+use rmcp::model::{CallToolResult, ContentBlock, JsonObject, Tool};
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use serde_json::Value;
@@ -87,7 +87,7 @@ fn execute_skill(working_dir: &Path, arguments: Option<JsonObject>) -> CallToolR
         });
     let params = match params {
         Ok(params) => params,
-        Err(error) => return CallToolResult::error(vec![Content::text(error)]),
+        Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
     };
     let skill_name = params.name.as_str();
     let args = params.args.as_deref();
@@ -95,8 +95,8 @@ fn execute_skill(working_dir: &Path, arguments: Option<JsonObject>) -> CallToolR
 
     if let Some(skill) = skills.iter().find(|skill| skill.name == skill_name) {
         return match crate::skills::loaded_skill_context_with_args(skill, args) {
-            Ok(rendered) => CallToolResult::success(vec![Content::text(rendered)]),
-            Err(error) => CallToolResult::error(vec![Content::text(format!(
+            Ok(rendered) => CallToolResult::success(vec![ContentBlock::text(rendered)]),
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to parse skill arguments: {error}"
             ))]),
         };
@@ -130,11 +130,11 @@ fn execute_skill(working_dir: &Path, arguments: Option<JsonObject>) -> CallToolR
         .map(|skill| skill.name.as_str())
         .collect();
     if suggestions.is_empty() {
-        CallToolResult::error(vec![Content::text(format!(
+        CallToolResult::error(vec![ContentBlock::text(format!(
             "Skill '{skill_name}' not found."
         ))])
     } else {
-        CallToolResult::error(vec![Content::text(format!(
+        CallToolResult::error(vec![ContentBlock::text(format!(
             "Skill '{skill_name}' not found. Did you mean: {}?",
             suggestions.join(", ")
         ))])
@@ -161,18 +161,18 @@ fn load_supporting_file(
         return match file_path.canonicalize() {
             Ok(canonical) if canonical.starts_with(&canonical_skill_dir) => {
                 match std::fs::read_to_string(&canonical) {
-                    Ok(content) => CallToolResult::success(vec![Content::text(format!(
+                    Ok(content) => CallToolResult::success(vec![ContentBlock::text(format!(
                         "# Loaded: {skill_name}\n\n{content}\n\n---\nFile loaded into context."
                     ))]),
-                    Err(error) => CallToolResult::error(vec![Content::text(format!(
+                    Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                         "Failed to read '{skill_name}': {error}"
                     ))]),
                 }
             }
-            Ok(_) => CallToolResult::error(vec![Content::text(format!(
+            Ok(_) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Refusing to load '{skill_name}': resolves outside the skill directory"
             ))]),
-            Err(error) => CallToolResult::error(vec![Content::text(format!(
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "Failed to resolve '{skill_name}': {error}"
             ))]),
         };
@@ -190,12 +190,12 @@ fn load_supporting_file(
         .take(10)
         .collect();
     if available.is_empty() {
-        CallToolResult::error(vec![Content::text(format!(
+        CallToolResult::error(vec![ContentBlock::text(format!(
             "Skill '{}' has no supporting files.",
             skill.name
         ))])
     } else {
-        CallToolResult::error(vec![Content::text(format!(
+        CallToolResult::error(vec![ContentBlock::text(format!(
             "File '{skill_name}' not found. Available: {}",
             available.join(", ")
         ))])
@@ -324,7 +324,7 @@ impl Operation for SkillOperation {
         for (request, disposition) in pending {
             let result = match disposition {
                 ToolDisposition::Execute if session.goose_mode == GooseMode::Chat => {
-                    CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])
+                    CallToolResult::success(vec![ContentBlock::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])
                 }
                 ToolDisposition::Execute => {
                     let tool_call = request.tool_call.as_ref().map_err(|error| {
@@ -341,10 +341,10 @@ impl Operation for SkillOperation {
                     result
                 }
                 ToolDisposition::Decline => {
-                    CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])
+                    CallToolResult::error(vec![ContentBlock::text(DECLINED_RESPONSE)])
                 }
                 ToolDisposition::ParseError(error) => {
-                    CallToolResult::error(vec![Content::text(format!(
+                    CallToolResult::error(vec![ContentBlock::text(format!(
                         "The tool call could not be parsed: {error}. Correct the arguments and try again."
                     ))])
                 }

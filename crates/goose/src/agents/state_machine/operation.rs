@@ -189,7 +189,6 @@ pub enum StateEffect {
         usage: Option<ProviderUsage>,
     },
     PatchToolRequestMeta {
-        message_id: String,
         tool_call_id: String,
         patch: serde_json::Value,
     },

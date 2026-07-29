@@ -415,8 +415,22 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+
+    let updates = session.session_updates();
+    let initial_tool_call_id = updates
+        .iter()
+        .find_map(|update| match update {
+            SessionUpdate::ToolCall(tool_call) => Some(&tool_call.tool_call_id),
+            _ => None,
+        })
+        .expect("expected an initial tool call");
+    for update in &updates {
+        if let SessionUpdate::ToolCallUpdate(update) = update {
+            assert_eq!(&update.tool_call_id, initial_tool_call_id);
+        }
+    }
     assert_notifications(
-        &session.notifications(),
+        &fixtures::to_notifications(&updates),
         &[
             Notification::ToolCall,
             Notification::ToolCallKind(ToolKind::Edit),
@@ -1149,7 +1163,30 @@ pub async fn run_prompt_basic<C: Connection>() {
         .await
         .unwrap();
     assert_eq!(output.text, "2");
-    assert_notifications(&session.notifications(), &[Notification::AgentMessage]);
+    let updates = session.session_updates();
+    let (standard_message_id, goose_message_id) = updates
+        .iter()
+        .find_map(|update| {
+            let SessionUpdate::AgentMessageChunk(chunk) = update else {
+                return None;
+            };
+            let standard_message_id = chunk.message_id.as_ref()?.0.to_string();
+            let goose_message_id = chunk
+                .meta
+                .as_ref()?
+                .get("goose")?
+                .get("messageId")?
+                .as_str()?
+                .to_string();
+            Some((standard_message_id, goose_message_id))
+        })
+        .expect("expected live agent message chunk with standard and goose message IDs");
+    assert!(!standard_message_id.is_empty());
+    assert_eq!(standard_message_id, goose_message_id);
+    assert_notifications(
+        &fixtures::to_notifications(&updates),
+        &[Notification::AgentMessage],
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 

@@ -493,6 +493,7 @@ impl TestPipeline {
                                     }
                                     ElicitationAction::Decline => ElicitationOutcome::Decline,
                                     ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                                    _ => ElicitationOutcome::Cancel,
                                 };
                                 let response = Message::user()
                                     .with_generated_id()

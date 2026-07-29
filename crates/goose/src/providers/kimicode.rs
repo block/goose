@@ -58,7 +58,7 @@ const DEFAULT_TOKEN_LIFETIME_SECS: i64 = 3600;
 /// Marker key written to the user config when OAuth completes successfully.
 /// `check_provider_configured` (server) keys off this when an OAuth-flow
 /// provider has no required secret env var.
-const KIMI_CONFIGURED_MARKER: &str = "kimi_code_configured";
+pub(crate) const KIMI_CONFIGURED_MARKER: &str = "kimi_code_configured";
 
 // ── Token persistence ────────────────────────────────────────────────────────
 

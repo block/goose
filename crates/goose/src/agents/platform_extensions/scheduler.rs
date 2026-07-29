@@ -1,6 +1,8 @@
 //! Exposes schedule management when Goose has a scheduler configured.
 
-use rmcp::model::{CallToolResult, Content, Implementation, InitializeResult, ListToolsResult};
+use rmcp::model::{
+    CallToolResult, ContentBlock, Implementation, InitializeResult, ListToolsResult,
+};
 use rmcp::model::{JsonObject, ServerCapabilities};
 use tokio_util::sync::CancellationToken;
 
@@ -60,19 +62,19 @@ impl McpClientTrait for SchedulerClient {
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != MANAGE_SCHEDULE_TOOL_NAME {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Unknown tool: {name}"
             ))]));
         }
         let Some(schedule_tool) = &self.schedule_tool else {
-            return Ok(CallToolResult::error(vec![Content::text(
+            return Ok(CallToolResult::error(vec![ContentBlock::text(
                 "Scheduler not available",
             )]));
         };
         let arguments = serde_json::Value::Object(arguments.unwrap_or_default());
         Ok(match schedule_tool.execute(arguments).await {
             Ok(content) => CallToolResult::success(content),
-            Err(error) => CallToolResult::error(vec![Content::text(error.to_string())]),
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(error.to_string())]),
         })
     }
 

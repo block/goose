@@ -62,11 +62,7 @@ impl Operation for ToolApprovalOperation<'_> {
 
         for pending in state.pending_responses() {
             let executable = permission_allows(&pending.permission);
-            effects.push(mark_executable(
-                &pending.message_id,
-                &pending.tool_call_id,
-                executable,
-            ));
+            effects.push(mark_executable(&pending.tool_call_id, executable));
 
             if let Some(tool_name) = pending.tool_name {
                 if pending.permission == Permission::AlwaysAllow {
@@ -107,17 +103,12 @@ impl Operation for ToolApprovalOperation<'_> {
                 );
 
             for request in permission_check_result.denied {
-                if let Some(message_id) = state.tool_message_id(&request.id) {
-                    effects.push(mark_executable(message_id, &request.id, false));
-                }
+                effects.push(mark_executable(&request.id, false));
             }
 
             for request in permission_check_result.needs_approval {
                 let tool_call = request.tool_call.clone()?;
-                let Some(message_id) = state.tool_message_id(&request.id) else {
-                    continue;
-                };
-                effects.push(mark_executable(message_id, &request.id, false));
+                effects.push(mark_executable(&request.id, false));
 
                 let security_message = inspection_results
                     .iter()
@@ -163,7 +154,6 @@ impl Operation for ToolApprovalOperation<'_> {
 }
 
 struct PendingResponse {
-    message_id: String,
     tool_call_id: String,
     tool_name: Option<String>,
     permission: Permission,
@@ -173,7 +163,7 @@ struct ApprovalState {
     answered: HashSet<String>,
     approval_requests: HashSet<String>,
     approval_responses: HashMap<String, Permission>,
-    tool_requests: Vec<(String, ToolRequest)>,
+    tool_requests: Vec<ToolRequest>,
 }
 
 impl ApprovalState {
@@ -190,9 +180,7 @@ impl ApprovalState {
                         answered.insert(response.id.clone());
                     }
                     MessageContent::ToolRequest(request) => {
-                        if let Some(message_id) = &message.id {
-                            tool_requests.push((message_id.clone(), request.clone()));
-                        }
+                        tool_requests.push(request.clone());
                     }
                     MessageContent::ActionRequired(action) => match &action.data {
                         ActionRequiredData::ToolConfirmation { id, .. } => {
@@ -219,7 +207,7 @@ impl ApprovalState {
     fn pending_responses(&self) -> Vec<PendingResponse> {
         self.tool_requests
             .iter()
-            .filter_map(|(message_id, request)| {
+            .filter_map(|request| {
                 if self.answered.contains(&request.id) {
                     return None;
                 }
@@ -233,7 +221,6 @@ impl ApprovalState {
                     .ok()
                     .map(|tool_call| tool_call.name.to_string());
                 Some(PendingResponse {
-                    message_id: message_id.clone(),
                     tool_call_id: request.id.clone(),
                     tool_name,
                     permission,
@@ -245,7 +232,7 @@ impl ApprovalState {
     fn pending_requests(&self) -> Vec<ToolRequest> {
         self.tool_requests
             .iter()
-            .filter_map(|(_, request)| {
+            .filter_map(|request| {
                 if self.answered.contains(&request.id)
                     || self.approval_requests.contains(&request.id)
                     || self.approval_responses.contains_key(&request.id)
@@ -257,13 +244,6 @@ impl ApprovalState {
                 Some(request.clone())
             })
             .collect()
-    }
-
-    fn tool_message_id(&self, tool_call_id: &str) -> Option<&str> {
-        self.tool_requests
-            .iter()
-            .find(|(_, request)| request.id == tool_call_id)
-            .map(|(message_id, _)| message_id.as_str())
     }
 }
 
@@ -279,9 +259,8 @@ fn permission_allows(permission: &Permission) -> bool {
     matches!(permission, Permission::AllowOnce | Permission::AlwaysAllow)
 }
 
-fn mark_executable(message_id: &str, tool_call_id: &str, executable: bool) -> StateEffect {
+fn mark_executable(tool_call_id: &str, executable: bool) -> StateEffect {
     StateEffect::PatchToolRequestMeta {
-        message_id: message_id.to_string(),
         tool_call_id: tool_call_id.to_string(),
         patch: serde_json::json!({ TOOL_EXECUTABLE_KEY: executable }),
     }

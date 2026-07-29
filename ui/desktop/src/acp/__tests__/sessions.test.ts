@@ -33,6 +33,12 @@ describe('ACP sessions', () => {
     expect(session.session_type).toBe('scheduled');
   });
 
+  it('does not synthesize a title when ACP omits one', () => {
+    const session = sessionInfoToSession(sessionInfo({ title: undefined }));
+
+    expect(session.name).toBe('');
+  });
+
   it('returns session info refreshed after loading the ACP session', async () => {
     const loadedSessionInfo = sessionInfo({
       _meta: {

@@ -145,7 +145,7 @@ impl Operation for CompactionOperation {
             &session.id,
             "compaction",
         );
-        let (compacted, usage) = match compact_messages(
+        let result = match compact_messages(
             self.provider.as_ref(),
             &self.model_config,
             &session.id,
@@ -161,6 +161,8 @@ impl Operation for CompactionOperation {
                 return Self::command_error(conversation, error.to_string(), emit).await;
             }
         };
+        let compacted = result.conversation;
+        let usage = result.usage;
         record_chat_usage(&span, &usage);
 
         let command = messages_since_kickoff(conversation)?
@@ -284,7 +286,9 @@ impl Operation for CompactionOperation {
         .instrument(span.clone())
         .await
         {
-            Ok((compacted, usage)) => {
+            Ok(result) => {
+                let compacted = result.conversation;
+                let usage = result.usage;
                 record_chat_usage(&span, &usage);
                 emit.emit(AgentEvent::Message(
                     Message::assistant().with_system_notification(

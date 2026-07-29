@@ -493,19 +493,24 @@ mod tests {
     use super::*;
     use goose::conversation::message::Message;
     use goose::conversation::Conversation;
-    use rmcp::model::{Content, Role};
+    use rmcp::model::{Annotations, ContentBlock, Role, TextContent};
 
     #[test]
     fn markdown_export_preserves_user_audience_tool_output() {
-        let user_output = Content::text("user-visible output").with_audience(vec![Role::User]);
-        let assistant_output =
-            Content::text("assistant-only output").with_audience(vec![Role::Assistant]);
+        let user_output = ContentBlock::Text(
+            TextContent::new("user-visible output")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+        let assistant_output = ContentBlock::Text(
+            TextContent::new("assistant-only output")
+                .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+        );
         let conversation = Conversation::new_unvalidated([Message::user().with_tool_response(
             "tool-1",
             Ok(rmcp::model::CallToolResult::success(vec![
                 user_output,
                 assistant_output,
-                Content::text("shared output"),
+                ContentBlock::text("shared output"),
             ])),
         )]);
 

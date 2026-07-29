@@ -15,6 +15,7 @@ use crate::providers::gemini_oauth::TokenCache as GeminiOAuthTokenCache;
 use crate::providers::google::{GOOGLE_API_HOST, GOOGLE_PROVIDER_NAME};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
+use crate::providers::kimicode::KIMI_CONFIGURED_MARKER;
 use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
@@ -147,6 +148,14 @@ pub fn refresh_only() -> InventoryRegistration {
     }
 }
 
+pub fn kimi_code_inventory() -> InventoryRegistration {
+    refresh_only().with_configured(|| {
+        Config::global()
+            .get_param::<bool>(KIMI_CONFIGURED_MARKER)
+            .unwrap_or(false)
+    })
+}
+
 pub fn chatgpt_codex_inventory() -> InventoryRegistration {
     InventoryRegistration {
         supports_refresh: false,
@@ -167,7 +176,7 @@ pub fn gemini_oauth_inventory() -> InventoryRegistration {
 
 pub fn xai_oauth_inventory() -> InventoryRegistration {
     InventoryRegistration {
-        supports_refresh: false,
+        supports_refresh: true,
         identity: default_inventory_identity_resolver(),
         configured: None,
     }
