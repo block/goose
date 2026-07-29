@@ -2,7 +2,8 @@ use anyhow::Result;
 use serde_json::json;
 
 use super::pipeline::{
-    test_pipeline, test_pipeline_with_scheduler, MessageKind::Agent, MessageKind::ToolResponse,
+    test_pipeline, test_pipeline_with_scheduler, MessageKind::Agent, MessageKind::Error,
+    MessageKind::ToolResponse,
 };
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -182,7 +183,7 @@ async fn recipe_retry_and_final_output_run_to_completion() -> Result<()> {
         .await?;
     assert_eq!(exhausted.history_replacements(), 1);
     assert_eq!(api.call_count(), 2);
-    exhausted.assert_message(-1, Agent, "Maximum retry attempts (1) exceeded");
+    exhausted.assert_message(-1, Error, "Maximum retry attempts (1) exceeded");
 
     let (pipeline, api) = test_pipeline().await?;
     api.on("compute the answer").reply("thinking about it");

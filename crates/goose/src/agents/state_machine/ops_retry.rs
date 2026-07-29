@@ -12,14 +12,20 @@ use crate::agents::state_machine::operation::{
     OperationResult, SlashCommand, StateEffect,
 };
 use crate::agents::types::RetryConfig;
-use crate::conversation::message::{Message, SystemNotificationType};
+use crate::conversation::message::{Message, MessageErrorKind, SystemNotificationType};
 use crate::conversation::Conversation;
 use crate::session::Session;
 use tokio::sync::Mutex;
 
 pub(super) const NUDGED: &str = "nudged";
 pub(super) const ATTEMPTS: &str = "attempts";
-pub(super) const FINISHED: &str = "finished";
+
+fn retry_error(error: &str) -> Message {
+    Message::assistant().with_error(
+        MessageErrorKind::Other,
+        format!("Retry logic encountered an error: {error}"),
+    )
+}
 
 pub struct RetryOperation<'a> {
     goal: &'a Mutex<Option<String>>,
@@ -64,12 +70,6 @@ impl<'a> RetryOperation<'a> {
             .any(|message| self.message_meta(message, NUDGED).is_some())
     }
 
-    fn finished(&self, messages: &[Message]) -> bool {
-        messages
-            .iter()
-            .any(|message| self.message_meta(message, FINISHED).is_some())
-    }
-
     /// Attempts are counted on the kickoff message because a retry replaces the
     /// conversation with everything up to and including it — the only message
     /// that outlives the attempt it belongs to.
@@ -79,12 +79,6 @@ impl<'a> RetryOperation<'a> {
             .and_then(|message| self.message_meta(message, ATTEMPTS))
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(0) as u32
-    }
-
-    fn ending(&self, message: Message) -> Message {
-        let mut message = message;
-        self.set_message_meta(&mut message, FINISHED, serde_json::json!(true));
-        message
     }
 }
 
@@ -187,7 +181,7 @@ impl Operation for RetryOperation<'_> {
         emit: &Emitter,
     ) -> Result<OperationResult> {
         let messages = messages_since_kickoff(conversation)?;
-        if self.finished(messages) || !ends_turn(messages) {
+        if !ends_turn(messages) {
             return not_applicable();
         }
 
@@ -244,11 +238,7 @@ impl Operation for RetryOperation<'_> {
         let success = match success {
             Ok(success) => success,
             Err(error) => {
-                let message = self.ending(
-                    Message::assistant()
-                        .with_text(format!("Retry logic encountered an error: {error}")),
-                );
-                let message = emit.message(message).await;
+                let message = emit.message(retry_error(&error.to_string())).await;
                 return applied([message.into()]);
             }
         };
@@ -258,10 +248,13 @@ impl Operation for RetryOperation<'_> {
 
         let attempts = self.attempts(messages);
         if attempts >= retry_config.max_retries {
-            let message = self.ending(Message::assistant().with_text(format!(
-                "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
-                retry_config.max_retries
-            )));
+            let message = Message::assistant().with_error(
+                MessageErrorKind::Other,
+                format!(
+                    "Maximum retry attempts ({}) exceeded. Unable to complete the task successfully.",
+                    retry_config.max_retries
+                ),
+            );
             #[cfg(feature = "telemetry")]
             crate::posthog::emit_error(
                 "retry_max_exceeded",
@@ -277,11 +270,7 @@ impl Operation for RetryOperation<'_> {
                 .map(Duration::from_secs)
                 .unwrap_or(self.on_failure_timeout);
             if let Err(error) = execute_on_failure_command_with_timeout(command, timeout).await {
-                let message = self.ending(
-                    Message::assistant()
-                        .with_text(format!("Retry logic encountered an error: {error}")),
-                );
-                let message = emit.message(message).await;
+                let message = emit.message(retry_error(&error.to_string())).await;
                 return applied([message.into()]);
             }
         }
