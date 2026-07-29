@@ -191,10 +191,9 @@ fn base_model_config_from_user_config(
         request_params: None,
         reasoning: None,
     };
-    if provider_name == goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
-        model = goose_providers::azure_foundry::preserve_deployment_name(model, model_name);
+    if provider_name != goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+        model.normalize_effort_suffix();
     }
-    model.normalize_effort_suffix();
     Ok(model)
 }
 
@@ -270,26 +269,16 @@ mod azure_foundry_tests {
             .unwrap()
             .with_thinking_effort(ThinkingEffort::Off);
 
-        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(config.model_name, "gpt-5-high");
         assert_eq!(config.context_limit, None);
-        assert_eq!(
-            config.request_param::<String>(
-                goose_providers::azure_foundry::AZURE_FOUNDRY_DEPLOYMENT_PARAM
-            ),
-            Some("gpt-5-high".to_string())
-        );
+        assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Off));
     }
 
     #[test]
     fn none_suffixed_deployment_name_is_preserved() {
         let config = base_model_config_from_user_config("azure_foundry", "gpt-5-none").unwrap();
 
-        assert_eq!(config.model_name, "gpt-5");
-        assert_eq!(
-            config.request_param::<String>(
-                goose_providers::azure_foundry::AZURE_FOUNDRY_DEPLOYMENT_PARAM
-            ),
-            Some("gpt-5-none".to_string())
-        );
+        assert_eq!(config.model_name, "gpt-5-none");
+        assert_eq!(config.thinking_effort(), None);
     }
 }

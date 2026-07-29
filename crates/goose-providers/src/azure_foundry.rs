@@ -19,7 +19,6 @@ use crate::openai_compatible::{handle_response_openai_compat, OpenAiCompatiblePr
 
 pub const AZURE_FOUNDRY_PROVIDER_NAME: &str = "azure_foundry";
 pub const AZURE_FOUNDRY_DEFAULT_MODEL: &str = "Phi-4";
-pub const AZURE_FOUNDRY_DEPLOYMENT_PARAM: &str = "azure_foundry_deployment";
 pub const AZURE_FOUNDRY_DOC_URL: &str =
     "https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/inference";
 
@@ -331,22 +330,6 @@ impl AzureFoundryProvider {
     }
 }
 
-pub fn preserve_deployment_name(
-    model_config: ModelConfig,
-    deployment_name: impl Into<String>,
-) -> ModelConfig {
-    model_config.with_merged_request_params(HashMap::from([(
-        AZURE_FOUNDRY_DEPLOYMENT_PARAM.to_string(),
-        serde_json::Value::String(deployment_name.into()),
-    )]))
-}
-
-fn deployment_name(model_config: &ModelConfig) -> String {
-    model_config
-        .request_param::<String>(AZURE_FOUNDRY_DEPLOYMENT_PARAM)
-        .unwrap_or_else(|| model_config.model_name.clone())
-}
-
 fn with_api_version(link: &str, api_version: Option<&str>) -> String {
     let Some(api_version) = api_version else {
         return link.to_string();
@@ -476,7 +459,7 @@ impl Provider for AzureFoundryProvider {
             return Ok(context_limit);
         }
         Ok(self
-            .fetch_model_info(&deployment_name(model_config))
+            .fetch_model_info(&model_config.model_name)
             .await?
             .context_limit)
     }
@@ -497,7 +480,7 @@ impl Provider for AzureFoundryProvider {
         let wire_model = self
             .maas_model
             .clone()
-            .unwrap_or_else(|| deployment_name(model_config));
+            .unwrap_or_else(|| model_config.model_name.clone());
         let deployment = if is_project_endpoint(&self.endpoint) {
             self.deployment_for(&wire_model).await
         } else {
@@ -516,13 +499,10 @@ impl Provider for AzureFoundryProvider {
             .as_ref()
             .map(|deployment| deployment.model_name.as_str())
             .unwrap_or(&model_config.model_name);
-        let capability_config = if capability_model != model_config.model_name {
-            let mut config = model_config.clone();
-            config.model_name = capability_model.to_string();
-            config.with_canonical_limits(AZURE_FOUNDRY_PROVIDER_NAME)
-        } else {
-            model_config.clone()
-        };
+        let mut capability_config = model_config.clone();
+        capability_config.model_name = capability_model.to_string();
+        let capability_config =
+            capability_config.with_canonical_limits(AZURE_FOUNDRY_PROVIDER_NAME);
         match route {
             InferenceRoute::ProjectResponses => {
                 self.responses
@@ -570,6 +550,12 @@ mod tests {
 
     fn project_endpoint(server: &MockServer) -> String {
         format!("{}/api/projects/test", server.uri())
+    }
+
+    fn raw_model_config(model_name: &str) -> ModelConfig {
+        let mut config = ModelConfig::new(model_name);
+        config.model_name = model_name.to_string();
+        config
     }
 
     fn project_provider(server: &MockServer) -> AzureFoundryProvider {
@@ -853,7 +839,7 @@ mod tests {
             .await;
 
         let provider = project_provider(&server);
-        let config = preserve_deployment_name(ModelConfig::new("gpt-5-high"), "gpt-5-high");
+        let config = raw_model_config("gpt-5-high");
         assert_eq!(provider.get_context_limit(&config).await.unwrap(), 128_000);
     }
 
@@ -861,10 +847,7 @@ mod tests {
     async fn explicit_context_limit_overrides_deployment_metadata() {
         let server = MockServer::start().await;
         let provider = project_provider(&server);
-        let config = preserve_deployment_name(
-            ModelConfig::new("gpt-5-high").with_context_limit(Some(64_000)),
-            "gpt-5-high",
-        );
+        let config = raw_model_config("gpt-5-high").with_context_limit(Some(64_000));
 
         assert_eq!(provider.get_context_limit(&config).await.unwrap(), 64_000);
         assert!(server.received_requests().await.unwrap().is_empty());
@@ -964,12 +947,9 @@ mod tests {
             .await;
 
         let provider = project_provider(&server);
-        let config = preserve_deployment_name(
-            ModelConfig::new("gpt-5-high")
-                .with_thinking_effort(crate::thinking::ThinkingEffort::Off),
-            "gpt-5-high",
-        );
-        assert_eq!(config.model_name, "gpt-5");
+        let config = raw_model_config("gpt-5-high")
+            .with_thinking_effort(crate::thinking::ThinkingEffort::Off);
+        assert_eq!(config.model_name, "gpt-5-high");
         provider
             .complete(&config, "system", &[], &[])
             .await
@@ -1031,6 +1011,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn canonical_claude_deployment_uses_canonical_output_limit() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "value": [{
+                    "type": "ModelDeployment",
+                    "name": "claude-sonnet-4-6",
+                    "modelName": "claude-sonnet-4-6",
+                    "modelPublisher": "Anthropic"
+                }]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/anthropic/v1/messages"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(anthropic_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = project_provider(&server);
+        provider
+            .complete(&raw_model_config("claude-sonnet-4-6"), "system", &[], &[])
+            .await
+            .unwrap();
+
+        let request = server
+            .received_requests()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|request| request.url.path().ends_with("/messages"))
+            .unwrap();
+        let payload = request.body_json::<serde_json::Value>().unwrap();
+        assert_eq!(payload["max_tokens"], 128_000);
+    }
+
+    #[tokio::test]
     async fn maas_uses_v1_chat_completions_path_and_bound_model() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -1055,16 +1078,15 @@ mod tests {
             None,
         )
         .unwrap();
-        let config = preserve_deployment_name(ModelConfig::new("wrong-model"), "wrong-model");
+        let config = raw_model_config("wrong-model");
         provider
             .complete(&config, "system", &[], &[])
             .await
             .unwrap();
         let request = server.received_requests().await.unwrap().pop().unwrap();
-        assert_eq!(
-            request.body_json::<serde_json::Value>().unwrap()["model"],
-            "bound-model"
-        );
+        let payload = request.body_json::<serde_json::Value>().unwrap();
+        assert_eq!(payload["model"], "bound-model");
+        assert!(payload.get("azure_foundry_deployment").is_none());
         assert_eq!(
             provider.fetch_supported_models().await.unwrap(),
             vec!["bound-model"]
