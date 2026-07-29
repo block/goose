@@ -62,6 +62,10 @@ impl AcpServer {
         let config = crate::config::Config::global();
         let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
         let scheduler = self.scheduler().await?;
+        if let Some(scheduler) = &scheduler {
+            // Listing syncs from storage, registering jobs persisted by other processes.
+            scheduler.list_scheduled_jobs().await;
+        }
 
         let provider_factory: AcpProviderFactory =
             Arc::new(move |provider_name, extensions, working_dir| {
