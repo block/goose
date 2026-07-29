@@ -202,7 +202,9 @@ async fn repeated_context_errors_stop_compacting() -> Result<()> {
     api.on("Your context was compacted")
         .context_limit_error("too long");
 
-    let capped = pipeline.run(["keep overflowing"]).await?;
+    let mut kickoff = Message::user().with_text("keep overflowing");
+    kickoff.created = 1;
+    let capped = pipeline.run_message(kickoff).await?;
 
     assert_eq!(capped.history_replacements(), MAX_CONTEXT_ERROR_COMPACTIONS);
     assert_eq!(api.call_count(), 1 + 2 * MAX_CONTEXT_ERROR_COMPACTIONS);

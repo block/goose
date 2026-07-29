@@ -164,12 +164,14 @@ pub async fn compact_messages(
     let continuation_msg = Message::assistant()
         .with_text(continuation_text)
         .with_metadata(MessageMetadata::agent_only());
+    let continuation_created = continuation_msg.created;
     continuation_messages.push(continuation_msg);
 
     let (merged_continuation, _issues) = merge_consecutive_messages(continuation_messages);
     final_messages.extend(merged_continuation);
 
-    if let Some(user_msg) = preserved_user_message {
+    if let Some(mut user_msg) = preserved_user_message {
+        user_msg.created = continuation_created;
         final_messages.push(user_msg);
     }
 
