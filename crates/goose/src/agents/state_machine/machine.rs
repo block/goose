@@ -140,7 +140,6 @@ impl<'a> StateMachine<'a> {
             match result {
                 OperationResult::NotApplicable => {}
                 OperationResult::Applied(mut result) => {
-                    result.ensure_message_ids();
                     if cancelled {
                         result.yield_to_client = true;
                     }

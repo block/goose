@@ -233,18 +233,16 @@ impl StateEffect {
 
 impl From<Message> for StateEffect {
     fn from(message: Message) -> Self {
-        StateEffect::AppendMessage(message.with_generated_id_if_missing())
+        StateEffect::AppendMessage(message)
     }
 }
 
 impl From<Conversation> for StateEffect {
     fn from(conversation: Conversation) -> Self {
-        let mut effect = StateEffect::ReplaceConversation {
+        StateEffect::ReplaceConversation {
             conversation,
             usage: None,
-        };
-        effect.ensure_message_ids();
-        effect
+        }
     }
 }
 
