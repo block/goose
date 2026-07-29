@@ -480,13 +480,14 @@ impl GooseAcpAgent {
             .find_entry_for_provider(&req.provider_id)
             .await
             .and_then(|inventory| inventory.reasoning_mode_capability(&req.model_id));
-        let supports_reasoning_mode = match inventory_capability {
-            Some(supports_reasoning_mode)
-                if req.provider_id != goose_providers::databricks::DATABRICKS_PROVIDER_NAME =>
-            {
-                supports_reasoning_mode
-            }
-            _ => {
+        let trusted_inventory_capability =
+            super::super::response_builder::trusted_inventory_reasoning_mode_capability(
+                &req.provider_id,
+                inventory_capability,
+            );
+        let supports_reasoning_mode = match trusted_inventory_capability {
+            Some(supports_reasoning_mode) => supports_reasoning_mode,
+            None => {
                 let provider = self
                     .create_provider(&req.provider_id, Vec::new(), None)
                     .await

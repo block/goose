@@ -26,6 +26,16 @@ pub(super) fn session_provider_selection(session: &Session) -> &str {
         .unwrap_or(DEFAULT_PROVIDER_ID)
 }
 
+pub(super) fn trusted_inventory_reasoning_mode_capability(
+    provider_name: &str,
+    inventory_capability: Option<bool>,
+) -> Option<bool> {
+    match inventory_capability {
+        Some(false) if provider_name != DATABRICKS_PROVIDER_NAME => Some(false),
+        _ => None,
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionMeta<'a> {
@@ -256,13 +266,14 @@ pub(super) async fn build_session_setup_config(
     let model_state = build_model_state(model_config.model_name.as_str(), &inventory);
     let provider_selection = session_provider_selection(session);
     let provider_options = build_provider_options(Some(provider_name)).await;
-    let supports_reasoning_mode =
-        match inventory.reasoning_mode_capability(&model_config.model_name) {
-            Some(supports_reasoning_mode) if provider.get_name() != DATABRICKS_PROVIDER_NAME => {
-                supports_reasoning_mode
-            }
-            _ => provider.supports_reasoning_mode(model_config).await,
-        };
+    let inventory_capability = inventory.reasoning_mode_capability(&model_config.model_name);
+    let supports_reasoning_mode = match trusted_inventory_reasoning_mode_capability(
+        provider.get_name(),
+        inventory_capability,
+    ) {
+        Some(supports_reasoning_mode) => supports_reasoning_mode,
+        None => provider.supports_reasoning_mode(model_config).await,
+    };
     let config_options = build_config_options(
         &mode_state,
         &model_state,
@@ -474,6 +485,26 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn positive_inventory_capabilities_require_live_provider_confirmation() {
+        assert_eq!(
+            trusted_inventory_reasoning_mode_capability("anthropic", Some(true)),
+            None
+        );
+        assert_eq!(
+            trusted_inventory_reasoning_mode_capability("openai", Some(true)),
+            None
+        );
+        assert_eq!(
+            trusted_inventory_reasoning_mode_capability(DATABRICKS_PROVIDER_NAME, Some(false)),
+            None
+        );
+        assert_eq!(
+            trusted_inventory_reasoning_mode_capability("anthropic", Some(false)),
+            Some(false)
+        );
     }
 
     #[test_case(

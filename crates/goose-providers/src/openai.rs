@@ -606,7 +606,7 @@ impl Provider for OpenAiProvider {
     }
 
     async fn supports_reasoning_mode(&self, model_config: &ModelConfig) -> bool {
-        self.supports_reasoning_mode_for_model(&model_config.model_name)
+        self.reasoning_mode_support_for_inventory(&model_config.model_name)
     }
 
     async fn fetch_recommended_model_info(
@@ -1257,6 +1257,11 @@ mod tests {
         let models = provider.fetch_recommended_model_info(false).await.unwrap();
         assert_eq!(models[0].name, "team-prod");
         assert_eq!(models[0].supports_reasoning_mode, Some(true));
+        assert!(
+            provider
+                .supports_reasoning_mode(&ModelConfig::new("team-prod"))
+                .await
+        );
     }
 
     #[test]
