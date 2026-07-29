@@ -26,6 +26,42 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use tracing::warn;
 
+const GEN_AI_MESSAGE_ATTR_MAX_BYTES: usize = 16_384;
+
+fn truncate_string(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut end = max_bytes.min(s.len());
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...(truncated)", s.get(..end).unwrap_or(s))
+}
+
+fn serialize_messages_truncated(messages: &[Message]) -> String {
+    match serde_json::to_string(messages) {
+        Ok(json) => truncate_string(&json, GEN_AI_MESSAGE_ATTR_MAX_BYTES),
+        Err(_) => "(serialization failed)".to_string(),
+    }
+}
+
+fn record_gen_ai_usage(span: &tracing::Span, usage: &ProviderUsage) {
+    span.record("gen_ai.response.model", usage.model.as_str());
+    if let Some(v) = usage.usage.input_tokens {
+        span.record("gen_ai.usage.input_tokens", v as i64);
+    }
+    if let Some(v) = usage.usage.output_tokens {
+        span.record("gen_ai.usage.output_tokens", v as i64);
+    }
+    if let Some(v) = usage.usage.cache_read_input_tokens {
+        span.record("gen_ai.usage.cache_read.input_tokens", v as i64);
+    }
+    if let Some(v) = usage.usage.cache_write_input_tokens {
+        span.record("gen_ai.usage.cache_creation.input_tokens", v as i64);
+    }
+}
+
 async fn enhance_model_error(
     error: ProviderError,
     provider: &Arc<dyn Provider>,
@@ -295,7 +331,19 @@ impl Agent {
 
     #[tracing::instrument(
         skip(provider, model_config, session_id, system_prompt, messages, tools, toolshim_tools),
-        fields(session.id = %session_id)
+        fields(
+            session.id = %session_id,
+            gen_ai.operation.name = "chat",
+            gen_ai.request.model = tracing::field::Empty,
+            gen_ai.response.model = tracing::field::Empty,
+            gen_ai.provider.name = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_read.input_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_creation.input_tokens = tracing::field::Empty,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+        )
     )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
@@ -307,6 +355,12 @@ impl Agent {
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let config = model_config.clone();
+
+        let span = tracing::Span::current();
+        span.record("gen_ai.request.model", model_config.model_name.as_str());
+        span.record("gen_ai.provider.name", provider.get_name());
+        let input_json = serialize_messages_truncated(messages);
+        span.record("gen_ai.input.messages", input_json.as_str());
 
         let projected_messages =
             Conversation::new_unvalidated(messages.iter().cloned()).agent_visible_messages();
@@ -409,14 +463,26 @@ impl Agent {
 
                 if let Some(msg) = accumulated_message {
                     let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
+                    let output_json = serialize_messages_truncated(std::slice::from_ref(&processed));
+                    span.record("gen_ai.output.messages", output_json.as_str());
+                    if let Some(ref usage) = final_usage {
+                        record_gen_ai_usage(&span, usage);
+                    }
                     yield (Some(processed.with_generated_id_if_missing()), final_usage);
-                } else if final_usage.is_some() {
-                    // Preserve usage-only responses (no message content)
-                    yield (None, final_usage);
+                } else {
+                    if let Some(ref usage) = final_usage {
+                        record_gen_ai_usage(&span, usage);
+                    }
+                    if final_usage.is_some() {
+                        yield (None, final_usage);
+                    }
                 }
             } else {
                 let mut first_content_at: Option<std::time::Instant> = None;
                 let mut active_mergeable_assistant_id: Option<String> = None;
+                let mut output_text = String::new();
+                let mut last_usage: Option<ProviderUsage> = None;
+
                 while let Some(result) = stream.next().await {
                     let (message, mut usage) = result?;
 
@@ -427,6 +493,16 @@ impl Agent {
                     }
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
+                    }
+
+                    if let Some(ref msg) = message {
+                        let chunk_text = msg.as_concat_text();
+                        if !chunk_text.is_empty() {
+                            output_text.push_str(&chunk_text);
+                        }
+                    }
+                    if let Some(ref u) = usage {
+                        last_usage = Some(u.clone());
                     }
 
                     let message = message.map(|message| {
@@ -445,6 +521,17 @@ impl Agent {
                     });
 
                     yield (message, usage);
+                }
+
+                if !output_text.is_empty() {
+                    let output_json = serde_json::json!([{
+                        "role": "assistant",
+                        "content": output_text
+                    }]).to_string();
+                    span.record("gen_ai.output.messages", truncate_string(&output_json, GEN_AI_MESSAGE_ATTR_MAX_BYTES).as_str());
+                }
+                if let Some(ref usage) = last_usage {
+                    record_gen_ai_usage(&span, usage);
                 }
             }
         }))
