@@ -11,6 +11,7 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::base::Provider;
+use goose_providers::databricks::DATABRICKS_PROVIDER_NAME;
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::{ReasoningMode, ThinkingEffort};
 use serde::Serialize;
@@ -257,8 +258,10 @@ pub(super) async fn build_session_setup_config(
     let provider_options = build_provider_options(Some(provider_name)).await;
     let supports_reasoning_mode =
         match inventory.reasoning_mode_capability(&model_config.model_name) {
-            Some(supports_reasoning_mode) => supports_reasoning_mode,
-            None => provider.supports_reasoning_mode(model_config).await,
+            Some(supports_reasoning_mode) if provider.get_name() != DATABRICKS_PROVIDER_NAME => {
+                supports_reasoning_mode
+            }
+            _ => provider.supports_reasoning_mode(model_config).await,
         };
     let config_options = build_config_options(
         &mode_state,

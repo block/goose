@@ -2103,15 +2103,20 @@ impl GooseAcpAgent {
         let model_state = build_model_state(current_model.as_str(), &inventory);
         let mode_state = build_mode_state(goose_mode)?;
         let provider_options = build_provider_options(Some(&provider_name)).await;
-        let supports_reasoning_mode =
-            match inventory.reasoning_mode_capability(&current_model_config.model_name) {
-                Some(supports_reasoning_mode) => supports_reasoning_mode,
-                None => {
-                    provider
-                        .supports_reasoning_mode(&current_model_config)
-                        .await
-                }
-            };
+        let supports_reasoning_mode = match inventory
+            .reasoning_mode_capability(&current_model_config.model_name)
+        {
+            Some(supports_reasoning_mode)
+                if provider.get_name() != goose_providers::databricks::DATABRICKS_PROVIDER_NAME =>
+            {
+                supports_reasoning_mode
+            }
+            _ => {
+                provider
+                    .supports_reasoning_mode(&current_model_config)
+                    .await
+            }
+        };
         let config_options = build_config_options(
             &mode_state,
             &model_state,
@@ -2195,8 +2200,12 @@ impl GooseAcpAgent {
             .internal_err()?
             .and_then(|inventory| inventory.reasoning_mode_capability(&model_config.model_name));
         let supports_reasoning_mode = match inventory_capability {
-            Some(supports_reasoning_mode) => supports_reasoning_mode,
-            None => provider.supports_reasoning_mode(&model_config).await,
+            Some(supports_reasoning_mode)
+                if provider.get_name() != goose_providers::databricks::DATABRICKS_PROVIDER_NAME =>
+            {
+                supports_reasoning_mode
+            }
+            _ => provider.supports_reasoning_mode(&model_config).await,
         };
         if !supports_reasoning_mode {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
