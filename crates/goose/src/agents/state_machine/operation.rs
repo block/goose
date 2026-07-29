@@ -79,6 +79,16 @@ pub fn ends_turn(messages: &[Message]) -> bool {
 pub trait Operation: Send + Sync {
     fn name(&self) -> &'static str;
 
+    async fn cancel(
+        &self,
+        _session: &Session,
+        _conversation: &Conversation,
+        result: OperationResult,
+        _emit: Emitter,
+    ) -> Result<OperationResult> {
+        Ok(result)
+    }
+
     async fn run_command(
         &self,
         _command: &SlashCommand<'_>,

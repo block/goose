@@ -7,9 +7,9 @@ use rmcp::model::{
     JsonObject, ListPromptsResult, ListToolsResult, Prompt, PromptMessage, PromptMessageRole, Role,
     ServerCapabilities, ServerNotification, Tool,
 };
-use schemars::{JsonSchema, schema_for};
+use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -55,7 +55,9 @@ pub(super) struct CalculatorExtension {
     info: InitializeResult,
     action_required: Arc<ActionRequiredManager>,
     total: Mutex<i64>,
+    contexts: Mutex<Vec<ToolCallContext>>,
     barrier: Mutex<Option<Arc<tokio::sync::Barrier>>>,
+    completed: tokio::sync::Notify,
     notification_senders: Mutex<Vec<mpsc::Sender<ServerNotification>>>,
 }
 
@@ -74,7 +76,9 @@ impl CalculatorExtension {
             )),
             action_required,
             total: Mutex::new(0),
+            contexts: Mutex::new(Vec::new()),
             barrier: Mutex::new(None),
+            completed: tokio::sync::Notify::new(),
             notification_senders: Mutex::new(Vec::new()),
         }
     }
@@ -85,6 +89,14 @@ impl CalculatorExtension {
 
     pub(super) fn synchronize(&self, calls: usize) {
         *self.barrier.lock().unwrap() = Some(Arc::new(tokio::sync::Barrier::new(calls)));
+    }
+
+    pub(super) fn contexts(&self) -> Vec<ToolCallContext> {
+        self.contexts.lock().unwrap().clone()
+    }
+
+    pub(super) async fn wait_for_result(&self) {
+        self.completed.notified().await;
     }
 }
 
@@ -161,6 +173,7 @@ impl McpClientTrait for CalculatorExtension {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, McpError> {
+        self.contexts.lock().unwrap().push(ctx.clone());
         if name == "request_value" {
             let tool_call_request_id = ctx.tool_call_request_id.clone().ok_or_else(|| {
                 McpError::McpError(ErrorData::invalid_params(
@@ -284,6 +297,7 @@ impl McpClientTrait for CalculatorExtension {
             ))
         })?;
         let result = format!("result: {}", *total);
+        self.completed.notify_one();
         if name == "add_with_audience" {
             return Ok(CallToolResult::success(vec![
                 Content::text(result.clone()).with_audience(vec![Role::Assistant]),

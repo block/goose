@@ -4,14 +4,13 @@ use std::sync::Arc;
 use anyhow::Result;
 use rmcp::model::{ElicitationAction, Role};
 use serde_json::json;
-use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex as TokioMutex;
 use tokio_util::sync::CancellationToken;
 
 use super::calculator_extension::CalculatorExtension;
 use super::dummy_api::{DummyApi, ProviderFeatures};
 use crate::action_required_manager::ElicitationOutcome;
-use crate::agents::AgentEvent;
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
 use crate::agents::mcp_client::McpClientTrait;
@@ -23,15 +22,17 @@ use crate::agents::state_machine::{
     ToolApprovalOperation, ToolExecutionOperation, ToolPairCompactionOperation,
     UnknownToolOperation,
 };
-use crate::config::GooseMode;
+use crate::agents::AgentEvent;
 use crate::config::permission::{PermissionLevel, PermissionManager};
-use crate::conversation::Conversation;
+use crate::config::GooseMode;
 use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
+use crate::conversation::Conversation;
 use crate::hooks::HookManager;
-use crate::permission::Permission;
 use crate::permission::permission_inspector::PermissionInspector;
+use crate::permission::Permission;
 use crate::providers::base::Provider;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use goose_providers::model::ModelConfig;
@@ -41,6 +42,8 @@ pub(super) const COMPACTION_THRESHOLD: f64 = 0.8;
 
 pub(super) struct TestPipeline {
     pub(super) session_manager: Arc<SessionManager>,
+    api: Arc<DummyApi>,
+    provider_features: ProviderFeatures,
     provider: Arc<dyn Provider>,
     model_config: ModelConfig,
     extension_manager: Arc<ExtensionManager>,
@@ -55,8 +58,11 @@ pub(super) struct TestPipeline {
     grind: TokioMutex<Option<String>>,
     calculator: Arc<CalculatorExtension>,
     pub(super) session_id: String,
+    working_dir: std::path::PathBuf,
     steer_queue: SteerQueue,
-    _temp_dir: tempfile::TempDir,
+    max_turns: u32,
+    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    _temp_dir: Arc<tempfile::TempDir>,
 }
 
 impl TestPipeline {
@@ -71,7 +77,7 @@ impl TestPipeline {
                 self.steer_queue.clone(),
                 self.hook_manager.clone(),
             )),
-            Arc::new(MaxTurnsOperation::new(MAX_TURNS)),
+            Arc::new(MaxTurnsOperation::new(self.max_turns)),
             Arc::new(BangShellOperation::new()),
             Arc::new(CompactionOperation::new(
                 provider.clone(),
@@ -158,8 +164,24 @@ impl TestPipeline {
         self
     }
 
+    pub(super) async fn with_model_config(mut self, model_config: ModelConfig) -> Self {
+        self.model_config = model_config;
+        self.session_manager
+            .update(&self.session_id)
+            .model_config(self.model_config.clone())
+            .apply()
+            .await
+            .unwrap();
+        self
+    }
+
+    pub(super) fn with_max_turns(mut self, max_turns: u32) -> Self {
+        self.max_turns = max_turns;
+        self
+    }
+
     pub(super) fn working_dir(&self) -> &std::path::Path {
-        self._temp_dir.path()
+        &self.working_dir
     }
 
     pub(super) fn with_hook_manager(mut self, hook_manager: HookManager) -> Self {
@@ -192,7 +214,7 @@ impl TestPipeline {
             self.extension_manager
                 .add_extension(
                     extension,
-                    Some(self._temp_dir.path().to_path_buf()),
+                    Some(self.working_dir.clone()),
                     None,
                     Some(&self.session_id),
                 )
@@ -237,6 +259,59 @@ impl TestPipeline {
 
     pub(super) fn calculator_total(&self) -> i64 {
         self.calculator.total()
+    }
+
+    pub(super) async fn wait_for_calculator_result(&self) {
+        self.calculator.wait_for_result().await;
+    }
+
+    pub(super) fn tool_contexts(&self) -> Vec<crate::agents::tool_execution::ToolCallContext> {
+        self.calculator.contexts()
+    }
+
+    pub(super) async fn reconstruct(&self) -> Result<Self> {
+        let session = self.session().await?;
+        build_test_pipeline(
+            self.session_manager.clone(),
+            self.api.clone(),
+            self.provider_features,
+            self.scheduler.clone(),
+            session,
+            self._temp_dir.clone(),
+        )
+        .await
+    }
+
+    pub(super) async fn new_session(&self, working_dir: std::path::PathBuf) -> Result<Self> {
+        let source_session = self.session().await?;
+        let session = self
+            .session_manager
+            .create_session(
+                working_dir,
+                "pipeline-test".to_string(),
+                SessionType::Hidden,
+                GooseMode::Auto,
+            )
+            .await?;
+        self.session_manager
+            .update(&session.id)
+            .provider_name(
+                source_session
+                    .provider_name
+                    .expect("source test session has a provider"),
+            )
+            .model_config(self.model_config.clone())
+            .apply()
+            .await?;
+        build_test_pipeline(
+            self.session_manager.clone(),
+            self.api.clone(),
+            self.provider_features,
+            self.scheduler.clone(),
+            self.session_manager.get_session(&session.id, true).await?,
+            self._temp_dir.clone(),
+        )
+        .await
     }
 
     pub(super) fn synchronize_calculator(&self, calls: usize) {
@@ -322,7 +397,7 @@ impl TestPipeline {
                     bundled: None,
                     available_tools: vec![],
                 },
-                Some(self._temp_dir.path().to_path_buf()),
+                Some(self.working_dir.clone()),
                 None,
                 Some(&self.session_id),
             )
@@ -330,20 +405,25 @@ impl TestPipeline {
             .map_err(anyhow::Error::from)
     }
 
-    pub(super) async fn run_cancelled(
-        &self,
-        message: &str,
-        after: std::time::Duration,
-    ) -> Result<TestRun> {
+    pub(super) async fn resume_cancelled(&self) -> Result<TestRun> {
         let cancel = CancellationToken::new();
-        let scheduled_cancel = cancel.clone();
-        let cancel_task = tokio::spawn(async move {
-            tokio::time::sleep(after).await;
-            scheduled_cancel.cancel();
-        });
-        let result = self.run_with_cancel(message, cancel).await;
-        cancel_task.await?;
-        result
+        cancel.cancel();
+        let machine = self.machine(cancel.clone());
+        let (tx, mut rx) = mpsc::channel(1024);
+        let emit = Emitter::new(tx, cancel);
+        let session = machine
+            .run(
+                self.session_manager.as_ref(),
+                &self.session_id,
+                emit.clone(),
+            )
+            .await?;
+        drop(emit);
+        let mut events = Vec::new();
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+        Ok(TestRun { session, events })
     }
 
     pub(super) async fn run_with_cancel(
@@ -508,18 +588,7 @@ async fn test_pipeline_with_components(
     Option<Arc<crate::scheduler::Scheduler>>,
 )> {
     let api = Arc::new(DummyApi::start(features).await);
-    let api_client = goose_providers::api_client::ApiClient::new_with_tls(
-        api.uri(),
-        goose_providers::api_client::AuthMethod::NoAuth,
-        None,
-    )?;
-    let provider: Arc<dyn Provider> = Arc::new(
-        goose_providers::openai::OpenAiProviderBuilder::new(api_client)
-            .name("openai")
-            .preserve_thinking_context(features.preserves_thinking)
-            .build(),
-    );
-    let temp_dir = tempfile::tempdir()?;
+    let temp_dir = Arc::new(tempfile::tempdir()?);
     let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
     let scheduler = if with_scheduler {
         Some(
@@ -532,6 +601,63 @@ async fn test_pipeline_with_components(
     } else {
         None
     };
+    let session = session_manager
+        .create_session(
+            temp_dir.path().to_path_buf(),
+            "pipeline-test".to_string(),
+            if with_scheduler {
+                SessionType::Scheduled
+            } else {
+                SessionType::Hidden
+            },
+            GooseMode::Auto,
+        )
+        .await?;
+    let model_config = ModelConfig::new(goose_providers::openai::OPEN_AI_DEFAULT_MODEL)
+        .with_canonical_limits("openai");
+    session_manager
+        .update(&session.id)
+        .provider_name("openai")
+        .model_config(model_config)
+        .apply()
+        .await?;
+    let session = session_manager.get_session(&session.id, true).await?;
+    let pipeline = build_test_pipeline(
+        session_manager,
+        api.clone(),
+        features,
+        scheduler.clone(),
+        session,
+        temp_dir,
+    )
+    .await?;
+
+    Ok((pipeline, api, scheduler))
+}
+
+async fn build_test_pipeline(
+    session_manager: Arc<SessionManager>,
+    api: Arc<DummyApi>,
+    provider_features: ProviderFeatures,
+    scheduler: Option<Arc<crate::scheduler::Scheduler>>,
+    session: Session,
+    temp_dir: Arc<tempfile::TempDir>,
+) -> Result<TestPipeline> {
+    let provider_name = session
+        .provider_name
+        .as_deref()
+        .expect("test session has a provider");
+    let api_client = goose_providers::api_client::ApiClient::new_with_tls(
+        api.uri(),
+        goose_providers::api_client::AuthMethod::NoAuth,
+        None,
+    )?;
+    let provider: Arc<dyn Provider> = Arc::new(
+        goose_providers::openai::OpenAiProviderBuilder::new(api_client)
+            .name(provider_name)
+            .preserve_thinking_context(provider_features.preserves_thinking)
+            .build(),
+    );
     let shared_provider = Arc::new(TokioMutex::new(Some(provider.clone())));
     let extension_manager = Arc::new(ExtensionManager::new(
         shared_provider.clone(),
@@ -554,33 +680,19 @@ async fn test_pipeline_with_components(
         shared_provider,
         session_manager.clone(),
     )));
-    let session = session_manager
-        .create_session(
-            temp_dir.path().to_path_buf(),
-            "pipeline-test".to_string(),
-            if with_scheduler {
-                SessionType::Scheduled
-            } else {
-                SessionType::Hidden
-            },
-            GooseMode::Auto,
-        )
-        .await?;
-    let model_config = ModelConfig::new(goose_providers::openai::OPEN_AI_DEFAULT_MODEL)
-        .with_canonical_limits("openai");
-    session_manager
-        .update(&session.id)
-        .provider_name("openai")
-        .model_config(model_config.clone())
-        .apply()
-        .await?;
+    let model_config = session
+        .model_config
+        .clone()
+        .expect("test session has a model config");
     let calculator = Arc::new(CalculatorExtension::new(session_manager.action_required()));
     let pipeline = TestPipeline {
         session_manager,
+        api,
+        provider_features,
         provider: provider.clone(),
         model_config,
         extension_manager,
-        goose_mode: TokioMutex::new(GooseMode::Auto),
+        goose_mode: TokioMutex::new(session.goose_mode),
         prompt_manager: TokioMutex::new(PromptManager::new()),
         tool_inspection_manager,
         permission_manager,
@@ -590,72 +702,87 @@ async fn test_pipeline_with_components(
         goal: TokioMutex::new(None),
         grind: TokioMutex::new(None),
         calculator: calculator.clone(),
-        session_id: session.id,
+        session_id: session.id.clone(),
+        working_dir: session.working_dir.clone(),
         steer_queue: Arc::new(tokio::sync::Mutex::new(VecDeque::new())),
+        max_turns: MAX_TURNS,
+        scheduler,
         _temp_dir: temp_dir,
     };
     let extension_manager = pipeline.extension_manager.clone();
     let session_id = pipeline.session_id.clone();
+    let mut extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
+        .map(|state| state.extensions)
+        .unwrap_or_else(default_extensions);
+    for recipe_extension in session
+        .recipe
+        .as_ref()
+        .and_then(|recipe| recipe.extensions.as_ref())
+        .into_iter()
+        .flatten()
+    {
+        if !extensions
+            .iter()
+            .any(|extension| extension.name() == recipe_extension.name())
+        {
+            extensions.push(recipe_extension.clone());
+        }
+    }
+    if !extensions
+        .iter()
+        .any(|extension| extension.name() == "calculator")
+    {
+        extensions.push(platform_extension("calculator", "Stateful test calculator"));
+    }
+    for extension in extensions {
+        if extension.name() == "calculator" {
+            extension_manager
+                .add_client(
+                    "calculator".to_string(),
+                    extension,
+                    calculator.clone(),
+                    calculator.get_info().cloned(),
+                    None,
+                )
+                .await;
+        } else {
+            extension_manager
+                .add_extension(
+                    extension,
+                    Some(session.working_dir.clone()),
+                    None,
+                    Some(&session_id),
+                )
+                .await?;
+        }
+    }
 
-    extension_manager
-        .add_client(
-            "calculator".to_string(),
-            ExtensionConfig::Platform {
-                name: "calculator".to_string(),
-                description: "Stateful test calculator".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: vec![],
-            },
-            calculator.clone(),
-            calculator.get_info().cloned(),
-            None,
-        )
-        .await;
-    extension_manager
-        .add_extension(
-            ExtensionConfig::Platform {
-                name: "extensionmanager".to_string(),
-                description: "Extension Manager".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: vec![],
-            },
-            Some(pipeline._temp_dir.path().to_path_buf()),
-            None,
-            Some(&session_id),
-        )
-        .await?;
-    extension_manager
-        .add_extension(
-            ExtensionConfig::Platform {
-                name: "todo".to_string(),
-                description: "Todo".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: vec![],
-            },
-            Some(pipeline._temp_dir.path().to_path_buf()),
-            None,
-            Some(&session_id),
-        )
-        .await?;
-    extension_manager
-        .add_extension(
-            ExtensionConfig::Platform {
-                name: crate::agents::platform_extensions::scheduler::EXTENSION_NAME.to_string(),
-                description: "Scheduler".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: vec![],
-            },
-            Some(pipeline._temp_dir.path().to_path_buf()),
-            None,
-            Some(&session_id),
-        )
-        .await?;
+    Ok(pipeline)
+}
 
-    Ok((pipeline, api, scheduler))
+fn default_extensions() -> Vec<ExtensionConfig> {
+    [
+        ("calculator", "Stateful test calculator"),
+        ("extensionmanager", "Extension Manager"),
+        ("todo", "Todo"),
+        (
+            crate::agents::platform_extensions::scheduler::EXTENSION_NAME,
+            "Scheduler",
+        ),
+    ]
+    .into_iter()
+    .map(|(name, description)| platform_extension(name, description))
+    .collect()
+}
+
+fn platform_extension(name: &str, description: &str) -> ExtensionConfig {
+    ExtensionConfig::Platform {
+        name: name.to_string(),
+        description: description.to_string(),
+        display_name: None,
+        bundled: None,
+        available_tools: vec![],
+    }
 }
 
 pub(super) struct TestRun {

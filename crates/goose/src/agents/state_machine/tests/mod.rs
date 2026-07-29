@@ -2,9 +2,9 @@ use anyhow::Result;
 use rmcp::model::Role;
 use serde_json::json;
 
-use self::calculator_extension::{ADD, value};
-use self::pipeline::{MAX_TURNS, test_pipeline};
-use crate::agents::{AgentEvent, state_machine};
+use self::calculator_extension::{value, ADD};
+use self::pipeline::{test_pipeline, MAX_TURNS};
+use crate::agents::{state_machine, AgentEvent};
 use crate::conversation::message::{Message, MessageContent};
 
 mod calculator_extension;
@@ -13,6 +13,7 @@ mod dummy_api;
 mod pipeline;
 mod provider_lifecycle;
 mod recipe_scheduling_lifecycle;
+mod reconstruction_isolation_lifecycle;
 mod steering_lifecycle;
 mod tool_lifecycle;
 
@@ -22,16 +23,12 @@ async fn bang_shell_requests_the_shell_tool() -> Result<()> {
 
     let result = pipeline.run(["!echo hello"]).await?;
     let conversation = result.rendered_conversation();
-    assert!(
-        conversation
-            .iter()
-            .any(|line| line == r#"toolcall: shell({"command":"echo hello"})"#)
-    );
-    assert!(
-        conversation
-            .iter()
-            .any(|line| line.starts_with("toolresponse: Tool 'shell' is not available"))
-    );
+    assert!(conversation
+        .iter()
+        .any(|line| line == r#"toolcall: shell({"command":"echo hello"})"#));
+    assert!(conversation
+        .iter()
+        .any(|line| line.starts_with("toolresponse: Tool 'shell' is not available")));
     assert_eq!(api.call_count(), 0);
 
     Ok(())
@@ -47,16 +44,12 @@ async fn stops_at_max_turns() -> Result<()> {
     assert_eq!(pipeline.calculator_total(), MAX_TURNS as i64 - 1);
     let calls = api.calls();
     let first_budgeted_call = MAX_TURNS.div_ceil(2) as usize;
-    assert!(
-        calls[..first_budgeted_call]
-            .iter()
-            .all(|call| !call.input_contains("<turn-budget>"))
-    );
-    assert!(
-        calls[first_budgeted_call..]
-            .iter()
-            .all(|call| call.input_contains("<turn-budget>"))
-    );
+    assert!(calls[..first_budgeted_call]
+        .iter()
+        .all(|call| !call.input_contains("<turn-budget>")));
+    assert!(calls[first_budgeted_call..]
+        .iter()
+        .all(|call| call.input_contains("<turn-budget>")));
 
     let conversation = result.rendered_conversation();
     assert_eq!(
@@ -70,11 +63,9 @@ async fn stops_at_max_turns() -> Result<()> {
             .count(),
         MAX_TURNS as usize
     );
-    assert!(
-        conversation
-            .iter()
-            .all(|line| !line.contains("<turn-budget>"))
-    );
+    assert!(conversation
+        .iter()
+        .all(|line| !line.contains("<turn-budget>")));
 
     Ok(())
 }
@@ -384,19 +375,15 @@ async fn usage_before_a_stream_error_is_recorded() -> Result<()> {
     assert!(result.events.iter().any(
         |event| matches!(event, AgentEvent::Usage(usage) if usage.usage.total_tokens == Some(total_tokens))
     ));
-    assert!(
-        !result
-            .events
-            .iter()
-            .any(|event| matches!(event, AgentEvent::MessageUsage { .. }))
-    );
+    assert!(!result
+        .events
+        .iter()
+        .any(|event| matches!(event, AgentEvent::MessageUsage { .. })));
 
-    assert!(
-        !result
-            .rendered_conversation()
-            .iter()
-            .any(|line| line == "agent: partial response")
-    );
+    assert!(!result
+        .rendered_conversation()
+        .iter()
+        .any(|line| line == "agent: partial response"));
     let conversation = result.session.conversation.unwrap_or_default();
     let error = conversation
         .messages()
@@ -416,12 +403,10 @@ async fn provider_error_is_persisted_and_yields() -> Result<()> {
     api.on("hello").server_error("boom");
 
     let result = pipeline.run(["hello"]).await?;
-    assert!(
-        result
-            .rendered_conversation()
-            .iter()
-            .any(|line| line.starts_with("error:") && line.contains("boom"))
-    );
+    assert!(result
+        .rendered_conversation()
+        .iter()
+        .any(|line| line.starts_with("error:") && line.contains("boom")));
     let conversation = result.session.conversation.unwrap_or_default();
     let error = conversation
         .messages()
@@ -444,19 +429,15 @@ async fn slash_command_yields_without_calling_provider() -> Result<()> {
 
     assert_eq!(api.call_count(), 0);
     let rendered = result.rendered_conversation();
-    assert!(
-        rendered
-            .iter()
-            .any(|line| line.starts_with("agent:") && line.contains("Provider:"))
-    );
+    assert!(rendered
+        .iter()
+        .any(|line| line.starts_with("agent:") && line.contains("Provider:")));
     let conversation = result.session.conversation.unwrap_or_default();
     assert!(conversation.messages().iter().all(|m| m.is_user_visible()));
-    assert!(
-        conversation
-            .messages()
-            .iter()
-            .all(|m| !m.is_agent_visible())
-    );
+    assert!(conversation
+        .messages()
+        .iter()
+        .all(|m| !m.is_agent_visible()));
     Ok(())
 }
 

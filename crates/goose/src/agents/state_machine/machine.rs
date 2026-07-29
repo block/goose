@@ -38,9 +38,6 @@ impl<'a> StateMachine<'a> {
     }
 
     pub async fn step(&self, session: &Session, emit: Emitter) -> Result<Option<StepResult>> {
-        if self.cancel.is_cancelled() {
-            return Ok(None);
-        }
         let conversation = session
             .conversation
             .as_ref()
@@ -51,29 +48,46 @@ impl<'a> StateMachine<'a> {
             let emit = emitter
                 .take()
                 .ok_or_else(|| anyhow!("step did not return the event emitter"))?;
+            let cancel_emit = emit.clone();
             let name = step.operation().name();
-            let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
-                Step::Operation(operation) => operation.run(session, conversation, emit),
-                Step::Inference(inference) => {
-                    let mut input = InferenceInput::default();
-                    for operation in self.steps.iter().map(|step| step.operation()) {
-                        input
-                            .tools
-                            .extend(operation.inference_tools(session).await?);
-                        input
-                            .prompt_parts
-                            .extend(operation.prompt_parts(session, conversation).await?);
-                        input
-                            .moim_parts
-                            .extend(operation.moim_parts(session, conversation).await?);
+            let result = if self.cancel.is_cancelled() {
+                OperationResult::NotApplicable(emit)
+            } else {
+                let step_fut: OperationFuture<'_, Result<OperationResult>> = match step {
+                    Step::Operation(operation) => operation.run(session, conversation, emit),
+                    Step::Inference(inference) => {
+                        let mut input = InferenceInput::default();
+                        for operation in self.steps.iter().map(|step| step.operation()) {
+                            input
+                                .tools
+                                .extend(operation.inference_tools(session).await?);
+                            input
+                                .prompt_parts
+                                .extend(operation.prompt_parts(session, conversation).await?);
+                            input
+                                .moim_parts
+                                .extend(operation.moim_parts(session, conversation).await?);
+                        }
+                        inference.infer(session, conversation, input, emit)
                     }
-                    inference.infer(session, conversation, input, emit)
-                }
+                };
+                step_fut.await?
+            };
+            let cancelled = self.cancel.is_cancelled();
+            let result = if cancelled {
+                step.operation()
+                    .cancel(session, conversation, result, cancel_emit)
+                    .await?
+            } else {
+                result
             };
 
-            match step_fut.await? {
+            match result {
                 OperationResult::NotApplicable(emit) => emitter = Some(emit),
-                OperationResult::Applied(result) => {
+                OperationResult::Applied(mut result) => {
+                    if cancelled {
+                        result.yield_to_client = true;
+                    }
                     tracing::debug!(target: "goose::state_machine", step = name, "applied step");
                     return Ok(Some(result));
                 }
@@ -225,9 +239,6 @@ impl<'a> StateMachine<'a> {
             }
 
             loop {
-                if self.cancel.is_cancelled() {
-                    break;
-                }
                 let session = session_manager.get_session(session_id, true).await?;
                 let Some(mut result) = self.step(&session, emit.clone()).await? else {
                     break;

@@ -10,9 +10,8 @@ tests.
 - [ ] Remove hidden execution state from operations. After any applied step it
   must be possible to discard the machine, reconstruct the same pipeline from
   the persisted session, and produce the same next step. This currently fails
-  for tool-pair `batch_attempted`, retry attempts and completion, goal nudging,
-  in-memory goal and grind values, stop-hook block counts, and inference
-  entry-hook accounting.
+  for retry attempts and completion, goal nudging, in-memory goal and grind
+  values, stop-hook block counts, and inference entry-hook accounting.
 
 - [ ] Add a reconstruction test that discards and rebuilds the machine after
   every applied step in a tool-calling turn. Extend it to retries, stop-hook
@@ -28,24 +27,18 @@ tests.
   without idempotency or a durable dispatch protocol. Hooks have the same
   problem.
 
-- [ ] Notify the client when tool-pair compaction changes message visibility.
-  Persisting `SetMessageVisibility` and summaries without a replacement event
-  lets a stale client restore the old history on its next round trip
-  ([#7413](https://github.com/aaif-goose/goose/issues/7413)).
-
 - [ ] Discover nested `AGENTS.md` and `.goosehints` files from paths accessed by
   earlier tool calls. Instruction discovery must use conversation state rather
   than mutable path tracking in the prompt manager
   ([#5840](https://github.com/aaif-goose/goose/issues/5840),
   [#4336](https://github.com/aaif-goose/goose/issues/4336)).
 
-- [ ] Preserve reasoning and text when a streamed response also contains tool
+- [x] Preserve reasoning and text when a streamed response also contains tool
   calls, including malformed calls. The complete provider response must be
   persisted once and sent back to the provider once
-  ([#9675](https://github.com/aaif-goose/goose/issues/9675),
-  [#7425](https://github.com/aaif-goose/goose/issues/7425)).
+  ([#9675](https://github.com/aaif-goose/goose/issues/9675)).
 
-- [ ] Make cancellation leave a valid conversation. Every in-flight tool
+- [x] Make cancellation leave a valid conversation. Every in-flight tool
   request needs a matching interrupted response, completed work must remain
   persisted, and a later user turn must succeed
   ([#1541](https://github.com/aaif-goose/goose/issues/1541),
@@ -92,7 +85,7 @@ tests.
   [#10016](https://github.com/aaif-goose/goose/issues/10016),
   [#5140](https://github.com/aaif-goose/goose/issues/5140)).
 
-- [ ] Add a reconstruction and isolation scenario that creates a second
+- [x] Add a reconstruction and isolation scenario that creates a second
   pipeline over the same persisted session. Cover mode, provider, model,
   extension and recipe state, per-model cost, context and turn limits,
   working-directory isolation, elicitation correlation, cache usage fields,
@@ -113,14 +106,16 @@ tests.
 - [x] Let `DummyApi` gate a response so cancellation and steering can happen
   while inference is active.
 
-- [ ] Use the calculator's barrier and existing elicitation support to control
+- [x] Use the calculator's barrier and existing elicitation support to control
   completion order and cancellation without adding scripted command behavior.
 
-- [ ] Let `test_pipeline` reconstruct a pipeline around an existing
+- [x] Let `test_pipeline` reconstruct a pipeline around an existing
   `SessionManager` and session ID.
 
-- [ ] Add assertions for advertised tools, submitted system prompts,
-  `trace_output`, and terminal usage without inspecting raw event fragments.
+- [x] Add assertions for advertised tools and submitted system prompts.
+
+- [x] Add assertions for `trace_output` and terminal usage without inspecting
+  raw event fragments.
 
 ## API and Migration
 

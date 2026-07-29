@@ -1,10 +1,10 @@
 use anyhow::Result;
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
 
-use super::calculator_extension::{ADD, value};
-use super::pipeline::{self, MessageKind::Agent, test_pipeline};
+use super::calculator_extension::{value, ADD};
+use super::pipeline::{self, test_pipeline, MessageKind::Agent};
 use crate::agents::state_machine::ops_compaction::MAX_CONTEXT_ERROR_COMPACTIONS;
-use crate::context_mgmt::{TOOLCALL_SUMMARIZATION_BATCH_SIZE, compute_tool_call_cutoff};
+use crate::context_mgmt::{compute_tool_call_cutoff, TOOLCALL_SUMMARIZATION_BATCH_SIZE};
 use crate::conversation::message::{Message, MessageErrorKind};
 
 const SUMMARIZE_HISTORY: &str = "Please summarize the conversation history";
@@ -35,13 +35,11 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
     compacted.assert_message(-1, Agent, "continued after compaction");
     compacted.assert_emitted("Performing auto-compaction");
     assert_eq!(compacted.history_replacements(), 1);
-    assert!(
-        compacted
-            .session
-            .usage
-            .total_tokens
-            .is_some_and(|tokens| tokens < filled_usage)
-    );
+    assert!(compacted
+        .session
+        .usage
+        .total_tokens
+        .is_some_and(|tokens| tokens < filled_usage));
 
     let first_manual = pipeline.run(["/compact"]).await?;
     let second_manual = pipeline.run(["/compact"]).await?;
@@ -56,11 +54,9 @@ async fn proactive_and_manual_compaction_continue_with_replaced_usage() -> Resul
         .filter(|message| message.as_concat_text().trim() == "/compact")
         .collect::<Vec<_>>();
     assert_eq!(commands.len(), 2);
-    assert!(
-        commands
-            .iter()
-            .all(|message| message.is_user_visible() && !message.is_agent_visible())
-    );
+    assert!(commands
+        .iter()
+        .all(|message| message.is_user_visible() && !message.is_agent_visible()));
 
     let continued = pipeline.run(["after manual compaction"]).await?;
     continued.assert_message(-1, Agent, "still working");
@@ -78,13 +74,11 @@ async fn a_failed_compact_command_reports_the_error_and_keeps_working() -> Resul
     let failed = pipeline.run(["/compact"]).await?;
     assert_eq!(failed.history_replacements(), 0);
     failed.assert_message(-1, Agent, "summarizer offline");
-    assert!(
-        failed
-            .conversation()
-            .messages()
-            .iter()
-            .any(|message| message.as_concat_text() == "worked")
-    );
+    assert!(failed
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "worked"));
 
     api.on("still there?").reply("still here");
     let recovered = pipeline.run(["still there?"]).await?;
@@ -188,13 +182,11 @@ async fn tool_pairs_are_compacted_only_after_the_current_turn() -> Result<()> {
             .count(),
         boundary + 1
     );
-    assert!(
-        !current_turn
-            .conversation()
-            .messages()
-            .iter()
-            .any(|message| message.as_concat_text() == "summary of the pair")
-    );
+    assert!(!current_turn
+        .conversation()
+        .messages()
+        .iter()
+        .any(|message| message.as_concat_text() == "summary of the pair"));
 
     let next_turn = pipeline.run(["carry on"]).await?;
     next_turn.assert_message(-1, Agent, "carried on");
@@ -229,8 +221,10 @@ async fn parallel_and_failed_tool_pairs_are_compacted_as_complete_messages() -> 
     let (pipeline, api) = test_pipeline().await?;
     let cutoff = compute_tool_call_cutoff(pipeline.context_limit(), pipeline::COMPACTION_THRESHOLD);
     let calls_per_message = 2;
-    let summarized_messages = TOOLCALL_SUMMARIZATION_BATCH_SIZE / calls_per_message;
-    let pairs = (cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE) / calls_per_message + 1;
+    let batches = 2;
+    let summarized_messages = batches * TOOLCALL_SUMMARIZATION_BATCH_SIZE / calls_per_message;
+    let pairs =
+        (cutoff + batches * TOOLCALL_SUMMARIZATION_BATCH_SIZE).div_ceil(calls_per_message) + 1;
 
     api.on_system(SUMMARIZE_TOOL_PAIR).reply("pair summary");
     api.on("carry on").reply("done");
@@ -283,11 +277,9 @@ async fn parallel_and_failed_tool_pairs_are_compacted_as_complete_messages() -> 
         })
         .collect::<Vec<_>>();
     assert_eq!(failed_pair.len(), 2);
-    assert!(
-        failed_pair
-            .iter()
-            .all(|message| message.is_user_visible() && !message.is_agent_visible())
-    );
+    assert!(failed_pair
+        .iter()
+        .all(|message| message.is_user_visible() && !message.is_agent_visible()));
     for message in persisted
         .messages()
         .iter()
@@ -341,13 +333,11 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
     let compacted = pipeline.run(["continue"]).await?;
     compacted.assert_message(-1, Agent, "continued");
     assert_eq!(compacted.history_replacements(), 1);
-    assert!(
-        compacted
-            .session
-            .usage
-            .total_tokens
-            .is_some_and(|tokens| tokens < filled_usage)
-    );
+    assert!(compacted
+        .session
+        .usage
+        .total_tokens
+        .is_some_and(|tokens| tokens < filled_usage));
 
     let summarization = api
         .calls()
@@ -356,13 +346,11 @@ async fn a_small_model_compacts_a_large_tool_result_out_of_the_conversation() ->
         .expect("summarization request");
     assert!(summarization.system_contains(&large_result));
     assert!(!api.calls().last().unwrap().input_contains(&large_result));
-    assert!(
-        !compacted
-            .conversation()
-            .agent_visible_messages()
-            .iter()
-            .any(|message| message.as_concat_text().contains(&large_result))
-    );
+    assert!(!compacted
+        .conversation()
+        .agent_visible_messages()
+        .iter()
+        .any(|message| message.as_concat_text().contains(&large_result)));
 
     Ok(())
 }

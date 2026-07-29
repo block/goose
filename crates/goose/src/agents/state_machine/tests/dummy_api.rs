@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -9,6 +9,8 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 pub(super) struct ProviderFeatures {
     pub(super) reports_usage: bool,
     pub(super) preserves_thinking: bool,
+    pub(super) cache_read_tokens: Option<i32>,
+    pub(super) cache_write_tokens: Option<i32>,
 }
 
 impl Default for ProviderFeatures {
@@ -16,6 +18,8 @@ impl Default for ProviderFeatures {
         Self {
             reports_usage: true,
             preserves_thinking: false,
+            cache_read_tokens: None,
+            cache_write_tokens: None,
         }
     }
 }
@@ -369,6 +373,24 @@ impl<'a> ConfiguredResponse<'a> {
         self
     }
 
+    pub(super) fn malformed_call(
+        self,
+        name: impl Into<String>,
+        arguments: impl Into<String>,
+    ) -> Self {
+        let mut rules = self.api.state.rules.lock().unwrap();
+        let ApiResponse::Mixed { call, .. } = &mut rules[self.rule].response else {
+            panic!("malformed_call can only follow reasoning");
+        };
+        *call = Some(ApiToolCall {
+            id: String::new(),
+            name: name.into(),
+            arguments: arguments.into(),
+        });
+        drop(rules);
+        self
+    }
+
     pub(super) fn server_error(self, error: impl Into<String>) -> &'a DummyApi {
         let mut rules = self.api.state.rules.lock().unwrap();
         let response = &mut rules[self.rule].response;
@@ -432,6 +454,8 @@ impl DummyApiState {
                 input_tokens,
                 text.chars().count() as i32,
                 self.features.reports_usage,
+                self.features.cache_read_tokens,
+                self.features.cache_write_tokens,
                 None,
             )),
             ApiResponse::ToolCall {
@@ -451,6 +475,8 @@ impl DummyApiState {
                     input_tokens,
                     output_tokens,
                     self.features.reports_usage,
+                    self.features.cache_read_tokens,
+                    self.features.cache_write_tokens,
                 ))
             }
             ApiResponse::ToolCalls(calls) => {
@@ -468,6 +494,8 @@ impl DummyApiState {
                     input_tokens,
                     output_tokens,
                     self.features.reports_usage,
+                    self.features.cache_read_tokens,
+                    self.features.cache_write_tokens,
                 ))
             }
             ApiResponse::Mixed {
@@ -497,6 +525,8 @@ impl DummyApiState {
                     input_tokens,
                     output_tokens as i32,
                     self.features.reports_usage,
+                    self.features.cache_read_tokens,
+                    self.features.cache_write_tokens,
                 ))
             }
             ApiResponse::NoChoices => sse_response(no_choices_events(&id, model)),
@@ -514,6 +544,8 @@ impl DummyApiState {
                 input_tokens,
                 reply.chars().count() as i32,
                 self.features.reports_usage,
+                self.features.cache_read_tokens,
+                self.features.cache_write_tokens,
                 Some(&error),
             )),
         }
@@ -603,6 +635,8 @@ fn reply_events(
     input_tokens: i32,
     output_tokens: i32,
     include_usage: bool,
+    cache_read_tokens: Option<i32>,
+    cache_write_tokens: Option<i32>,
     error: Option<&str>,
 ) -> String {
     let mut events = String::new();
@@ -637,7 +671,14 @@ fn reply_events(
     if include_usage {
         push_event(
             &mut events,
-            usage_event(id, model, input_tokens, output_tokens),
+            usage_event(
+                id,
+                model,
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+            ),
         );
     }
     if let Some(error) = error {
@@ -671,6 +712,8 @@ fn tool_call_events(
     input_tokens: i32,
     output_tokens: i32,
     include_usage: bool,
+    cache_read_tokens: Option<i32>,
+    cache_write_tokens: Option<i32>,
 ) -> String {
     let tool_call_id = format!(
         "dummy-tool-call-{}",
@@ -687,6 +730,8 @@ fn tool_call_events(
         input_tokens,
         output_tokens,
         include_usage,
+        cache_read_tokens,
+        cache_write_tokens,
     )
 }
 
@@ -697,13 +742,22 @@ fn tool_calls_events(
     input_tokens: i32,
     output_tokens: i32,
     include_usage: bool,
+    cache_read_tokens: Option<i32>,
+    cache_write_tokens: Option<i32>,
 ) -> String {
     let mut events = String::new();
     push_tool_call_events(&mut events, id, model, calls);
     if include_usage {
         push_event(
             &mut events,
-            usage_event(id, model, input_tokens, output_tokens),
+            usage_event(
+                id,
+                model,
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+            ),
         );
     }
     events.push_str("data: [DONE]\n\n");
@@ -777,6 +831,8 @@ fn mixed_events(
     input_tokens: i32,
     output_tokens: i32,
     include_usage: bool,
+    cache_read_tokens: Option<i32>,
+    cache_write_tokens: Option<i32>,
 ) -> String {
     let mut events = String::new();
     for chunk in split_reply(reasoning) {
@@ -831,14 +887,28 @@ fn mixed_events(
     if include_usage {
         push_event(
             &mut events,
-            usage_event(id, model, input_tokens, output_tokens),
+            usage_event(
+                id,
+                model,
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+            ),
         );
     }
     events.push_str("data: [DONE]\n\n");
     events
 }
 
-fn usage_event(id: &str, model: &str, input_tokens: i32, output_tokens: i32) -> Value {
+fn usage_event(
+    id: &str,
+    model: &str,
+    input_tokens: i32,
+    output_tokens: i32,
+    cache_read_tokens: Option<i32>,
+    cache_write_tokens: Option<i32>,
+) -> Value {
     json!({
         "id": id,
         "object": "chat.completion.chunk",
@@ -847,7 +917,9 @@ fn usage_event(id: &str, model: &str, input_tokens: i32, output_tokens: i32) -> 
         "usage": {
             "prompt_tokens": input_tokens,
             "completion_tokens": output_tokens,
-            "total_tokens": input_tokens + output_tokens
+            "total_tokens": input_tokens + output_tokens,
+            "cache_read_input_tokens": cache_read_tokens,
+            "cache_creation_input_tokens": cache_write_tokens
         }
     })
 }

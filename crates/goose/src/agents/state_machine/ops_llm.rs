@@ -27,6 +27,7 @@ use tracing_futures::Instrument;
 
 const EMPTY_RESPONSE_MESSAGE: &str =
     "The model returned an empty response. Please resend your message to continue.";
+const CANCELLED_TOOL_RESPONSE: &str = "Tool call was cancelled before execution";
 
 pub(super) fn chat_span(
     provider: &dyn Provider,
@@ -150,6 +151,74 @@ impl<'a> InferenceRunner<'a> {
 impl Operation for InferenceRunner<'_> {
     fn name(&self) -> &'static str {
         "llm"
+    }
+
+    async fn cancel(
+        &self,
+        _session: &Session,
+        conversation: &Conversation,
+        result: OperationResult,
+        emit: Emitter,
+    ) -> Result<OperationResult> {
+        let mut answered = conversation
+            .messages()
+            .iter()
+            .flat_map(Message::get_tool_response_ids)
+            .map(str::to_string)
+            .collect::<std::collections::HashSet<_>>();
+        let mut requests = Vec::new();
+        let mut request_ids = std::collections::HashSet::new();
+
+        let mut collect = |message: &Message| {
+            for content in &message.content {
+                match content {
+                    MessageContent::ToolRequest(request) => {
+                        if request_ids.insert(request.id.clone()) {
+                            requests.push(request.clone());
+                        }
+                    }
+                    MessageContent::ToolResponse(response) => {
+                        answered.insert(response.id.clone());
+                    }
+                    _ => {}
+                }
+            }
+        };
+        for message in messages_since_kickoff(conversation)? {
+            collect(message);
+        }
+        if let OperationResult::Applied(step) = &result {
+            for effect in &step.effects {
+                if let StateEffect::AppendMessage(message) = effect {
+                    collect(message);
+                }
+            }
+        }
+
+        let mut response = Message::user().with_generated_id();
+        for request in requests {
+            if !answered.contains(&request.id) {
+                response.add_tool_response_with_metadata(
+                    request.id,
+                    Ok(rmcp::model::CallToolResult::error(vec![
+                        rmcp::model::Content::text(CANCELLED_TOOL_RESPONSE),
+                    ])),
+                    request.metadata.as_ref(),
+                );
+            }
+        }
+        if response.get_tool_response_ids().is_empty() {
+            return Ok(result);
+        }
+
+        emit.emit(AgentEvent::Message(response.clone())).await;
+        match result {
+            OperationResult::NotApplicable(_) => applied([response.into()]),
+            OperationResult::Applied(mut step) => {
+                step.effects.push(response.into());
+                Ok(OperationResult::Applied(step))
+            }
+        }
     }
 
     async fn run_command(
@@ -369,6 +438,7 @@ impl Inference for InferenceRunner<'_> {
             };
 
             let mut accumulator = Conversation::empty();
+            let mut response_id: Option<String> = None;
             let mut usage_effects = Vec::new();
             let mut tool_request_ids = std::collections::HashSet::new();
             loop {
@@ -390,6 +460,14 @@ impl Inference for InferenceRunner<'_> {
                             usage_effects.push(StateEffect::RecordUsage(usage));
                         }
                         if let Some(mut chunk) = msg_opt {
+                            if let Some(id) = &response_id {
+                                chunk.id = Some(id.clone());
+                            } else {
+                                if chunk.id.is_none() {
+                                    chunk = chunk.with_generated_id();
+                                }
+                                response_id = chunk.id.clone();
+                            }
                             chunk.content.retain(|content| match content {
                                 MessageContent::ToolRequest(request) => {
                                     tool_request_ids.insert(request.id.clone())

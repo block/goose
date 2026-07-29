@@ -1,6 +1,5 @@
 //! Replaces one batch of old tool request and response pairs with compact summaries.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -24,7 +23,6 @@ pub struct ToolPairCompactionOperation {
     model_config: ModelConfig,
     cutoff: usize,
     enabled: bool,
-    batch_attempted: AtomicBool,
 }
 
 impl ToolPairCompactionOperation {
@@ -39,7 +37,6 @@ impl ToolPairCompactionOperation {
             model_config,
             cutoff,
             enabled,
-            batch_attempted: AtomicBool::new(false),
         }
     }
 }
@@ -56,7 +53,7 @@ impl Operation for ToolPairCompactionOperation {
         conversation: &Conversation,
         emit: Emitter,
     ) -> Result<OperationResult> {
-        if !self.enabled || self.batch_attempted.load(Ordering::Relaxed) {
+        if !self.enabled {
             return not_applicable(emit);
         }
 
@@ -69,8 +66,6 @@ impl Operation for ToolPairCompactionOperation {
         if tool_ids.is_empty() {
             return not_applicable(emit);
         }
-        self.batch_attempted.store(true, Ordering::Relaxed);
-
         let mut effects: Vec<StateEffect> = Vec::new();
         let mut hidden_messages: std::collections::HashSet<String> = Default::default();
         for tool_id in tool_ids {

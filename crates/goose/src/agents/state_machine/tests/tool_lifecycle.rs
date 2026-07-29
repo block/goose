@@ -3,14 +3,14 @@ use rmcp::model::ElicitationAction;
 use serde_json::json;
 
 use super::calculator_extension::{
-    ADD, ADD_WITH_AUDIENCE, DIVIDE, REQUEST_VALUE, delayed_value, value,
+    delayed_value, value, ADD, ADD_WITH_AUDIENCE, DIVIDE, REQUEST_VALUE,
 };
-use super::pipeline::MAX_TURNS;
 use super::pipeline::MessageKind::{Agent, Confirmation, ToolCall, ToolResponse};
+use super::pipeline::MAX_TURNS;
 use super::test_pipeline;
 use crate::agents::tool_execution::{CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::config::GooseMode;
 use crate::config::permission::PermissionLevel;
+use crate::config::GooseMode;
 use crate::conversation::message::{Message, MessageContent};
 use crate::permission::Permission;
 
@@ -218,28 +218,65 @@ async fn execution_recovers_from_timeout_cancellation_and_filtered_output() -> R
     result.assert_message(-1, Agent, "recovered from timeout");
     assert_eq!(pipeline.calculator_total(), 0);
 
-    api.on("cancel this").call(ADD, delayed_value(10, 500));
-    let result = pipeline
-        .run_cancelled("cancel this", std::time::Duration::from_millis(20))
-        .await?;
-    result.assert_message(-1, ToolResponse, "interrupted before completing");
-    assert_eq!(pipeline.calculator_total(), 0);
+    api.on("cancel this").calls([
+        ("completed", ADD, value(1)),
+        ("cancelled", ADD, delayed_value(10, 500)),
+    ]);
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let run = pipeline.run_with_cancel("cancel this", cancel.clone());
+    let cancel_after_result = async {
+        pipeline.wait_for_calculator_result().await;
+        cancel.cancel();
+    };
+    let (result, ()) = tokio::join!(run, cancel_after_result);
+    let result = result?;
+    result.assert_message(-2, ToolResponse, "result: 1");
+    result.assert_message(-1, ToolResponse, "calculator call cancelled");
+    assert_eq!(pipeline.calculator_total(), 1);
 
     api.on("continue after cancellation").call(ADD, value(1));
-    api.on("result: 1").reply("continued");
+    api.on("result: 2").reply("continued");
     let result = pipeline.run(["continue after cancellation"]).await?;
-    result.assert_message(-2, ToolResponse, "result: 1");
+    result.assert_message(-2, ToolResponse, "result: 2");
     result.assert_message(-1, Agent, "continued");
 
     api.on("show the result once")
         .call(ADD_WITH_AUDIENCE, value(1));
-    api.on("result: 2").reply("shown once");
+    api.on("result: 3").reply("shown once");
     let result = pipeline.run(["show the result once"]).await?;
     result.assert_message(-1, Agent, "shown once");
     assert_eq!(
-        api.calls().last().unwrap().input_occurrences("result: 2"),
+        api.calls().last().unwrap().input_occurrences("result: 3"),
         1
     );
+
+    pipeline
+        .seed([
+            Message::user().with_text("persisted unfinished call"),
+            Message::assistant().with_tool_request(
+                "unfinished",
+                Ok(rmcp::model::CallToolRequestParams::new(ADD)
+                    .with_arguments(value(1).as_object().unwrap().clone())),
+            ),
+        ])
+        .await?;
+    let pipeline = pipeline.reconstruct().await?;
+    let result = pipeline.resume_cancelled().await?;
+    result.assert_message(-1, ToolResponse, "cancelled before execution");
+    assert_eq!(pipeline.calculator_total(), 0);
+    let request_ids = result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(Message::get_tool_request_ids)
+        .collect::<std::collections::BTreeSet<_>>();
+    let response_ids = result
+        .conversation()
+        .messages()
+        .iter()
+        .flat_map(Message::get_tool_response_ids)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(response_ids, request_ids);
 
     Ok(())
 }

@@ -1,16 +1,19 @@
 use anyhow::Result;
 
-use super::calculator_extension::{ADD, ADD_VALUES, named_values, value};
+use super::calculator_extension::{named_values, value, ADD, ADD_VALUES};
 use super::dummy_api::ProviderFeatures;
-use super::pipeline::MessageKind::{Agent, Thinking, ToolCall, ToolResponse};
 use super::pipeline::test_pipeline_with;
-use crate::conversation::message::Message;
+use super::pipeline::MessageKind::{Agent, Thinking, ToolCall, ToolResponse};
+use crate::conversation::fix_conversation;
+use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::Conversation;
 
 #[tokio::test]
 async fn provider_lifecycle() -> Result<()> {
     let (mut pipeline, api) = test_pipeline_with(ProviderFeatures {
         reports_usage: false,
         preserves_thinking: true,
+        ..ProviderFeatures::default()
     })
     .await?;
     pipeline
@@ -43,11 +46,9 @@ async fn provider_lifecycle() -> Result<()> {
 
     let calls = api.calls();
     assert!(calls[0].input_has_image("image/png", image_data));
-    assert!(
-        calls[..2]
-            .iter()
-            .all(|call| call.system_contains("CUSTOM_SYSTEM_PROMPT"))
-    );
+    assert!(calls[..2]
+        .iter()
+        .all(|call| call.system_contains("CUSTOM_SYSTEM_PROMPT")));
     assert_eq!(
         calls[1].input_occurrences("I should inspect the image before calculating."),
         1
@@ -59,11 +60,66 @@ async fn provider_lifecycle() -> Result<()> {
     assert_eq!(calls[1].input_occurrences(ADD), 1);
     let schema = calls[0].tool_schema(ADD_VALUES).expect("add_values schema");
     assert!(schema.get("additionalProperties").is_some());
+    assert!(schema
+        .get("properties")
+        .and_then(serde_json::Value::as_object)
+        .is_none_or(serde_json::Map::is_empty));
+
+    api.on("make a malformed mixed call")
+        .reasoning("I should preserve this reasoning.")
+        .reply("I will try the tool.")
+        .malformed_call(ADD, r#"{"value":"#);
+    api.on("could not be parsed")
+        .reply("I recovered from the malformed call.");
+    let result = pipeline.run(["make a malformed mixed call"]).await?;
+    result.assert_message(-2, ToolResponse, "could not be parsed");
+    result.assert_message(-1, Agent, "I recovered from the malformed call.");
+
+    let mixed_response = result
+        .conversation()
+        .messages()
+        .iter()
+        .find(|message| {
+            message.content.iter().any(
+                |content| matches!(content, MessageContent::ToolRequest(request) if request.tool_call.is_err()),
+            )
+        })
+        .expect("mixed response with malformed tool call");
+    assert_eq!(
+        mixed_response
+            .content
+            .iter()
+            .filter_map(|content| match content {
+                MessageContent::Thinking(thinking) => Some(thinking.thinking.as_str()),
+                _ => None,
+            })
+            .collect::<String>(),
+        "I should preserve this reasoning."
+    );
+    assert_eq!(
+        mixed_response
+            .content
+            .iter()
+            .filter_map(|content| match content {
+                MessageContent::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<String>(),
+        "I will try the tool."
+    );
+    let calls = api.calls();
+    let recovery_call = calls.last().expect("malformed-call recovery request");
+    assert_eq!(
+        recovery_call.input_occurrences("I should preserve this reasoning."),
+        1
+    );
+    assert_eq!(recovery_call.input_occurrences("I will try the tool."), 1);
+    let messages = result.conversation().messages();
+    let provider_input = Conversation::new_unvalidated(messages[..messages.len() - 1].to_vec());
+    let (_, repairs) = fix_conversation(provider_input);
     assert!(
-        schema
-            .get("properties")
-            .and_then(serde_json::Value::as_object)
-            .is_none_or(serde_json::Map::is_empty)
+        repairs.is_empty(),
+        "state-machine conversation needed repairs: {repairs:?}"
     );
 
     api.on("add named values")
@@ -119,18 +175,15 @@ async fn provider_lifecycle() -> Result<()> {
         .reply("recovered from server error");
     let result = pipeline.run(["after server error"]).await?;
     result.assert_message(-1, Agent, "recovered from server error");
-    assert!(
-        result
-            .session
-            .usage
-            .total_tokens
-            .is_some_and(|total| total > first_total)
-    );
-    assert!(
-        api.calls()
-            .iter()
-            .all(|call| call.system_contains("CUSTOM_SYSTEM_PROMPT"))
-    );
+    assert!(result
+        .session
+        .usage
+        .total_tokens
+        .is_some_and(|total| total > first_total));
+    assert!(api
+        .calls()
+        .iter()
+        .all(|call| call.system_contains("CUSTOM_SYSTEM_PROMPT")));
 
     pipeline.clear_system_prompt_override().await;
     pipeline = pipeline.with_model("gpt-4.1").await;

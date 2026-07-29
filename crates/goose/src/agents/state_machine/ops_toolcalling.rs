@@ -774,7 +774,6 @@ impl Operation for ToolExecutionOperation<'_> {
         loop {
             tokio::select! {
                 biased;
-                _ = emit.cancelled() => break,
                 item = combined.next() => {
                     let Some((request_id, item)) = item else { break };
                     match item {
@@ -802,7 +801,8 @@ impl Operation for ToolExecutionOperation<'_> {
                             effects.push(msg.into());
                         }
                     }
-                }
+                },
+                _ = emit.cancelled() => break,
             }
         }
 
