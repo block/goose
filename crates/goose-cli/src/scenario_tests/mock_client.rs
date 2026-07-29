@@ -122,6 +122,7 @@ impl McpClientTrait for MockClient {
             prompts: vec![],
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

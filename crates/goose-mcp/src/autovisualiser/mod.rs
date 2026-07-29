@@ -4,7 +4,7 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
-        ListResourcesResult, Meta, PaginatedRequestParams, ReadResourceRequestParams,
+        ListResourcesResult, MetaObject, PaginatedRequestParams, ReadResourceRequestParams,
         ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
         ServerInfo,
     },
@@ -19,8 +19,8 @@ use std::path::PathBuf;
 const MCP_APPS_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
 /// Build a Meta object with `_meta.ui.resourceUri` for linking a tool to a UI resource.
-fn ui_resource_meta(uri: &str) -> Meta {
-    let mut meta = Meta::new();
+fn ui_resource_meta(uri: &str) -> MetaObject {
+    let mut meta = MetaObject::new();
     meta.0
         .insert("ui".to_string(), json!({ "resourceUri": uri }));
     meta
@@ -706,7 +706,7 @@ impl ServerHandler for AutoVisualiserRouter {
     ) -> Result<ReadResourceResponse, ErrorData> {
         let html = self.get_template_html(&params.uri)?;
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0
             .insert("ui".to_string(), json!({ "prefersBorder": true }));
 

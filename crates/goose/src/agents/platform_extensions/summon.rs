@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    Meta, ServerCapabilities, ServerNotification, Tool,
+    MetaObject, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -888,7 +888,7 @@ impl SummonClient {
 
         if is_session_id(name) {
             let task_result = self.handle_load_task_result(name, cancel, peek).await?;
-            let mut meta = Meta::new();
+            let mut meta = MetaObject::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(name.to_string()),
@@ -1270,7 +1270,7 @@ impl SummonClient {
 
         if params.r#async {
             let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
-            let mut meta = Meta::new();
+            let mut meta = MetaObject::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(task_id),
@@ -1326,7 +1326,7 @@ impl SummonClient {
         })
         .await;
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0.insert(
             "subagent_session_id".to_string(),
             serde_json::Value::String(subagent_session_id),

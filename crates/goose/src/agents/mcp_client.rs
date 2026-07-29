@@ -2,16 +2,16 @@ use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
-#[expect(deprecated)]
-use rmcp::model::{
-    CreateElicitationRequestParams, CreateElicitationResult, ListRootsResult,
-    LoggingMessageNotification, Root, SamplingMessageContent,
-};
 /// MCP client implementation for Goose
 #[expect(deprecated)]
 use rmcp::model::{CreateMessageRequestParams, CreateMessageResult, SamplingMessage};
+#[expect(deprecated)]
 use rmcp::model::{
-    ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, Meta,
+    ElicitRequestParams, ElicitResult, ListRootsResult, LoggingMessageNotification, Root,
+    SamplingMessageContentBlock,
+};
+use rmcp::model::{
+    ElicitationAction, ErrorCode, ExtensionCapabilities, Extensions, JsonObject, MetaObject,
 };
 use rmcp::{
     model::{
@@ -230,7 +230,7 @@ impl GooseClient {
     }
 
     fn session_id_from_extensions(extensions: &Extensions) -> Option<String> {
-        let meta = extensions.get::<Meta>()?;
+        let meta = extensions.get::<MetaObject>()?;
         meta.0
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case(SESSION_ID_HEADER))
@@ -239,7 +239,7 @@ impl GooseClient {
     }
 
     fn tool_call_request_id_from_extensions(extensions: &Extensions) -> Option<String> {
-        let meta = extensions.get::<Meta>()?;
+        let meta = extensions.get::<MetaObject>()?;
         meta.0
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case(TOOL_CALL_REQUEST_ID_HEADER))
@@ -448,18 +448,18 @@ impl ClientHandler for GooseClient {
                 if let Some(content) = response.content.first() {
                     match content {
                         crate::conversation::message::MessageContent::Text(text) => {
-                            SamplingMessageContent::text(&text.text)
+                            SamplingMessageContentBlock::text(&text.text)
                         }
                         crate::conversation::message::MessageContent::Image(img) => {
-                            SamplingMessageContent::Image(rmcp::model::ImageContent::new(
+                            SamplingMessageContentBlock::Image(rmcp::model::ImageContent::new(
                                 img.data.clone(),
                                 img.mime_type.clone(),
                             ))
                         }
-                        _ => SamplingMessageContent::text(""),
+                        _ => SamplingMessageContentBlock::text(""),
                     }
                 } else {
-                    SamplingMessageContent::text("")
+                    SamplingMessageContentBlock::text("")
                 },
             ),
             usage.model,
@@ -467,12 +467,11 @@ impl ClientHandler for GooseClient {
         .with_stop_reason(CreateMessageResult::STOP_REASON_END_TURN))
     }
 
-    #[expect(deprecated)]
     async fn create_elicitation(
         &self,
-        request: CreateElicitationRequestParams,
+        request: ElicitRequestParams,
         context: RequestContext<RoleClient>,
-    ) -> Result<CreateElicitationResult, ErrorData> {
+    ) -> Result<ElicitResult, ErrorData> {
         let session_id = self
             .resolve_session_id(&context.extensions)
             .await
@@ -487,7 +486,7 @@ impl ClientHandler for GooseClient {
             self.resolve_tool_call_request_id(&session_id, &context.extensions)?;
 
         let (message, schema_value) = match &request {
-            CreateElicitationRequestParams::FormElicitationParams {
+            ElicitRequestParams::FormElicitationParams {
                 message,
                 requested_schema,
                 ..
@@ -501,7 +500,7 @@ impl ClientHandler for GooseClient {
                 })?;
                 (message.clone(), schema_value)
             }
-            CreateElicitationRequestParams::UrlElicitationParams { message, url, .. } => {
+            ElicitRequestParams::UrlElicitationParams { message, url, .. } => {
                 (message.clone(), serde_json::json!({ "url": url }))
             }
             _ => (String::new(), serde_json::json!({})),
@@ -518,14 +517,10 @@ impl ClientHandler for GooseClient {
             .await
             .map(|response| match response {
                 ElicitationOutcome::Accept(user_data) => {
-                    CreateElicitationResult::new(ElicitationAction::Accept).with_content(user_data)
+                    ElicitResult::new(ElicitationAction::Accept).with_content(user_data)
                 }
-                ElicitationOutcome::Decline => {
-                    CreateElicitationResult::new(ElicitationAction::Decline)
-                }
-                ElicitationOutcome::Cancel => {
-                    CreateElicitationResult::new(ElicitationAction::Cancel)
-                }
+                ElicitationOutcome::Decline => ElicitResult::new(ElicitationAction::Decline),
+                ElicitationOutcome::Cancel => ElicitResult::new(ElicitationAction::Cancel),
             })
             .map_err(|e| {
                 ErrorData::new(
@@ -618,7 +613,16 @@ impl McpClient {
         );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
-        let server_info = client.peer_info().map(|info| (*info).clone());
+        let server_info = client.peer_info().map(|info| {
+            let mut initialize_result = InitializeResult::new(info.capabilities.clone())
+                .with_protocol_version(info.protocol_version.clone());
+            if let Some(server_info) = &info.server_info {
+                initialize_result = initialize_result.with_server_info(server_info.clone());
+            }
+            initialize_result.instructions = info.instructions.clone();
+            initialize_result.meta = info.meta.clone();
+            initialize_result
+        });
 
         Ok(Self {
             client: Mutex::new(client),
@@ -897,7 +901,7 @@ fn inject_session_context_into_extensions(
     let working_dir = working_dir.filter(|dir| !dir.is_empty());
     let tool_call_request_id = tool_call_request_id.filter(|id| !id.is_empty());
     let mut meta_map = extensions
-        .get::<Meta>()
+        .get::<MetaObject>()
         .map(|meta| meta.0.clone())
         .unwrap_or_default();
 
@@ -929,7 +933,7 @@ fn inject_session_context_into_extensions(
         );
     }
 
-    extensions.insert(Meta(meta_map));
+    extensions.insert(MetaObject(meta_map));
     extensions
 }
 
@@ -1203,7 +1207,7 @@ mod tests {
         let session_id = "test-session-id";
         let mut extensions = Extensions::new();
         extensions.insert(
-            serde_json::from_value::<Meta>(json!({
+            serde_json::from_value::<MetaObject>(json!({
                 "Goose-Session-Id": "old-session-id",
                 "other-key": "preserve-me"
             }))
@@ -1214,7 +1218,7 @@ mod tests {
         let request = inject_session_context_into_request(request, Some(session_id), None, None);
         let extensions = request_extensions(&request).expect("request should have extensions");
         let meta = extensions
-            .get::<Meta>()
+            .get::<MetaObject>()
             .expect("extensions should contain meta");
 
         assert_eq!(
@@ -1239,7 +1243,7 @@ mod tests {
             None,
             None,
         );
-        let mcp_meta = extensions.get::<Meta>().unwrap();
+        let mcp_meta = extensions.get::<MetaObject>().unwrap();
 
         assert_eq!(
             &mcp_meta.0,
@@ -1282,7 +1286,7 @@ mod tests {
 
         let mut extensions = Extensions::new();
         extensions.insert(
-            from_value::<Meta>(json!({
+            from_value::<MetaObject>(json!({
                 SESSION_ID_HEADER: "old-session-1",
                 "Agent-Session-Id": "old-session-2",
                 "other-key": "preserve-me"
@@ -1291,7 +1295,7 @@ mod tests {
         );
 
         let extensions = inject_session_context_into_extensions(extensions, session_id, None, None);
-        let mcp_meta = extensions.get::<Meta>().unwrap();
+        let mcp_meta = extensions.get::<MetaObject>().unwrap();
 
         assert_eq!(&mcp_meta.0, expected_meta.as_object().unwrap());
     }
@@ -1308,7 +1312,7 @@ mod tests {
             Some(tool_call_request_id),
         );
         let call_meta = request_extensions(&call_request)
-            .and_then(|extensions| extensions.get::<Meta>())
+            .and_then(|extensions| extensions.get::<MetaObject>())
             .expect("call request should have meta");
         assert_eq!(
             call_meta.0.get(TOOL_CALL_REQUEST_ID_HEADER),
@@ -1322,7 +1326,7 @@ mod tests {
             Some(tool_call_request_id),
         );
         let tools_meta = request_extensions(&tools_request)
-            .and_then(|extensions| extensions.get::<Meta>())
+            .and_then(|extensions| extensions.get::<MetaObject>())
             .expect("list tools request should have meta");
         assert!(!tools_meta.0.contains_key(TOOL_CALL_REQUEST_ID_HEADER));
     }
