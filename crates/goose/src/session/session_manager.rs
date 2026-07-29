@@ -617,14 +617,13 @@ impl SessionManager {
             .await
     }
 
-    pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
+    pub async fn update_message_metadata<F>(&self, id: &str, message_id: &str, f: F) -> Result<()>
     where
         F: FnOnce(
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
-        Self::instance()
-            .storage
+        self.storage
             .update_message_metadata(id, message_id, f)
             .await
     }

@@ -1,4 +1,4 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType,
@@ -12,8 +12,7 @@ use crate::formats::openai::{
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use anyhow::{anyhow, Error};
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -52,32 +51,32 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
+            let abridged: Vec<_> = call_result.content.to_vec();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();
 
             for content in abridged {
                 match content {
-                    RawContent::Image(image) => {
-                        tool_content.push(Content::text(
+                    ContentBlock::Image(image) => {
+                        tool_content.push(ContentBlock::text(
                             "This tool result included an image that is uploaded in the next message.",
                         ));
                         image_messages.push(DatabricksMessage {
                             role: "user".to_string(),
-                            content: [convert_image(&image.no_annotation(), image_format)].into(),
+                            content: [convert_image(&image, image_format)].into(),
                             tool_calls: None,
                             tool_call_id: None,
                         });
                     }
-                    RawContent::Resource(resource) => {
+                    ContentBlock::Resource(resource) => {
                         let text = match &resource.resource {
                             ResourceContents::TextResourceContents { text, .. } => text.clone(),
                             _ => String::new(),
                         };
-                        tool_content.push(Content::text(text));
+                        tool_content.push(ContentBlock::text(text));
                     }
-                    _ => tool_content.push(content.no_annotation()),
+                    _ => tool_content.push(content),
                 }
             }
 
@@ -133,14 +132,14 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
 
         for content in &message.content {
             match content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text.text.is_empty() {
                         let (items, multi) = format_text_content(&text.text, image_format);
                         content_array.extend(items);
                         has_multiple_content |= multi;
                     }
                 }
-                MessageContent::Thinking(content) => {
+                MessageContentBlock::Thinking(content) => {
                     has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
@@ -151,14 +150,14 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }]
                     }));
                 }
-                MessageContent::RedactedThinking(content) => {
+                MessageContentBlock::RedactedThinking(content) => {
                     has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
                         "summary": [{"type": "summary_encrypted_text", "data": content.data}]
                     }));
                 }
-                MessageContent::ToolRequest(request) => {
+                MessageContentBlock::ToolRequest(request) => {
                     has_tool_calls = true;
                     match &request.tool_call {
                         Ok(tool_call) => {
@@ -207,7 +206,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::ToolResponse(response) => {
+                MessageContentBlock::ToolResponse(response) => {
                     for msg in format_tool_response(response, image_format) {
                         if msg.role == "user" {
                             pending_image_messages.push(msg);
@@ -216,10 +215,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         }
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     content_array.push(convert_image(image, image_format));
                 }
-                MessageContent::FrontendToolRequest(req) => {
+                MessageContentBlock::FrontendToolRequest(req) => {
                     let text = match &req.tool_call {
                         Ok(tool_call) => format!(
                             "Frontend tool request: {} ({})",
@@ -230,9 +229,9 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     };
                     content_array.push(json!({"type": "text", "text": text}));
                 }
-                MessageContent::SystemNotification(_)
-                | MessageContent::ToolConfirmationRequest(_)
-                | MessageContent::ActionRequired(_) => {}
+                MessageContentBlock::SystemNotification(_)
+                | MessageContentBlock::ToolConfirmationRequest(_)
+                | MessageContentBlock::ActionRequired(_) => {}
             }
         }
 
@@ -351,7 +350,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
             match content_item.get("type").and_then(|t| t.as_str()) {
                 Some("text") => {
                     if let Some(text) = content_item.get("text").and_then(|t| t.as_str()) {
-                        content.push(MessageContent::text(text));
+                        content.push(MessageContentBlock::text(text));
                     }
                 }
                 Some("reasoning") => {
@@ -369,12 +368,12 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                         .get("signature")
                                         .and_then(|s| s.as_str())
                                         .unwrap_or_default();
-                                    content.push(MessageContent::thinking(text, signature));
+                                    content.push(MessageContentBlock::thinking(text, signature));
                                 }
                                 Some("summary_encrypted_text") => {
                                     if let Some(data) = summary.get("data").and_then(|d| d.as_str())
                                     {
-                                        content.push(MessageContent::redacted_thinking(data));
+                                        content.push(MessageContentBlock::redacted_thinking(data));
                                     }
                                 }
                                 _ => continue,
@@ -387,7 +386,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         }
     } else if let Some(text) = original.get("content").and_then(|t| t.as_str()) {
         // Handle legacy single string content
-        content.push(MessageContent::text(text));
+        content.push(MessageContentBlock::text(text));
     }
 
     // Handle tool calls
@@ -422,11 +421,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         )),
                         data: None,
                     };
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContentBlock::tool_request(id, Err(error)));
                 } else {
                     match crate::json::parse_tool_arguments(&arguments_str) {
                         Some(params) if params.is_object() => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
                                     .with_arguments(object(params))),
@@ -444,7 +443,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 )),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContentBlock::tool_request(id, Err(error)));
                         }
                         None => {
                             let message_text =
@@ -459,7 +458,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 message: Cow::from(message_text),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContentBlock::tool_request(id, Err(error)));
                         }
                     }
                 }
@@ -772,7 +771,7 @@ mod tests {
             ),
         ];
 
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[2].content[0] {
             &request.id
         } else {
             panic!("should be tool request");
@@ -780,7 +779,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let as_value =
@@ -808,7 +807,7 @@ mod tests {
             Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
         )];
 
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[0].content[0] {
             &request.id
         } else {
             panic!("should be tool request");
@@ -816,7 +815,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let as_value =
@@ -928,7 +927,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
         } else {
             panic!("Expected Text content");
@@ -944,7 +943,7 @@ mod tests {
         let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
@@ -963,7 +962,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_REQUEST,
@@ -989,7 +988,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -1018,7 +1017,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -1048,7 +1047,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({})));
@@ -1366,14 +1365,14 @@ mod tests {
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "Test thinking content");
             assert_eq!(thinking.signature, "test-signature");
         } else {
             panic!("Expected Thinking content");
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Regular text content");
         } else {
             panic!("Expected Text content");
@@ -1413,13 +1412,13 @@ mod tests {
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
+        if let MessageContentBlock::RedactedThinking(redacted) = &message.content[0] {
             assert_eq!(redacted.data, "E23sQFCkYIARgCKkATCHitsdf327Ber3v4NYUq2");
         } else {
             panic!("Expected RedactedThinking content");
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Regular text content");
         } else {
             panic!("Expected Text content");
@@ -1842,14 +1841,14 @@ mod tests {
             Message::user()
                 .with_tool_response(
                     "id1",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data1".to_string(),
                         "image/png".to_string(),
                     )])),
                 )
                 .with_tool_response(
                     "id2",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data2".to_string(),
                         "image/png".to_string(),
                     )])),
@@ -1877,11 +1876,13 @@ mod tests {
             Message::user()
                 .with_tool_response(
                     "id1",
-                    Ok(CallToolResult::success(vec![Content::text("text result")])),
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        "text result",
+                    )])),
                 )
                 .with_tool_response(
                     "id2",
-                    Ok(CallToolResult::success(vec![Content::image(
+                    Ok(CallToolResult::success(vec![ContentBlock::image(
                         "base64data".to_string(),
                         "image/png".to_string(),
                     )])),

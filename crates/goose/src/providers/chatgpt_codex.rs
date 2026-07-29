@@ -18,13 +18,12 @@ use goose_providers::formats::openai_responses::responses_api_to_streaming_messa
 use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
-use rmcp::model::{RawContent, Role, Tool};
+use rmcp::model::{ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
@@ -178,7 +177,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                                 .content
                                 .iter()
                                 .filter_map(|c| {
-                                    if let RawContent::Text(t) = c.deref() {
+                                    if let ContentBlock::Text(t) = c {
                                         Some(t.text.clone())
                                     } else {
                                         None
@@ -1050,7 +1049,7 @@ mod tests {
     use crate::conversation::message::Message;
     use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
-    use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
+    use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData};
     use rmcp::object;
     use test_case::test_case;
     use wiremock::matchers::{body_string_contains, method, path};
@@ -1136,7 +1135,7 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call-1",
-                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("tool output")])),
             ),
             Message::assistant().with_text("assistant follow-up"),
         ],
@@ -1158,7 +1157,7 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "call-1",
-                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("tool output")])),
             ),
             Message::assistant().with_text("assistant follow-up"),
         ],

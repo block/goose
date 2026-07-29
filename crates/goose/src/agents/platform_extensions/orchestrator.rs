@@ -15,7 +15,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::StreamExt;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ServerCapabilities, Tool,
 };
 use schemars::{schema_for, JsonSchema};
@@ -203,7 +203,7 @@ impl OrchestratorClient {
         sessions.truncate(limit);
 
         if sessions.is_empty() {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 "No sessions found.",
             )]));
         }
@@ -242,7 +242,7 @@ impl OrchestratorClient {
             ));
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             lines.join("\n"),
         )]))
     }
@@ -324,7 +324,7 @@ impl OrchestratorClient {
             }
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             output.join("\n"),
         )]))
     }
@@ -438,7 +438,7 @@ impl OrchestratorClient {
             .await
             .map_err(|e| format!("Failed to set provider on new agent: {}", e))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Started agent session '{}' with ID: {}\n\nUse send_message with this session_id to interact with it.",
             name, session.id
         ))]))
@@ -544,11 +544,11 @@ impl OrchestratorClient {
         }
 
         if response_parts.is_empty() {
-            Ok(CallToolResult::success(vec![Content::text(
+            Ok(CallToolResult::success(vec![ContentBlock::text(
                 "Agent completed without producing text output.",
             )]))
         } else {
-            Ok(CallToolResult::success(vec![Content::text(format!(
+            Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                 "## Response from session {}\n\n{}",
                 session_id,
                 response_parts.join("\n\n")
@@ -570,7 +570,7 @@ impl OrchestratorClient {
             .await
             .map_err(|e| format!("Failed to interrupt session '{}': {}", session_id, e))?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Interrupted agent session '{}'.",
             session_id
         ))]))
@@ -650,7 +650,7 @@ impl McpClientTrait for OrchestratorClient {
 
         match result {
             Ok(result) => Ok(result),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 error
             ))])),
@@ -682,18 +682,14 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role};
+    use rmcp::model::{Annotations, Role, TextContent};
 
     #[test]
     fn first_last_projection_drops_hidden_endpoints_and_content() {
         let user_only = |text: &str| {
             MessageContent::Text(
-                RawTextContent {
-                    text: text.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::User]),
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
             )
         };
         let conversation = Conversation::new_unvalidated([

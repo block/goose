@@ -7,7 +7,7 @@ use std::pin::Pin;
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
     conversation::{
-        message::{Message, MessageContent},
+        message::{Message, MessageContentBlock},
         token_usage::{ProviderUsage, Usage},
     },
     errors::ProviderError,
@@ -343,9 +343,17 @@ pub async fn collect_stream(
                         match (&mut prev.content.last_mut(), &new_content) {
                             // Coalesce consecutive text blocks
                             (
-                                Some(MessageContent::Text(last_text)),
-                                MessageContent::Text(new_text),
-                            ) if last_text.audience() == new_text.audience() => {
+                                Some(MessageContentBlock::Text(last_text)),
+                                MessageContentBlock::Text(new_text),
+                            ) if last_text
+                                .annotations
+                                .as_ref()
+                                .and_then(|a| a.audience.as_ref())
+                                == new_text
+                                    .annotations
+                                    .as_ref()
+                                    .and_then(|a| a.audience.as_ref()) =>
+                            {
                                 last_text.text.push_str(&new_text.text);
                             }
                             _ => {
@@ -476,10 +484,14 @@ pub trait Provider: Send + Sync {
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
             .filter_map(|model| {
-                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
-
-                let (provider, model_name) = canonical_id.split_once('/')?;
-                let canonical_model = registry.get(provider, model_name)?;
+                let canonical_model = map_to_canonical_model(provider_name, model, registry)
+                    .and_then(|canonical_id| {
+                        let (provider, model_name) = canonical_id.split_once('/')?;
+                        registry.get(provider, model_name)
+                    });
+                let Some(canonical_model) = canonical_model else {
+                    return Some((model.clone(), None));
+                };
 
                 if !canonical_model
                     .modalities
@@ -599,17 +611,42 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    fn content_from_str(s: String) -> MessageContent {
+    struct ModelInventoryProvider {
+        models: Vec<String>,
+    }
+
+    #[async_trait]
+    impl Provider for ModelInventoryProvider {
+        fn get_name(&self) -> &str {
+            "xai"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unimplemented!()
+        }
+
+        async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+            Ok(self.models.clone())
+        }
+    }
+
+    fn content_from_str(s: String) -> MessageContentBlock {
         if let Some(img_data) = s.strip_prefix("*img:") {
-            MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
+            MessageContentBlock::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
             let tool_call = Ok(
                 rmcp::model::CallToolRequestParams::new(tool_name.to_string())
                     .with_arguments(serde_json::Map::new()),
             );
-            MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
+            MessageContentBlock::tool_request(format!("tool_{}", tool_name), tool_call)
         } else {
-            MessageContent::text(s)
+            MessageContentBlock::text(s)
         }
     }
 
@@ -632,9 +669,9 @@ mod tests {
         msg.content
             .iter()
             .map(|c| match c {
-                MessageContent::Text(t) => t.text.clone(),
-                MessageContent::Image(_) => "*img".to_string(),
-                MessageContent::ToolRequest(tr) => {
+                MessageContentBlock::Text(t) => t.text.clone(),
+                MessageContentBlock::Image(_) => "*img".to_string(),
+                MessageContentBlock::ToolRequest(tr) => {
                     if let Ok(call) = &tr.tool_call {
                         format!("*tool:{}", call.name)
                     } else {
@@ -701,16 +738,12 @@ mod tests {
     #[tokio::test]
     async fn test_collect_stream_preserves_text_audience_boundaries() {
         use futures::stream;
-        use rmcp::model::{AnnotateAble, RawTextContent, Role};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let message = |text: &str, audience| {
-            Message::assistant().with_content(MessageContent::Text(
-                RawTextContent {
-                    text: text.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![audience]),
+            Message::assistant().with_content(MessageContentBlock::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![audience])),
             ))
         };
         let stream = stream::iter([
@@ -723,6 +756,23 @@ mod tests {
         assert_eq!(message.content.len(), 2);
         assert_eq!(message.user_visible_content().as_concat_text(), "public");
         assert_eq!(message.agent_visible_content().as_concat_text(), "private");
+    }
+
+    #[tokio::test]
+    async fn recommended_models_preserve_unknown_future_models() {
+        let provider = ModelInventoryProvider {
+            models: vec![
+                "grok-4.5".to_string(),
+                "grok-future-unlisted".to_string(),
+                "grok-4.20-multi-agent".to_string(),
+            ],
+        };
+
+        let models = provider.fetch_recommended_models(false).await.unwrap();
+
+        assert!(models.contains(&"grok-4.5".to_string()));
+        assert!(models.contains(&"grok-future-unlisted".to_string()));
+        assert!(!models.contains(&"grok-4.20-multi-agent".to_string()));
     }
 
     #[test]

@@ -404,15 +404,6 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
   return undefined;
 }
 
-export function getToolConfirmationId(
-  content: ActionRequired & { type: 'actionRequired' }
-): string | undefined {
-  if (content.data.actionType === 'toolConfirmation') {
-    return content.data.id;
-  }
-  return undefined;
-}
-
 export function getPendingToolConfirmationIds(messages: Message[]): Set<string> {
   const pendingIds = new Set<string>();
   const respondedIds = new Set<string>();
@@ -441,9 +432,4 @@ export function getElicitationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'elicitation'
   );
-}
-
-export function hasCompletedToolCalls(message: Message): boolean {
-  const toolRequests = getToolRequests(message);
-  return toolRequests.length > 0;
 }

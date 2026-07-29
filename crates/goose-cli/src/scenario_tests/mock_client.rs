@@ -4,7 +4,7 @@
 use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
     model::{
-        CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
+        CallToolResult, ContentBlock, ErrorData, GetPromptResult, ListPromptsResult,
         ListResourcesResult, ListToolsResult, ReadResourceResult, ServerNotification, Tool,
     },
     object,
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio_util::sync::CancellationToken;
 
-type Handler = Box<dyn Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync>;
+type Handler = Box<dyn Fn(&Value) -> Result<Vec<ContentBlock>, ErrorData> + Send + Sync>;
 
 pub struct MockClient {
     tools: HashMap<String, Tool>,
@@ -31,7 +31,7 @@ impl MockClient {
 
     pub(crate) fn add_tool<F>(mut self, tool: Tool, handler: F) -> Self
     where
-        F: Fn(&Value) -> Result<Vec<Content>, ErrorData> + Send + Sync + 'static,
+        F: Fn(&Value) -> Result<Vec<ContentBlock>, ErrorData> + Send + Sync + 'static,
     {
         let tool_name = tool.name.to_string();
         self.tools.insert(tool_name.clone(), tool);
@@ -162,7 +162,7 @@ pub fn weather_client() -> MockClient {
             .and_then(|v| v.as_str())
             .unwrap_or("unknown location");
 
-        Ok(vec![Content::text(format!(
+        Ok(vec![ContentBlock::text(format!(
             "The weather in {} is {} and 18°C",
             location, WEATHER_TYPE
         ))])

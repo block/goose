@@ -18,9 +18,12 @@ import {
   rawInputToArguments,
   toolIdentity,
   type ToolIdentity,
+  type ToolCallState,
 } from './shared';
 
 export function applyToolCall(state: AdapterState, update: ToolCall): AcpChatStateChange[] {
+  updateToolCallState(state, update);
+
   const gooseMeta = getGooseMessageMeta(update);
   const message = getOrCreateAssistantMessageForUpdate(state, gooseMeta);
 
@@ -56,31 +59,56 @@ export function applyToolCallUpdate(
   state: AdapterState,
   update: ToolCallUpdate
 ): AcpChatStateChange[] {
-  if (update.status !== 'completed' && update.status !== 'failed') {
+  const toolCallState = updateToolCallState(state, update);
+  const isFinished = toolCallState.status === 'completed' || toolCallState.status === 'failed';
+
+  if (!isFinished) {
     const notificationChange = toolNotificationChange(update);
     return notificationChange ? [notificationChange] : [];
   }
 
   if (hasToolResponse(state, update.toolCallId)) {
+    state.toolCallStatesById.delete(update.toolCallId);
     return messagesChange(state);
   }
 
   const gooseMeta = getGooseMessageMeta(update);
   const message = getOrCreateToolResponseMessageForUpdate(state, gooseMeta);
   const identity = toolIdentity(update);
-  const metadata = toolResponseMetadata(update, identity);
+  const metadata = toolResponseMetadata(toolCallState, identity);
 
   message.content.push({
     type: 'toolResponse',
     id: update.toolCallId,
     toolResult:
-      update.status === 'failed'
-        ? { status: 'error', error: toolError(update) }
-        : { status: 'success', value: toolResultValue(update, mcpAppMetadata(update)) },
+      toolCallState.status === 'failed'
+        ? { status: 'error', error: toolError(toolCallState) }
+        : {
+            status: 'success',
+            value: toolResultValue(toolCallState, mcpAppMetadata(update)),
+          },
     ...(metadata ? { metadata } : {}),
   });
 
+  state.toolCallStatesById.delete(update.toolCallId);
   return messagesChange(state);
+}
+
+function updateToolCallState(
+  state: AdapterState,
+  update: ToolCall | ToolCallUpdate
+): ToolCallState {
+  const toolCallState = mergeToolCallState(state.toolCallStatesById.get(update.toolCallId), update);
+  state.toolCallStatesById.set(update.toolCallId, toolCallState);
+  return toolCallState;
+}
+
+function mergeToolCallState(
+  previous: ToolCallState | undefined,
+  update: ToolCall | ToolCallUpdate
+): ToolCallState {
+  const { _meta: _ignoredMeta, ...toolCallStateUpdate } = update;
+  return { ...previous, ...toolCallStateUpdate };
 }
 
 function getOrCreateAssistantMessageForUpdate(

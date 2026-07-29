@@ -308,8 +308,8 @@ impl ClaudeCodeProvider {
                             let text: String = result
                                 .content
                                 .iter()
-                                .filter_map(|c| match &c.raw {
-                                    rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                                .filter_map(|c| match c {
+                                    rmcp::model::ContentBlock::Text(t) => Some(t.text.as_str()),
                                     _ => None,
                                 })
                                 .collect::<Vec<&str>>()
@@ -1147,7 +1147,7 @@ mod tests {
     )]
     #[test_case(
         vec![Message::new(Role::User, 0, vec![
-            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult::success(vec![rmcp::model::Content::text("file1.txt\nfile2.txt")])))
+            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult::success(vec![rmcp::model::ContentBlock::text("file1.txt\nfile2.txt")])))
         ])],
         &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
         ; "tool_response"
