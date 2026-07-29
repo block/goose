@@ -30,7 +30,7 @@ STDERR: │                      Run: pip install --upgrade fastmcp             
 STDERR: ╰──────────────────────────────────────────────────────────────────────────────╯
 STDERR: 
 STDERR: 
-STDERR: [07/29/26 10:34:24] INFO     Starting MCP server 'mymcp' with     server.py:2506
+STDERR: [07/29/26 10:52:55] INFO     Starting MCP server 'mymcp' with     server.py:2506
 STDERR:                              transport 'stdio'                                  
 STDERR: /Users/jackamadeo/.cache/uv/archive-v0/qVA6xesA-RY1n0SG/lib/python3.14/site-packages/redis/asyncio/connection.py:1628: DeprecationWarning: FakeConnection is deprecated. Use FakeAsyncRedisConnection instead
 STDERR:   return self.connection_class(**self.connection_kwargs)
