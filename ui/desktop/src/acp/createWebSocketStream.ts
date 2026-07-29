@@ -10,6 +10,9 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
   const incoming: unknown[] = [];
   const waiters: Array<() => void> = [];
   let closed = false;
+  let opened = false;
+  let closeRequested = false;
+  let hadError = false;
 
   function pushMessage(message: unknown): void {
     incoming.push(message);
@@ -24,7 +27,14 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
   }
 
   const openPromise = new Promise<void>((resolve, reject) => {
-    ws.addEventListener('open', () => resolve(), { once: true });
+    ws.addEventListener(
+      'open',
+      () => {
+        opened = true;
+        resolve();
+      },
+      { once: true }
+    );
     ws.addEventListener('error', () => reject(new Error('ACP WebSocket connection failed')), {
       once: true,
     });
@@ -54,8 +64,42 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
     waiters.length = 0;
   };
 
-  ws.addEventListener('close', closeWaiters);
-  ws.addEventListener('error', closeWaiters);
+  function phase(): 'before-open' | 'after-open' {
+    return opened ? 'after-open' : 'before-open';
+  }
+
+  function logClose(event: CloseEvent): void {
+    const details = {
+      phase: phase(),
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      readyState: ws.readyState,
+      initiatedByClient: closeRequested,
+      hadError,
+    };
+
+    if (closeRequested || event.wasClean) {
+      console.debug('ACP WebSocket closed', details);
+      return;
+    }
+
+    console.warn('ACP WebSocket closed', details);
+  }
+
+  function closeSocket(): void {
+    closeRequested = true;
+    ws.close();
+  }
+
+  ws.addEventListener('close', (event) => {
+    logClose(event);
+    closeWaiters();
+  });
+  ws.addEventListener('error', () => {
+    hadError = true;
+    closeWaiters();
+  });
 
   const readable = new window.ReadableStream({
     async pull(controller) {
@@ -78,16 +122,16 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
       ws.send(JSON.stringify(message));
     },
     close() {
-      ws.close();
+      closeSocket();
     },
     abort() {
-      ws.close();
+      closeSocket();
     },
   });
 
   return {
     readable,
     writable,
-    close: () => ws.close(),
+    close: closeSocket,
   } as ClosableAcpStream;
 }

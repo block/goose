@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWebSocketStream } from '../createWebSocketStream';
 
+class FakeCloseEvent extends Event {
+  constructor(
+    readonly code: number,
+    readonly reason: string,
+    readonly wasClean: boolean
+  ) {
+    super('close');
+  }
+}
+
 class FakeWebSocket extends window.EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -24,12 +34,12 @@ class FakeWebSocket extends window.EventTarget {
     this.sent.push(message);
   }
 
-  close(): void {
+  close(code = 1000, reason = '', wasClean = true): void {
     if (this.readyState === FakeWebSocket.CLOSED) {
       return;
     }
     this.readyState = FakeWebSocket.CLOSED;
-    this.dispatchEvent(new Event('close'));
+    this.dispatchEvent(new FakeCloseEvent(code, reason, wasClean));
   }
 
   fail(): void {
@@ -60,10 +70,13 @@ describe('createWebSocketStream', () => {
   beforeEach(() => {
     fakeWebSockets.length = 0;
     vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('waits for the socket to open before sending JSON', async () => {
@@ -80,15 +93,24 @@ describe('createWebSocketStream', () => {
     expect(ws.sent).toEqual(['{"jsonrpc":"2.0","id":1,"method":"test"}']);
   });
 
-  it('closes the readable stream when the socket closes', async () => {
+  it('closes the readable stream and logs details when the socket closes', async () => {
     const stream = createWebSocketStream('ws://localhost/acp');
     const reader = stream.readable.getReader();
     const ws = latestWebSocket();
 
     ws.open();
-    ws.close();
+    ws.close(1009, 'message too large', false);
 
     await expect(reader.read()).resolves.toEqual({ done: true, value: undefined });
+    expect(console.warn).toHaveBeenCalledWith('ACP WebSocket closed', {
+      phase: 'after-open',
+      code: 1009,
+      reason: 'message too large',
+      wasClean: false,
+      readyState: FakeWebSocket.CLOSED,
+      initiatedByClient: false,
+      hadError: false,
+    });
   });
 
   it.each([
