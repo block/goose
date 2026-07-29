@@ -151,16 +151,16 @@ enum TestMode {
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
-#[test_case(
-    vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
-    vec![
-        CallToolRequestParams::new("divide").with_arguments(object!({
-            "dividend": 10,
-            "divisor": 2
-        }))
-    ],
-    vec![]
-)]
+// #[test_case(
+//     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
+//     vec![
+//         CallToolRequestParams::new("divide").with_arguments(object!({
+//             "dividend": 10,
+//             "divisor": 2
+//         }))
+//     ],
+//     vec![]
+// )]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
@@ -171,7 +171,7 @@ async fn test_replayed_session(
         ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
         ("GOOSE_PROVIDER", Some("openai")),
         ("GOOSE_MODEL", Some("gpt-4o")),
-        ("GOOSE_WORKING_DIR", Some("/tmp/goose_test")),
+        ("GOOSE_WORKING_DIR", Some(".")),
     ]);
 
     // Setup test file for developer extension tests

@@ -577,7 +577,7 @@ impl ClientHandler for GooseClient {
             self.capabilities
                 .protocol_version
                 .clone()
-                .unwrap_or(ProtocolVersion::LATEST),
+                .unwrap_or_default(),
         )
     }
 }
