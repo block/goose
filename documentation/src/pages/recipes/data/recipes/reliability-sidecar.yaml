@@ -26,7 +26,7 @@ instructions: |
      Enhancer.
 
   2. Use the Agent Enhancer extension through the owner-qualified tool names
-     Goose exposes:
+     goose exposes:
      - call `agent-enhancer__lab.search_tools` for a workflow reliability planner;
      - call `agent-enhancer__lab.describe_tool` for `workflow-guard-planner`;
      - invoke `workflow-guard-planner` through
