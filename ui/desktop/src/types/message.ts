@@ -258,6 +258,17 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
+export type LiveOutputNotificationParams = {
+  sequence: number;
+  chunks: LiveOutputNotificationChunk[];
+  truncated: boolean;
+};
+
+export type LiveOutputNotificationChunk = {
+  stream: 'stdout' | 'stderr';
+  output: string;
+};
+
 export interface ImageData {
   data: string; // base64 encoded image data
   mimeType: string;

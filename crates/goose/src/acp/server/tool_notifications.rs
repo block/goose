@@ -6,6 +6,10 @@ use rmcp::model::LoggingMessageNotificationParam;
 use rmcp::model::{ProgressNotificationParam, ServerNotification};
 use serde::Serialize;
 
+use crate::agents::platform_extensions::developer::shell::{
+    parse_shell_output_notification, ShellOutputNotificationParams,
+};
+
 #[expect(deprecated)]
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -18,6 +22,9 @@ enum ToolNotification {
     },
     PlatformEvent {
         params: serde_json::Value,
+    },
+    LiveOutput {
+        params: ShellOutputNotificationParams,
     },
 }
 
@@ -32,11 +39,15 @@ pub(super) fn tool_notification_update(
         ServerNotification::ProgressNotification(notification) => ToolNotification::Progress {
             params: notification.params,
         },
-        ServerNotification::CustomNotification(notification)
-            if notification.method == "platform_event" =>
-        {
-            ToolNotification::PlatformEvent {
-                params: notification.params.unwrap_or(serde_json::Value::Null),
+        ServerNotification::CustomNotification(notification) => {
+            if let Some(params) = parse_shell_output_notification(&notification) {
+                ToolNotification::LiveOutput { params }
+            } else if notification.method == "platform_event" {
+                ToolNotification::PlatformEvent {
+                    params: notification.params.unwrap_or(serde_json::Value::Null),
+                }
+            } else {
+                return None;
             }
         }
         _ => return None,
@@ -60,6 +71,7 @@ pub(super) fn tool_notification_update(
 #[cfg(test)]
 mod tests {
     use super::tool_notification_update;
+    use crate::agents::platform_extensions::developer::shell::DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD;
     use agent_client_protocol::schema::v1::SessionUpdate;
     use rmcp::model::{
         CancelledNotificationParam, CustomNotification, Notification, NumberOrString,
@@ -185,6 +197,41 @@ mod tests {
         assert_eq!(
             value["_meta"]["toolNotification"]["params"]["app_name"],
             "platform-event-repro"
+        );
+    }
+
+    #[test]
+    fn maps_shell_output_custom_notification_to_live_output_meta() {
+        let notification = ServerNotification::CustomNotification(CustomNotification::new(
+            DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
+            Some(json!({
+                "sequence": 2,
+                "chunks": [{
+                    "stream": "stdout",
+                    "output": "ready\n"
+                }],
+                "truncated": false
+            })),
+        ));
+
+        let update = tool_notification_update("tool_1", notification).expect("expected update");
+        let value = serde_json::to_value(SessionUpdate::ToolCallUpdate(update))
+            .expect("update should serialize");
+
+        assert_eq!(value["sessionUpdate"], "tool_call_update");
+        assert_eq!(value["toolCallId"], "tool_1");
+        assert_eq!(value["status"], "in_progress");
+        assert_eq!(value["_meta"]["toolNotification"]["type"], "live_output");
+        assert_eq!(
+            value["_meta"]["toolNotification"]["params"],
+            json!({
+                "sequence": 2,
+                "chunks": [{
+                    "stream": "stdout",
+                    "output": "ready\n"
+                }],
+                "truncated": false
+            })
         );
     }
 

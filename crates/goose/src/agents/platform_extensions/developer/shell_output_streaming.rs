@@ -32,11 +32,8 @@ pub struct ShellOutputNotificationParams {
 }
 
 pub fn parse_shell_output_notification(
-    notification: &ServerNotification,
+    notification: &CustomNotification,
 ) -> Option<ShellOutputNotificationParams> {
-    let ServerNotification::CustomNotification(notification) = notification else {
-        return None;
-    };
     if notification.method != DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD {
         return None;
     }
@@ -147,6 +144,9 @@ mod tests {
         let notification = receiver
             .try_recv()
             .expect("expected a shell output notification");
+        let ServerNotification::CustomNotification(notification) = notification else {
+            panic!("expected a custom notification");
+        };
         parse_shell_output_notification(&notification)
             .expect("expected valid shell output notification params")
     }
@@ -210,14 +210,11 @@ mod tests {
 
     #[test]
     fn parser_ignores_unrelated_or_malformed_custom_notifications() {
-        let unrelated = ServerNotification::CustomNotification(CustomNotification::new(
-            "goose/other",
-            Some(serde_json::json!({})),
-        ));
-        let malformed = ServerNotification::CustomNotification(CustomNotification::new(
+        let unrelated = CustomNotification::new("goose/other", Some(serde_json::json!({})));
+        let malformed = CustomNotification::new(
             DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
             Some(serde_json::json!({ "sequence": "not-a-number" })),
-        ));
+        );
 
         assert!(parse_shell_output_notification(&unrelated).is_none());
         assert!(parse_shell_output_notification(&malformed).is_none());

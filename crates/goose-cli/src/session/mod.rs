@@ -2187,18 +2187,6 @@ fn handle_mcp_notification(
     is_json_mode: bool,
     debug: bool,
 ) {
-    if let Some(params) = parse_shell_output_notification(notification) {
-        handle_shell_output_notification(
-            extension_id,
-            params,
-            progress_bars,
-            is_stream_json_mode,
-            interactive,
-            is_json_mode,
-        );
-        return;
-    }
-
     match notification {
         ServerNotification::LoggingMessageNotification(log_notif) => {
             if let Some(obj) = log_notif.params.data.as_object() {
@@ -2281,6 +2269,18 @@ fn handle_mcp_notification(
                     prog_notif.params.progress,
                     prog_notif.params.total,
                     prog_notif.params.message.as_deref(),
+                );
+            }
+        }
+        ServerNotification::CustomNotification(notification) => {
+            if let Some(params) = parse_shell_output_notification(notification) {
+                handle_shell_output_notification(
+                    extension_id,
+                    params,
+                    progress_bars,
+                    is_stream_json_mode,
+                    interactive,
+                    is_json_mode,
                 );
             }
         }
