@@ -1447,11 +1447,17 @@ pub async fn run_shell_terminal_false<C: Connection>() {
         .await
         .unwrap();
     assert!(!output.text.is_empty());
+    let mut notifications = session.notifications();
+    notifications.retain(|notification| {
+        !matches!(
+            notification,
+            Notification::ToolCallStatus(ToolCallStatus::InProgress)
+        )
+    });
     assert_notifications(
-        &session.notifications(),
+        &notifications,
         &[
             Notification::ToolCall,
-            Notification::ToolCallStatus(ToolCallStatus::InProgress),
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,

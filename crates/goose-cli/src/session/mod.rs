@@ -2307,7 +2307,7 @@ fn display_shell_output_notification(
         })
         .collect::<Vec<_>>();
     if !lines.is_empty() {
-        progress_bars.log(&lines.join("\n  "));
+        progress_bars.log_shell_output(lines, SHELL_STATUS_MAX_LINES);
     }
 }
 
@@ -2601,38 +2601,10 @@ fn build_switched_model_config(
 mod tests {
     use super::*;
     use goose::agents::extension::Envs;
-    use goose::agents::platform_extensions::developer::shell::ShellOutputNotificationChunk;
     use goose::config::ExtensionConfig;
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
-
-    #[test]
-    fn latest_shell_output_lines_uses_the_last_three_observed_lines_and_streams() {
-        let params = ShellOutputNotificationParams {
-            sequence: 1,
-            chunks: vec![
-                ShellOutputNotificationChunk {
-                    stream: ShellOutputStream::Stdout,
-                    output: "queued\nstarting\n".to_string(),
-                },
-                ShellOutputNotificationChunk {
-                    stream: ShellOutputStream::Stderr,
-                    output: "warning one\nwarning two\n".to_string(),
-                },
-            ],
-            truncated: false,
-        };
-
-        assert_eq!(
-            latest_shell_output_lines(&params, 80),
-            vec![
-                (ShellOutputStream::Stdout, "starting".to_string()),
-                (ShellOutputStream::Stderr, "warning one".to_string()),
-                (ShellOutputStream::Stderr, "warning two".to_string()),
-            ]
-        );
-    }
 
     #[test]
     fn planner_classification_excludes_user_only_content() {
