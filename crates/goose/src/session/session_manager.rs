@@ -722,8 +722,16 @@ fn deserialize_session_model_config(
     let mut model_config: ModelConfig = serde_json::from_str(json).ok()?;
     // TODO: Remove this workaround once ModelConfig guarantees deserialize(serialize(config)) == config.
     if provider_name == Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME) {
-        let raw: serde_json::Value = serde_json::from_str(json).ok()?;
-        model_config.model_name = raw.get("model_name")?.as_str()?.to_string();
+        #[derive(Deserialize)]
+        struct AzurePersistedFields {
+            model_name: String,
+            #[serde(default)]
+            request_params: Option<HashMap<String, serde_json::Value>>,
+        }
+
+        let persisted: AzurePersistedFields = serde_json::from_str(json).ok()?;
+        model_config.model_name = persisted.model_name;
+        model_config.request_params = persisted.request_params;
     }
     Some(model_config)
 }
@@ -2625,9 +2633,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(config.thinking_effort(), None);
+    }
+
+    #[test]
+    fn azure_session_model_config_preserves_explicit_thinking_effort() {
+        let config = deserialize_session_model_config(
+            Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME),
+            r#"{"model_name":"gpt-5-high","context_limit":null,"temperature":null,"max_tokens":null,"toolshim":false,"toolshim_model":null,"request_params":{"thinking_effort":"low"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-high");
         assert_eq!(
             config.thinking_effort(),
-            Some(goose_providers::thinking::ThinkingEffort::High)
+            Some(goose_providers::thinking::ThinkingEffort::Low)
         );
     }
 
