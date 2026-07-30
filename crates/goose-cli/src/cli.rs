@@ -321,7 +321,7 @@ impl Default for OutputOptions {
     }
 }
 
-/// Model/provider override options for the run command
+/// Model/provider override options for run commands
 #[derive(Args, Debug, Clone, Default)]
 pub struct ModelOptions {
     /// Provider to use for this run (overrides environment variable)
@@ -339,6 +339,30 @@ pub struct ModelOptions {
         value_name = "MODEL",
         help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
         long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
+    )]
+    pub model: Option<String>,
+}
+
+/// Model/provider overrides for resumed interactive sessions
+#[derive(Args, Debug, Clone, Default)]
+pub struct ResumeModelOptions {
+    /// Provider to use for the resumed session
+    #[arg(
+        long = "provider",
+        value_name = "PROVIDER",
+        requires = "resume",
+        help = "Use a different LLM provider for the resumed session",
+        long_help = "Resume the session with a different LLM provider. If --model is omitted, the provider's configured model or default model is used."
+    )]
+    pub provider: Option<String>,
+
+    /// Model to use for the resumed session
+    #[arg(
+        long = "model",
+        value_name = "MODEL",
+        requires = "resume",
+        help = "Use a different model for the resumed session",
+        long_help = "Resume the session with a different model. The model must be supported by the selected or saved provider."
     )]
     pub model: Option<String>,
 }
@@ -941,6 +965,9 @@ enum Command {
 
         #[command(flatten)]
         extension_opts: ExtensionOptions,
+
+        #[command(flatten)]
+        model_opts: ResumeModelOptions,
     },
 
     /// Execute commands from an instruction file
@@ -1606,7 +1633,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_interactive_session(
+struct InteractiveSessionArgs {
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
@@ -1614,7 +1641,20 @@ async fn handle_interactive_session(
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
-) -> Result<()> {
+    model_opts: ResumeModelOptions,
+}
+
+async fn handle_interactive_session(args: InteractiveSessionArgs) -> Result<()> {
+    let InteractiveSessionArgs {
+        identifier,
+        resume,
+        fork,
+        edit,
+        history,
+        session_opts,
+        extension_opts,
+        model_opts,
+    } = args;
     #[cfg(feature = "telemetry")]
     if get_telemetry_choice().is_none() {
         configure_telemetry_consent_dialog()?;
@@ -1689,8 +1729,8 @@ async fn handle_interactive_session(
         no_profile: extension_opts.no_profile,
         recipe: None,
         additional_system_prompt: None,
-        provider: None,
-        model: None,
+        provider: model_opts.provider,
+        model: model_opts.model,
         debug: session_opts.debug,
         max_tool_repetitions: session_opts.max_tool_repetitions,
         max_turns: session_opts.max_turns,
@@ -2274,8 +2314,9 @@ pub async fn cli() -> anyhow::Result<()> {
             history,
             session_opts,
             extension_opts,
+            model_opts,
         }) => {
-            handle_interactive_session(
+            handle_interactive_session(InteractiveSessionArgs {
                 identifier,
                 resume,
                 fork,
@@ -2283,7 +2324,8 @@ pub async fn cli() -> anyhow::Result<()> {
                 history,
                 session_opts,
                 extension_opts,
-            )
+                model_opts,
+            })
             .await
         }
         Some(Command::Run {
@@ -2395,6 +2437,55 @@ mod tests {
             }) => {}
             _ => panic!("expected nu completion shell"),
         }
+    }
+
+    #[test]
+    fn session_resume_accepts_provider_and_model_overrides() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "session",
+            "--resume",
+            "--provider",
+            "openai",
+            "--model",
+            "gpt-5.4",
+        ])
+        .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Session {
+                resume, model_opts, ..
+            }) => {
+                assert!(resume);
+                assert_eq!(model_opts.provider.as_deref(), Some("openai"));
+                assert_eq!(model_opts.model.as_deref(), Some("gpt-5.4"));
+            }
+            _ => panic!("expected session command"),
+        }
+    }
+
+    #[test]
+    fn session_provider_override_requires_resume() {
+        let error = Cli::try_parse_from(["goose", "session", "--provider", "openai"])
+            .err()
+            .expect("provider override should require --resume");
+
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    #[test]
+    fn session_model_override_requires_resume() {
+        let error = Cli::try_parse_from(["goose", "session", "--model", "gpt-5.4"])
+            .err()
+            .expect("model override should require --resume");
+
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
     }
 
     #[test]

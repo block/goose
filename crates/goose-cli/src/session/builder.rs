@@ -233,7 +233,7 @@ struct ResolvedProviderConfig {
     model_config: goose_providers::model::ModelConfig,
 }
 
-fn resolve_provider_and_model(
+async fn resolve_provider_and_model(
     session_config: &SessionBuilderConfig,
     config: &Config,
     saved_provider: Option<String>,
@@ -247,7 +247,7 @@ fn resolve_provider_and_model(
     let provider_name = session_config
         .provider
         .clone()
-        .or(saved_provider)
+        .or_else(|| saved_provider.clone())
         .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
         .or_else(|| config.get_goose_provider().ok())
         .unwrap_or_else(|| {
@@ -255,18 +255,66 @@ fn resolve_provider_and_model(
             process::exit(1);
         });
 
+    let saved_provider_matches = saved_provider.as_deref() == Some(provider_name.as_str());
+    let provider_overridden = session_config.provider.is_some();
+    let configured_provider_model = session_config.provider.as_ref().and_then(|_| {
+        goose::config::get_provider_entry(config, &provider_name)
+            .map(|entry| entry.model)
+            .filter(|model| !model.is_empty())
+    });
+    let target_provider_default = if provider_overridden
+        && session_config.model.is_none()
+        && configured_provider_model.is_none()
+    {
+        Some(
+            goose::providers::get_from_registry(&provider_name)
+                .await
+                .unwrap_or_else(|e| {
+                    output::render_error(&e.to_string());
+                    process::exit(1);
+                })
+                .metadata()
+                .default_model
+                .clone(),
+        )
+        .filter(|model| !model.is_empty())
+    } else {
+        None
+    };
+
     let model_name = session_config
         .model
         .clone()
-        .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
-        .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
-        .or_else(|| config.get_goose_model().ok())
+        .or_else(|| {
+            if saved_provider_matches {
+                saved_model_config.as_ref().map(|mc| mc.model_name.clone())
+            } else {
+                None
+            }
+        })
+        .or(configured_provider_model)
+        .or(target_provider_default)
+        .or_else(|| {
+            if provider_overridden {
+                None
+            } else {
+                recipe_settings.and_then(|s| s.goose_model.clone())
+            }
+        })
+        .or_else(|| {
+            if provider_overridden {
+                None
+            } else {
+                config.get_goose_model().ok()
+            }
+        })
         .unwrap_or_else(|| {
             output::render_error("No model configured. Run 'goose configure' first.");
             process::exit(1);
         });
 
     let model_config = if session_config.resume
+        && saved_provider_matches
         && saved_model_config
             .as_ref()
             .is_some_and(|mc| mc.model_name == model_name)
@@ -523,7 +571,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     };
 
     let resolved =
-        resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config);
+        resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config)
+            .await;
 
     let recipe = session_config.recipe.as_ref();
 
@@ -698,8 +747,26 @@ fn is_provider_unavailable_error(e: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::config::{set_provider_entry, ProviderEntry};
     use goose::session::SessionManager;
     use tempfile::TempDir;
+
+    fn test_config(temp_dir: &TempDir) -> Config {
+        Config::new_with_file_secrets(
+            temp_dir.path().join("config.yaml"),
+            temp_dir.path().join("secrets.yaml"),
+        )
+        .unwrap()
+    }
+
+    fn saved_model_config(model_name: &str) -> goose_providers::model::ModelConfig {
+        goose_providers::model::ModelConfig::new(model_name).with_merged_request_params(
+            std::collections::HashMap::from([(
+                "anthropic_beta".to_string(),
+                serde_json::json!(["prompt-caching-2024-07-31"]),
+            )]),
+        )
+    }
 
     #[test]
     fn test_session_builder_config_creation() {
@@ -761,6 +828,123 @@ mod tests {
         assert!(!config.interactive);
         assert!(!config.quiet);
         assert!(!config.fork);
+    }
+
+    #[tokio::test]
+    async fn resume_provider_override_uses_target_provider_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        set_provider_entry(
+            &config,
+            "openai",
+            &ProviderEntry {
+                enabled: true,
+                model: "gpt-5.4".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("openai".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("anthropic".to_string()),
+            Some(goose_providers::model::ModelConfig::new(
+                "claude-sonnet-4-6",
+            )),
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, "gpt-5.4");
+        assert_eq!(resolved.model_config.model_name, "gpt-5.4");
+    }
+
+    #[tokio::test]
+    async fn resume_provider_override_uses_target_provider_default_instead_of_active_model() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        config
+            .set_param("GOOSE_MODEL", "claude-sonnet-4-6")
+            .unwrap();
+        let expected_model = goose::providers::get_from_registry("openai")
+            .await
+            .unwrap()
+            .metadata()
+            .default_model
+            .clone();
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("openai".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("anthropic".to_string()),
+            Some(goose_providers::model::ModelConfig::new(
+                "claude-sonnet-4-6",
+            )),
+        )
+        .await;
+
+        assert_eq!(resolved.provider_name, "openai");
+        assert_eq!(resolved.model_name, expected_model);
+        assert_ne!(resolved.model_name, "claude-sonnet-4-6");
+    }
+
+    #[tokio::test]
+    async fn resume_provider_override_rebuilds_same_named_model_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        let saved_model_config = saved_model_config("current");
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                provider: Some("openai".to_string()),
+                model: Some("current".to_string()),
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("anthropic".to_string()),
+            Some(saved_model_config),
+        )
+        .await;
+
+        assert!(!resolved
+            .model_config
+            .request_params
+            .as_ref()
+            .is_some_and(|params| params.contains_key("anthropic_beta")));
+    }
+
+    #[tokio::test]
+    async fn resume_same_provider_reuses_saved_model_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = test_config(&temp_dir);
+        let saved_model_config = saved_model_config("current");
+
+        let resolved = resolve_provider_and_model(
+            &SessionBuilderConfig {
+                resume: true,
+                ..SessionBuilderConfig::default()
+            },
+            &config,
+            Some("anthropic".to_string()),
+            Some(saved_model_config),
+        )
+        .await;
+
+        assert!(resolved
+            .model_config
+            .request_params
+            .as_ref()
+            .is_some_and(|params| params.contains_key("anthropic_beta")));
     }
 
     #[tokio::test]
