@@ -4,7 +4,10 @@ description: "Coding agents have changed the economics of open source. The issue
 authors:
   - douwe
 featured: true
+image: /img/blog/issues-are-the-new-prs.png
 ---
+
+![The goose GitHub repository showing 184 open pull requests, with the list fading into a blur](/img/blog/issues-are-the-new-prs.png)
 
 In the olden days, contributing your first PR to an open source project was rather involved. Even with great instructions, getting the project to build, the app to run and the tests to pass took real work. And even if you knew exactly which bug to fix, you needed a rough understanding of the project’s architecture and more detailed knowledge of the code you were changing.
 
