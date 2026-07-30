@@ -1402,9 +1402,10 @@ pub fn create_request_with_options(
     for_streaming: bool,
     format_options: OpenAiFormatOptions,
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
     create_request_for_model_with_options(
         model_config,
-        &model_config.model_name,
+        &wire_model_name,
         &model_config.model_name,
         system,
         messages,
@@ -1434,11 +1435,6 @@ pub fn create_request_for_model_with_options(
     }
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
-    let wire_model_name = if wire_model_name == capability_model_name {
-        &model_name
-    } else {
-        wire_model_name
-    };
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let supports_xai_effort = supports_xai_reasoning_effort(&model_name);
     let reasoning_effort = if is_reasoning_model {

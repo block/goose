@@ -729,9 +729,11 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if self.should_use_responses_api_for_provider(&model_config.model_name) {
+            let (wire_model, _) =
+                crate::formats::openai::extract_reasoning_effort(&model_config.model_name);
             self.stream_for_model(
                 model_config,
-                &model_config.model_name,
+                &wire_model,
                 &model_config.model_name,
                 system,
                 messages,

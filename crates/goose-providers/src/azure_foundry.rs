@@ -920,6 +920,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn suffixed_deployment_without_metadata_is_preserved_on_the_wire() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/projects/test/deployments"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"value": []})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/projects/test/openai/v1/responses"))
+            .and(body_partial_json(json!({"model": "gpt-5-high"})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(responses_stream())
+                    .append_header("content-type", "text/event-stream"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        project_provider(&server)
+            .complete(&raw_model_config("gpt-5-high"), "system", &[], &[])
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn suffixed_deployment_alias_is_preserved_on_the_wire() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))

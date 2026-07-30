@@ -584,9 +584,10 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
     create_responses_request_for_model(
         model_config,
-        &model_config.model_name,
+        &wire_model_name,
         &model_config.model_name,
         system,
         messages,
@@ -618,11 +619,6 @@ pub fn create_responses_request_for_model(
     add_message_items(&mut input_items, messages);
 
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
-    let wire_model_name = if wire_model_name == capability_model_name {
-        &model_name
-    } else {
-        wire_model_name
-    };
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
     // effort suffix was provided.
