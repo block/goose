@@ -1,5 +1,11 @@
 import { AppEvents } from '../constants/events';
 import { dispatchSessionLifecycleEvent } from '../sessionLifecycleBridge';
+import {
+  beginSessionStatusReporting,
+  endSessionStatusReporting,
+  reportSessionStatus,
+  sessionStreamStateFor,
+} from '../sessionStatusBroadcast';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router';
@@ -180,23 +186,15 @@ export default function BaseChat({
     handleSubmit,
   });
 
+  // Hand reporting back to the ACP store when this chat unmounts mid-run, so a
+  // session evicted while busy still reports idle once its run finishes.
   useEffect(() => {
-    let streamState: 'idle' | 'loading' | 'streaming' | 'waiting' | 'error' = 'idle';
-    if (chatState === ChatState.LoadingConversation) {
-      streamState = 'loading';
-    } else if (
-      chatState === ChatState.Streaming ||
-      chatState === ChatState.Thinking ||
-      chatState === ChatState.Compacting
-    ) {
-      streamState = 'streaming';
-    } else if (chatState === ChatState.WaitingForUserInput) {
-      // A prompt paused on a permission/elicitation request still has an
-      // active server run, so it must not report as idle.
-      streamState = 'waiting';
-    } else if (sessionLoadError) {
-      streamState = 'error';
-    }
+    beginSessionStatusReporting(sessionId);
+    return () => endSessionStatusReporting(sessionId);
+  }, [sessionId]);
+
+  useEffect(() => {
+    const streamState = sessionStreamStateFor(chatState, sessionLoadError);
 
     window.dispatchEvent(
       new CustomEvent(AppEvents.SESSION_STATUS_UPDATE, {
@@ -207,9 +205,7 @@ export default function BaseChat({
         },
       })
     );
-    // Other desktop windows run their own backends and cannot see this run;
-    // relay the status through the main process so their archive guards can.
-    window.electron?.broadcastSessionStatus?.({ sessionId, streamState });
+    reportSessionStatus(sessionId, streamState);
   }, [sessionId, chatState, messages.length, sessionLoadError]);
 
   // Generate command history from user messages (most recent first)

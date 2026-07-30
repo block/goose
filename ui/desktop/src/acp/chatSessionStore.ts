@@ -567,6 +567,13 @@ interface AcpChatSessionSnapshotState {
   snapshot: AcpChatSessionSnapshot | undefined;
 }
 
+export function subscribeToAcpChatSession(
+  sessionId: string,
+  listener: (snapshot: AcpChatSessionSnapshot) => void
+): () => void {
+  return acpChatSessionStoreInternal.subscribe(sessionId, listener);
+}
+
 export function useAcpChatSessionSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined {
   const [snapshotState, setSnapshotState] = useState<AcpChatSessionSnapshotState>(() => ({
     sessionId,
