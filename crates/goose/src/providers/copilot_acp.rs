@@ -77,10 +77,10 @@ impl ProviderDef for CopilotAcpProvider {
             // Copilot modes are full protocol URIs.
             // No approve-specific mode; permissions are handled separately.
             let mode_mapping = HashMap::from([
-                (GooseMode::Auto, MODE_AGENT.to_string()),
-                (GooseMode::Approve, MODE_AGENT.to_string()),
-                (GooseMode::SmartApprove, MODE_AGENT.to_string()),
-                (GooseMode::Chat, MODE_PLAN.to_string()),
+                (GooseMode::Auto, vec![MODE_AGENT.to_string()]),
+                (GooseMode::Approve, vec![MODE_AGENT.to_string()]),
+                (GooseMode::SmartApprove, vec![MODE_AGENT.to_string()]),
+                (GooseMode::Chat, vec![MODE_PLAN.to_string()]),
             ]);
 
             let provider_config = AcpProviderConfig {
@@ -90,7 +90,7 @@ impl ProviderDef for CopilotAcpProvider {
                 env_remove: vec![],
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
-                session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_mode_id: mode_mapping[&goose_mode].first().cloned(),
                 session_config_options,
                 model_config_option_id: Some("model".to_string()),
                 mode_mapping,

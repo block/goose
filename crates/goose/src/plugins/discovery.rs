@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::config::{paths::Paths, Config};
 use crate::plugins::plugin_install_dir;
 
 const PLUGINS_CONFIG_KEY: &str = "plugins";
@@ -192,9 +192,9 @@ fn load_all_settings(project_root: Option<&Path>) -> Vec<(SettingsScope, PluginS
 }
 
 fn user_settings_path() -> Option<PathBuf> {
-    if let Ok(test_root) = std::env::var("GOOSE_PATH_ROOT") {
+    if let Some(path_root) = Paths::path_root() {
         return Some(
-            PathBuf::from(test_root)
+            path_root
                 .join(".config")
                 .join("goose")
                 .join("settings.json"),

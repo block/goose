@@ -23,6 +23,7 @@ import {
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
 import { acpSteerSession } from '../acp/prompt';
+import { isAcpRecovering } from '../acp/acpConnection';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -62,6 +63,7 @@ export function useChatSession({
   const messages = acpSnapshot?.messages ?? [];
   const session = acpSnapshot?.session;
   const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
+  const progressMessage = acpSnapshot?.progressMessage;
   const sessionLoadError = acpSnapshot?.sessionLoadError;
   const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
   const queueProcessingBlocked = acpSnapshot?.pendingCancelPromptAttemptId != null;
@@ -150,6 +152,10 @@ export function useChatSession({
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
+      if (isAcpRecovering()) {
+        return;
+      }
+
       const { msg: userMessage, images } = input;
       const currentSnapshot = getCurrentSnapshot();
 
@@ -332,6 +338,7 @@ export function useChatSession({
     messages,
     session,
     chatState,
+    progressMessage,
     updateSession,
     handleSubmit,
     onSteerQueuedMessage,

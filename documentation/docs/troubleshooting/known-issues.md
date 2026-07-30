@@ -507,6 +507,9 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
 
 4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up goose Desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, [proxy configuration](/docs/guides/environment-variables#network-configuration), inability to download required content etc).
 
+#### Documentation access:
+The `goose-doc-guide` skill reads goose documentation from `https://goose-docs.ai` by default, which is unavailable offline. To have goose read from a local copy of the docs instead, see [Offline / Air-gapped Docs](/docs/guides/offline-docs).
+
 ---
 ### Need Further Help? 
 

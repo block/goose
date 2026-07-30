@@ -26,6 +26,19 @@ pub trait SubprocessExt {
     fn set_no_window(&mut self) -> &mut Self;
 }
 
+/// Creates a Git command that rejects implicit bare repositories and cannot run a
+/// repository-configured fsmonitor hook.
+pub fn git_command() -> std::process::Command {
+    let mut command = std::process::Command::new("git");
+    command.args([
+        "-c",
+        "safe.bareRepository=explicit",
+        "-c",
+        "core.fsmonitor=false",
+    ]);
+    command
+}
+
 impl SubprocessExt for Command {
     fn set_no_window(&mut self) -> &mut Self {
         #[cfg(windows)]

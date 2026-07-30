@@ -14,7 +14,7 @@ pub fn model_config_from_user_config(
     provider_name: &str,
     model_name: impl AsRef<str>,
 ) -> Result<ModelConfig> {
-    let model = base_model_config_from_user_config(model_name.as_ref())?;
+    let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     materialize_model_config(provider_name, model)
 }
 
@@ -26,18 +26,26 @@ pub fn model_config_from_user_config_with_session_settings(
     context_limit: Option<usize>,
 ) -> Result<ModelConfig> {
     let config = Config::global();
-    let model = base_model_config_from_user_config(model_name.as_ref())?;
+    let model = base_model_config_from_user_config(provider_name, model_name.as_ref())?;
     let model = materialize_model_config_inner(model, provider_name, false)?
         .with_context_limit(context_limit)
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(apply_canonical_limits(provider_name, model))
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
     let model = materialize_model_config_inner(model, provider_name, true)?;
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(apply_canonical_limits(provider_name, model))
+}
+
+fn apply_canonical_limits(provider_name: &str, model: ModelConfig) -> ModelConfig {
+    if provider_name == goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+        model
+    } else {
+        model.with_canonical_limits(provider_name)
+    }
 }
 
 fn materialize_model_config_inner(
@@ -98,6 +106,7 @@ pub async fn get_fast_model(
     match fast_model_name {
         Some(name) if name != model_config.model_name => {
             model_config_from_user_config(provider_name, name)
+                .map(|config| config.with_request_headers(model_config.request_headers.clone()))
         }
         _ => Ok(model_config.clone()),
     }
@@ -168,7 +177,10 @@ fn apply_openai_request_params(mut model: ModelConfig) -> ModelConfig {
     model
 }
 
-fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
+fn base_model_config_from_user_config(
+    provider_name: &str,
+    model_name: &str,
+) -> Result<ModelConfig> {
     let config = Config::global();
     let mut model = ModelConfig {
         model_name: model_name.to_string(),
@@ -179,8 +191,11 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
         toolshim_model: get_goose_toolshim_model(config)?,
         request_params: None,
         reasoning: None,
+        request_headers: None,
     };
-    model.normalize_effort_suffix();
+    if provider_name != goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME {
+        model.normalize_effort_suffix();
+    }
     Ok(model)
 }
 
@@ -243,5 +258,29 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod azure_foundry_tests {
+    use super::*;
+
+    #[test]
+    fn deployment_name_survives_thinking_effort_changes() {
+        let config = base_model_config_from_user_config("azure_foundry", "gpt-5-high")
+            .unwrap()
+            .with_thinking_effort(ThinkingEffort::Off);
+
+        assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(config.context_limit, None);
+        assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Off));
+    }
+
+    #[test]
+    fn none_suffixed_deployment_name_is_preserved() {
+        let config = base_model_config_from_user_config("azure_foundry", "gpt-5-none").unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-none");
+        assert_eq!(config.thinking_effort(), None);
     }
 }

@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "自訂應用程式"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "來自您 MCP 伺服器的應用程式，以及由 goose 自行建立的應用程式。您可以透過聊天介面要求它建立新的應用程式，它們便會出現在這裡。"
   },
   "appsView.errorLoading": {
     "defaultMessage": "載入應用程式時發生錯誤：{error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "匯入應用程式"
@@ -41,14 +50,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "沒有可用的應用程式"
   },
-  "appsView.retry": {
-    "defaultMessage": "重試"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "重試"
   },
   "appsView.title": {
     "defaultMessage": "應用程式"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "回到首頁"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "連線已中斷。正在重新連線…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "擴充功能已更新"
@@ -1185,7 +1197,7 @@
     "defaultMessage": "密鑰"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "在 goosed 伺服器上設定的密鑰 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "在 Goose 伺服器上設定的密鑰 (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "輸入伺服器的密鑰"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "下載中"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "精選模型"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型設定"
@@ -2798,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "從範本或手動設定"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "沒有符合 \"{query}\" 的提供者"
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "搜尋提供者..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} 標誌"
   },
@@ -3001,12 +3025,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "使用預設提供者"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名稱"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "將自動格式化（小寫，空格以連字號取代）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "取消"
@@ -3638,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "工作階段 JSON 已複製"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "文字已複製"
   },
@@ -3668,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "正在載入 JSON…"
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "重新命名工作階段失敗：{error}"
   },
@@ -3692,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "檢視工作階段 JSON"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "工作階段發生錯誤"
   },
@@ -3700,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "串流中"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "此工作階段不包含任何訊息"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "找不到訊息"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "載入工作階段詳細資料時發生錯誤"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "再試一次"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "您"
   },
   "sessions.action.delete": {
     "defaultMessage": "刪除工作階段"
@@ -4028,6 +4040,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "外部後端"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "鍵盤"
   },
@@ -4040,14 +4055,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "提示"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "工作階段"
-  },
   "settingsView.title": {
     "defaultMessage": "設定"
-  },
-  "sheet.close": {
-    "defaultMessage": "關閉"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "取消"
@@ -4114,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "已設定 {name} 提供者"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama 應用程式"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "若要使用，請選擇"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "必須安裝在您的電腦上並開啟，或者您必須輸入 OLLAMA_HOST 的值。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "新增現有項目"

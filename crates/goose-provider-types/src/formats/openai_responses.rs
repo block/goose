@@ -1,8 +1,9 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+    sanitize_function_name,
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
@@ -10,10 +11,9 @@ use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::ops::Deref;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
@@ -35,7 +35,7 @@ pub struct SummaryText {
     pub text: String,
 }
 
-fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
+fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContentBlock> {
     let text: String = summary
         .iter()
         .map(|s| s.text.as_str())
@@ -44,7 +44,7 @@ fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
     if text.is_empty() {
         None
     } else {
-        Some(MessageContent::thinking(text, ""))
+        Some(MessageContentBlock::thinking(text, ""))
     }
 }
 
@@ -159,12 +159,12 @@ pub enum ResponsesStreamEvent {
         item: ResponseOutputItemInfo,
     },
     #[serde(rename = "response.content_part.added")]
-    ContentPartAdded {
+    ContentBlockPartAdded {
         sequence_number: i32,
         item_id: String,
         output_index: i32,
         content_index: i32,
-        part: ContentPart,
+        part: ContentBlockPart,
     },
     #[serde(rename = "response.output_text.delta")]
     OutputTextDelta {
@@ -185,12 +185,12 @@ pub enum ResponsesStreamEvent {
         item: ResponseOutputItemInfo,
     },
     #[serde(rename = "response.content_part.done")]
-    ContentPartDone {
+    ContentBlockPartDone {
         sequence_number: i32,
         item_id: String,
         output_index: i32,
         content_index: i32,
-        part: ContentPart,
+        part: ContentBlockPart,
     },
     #[serde(rename = "response.output_text.done")]
     OutputTextDone {
@@ -328,7 +328,7 @@ pub enum ResponseOutputItemInfo {
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<String>,
         role: String,
-        content: Vec<ContentPart>,
+        content: Vec<ContentBlockPart>,
     },
     FunctionCall {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -345,7 +345,7 @@ pub enum ResponseOutputItemInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-pub enum ContentPart {
+pub enum ContentBlockPart {
     OutputText {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -374,7 +374,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         for content in &message.content {
             match content {
-                MessageContent::Text(text) if !text.text.is_empty() => {
+                MessageContentBlock::Text(text) if !text.text.is_empty() => {
                     let content_type = if message.role == Role::Assistant {
                         "output_text"
                     } else {
@@ -385,9 +385,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         "text": text.text
                     }));
                 }
-                MessageContent::ToolRequest(request) if message.role == Role::Assistant => {
+                MessageContentBlock::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -396,6 +397,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -412,7 +414,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -425,15 +427,16 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     text_items.push(json!({
                         "type": "input_image",
                         "image_url": format!("data:{};base64,{}", image.mime_type, image.data)
                     }));
                 }
-                MessageContent::ToolResponse(response) => {
+                MessageContentBlock::ToolResponse(response) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -445,32 +448,35 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             let has_images = contents
                                 .content
                                 .iter()
-                                .any(|c| matches!(c.deref(), RawContent::Image(_)));
+                                .any(|c| matches!(c, ContentBlock::Image(_)));
 
                             let output = if has_images {
                                 json!(contents
                                     .content
                                     .iter()
-                                    .map(|c| match c.deref() {
-                                        RawContent::Text(t) => json!({
+                                    .map(|c| match c {
+                                        ContentBlock::Text(t) => json!({
                                             "type": "input_text", "text": t.text
                                         }),
-                                        RawContent::Resource(r) => json!({
+                                        ContentBlock::Resource(r) => json!({
                                             "type": "input_text",
                                             "text": extract_text_from_resource(&r.resource)
                                         }),
-                                        RawContent::Image(image) => json!({
+                                        ContentBlock::Image(image) => json!({
                                             "type": "input_image",
                                             "image_url": format!(
                                                 "data:{};base64,{}",
                                                 image.mime_type, image.data
                                             )
                                         }),
-                                        RawContent::Audio(_) => json!({
+                                        ContentBlock::Audio(_) => json!({
                                             "type": "input_text", "text": "[Audio content]"
                                         }),
-                                        RawContent::ResourceLink(_) => json!({
+                                        ContentBlock::ResourceLink(_) => json!({
                                             "type": "input_text", "text": "[Resource link]"
+                                        }),
+                                        _ => json!({
+                                            "type": "input_text", "text": "[Unsupported content]"
                                         }),
                                     })
                                     .collect::<Vec<Value>>())
@@ -478,16 +484,17 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                                 json!(contents
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(r) => {
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
+                                        ContentBlock::Resource(r) => {
                                             Some(extract_text_from_resource(&r.resource))
                                         }
-                                        RawContent::Audio(_) => Some("[Audio content]".into()),
-                                        RawContent::ResourceLink(_) => {
+                                        ContentBlock::Audio(_) => Some("[Audio content]".into()),
+                                        ContentBlock::ResourceLink(_) => {
                                             Some("[Resource link]".into())
                                         }
-                                        RawContent::Image(_) => None,
+                                        ContentBlock::Image(_) => None,
+                                        _ => Some("[Unsupported content]".into()),
                                     })
                                     .collect::<Vec<String>>()
                                     .join("\n"))
@@ -512,9 +519,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }
                     }
                 }
-                MessageContent::FrontendToolRequest(request) => {
+                MessageContentBlock::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -523,6 +531,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &request.tool_call {
                         Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
                             let arguments_str = tool_call
                                 .arguments
                                 .as_ref()
@@ -534,7 +543,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             input_items.push(json!({
                                 "type": "function_call",
                                 "call_id": request.id,
-                                "name": tool_call.name,
+                                "name": sanitized_name,
                                 "arguments": arguments_str
                             }));
                         }
@@ -553,11 +562,20 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         if !text_items.is_empty() {
             input_items.push(json!({
+                "type": "message",
                 "role": role,
                 "content": text_items
             }));
         }
     }
+}
+
+fn is_gpt_5_6_model(model_name: &str) -> bool {
+    let normalized = model_name.to_ascii_lowercase();
+    normalized == "gpt-5.6"
+        || normalized.starts_with("gpt-5.6-")
+        || normalized == "gpt-5-6"
+        || normalized.starts_with("gpt-5-6-")
 }
 
 pub fn create_responses_request(
@@ -566,10 +584,30 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_responses_request_for_model(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+    )
+}
+
+pub fn create_responses_request_for_model(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
     if !system.is_empty() {
         input_items.push(json!({
+            "type": "message",
             "role": "system",
             "content": [{
                 "type": "input_text",
@@ -580,18 +618,22 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
     // effort suffix was provided.
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         if let Some(effort) = legacy_reasoning_effort.as_deref() {
-            effort
-                .parse()
-                .ok()
-                .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
-                .or(legacy_reasoning_effort)
+            if effort.eq_ignore_ascii_case("none") {
+                legacy_reasoning_effort
+            } else {
+                effort
+                    .parse()
+                    .ok()
+                    .and_then(|effort| openai_reasoning_effort_for_thinking(&model_name, effort))
+                    .or(legacy_reasoning_effort)
+            }
         } else {
             model_config
                 .thinking_effort()
@@ -602,20 +644,43 @@ pub fn create_responses_request(
     };
 
     let store = model_config.request_param::<bool>("store").unwrap_or(false);
+    let reasoning_mode = model_config
+        .request_param::<String>("reasoning_mode")
+        .map(|mode| {
+            let normalized = mode.to_ascii_lowercase();
+            match normalized.as_str() {
+                "standard" | "pro" => Ok(normalized),
+                _ => Err(anyhow!(
+                    "Invalid reasoning_mode '{}'. Supported values are: standard, pro",
+                    mode
+                )),
+            }
+        })
+        .transpose()?;
+    if reasoning_mode.is_some() && !is_gpt_5_6_model(&model_name) {
+        return Err(anyhow!(
+            "reasoning_mode is only supported for GPT-5.6 models"
+        ));
+    }
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "input": input_items,
         "store": store,
     });
 
-    if let Some(effort) = reasoning_effort {
-        payload.as_object_mut().unwrap().insert(
-            "reasoning".to_string(),
-            json!({
-                "effort": effort,
-                "summary": "auto",
-            }),
-        );
+    if reasoning_effort.is_some() || reasoning_mode.is_some() {
+        let mut reasoning = serde_json::Map::new();
+        if let Some(effort) = reasoning_effort {
+            reasoning.insert("effort".to_string(), json!(effort));
+            reasoning.insert("summary".to_string(), json!("auto"));
+        }
+        if let Some(mode) = reasoning_mode {
+            reasoning.insert("mode".to_string(), json!(mode));
+        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("reasoning".to_string(), Value::Object(reasoning));
     }
 
     if !tools.is_empty() {
@@ -647,10 +712,12 @@ pub fn create_responses_request(
         }
     }
 
-    payload.as_object_mut().unwrap().insert(
-        "max_output_tokens".to_string(),
-        json!(model_config.max_output_tokens()),
-    );
+    if let Some(max_tokens) = model_config.max_tokens {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_output_tokens".to_string(), json!(max_tokens));
+    }
 
     Ok(payload)
 }
@@ -671,16 +738,16 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                     match block {
                         ResponseContentBlock::OutputText { text, .. } => {
                             if !text.is_empty() {
-                                content.push(MessageContent::text(text));
+                                content.push(MessageContentBlock::text(text));
                             }
                         }
                         ResponseContentBlock::Refusal { refusal } => {
                             if !refusal.is_empty() {
-                                content.push(MessageContent::text(refusal));
+                                content.push(MessageContentBlock::text(refusal));
                             }
                         }
                         ResponseContentBlock::ToolCall { id, name, input } => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(name.clone())
                                     .with_arguments(object(input.clone()))),
@@ -705,7 +772,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                     serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
                 };
 
-                content.push(MessageContent::tool_request(
+                content.push(MessageContentBlock::tool_request(
                     request_id,
                     Ok(CallToolRequestParams::new(name.clone())
                         .with_arguments(object(parsed_args))),
@@ -731,7 +798,7 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
 fn process_streaming_output_items(
     output_items: Vec<ResponseOutputItemInfo>,
     is_text_response: bool,
-) -> anyhow::Result<Vec<MessageContent>> {
+) -> anyhow::Result<Vec<MessageContentBlock>> {
     let mut content = Vec::new();
 
     for item in output_items {
@@ -742,17 +809,17 @@ fn process_streaming_output_items(
             ResponseOutputItemInfo::Message { content: parts, .. } => {
                 for part in parts {
                     match part {
-                        ContentPart::OutputText { text, .. } => {
+                        ContentBlockPart::OutputText { text, .. } => {
                             if !text.is_empty() && !is_text_response {
-                                content.push(MessageContent::text(&text));
+                                content.push(MessageContentBlock::text(&text));
                             }
                         }
-                        ContentPart::Refusal { refusal } => {
+                        ContentBlockPart::Refusal { refusal } => {
                             if !refusal.is_empty() && !is_text_response {
-                                content.push(MessageContent::text(&refusal));
+                                content.push(MessageContentBlock::text(&refusal));
                             }
                         }
-                        ContentPart::ToolCall {
+                        ContentBlockPart::ToolCall {
                             id,
                             name,
                             arguments,
@@ -763,7 +830,7 @@ fn process_streaming_output_items(
                                 serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
                             };
 
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(name)
                                     .with_arguments(object(parsed_args))),
@@ -788,7 +855,7 @@ fn process_streaming_output_items(
                     serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
                 };
 
-                content.push(MessageContent::tool_request(
+                content.push(MessageContentBlock::tool_request(
                     request_id,
                     Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
@@ -865,7 +932,7 @@ where
                         let mut msg = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
-                            vec![MessageContent::text(&delta)],
+                            vec![MessageContentBlock::text(&delta)],
                         );
 
                         // Add ID so desktop client knows these deltas are part of the same message
@@ -918,7 +985,7 @@ where
                         let mut msg = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
-                            vec![MessageContent::text(&delta)],
+                            vec![MessageContentBlock::text(&delta)],
                         );
 
                         if let Some(id) = &response_id {
@@ -948,7 +1015,7 @@ where
                 }
 
                 _ => {
-                    // Ignore other event types (OutputItemAdded, ContentPartAdded, ContentPartDone)
+                    // Ignore other event types (OutputItemAdded, ContentBlockPartAdded, ContentBlockPartDone)
                 }
             }
         }
@@ -971,7 +1038,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::MessageContent;
+    use crate::conversation::message::MessageContentBlock;
     use crate::model::ModelConfig;
     use futures::StreamExt;
     use rmcp::model::CallToolRequestParams;
@@ -999,7 +1066,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1042,7 +1109,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1083,7 +1150,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1122,7 +1189,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         tool_request_id = Some(request.id);
                     }
                 }
@@ -1236,8 +1303,8 @@ mod tests {
             if let Some(msg) = message {
                 for content in msg.content {
                     match &content {
-                        MessageContent::Thinking(t) => thinking_parts.push(t.thinking.clone()),
-                        MessageContent::Text(t) => text_parts.push(t.text.clone()),
+                        MessageContentBlock::Thinking(t) => thinking_parts.push(t.thinking.clone()),
+                        MessageContentBlock::Text(t) => text_parts.push(t.text.clone()),
                         _ => {}
                     }
                 }
@@ -1290,6 +1357,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![
@@ -1314,16 +1382,12 @@ mod tests {
 
         let types: Vec<&str> = input
             .iter()
-            .map(|item| {
-                item.get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| item["role"].as_str().unwrap())
-            })
+            .map(|item| item["type"].as_str().unwrap())
             .collect();
 
         assert_eq!(
             types,
-            vec!["assistant", "function_call", "assistant", "function_call"]
+            vec!["message", "function_call", "message", "function_call"]
         );
     }
 
@@ -1348,7 +1412,7 @@ mod tests {
 
         let message = responses_api_to_message(&response).unwrap();
         assert_eq!(message.content.len(), 1);
-        let MessageContent::ToolRequest(tool_request) = &message.content[0] else {
+        let MessageContentBlock::ToolRequest(tool_request) = &message.content[0] else {
             panic!("expected tool request content");
         };
         assert_eq!(tool_request.id, "call_abc");
@@ -1381,6 +1445,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let tool = Tool::new(
@@ -1424,6 +1489,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1453,6 +1519,46 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_request_supports_gpt_5_6_xhigh_effort() {
+        let model_config = ModelConfig::new("gpt-5.6-sol-xhigh");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert_eq!(result["reasoning"]["effort"], "xhigh");
+        assert_eq!(result["reasoning"]["summary"], "auto");
+    }
+
+    #[test]
+    fn test_responses_request_supports_gpt_5_6_reasoning_mode() {
+        let model_config = ModelConfig::new("gpt-5.6-sol").with_merged_request_params(
+            std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+        );
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["reasoning"]["mode"], "pro");
+        assert!(result["reasoning"].get("effort").is_none());
+        assert!(result["reasoning"].get("summary").is_none());
+    }
+
+    #[test]
+    fn test_responses_request_rejects_reasoning_mode_for_non_gpt_5_6_model() {
+        for model_name in ["gpt-5.5", "gpt-5.60"] {
+            let model_config = ModelConfig::new(model_name).with_merged_request_params(
+                std::collections::HashMap::from([("reasoning_mode".to_string(), json!("pro"))]),
+            );
+
+            let error = create_responses_request(&model_config, "You are helpful.", &[], &[])
+                .expect_err("reasoning mode should be gated to GPT-5.6 models");
+
+            assert!(error
+                .to_string()
+                .contains("reasoning_mode is only supported for GPT-5.6 models"));
+        }
+    }
+
+    #[test]
     fn test_responses_request_without_effort_suffix_omits_reasoning() {
         for model_name in ["gpt-5.4", "o3", "gpt-5-nano"] {
             let model_config = ModelConfig {
@@ -1464,6 +1570,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1478,6 +1585,31 @@ mod tests {
     }
 
     #[test]
+    fn test_responses_request_omits_default_max_output_tokens_for_unknown_model() {
+        let model_config = ModelConfig::new("gpt-5.6-sol");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(result["model"], "gpt-5.6-sol");
+        assert!(
+            result.get("max_output_tokens").is_none(),
+            "unknown/new models should not receive Goose's fallback max_output_tokens"
+        );
+    }
+
+    #[test]
+    fn test_responses_request_includes_canonical_max_output_tokens() {
+        let model_config = ModelConfig::new("gpt-5.4").with_canonical_limits("openai");
+
+        let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
+
+        assert_eq!(
+            result["max_output_tokens"],
+            model_config.max_tokens.unwrap()
+        );
+    }
+
+    #[test]
     fn test_responses_request_non_reasoning_model_ignores_global_thinking_effort() {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", Some("high"))]);
         let model_config = ModelConfig {
@@ -1489,6 +1621,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
@@ -1514,6 +1647,7 @@ mod tests {
                 serde_json::json!(true),
             )])),
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &[], &[]).unwrap();
@@ -1538,6 +1672,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result =
@@ -1565,15 +1700,17 @@ mod tests {
     #[test]
     fn test_tool_response_with_image_serializes_as_typed_array() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let messages = vec![Message::user().with_content(MessageContent::tool_response(
-            "call_1",
-            Ok(CallToolResult::success(vec![
-                Content::text("caption"),
-                Content::image("a+/=".to_string(), "image/png".to_string()),
-            ])),
-        ))];
+        let messages = vec![
+            Message::user().with_content(MessageContentBlock::tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::text("caption"),
+                    ContentBlock::image("a+/=".to_string(), "image/png".to_string()),
+                ])),
+            )),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1584,6 +1721,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1620,6 +1758,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1651,6 +1790,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1681,6 +1821,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1696,15 +1837,14 @@ mod tests {
     #[test]
     fn test_text_flushed_before_tool_response() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let messages =
-            vec![Message::user()
-                .with_text("context")
-                .with_content(MessageContent::tool_response(
-                    "call_1",
-                    Ok(CallToolResult::success(vec![Content::text("done")])),
-                ))];
+        let messages = vec![Message::user().with_text("context").with_content(
+            MessageContentBlock::tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+            ),
+        )];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1715,6 +1855,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1733,14 +1874,16 @@ mod tests {
         use crate::conversation::message::Message;
         use rmcp::model::{ErrorCode, ErrorData};
 
-        let messages = vec![Message::user().with_content(MessageContent::tool_response(
-            "call_err",
-            Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: "file not found".into(),
-                data: None,
-            }),
-        ))];
+        let messages = vec![
+            Message::user().with_content(MessageContentBlock::tool_response(
+                "call_err",
+                Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: "file not found".into(),
+                    data: None,
+                }),
+            )),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1751,6 +1894,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1776,6 +1920,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1807,6 +1952,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1838,6 +1984,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1868,7 +2015,7 @@ mod tests {
         let response: ResponsesApiResponse = serde_json::from_str(json).unwrap();
         let message = responses_api_to_message(&response).unwrap();
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(t) = &message.content[0] {
+        if let MessageContentBlock::Text(t) = &message.content[0] {
             assert_eq!(t.text, "I cannot help with that request.");
         } else {
             panic!("expected text content from refusal");
@@ -1888,7 +2035,7 @@ mod tests {
         let item: ResponseOutputItemInfo = serde_json::from_str(json).unwrap();
         let content = process_streaming_output_items(vec![item], false)?;
         assert_eq!(content.len(), 1);
-        if let MessageContent::Text(t) = &content[0] {
+        if let MessageContentBlock::Text(t) = &content[0] {
             assert_eq!(t.text, "I'm unable to assist.");
         } else {
             panic!("expected text content from refusal");
@@ -1916,7 +2063,7 @@ mod tests {
             id: Some("msg_1".to_string()),
             status: Some("completed".to_string()),
             role: "assistant".to_string(),
-            content: vec![ContentPart::Refusal {
+            content: vec![ContentBlockPart::Refusal {
                 refusal: "I cannot help with that.".to_string(),
             }],
         }];
@@ -1957,7 +2104,7 @@ mod tests {
     #[test]
     fn test_frontend_tool_request_serialized_in_responses_request() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
         let messages = vec![
             Message::assistant().with_frontend_tool_request(
@@ -1965,9 +2112,9 @@ mod tests {
                 Ok(CallToolRequestParams::new("browser_click")
                     .with_arguments(object!({"selector": "#btn"}))),
             ),
-            Message::user().with_content(MessageContent::tool_response(
+            Message::user().with_content(MessageContentBlock::tool_response(
                 "call_ft1",
-                Ok(CallToolResult::success(vec![Content::text("clicked")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("clicked")])),
             )),
         ];
 
@@ -1980,6 +2127,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1992,6 +2140,73 @@ mod tests {
         assert_eq!(input[1]["type"], "function_call_output");
         assert_eq!(input[1]["call_id"], "call_ft1");
         assert_eq!(input[1]["output"], "clicked");
+    }
+
+    #[test]
+    fn test_responses_request_sanitizes_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "call_agent",
+                Ok(CallToolRequestParams::new("Crack Catcher")
+                    .with_arguments(object!({"prompt": "verify the work"}))),
+            ),
+            Message::assistant().with_frontend_tool_request(
+                "call_frontend_agent",
+                Ok(CallToolRequestParams::new("@Review Agent")
+                    .with_arguments(object!({"prompt": "check it"}))),
+            ),
+        ];
+
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        assert_eq!(input[0]["type"], "function_call");
+        assert_eq!(input[0]["call_id"], "call_agent");
+        assert_eq!(input[0]["name"], "Crack_Catcher");
+
+        assert_eq!(input[1]["type"], "function_call");
+        assert_eq!(input[1]["call_id"], "call_frontend_agent");
+        assert_eq!(input[1]["name"], "_Review_Agent");
+    }
+
+    #[test]
+    fn test_responses_request_limits_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![Message::assistant().with_tool_request(
+            "call_long_name",
+            Ok(CallToolRequestParams::new("a".repeat(160))),
+        )];
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let name = result["input"][0]["name"].as_str().unwrap();
+
+        assert_eq!(name.len(), 128);
     }
 
     #[test]
@@ -2017,6 +2232,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2054,6 +2270,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();

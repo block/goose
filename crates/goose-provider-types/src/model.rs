@@ -1,10 +1,12 @@
-use crate::formats::openai::{extract_reasoning_effort, is_openai_responses_model};
+use crate::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, is_xai_reasoning_model,
+    supports_xai_reasoning_effort,
+};
 use crate::thinking::ThinkingEffort;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
@@ -21,7 +23,7 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
     "preserve_unsigned_thinking",
 ];
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
@@ -34,6 +36,10 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    /// Per-request HTTP headers attached to outgoing provider calls.
+    /// Never serialized into request bodies.
+    #[serde(skip)]
+    pub request_headers: Option<HashMap<String, String>>,
 }
 
 impl<'de> Deserialize<'de> for ModelConfig {
@@ -65,6 +71,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
             toolshim_model: raw.toolshim_model,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
+            request_headers: None,
         };
         config.normalize_effort_suffix();
         Ok(config)
@@ -82,6 +89,7 @@ impl ModelConfig {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
         config.normalize_effort_suffix();
         config
@@ -163,6 +171,11 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_request_headers(mut self, headers: Option<HashMap<String, String>>) -> Self {
+        self.request_headers = headers;
+        self
+    }
+
     pub fn with_merged_request_params(mut self, params: HashMap<String, Value>) -> Self {
         match self.request_params.as_mut() {
             Some(existing) => {
@@ -234,6 +247,7 @@ impl ModelConfig {
         self.is_openai_reasoning_model()
             || self.model_name.to_lowercase().contains("claude")
             || Self::is_gemini3_reasoning_model_name(&self.model_name)
+            || is_xai_reasoning_model(&self.model_name)
     }
 
     fn is_gemini3_reasoning_model_name(model_name: &str) -> bool {
@@ -250,7 +264,7 @@ impl ModelConfig {
     }
 
     pub fn normalize_effort_suffix(&mut self) {
-        if !self.is_openai_reasoning_model() {
+        if !self.is_openai_reasoning_model() && !supports_xai_reasoning_effort(&self.model_name) {
             return;
         }
         let parts: Vec<&str> = self.model_name.split('-').collect();
@@ -300,6 +314,25 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn request_headers_never_serialize_into_bodies() {
+        let config = ModelConfig::new("test-model").with_request_headers(Some(HashMap::from([(
+            "queue_threshold".to_string(),
+            "500".to_string(),
+        )])));
+
+        let serialized = serde_json::to_value(&config).unwrap();
+        assert!(serialized.get("request_headers").is_none());
+        assert_eq!(
+            config
+                .request_headers
+                .as_ref()
+                .unwrap()
+                .get("queue_threshold"),
+            Some(&"500".to_string())
+        );
+    }
 
     mod thinking_effort_tests {
         use super::*;
@@ -513,6 +546,21 @@ mod tests {
         }
 
         #[test]
+        fn xai_reasoning_effort_suffix_is_normalized() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_THINKING_EFFORT", None::<&str>),
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_TEMPERATURE", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+                ("GOOSE_TOOLSHIM", None::<&str>),
+                ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ]);
+            let config = ModelConfig::new("grok-4.5-high");
+            assert_eq!(config.model_name, "grok-4.5");
+            assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
+        }
+
+        #[test]
         fn parse_aliases() {
             assert_eq!("off".parse::<ThinkingEffort>(), Ok(ThinkingEffort::Off));
             assert_eq!(
@@ -624,6 +672,20 @@ mod tests {
             let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(1_050_000));
 
+            // "gpt-5.6-sol-xhigh" should resolve via "gpt-5.6-sol"
+            let config = ModelConfig::new("gpt-5.6-sol-xhigh").with_canonical_limits("openai");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
+            let canonical = crate::canonical::maybe_get_canonical_model("openai", "gpt-5.6-sol")
+                .expect("gpt-5.6-sol should have canonical metadata");
+            assert_eq!(canonical.temperature, Some(false));
+
+            let config = ModelConfig::new("gpt-5.6-sol").with_canonical_limits("chatgpt_codex");
+            assert_eq!(config.context_limit, Some(1_050_000));
+            assert_eq!(config.max_tokens, Some(128_000));
+            assert_eq!(config.reasoning, Some(true));
+
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
             let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(400_000));
@@ -697,6 +759,9 @@ mod tests {
             assert!(ModelConfig::new("o3-mini").is_reasoning_model());
             assert!(ModelConfig::new("claude-sonnet-4").is_reasoning_model());
             assert!(ModelConfig::new("gemini-3-pro").is_reasoning_model());
+            assert!(ModelConfig::new("grok-4.5").is_reasoning_model());
+            assert!(ModelConfig::new("grok-4.20-0309-reasoning").is_reasoning_model());
+            assert!(!ModelConfig::new("grok-4.20-0309-non-reasoning").is_reasoning_model());
         }
 
         #[test]

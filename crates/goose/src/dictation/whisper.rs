@@ -23,7 +23,6 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use tokenizers::Tokenizer;
-use utoipa::ToSchema;
 
 // Common suppress tokens for all Whisper models
 const SUPPRESS_TOKENS: &[u32] = &[
@@ -42,7 +41,7 @@ const EOT_TOKEN: u32 = 50257;
 const TIMESTAMP_BEGIN: u32 = 50364;
 const SAMPLE_BEGIN: usize = 3;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhisperModel {
     /// Model identifier (e.g., "tiny", "base", "small")
     pub id: &'static str,

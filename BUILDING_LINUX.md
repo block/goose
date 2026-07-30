@@ -59,13 +59,7 @@ cd goose
 Build Goose CLI:
 
 ```bash
-cargo build --release -p goose-cli
-```
-
-Build Goose Server:
-
-```bash
-cargo build --release -p goose-server
+cargo build --release -p goose-cli --bin goose
 ```
 
 This command should give you a list of possible packages in the
@@ -80,9 +74,9 @@ cargo test -p
 cd ui/desktop
 pnpm install
 
-# Copy the server binary to the expected location
+# Copy the goose binary to the expected location
 mkdir -p src/bin
-cp ../../target/release/goosed src/bin/
+cp ../../target/release/goose src/bin/
 ```
 
 ### 4. Build the Application
@@ -143,10 +137,10 @@ cd /path/to/goose/ui/desktop/out/goose-linux-x64
 ./goose 2>&1 | grep -v "GLib-GObject" | grep -v "browser_main_loop"
 ```
 
-#### Server Binary Not Found
-If you see "Could not find goosed binary", ensure you've:
-1. Built the Rust backend: `cargo build --release -p goose-server`
-2. Copied it to the right location: `cp ../../target/release/goosed src/bin/`
+#### Goose Binary Not Found
+If you see "Goose binary not found", ensure you've:
+1. Built the Rust binary: `cargo build --release -p goose-cli --bin goose`
+2. Copied it to the right location: `cp ../../target/release/goose src/bin/`
 3. Rebuilt the application: `pnpm run make`
 
 ### Distribution-Specific Notes
@@ -177,7 +171,7 @@ Building as Snap packages is not currently supported but may be added in the fut
 
 For active development:
 
-1. **Backend changes**: Rebuild with `cargo build --release -p goose-server` and copy the binary
+1. **Backend changes**: Rebuild with `cargo build --release -p goose-cli --bin goose` and copy the binary
 2. **Frontend changes**: Use `pnpm run start` for hot reload during development
 3. **Full rebuild**: Run the complete build process above
 

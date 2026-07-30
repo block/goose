@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
 use tracing::info;
-use utoipa::ToSchema;
 
 fn partial_path_for(destination: &Path) -> PathBuf {
     destination.with_extension(
@@ -51,7 +50,7 @@ pub fn cleanup_partial_downloads(
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
     /// Model ID being downloaded
     pub model_id: String,
@@ -74,7 +73,7 @@ pub struct DownloadProgress {
     pub task_exited: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum DownloadStatus {
     Downloading,

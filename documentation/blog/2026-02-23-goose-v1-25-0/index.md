@@ -20,7 +20,7 @@ Let's break down what's new.
 
 **The headline feature of v1.25.0 is security sandboxing for goose Desktop on macOS.**
 
-When you give an AI agent access to your shell and file system, trust matters. With this release, goose Desktop now runs inside a [macOS sandbox](https://goose-docs.ai/docs/guides/sandbox) powered by [seatbelt](https://github.com/michaelneale/agent-seatbelt-sandbox), the same underlying technology Apple uses to sandbox its own apps.
+When you give an AI agent access to your shell and file system, trust matters. With this release, goose Desktop now runs inside a macOS sandbox powered by [seatbelt](https://github.com/michaelneale/agent-seatbelt-sandbox), the same underlying technology Apple uses to sandbox its own apps.
 
 What does this mean in practice?
 

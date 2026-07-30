@@ -30,13 +30,13 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
           fetch-depth: 0
 
       - name: Check for code changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # pin@v3
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # pin@v3
         id: filter
         with:
           base: ${{ github.event.before || github.event.pull_request.base.sha }}
@@ -51,7 +51,7 @@ jobs:
     if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -61,9 +61,6 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
 
       - name: Build Binary for Smoke Tests
         run: |
@@ -82,7 +79,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -96,7 +93,7 @@ jobs:
         run: chmod +x target/debug/goose
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -130,12 +127,12 @@ jobs:
         working-directory: ui/desktop
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
 
       - name: Run MCP Tests
         env:
@@ -170,7 +167,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -213,7 +210,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -227,12 +224,12 @@ jobs:
         run: chmod +x target/debug/goose
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
 
       - name: Run Compaction Tests
         env:

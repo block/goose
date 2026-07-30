@@ -9,8 +9,7 @@ use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
-    object, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
-    Role, Tool,
+    object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, ResourceContents, Role, Tool,
 };
 use serde_json::Value;
 
@@ -290,17 +289,17 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
 /// by Bedrock for Anthropic Claude 3 models.
 pub fn to_bedrock_tool_result_content_block(
     tool_use_id: &str,
-    content: Content,
+    content: ContentBlock,
 ) -> Result<bedrock::ToolResultContentBlock> {
-    Ok(match content.raw {
-        RawContent::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
-        RawContent::Image(image) => {
+    Ok(match content {
+        ContentBlock::Text(text) => bedrock::ToolResultContentBlock::Text(text.text),
+        ContentBlock::Image(image) => {
             bedrock::ToolResultContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
-        RawContent::ResourceLink(_link) => {
+        ContentBlock::ResourceLink(_link) => {
             bedrock::ToolResultContentBlock::Text("[Resource link]".to_string())
         }
-        RawContent::Resource(resource) => match &resource.resource {
+        ContentBlock::Resource(resource) => match &resource.resource {
             ResourceContents::TextResourceContents { text, .. } => {
                 match to_bedrock_document(tool_use_id, &resource.resource)? {
                     Some(doc) => bedrock::ToolResultContentBlock::Document(doc),
@@ -310,8 +309,10 @@ pub fn to_bedrock_tool_result_content_block(
             ResourceContents::BlobResourceContents { .. } => {
                 bail!("Blob resource content is not supported by Bedrock provider yet")
             }
+            _ => bail!("Unsupported resource content"),
         },
-        RawContent::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
+        ContentBlock::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
+        _ => bail!("Unsupported content"),
     })
 }
 
@@ -422,6 +423,7 @@ fn to_bedrock_document(
         ResourceContents::BlobResourceContents { .. } => {
             bail!("Blob resource content is not supported by Bedrock provider yet")
         }
+        _ => bail!("Unsupported resource content"),
     };
 
     let filename = Path::new(uri)
@@ -550,9 +552,9 @@ fn bedrock_content_block_kind(block: &bedrock::ContentBlock) -> &'static str {
 
 pub fn from_bedrock_tool_result_content_block(
     content: &bedrock::ToolResultContentBlock,
-) -> ToolResult<Content> {
+) -> ToolResult<ContentBlock> {
     Ok(match content {
-        bedrock::ToolResultContentBlock::Text(text) => Content::text(text.to_string()),
+        bedrock::ToolResultContentBlock::Text(text) => ContentBlock::text(text.to_string()),
         _ => {
             return Err(ErrorData {
                 code: ErrorCode::INTERNAL_ERROR,
@@ -609,7 +611,7 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use goose_test_support::TEST_IMAGE_B64;
-    use rmcp::model::{AnnotateAble, RawImageContent};
+    use rmcp::model::ImageContent;
     use serde_json::json;
 
     #[test]
@@ -762,12 +764,7 @@ mod tests {
         ];
 
         for mime_type in supported_formats {
-            let image = RawImageContent {
-                data: TEST_IMAGE_B64.to_string(),
-                mime_type: mime_type.to_string(),
-                meta: None,
-            }
-            .no_annotation();
+            let image = ImageContent::new(TEST_IMAGE_B64.to_string(), mime_type.to_string());
 
             let result = to_bedrock_image(&image.data, &image.mime_type);
             assert!(result.is_ok(), "Failed to convert {} format", mime_type);
@@ -778,12 +775,7 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_image_unsupported_format() {
-        let image = RawImageContent {
-            data: TEST_IMAGE_B64.to_string(),
-            mime_type: "image/bmp".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(TEST_IMAGE_B64.to_string(), "image/bmp".to_string());
 
         let result = to_bedrock_image(&image.data, &image.mime_type);
         assert!(result.is_err());
@@ -794,12 +786,10 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_image_invalid_base64() {
-        let image = RawImageContent {
-            data: "invalid_base64_data!!!".to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(
+            "invalid_base64_data!!!".to_string(),
+            "image/png".to_string(),
+        );
 
         let result = to_bedrock_image(&image.data, &image.mime_type);
         assert!(result.is_err());
@@ -809,12 +799,7 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_message_content_image() -> Result<()> {
-        let image = RawImageContent {
-            data: TEST_IMAGE_B64.to_string(),
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
+        let image = ImageContent::new(TEST_IMAGE_B64.to_string(), "image/png".to_string());
 
         let message_content = MessageContent::Image(image);
         let result = to_bedrock_message_content(&message_content)?;
@@ -827,10 +812,10 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_tool_result_content_block_image() -> Result<()> {
-        let content = Content::image(TEST_IMAGE_B64.to_string(), "image/png".to_string());
+        let content = ContentBlock::image(TEST_IMAGE_B64.to_string(), "image/png".to_string());
         let result = to_bedrock_tool_result_content_block("test_id", content)?;
 
-        // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
+        // Verify the wrapper correctly converts ContentBlock::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
 
         Ok(())
@@ -1009,7 +994,10 @@ mod tests {
                 assert_eq!(text_block.text, "because of X");
                 assert_eq!(text_block.signature.as_deref(), Some("sig-abc"));
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -1026,7 +1014,10 @@ mod tests {
                 assert_eq!(text_block.text, "silent reasoning");
                 assert!(text_block.signature.is_none());
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -1045,7 +1036,7 @@ mod tests {
                 assert_eq!(blob.as_ref(), raw);
             }
             other => panic!(
-                "Expected ReasoningContent::RedactedContent, got {:?}",
+                "Expected ReasoningContentBlock::RedactedContent, got {:?}",
                 other
             ),
         }
@@ -1087,7 +1078,10 @@ mod tests {
                 assert_eq!(text_block.text, "chain of thought");
                 assert_eq!(text_block.signature.as_deref(), Some("sig-xyz"));
             }
-            other => panic!("Expected ReasoningContent::ReasoningText, got {:?}", other),
+            other => panic!(
+                "Expected ReasoningContentBlock::ReasoningText, got {:?}",
+                other
+            ),
         }
         Ok(())
     }
@@ -1111,7 +1105,7 @@ mod tests {
                 assert_eq!(blob.as_ref(), raw);
             }
             other => panic!(
-                "Expected ReasoningContent::RedactedContent, got {:?}",
+                "Expected ReasoningContentBlock::RedactedContent, got {:?}",
                 other
             ),
         }
@@ -1266,7 +1260,7 @@ mod tests {
             Utc::now().timestamp(),
             vec![MessageContent::tool_response(
                 "tool_1".to_string(),
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     "Tool result text".to_string(),
                 )])),
             )],
