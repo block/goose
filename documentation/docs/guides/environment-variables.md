@@ -160,7 +160,6 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_MAX_BACKGROUND_TASKS` | Sets the maximum number of concurrent background [subagent](/docs/guides/context-engineering/subagents) tasks goose can run at once | Integer (e.g., 1, 5, 10) | 5 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints", "AGENTS.md"]` |
 | `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
-| `GOOSE_DISABLE_TOOL_CALL_SUMMARY` | Disables the per-tool-call AI-generated summary title, keeping the fallback title instead. Saves one provider call per tool invocation. | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response markdown | "light", "dark", "ansi" | "ansi" |
 | `GOOSE_CLI_LIGHT_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using light mode | bat theme name (e.g., "Solarized (light)", "OneHalfLight") | "GitHub" |
@@ -479,7 +478,7 @@ These variables configure the `goose serve` ACP server process. They are alterna
 ```bash
 # Start a goose ACP server reachable on the local network over TLS
 GOOSE_SERVER__SECRET_KEY='a-long-random-secret' \
-goose serve --platform desktop --host 0.0.0.0 --port 3000 --tls
+goose serve --platform desktop --enable-scheduler --host 0.0.0.0 --port 3000 --tls
 ```
 
 When TLS is enabled, `goose serve` prints a `GOOSED_CERT_FINGERPRINT=...` line on startup. goose Desktop can use this fingerprint to pin the server certificate. See [Running a Remote goose Server](/docs/guides/remote-goose-server) for the full setup.
@@ -508,6 +507,14 @@ export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
 export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
 ```
+
+## Documentation Configuration
+
+This variable controls where the `goose-doc-guide` skill reads goose documentation from.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_DOCS_ROOT` | Documentation root for the `goose-doc-guide` skill, used for [offline/air-gapped docs](/docs/guides/offline-docs) | Local path or HTTP(S) URL containing `goose-docs-map.md` and `docs/` | `https://goose-docs.ai` |
 
 ## Development & Testing
 

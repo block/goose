@@ -41,18 +41,17 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
+    ConfigOptionUpdate, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
     EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse,
     ImageContent, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
     ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
+    MessageId, Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
     PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
     RequestPermissionRequest, ResourceLink, SessionCapabilities, SessionCloseCapabilities,
     SessionConfigOption, SessionId, SessionInfoUpdate, SessionListCapabilities,
     SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
     SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
-    ToolKind, Usage, UsageUpdate,
+    TextContent, ToolCallId, ToolCallUpdate, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -63,7 +62,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{AnnotateAble, RawTextContent, Role};
+use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -76,12 +75,12 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use self::tool_calls::chain::{extend_chain_membership, ToolChain};
+use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
-    extract_tool_call_update_meta, format_tool_name, pending_tool_call_from_request,
-    tool_call_identity_meta, tool_call_update_fields_from_response,
+    build_initial_tool_call, build_permission_tool_call_update,
+    tool_call_update_fields_from_response, trusted_update_meta,
 };
-use self::tool_calls::enrichment::{ChainSummaryEnrichmentContext, ToolTitleEnrichmentContext};
+use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
 
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
@@ -171,19 +170,6 @@ const PROVIDER_CONFIG_STATUS_CHECK_CONCURRENCY: usize = 16;
 /// below is keyed by session ID.
 struct GooseAcpSession {
     agent: Arc<Agent>,
-    tool_requests: HashMap<String, crate::conversation::message::ToolRequest>,
-    /// For each tool_call_id that belongs to a multi-tool chain (run of
-    /// consecutive ToolRequest blocks within one assistant message), the chain
-    /// it belongs to. Populated when the assistant message is processed.
-    /// Used by `handle_tool_response` to detect when a chain has fully
-    /// completed and fire a single LLM summary covering the run.
-    chain_membership: HashMap<String, Arc<ToolChain>>,
-    /// Set of tool_call_ids whose ToolResponse has already been processed.
-    /// Drives the "all responses present" check for chain completion.
-    responded_tool_ids: HashSet<String>,
-    /// Tool_call_ids of chains that have already had a summary task fired.
-    /// Idempotence guard so we summarize each chain at most once.
-    summarized_chains: HashSet<String>,
 }
 
 struct ActivePromptRun {
@@ -199,7 +185,7 @@ pub struct GooseAcpAgentOptions {
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
-    pub scheduler: Arc<dyn SchedulerTrait>,
+    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
 }
 
 pub struct GooseAcpAgent {
@@ -215,6 +201,7 @@ pub struct GooseAcpAgent {
     client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
     client_supports_recipe_param_requests: OnceCell<bool>,
+    client_requests_tool_call_label_enrichment: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
     config_dir: std::path::PathBuf,
@@ -224,13 +211,6 @@ pub struct GooseAcpAgent {
     provider_inventory: ProviderInventoryService,
     additional_source_roots: Vec<SourceRoot>,
     recipe_path_cache: Arc<Mutex<HashMap<String, PathBuf>>>,
-}
-
-/// Shorten a session/thread id for perf log correlation.
-/// All `perf:` logs use `sid=<8-char-prefix>` so a single session's activity
-/// can be extracted with `grep 'perf:' <log> | grep 'sid=abc12345'`.
-pub(super) fn sid_short(id: &str) -> String {
-    id.chars().take(8).collect()
 }
 
 fn meta_string(
@@ -322,6 +302,8 @@ struct GooseClientCapabilities {
     custom_notifications: Option<bool>,
     #[serde(rename = "recipeParameterRequests", default)]
     recipe_parameter_requests: Option<bool>,
+    #[serde(rename = "toolCallLabelEnrichment", default)]
+    tool_call_label_enrichment: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -593,6 +575,13 @@ impl GooseAcpAgent {
             .unwrap_or(false)
     }
 
+    fn requests_tool_call_label_enrichment(&self) -> bool {
+        self.client_requests_tool_call_label_enrichment
+            .get()
+            .copied()
+            .unwrap_or(false)
+    }
+
     fn supports_acp_elicitation(&self) -> bool {
         self.client_supports_acp_elicitation
             .get()
@@ -615,7 +604,7 @@ impl GooseAcpAgent {
         let agent_config = AgentConfig::new(
             Arc::clone(&session_manager),
             Arc::clone(&permission_manager),
-            Some(options.scheduler),
+            options.scheduler,
             Config::global().get_goose_mode().unwrap_or_default(),
             options.disable_session_naming,
             options.goose_platform.clone(),
@@ -635,6 +624,7 @@ impl GooseAcpAgent {
             client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
             client_supports_recipe_param_requests: OnceCell::new(),
+            client_requests_tool_call_label_enrichment: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
             config_dir: options.config_dir,
@@ -913,19 +903,8 @@ impl GooseAcpAgent {
         Ok(extension_data)
     }
 
-    async fn register_acp_session(
-        &self,
-        session_id: String,
-        agent: Arc<Agent>,
-        tool_requests: HashMap<String, ToolRequest>,
-    ) {
-        let acp_session = GooseAcpSession {
-            agent,
-            tool_requests,
-            chain_membership: HashMap::new(),
-            responded_tool_ids: HashSet::new(),
-            summarized_chains: HashSet::new(),
-        };
+    async fn register_acp_session(&self, session_id: String, agent: Arc<Agent>) {
+        let acp_session = GooseAcpSession { agent };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
 
@@ -933,10 +912,9 @@ impl GooseAcpAgent {
         &self,
         cx: &ConnectionTo<Client>,
         session: &Session,
-        tool_requests: HashMap<String, ToolRequest>,
     ) -> Result<(Arc<Agent>, Vec<ExtensionLoadResult>), agent_client_protocol::Error> {
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, session).await?;
-        self.register_acp_session(session.id.clone(), agent.clone(), tool_requests)
+        self.register_acp_session(session.id.clone(), agent.clone())
             .await;
 
         Ok((agent, extension_results))
@@ -971,23 +949,16 @@ impl GooseAcpAgent {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let raw = RawTextContent {
-                            text: sanitize_unicode_tags(&text.text),
-                            meta: None,
-                        };
+                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
                         if audience.is_empty() {
-                            raw.no_annotation()
+                            raw
                         } else {
-                            raw.no_annotation().with_audience(audience)
+                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
                         }
                     } else {
                         // No annotations — regular user text.
                         let sanitized = sanitize_unicode_tags(&text.text);
-                        RawTextContent {
-                            text: sanitized,
-                            meta: None,
-                        }
-                        .no_annotation()
+                        RmcpTextContent::new(sanitized)
                     };
                     message = message.with_content(MessageContent::Text(annotated));
                 }
@@ -1025,14 +996,17 @@ impl GooseAcpAgent {
         role: &Role,
         steer: bool,
         agent: &Arc<Agent>,
-        session: &mut GooseAcpSession,
+        tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
         match content_item {
             MessageContent::Text(text) => {
-                let chunk =
-                    ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
-                        .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(
+                    ContentBlock::Text(TextContent::new(text.text.clone())),
+                    message_id,
+                    message_created,
+                    steer,
+                );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1040,23 +1014,14 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(
-                    tool_request,
-                    session_id,
-                    session_id_str,
-                    message_id,
-                    session,
-                    cx,
-                )
-                .await?;
+                self.handle_tool_request(tool_request, session_id, session_id_str, agent, cx)
+                    .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
                 self.handle_tool_response(
                     tool_response,
+                    tool_requests.get(&tool_response.id),
                     session_id,
-                    session_id_str,
-                    message_id,
-                    session,
                     cx,
                 )
                 .await?;
@@ -1064,16 +1029,12 @@ impl GooseAcpAgent {
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
-                    SessionUpdate::AgentThoughtChunk(
-                        ContentChunk::new(ContentBlock::Text(TextContent::new(
-                            thinking.thinking.clone(),
-                        )))
-                        .meta(message_update_meta(
-                            message_id,
-                            message_created,
-                            steer,
-                        )),
-                    ),
+                    SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
+                        ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
+                        message_id,
+                        message_created,
+                        steer,
+                    )),
                 ))?;
             }
             MessageContent::ActionRequired(action_required) => match &action_required.data {
@@ -1113,7 +1074,8 @@ impl GooseAcpAgent {
             MessageContent::Image(image) => {
                 let mut image_content =
                     ImageContent::new(image.data.clone(), image.mime_type.clone());
-                if let Some(audience) = image.audience() {
+                if let Some(audience) = image.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                {
                     image_content = image_content.annotations(
                         Annotations::new().audience(
                             audience
@@ -1128,8 +1090,12 @@ impl GooseAcpAgent {
                         ),
                     );
                 }
-                let chunk = ContentChunk::new(ContentBlock::Image(image_content))
-                    .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(
+                    ContentBlock::Image(image_content),
+                    message_id,
+                    message_created,
+                    steer,
+                );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1149,47 +1115,52 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    fn spawn_ready_chain_summary(
+        &self,
+        chain: ReadyToolChain,
+        agent: &Arc<Agent>,
+        session_id: &SessionId,
+        cx: &ConnectionTo<Client>,
+    ) {
+        if !self.requests_tool_call_label_enrichment() {
+            return;
+        }
+
+        let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
+        spawn_chain_summary_enrichment(
+            agent,
+            session_id,
+            tool_call_notifier,
+            &self.session_manager,
+            chain,
+        );
+    }
+
     async fn handle_tool_request(
         &self,
-        tool_request: &crate::conversation::message::ToolRequest,
+        tool_request: &ToolRequest,
         session_id: &SessionId,
         session_id_for_persist: &str,
-        message_id: Option<&str>,
-        session: &mut GooseAcpSession,
+        agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        session
-            .tool_requests
-            .insert(tool_request.id.clone(), tool_request.clone());
-
-        let pending_tool_call = pending_tool_call_from_request(tool_request);
-        let initial_tool_call = pending_tool_call
-            .tool_call
-            .meta(pending_tool_call.identity_meta.clone());
+        let client_requests_label_enrichment = self.requests_tool_call_label_enrichment();
+        let initial_tool_call =
+            build_initial_tool_call(tool_request, client_requests_label_enrichment);
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
 
-        if Config::global()
-            .get_goose_disable_tool_call_summary()
-            .unwrap_or(false)
-        {
+        if !client_requests_label_enrichment {
             return Ok(());
         }
 
-        if let Ok(tool_call) = &tool_request.tool_call {
-            ToolTitleEnrichmentContext::new(
-                &session.agent,
-                session_id,
-                &tool_call_notifier,
+        if tool_request.tool_call.is_ok() {
+            spawn_tool_title_enrichment(
+                agent,
+                tool_call_notifier,
                 &self.session_manager,
                 session_id_for_persist,
-                message_id,
-            )
-            .spawn_title_enrichment(
-                tool_request.id.clone(),
-                tool_call,
-                pending_tool_call.identity_meta.clone(),
-                pending_tool_call.fallback_title.clone(),
+                tool_request,
             );
         }
 
@@ -1199,131 +1170,18 @@ impl GooseAcpAgent {
     async fn handle_tool_response(
         &self,
         tool_response: &ToolResponse,
+        tool_request: Option<&ToolRequest>,
         session_id: &SessionId,
-        session_id_str: &str,
-        message_id: Option<&str>,
-        session: &mut GooseAcpSession,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
-        let fields = tool_call_update_fields_from_response(
-            tool_response,
-            session.tool_requests.get(&tool_response.id),
-        );
+        let fields = tool_call_update_fields_from_response(tool_response, tool_request, false);
 
         let update = ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-            .meta(extract_tool_call_update_meta(tool_response));
+            .meta(trusted_update_meta(tool_response));
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_update(update)?;
 
-        // Chain summarization: when this response completes a multi-tool
-        // chain, fire one LLM summary covering the run.
-        session.responded_tool_ids.insert(tool_response.id.clone());
-        self.maybe_summarize_chain(
-            &tool_response.id,
-            session_id,
-            session_id_str,
-            session,
-            &tool_call_notifier,
-        );
-        let _ = message_id;
-
         Ok(())
-    }
-
-    /// If `tool_call_id` belongs to a multi-tool chain and every step in that
-    /// chain has now had its response processed, spawn a single LLM
-    /// summarization task that persists the chain summary on the first tool
-    /// request and notifies the client. Idempotent — fires at most once per
-    /// chain.
-    fn maybe_summarize_chain(
-        &self,
-        tool_call_id: &str,
-        session_id: &SessionId,
-        _session_id_str: &str,
-        session: &mut GooseAcpSession,
-        tool_call_notifier: &ToolCallNotifier,
-    ) {
-        let Some(chain) = session.chain_membership.get(tool_call_id).cloned() else {
-            warn!(
-                "tool chain summary: skipped — no chain registered for tool_call_id {tool_call_id}",
-            );
-            return;
-        };
-        if !chain
-            .ids
-            .iter()
-            .all(|id| session.responded_tool_ids.contains(id))
-        {
-            let total = chain.ids.len();
-            let responded = chain
-                .ids
-                .iter()
-                .filter(|id| session.responded_tool_ids.contains(*id))
-                .count();
-            let missing: Vec<&String> = chain
-                .ids
-                .iter()
-                .filter(|id| !session.responded_tool_ids.contains(*id))
-                .collect();
-            warn!(
-                "tool chain summary: waiting on {pending}/{total} responses for chain anchored at {anchor:?} (missing: {missing:?})",
-                pending = total - responded,
-                anchor = chain.ids.first(),
-            );
-            return;
-        }
-        let Some(first_id) = chain.ids.first() else {
-            warn!("tool chain summary: skipped — empty chain.ids for tool_call_id {tool_call_id}");
-            return;
-        };
-        if !session.summarized_chains.insert(first_id.clone()) {
-            debug!("tool chain summary: chain anchored at {first_id} already summarized; skipping");
-            return;
-        }
-
-        // Snapshot (name, args_json) for each step in document order.
-        let steps: Vec<(String, String)> = chain
-            .ids
-            .iter()
-            .filter_map(|id| {
-                let req = session.tool_requests.get(id)?;
-                let tool_call = req.tool_call.as_ref().ok()?;
-                let name = tool_call.name.to_string();
-                let args = tool_call
-                    .arguments
-                    .as_ref()
-                    .map(|a| serde_json::to_string(a).unwrap_or_default())
-                    .unwrap_or_default();
-                let args = if args.len() > 200 {
-                    format!("{}…", crate::utils::safe_truncate(&args, 200))
-                } else {
-                    args
-                };
-                Some((name, args))
-            })
-            .collect();
-        if steps.len() < 2 {
-            return;
-        }
-
-        let identity_meta = session
-            .tool_requests
-            .get(first_id)
-            .and_then(tool_call_identity_meta);
-
-        ChainSummaryEnrichmentContext::new(
-            &session.agent,
-            session_id,
-            tool_call_notifier,
-            &self.session_manager,
-        )
-        .spawn_chain_summary(
-            first_id.clone(),
-            chain.message_id.clone(),
-            steps,
-            identity_meta,
-            chain.ids.len(),
-        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1341,19 +1199,8 @@ impl GooseAcpAgent {
         let agent = agent.clone();
         let session_id = session_id.clone();
 
-        let formatted_name = format_tool_name(&tool_name);
-
-        let mut fields = ToolCallUpdateFields::new()
-            .title(formatted_name)
-            .kind(ToolKind::default())
-            .status(ToolCallStatus::Pending)
-            .raw_input(serde_json::Value::Object(arguments));
-        if let Some(p) = prompt {
-            fields = fields.content(vec![ToolCallContent::Content(Content::new(
-                ContentBlock::Text(TextContent::new(p)),
-            ))]);
-        }
-        let tool_call_update = ToolCallUpdate::new(ToolCallId::new(request_id.clone()), fields);
+        let tool_call_update =
+            build_permission_tool_call_update(&request_id, &tool_name, arguments, prompt);
 
         fn option(kind: PermissionOptionKind) -> PermissionOption {
             let id = serde_json::to_value(kind)
@@ -1402,18 +1249,6 @@ impl GooseAcpAgent {
             })?;
 
         Ok(())
-    }
-
-    fn is_builtin_agent_command(command: &str) -> bool {
-        let normalized = command.trim_start_matches('/');
-
-        crate::agents::execute_commands::list_commands()
-            .iter()
-            .any(|cmd| cmd.name == normalized)
-            || crate::agents::execute_commands::COMPACT_TRIGGERS
-                .iter()
-                .filter_map(|trigger| trigger.strip_prefix('/'))
-                .any(|trigger| trigger == normalized)
     }
 }
 
@@ -1570,43 +1405,18 @@ fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> M
     meta
 }
 
-fn replay_message_meta(message: &Message) -> Meta {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "goose".to_string(),
-        serde_json::Value::Object(replay_message_goose_meta(message)),
-    );
-    meta
-}
-
-fn replay_message_goose_meta(message: &Message) -> serde_json::Map<String, serde_json::Value> {
-    let mut goose = serde_json::Map::new();
-    goose.insert("created".to_string(), serde_json::json!(message.created));
-    if let Some(id) = &message.id {
-        goose.insert("messageId".to_string(), serde_json::json!(id));
+fn content_chunk_for_message(
+    content: ContentBlock,
+    message_id: Option<&str>,
+    created: i64,
+    steer: bool,
+) -> ContentChunk {
+    let mut chunk =
+        ContentChunk::new(content).meta(message_update_meta(message_id, created, steer));
+    if let Some(message_id) = message_id {
+        chunk = chunk.message_id(MessageId::new(message_id));
     }
-    if message.metadata.steer {
-        goose.insert("steer".to_string(), serde_json::json!(true));
-    }
-    goose
-}
-
-fn merge_replay_message_meta(meta: Option<Meta>, message: &Message) -> Meta {
-    let replay_goose = replay_message_goose_meta(message);
-    let mut meta = meta.unwrap_or_default();
-    let goose_value = meta
-        .entry("goose".to_string())
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-
-    if let serde_json::Value::Object(goose) = goose_value {
-        for (key, value) in replay_goose {
-            goose.insert(key, value);
-        }
-    } else {
-        *goose_value = serde_json::Value::Object(replay_goose);
-    }
-
-    meta
+    chunk
 }
 
 impl GooseAcpAgent {
@@ -1632,6 +1442,13 @@ impl GooseAcpAgent {
         let _ = self.client_supports_recipe_param_requests.set(
             extract_client_supports_recipe_param_requests(goose_client_capabilities.as_ref()),
         );
+        let client_requests_tool_call_label_enrichment = goose_client_capabilities
+            .as_ref()
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false);
+        let _ = self
+            .client_requests_tool_call_label_enrichment
+            .set(client_requests_tool_call_label_enrichment);
         let _ = self
             .client_supports_acp_elicitation
             .set(elicitation::client_supports_form_elicitation(&args));
@@ -1702,9 +1519,7 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
                     .data(format!("Session not found: {}", session_id))
             })?;
-        let (agent, _) = self
-            .activate_acp_session(cx, &session, HashMap::new())
-            .await?;
+        let (agent, _) = self.activate_acp_session(cx, &session).await?;
         Ok(agent)
     }
 
@@ -1911,8 +1726,6 @@ impl GooseAcpAgent {
     ) -> Result<PromptResponse, agent_client_protocol::Error> {
         // The ACP session_id IS the thread ID.
         let session_id = args.session_id.0.to_string();
-        let sid = sid_short(&session_id);
-        let t_start = std::time::Instant::now();
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
@@ -1949,35 +1762,6 @@ impl GooseAcpAgent {
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 
-        let message_text = user_message.as_concat_text();
-        if let Some(parsed) = crate::agents::execute_commands::parse_slash_command(&message_text) {
-            let full_command = format!("/{}", parsed.command);
-
-            if !Self::is_builtin_agent_command(parsed.command) {
-                if let Some(recipe_path) =
-                    crate::slash_commands::recipe_slash_command::get_recipe_for_command(
-                        &full_command,
-                    )
-                {
-                    if recipe_path.exists() {
-                        if let Err(error) = cx.send_notification(SessionNotification::new(
-                            args.session_id.clone(),
-                            SessionUpdate::AgentMessageChunk(ContentChunk::new(
-                                ContentBlock::Text(TextContent::new(format!(
-                                    "Running recipe: {}",
-                                    full_command
-                                ))),
-                            )),
-                        )) {
-                            self.clear_active_run(&session_id, &run_id).await;
-                            let _ = Self::send_active_run_update(cx, &args.session_id, None);
-                            return Err(error);
-                        }
-                    }
-                }
-            }
-        }
-
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
@@ -1999,19 +1783,8 @@ impl GooseAcpAgent {
         };
 
         let mut was_cancelled = false;
-        let mut first_event_logged = false;
-        let mut event_count: u32 = 0;
-        // Streaming chain buffer: tracks consecutive tool requests across
-        // `AgentEvent::Message` events so chains that span multiple rows are
-        // still registered. Sequential tool use (Bedrock/Anthropic) yields
-        // request → response → request → response across separate
-        // assistant/user messages, so tool responses are chain-neutral; only
-        // non-tool content (text, thinking, image, etc.) breaks the run.
-        // Holds `(tool_call_id, message_id_of_owning_row)` in arrival order;
-        // re-registered eagerly each time a request arrives so
-        // `handle_tool_response` finds the chain when subsequent responses
-        // are processed.
-        let mut chain_buffer: Vec<(String, String)> = Vec::new();
+        let mut tool_requests = HashMap::new();
+        let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
 
         while let Some(event) = stream.next().await {
@@ -2019,30 +1792,20 @@ impl GooseAcpAgent {
                 was_cancelled = true;
                 break;
             }
-            event_count += 1;
-            if !first_event_logged {
-                debug!(
-                    target: "perf",
-                    sid = %sid,
-                    ttft_ms = t_start.elapsed().as_millis() as u64,
-                    "perf: prompt first stream event (time-to-first-token from prompt start)"
-                );
-                first_event_logged = true;
-            }
 
             match event {
                 Ok(crate::agents::AgentEvent::Message(message)) => {
                     // Agent persists messages via session_manager.add_message() internally.
                     let stored_message_id = message.id.clone();
 
-                    let mut sessions = self.sessions.lock().await;
-                    let Some(session) = sessions.get_mut(&session_id) else {
+                    let sessions = self.sessions.lock().await;
+                    if !sessions.contains_key(&session_id) {
                         stream_error = Some(
                             agent_client_protocol::Error::invalid_params()
                                 .data(format!("Session not found: {}", session_id)),
                         );
                         break;
-                    };
+                    }
 
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
@@ -2050,31 +1813,8 @@ impl GooseAcpAgent {
                             break;
                         }
 
-                        match content_item {
-                            MessageContent::ToolRequest(tr) => {
-                                if let Some(msg_id) = stored_message_id.as_deref() {
-                                    chain_buffer.push((tr.id.clone(), msg_id.to_string()));
-                                    // Re-register eagerly so the chain is in
-                                    // place by the time the matching
-                                    // `tool_response` triggers
-                                    // `maybe_summarize_chain` (sequential
-                                    // tool use interleaves request/response
-                                    // events).
-                                    extend_chain_membership(
-                                        &chain_buffer,
-                                        &mut session.chain_membership,
-                                    );
-                                }
-                            }
-                            MessageContent::ToolResponse(_) => {
-                                // Chain-neutral: a response between two
-                                // requests doesn't break the run, matching
-                                // the frontend's `groupContentSections`.
-                            }
-                            _ => {
-                                // Text, thinking, image, etc. end the run.
-                                chain_buffer.clear();
-                            }
+                        if let MessageContent::ToolRequest(tool_request) = content_item {
+                            tool_requests.insert(tool_request.id.clone(), tool_request.clone());
                         }
 
                         if let Err(error) = self
@@ -2087,13 +1827,31 @@ impl GooseAcpAgent {
                                 &message.role,
                                 message.metadata.steer,
                                 &agent,
-                                session,
+                                &tool_requests,
                                 cx,
                             )
                             .await
                         {
                             stream_error = Some(error);
                             break;
+                        }
+
+                        let ready_chain = match content_item {
+                            MessageContent::ToolRequest(tool_request) => {
+                                chain_tracker.record_request(tool_request.clone());
+                                None
+                            }
+                            MessageContent::ToolResponse(tool_response) => {
+                                chain_tracker.record_response(&tool_response.id)
+                            }
+                            content if breaks_consecutive_tool_calls(content) => {
+                                chain_tracker.close_current_chain()
+                            }
+                            _ => None,
+                        };
+
+                        if let Some(chain) = ready_chain {
+                            self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
                         }
                     }
                     if stream_error.is_some() {
@@ -2129,14 +1887,9 @@ impl GooseAcpAgent {
             }
         }
 
-        {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                // Final safety net: in case the stream ended without any
-                // chain-breaking content, make sure a multi-tool buffer is
-                // registered. (Eager registration during the loop usually
-                // covers this.)
-                extend_chain_membership(&chain_buffer, &mut session.chain_membership);
+        if !was_cancelled && stream_error.is_none() {
+            if let Some(chain) = chain_tracker.close_current_chain() {
+                self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
             }
         }
         self.clear_active_run(&session_id, &run_id).await;
@@ -2168,14 +1921,6 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        debug!(
-            target: "perf",
-            sid = %sid,
-            ms = t_start.elapsed().as_millis() as u64,
-            events = event_count,
-            cancelled = was_cancelled,
-            "perf: prompt done"
-        );
         let stop_reason = if was_cancelled {
             StopReason::Cancelled
         } else {
@@ -2540,7 +2285,7 @@ impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
     }
 }
 
-pub async fn run(builtins: Vec<String>) -> Result<()> {
+pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
@@ -2553,6 +2298,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
+            enable_scheduler,
         },
     );
     let agent = server.create_agent().await?;
@@ -2562,15 +2308,12 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::server::tool_calls::enrichment::with_tool_chain_summary_meta;
-    use crate::conversation::message::ToolRequest;
     use crate::session::session_manager::SessionType;
     use agent_client_protocol::schema::v1::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use goose_providers::conversation::token_usage::Usage as TokenUsage;
-    use rmcp::model::CallToolRequestParams;
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
@@ -2666,61 +2409,6 @@ print(\"hello, world\")
         assert_eq!(result, expected,)
     }
 
-    #[test]
-    fn replay_attaches_chain_summary_meta_for_first_tool_request_with_persisted_summary() {
-        let tool_request = ToolRequest {
-            id: "req_first".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-            metadata: None,
-            tool_meta: Some(serde_json::json!({
-                crate::conversation::message::TOOL_META_CHAIN_SUMMARY_KEY: {
-                    "summary": "applied dark mode polish",
-                    "count": 3,
-                },
-            })),
-        };
-
-        let pending_tool_call = pending_tool_call_from_request(&tool_request);
-        let mut meta = pending_tool_call.identity_meta;
-        let chain_summary = tool_request
-            .persisted_chain_summary()
-            .expect("chain summary should be present");
-        meta = with_tool_chain_summary_meta(meta, &chain_summary.summary, chain_summary.count);
-
-        let goose = meta
-            .as_ref()
-            .and_then(|m| m.get("goose"))
-            .expect("replay meta must include a goose namespace");
-        assert_eq!(
-            goose.get("toolCall"),
-            Some(
-                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
-            ),
-            "replay must preserve identity meta alongside the chain summary",
-        );
-        assert_eq!(
-            goose.get("toolChainSummary"),
-            Some(&serde_json::json!({ "summary": "applied dark mode polish", "count": 3 })),
-            "replay must attach toolChainSummary so the chain header renders on first paint",
-        );
-    }
-
-    #[test]
-    fn replay_does_not_attach_chain_summary_for_tool_requests_without_persisted_summary() {
-        let tool_request = ToolRequest {
-            id: "req_second".to_string(),
-            tool_call: Ok(CallToolRequestParams::new("developer__shell")),
-            metadata: None,
-            tool_meta: None,
-        };
-
-        let chain_summary = tool_request.persisted_chain_summary();
-        assert!(
-            chain_summary.is_none(),
-            "non-first tool requests must not carry chain summaries",
-        );
-    }
-
     #[test_case(
         RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("allow_once".to_string()))),
         PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::AllowOnce };
@@ -2759,79 +2447,6 @@ print(\"hello, world\")
     }
 
     #[test]
-    fn test_merge_replay_message_meta_preserves_existing_goose_meta() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
-        let existing = serde_json::from_value(serde_json::json!({
-            "goose": {
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            },
-        }))
-        .unwrap();
-
-        let merged = merge_replay_message_meta(Some(existing), &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_1",
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            })),
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_creates_fresh_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_2");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_2",
-            })),
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_includes_steer_marker() {
-        let message = Message::new(Role::User, 1_700_000_000, vec![])
-            .with_id("msg_steer")
-            .with_steer();
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_steer",
-                "steer": true,
-            })),
-            "replay must carry the steer marker so the boundary survives reload"
-        );
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_omits_steer_when_not_set() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_plain");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(merged.get("goose").and_then(|g| g.get("steer")), None);
-    }
-
-    #[test]
     fn test_message_update_meta_includes_created_and_message_id() {
         let meta = message_update_meta(Some("msg_live"), 1_700_000_000, false);
 
@@ -2842,6 +2457,15 @@ print(\"hello, world\")
                 "messageId": "msg_live",
             })),
         );
+
+        let chunk = content_chunk_for_message(
+            ContentBlock::Text(TextContent::new("hello")),
+            Some("msg_live"),
+            1_700_000_000,
+            true,
+        );
+
+        assert_eq!(chunk.message_id, Some(MessageId::new("msg_live")));
     }
 
     #[test]
@@ -2880,20 +2504,6 @@ print(\"hello, world\")
         });
 
         assert!(prompt_error_from_message_content(&content).is_none());
-    }
-
-    #[test]
-    fn test_merge_replay_message_meta_omits_message_id_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-            })),
-        );
     }
 
     fn make_session_with_usage(usage: TokenUsage, accumulated_usage: TokenUsage) -> Session {
@@ -3015,5 +2625,34 @@ print(\"hello, world\")
         assert!(extract_client_supports_goose_custom_notifications(
             goose_client_capabilities.as_ref()
         ));
+    }
+
+    #[test]
+    fn test_tool_call_label_enrichment_capability() {
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST);
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
+        assert!(!goose_client_capabilities
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false));
+
+        let mut goose_meta = serde_json::Map::new();
+        goose_meta.insert(
+            "toolCallLabelEnrichment".to_string(),
+            serde_json::Value::Bool(true),
+        );
+        let mut meta = serde_json::Map::new();
+        meta.insert("goose".to_string(), serde_json::Value::Object(goose_meta));
+        let request =
+            InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
+                .client_capabilities(
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
+                );
+        let goose_client_capabilities =
+            extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);
+        assert!(goose_client_capabilities
+            .and_then(|goose| goose.tool_call_label_enrichment)
+            .unwrap_or(false));
     }
 }

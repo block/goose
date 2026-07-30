@@ -426,7 +426,9 @@ impl Provider for OllamaProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("v1/chat/completions", &payload)
+                    .request("v1/chat/completions")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 handle_status(resp).await
             })

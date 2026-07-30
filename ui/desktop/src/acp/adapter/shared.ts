@@ -18,7 +18,10 @@ export type AcpChatStateChange =
 export interface AdapterState {
   messages: Message[];
   localSteerTextByMessageId: Map<string, string>;
+  toolCallStatesById: Map<string, ToolCallState>;
 }
+
+export type ToolCallState = Omit<ToolCallUpdate, '_meta'>;
 
 export interface GooseMessageMeta {
   messageId?: string;

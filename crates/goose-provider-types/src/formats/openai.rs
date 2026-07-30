@@ -1,4 +1,4 @@
-use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
@@ -13,15 +13,11 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use regex::Regex;
-use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
-    Tool,
-};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, ErrorCode, ErrorData, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::sync::OnceLock;
 
 type ToolCallData = HashMap<
@@ -97,13 +93,13 @@ struct DeltaToolCall {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-enum DeltaContent {
+enum DeltaContentBlock {
     String(String),
-    Array(Vec<ContentPart>),
+    Array(Vec<ContentBlockPart>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ContentPart {
+struct ContentBlockPart {
     r#type: String,
     #[serde(default)]
     text: Option<String>,
@@ -114,7 +110,7 @@ struct ContentPart {
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct Delta {
     #[serde(default)]
-    content: Option<DeltaContent>,
+    content: Option<DeltaContentBlock>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
@@ -160,11 +156,11 @@ struct StreamingChunk {
 }
 
 fn extract_content_and_signature(
-    delta_content: Option<&DeltaContent>,
+    delta_content: Option<&DeltaContentBlock>,
 ) -> (Option<String>, Option<String>) {
     match delta_content {
-        Some(DeltaContent::String(s)) => (Some(s.clone()), None),
-        Some(DeltaContent::Array(parts)) => {
+        Some(DeltaContentBlock::String(s)) => (Some(s.clone()), None),
+        Some(DeltaContentBlock::Array(parts)) => {
             let text_parts: Vec<_> = parts.iter().filter(|p| p.r#type == "text").collect();
 
             let text = text_parts
@@ -216,7 +212,7 @@ pub fn format_messages_with_options(
             if message
                 .content
                 .iter()
-                .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+                .any(|c| matches!(c, MessageContentBlock::ToolResponse(_)))
             {
                 saw_tool_response = true;
             } else {
@@ -244,7 +240,7 @@ pub fn format_messages_with_options(
 
         for content in &message.content {
             match content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text.text.is_empty() {
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
@@ -263,16 +259,16 @@ pub fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::Thinking(t) => {
+                MessageContentBlock::Thinking(t) => {
                     reasoning_text.push_str(&t.thinking);
                 }
-                MessageContent::RedactedThinking(_) => {
+                MessageContentBlock::RedactedThinking(_) => {
                     continue;
                 }
-                MessageContent::SystemNotification(_) => {
+                MessageContentBlock::SystemNotification(_) => {
                     continue;
                 }
-                MessageContent::ToolRequest(request) => match &request.tool_call {
+                MessageContentBlock::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
                         let arguments_str = match &tool_call.arguments {
@@ -329,7 +325,7 @@ pub fn format_messages_with_options(
                         }));
                     }
                 },
-                MessageContent::ToolResponse(response) => {
+                MessageContentBlock::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
                             // Process all content, replacing images with placeholder text
@@ -337,20 +333,20 @@ pub fn format_messages_with_options(
                             let mut image_messages = Vec::new();
 
                             for content in result.content.iter() {
-                                match content.deref() {
-                                    RawContent::Image(image) => {
+                                match content {
+                                    ContentBlock::Image(image) => {
                                         // Add placeholder text in the tool response
-                                        tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
+                                        tool_content.push(ContentBlock::text("This tool result included an image that is uploaded in the next message."));
 
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image.clone().no_annotation(), image_format)]
+                                            "content": [convert_image(&image.clone(), image_format)]
                                         }));
                                     }
-                                    RawContent::Resource(resource) => {
+                                    ContentBlock::Resource(resource) => {
                                         let text = extract_text_from_resource(&resource.resource);
-                                        tool_content.push(Content::text(text));
+                                        tool_content.push(ContentBlock::text(text));
                                     }
                                     _ => {
                                         tool_content.push(content.clone());
@@ -359,8 +355,8 @@ pub fn format_messages_with_options(
                             }
                             let tool_response_content: Value = json!(tool_content
                                 .iter()
-                                .map(|content| match content.deref() {
-                                    RawContent::Text(text) => text.text.clone(),
+                                .map(|content| match content {
+                                    ContentBlock::Text(text) => text.text.clone(),
                                     _ => String::new(),
                                 })
                                 .collect::<Vec<String>>()
@@ -385,9 +381,9 @@ pub fn format_messages_with_options(
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {}
-                MessageContent::ActionRequired(_) => {}
-                MessageContent::Image(image) => {
+                MessageContentBlock::ToolConfirmationRequest(_) => {}
+                MessageContentBlock::ActionRequired(_) => {}
+                MessageContentBlock::Image(image) => {
                     if message.role == Role::User {
                         has_non_text_content = true;
                         content_array.push(convert_image(image, image_format));
@@ -398,7 +394,7 @@ pub fn format_messages_with_options(
                         }));
                     }
                 }
-                MessageContent::FrontendToolRequest(request) => match &request.tool_call {
+                MessageContentBlock::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
                         let arguments_str = match &tool_call.arguments {
@@ -666,7 +662,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
                 has_structured_thinking = true;
-                content.push(MessageContent::thinking(reasoning_str, ""));
+                content.push(MessageContentBlock::thinking(reasoning_str, ""));
             }
         }
     }
@@ -676,11 +672,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
             let (cleaned, inline_thinking) = split_think_blocks(text_str);
 
             if !has_structured_thinking && !inline_thinking.is_empty() {
-                content.push(MessageContent::thinking(inline_thinking, ""));
+                content.push(MessageContentBlock::thinking(inline_thinking, ""));
             }
 
             if !cleaned.is_empty() {
-                content.push(MessageContent::text(cleaned));
+                content.push(MessageContentBlock::text(cleaned));
             }
         }
     }
@@ -727,7 +723,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         ),
                         data: None,
                     };
-                    content.push(MessageContent::tool_request_with_metadata(
+                    content.push(MessageContentBlock::tool_request_with_metadata(
                         id,
                         Err(error),
                         metadata.as_ref(),
@@ -736,7 +732,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                 }
                 match parse_tool_arguments(&arguments_str) {
                     Some(params) if params.is_object() => {
-                        content.push(MessageContent::tool_request_with_metadata(
+                        content.push(MessageContentBlock::tool_request_with_metadata(
                             id,
                             Ok(CallToolRequestParams::new(function_name)
                                 .with_arguments(object(params))),
@@ -755,7 +751,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             )),
                             data: None,
                         };
-                        content.push(MessageContent::tool_request_with_metadata(
+                        content.push(MessageContentBlock::tool_request_with_metadata(
                             id,
                             Err(error),
                             metadata.as_ref(),
@@ -771,7 +767,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             message: Cow::from(message_text),
                             data: None,
                         };
-                        content.push(MessageContent::tool_request_with_metadata(
+                        content.push(MessageContentBlock::tool_request_with_metadata(
                             id,
                             Err(error),
                             metadata.as_ref(),
@@ -1180,10 +1176,10 @@ where
                 if !filtered.content.is_empty() || !flush_thinking.is_empty() {
                     let mut filtered_contents = Vec::new();
                     if !filtered.content.is_empty() {
-                        filtered_contents.push(MessageContent::text(filtered.content));
+                        filtered_contents.push(MessageContentBlock::text(filtered.content));
                     }
                     if !flush_thinking.is_empty() {
-                        filtered_contents.push(MessageContent::thinking(flush_thinking, ""));
+                        filtered_contents.push(MessageContentBlock::thinking(flush_thinking, ""));
                     }
 
                     if !filtered_contents.is_empty() {
@@ -1207,7 +1203,7 @@ where
                         accumulated_reasoning_content.get(yielded_reasoning_content_len..)
                     {
                         if !unyielded_reasoning.is_empty() {
-                            contents.push(MessageContent::thinking(unyielded_reasoning, ""));
+                            contents.push(MessageContentBlock::thinking(unyielded_reasoning, ""));
                         }
                     }
                 }
@@ -1230,14 +1226,14 @@ where
                         };
 
                         let content = if arguments.is_empty() {
-                            MessageContent::tool_request_with_metadata(
+                            MessageContentBlock::tool_request_with_metadata(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
                                 metadata.as_ref(),
                             )
                         } else {
                             match parse_tool_arguments(arguments) {
-                                Some(params) if params.is_object() => MessageContent::tool_request_with_metadata(
+                                Some(params) if params.is_object() => MessageContentBlock::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
@@ -1255,7 +1251,7 @@ where
                                         )),
                                         data: None,
                                     };
-                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                    MessageContentBlock::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                                 }
                                 None => {
                                     let message_text = truncation_error_message(arguments)
@@ -1267,7 +1263,7 @@ where
                                         message: Cow::from(message_text),
                                         data: None,
                                     };
-                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                    MessageContentBlock::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                                 }
                             }
                         };
@@ -1296,7 +1292,7 @@ where
 
                 if let Some(reasoning) = chunk.choices[0].delta.reasoning_text() {
                     let signature = last_signature.as_deref().unwrap_or("");
-                    content.push(MessageContent::thinking(reasoning, signature));
+                    content.push(MessageContentBlock::thinking(reasoning, signature));
                     yielded_reasoning_content_len = accumulated_reasoning_content.len();
                 }
 
@@ -1314,7 +1310,7 @@ where
                     }
 
                     if !filtered.content.is_empty() {
-                        content.push(MessageContent::text(filtered.content));
+                        content.push(MessageContentBlock::text(filtered.content));
                     }
                 }
 
@@ -1357,11 +1353,11 @@ where
             let mut content = Vec::new();
 
             if !filtered.content.is_empty() {
-                content.push(MessageContent::text(filtered.content));
+                content.push(MessageContentBlock::text(filtered.content));
             }
 
             if !trailing_thinking.is_empty() {
-                content.push(MessageContent::thinking(trailing_thinking, ""));
+                content.push(MessageContentBlock::thinking(trailing_thinking, ""));
             }
 
             yield (
@@ -1406,20 +1402,51 @@ pub fn create_request_with_options(
     for_streaming: bool,
     format_options: OpenAiFormatOptions,
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_request_for_model_with_options(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        image_format,
+        for_streaming,
+        format_options,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_request_for_model_with_options(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    image_format: &ImageFormat,
+    for_streaming: bool,
+    format_options: OpenAiFormatOptions,
+) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
             "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
+    let supports_xai_effort = supports_xai_reasoning_effort(&model_name);
     let reasoning_effort = if is_reasoning_model {
         model_config
             .thinking_effort()
             .map_or(legacy_reasoning_effort, |effort| {
                 openai_reasoning_effort_for_thinking(&model_name, effort)
             })
+    } else if supports_xai_effort {
+        model_config
+            .thinking_effort()
+            .and_then(|effort| xai_reasoning_effort_for_thinking(&model_name, effort))
     } else {
         None
     };
@@ -1438,7 +1465,7 @@ pub fn create_request_with_options(
     messages_array.extend(messages_spec);
 
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "messages": messages_array
     });
 
@@ -1450,7 +1477,7 @@ pub fn create_request_with_options(
         payload["tools"] = json!(tools_spec);
     }
 
-    if !is_reasoning_model {
+    if !is_reasoning_model && !supports_xai_effort {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
@@ -1535,6 +1562,50 @@ pub fn is_openai_responses_model(model_name: &str) -> bool {
     re.is_match(model_name)
 }
 
+/// Returns whether an xAI Chat Completions model accepts `reasoning_effort`.
+pub fn supports_xai_reasoning_effort(model_name: &str) -> bool {
+    let model_name = model_name.to_ascii_lowercase();
+
+    model_name.starts_with("grok-4.5")
+        || model_name.starts_with("grok-4.3")
+        || model_name.starts_with("grok-3-mini")
+}
+
+/// Returns whether an xAI model performs server-side reasoning.
+pub fn is_xai_reasoning_model(model_name: &str) -> bool {
+    let model_name = model_name.to_ascii_lowercase();
+
+    if model_name.contains("non-reasoning") || model_name.contains("non_reasoning") {
+        return false;
+    }
+
+    supports_xai_reasoning_effort(&model_name)
+        || model_name.starts_with("grok-4.20")
+        || model_name.starts_with("grok-4-0709")
+        || model_name.starts_with("grok-4-fast-reasoning")
+        || model_name.starts_with("grok-4-1-fast-reasoning")
+}
+
+/// Maps Goose's effort levels to values accepted by xAI Chat Completions.
+pub fn xai_reasoning_effort_for_thinking(
+    model_name: &str,
+    effort: ThinkingEffort,
+) -> Option<String> {
+    let model_name = model_name.to_ascii_lowercase();
+    let supports_none = model_name.starts_with("grok-4.3");
+    let supports_medium = !model_name.starts_with("grok-3-mini");
+
+    match effort {
+        ThinkingEffort::Off if supports_none => Some("none".to_string()),
+        ThinkingEffort::Off => Some("low".to_string()),
+        ThinkingEffort::Low => Some("low".to_string()),
+        ThinkingEffort::Medium if supports_medium => Some("medium".to_string()),
+        ThinkingEffort::Medium | ThinkingEffort::High | ThinkingEffort::Max => {
+            Some("high".to_string())
+        }
+    }
+}
+
 pub fn openai_reasoning_effort_for_thinking(
     model_name: &str,
     effort: ThinkingEffort,
@@ -1577,10 +1648,15 @@ pub(crate) fn openai_reasoning_efforts_for_model(model_name: &str) -> &'static [
     }
 }
 
+const MAX_FUNCTION_NAME_LENGTH: usize = 128;
+
 pub fn sanitize_function_name(name: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
-    re.replace_all(name, "_").to_string()
+    re.replace_all(name, "_")
+        .chars()
+        .take(MAX_FUNCTION_NAME_LENGTH)
+        .collect()
 }
 
 pub fn is_valid_function_name(name: &str) -> bool {
@@ -1841,7 +1917,7 @@ mod tests {
         ];
 
         // Get the ID from the tool request to use in the response
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[2].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[2].content[0] {
             request.id.clone()
         } else {
             panic!("should be tool request");
@@ -1849,7 +1925,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -1876,7 +1952,7 @@ mod tests {
         )];
 
         // Get the ID from the tool request to use in the response
-        let tool_id = if let MessageContent::ToolRequest(request) = &messages[0].content[0] {
+        let tool_id = if let MessageContentBlock::ToolRequest(request) = &messages[0].content[0] {
             request.id.clone()
         } else {
             panic!("should be tool request");
@@ -1884,7 +1960,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult::success(vec![Content::text("Result")])),
+            Ok(CallToolResult::success(vec![ContentBlock::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -2050,7 +2126,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
         } else {
             panic!("Expected Text content");
@@ -2066,7 +2142,7 @@ mod tests {
         let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
@@ -2084,7 +2160,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_REQUEST,
@@ -2115,7 +2191,7 @@ mod tests {
 
             let message = response_to_message(&response)?;
 
-            if let MessageContent::ToolRequest(request) = &message.content[0] {
+            if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
                 let tool_call = request.tool_call.as_ref().expect("tool call should parse");
                 assert_eq!(tool_call.name, name, "name must pass through verbatim");
             } else {
@@ -2134,7 +2210,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().expect("tool call should parse");
             assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
@@ -2152,7 +2228,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -2181,7 +2257,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
                 Err(ErrorData {
                     code: ErrorCode::INVALID_PARAMS,
@@ -2212,7 +2288,7 @@ mod tests {
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "example_fn");
             assert_eq!(tool_call.arguments, Some(object!({})));
@@ -2665,12 +2741,12 @@ mod tests {
             if let Some(msg) = message {
                 for content in &msg.content {
                     match content {
-                        MessageContent::ToolRequest(req) => {
+                        MessageContentBlock::ToolRequest(req) => {
                             if let Ok(tool_call) = &req.tool_call {
                                 result.tool_calls.push(tool_call.name.to_string());
                             }
                         }
-                        MessageContent::Text(text) if !text.text.is_empty() => {
+                        MessageContentBlock::Text(text) if !text.text.is_empty() => {
                             result.has_text_content = true;
                         }
                         _ => {}
@@ -2929,7 +3005,7 @@ data: [DONE]
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 1);
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             assert!(request.tool_call.is_ok());
             assert!(request.metadata.is_some());
             let metadata = request.metadata.as_ref().unwrap();
@@ -2972,7 +3048,7 @@ data: [DONE]
 
         let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let metadata = request.metadata.as_ref().unwrap();
             assert_eq!(metadata.get("thoughtSignature").unwrap(), "sig_top_level");
             assert_eq!(
@@ -2999,7 +3075,7 @@ data: [DONE]"#;
 
         while let Some(Ok((message, _usage))) = messages.next().await {
             if let Some(msg) = message {
-                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
                     assert!(request.tool_call.is_ok());
                     assert!(request.metadata.is_some());
                     let metadata = request.metadata.as_ref().unwrap();
@@ -3030,7 +3106,7 @@ data: [DONE]"#;
 
         while let Some(Ok((message, _usage))) = messages.next().await {
             if let Some(msg) = message {
-                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
                     match &request.tool_call {
                         Err(ErrorData {
                             code: ErrorCode::INVALID_PARAMS,
@@ -3073,8 +3149,10 @@ data: [DONE]"#;
             if let Some(message) = message {
                 for item in message.content {
                     match item {
-                        MessageContent::Text(text_content) => text.push_str(&text_content.text),
-                        MessageContent::Thinking(thinking_content) => {
+                        MessageContentBlock::Text(text_content) => {
+                            text.push_str(&text_content.text)
+                        }
+                        MessageContentBlock::Thinking(thinking_content) => {
                             thinking.push_str(&thinking_content.thinking)
                         }
                         _ => {}
@@ -3115,8 +3193,10 @@ data: [DONE]"#;
             if let Some(message) = message {
                 for item in message.content {
                     match item {
-                        MessageContent::Text(text_content) => text.push_str(&text_content.text),
-                        MessageContent::Thinking(thinking_content) => {
+                        MessageContentBlock::Text(text_content) => {
+                            text.push_str(&text_content.text)
+                        }
+                        MessageContentBlock::Thinking(thinking_content) => {
                             thinking.push_str(&thinking_content.thinking)
                         }
                         _ => {}
@@ -3153,14 +3233,14 @@ data: [DONE]"#;
         assert_eq!(message.content.len(), 2);
 
         // First should be thinking content (reasoning is mapped to thinking)
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "Let me think about this step by step...");
         } else {
             panic!("Expected Thinking content, got {:?}", message.content[0]);
         }
 
         // Second should be text content
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "The answer is 9.11 is greater than 9.8");
         } else {
             panic!("Expected Text content");
@@ -3183,13 +3263,13 @@ data: [DONE]"#;
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "internal reasoning");
         } else {
             panic!("Expected Thinking content, got {:?}", message.content[0]);
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Visible answer");
         } else {
             panic!("Expected Text content");
@@ -3214,13 +3294,13 @@ data: [DONE]"#;
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Thinking(thinking) = &message.content[0] {
+        if let MessageContentBlock::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "structured reasoning");
         } else {
             panic!("Expected Thinking content");
         }
 
-        if let MessageContent::Text(text) = &message.content[1] {
+        if let MessageContentBlock::Text(text) = &message.content[1] {
             assert_eq!(text.text, "Visible answer");
         } else {
             panic!("Expected Text content");
@@ -3233,7 +3313,7 @@ data: [DONE]"#;
     fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
         // Test that reasoning_content is properly included in formatted messages
         let mut message = Message::assistant()
-            .with_content(MessageContent::thinking(
+            .with_content(MessageContentBlock::thinking(
                 "Thinking through the problem...",
                 "",
             ))
@@ -3277,7 +3357,7 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_preserves_reasoning_content_for_legacy_compat() -> anyhow::Result<()> {
         let message = Message::assistant()
-            .with_content(MessageContent::thinking(
+            .with_content(MessageContentBlock::thinking(
                 "Thinking through the problem...",
                 "",
             ))
@@ -3298,7 +3378,7 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_with_options_can_omit_reasoning_content() -> anyhow::Result<()> {
         let message = Message::assistant()
-            .with_content(MessageContent::thinking(
+            .with_content(MessageContentBlock::thinking(
                 "Thinking through the problem...",
                 "",
             ))
@@ -3323,7 +3403,7 @@ data: [DONE]"#;
     fn test_create_request_preserves_reasoning_content_for_legacy_compat() -> anyhow::Result<()> {
         let model_config = test_model_config("deepseek-reasoner").with_max_tokens(Some(1024));
         let message = Message::assistant()
-            .with_content(MessageContent::thinking("preserve this", ""))
+            .with_content(MessageContentBlock::thinking("preserve this", ""))
             .with_tool_request(
                 "tool1",
                 Ok(rmcp::model::CallToolRequestParams::new("test_tool")
@@ -3347,8 +3427,8 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_carries_thinking_only_chunks_to_tool_call() -> anyhow::Result<()> {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("think ", "")),
-            Message::assistant().with_content(MessageContent::thinking("once", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("think ", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("once", "")),
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParams::new("test_tool")
@@ -3376,9 +3456,9 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_does_not_duplicate_pending_thinking() -> anyhow::Result<()> {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("think once", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("think once", "")),
             Message::assistant()
-                .with_content(MessageContent::thinking("think once", ""))
+                .with_content(MessageContentBlock::thinking("think once", ""))
                 .with_tool_request(
                     "tool1",
                     Ok(CallToolRequestParams::new("test_tool")
@@ -3404,9 +3484,9 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_merges_pending_thinking_with_tool_call_suffix() -> anyhow::Result<()> {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("think ", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("think ", "")),
             Message::assistant()
-                .with_content(MessageContent::thinking("once", ""))
+                .with_content(MessageContentBlock::thinking("once", ""))
                 .with_tool_request(
                     "tool1",
                     Ok(CallToolRequestParams::new("test_tool")
@@ -3432,7 +3512,7 @@ data: [DONE]"#;
     #[test]
     fn test_format_messages_does_not_carry_thinking_across_user_message() -> anyhow::Result<()> {
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("stale", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("stale", "")),
             Message::user().with_text("new turn"),
             Message::assistant()
                 .with_tool_request("tool1", Ok(CallToolRequestParams::new("test_tool"))),
@@ -3462,12 +3542,12 @@ data: [DONE]"#;
         // Text-only messages set tool_call_turn_reasoning="" (line 453 else-branch),
         // but the TC's own Thinking content must repopulate it.
         let messages = vec![
-            Message::assistant().with_content(MessageContent::thinking("reason", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("reason", "")),
             Message::assistant().with_text("partial answer"),
             Message::assistant().with_text("more text"),
             // agent.rs attaches the earlier thinking to the TC message
             Message::assistant()
-                .with_content(MessageContent::thinking("reason", ""))
+                .with_content(MessageContentBlock::thinking("reason", ""))
                 .with_tool_request(
                     "tool1",
                     Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({}))),
@@ -3510,22 +3590,22 @@ data: [DONE]"#;
         let tool_result1 = Message::user().with_tool_response(
             "tool1",
             Ok(rmcp::model::CallToolResult::success(vec![
-                rmcp::model::Content::text("result1"),
+                rmcp::model::ContentBlock::text("result1"),
             ])),
         );
         let messages = vec![
             // Standalone thinking message (created by agent.rs alongside request_msgs)
-            Message::assistant().with_content(MessageContent::thinking("reasoning", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("reasoning", "")),
             // Each request_msg has thinking explicitly attached (agent.rs behaviour)
             Message::assistant()
-                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_content(MessageContentBlock::thinking("reasoning", ""))
                 .with_tool_request(
                     "tool1",
                     Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
                 ),
             tool_result1,
             Message::assistant()
-                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_content(MessageContentBlock::thinking("reasoning", ""))
                 .with_tool_request(
                     "tool2",
                     Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
@@ -3561,12 +3641,12 @@ data: [DONE]"#;
         let tool_result1 = Message::user().with_tool_response(
             "tool1",
             Ok(rmcp::model::CallToolResult::success(vec![
-                rmcp::model::Content::text("result1"),
+                rmcp::model::ContentBlock::text("result1"),
             ])),
         );
         let messages = vec![
             // Turn 1: thinking then tool call
-            Message::assistant().with_content(MessageContent::thinking("turn1_reasoning", "")),
+            Message::assistant().with_content(MessageContentBlock::thinking("turn1_reasoning", "")),
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
@@ -3796,7 +3876,7 @@ data: [DONE]"#;
 
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
-        if let MessageContent::Thinking(t) = &message.content[0] {
+        if let MessageContentBlock::Thinking(t) = &message.content[0] {
             assert_eq!(t.thinking, "thinking...");
         } else {
             panic!("Expected Thinking content, got {:?}", message.content[0]);
@@ -3837,8 +3917,8 @@ data: [DONE]"#;
             if let Some(msg) = message {
                 for content in &msg.content {
                     match content {
-                        MessageContent::Thinking(t) => thinking.push_str(&t.thinking),
-                        MessageContent::ToolRequest(_) => tool_calls += 1,
+                        MessageContentBlock::Thinking(t) => thinking.push_str(&t.thinking),
+                        MessageContentBlock::ToolRequest(_) => tool_calls += 1,
                         _ => {}
                     }
                 }
@@ -3914,8 +3994,8 @@ data: [DONE]"#;
             if let Some(msg) = message {
                 for content in &msg.content {
                     match content {
-                        MessageContent::Thinking(t) => thinking.push_str(&t.thinking),
-                        MessageContent::ToolRequest(_) => tool_calls += 1,
+                        MessageContentBlock::Thinking(t) => thinking.push_str(&t.thinking),
+                        MessageContentBlock::ToolRequest(_) => tool_calls += 1,
                         _ => {}
                     }
                 }
@@ -3942,7 +4022,7 @@ data: [DONE]"#;
             let (message, _usage) = result?;
             if let Some(msg) = message {
                 for content in &msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         let tool_call = request.tool_call.as_ref().expect("tool call should parse");
                         tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
                     }
@@ -3971,7 +4051,7 @@ data: [DONE]"#;
             let (message, _usage) = result?;
             if let Some(msg) = message {
                 for content in &msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         let tool_call = request.tool_call.as_ref().expect("tool call should parse");
                         tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
                     }
@@ -4000,7 +4080,7 @@ data: [DONE]"#;
             let (message, _usage) = result?;
             if let Some(msg) = message {
                 for content in &msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         names.push(
                             request
                                 .tool_call
@@ -4033,7 +4113,7 @@ data: [DONE]"#;
             let (message, _usage) = result?;
             if let Some(msg) = message {
                 for content in &msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         let tool_call = request.tool_call.as_ref().expect("tool call should parse");
                         tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
                     }
@@ -4063,7 +4143,7 @@ data: [DONE]"#;
             let (message, _usage) = result?;
             if let Some(msg) = message {
                 for c in &msg.content {
-                    if let MessageContent::Thinking(t) = c {
+                    if let MessageContentBlock::Thinking(t) = c {
                         assert_eq!(t.thinking, "thinking...");
                         saw_thinking = true;
                     }
@@ -4130,6 +4210,121 @@ data: [DONE]"#;
     }
 
     #[test]
+    fn test_xai_reasoning_model_capabilities_are_model_specific() {
+        for model in ["grok-4.5", "grok-4.3", "grok-3-mini"] {
+            assert!(supports_xai_reasoning_effort(model), "{model}");
+            assert!(is_xai_reasoning_model(model), "{model}");
+        }
+
+        for model in [
+            "grok-4.20",
+            "grok-4.20-0309-reasoning",
+            "grok-4.20-multi-agent",
+            "grok-4-0709",
+            "grok-4-fast-reasoning",
+        ] {
+            assert!(!supports_xai_reasoning_effort(model), "{model}");
+            assert!(is_xai_reasoning_model(model), "{model}");
+        }
+
+        for model in [
+            "grok-4.20-0309-non-reasoning",
+            "grok-4-fast-non-reasoning",
+            "grok-3",
+            "grok-build-0.1",
+        ] {
+            assert!(!supports_xai_reasoning_effort(model), "{model}");
+            assert!(!is_xai_reasoning_model(model), "{model}");
+        }
+    }
+
+    #[test]
+    fn test_xai_reasoning_effort_uses_each_models_supported_levels() {
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Off),
+            Some("low".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Medium),
+            Some("medium".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.3", ThinkingEffort::Off),
+            Some("none".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-3-mini", ThinkingEffort::Medium),
+            Some("high".to_string())
+        );
+        assert_eq!(
+            xai_reasoning_effort_for_thinking("grok-4.5", ThinkingEffort::Max),
+            Some("high".to_string())
+        );
+    }
+
+    #[test]
+    fn test_create_request_applies_grok_4_5_reasoning_controls() {
+        let model_config = ModelConfig::new("grok-4.5")
+            .with_thinking_effort(ThinkingEffort::Medium)
+            .with_temperature(Some(0.7));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(payload.get("reasoning_effort"), Some(&json!("medium")));
+        assert!(payload.get("temperature").is_none());
+    }
+
+    #[test]
+    fn test_create_request_maps_xai_off_to_supported_effort() {
+        for (model, expected) in [("grok-4.5", "low"), ("grok-4.3", "none")] {
+            let model_config = ModelConfig::new(model).with_thinking_effort(ThinkingEffort::Off);
+            let payload = create_request(
+                &model_config,
+                "system prompt",
+                &[],
+                &[],
+                &ImageFormat::OpenAi,
+                false,
+            )
+            .unwrap();
+
+            assert_eq!(
+                payload.get("reasoning_effort"),
+                Some(&json!(expected)),
+                "{model}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_create_request_keeps_grok_4_20_fixed_reasoning_parameters() {
+        let model_config = ModelConfig::new("grok-4.20-0309-reasoning")
+            .with_thinking_effort(ThinkingEffort::High)
+            .with_temperature(Some(0.7));
+
+        let payload = create_request(
+            &model_config,
+            "system prompt",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        assert!(payload.get("reasoning_effort").is_none());
+        assert_eq!(payload.get("temperature"), Some(&json!(0.7_f32)));
+    }
+
+    #[test]
     fn test_extract_reasoning_effort_for_responses_models() {
         for (model, expected_name, expected_effort) in [
             ("o3-none", "o3", Some("none")),
@@ -4160,12 +4355,23 @@ data: [DONE]"#;
         assert_eq!(sanitize_function_name("hello-world"), "hello-world");
         assert_eq!(sanitize_function_name("hello world"), "hello_world");
         assert_eq!(sanitize_function_name("hello@world"), "hello_world");
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
+        assert_eq!(
+            sanitize_function_name(&"a".repeat(MAX_FUNCTION_NAME_LENGTH + 32)),
+            "a".repeat(MAX_FUNCTION_NAME_LENGTH)
+        );
     }
 
     #[test]
     fn test_is_valid_function_name() {
         assert!(is_valid_function_name("hello-world"));
         assert!(is_valid_function_name("hello_world"));
+        assert!(is_valid_function_name(
+            &"a".repeat(MAX_FUNCTION_NAME_LENGTH + 1)
+        ));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
     }

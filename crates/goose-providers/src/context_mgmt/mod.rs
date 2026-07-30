@@ -11,6 +11,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
+#[cfg(test)]
+use rmcp::model::{Annotations, ContentBlock, TextContent};
 use rmcp::model::{Role, Tool};
 use serde::Serialize;
 use std::sync::Arc;
@@ -678,7 +680,7 @@ mod tests {
     use crate::base::{stream_from_single_message, MessageStream, Provider};
     use crate::conversation::token_usage::Usage;
     use crate::model::ModelConfig;
-    use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
+    use rmcp::model::{CallToolRequestParams, Tool};
 
     fn create_tool_pair(
         call_id: &str,
@@ -697,7 +699,7 @@ mod tests {
                 .with_tool_response(
                     call_id,
                     Ok(rmcp::model::CallToolResult::success(vec![
-                        RawContent::text(response_text).no_annotation(),
+                        ContentBlock::text(response_text),
                     ])),
                 )
                 .with_id(response_id),
@@ -723,6 +725,7 @@ mod tests {
                     toolshim_model: None,
                     request_params: None,
                     reasoning: None,
+                    request_headers: None,
                 },
                 max_tool_responses: None,
             }
@@ -802,7 +805,7 @@ mod tests {
             Message::user().with_tool_response(
                 "tool_0",
                 Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text("hello, world").no_annotation(),
+                    ContentBlock::text("hello, world"),
                 ])),
             ),
         ];
@@ -901,16 +904,10 @@ mod tests {
 
     #[tokio::test]
     async fn preserved_user_message_keeps_audience_projection_after_compaction() {
-        use rmcp::model::{RawTextContent, Role};
-
         let annotated_text = |text: &str, audience| {
             MessageContent::Text(
-                RawTextContent {
-                    text: text.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(audience),
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(audience)),
             )
         };
         let current_request = Message::user()
@@ -982,19 +979,20 @@ mod tests {
         use rmcp::model::Role;
 
         let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
-        let conversation = Conversation::new_unvalidated([
-            Message::assistant()
-                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
-            Message::user().with_tool_response(
-                "tool_0",
-                Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text("visible result").no_annotation(),
-                    RawContent::text("user-only secret")
-                        .no_annotation()
-                        .with_audience(vec![Role::User]),
-                ])),
-            ),
-        ]);
+        let conversation =
+            Conversation::new_unvalidated([
+                Message::assistant()
+                    .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+                Message::user().with_tool_response(
+                    "tool_0",
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        ContentBlock::text("visible result"),
+                        ContentBlock::Text(TextContent::new("user-only secret").with_annotations(
+                            Annotations::default().with_audience(vec![Role::User]),
+                        )),
+                    ])),
+                ),
+            ]);
 
         let projected = agent_visible_tool_pair(&conversation, "tool_0").unwrap();
         let formatted = projected
@@ -1006,18 +1004,19 @@ mod tests {
         assert!(formatted.contains("visible result"));
         assert!(!formatted.contains("user-only secret"));
 
-        let user_only_conversation = Conversation::new_unvalidated([
-            Message::assistant()
-                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
-            Message::user().with_tool_response(
-                "tool_1",
-                Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text("user-only secret")
-                        .no_annotation()
-                        .with_audience(vec![Role::User]),
-                ])),
-            ),
-        ]);
+        let user_only_conversation =
+            Conversation::new_unvalidated([
+                Message::assistant()
+                    .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        ContentBlock::Text(TextContent::new("user-only secret").with_annotations(
+                            Annotations::default().with_audience(vec![Role::User]),
+                        )),
+                    ])),
+                ),
+            ]);
         let user_only_formatted = agent_visible_tool_pair(&user_only_conversation, "tool_1")
             .unwrap()
             .iter()
@@ -1041,7 +1040,7 @@ mod tests {
                 .with_tool_response(
                     "tool_0",
                     Ok(rmcp::model::CallToolResult::success(vec![
-                        RawContent::text("user-only secret").no_annotation(),
+                        ContentBlock::text("user-only secret"),
                     ])),
                 )
                 .with_metadata(MessageMetadata::user_only()),
@@ -1070,7 +1069,7 @@ mod tests {
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
                 Ok(rmcp::model::CallToolResult::success(vec![
-                    RawContent::text(format!("response{}", i)).no_annotation(),
+                    ContentBlock::text(format!("response{}", i)),
                 ])),
             ));
         }

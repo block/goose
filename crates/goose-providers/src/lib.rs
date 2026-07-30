@@ -1,5 +1,6 @@
 pub mod anthropic;
 pub mod api_client;
+pub mod azure_foundry;
 pub mod databricks;
 pub mod databricks_auth;
 pub mod databricks_v2;
