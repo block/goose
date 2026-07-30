@@ -350,6 +350,31 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    /// The extension set the session's stored recipe prescribes, rendered the
+    /// same way apply_session_recipe renders it. None when the session has no
+    /// recipe, the recipe declares no extensions, or required params are missing.
+    pub(super) fn session_recipe_extensions(
+        &self,
+        session: &Session,
+    ) -> Result<Option<Vec<crate::agents::ExtensionConfig>>, agent_client_protocol::Error> {
+        let Some(recipe) = session.recipe.as_ref() else {
+            return Ok(None);
+        };
+
+        if session.session_type == SessionType::Scheduled {
+            return Ok(recipe.extensions.clone());
+        }
+
+        let recipe_dir = get_recipe_library_dir(true);
+        Ok(self
+            .render_recipe(
+                recipe,
+                &recipe_dir,
+                session.user_recipe_values.clone().unwrap_or_default(),
+            )?
+            .and_then(|rendered| rendered.extensions))
+    }
+
     pub(super) async fn render_recipe_for_session(
         &self,
         cx: &ConnectionTo<Client>,

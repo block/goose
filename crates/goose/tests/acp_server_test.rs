@@ -745,6 +745,87 @@ fn test_prompt_succeeds_after_repointing_missing_working_dir() {
 }
 
 #[test]
+fn test_deferred_rebuild_uses_recipe_extensions() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let recipe = Recipe::builder()
+            .title("Recipe with extensions")
+            .description("Prescribes its own extension set")
+            .instructions("use the summarize extension")
+            .extensions(vec![goose::agents::ExtensionConfig::Platform {
+                name: "summarize".to_string(),
+                description: "Summarize files".to_string(),
+                display_name: Some("Summarize".to_string()),
+                bundled: Some(true),
+                available_tools: vec![],
+            }])
+            .build()
+            .unwrap();
+        session_manager
+            .update(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        let persisted = session_manager
+            .get_session(&session.id, false)
+            .await
+            .unwrap();
+        let state = EnabledExtensionsState::from_extension_data(&persisted.extension_data)
+            .expect("deferred activation must persist an extension set");
+        assert!(
+            state
+                .extensions
+                .iter()
+                .any(|extension| extension.name() == "summarize"),
+            "the rebuilt set must come from the recipe's extensions, got {:?}",
+            state
+                .extensions
+                .iter()
+                .map(|extension| extension.name().to_string())
+                .collect::<Vec<_>>()
+        );
+    });
+}
+
+#[test]
 fn test_prompt_triggered_deferred_activation_applies_recipe() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();

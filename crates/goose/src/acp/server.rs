@@ -1584,15 +1584,17 @@ impl GooseAcpAgent {
         // A legacy session loaded while its working dir was missing deferred
         // extension-data initialization so dir-scoped discovery never ran against a
         // missing root. Build it now that the directory exists, before activation
-        // reads the enabled set.
+        // reads the enabled set. A recipe session must rebuild from the recipe's
+        // rendered extensions, like new-session setup, not the global defaults.
         let session =
             if EnabledExtensionsState::from_extension_data(&session.extension_data).is_none() {
+                let recipe_extensions = self.session_recipe_extensions(&session)?;
                 let extension_data = self.build_enabled_extensions_data(
                     Config::global(),
                     &session,
                     Vec::new(),
                     None,
-                    None,
+                    recipe_extensions.as_deref(),
                 )?;
                 self.session_manager
                     .update(session_id)
