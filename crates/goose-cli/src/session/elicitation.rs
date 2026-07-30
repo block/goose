@@ -9,6 +9,18 @@ pub struct ElicitationInput {
     pub user_data: HashMap<String, Value>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum SelectChoice {
+    Value(String),
+    Skip,
+}
+
+struct SingleSelect<'a> {
+    field_name: &'a str,
+    options: Vec<(SelectChoice, String)>,
+    initial_value: Option<SelectChoice>,
+}
+
 pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<ElicitationInput> {
     if !message.is_empty() {
         println!("\n{}", style(message).cyan());
@@ -16,116 +28,12 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
 
     let properties = schema.get("properties").and_then(|p| p.as_object());
 
-    // Case 1: Single-select menu
-    if let Some(props) = properties {
-        if props.len() == 1 {
-            let (field_name, field_schema) = props.iter().next().unwrap();
-
-            // Check if field is required
-            let is_required = schema
-                .get("required")
-                .and_then(|r| r.as_array())
-                .map(|arr| arr.iter().any(|v| v.as_str() == Some(field_name)))
-                .unwrap_or(false);
-
-            // Extract default value from schema to set initial menu position
-            let default_value = field_schema.get("default").and_then(|v| v.as_str());
-
-            // Try to extract menu options from oneOf or enum use menu if all oneOf branches have const values
-            let (mut options, all_const) = if let Some(one_of) =
-                field_schema.get("oneOf").and_then(|o| o.as_array())
-            {
-                let total_branches = one_of.len();
-                let const_options: Vec<_> = one_of
-                    .iter()
-                    .filter_map(|opt| {
-                        let value = opt.get("const")?.as_str()?;
-                        let title = opt.get("title").and_then(|t| t.as_str()).unwrap_or(value);
-                        Some((value.to_string(), title.to_string()))
-                    })
-                    .collect();
-
-                // Only use menu if all oneOf branches are const
-                let all_const = const_options.len() == total_branches;
-                (const_options, all_const)
-            } else if let Some(enum_vals) = field_schema.get("enum").and_then(|e| e.as_array()) {
-                let enum_options = enum_vals
-                    .iter()
-                    .filter_map(|v| {
-                        let value = v.as_str()?;
-                        Some((value.to_string(), value.to_string()))
-                    })
-                    .collect();
-                (enum_options, true) // enum always has all const values
-            } else {
-                (vec![], true)
-            };
-
-            // Only use interactive menu if we have options and all oneOf branches are const
-            if !options.is_empty() && all_const && std::io::stdin().is_terminal() {
-                // If field is optional and has no default append a Skip option
-                const SKIP_SENTINEL: &str = "\x00__SKIP__";
-                let has_skip = if !is_required && default_value.is_none() {
-                    options.push((SKIP_SENTINEL.to_string(), "Skip".to_string()));
-                    true
-                } else {
-                    false
-                };
-
-                // Find option index that matches the default
-                let initial_index = if let Some(default) = default_value {
-                    options.iter().position(|(value, _)| value == default)
-                } else {
-                    None
-                };
-
-                // Interactive menu with arrow keys
-                let items: Vec<(&str, &str, &str)> = options
-                    .iter()
-                    .map(|(value, title)| (value.as_str(), title.as_str(), ""))
-                    .collect();
-
-                // Build selector and set initial cursor position to default if available
-                let mut selector = cliclack::select(field_name.as_str()).items(&items);
-                if let Some(idx) = initial_index {
-                    selector = selector.initial_value(items[idx].0);
-                }
-
-                match selector.interact() {
-                    Ok(selected_value) => {
-                        // If user selected the Skip option return empty data
-                        if has_skip && selected_value == SKIP_SENTINEL {
-                            return Ok(ElicitationInput {
-                                action: ElicitationAction::Accept,
-                                user_data: HashMap::new(),
-                            });
-                        }
-
-                        // Normal selection
-                        let mut data = HashMap::new();
-                        data.insert(
-                            field_name.clone(),
-                            Value::String(selected_value.to_string()),
-                        );
-                        return Ok(ElicitationInput {
-                            action: ElicitationAction::Accept,
-                            user_data: data,
-                        });
-                    }
-                    Err(e) if e.kind() == io::ErrorKind::Interrupted => {
-                        return Ok(ElicitationInput {
-                            action: ElicitationAction::Cancel,
-                            user_data: HashMap::new(),
-                        });
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
+    if io::stdin().is_terminal() {
+        if let Some(select) = single_select(schema) {
+            return prompt_single_select(select);
         }
     }
 
-    // Case 2: Schema-less (or empty-schema) elicitations are pure approval prompts —
-    // offer an explicit Y/N confirmation instead of silently auto-accepting.
     let properties = match properties {
         Some(props) if !props.is_empty() => props,
         _ => {
@@ -170,7 +78,6 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
         let default = field_schema.get("default");
         let enum_values = field_schema.get("enum").and_then(|e| e.as_array());
 
-        // makes a little true/false toggle
         if field_type == "boolean" {
             let label = match description {
                 Some(desc) => format!("{} ({})", name, desc),
@@ -216,7 +123,6 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
 
         let input = read_line()?;
 
-        // Handle Ctrl+C / EOF for cancellation
         if input.is_none() {
             return Ok(ElicitationInput {
                 action: ElicitationAction::Cancel,
@@ -256,6 +162,95 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
     })
 }
 
+fn single_select(schema: &Value) -> Option<SingleSelect<'_>> {
+    let properties = schema.get("properties")?.as_object()?;
+    if properties.len() != 1 {
+        return None;
+    }
+
+    let (field_name, field_schema) = properties.iter().next()?;
+    let mut options: Vec<(SelectChoice, String)> =
+        if let Some(one_of) = field_schema.get("oneOf").and_then(Value::as_array) {
+            one_of
+                .iter()
+                .map(|option| {
+                    let value = option.get("const")?.as_str()?;
+                    let label = option.get("title").and_then(Value::as_str).unwrap_or(value);
+                    Some((SelectChoice::Value(value.to_string()), label.to_string()))
+                })
+                .collect::<Option<_>>()?
+        } else {
+            field_schema
+                .get("enum")?
+                .as_array()?
+                .iter()
+                .map(|value| {
+                    let value = value.as_str()?;
+                    Some((SelectChoice::Value(value.to_string()), value.to_string()))
+                })
+                .collect::<Option<_>>()?
+        };
+
+    if options.is_empty() {
+        return None;
+    }
+
+    let is_required = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .is_some_and(|required| {
+            required
+                .iter()
+                .any(|value| value.as_str() == Some(field_name))
+        });
+    let default_value = field_schema
+        .get("default")
+        .and_then(Value::as_str)
+        .map(|value| SelectChoice::Value(value.to_string()))
+        .filter(|value| options.iter().any(|(option, _)| option == value));
+
+    let initial_value = if !is_required && default_value.is_none() {
+        options.push((SelectChoice::Skip, "Skip".to_string()));
+        Some(SelectChoice::Skip)
+    } else {
+        default_value
+    };
+
+    Some(SingleSelect {
+        field_name,
+        options,
+        initial_value,
+    })
+}
+
+fn prompt_single_select(select: SingleSelect<'_>) -> io::Result<ElicitationInput> {
+    let items: Vec<_> = select
+        .options
+        .iter()
+        .map(|(value, label)| (value.clone(), label, ""))
+        .collect();
+    let mut prompt = cliclack::select(select.field_name).items(&items);
+    if let Some(initial_value) = select.initial_value {
+        prompt = prompt.initial_value(initial_value);
+    }
+
+    match prompt.interact() {
+        Ok(SelectChoice::Value(value)) => Ok(ElicitationInput {
+            action: ElicitationAction::Accept,
+            user_data: HashMap::from([(select.field_name.to_string(), Value::String(value))]),
+        }),
+        Ok(SelectChoice::Skip) => Ok(ElicitationInput {
+            action: ElicitationAction::Accept,
+            user_data: HashMap::new(),
+        }),
+        Err(error) if error.kind() == io::ErrorKind::Interrupted => Ok(ElicitationInput {
+            action: ElicitationAction::Cancel,
+            user_data: HashMap::new(),
+        }),
+        Err(error) => Err(error),
+    }
+}
+
 fn read_line() -> io::Result<Option<String>> {
     if !std::io::stdin().is_terminal() {
         let mut line = String::new();
@@ -265,7 +260,7 @@ fn read_line() -> io::Result<Option<String>> {
 
     let mut line = String::new();
     match io::stdin().lock().read_line(&mut line) {
-        Ok(0) => Ok(None), // EOF
+        Ok(0) => Ok(None),
         Ok(_) => Ok(Some(line.trim().to_string())),
         Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(None),
         Err(e) => Err(e),
@@ -310,5 +305,107 @@ fn parse_value(input: &str, field_type: &str, enum_values: Option<&Vec<Value>>) 
             .map(Value::Number)
             .unwrap_or(Value::Null),
         _ => Value::String(input.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use test_case::test_case;
+
+    #[test]
+    fn builds_required_enum_select_with_default() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "enum": ["red", "green"],
+                    "default": "green"
+                }
+            },
+            "required": ["color"]
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.field_name, "color");
+        assert_eq!(
+            select.options,
+            vec![
+                (SelectChoice::Value("red".to_string()), "red".to_string()),
+                (
+                    SelectChoice::Value("green".to_string()),
+                    "green".to_string()
+                )
+            ]
+        );
+        assert_eq!(
+            select.initial_value,
+            Some(SelectChoice::Value("green".to_string()))
+        );
+    }
+
+    #[test]
+    fn optional_select_defaults_to_skip() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "color": { "type": "string", "enum": ["", "green"] }
+            }
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.initial_value, Some(SelectChoice::Skip));
+        assert_eq!(select.options.last().unwrap().0, SelectChoice::Skip);
+        assert_eq!(
+            select.options.first().unwrap().0,
+            SelectChoice::Value(String::new())
+        );
+    }
+
+    #[test]
+    fn uses_one_of_titles_as_labels() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "size": {
+                    "oneOf": [
+                        { "const": "s", "title": "Small" },
+                        { "const": "l", "title": "Large" }
+                    ]
+                }
+            },
+            "required": ["size"]
+        });
+
+        let select = single_select(&schema).unwrap();
+
+        assert_eq!(select.options[0].0, SelectChoice::Value("s".to_string()));
+        assert_eq!(select.options[0].1, "Small");
+        assert_eq!(select.options[1].0, SelectChoice::Value("l".to_string()));
+        assert_eq!(select.options[1].1, "Large");
+    }
+
+    #[test_case(json!({}); "missing properties")]
+    #[test_case(json!({ "properties": {} }); "empty properties")]
+    #[test_case(json!({
+        "properties": {
+            "first": { "enum": ["a"] },
+            "second": { "enum": ["b"] }
+        }
+    }); "multiple properties")]
+    #[test_case(json!({
+        "properties": { "choice": { "enum": ["a", 2] } }
+    }); "non-string enum value")]
+    #[test_case(json!({
+        "properties": {
+            "choice": { "oneOf": [{ "const": "a" }, { "type": "string" }] }
+        }
+    }); "oneOf branch without const")]
+    fn unsupported_schema_does_not_build_select(schema: Value) {
+        assert!(single_select(&schema).is_none());
     }
 }
