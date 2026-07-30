@@ -1,6 +1,6 @@
 ---
-title: "Issues are the new PRs"
-description: "Coding agents have changed the economics of open source. The issue, not the patch, is becoming the real unit of contribution."
+title: "Moving to issues as the new PRs"
+description: "We’re changing how people contribute to goose by moving design and discussion into issues before agents turn ready issues into code."
 authors:
   - douwe
 featured: true
