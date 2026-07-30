@@ -2260,15 +2260,26 @@ impl Agent {
                 )
                 .await;
 
-                let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
-                    model_config.clone(),
-                    &session_config.id,
-                    &system_prompt,
-                    conversation_with_moim.messages(),
-                    &tools,
-                    &toolshim_tools,
-                ).await?;
+                // Race cancellation against stream creation too: a provider that
+                // talks to a remote backend (ACP) can block here before the
+                // response stream exists — e.g. applying a model config option —
+                // and the cancel forwarder has no in-flight prompt to interrupt,
+                // so awaiting this alone would leave the reply (and the UI) stuck.
+                let turn_provider = self.provider().await?;
+                let stream = tokio::select! {
+                    biased;
+                    () = await_cancellation(&cancel_token) => break,
+                    stream = Self::stream_response_from_provider(
+                        turn_provider,
+                        model_config.clone(),
+                        &session_config.id,
+                        &system_prompt,
+                        conversation_with_moim.messages(),
+                        &tools,
+                        &toolshim_tools,
+                    ) => stream,
+                };
+                let mut stream = stream?;
                 last_assistant_text.clear();
 
                 let current_turn_tool_count = conversation.messages().iter()
@@ -4405,6 +4416,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         cancel_called: Arc<tokio::sync::Notify>,
         cancel_calls: AtomicUsize,
         cancelled_session: std::sync::Mutex<Option<String>>,
+        /// Hang inside `stream()` instead of returning a silent stream,
+        /// mimicking an ACP backend stuck applying a session config option
+        /// before the prompt is established.
+        stall_before_stream: bool,
     }
 
     impl HangingProvider {
@@ -4414,6 +4429,14 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 cancel_called: Arc::new(tokio::sync::Notify::new()),
                 cancel_calls: AtomicUsize::new(0),
                 cancelled_session: std::sync::Mutex::new(None),
+                stall_before_stream: false,
+            }
+        }
+
+        fn stalling_before_stream() -> Self {
+            Self {
+                stall_before_stream: true,
+                ..Self::new()
             }
         }
     }
@@ -4428,6 +4451,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
             self.stream_entered.notify_one();
+            if self.stall_before_stream {
+                std::future::pending::<()>().await;
+            }
             Ok(Box::pin(futures::stream::pending::<
                 Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
             >()))
@@ -4513,6 +4539,40 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             Some(session_id.as_str()),
             "provider cancel must receive the active session id"
         );
+        Ok(())
+    }
+
+    /// A cancel landing while the provider is still *creating* its stream (an
+    /// ACP agent stuck applying a model config option before the prompt exists)
+    /// must end the reply, not wait for the backend to return a stream.
+    #[tokio::test]
+    async fn cancellation_interrupts_provider_stream_creation() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(HangingProvider::stalling_before_stream());
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let cancel_token = CancellationToken::new();
+        let canceller =
+            cancel_once_stream_is_stalled(cancel_token.clone(), provider.stream_entered.clone());
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                stalled_reply_session_config(&session_id),
+                Some(cancel_token),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Some(event) = reply_stream.next().await {
+                let _ = event;
+            }
+        })
+        .await
+        .expect("reply did not stop promptly after cancellation during stream creation");
+        canceller.await.expect("canceller task panicked");
         Ok(())
     }
 
