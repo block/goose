@@ -47,6 +47,7 @@ use goose_providers::model::ModelConfig;
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
+const ACP_TOOL_NAME: &str = "acp_tool";
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -104,7 +105,6 @@ enum AcpUpdate {
     Thought(String),
     ToolCallStart {
         id: String,
-        name: String,
         kind: ToolKind,
         raw_input: Option<serde_json::Value>,
     },
@@ -584,21 +584,21 @@ impl Provider for AcpProvider {
                             .with_id(id);
                         yield (Some(message), None);
                     }
-                    AcpUpdate::ToolCallStart { id, name, kind, raw_input } => {
+                    AcpUpdate::ToolCallStart {
+                        id,
+                        kind,
+                        raw_input,
+                    } => {
                         text_run = None;
                         thought_run = None;
                         if reject_all_tools {
                             suppress_text = true;
                             rejected_tool_calls.insert(id);
                         } else {
-                            let mut params = CallToolRequestParams::new(name);
-                            if let Some(serde_json::Value::Object(map)) = raw_input {
-                                params = params.with_arguments(map);
-                            }
+                            let params = acp_tool_request_params(raw_input);
                             // external_dispatch tells the agent loop not to redispatch this
                             // call. goose.acp.kind preserves ACP's stable categorization for
-                            // downstream consumers (metrics, observability, icon selection)
-                            // independent of the display title we put in `name`.
+                            // downstream consumers (metrics, observability, icon selection).
                             let tool_meta = Some(serde_json::json!({
                                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                                 "goose.acp.kind": kind,
@@ -903,15 +903,11 @@ impl AcpClientLoop {
                                         } else {
                                             None
                                         };
-                                    // ACP carries no canonical tool name to clients — only
-                                    // `title` (display) and `kind` (category). We pass `title`
-                                    // for renderer affordance, surface `kind` separately via
-                                    // tool_meta for stable categorization, and the
-                                    // goose.external_dispatch marker keeps `name` off the
-                                    // agent loop's routing/auth paths.
+                                    // ACP carries no canonical tool name to clients. Keep the
+                                    // display title out of persisted tool-call history and
+                                    // surface `kind` separately via tool_meta.
                                     let _ = tx.try_send(AcpUpdate::ToolCallStart {
                                         id: id.clone(),
-                                        name: tool_call.title.clone(),
                                         kind: tool_call.kind,
                                         raw_input: tool_call.raw_input.clone(),
                                     });
@@ -1528,6 +1524,14 @@ fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Messa
         .with_id(id)
 }
 
+fn acp_tool_request_params(raw_input: Option<serde_json::Value>) -> CallToolRequestParams {
+    let mut params = CallToolRequestParams::new(ACP_TOOL_NAME);
+    if let Some(serde_json::Value::Object(map)) = raw_input {
+        params = params.with_arguments(map);
+    }
+    params
+}
+
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
 /// `Message::with_tool_response` consumes. Handles `Content` (text/image/other),
 /// `Diff`, and `Terminal` variants; falls back to a JSON serialization of
@@ -1979,7 +1983,6 @@ mod tests {
             response_tx
                 .send(AcpUpdate::ToolCallStart {
                     id: id.to_string(),
-                    name: "read_file".to_string(),
                     kind: ToolKind::Read,
                     raw_input: None,
                 })
@@ -2025,6 +2028,23 @@ mod tests {
         assert!(first_id.starts_with("msg_"));
         assert!(second_id.starts_with("msg_"));
         assert_ne!(first_id, second_id);
+    }
+
+    #[test]
+    fn acp_tool_request_params_use_stable_name_and_preserve_arguments() {
+        let params = acp_tool_request_params(Some(serde_json::json!({
+            "command": "echo hello"
+        })));
+
+        assert_eq!(params.name.to_string(), ACP_TOOL_NAME);
+        assert_eq!(
+            params
+                .arguments
+                .as_ref()
+                .and_then(|arguments| arguments.get("command"))
+                .and_then(serde_json::Value::as_str),
+            Some("echo hello")
+        );
     }
 
     #[test]
