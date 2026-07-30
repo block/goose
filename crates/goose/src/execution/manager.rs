@@ -1,9 +1,7 @@
 use crate::agents::mcp_client::GooseMcpHostInfo;
 use crate::agents::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
-use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::Config;
-use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{SessionManager, SessionNameUpdate};
 use anyhow::Result;
@@ -72,15 +70,11 @@ impl AgentManager {
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let default_mode = config.get_goose_mode().unwrap_or_default();
-                let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let scheduler = Scheduler::new(schedule_file_path, Arc::clone(&session_manager))
-                    .await
-                    .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>)?;
                 let agent_config = AgentConfig::new(
                     session_manager,
                     PermissionManager::instance(),
-                    Some(scheduler),
+                    None,
                     default_mode,
                     config.get_goose_disable_session_naming().unwrap_or(false),
                     GoosePlatform::GooseDesktop,
@@ -92,13 +86,8 @@ impl AgentManager {
             .cloned()
     }
 
-    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
-        Arc::clone(
-            self.agent_config
-                .scheduler_service
-                .as_ref()
-                .expect("AgentManager scheduler is not configured"),
-        )
+    pub fn scheduler(&self) -> Option<Arc<dyn SchedulerTrait>> {
+        self.agent_config.scheduler_service.as_ref().map(Arc::clone)
     }
 
     /// Get the shared SessionManager for session-only operations

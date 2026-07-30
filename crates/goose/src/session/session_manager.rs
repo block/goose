@@ -617,14 +617,13 @@ impl SessionManager {
             .await
     }
 
-    pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
+    pub async fn update_message_metadata<F>(&self, id: &str, message_id: &str, f: F) -> Result<()>
     where
         F: FnOnce(
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
-        Self::instance()
-            .storage
+        self.storage
             .update_message_metadata(id, message_id, f)
             .await
     }
@@ -632,16 +631,16 @@ impl SessionManager {
     /// Patch `tool_meta` on a specific `ToolRequest` within a stored message.
     /// Used to persist LLM-generated tool titles and chain summaries so they
     /// survive session reload. Merge-based: existing keys not in `patch` are
-    /// preserved. No-op if the message or tool_call_id is not found.
+    /// preserved. Searches the most recently inserted messages in the session
+    /// and is a no-op if the tool_call_id is not found.
     pub async fn update_tool_request_meta(
         &self,
         session_id: &str,
-        message_id: &str,
         tool_call_id: &str,
         patch: serde_json::Value,
     ) -> Result<()> {
         self.storage
-            .update_tool_request_meta(session_id, message_id, tool_call_id, patch)
+            .update_tool_request_meta(session_id, tool_call_id, patch)
             .await
     }
 }
@@ -2457,12 +2456,58 @@ impl SessionStorage {
         Ok(())
     }
 
+    async fn update_tool_request_meta(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        patch: serde_json::Value,
+    ) -> Result<()> {
+        use crate::conversation::message::MessageContent;
+
+        let pool = self.pool().await?;
+        let rows = sqlx::query_as::<_, (Option<String>, String)>(
+            "SELECT message_id, content_json FROM messages \
+             WHERE session_id = ? \
+             ORDER BY id DESC \
+             LIMIT 100",
+        )
+        .bind(session_id)
+        .fetch_all(pool)
+        .await?;
+
+        for (message_id, content_json) in rows {
+            let content: Vec<MessageContent> = serde_json::from_str(&content_json)?;
+            let contains_tool_request = content.iter().any(|block| {
+                matches!(
+                    block,
+                    MessageContent::ToolRequest(tool_request)
+                        if tool_request.id == tool_call_id
+                )
+            });
+            if contains_tool_request {
+                let Some(message_id) = message_id else {
+                    return Ok(());
+                };
+                return self
+                    .update_tool_request_meta_by_message_id(
+                        session_id,
+                        &message_id,
+                        tool_call_id,
+                        patch,
+                    )
+                    .await;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Patch `tool_meta` on a specific `ToolRequest` within a stored message's
     /// `content_json`. Finds the row(s) with matching `message_id`, scans each
     /// row's content for a `ToolRequest` with the given `tool_call_id`, and
     /// merges `patch` into its `tool_meta`. Uses `BEGIN IMMEDIATE` so
     /// concurrent writers serialize correctly.
-    async fn update_tool_request_meta(
+    async fn update_tool_request_meta_by_message_id(
         &self,
         session_id: &str,
         message_id: &str,

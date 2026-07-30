@@ -518,8 +518,8 @@ fn prepare_input(
                         let text: String = result
                             .content
                             .iter()
-                            .filter_map(|c| match &c.raw {
-                                rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                            .filter_map(|c| match c {
+                                rmcp::model::ContentBlock::Text(t) => Some(t.text.as_str()),
                                 _ => None,
                             })
                             .collect::<Vec<&str>>()
@@ -915,9 +915,9 @@ mod tests {
 
     #[test]
     fn test_prepare_input_tool_response() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
         let dir = tempfile::tempdir().unwrap();
-        let result = CallToolResult::success(vec![Content::text("file1.txt\nfile2.txt")]);
+        let result = CallToolResult::success(vec![ContentBlock::text("file1.txt\nfile2.txt")]);
         let messages = vec![Message::new(
             Role::User,
             0,

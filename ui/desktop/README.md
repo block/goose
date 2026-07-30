@@ -95,7 +95,7 @@ Use the existing Windows build process as documented.
 From the project root, start the ACP backend:
 
 ```bash
-GOOSE_SERVER__SECRET_KEY=test cargo run -p goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
+GOOSE_SERVER__SECRET_KEY=test cargo run -p goose-cli --bin goose -- serve --platform desktop --enable-scheduler --host 127.0.0.1 --port 3000
 ```
 
 Then start the desktop app from `ui/desktop`:

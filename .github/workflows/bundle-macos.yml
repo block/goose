@@ -50,6 +50,11 @@ on:
         required: false
         default: false
         type: boolean
+      environment:
+        description: 'GitHub Environment containing signing secrets. Leave empty for unsigned builds.'
+        required: false
+        default: ''
+        type: string
       ref:
         description: 'Git ref to checkout (branch, tag, or SHA). Defaults to main branch if not specified.'
         required: false
@@ -98,7 +103,7 @@ jobs:
         run: df -h
 
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
@@ -190,7 +195,7 @@ jobs:
     if: ${{ inputs.package_desktop }}
     needs: build-goose
     runs-on: ${{ inputs.target == 'x86_64-apple-darwin' && 'macos-15-intel' || 'macos-latest' }}
-    environment: ${{ inputs.signing && 'signing' || null }}
+    environment: ${{ inputs.environment || '' }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
     permissions:
@@ -202,7 +207,7 @@ jobs:
         run: df -h
 
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 

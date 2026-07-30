@@ -115,7 +115,7 @@ where
 
 pub mod call_tool_result {
     use super::*;
-    use rmcp::model::{CallToolResult, Content};
+    use rmcp::model::{CallToolResult, ContentBlock};
 
     pub fn serialize<S>(
         value: &ToolResult<CallToolResult>,
@@ -140,7 +140,7 @@ pub mod call_tool_result {
             },
             SuccessWithContentVec {
                 status: String,
-                value: Vec<Content>,
+                value: Vec<ContentBlock>,
             },
             Error {
                 status: String,

@@ -419,6 +419,7 @@ async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) ->
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
         session_cwd: Some(session_cwd.clone()),
+        enable_scheduler: false,
     }));
     let agent_id = node.endpoint_id().to_string();
     let bridge = Arc::new(FullAcpBridge::new(acp_server, agent_id));
