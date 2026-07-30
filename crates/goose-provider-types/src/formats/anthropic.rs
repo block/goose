@@ -1141,6 +1141,13 @@ where
             }
         }
 
+        if stop_reason.as_deref() == Some("max_tokens") {
+            let mut message = Message::assistant();
+            message.id = message_id;
+            message.metadata.output_token_limit_reached = true;
+            yield (Some(message), None);
+        }
+
         if let Some(usage) = final_usage {
             yield (None, Some(usage));
         }
@@ -2045,6 +2052,7 @@ mod tests {
         text: Vec<String>,
         tool_calls: Vec<String>,
         tool_errors: Vec<String>,
+        output_token_limit_message_ids: Vec<Option<String>>,
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
@@ -2052,6 +2060,9 @@ mod tests {
 
         for result in collect_stream_results(events).await {
             if let Ok((Some(msg), _usage)) = result {
+                if msg.metadata.output_token_limit_reached {
+                    parts.output_token_limit_message_ids.push(msg.id.clone());
+                }
                 for c in &msg.content {
                     match c {
                         MessageContentBlock::Thinking(t) => {
@@ -2075,6 +2086,30 @@ mod tests {
             }
         }
         parts
+    }
+
+    #[tokio::test]
+    async fn test_streaming_marks_max_tokens() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_limit","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Partial answer"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text, vec!["Partial answer"]);
+        assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_limit".to_string())]
+        );
     }
 
     #[tokio::test]
@@ -2447,6 +2482,10 @@ mod tests {
         );
 
         let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.output_token_limit_message_ids,
+            vec![Some("msg_t2".to_string())]
+        );
         assert_eq!(
             parts.tool_errors.len(),
             1,

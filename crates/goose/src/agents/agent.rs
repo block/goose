@@ -2191,6 +2191,7 @@ impl Agent {
                 let mut exit_chat = false;
                 let mut provider_errored = false;
                 let mut provider_produced_content = false;
+                let mut provider_reached_output_token_limit = false;
                 let mut pending_final_output: Option<String> = None;
                 let mut pending_turn_usage: Option<ProviderUsage> = None;
                 let mut preferred_turn_usage_message_id: Option<String> = None;
@@ -2216,11 +2217,13 @@ impl Agent {
                             }
 
                             if let Some(response) = response {
+                                provider_reached_output_token_limit |=
+                                    response.metadata.output_token_limit_reached;
+
                                 if !response.content.is_empty()
-                                    && response
-                                    .content
-                                    .iter()
-                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                    && response.content.iter().all(|content| {
+                                        matches!(content, MessageContent::SystemNotification(_))
+                                    })
                                 {
                                     yield AgentEvent::Message(response);
                                     tokio::task::yield_now().await;
@@ -2278,7 +2281,9 @@ impl Agent {
                                     },
                                 );
 
-                                if !filtered_response.content.is_empty() {
+                                if !filtered_response.content.is_empty()
+                                    || filtered_response.metadata.output_token_limit_reached
+                                {
                                     yield AgentEvent::Message(filtered_response.clone());
                                     tokio::task::yield_now().await;
                                 }
@@ -2831,6 +2836,7 @@ impl Agent {
                     && !exit_chat
                     && !provider_errored
                     && !did_recovery_compact_this_iteration
+                    && !provider_reached_output_token_limit
                     && !provider_produced_content
                     && last_assistant_text.is_empty();
 
@@ -4173,6 +4179,55 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         }
     }
 
+    struct OutputLimitMarkerProvider {
+        include_content: bool,
+        call_count: AtomicUsize,
+    }
+
+    impl OutputLimitMarkerProvider {
+        fn new(include_content: bool) -> Self {
+            Self {
+                include_content,
+                call_count: AtomicUsize::new(0),
+            }
+        }
+
+        fn call_count(&self) -> usize {
+            self.call_count.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for OutputLimitMarkerProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            let message_id = "provider-output-limit";
+            let content = Message::assistant()
+                .with_text("Partial answer")
+                .with_id(message_id);
+            let mut marker = Message::assistant().with_id(message_id);
+            marker.metadata.output_token_limit_reached = true;
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+
+            let mut events = Vec::new();
+            if self.include_content {
+                events.push(Ok((Some(content), None)));
+            }
+            events.push(Ok((Some(marker), Some(usage))));
+            Ok(Box::pin(futures::stream::iter(events)))
+        }
+
+        fn get_name(&self) -> &str {
+            "output-limit-marker"
+        }
+    }
+
     struct RefusingProvider {
         call_count: AtomicUsize,
     }
@@ -4330,6 +4385,78 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             .map(Message::as_concat_text)
             .filter(|text| !text.is_empty())
             .collect()
+    }
+
+    #[tokio::test]
+    async fn output_limit_marker_is_emitted_and_persisted() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let provider = Arc::new(OutputLimitMarkerProvider::new(true));
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+
+        let messages = run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+        let marker = messages
+            .iter()
+            .find(|message| message.metadata.output_token_limit_reached)
+            .expect("output-limit marker should be emitted");
+        assert!(marker.content.is_empty());
+        assert_eq!(marker.id.as_deref(), Some("provider-output-limit"));
+
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("session should have a conversation");
+        let persisted = conversation
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("provider-output-limit"))
+            .expect("provider response should be persisted");
+        assert_eq!(persisted.as_concat_text(), "Partial answer");
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(persisted.metadata.usage.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn zero_content_output_limit_is_persisted_without_empty_response_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let provider = Arc::new(OutputLimitMarkerProvider::new(false));
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        run_stop_hook_test_turn(&agent, &session_id, "hello").await?;
+
+        assert_eq!(provider.call_count(), 1);
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("session should have a conversation");
+        let persisted = conversation
+            .messages()
+            .iter()
+            .find(|message| message.id.as_deref() == Some("provider-output-limit"))
+            .expect("zero-content output-limit marker should be persisted");
+        assert!(persisted.content.is_empty());
+        assert!(persisted.metadata.user_visible);
+        assert!(!persisted.metadata.agent_visible);
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(conversation
+            .agent_visible_messages()
+            .iter()
+            .all(|message| message.id.as_deref() != Some("provider-output-limit")));
+
+        Ok(())
     }
 
     #[tokio::test]

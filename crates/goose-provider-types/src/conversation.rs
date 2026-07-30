@@ -59,10 +59,15 @@ impl Conversation {
                         || (message.id.is_some()
                             && existing.id.as_deref() == message.id.as_deref()))
             }) {
-                if let Some(inference) = message.metadata.inference {
+                if let Some(inference) = message.metadata.inference.clone() {
                     existing.metadata.inference = Some(inference);
                 }
                 existing.metadata.output_token_limit_reached |= output_token_limit_reached;
+                return;
+            }
+
+            if output_token_limit_reached {
+                self.0.push(message.with_visibility(true, false));
             }
             return;
         }
@@ -1773,6 +1778,23 @@ mod tests {
         assert_eq!(conv.messages().len(), 1);
         assert!(conv.messages()[0].metadata.output_token_limit_reached);
         assert_eq!(conv.messages()[0].metadata.inference, Some(inference));
+    }
+
+    #[test]
+    fn test_push_retains_unmatched_output_token_limit_update_for_user_only() {
+        let mut conv = Conversation::empty();
+        let mut limited = Message::assistant().with_id("turn-1");
+        limited.metadata.output_token_limit_reached = true;
+
+        conv.push(limited);
+
+        assert_eq!(conv.messages().len(), 1);
+        let persisted = &conv.messages()[0];
+        assert!(persisted.content.is_empty());
+        assert!(persisted.metadata.user_visible);
+        assert!(!persisted.metadata.agent_visible);
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(conv.agent_visible_messages().is_empty());
     }
 
     #[test]
