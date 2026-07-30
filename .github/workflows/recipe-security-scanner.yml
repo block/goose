@@ -23,10 +23,8 @@ jobs:
     name: Fork recipe review boundary
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
     permissions:
-      # getCollaboratorPermissionLevel requires push access. This job runs only
-      # pinned base-branch JavaScript against GitHub metadata and never checks
-      # out or reads fork recipe content.
-      contents: write
+      # GitHub App installation tokens can query collaborator permission with
+      # their implicit metadata read access.
       pull-requests: read
     runs-on: ubuntu-latest
     steps:
@@ -524,26 +522,43 @@ jobs:
       - origin-ai-scan
     permissions:
       contents: read
+      statuses: write
     runs-on: ubuntu-latest
     steps:
       - name: Enforce the applicable security boundary
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         env:
           IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           FORK_BOUNDARY_RESULT: ${{ needs.fork-review-boundary.result }}
           ORIGIN_SCAN_RESULT: ${{ needs.origin-ai-scan.result }}
-        run: |
-          set -euo pipefail
+        with:
+          script: |
+            const isFork = process.env.IS_FORK === 'true';
+            const applicableResult = isFork
+              ? process.env.FORK_BOUNDARY_RESULT
+              : process.env.ORIGIN_SCAN_RESULT;
+            const checkName = isFork ? 'fork review boundary' : 'origin recipe AI scan';
+            const passed = applicableResult === 'success';
 
-          if [ "$IS_FORK" = "true" ]; then
-            if [ "$FORK_BOUNDARY_RESULT" != "success" ]; then
-              echo "::error::Fork review boundary result: $FORK_BOUNDARY_RESULT"
-              exit 1
-            fi
-            echo "::notice::Fork review boundary passed; privileged AI scan was not run."
-          else
-            if [ "$ORIGIN_SCAN_RESULT" != "success" ]; then
-              echo "::error::Origin recipe AI scan result: $ORIGIN_SCAN_RESULT"
-              exit 1
-            fi
-            echo "::notice::Origin recipe AI scan passed."
-          fi
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: passed ? 'success' : 'failure',
+              target_url: `${context.payload.pull_request.html_url}/checks`,
+              description: passed
+                ? `${checkName} passed`
+                : `${checkName} result: ${applicableResult}`,
+              context: 'security-scan/recipe-scanner',
+            });
+
+            if (!passed) {
+              core.setFailed(`${checkName} result: ${applicableResult}`);
+              return;
+            }
+
+            core.notice(
+              isFork
+                ? 'Fork review boundary passed; privileged AI scan was not run.'
+                : 'Origin recipe AI scan passed.'
+            );
