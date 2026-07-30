@@ -348,7 +348,7 @@ const SessionRow: React.FC<SessionRowProps> = ({
                 <Pencil className="w-4 h-4" />
                 {intl.formatMessage(i18n.rename)}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void handleArchive()}>
+              <DropdownMenuItem disabled={isStreaming} onSelect={() => void handleArchive()}>
                 <Archive className="w-4 h-4" />
                 {intl.formatMessage(i18n.archive)}
               </DropdownMenuItem>

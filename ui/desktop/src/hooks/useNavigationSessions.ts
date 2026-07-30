@@ -172,6 +172,13 @@ export function useNavigationSessions() {
       if (archived === false) {
         const version = ++fetchVersion;
         acpListRecentSessions(MAX_RECENT_SESSIONS)
+          .then(async (sessions) => {
+            // Active listings hide empty sessions, so a restored empty chat is
+            // missing from the refetch; fetch it directly to keep it reachable.
+            if (sessions.some((s) => s.id === sessionId)) return sessions;
+            const restored = await acpGetSessionListItem(sessionId);
+            return prependUnique(sessions, restored);
+          })
           .then((sessions) => {
             if (version !== fetchVersion) return;
             setRecentSessions(sessions);
