@@ -93,7 +93,22 @@ pub fn set_active_provider(config: &Config, name: &str, model: &str) -> Result<(
         model: model.to_string(),
         configured: true,
     };
-    set_provider_entry(config, name, &entry)
+    set_provider_entry(config, name, &entry)?;
+
+    // Keep process env in sync with the saved defaults.
+    // `get_active_provider` / `get_active_model` prefer GOOSE_PROVIDER / GOOSE_MODEL
+    // from the environment over config file keys. Desktop/long-lived processes often
+    // inherit stale env from launch; without this sync, homepage model selection
+    // (defaultsSave → set_active_provider) writes config but new sessions still
+    // resolve the old provider/model (#10583, regression of #2203).
+    env::set_var("GOOSE_PROVIDER", name);
+    if model.is_empty() {
+        env::remove_var("GOOSE_MODEL");
+    } else {
+        env::set_var("GOOSE_MODEL", model);
+    }
+
+    Ok(())
 }
 
 pub fn clear_active_provider(config: &Config) -> Result<(), ConfigError> {
@@ -103,6 +118,9 @@ pub fn clear_active_provider(config: &Config) -> Result<(), ConfigError> {
             Err(e) => return Err(e),
         }
     }
+    // Drop stale process env so subsequent reads fall back to config (or empty).
+    env::remove_var("GOOSE_PROVIDER");
+    env::remove_var("GOOSE_MODEL");
     Ok(())
 }
 
@@ -131,6 +149,25 @@ mod tests {
         assert!(loaded.enabled);
         assert_eq!(loaded.model, "gpt-4o");
         assert!(loaded.configured);
+    }
+
+    #[test]
+    fn test_set_active_provider_syncs_process_env() {
+        // Stale env must not shadow a newly saved default (#10583).
+        env::set_var("GOOSE_PROVIDER", "stale-provider");
+        env::set_var("GOOSE_MODEL", "stale-model");
+
+        let config = new_test_config();
+        set_active_provider(&config, "a01_deepseek", "deepseek-v4-pro").unwrap();
+
+        assert_eq!(env::var("GOOSE_PROVIDER").ok().as_deref(), Some("a01_deepseek"));
+        assert_eq!(env::var("GOOSE_MODEL").ok().as_deref(), Some("deepseek-v4-pro"));
+        assert_eq!(get_active_provider(&config).as_deref(), Some("a01_deepseek"));
+        assert_eq!(get_active_model(&config).as_deref(), Some("deepseek-v4-pro"));
+
+        clear_active_provider(&config).unwrap();
+        assert!(env::var("GOOSE_PROVIDER").is_err());
+        assert!(env::var("GOOSE_MODEL").is_err());
     }
 
     #[test]
