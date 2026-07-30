@@ -99,7 +99,8 @@ jobs:
               )
               .write();
 
-  security-scan:
+  origin-ai-scan:
+    name: Origin recipe AI scan
     # Never load fork-controlled recipe instructions into the privileged scanner.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
@@ -510,4 +511,39 @@ jobs:
           else
             echo "::error::No scan summary found - scan may have failed completely"
             exit 1
+          fi
+
+  # Preserve the existing required job context. This job always runs and
+  # reflects the applicable isolated check instead of allowing a skipped
+  # privileged scanner to satisfy branch protection for a fork.
+  security-scan:
+    name: security-scan
+    if: ${{ always() }}
+    needs:
+      - fork-review-boundary
+      - origin-ai-scan
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce the applicable security boundary
+        env:
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          FORK_BOUNDARY_RESULT: ${{ needs.fork-review-boundary.result }}
+          ORIGIN_SCAN_RESULT: ${{ needs.origin-ai-scan.result }}
+        run: |
+          set -euo pipefail
+
+          if [ "$IS_FORK" = "true" ]; then
+            if [ "$FORK_BOUNDARY_RESULT" != "success" ]; then
+              echo "::error::Fork review boundary result: $FORK_BOUNDARY_RESULT"
+              exit 1
+            fi
+            echo "::notice::Fork review boundary passed; privileged AI scan was not run."
+          else
+            if [ "$ORIGIN_SCAN_RESULT" != "success" ]; then
+              echo "::error::Origin recipe AI scan result: $ORIGIN_SCAN_RESULT"
+              exit 1
+            fi
+            echo "::notice::Origin recipe AI scan passed."
           fi
