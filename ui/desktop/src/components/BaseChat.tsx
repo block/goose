@@ -309,9 +309,9 @@ export default function BaseChat({
     const handleSessionForked = (event: Event) => {
       const customEvent = event as CustomEvent<{
         newSessionId: string;
-        shouldStartAgent?: boolean;
-        editedMessage?: string;
-        editedImages?: ImageData[];
+        shouldStartAgent: boolean;
+        editedMessage: string;
+        editedImages: ImageData[];
       }>;
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage, editedImages } = customEvent.detail;
@@ -325,10 +325,7 @@ export default function BaseChat({
       navigate(`/pair?${params.toString()}`, {
         state: {
           disableAnimation: true,
-          initialMessage:
-            editedMessage !== undefined
-              ? { msg: editedMessage, images: editedImages ?? [] }
-              : undefined,
+          initialMessage: { msg: editedMessage, images: editedImages },
         },
       });
     };

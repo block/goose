@@ -91,8 +91,8 @@ interface UserMessageProps {
   onMessageUpdate?: (
     messageId: string,
     newContent: string,
-    editType?: 'fork' | 'edit',
-    keepImages?: ImageData[]
+    editType: 'fork' | 'edit',
+    retainedImages: ImageData[]
   ) => void;
 }
 
@@ -162,10 +162,10 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   }, []);
 
   const handleSave = useCallback(
-    (editType: 'fork' | 'edit' = 'fork') => {
-      const keepImages = messageImages.filter((_, index) => !removedImageIndices.has(index));
+    (editType: 'fork' | 'edit') => {
+      const retainedImages = messageImages.filter((_, index) => !removedImageIndices.has(index));
 
-      if (editContent.trim().length === 0 && keepImages.length === 0) {
+      if (editContent.trim().length === 0 && retainedImages.length === 0) {
         setError(intl.formatMessage(i18n.emptyError));
         return;
       }
@@ -175,13 +175,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
       if (
         editType === 'edit' &&
         editContent.trim() === textContent.trim() &&
-        keepImages.length === messageImages.length
+        retainedImages.length === messageImages.length
       ) {
         return;
       }
 
       if (onMessageUpdate && message.id) {
-        onMessageUpdate(message.id, editContent, editType, keepImages);
+        onMessageUpdate(message.id, editContent, editType, retainedImages);
       }
     },
     [
@@ -214,7 +214,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
       } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         window.electron.logInfo('Cmd+Enter detected, calling handleSave');
-        handleSave();
+        handleSave('fork');
       }
     },
     [handleCancel, handleSave]

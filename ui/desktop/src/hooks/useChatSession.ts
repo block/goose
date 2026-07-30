@@ -284,8 +284,8 @@ export function useChatSession({
     async (
       messageId: string,
       newContent: string,
-      editType: 'fork' | 'edit' = 'fork',
-      keepImages?: ImageData[]
+      editType: 'fork' | 'edit',
+      retainedImages: ImageData[]
     ) => {
       try {
         await acpChatSessionController.updateMessage(
@@ -293,7 +293,7 @@ export function useChatSession({
           messageId,
           newContent,
           editType,
-          keepImages,
+          retainedImages,
           {
             getCurrentSnapshot,
             onFinish,

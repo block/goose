@@ -30,7 +30,7 @@ export interface UseChatSessionResult {
   onMessageUpdate: (
     messageId: string,
     newContent: string,
-    editType?: 'fork' | 'edit',
-    keepImages?: ImageData[]
+    editType: 'fork' | 'edit',
+    retainedImages: ImageData[]
   ) => Promise<void>;
 }

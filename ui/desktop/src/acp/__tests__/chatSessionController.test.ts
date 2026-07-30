@@ -280,7 +280,7 @@ describe('acpChatSessionController.updateMessage', () => {
         existingMessage.id,
         'Updated',
         'edit',
-        undefined,
+        [],
         {
           getCurrentSnapshot: () => currentSnapshot,
           onFinish: vi.fn(),
@@ -313,7 +313,7 @@ describe('acpChatSessionController.updateMessage', () => {
         existingMessage.id,
         'Updated',
         'edit',
-        undefined,
+        [],
         {
           getCurrentSnapshot: () => currentSnapshot,
           onFinish: vi.fn(),
@@ -360,7 +360,7 @@ describe('acpChatSessionController.updateMessage', () => {
       existingMessage.id,
       'Updated',
       'edit',
-      undefined,
+      [],
       {
         getCurrentSnapshot: () => activeSnapshot,
         onFinish: vi.fn(),
