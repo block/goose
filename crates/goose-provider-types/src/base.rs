@@ -629,6 +629,13 @@ pub trait Provider: Send + Sync {
     /// default is a no-op, appropriate for providers whose turn ends as soon
     /// as goose stops polling the response stream.
     async fn cancel(&self, _session_id: &str) {}
+
+    /// Discard any cancellation state latched by [`cancel`](Self::cancel).
+    ///
+    /// Called when a new reply begins, before that reply's own cancellation
+    /// can fire, so a cancel recorded during a previous reply cannot suppress
+    /// the new reply's work. The default is a no-op.
+    fn clear_pending_cancel(&self) {}
 }
 
 #[cfg(test)]

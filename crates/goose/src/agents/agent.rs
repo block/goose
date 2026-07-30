@@ -2111,6 +2111,10 @@ impl Agent {
                 );
             }
         }
+        // A cancel latched by the provider during a previous reply must not
+        // suppress this reply's prompts; this reply's own cancel can only fire
+        // through the forwarder spawned below.
+        provider.clear_pending_cancel();
         let cancel_forwarder = cancel_token.as_ref().map(|token| {
             CancelForwarder::spawn(token.clone(), provider.clone(), session_config.id.clone())
         });

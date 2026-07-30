@@ -165,6 +165,13 @@ pub struct AcpProvider {
     /// redundant `SetConfigOption` calls.
     applied_model: Arc<Mutex<Option<String>>>,
 
+    /// Set by `cancel()` and cleared at the start of each reply. The client
+    /// loop checks it around sending `session/prompt` so a cancel that fired
+    /// before the prompt reached the wire — where the backend would ignore it
+    /// as targeting no active run — suppresses the prompt (or is re-sent after
+    /// it) instead of being lost.
+    cancel_requested: Arc<AtomicBool>,
+
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
 
@@ -253,12 +260,14 @@ impl AcpProvider {
             Arc::new(Mutex::new(HashMap::new()));
         let context_size = Arc::new(AtomicU64::new(0));
         let agent_cx: Arc<OnceLock<ConnectionTo<Agent>>> = Arc::new(OnceLock::new());
+        let cancel_requested = Arc::new(AtomicBool::new(false));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
             pending_tool_updates.clone(),
             context_size.clone(),
             agent_cx.clone(),
+            cancel_requested.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -293,6 +302,7 @@ impl AcpProvider {
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
+            cancel_requested,
             tx: Some(tx),
             loop_thread: Some(loop_thread),
             agent_cx,
@@ -470,12 +480,21 @@ impl Provider for AcpProvider {
     }
 
     async fn cancel(&self, _session_id: &str) {
+        // Latch first: if the prompt has not reached the wire yet, the
+        // notification below targets no active run and the backend ignores
+        // it, so the client loop must observe the latch around the prompt
+        // send to suppress or re-cancel the turn.
+        self.cancel_requested.store(true, Ordering::SeqCst);
         let Some(cx) = self.agent_cx.get() else {
             return;
         };
         if let Err(e) = cx.send_notification(CancelNotification::new(self.acp_session_id())) {
             tracing::warn!(error = %e, "failed to send ACP session/cancel");
         }
+    }
+
+    fn clear_pending_cancel(&self) {
+        self.cancel_requested.store(false, Ordering::SeqCst);
     }
 
     async fn handle_permission_confirmation(
@@ -718,6 +737,7 @@ struct AcpClientLoop {
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
     context_size: Arc<AtomicU64>,
     agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
+    cancel_requested: Arc<AtomicBool>,
 }
 
 impl AcpClientLoop {
@@ -727,6 +747,7 @@ impl AcpClientLoop {
         pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
         context_size: Arc<AtomicU64>,
         agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
+        cancel_requested: Arc<AtomicBool>,
     ) -> Self {
         Self {
             config,
@@ -735,6 +756,7 @@ impl AcpClientLoop {
             pending_tool_updates,
             context_size,
             agent_cx,
+            cancel_requested,
         }
     }
 
@@ -790,6 +812,7 @@ impl AcpClientLoop {
             pending_tool_updates,
             context_size,
             agent_cx,
+            cancel_requested,
         } = self;
         let notification_callback = config.notification_callback.clone();
         let reverse_modes = reverse_mode_mapping(&config.mode_mapping);
@@ -998,7 +1021,16 @@ impl AcpClientLoop {
             )
             .connect_with(transport, async move |cx: ConnectionTo<Agent>| {
                 let _ = agent_cx.set(cx.clone());
-                handle_requests(config, goose_mode, cx, rx, prompt_response_tx, init_tx).await
+                handle_requests(
+                    config,
+                    goose_mode,
+                    cx,
+                    rx,
+                    prompt_response_tx,
+                    cancel_requested,
+                    init_tx,
+                )
+                .await
             })
             .await?;
 
@@ -1082,6 +1114,7 @@ async fn handle_requests(
     cx: ConnectionTo<Agent>,
     rx: &mut mpsc::Receiver<ClientRequest>,
     prompt_response_tx: Arc<Mutex<Option<mpsc::Sender<AcpUpdate>>>>,
+    cancel_requested: Arc<AtomicBool>,
     init_tx: oneshot::Sender<Result<InitializeResponse>>,
 ) -> Result<(), agent_client_protocol::Error> {
     let mut init_tx = Some(init_tx);
@@ -1178,12 +1211,29 @@ async fn handle_requests(
                 content,
                 response_tx,
             } => {
+                // The turn's cancel already fired; a prompt sent now would be
+                // its backend's only run and nothing would ever cancel it.
+                if cancel_requested.load(Ordering::SeqCst) {
+                    log_undelivered(
+                        response_tx.try_send(AcpUpdate::Complete(StopReason::Cancelled, None)),
+                        AGENT_METHOD_NAMES.session_prompt,
+                    );
+                    continue;
+                }
+
                 *prompt_response_tx.lock().unwrap() = Some(response_tx.clone());
 
-                let response: Result<PromptResponse, _> = cx
-                    .send_request(PromptRequest::new(session_id, content))
-                    .block_task()
-                    .await;
+                let request = cx.send_request(PromptRequest::new(session_id.clone(), content));
+                // send_request queues the message before returning, so a
+                // cancel observed here raced the enqueue and its notification
+                // may sit ahead of the prompt on the wire, where the backend
+                // ignores it. Re-send it so one lands after the prompt.
+                if cancel_requested.load(Ordering::SeqCst) {
+                    if let Err(e) = cx.send_notification(CancelNotification::new(session_id)) {
+                        tracing::warn!(error = %e, "failed to re-send ACP session/cancel");
+                    }
+                }
+                let response: Result<PromptResponse, _> = request.block_task().await;
 
                 match response {
                     Ok(r) => {
@@ -1728,6 +1778,7 @@ mod tests {
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
+                cancel_requested: Arc::new(AtomicBool::new(false)),
                 tx,
                 loop_thread: None,
                 agent_cx: Arc::new(OnceLock::new()),
@@ -2131,6 +2182,102 @@ mod tests {
             mode_mapping,
             notification_callback: None,
         }
+    }
+
+    /// In-process ACP agent that records prompts and cancels it receives.
+    struct FakeAcpAgent {
+        prompts: Arc<Mutex<u32>>,
+        cancels: Arc<Mutex<u32>>,
+    }
+
+    impl agent_client_protocol::ConnectTo<Client> for FakeAcpAgent {
+        async fn connect_to(
+            self,
+            client: impl agent_client_protocol::ConnectTo<Agent>,
+        ) -> std::result::Result<(), agent_client_protocol::Error> {
+            let prompts = self.prompts;
+            let cancels = self.cancels;
+            Agent
+                .builder()
+                .on_receive_request(
+                    async move |_req: InitializeRequest, responder, _cx| {
+                        responder.respond(InitializeResponse::new(ProtocolVersion::LATEST))
+                    },
+                    agent_client_protocol::on_receive_request!(),
+                )
+                .on_receive_request(
+                    async move |_req: NewSessionRequest, responder, _cx| {
+                        responder.respond(NewSessionResponse::new("fake-session"))
+                    },
+                    agent_client_protocol::on_receive_request!(),
+                )
+                .on_receive_request(
+                    {
+                        let prompts = prompts.clone();
+                        async move |_req: PromptRequest, responder, _cx| {
+                            *prompts.lock().unwrap() += 1;
+                            responder.respond(PromptResponse::new(StopReason::EndTurn))
+                        }
+                    },
+                    agent_client_protocol::on_receive_request!(),
+                )
+                .on_receive_notification(
+                    {
+                        let cancels = cancels.clone();
+                        async move |_n: CancelNotification, _cx| {
+                            *cancels.lock().unwrap() += 1;
+                            Ok(())
+                        }
+                    },
+                    agent_client_protocol::on_receive_notification!(),
+                )
+                .connect_to(client)
+                .await
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_before_prompt_send_suppresses_prompt_until_cleared() {
+        use futures::StreamExt;
+
+        let prompts = Arc::new(Mutex::new(0));
+        let cancels = Arc::new(Mutex::new(0));
+        let provider = AcpProvider::connect_with_transport(
+            "acp-test".to_string(),
+            GooseMode::Auto,
+            test_acp_config(HashMap::new(), None),
+            FakeAcpAgent {
+                prompts: prompts.clone(),
+                cancels: cancels.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        let model = ModelConfig::new("test-model");
+        let messages = vec![Message::user().with_text("hello")];
+
+        // Cancel fires before the prompt reaches the wire: the backend would
+        // ignore the notification (no active run), so the prompt must be
+        // suppressed instead of starting a turn nothing can cancel.
+        provider.cancel("goose-session").await;
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(stream.next().await.is_none());
+        assert_eq!(
+            *prompts.lock().unwrap(),
+            0,
+            "prompt must not start after its only cancel already fired"
+        );
+        assert_eq!(*cancels.lock().unwrap(), 1);
+
+        // A new reply clears the latch, so prompting works again.
+        provider.clear_pending_cancel();
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        while stream.next().await.is_some() {}
+        assert_eq!(
+            *prompts.lock().unwrap(),
+            1,
+            "prompt after clear_pending_cancel must reach the backend"
+        );
     }
 
     #[test_case(GooseMode::Auto)]
