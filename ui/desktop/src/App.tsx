@@ -13,7 +13,7 @@ import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
 import { acpListSessions, acpDeleteSession } from './acp/sessions';
-import { acpChatSessionActions } from './acp/chatSessionStore';
+import { acpChatSessionActions, acpChatSessionStore } from './acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from './acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from './acp/elicitationRequests';
 
@@ -406,7 +406,17 @@ export function AppInner() {
       const { sessionId, archived } = (
         event as CustomEvent<{ sessionId: string; archived?: boolean }>
       ).detail;
-      if (archived === false) return;
+      if (archived === false) {
+        // A restore from the History card or another window bypasses the mounted
+        // chat's updateSession, and loadSession short-circuits on a cached
+        // snapshot, so clear the stale archived flag on the session metadata —
+        // otherwise revisiting the chat keeps showing the archived banner.
+        const session = acpChatSessionStore.getSnapshot(sessionId)?.session;
+        if (session?.archived_at) {
+          acpChatSessionActions.setSessionMetadata(sessionId, { ...session, archived_at: null });
+        }
+        return;
+      }
 
       setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
 

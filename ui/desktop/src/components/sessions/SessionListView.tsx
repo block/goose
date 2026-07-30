@@ -522,11 +522,26 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
         }
       };
 
+      const handleSessionRenamed = (event: Event) => {
+        const { sessionId, newName, userInitiated } = (
+          event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>
+        ).detail;
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? { ...s, name: newName, ...(userInitiated && { userSetName: true }) }
+              : s
+          )
+        );
+      };
+
       window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
       window.addEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
+      window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
       return () => {
         window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
         window.removeEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
+        window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
       };
     }, [loadSessions]);
 
@@ -582,7 +597,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     // Update state immediately for optimistic UI
     setSessions((prevSessions) =>
       prevSessions.map((s) =>
-        s.id === sessionId ? { ...s, name: newDescription, user_set_name: true } : s
+          s.id === sessionId ? { ...s, name: newDescription, userSetName: true } : s
       )
     );
     window.dispatchEvent(
