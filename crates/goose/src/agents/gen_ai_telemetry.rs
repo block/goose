@@ -1,5 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ToolResult};
-use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Role};
 use serde_json::{json, Value};
 use tracing::Span;
@@ -13,6 +13,14 @@ pub(super) fn capture_message_content() -> bool {
 
 pub(super) fn input_messages_json(messages: &[Message]) -> String {
     Value::Array(messages.iter().map(message_json).collect()).to_string()
+}
+
+pub(super) fn simple_input_json(text: &str) -> String {
+    json!([{"role": "user", "content": text}]).to_string()
+}
+
+pub(super) fn simple_output_json(text: &str) -> String {
+    json!([{"role": "assistant", "content": text, "finish_reason": "stop"}]).to_string()
 }
 
 pub(super) fn output_message_json(message: &Message) -> String {
@@ -40,20 +48,24 @@ pub(super) fn append_message(accumulated: &mut Option<Message>, message: &Messag
     }
 }
 
-pub(super) fn record_provider_usage(span: &Span, usage: &ProviderUsage) {
-    span.record("gen_ai.response.model", usage.model.as_str());
-    if let Some(tokens) = usage.usage.input_tokens {
+pub(super) fn record_usage(span: &Span, usage: &Usage) {
+    if let Some(tokens) = usage.input_tokens {
         span.record("gen_ai.usage.input_tokens", tokens);
     }
-    if let Some(tokens) = usage.usage.output_tokens {
+    if let Some(tokens) = usage.output_tokens {
         span.record("gen_ai.usage.output_tokens", tokens);
     }
-    if let Some(tokens) = usage.usage.cache_read_input_tokens {
+    if let Some(tokens) = usage.cache_read_input_tokens {
         span.record("gen_ai.usage.cache_read.input_tokens", tokens);
     }
-    if let Some(tokens) = usage.usage.cache_write_input_tokens {
+    if let Some(tokens) = usage.cache_write_input_tokens {
         span.record("gen_ai.usage.cache_creation.input_tokens", tokens);
     }
+}
+
+pub(super) fn record_provider_usage(span: &Span, usage: &ProviderUsage) {
+    span.record("gen_ai.response.model", usage.model.as_str());
+    record_usage(span, &usage.usage);
 }
 
 pub(super) fn tool_result_json(result: &ToolResult<CallToolResult>) -> String {
@@ -98,11 +110,36 @@ fn message_json(message: &Message) -> Value {
         }
     };
 
-    let parts: Vec<Value> = message.content.iter().map(message_part_json).collect();
+    let parts = consolidated_parts(&message.content);
     json!({
         "role": role,
         "parts": parts,
     })
+}
+
+/// Merge consecutive text and reasoning parts into single entries so that
+/// streaming tokens don't each get their own JSON object in the OTEL output.
+fn consolidated_parts(content: &[MessageContent]) -> Vec<Value> {
+    let mut result: Vec<Value> = Vec::new();
+    for item in content {
+        let value = message_part_json(item);
+        let item_type = value.get("type").and_then(|v| v.as_str());
+        if matches!(item_type, Some("text" | "reasoning")) {
+            if let Some(last) = result.last_mut() {
+                if last.get("type") == value.get("type") {
+                    if let (Some(existing), Some(new_content)) = (
+                        last.get("content").and_then(|v| v.as_str()),
+                        value.get("content").and_then(|v| v.as_str()),
+                    ) {
+                        last["content"] = Value::String(format!("{}{}", existing, new_content));
+                        continue;
+                    }
+                }
+            }
+        }
+        result.push(value);
+    }
+    result
 }
 
 fn tool_call_part(id: &str, tool_call: &ToolResult<CallToolRequestParams>) -> Value {
