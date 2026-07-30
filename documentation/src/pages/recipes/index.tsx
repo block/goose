@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Layout from "@theme/Layout";
 import Admonition from "@theme/Admonition";
-import { Button } from "@site/src/components/ui/button";
 import { SidebarFilter, type SidebarFilterGroup } from "@site/src/components/ui/sidebar-filter";
 import { Menu, X } from "lucide-react";
 import Link from '@docusaurus/Link';
@@ -90,19 +89,10 @@ export default function RecipePage() {
     <Layout>
       <div className="container mx-auto px-4 py-8 md:p-24">
         <div className="pb-8 md:pb-16">
-          <div className="flex justify-between items-start mb-4">
+          <div className="mb-4">
             <h1 className="text-4xl md:text-[64px] font-medium text-textProminent">
               Recipes Cookbook
             </h1>
-            <Button
-              onClick={() => window.open('https://github.com/aaif-goose/goose/blob/main/CONTRIBUTING.md', '_blank')}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 cursor-pointer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Submit Recipe
-            </Button>
           </div>
           <p className="text-textProminent">
             Save time and skip setup. Launch any{" "}
