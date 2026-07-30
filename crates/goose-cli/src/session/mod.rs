@@ -23,6 +23,9 @@ use tokio_util::task::AbortOnDropHandle;
 pub use self::export::{message_to_markdown, user_projected_message_to_markdown};
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::platform_extensions::developer::shell::{
+    parse_shell_output_notification, ShellOutputNotificationParams, ShellOutputStream,
+};
 use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -63,6 +66,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const GOOSE_PLANNER_CONTEXT_LIMIT: &str = "GOOSE_PLANNER_CONTEXT_LIMIT";
+const SHELL_STATUS_FALLBACK_WIDTH: usize = 120;
+const SHELL_STATUS_MAX_LINES: usize = 3;
+const SHELL_STATUS_RESERVED_WIDTH: usize = 2;
 
 fn planner_provider_messages(plan_messages: &Conversation) -> Conversation {
     let projected_messages = plan_messages.agent_visible_messages();
@@ -131,6 +137,7 @@ enum NotificationData {
         total: Option<f64>,
         message: Option<String>,
     },
+    ShellOutput(ShellOutputNotificationParams),
 }
 
 pub enum RunMode {
@@ -2180,6 +2187,18 @@ fn handle_mcp_notification(
     is_json_mode: bool,
     debug: bool,
 ) {
+    if let Some(params) = parse_shell_output_notification(notification) {
+        handle_shell_output_notification(
+            extension_id,
+            params,
+            progress_bars,
+            is_stream_json_mode,
+            interactive,
+            is_json_mode,
+        );
+        return;
+    }
+
     match notification {
         ServerNotification::LoggingMessageNotification(log_notif) => {
             if let Some(obj) = log_notif.params.data.as_object() {
@@ -2267,6 +2286,68 @@ fn handle_mcp_notification(
         }
         _ => (),
     }
+}
+
+fn handle_shell_output_notification(
+    extension_id: &str,
+    params: ShellOutputNotificationParams,
+    progress_bars: &mut output::McpSpinners,
+    is_stream_json_mode: bool,
+    interactive: bool,
+    is_json_mode: bool,
+) {
+    if is_stream_json_mode {
+        emit_stream_event(&StreamEvent::Notification {
+            extension_id: extension_id.to_string(),
+            data: NotificationData::ShellOutput(params),
+        });
+        return;
+    }
+
+    if is_json_mode || !interactive || !std::io::stdout().is_terminal() {
+        return;
+    }
+
+    if params.truncated {
+        return;
+    }
+
+    let max_width = console::Term::stdout()
+        .size_checked()
+        .map(|(_, width)| usize::from(width).saturating_sub(SHELL_STATUS_RESERVED_WIDTH))
+        .unwrap_or(SHELL_STATUS_FALLBACK_WIDTH);
+    let lines = latest_shell_output_lines(&params, max_width)
+        .into_iter()
+        .map(|(stream, line)| match stream {
+            ShellOutputStream::Stdout => console::style(line).dim().to_string(),
+            ShellOutputStream::Stderr => console::style(line).yellow().dim().to_string(),
+        })
+        .collect::<Vec<_>>();
+    if !lines.is_empty() {
+        progress_bars.log(&lines.join("\n  "));
+    }
+}
+
+fn latest_shell_output_lines(
+    params: &ShellOutputNotificationParams,
+    max_width: usize,
+) -> Vec<(ShellOutputStream, String)> {
+    let mut lines = params
+        .chunks
+        .iter()
+        .rev()
+        .flat_map(|chunk| {
+            chunk
+                .output
+                .lines()
+                .rev()
+                .map(move |line| (chunk.stream, line))
+        })
+        .take(SHELL_STATUS_MAX_LINES)
+        .map(|(stream, line)| (stream, safe_truncate(line, max_width)))
+        .collect::<Vec<_>>();
+    lines.reverse();
+    lines
 }
 
 /// Format a logging notification from MCP, returns (formatted_message, subagent_id, notification_type)
@@ -2537,10 +2618,67 @@ fn build_switched_model_config(
 mod tests {
     use super::*;
     use goose::agents::extension::Envs;
+    use goose::agents::platform_extensions::developer::shell::ShellOutputNotificationChunk;
     use goose::config::ExtensionConfig;
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn latest_shell_output_lines_uses_the_last_three_observed_lines_and_streams() {
+        let params = ShellOutputNotificationParams {
+            sequence: 1,
+            chunks: vec![
+                ShellOutputNotificationChunk {
+                    stream: ShellOutputStream::Stdout,
+                    output: "queued\nstarting\n".to_string(),
+                },
+                ShellOutputNotificationChunk {
+                    stream: ShellOutputStream::Stderr,
+                    output: "warning one\nwarning two\n".to_string(),
+                },
+            ],
+            truncated: false,
+        };
+
+        assert_eq!(
+            latest_shell_output_lines(&params, 80),
+            vec![
+                (ShellOutputStream::Stdout, "starting".to_string()),
+                (ShellOutputStream::Stderr, "warning one".to_string()),
+                (ShellOutputStream::Stderr, "warning two".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn stream_json_serializes_structured_shell_output() {
+        let event = StreamEvent::Notification {
+            extension_id: "tool-call-1".to_string(),
+            data: NotificationData::ShellOutput(ShellOutputNotificationParams {
+                sequence: 2,
+                chunks: vec![ShellOutputNotificationChunk {
+                    stream: ShellOutputStream::Stdout,
+                    output: "ready\n".to_string(),
+                }],
+                truncated: false,
+            }),
+        };
+
+        let value = serde_json::to_value(event).expect("stream event should serialize");
+        assert_eq!(value["type"], "notification");
+        assert_eq!(value["extension_id"], "tool-call-1");
+        assert_eq!(value["shell_output"]["sequence"], 2);
+        assert_eq!(
+            value["shell_output"]["chunks"][0]["stream"],
+            serde_json::json!("stdout")
+        );
+        assert_eq!(
+            value["shell_output"]["chunks"][0]["output"],
+            serde_json::json!("ready\n")
+        );
+        assert_eq!(value["shell_output"]["truncated"], false);
+    }
 
     #[test]
     fn planner_classification_excludes_user_only_content() {
