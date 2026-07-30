@@ -252,9 +252,11 @@ async function submitMessage(
         options.messagesBeforeSubmit
       );
       // The missing-dir banner already explains this failure; a stored submit
-      // error would resurface, stale, once the user repoints the directory.
+      // error would resurface, stale, once the user repoints the directory. Still
+      // pass the error to onFinish so the rejected prompt is not treated as a
+      // completed task (desktop notification).
       if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
-        void options.onFinish();
+        void options.onFinish(errorMessage(error));
       }
       return;
     }

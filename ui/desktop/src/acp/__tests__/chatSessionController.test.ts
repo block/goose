@@ -327,12 +327,14 @@ describe('acpChatSessionController.submitMessage', () => {
     });
 
     // A stored submit error would resurface, stale, after the user repoints the
-    // working directory; the missing-dir banner already explains the failure.
+    // working directory; the missing-dir banner already explains the failure. But
+    // onFinish must still receive an error so the rejected prompt does not fire
+    // the task-completed notification.
     expect(acpChatSessionActions.finishPromptAttemptIfCurrent).toHaveBeenCalledWith(
       SESSION_ID,
       expect.any(String)
     );
-    expect(onFinish).toHaveBeenCalledWith();
+    expect(onFinish).toHaveBeenCalledWith(expect.any(String));
   });
 
   it('rejects while a cancellation barrier is pending', async () => {
