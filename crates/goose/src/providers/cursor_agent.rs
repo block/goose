@@ -4,6 +4,7 @@ use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -33,6 +34,8 @@ pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &[
 ];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
+
+const CURSOR_AGENT_LIST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, serde::Serialize)]
 pub struct CursorAgentProvider {
@@ -81,12 +84,24 @@ impl CursorAgentProvider {
             let mut cmd = self.prepare_cli_command();
             cmd.args(args);
             cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            cmd.kill_on_drop(true);
 
-            let output = cmd.output().await.map_err(|e| {
-                ProviderError::RequestFailed(format!(
-                    "Failed to spawn cursor-agent for model listing: {e}"
-                ))
-            })?;
+            let output = match tokio::time::timeout(CURSOR_AGENT_LIST_TIMEOUT, cmd.output()).await {
+                Ok(Ok(output)) => output,
+                Ok(Err(e)) => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to spawn cursor-agent for model listing: {e}"
+                    )));
+                }
+                Err(_) => {
+                    tracing::debug!(
+                        args = ?args,
+                        timeout_secs = CURSOR_AGENT_LIST_TIMEOUT.as_secs(),
+                        "cursor-agent model listing timed out"
+                    );
+                    continue;
+                }
+            };
 
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);

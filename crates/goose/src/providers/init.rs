@@ -96,7 +96,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             Some(registrations::copilot_acp_inventory()),
         );
         registry.register::<CodexProvider>(true);
-        registry.register::<CursorAgentProvider>(false);
+        registry.register_with_inventory::<CursorAgentProvider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register_with_inventory::<DatabricksProviderDef>(
             true,
             Some(registrations::refresh_only()),
