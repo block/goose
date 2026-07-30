@@ -50,6 +50,14 @@ function ensureIpcSubscription() {
   subscribedToIpc = true;
   window.electron.on('remote-session-status-update', handleRemoteStatus);
   window.electron.on('remote-session-status-cleared', handleRemoteCleared);
+  // The main process only forwards live transitions; seed from its cached busy
+  // map so runs that started before this window subscribed still count.
+  window.electron
+    .getRemoteSessionStatuses?.()
+    .then((statuses) => {
+      statuses.forEach((status) => handleRemoteStatus(undefined, status));
+    })
+    .catch((error) => console.error('Failed to seed remote session statuses:', error));
 }
 
 function subscribe(listener: () => void): () => void {

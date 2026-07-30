@@ -157,6 +157,10 @@ type ElectronAPI = {
     tokensUpdated?: boolean;
   }) => void;
   broadcastSessionStatus: (status: { sessionId: string; streamState: string }) => void;
+  getRemoteSessionStatuses: () => Promise<
+    Array<{ windowId: number; sessionId: string; streamState: string }>
+  >;
+  broadcastSessionLifecycle: (event: { name: string; detail: unknown }) => void;
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
   getVersion: () => string;
@@ -296,6 +300,10 @@ const electronAPI: ElectronAPI = {
   },
   broadcastSessionStatus: (status: { sessionId: string; streamState: string }) => {
     ipcRenderer.send('broadcast-session-status', status);
+  },
+  getRemoteSessionStatuses: () => ipcRenderer.invoke('get-remote-session-statuses'),
+  broadcastSessionLifecycle: (event: { name: string; detail: unknown }) => {
+    ipcRenderer.send('broadcast-session-lifecycle', event);
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);

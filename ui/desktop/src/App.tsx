@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-router';
 import { importNostrSessionFromDeepLink } from './sessionLinks';
+import { initSessionLifecycleBridge } from './sessionLifecycleBridge';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
@@ -411,6 +412,10 @@ export function AppInner() {
 
       leaveRouteIfCurrent(sessionId);
     };
+
+    // Re-dispatch archive/delete events relayed from other windows so this
+    // window's handlers below run for them too.
+    initSessionLifecycleBridge();
 
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
     window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);

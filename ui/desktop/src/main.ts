@@ -2951,6 +2951,10 @@ async function appMain() {
   // to drop its statuses — otherwise a window closed mid-stream would leave its
   // sessions marked busy forever.
   const sessionStatusWiredIds = new Set<number>();
+  // Latest busy statuses per reporting window, so windows and views that start
+  // listening after a run began can seed their state instead of missing it.
+  const sessionStatusesByWindow = new Map<number, Map<string, string>>();
+  const busySessionStreamStates = new Set(['loading', 'streaming', 'waiting']);
   ipcMain.on('broadcast-session-status', (event, status) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     if (!senderWindow) {
@@ -2958,9 +2962,27 @@ async function appMain() {
     }
     const senderId = senderWindow.id;
 
+    const { sessionId, streamState } = (status ?? {}) as {
+      sessionId?: string;
+      streamState?: string;
+    };
+    if (typeof sessionId === 'string') {
+      if (typeof streamState === 'string' && busySessionStreamStates.has(streamState)) {
+        let byWindow = sessionStatusesByWindow.get(senderId);
+        if (!byWindow) {
+          byWindow = new Map();
+          sessionStatusesByWindow.set(senderId, byWindow);
+        }
+        byWindow.set(sessionId, streamState);
+      } else {
+        sessionStatusesByWindow.get(senderId)?.delete(sessionId);
+      }
+    }
+
     if (!sessionStatusWiredIds.has(senderId)) {
       sessionStatusWiredIds.add(senderId);
       const clearReporter = () => {
+        sessionStatusesByWindow.delete(senderId);
         BrowserWindow.getAllWindows().forEach((window) => {
           if (window.id !== senderId && !window.webContents.isDestroyed()) {
             window.webContents.send('remote-session-status-cleared', { windowId: senderId });
@@ -2982,6 +3004,31 @@ async function appMain() {
     BrowserWindow.getAllWindows().forEach((window) => {
       if (window.id !== senderId) {
         window.webContents.send('remote-session-status-update', { windowId: senderId, ...status });
+      }
+    });
+  });
+
+  ipcMain.handle('get-remote-session-statuses', (event) => {
+    const senderId = BrowserWindow.fromWebContents(event.sender)?.id;
+    const statuses: Array<{ windowId: number; sessionId: string; streamState: string }> = [];
+    sessionStatusesByWindow.forEach((byWindow, windowId) => {
+      if (windowId === senderId) {
+        return;
+      }
+      byWindow.forEach((streamState, sessionId) => {
+        statuses.push({ windowId, sessionId, streamState });
+      });
+    });
+    return statuses;
+  });
+
+  // Archive/delete change what other windows may safely show; relay the
+  // renderer lifecycle events so each window runs its own cleanup/navigation.
+  ipcMain.on('broadcast-session-lifecycle', (event, lifecycleEvent) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (window.id !== senderWindow?.id) {
+        window.webContents.send('remote-session-lifecycle', lifecycleEvent);
       }
     });
   });

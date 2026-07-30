@@ -7,6 +7,7 @@ import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
+import { dispatchSessionLifecycleEvent } from '../../sessionLifecycleBridge';
 import {
   NAV_ITEMS,
   SETTINGS_NAV_ITEM,
@@ -270,11 +271,10 @@ const SessionRow: React.FC<SessionRowProps> = ({
   const handleArchive = useCallback(async () => {
     try {
       await acpArchiveSession(session.id);
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.SESSION_ARCHIVED, {
-          detail: { sessionId: session.id, archived: true },
-        })
-      );
+      dispatchSessionLifecycleEvent(AppEvents.SESSION_ARCHIVED, {
+        sessionId: session.id,
+        archived: true,
+      });
       toast.success(intl.formatMessage(i18n.archiveSuccess, { name: session.name }));
     } catch (error) {
       toast.error(
@@ -476,9 +476,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     setSessionPendingDelete(null);
     try {
       await acpDeleteSession(id);
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: id } })
-      );
+      dispatchSessionLifecycleEvent(AppEvents.SESSION_DELETED, { sessionId: id });
       cancelAcpPermissionRequestsForSession(id);
       cancelAcpElicitationRequestsForSession(id);
       acpChatSessionActions.deleteSnapshot(id);

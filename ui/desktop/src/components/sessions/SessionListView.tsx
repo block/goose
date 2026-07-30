@@ -59,6 +59,7 @@ import {
 import type { SessionExportFormat } from '@aaif/goose-sdk';
 import { acpChatSessionActions, useAcpChatSessionSnapshot } from '../../acp/chatSessionStore';
 import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
+import { dispatchSessionLifecycleEvent } from '../../sessionLifecycleBridge';
 import { ChatState } from '../../types/chatState';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
@@ -601,11 +602,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
             await acpArchiveSession(session.id);
             toast.success(intl.formatMessage(i18n.archiveSuccess));
           }
-          window.dispatchEvent(
-            new CustomEvent(AppEvents.SESSION_ARCHIVED, {
-              detail: { sessionId: session.id, archived: !isArchived },
-            })
-          );
+          dispatchSessionLifecycleEvent(AppEvents.SESSION_ARCHIVED, {
+            sessionId: session.id,
+            archived: !isArchived,
+          });
         } catch (error) {
           toast.error(
             intl.formatMessage(isArchived ? i18n.unarchiveFailed : i18n.archiveFailed, {
@@ -629,9 +629,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     try {
       await acpDeleteSession(sessionToDeleteId);
       toast.success(intl.formatMessage(i18n.deleteSuccess));
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
-      );
+        dispatchSessionLifecycleEvent(AppEvents.SESSION_DELETED, {
+          sessionId: sessionToDeleteId,
+        });
       cancelAcpPermissionRequestsForSession(sessionToDeleteId);
       cancelAcpElicitationRequestsForSession(sessionToDeleteId);
       acpChatSessionActions.deleteSnapshot(sessionToDeleteId);

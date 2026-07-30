@@ -1,4 +1,5 @@
 import { AppEvents } from '../constants/events';
+import { dispatchSessionLifecycleEvent } from '../sessionLifecycleBridge';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router';
@@ -241,11 +242,10 @@ export default function BaseChat({
     try {
       await acpUnarchiveSession(session.id);
       updateSession((current) => ({ ...current, archived_at: null }));
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.SESSION_ARCHIVED, {
-          detail: { sessionId: session.id, archived: false },
-        })
-      );
+      dispatchSessionLifecycleEvent(AppEvents.SESSION_ARCHIVED, {
+        sessionId: session.id,
+        archived: false,
+      });
       toast.success(intl.formatMessage(i18n.archivedRestored));
     } catch (error) {
       toast.error(
