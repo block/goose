@@ -36,8 +36,16 @@ pub fn model_config_from_user_config_with_session_settings(
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
+    materialize_model_config_with_catalog(provider_name, None, model)
+}
+
+pub fn materialize_model_config_with_catalog(
+    provider_name: &str,
+    catalog_provider_id: Option<&str>,
+    model: ModelConfig,
+) -> Result<ModelConfig> {
     let model = materialize_model_config_inner(model, provider_name, true)?;
-    Ok(model.with_canonical_limits(provider_name))
+    Ok(model.with_canonical_limits_and_catalog_id(provider_name, catalog_provider_id))
 }
 
 fn materialize_model_config_inner(

@@ -146,6 +146,8 @@ pub struct OpenAiProvider {
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
     #[serde(skip)]
+    catalog_provider_id: Option<String>,
+    #[serde(skip)]
     n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
 
@@ -166,6 +168,7 @@ pub struct OpenAiProviderBuilder {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    catalog_provider_id: Option<String>,
 }
 
 impl OpenAiProviderBuilder {
@@ -182,6 +185,7 @@ impl OpenAiProviderBuilder {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            catalog_provider_id: None,
         }
     }
 
@@ -253,6 +257,11 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn catalog_provider_id(mut self, catalog_provider_id: Option<String>) -> Self {
+        self.catalog_provider_id = catalog_provider_id;
+        self
+    }
+
     pub fn build(self) -> OpenAiProvider {
         OpenAiProvider {
             api_client: self.api_client,
@@ -266,6 +275,7 @@ impl OpenAiProviderBuilder {
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
+            catalog_provider_id: self.catalog_provider_id,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -286,6 +296,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            catalog_provider_id: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -350,13 +361,6 @@ impl OpenAiProvider {
 
     const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
 
-    /// Providers whose reasoning models accept an OpenAI-style
-    /// `reasoning_effort` field on chat-completions requests but aren't
-    /// matched by [`is_openai_responses_model`] (which only recognises
-    /// OpenAI's own `o*`/`gpt-5*` model names). These need the unified
-    /// [`ThinkingEffort`] mapped onto the request explicitly.
-    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta"];
-
     /// Maps the unified thinking effort onto Meta's Muse Spark
     /// `reasoning_effort` levels: `low`, `medium`, `high`, `xhigh`.
     ///
@@ -370,6 +374,40 @@ impl OpenAiProvider {
             ThinkingEffort::High => "high",
             ThinkingEffort::Max => "xhigh",
         }
+    }
+
+    /// Maps the unified thinking effort onto Ollama Cloud's OpenAI-compatible
+    /// `reasoning_effort` levels.
+    ///
+    /// Ollama's server whitelists {high, medium, low, max, none} and maps
+    /// `"none"` to `think: false`. Since thinking is on by default, omitting
+    /// the field makes `Off` a no-op, so `Off` must be sent as `"none"`.
+    fn ollama_cloud_reasoning_effort(effort: ThinkingEffort) -> Option<&'static str> {
+        match effort {
+            ThinkingEffort::Off => Some("none"),
+            ThinkingEffort::Low => Some("low"),
+            ThinkingEffort::Medium => Some("medium"),
+            ThinkingEffort::High => Some("high"),
+            ThinkingEffort::Max => Some("max"),
+        }
+    }
+
+    fn map_reasoning_effort_for_provider(&self, effort: ThinkingEffort) -> Option<&'static str> {
+        if self.is_meta() {
+            Some(Self::meta_reasoning_effort(effort))
+        } else if self.is_ollama_cloud() {
+            Self::ollama_cloud_reasoning_effort(effort)
+        } else {
+            None
+        }
+    }
+
+    fn is_meta(&self) -> bool {
+        self.name == "meta" || self.catalog_provider_id.as_deref() == Some("meta")
+    }
+
+    fn is_ollama_cloud(&self) -> bool {
+        self.name == "ollama_cloud" || self.catalog_provider_id.as_deref() == Some("ollama_cloud")
     }
 
     fn sanitize_request_for_compat(
@@ -403,17 +441,30 @@ impl OpenAiProvider {
                 }
             }
 
-            if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
+            if self.is_meta() || self.is_ollama_cloud() {
+                // Meta (Muse Spark) always reasons and has no "disable reasoning"
+                // level, so its mapping must not be gated on is_reasoning_model().
+                let should_map = self.is_meta() || model_config.is_reasoning_model();
                 match model_config.thinking_effort() {
-                    Some(effort) => {
-                        obj.insert(
-                            "reasoning_effort".to_string(),
-                            json!(Self::meta_reasoning_effort(effort)),
-                        );
+                    Some(effort) if should_map => {
+                        if let Some(mapped) = self.map_reasoning_effort_for_provider(effort) {
+                            obj.insert("reasoning_effort".to_string(), json!(mapped));
+                        }
                     }
-                    None => {
+                    // Non-reasoning model with thinking_effort set: strip
+                    // reasoning_effort entirely (including request_params-provided
+                    // values) to avoid 400 errors from providers that reject it.
+                    Some(_) => {
                         obj.remove("reasoning_effort");
                     }
+                    // Meta has no request_params-based reasoning_effort path and
+                    // always wants an explicit mapped value or omission. Ollama
+                    // Cloud callers may set provider-native reasoning_effort via
+                    // request_params without unified thinking_effort; preserve it.
+                    None if self.is_meta() => {
+                        obj.remove("reasoning_effort");
+                    }
+                    None => {}
                 }
             }
         }
@@ -849,7 +900,8 @@ pub fn from_declarative_config(
         .custom_models(custom_models)
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
-        .preserve_thinking_context(config.preserves_thinking))
+        .preserve_thinking_context(config.preserves_thinking)
+        .catalog_provider_id(config.catalog_provider_id.clone()))
 }
 
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -907,6 +959,7 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            catalog_provider_id: None,
             n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -1108,6 +1161,116 @@ mod tests {
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("reasoning_effort"));
+    }
+
+    fn make_ollama_cloud_provider() -> OpenAiProvider {
+        let mut provider = make_provider("ollama_cloud");
+        provider.catalog_provider_id = Some("ollama_cloud".to_string());
+        provider
+    }
+
+    fn reasoning_model_config(name: &str, effort: ThinkingEffort) -> ModelConfig {
+        let mut config = ModelConfig::new(name).with_thinking_effort(effort);
+        config.reasoning = Some(true);
+        config
+    }
+
+    fn non_reasoning_model_config(name: &str, effort: ThinkingEffort) -> ModelConfig {
+        let mut config = ModelConfig::new(name).with_thinking_effort(effort);
+        config.reasoning = Some(false);
+        config
+    }
+
+    #[test]
+    fn sanitize_ollama_cloud_maps_reasoning_effort() {
+        let provider = make_ollama_cloud_provider();
+        let payload = json!({ "model": "qwen3-coder:480b-cloud", "messages": [] });
+
+        let result = provider.sanitize_request_for_compat(
+            payload.clone(),
+            &reasoning_model_config("qwen3-coder:480b-cloud", ThinkingEffort::High),
+        );
+        assert_eq!(
+            result.as_object().unwrap().get("reasoning_effort"),
+            Some(&json!("high"))
+        );
+
+        let result = provider.sanitize_request_for_compat(
+            payload.clone(),
+            &reasoning_model_config("qwen3-coder:480b-cloud", ThinkingEffort::Max),
+        );
+        assert_eq!(
+            result.as_object().unwrap().get("reasoning_effort"),
+            Some(&json!("max"))
+        );
+
+        let result = provider.sanitize_request_for_compat(
+            payload,
+            &reasoning_model_config("qwen3-coder:480b-cloud", ThinkingEffort::Off),
+        );
+        assert_eq!(
+            result.as_object().unwrap().get("reasoning_effort"),
+            Some(&json!("none"))
+        );
+    }
+
+    #[test]
+    fn sanitize_ollama_cloud_skips_reasoning_effort_for_non_reasoning_model() {
+        let provider = make_ollama_cloud_provider();
+
+        let payload = json!({ "model": "mistral-large-3:675b", "messages": [] });
+        let result = provider.sanitize_request_for_compat(
+            payload,
+            &non_reasoning_model_config("mistral-large-3:675b", ThinkingEffort::High),
+        );
+        assert!(
+            !result.as_object().unwrap().contains_key("reasoning_effort"),
+            "non-reasoning model should not get reasoning_effort"
+        );
+
+        let payload = json!({
+            "model": "mistral-large-3:675b",
+            "messages": [],
+            "reasoning_effort": "high"
+        });
+        let result = provider.sanitize_request_for_compat(
+            payload,
+            &non_reasoning_model_config("mistral-large-3:675b", ThinkingEffort::Off),
+        );
+        assert!(
+            !result.as_object().unwrap().contains_key("reasoning_effort"),
+            "non-reasoning model with Off should not have reasoning_effort"
+        );
+    }
+
+    #[test]
+    fn sanitize_ollama_cloud_preserves_request_params_reasoning_effort_when_thinking_unset() {
+        let provider = make_ollama_cloud_provider();
+        let payload = json!({
+            "model": "qwen3-coder:480b-cloud",
+            "messages": [],
+            "reasoning_effort": "low"
+        });
+        let mut model_config = ModelConfig::new("qwen3-coder:480b-cloud");
+        model_config.reasoning = Some(true);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("low")));
+    }
+
+    #[test]
+    fn sanitize_ollama_cloud_works_with_custom_name_via_catalog_provider_id() {
+        let mut provider = make_provider("my-custom-ollama");
+        provider.catalog_provider_id = Some("ollama_cloud".to_string());
+        let payload = json!({ "model": "qwen3-coder:480b-cloud", "messages": [] });
+        let model_config = reasoning_model_config("qwen3-coder:480b-cloud", ThinkingEffort::Medium);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
     }
 
     #[test]

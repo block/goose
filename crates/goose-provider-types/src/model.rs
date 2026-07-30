@@ -95,7 +95,23 @@ impl ModelConfig {
         config
     }
 
-    pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
+    pub fn with_canonical_limits(self, provider_name: &str) -> Self {
+        self.with_canonical_limits_inner(provider_name, None)
+    }
+
+    pub fn with_canonical_limits_and_catalog_id(
+        self,
+        provider_name: &str,
+        catalog_provider_id: Option<&str>,
+    ) -> Self {
+        self.with_canonical_limits_inner(provider_name, catalog_provider_id)
+    }
+
+    fn with_canonical_limits_inner(
+        mut self,
+        provider_name: &str,
+        catalog_provider_id: Option<&str>,
+    ) -> Self {
         // Try canonical lookup with the full model name first, then fall back
         // to the name with reasoning-effort suffixes stripped (e.g.
         // "databricks-gpt-5.4-high" → "databricks-gpt-5.4").
@@ -110,6 +126,24 @@ impl ModelConfig {
                     }
                 },
             );
+
+        // If the provider name is a custom alias (e.g. "my-ollama"), try the
+        // catalog_provider_id (e.g. "ollama_cloud") so reasoning metadata and
+        // context limits from the canonical registry are resolved.
+        let canonical = canonical.or_else(|| {
+            let catalog_id = catalog_provider_id?;
+            let by_catalog =
+                crate::canonical::maybe_get_canonical_model(catalog_id, &self.model_name);
+            if by_catalog.is_some() {
+                return by_catalog;
+            }
+            let (base, _effort) = extract_reasoning_effort(&self.model_name);
+            if base != self.model_name {
+                crate::canonical::maybe_get_canonical_model(catalog_id, &base)
+            } else {
+                None
+            }
+        });
 
         if let Some(canonical) = canonical {
             if self.context_limit.is_none() {
@@ -662,8 +696,6 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-
-            // "databricks-gpt-5.4-high" should resolve via "databricks-gpt-5.4"
             let config =
                 ModelConfig::new("databricks-gpt-5.4-high").with_canonical_limits("databricks");
             assert_eq!(config.context_limit, Some(1_050_000));
@@ -689,6 +721,26 @@ mod tests {
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
             let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(400_000));
+        }
+
+        #[test]
+        fn catalog_provider_id_resolves_reasoning_for_custom_name() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+
+            // A custom-named provider (e.g. "my-ollama") cannot resolve
+            // canonical metadata via its name alone. The catalog_provider_id
+            // ("ollama_cloud") should be used as a fallback so reasoning
+            // metadata is correctly resolved.
+            let config = ModelConfig::new("gemma4:31b")
+                .with_canonical_limits_and_catalog_id("my-custom-ollama", Some("ollama_cloud"));
+            assert_eq!(config.reasoning, Some(true));
+
+            // Without the catalog_provider_id, the same lookup fails.
+            let config = ModelConfig::new("gemma4:31b").with_canonical_limits("my-custom-ollama");
+            assert_eq!(config.reasoning, None);
         }
     }
 

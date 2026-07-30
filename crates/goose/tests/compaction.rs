@@ -187,6 +187,7 @@ impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            catalog_provider_id: None,
         }
     }
 }

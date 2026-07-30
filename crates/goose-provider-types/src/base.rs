@@ -44,6 +44,10 @@ pub struct ProviderMetadata {
     /// compaction). When set, fast-path callers prefer this model over the main model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
+    /// The catalog provider ID (e.g. "ollama_cloud") used for canonical model
+    /// lookups when the provider `name` is a custom alias.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_provider_id: Option<String>,
 }
 
 impl ProviderMetadata {
@@ -70,6 +74,7 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            catalog_provider_id: None,
         }
     }
 
@@ -93,6 +98,7 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            catalog_provider_id: None,
         }
     }
 
@@ -108,6 +114,7 @@ impl ProviderMetadata {
             setup_steps: vec![],
             model_selection_hint: None,
             fast_model: None,
+            catalog_provider_id: None,
         }
     }
 
