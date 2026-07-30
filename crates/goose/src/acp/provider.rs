@@ -551,13 +551,15 @@ impl Provider for AcpProvider {
         self.cancelled_epoch.fetch_max(scope, Ordering::SeqCst);
         self.cancel_notify.notify_waiters();
         // Only notify the backend when the prompt currently in flight belongs
-        // to the scope being cancelled. A stale forwarder from a finished
-        // reply must not cancel a newer reply's active run, and with nothing
-        // in flight the notification targets no active run anyway — the latch
-        // above keeps that scope's prompt suppressed (or re-cancelled) by the
-        // client loop.
-        let active = self.active_prompt_epoch.load(Ordering::SeqCst);
-        if active == 0 || active > scope {
+        // to the scope being cancelled: `session/cancel` is session-scoped, so
+        // sending it for any other scope would abort a run the caller did not
+        // cancel — a stale forwarder from a finished reply hitting a newer
+        // reply's prompt, or a newer reply cancelled while its own prompt is
+        // still queued behind an older one. With nothing in flight the
+        // notification targets no active run anyway. In every one of those
+        // cases the latch above is what suppresses (or re-cancels) that
+        // scope's prompt in the client loop.
+        if self.active_prompt_epoch.load(Ordering::SeqCst) != scope {
             return;
         }
         let Some(cx) = self.agent_cx.get() else {
@@ -2713,6 +2715,41 @@ mod tests {
             *cancels.lock().unwrap(),
             1,
             "a cancel for the active prompt's own scope must reach the backend"
+        );
+    }
+
+    /// `session/cancel` is session-scoped, so cancelling a newer reply whose
+    /// prompt is still queued behind an older in-flight one must not reach the
+    /// backend: it would abort the older run. The latch alone covers the
+    /// queued prompt.
+    #[tokio::test]
+    async fn cancelling_a_queued_reply_does_not_abort_the_active_prompt() {
+        use futures::StreamExt;
+
+        let (provider, prompts, cancels) = fake_connected_provider().await;
+        let model = ModelConfig::new("test-model");
+        let messages = vec![Message::user().with_text("hello")];
+
+        // Turn N is the active run while turn N+1 is cancelled before its own
+        // prompt reaches the wire.
+        let active_scope = provider.begin_cancel_scope();
+        let queued_scope = provider.begin_cancel_scope();
+        provider
+            .active_prompt_epoch
+            .store(active_scope, Ordering::SeqCst);
+        provider.cancel("goose-session", queued_scope).await;
+        provider.active_prompt_epoch.store(0, Ordering::SeqCst);
+
+        // Round-trip a prompt so any (wrongly) sent notification would have
+        // been processed by the fake agent before the count is checked.
+        provider.begin_cancel_scope();
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        while stream.next().await.is_some() {}
+        assert_eq!(prompts.lock().unwrap().len(), 1);
+        assert_eq!(
+            *cancels.lock().unwrap(),
+            0,
+            "cancelling a queued reply must not cancel the older active run"
         );
     }
 
