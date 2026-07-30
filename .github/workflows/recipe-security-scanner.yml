@@ -521,7 +521,6 @@ jobs:
       - fork-review-boundary
       - origin-ai-scan
     permissions:
-      contents: read
       statuses: write
     runs-on: ubuntu-latest
     steps:
