@@ -383,7 +383,7 @@ Do you have a recipe you'd like to share with the community? We'd love to featur
 **How to contribute:**
 1. [Fork the goose repository](https://github.com/aaif-goose/goose/fork)
 2. Add your recipe YAML file to the [`documentation/src/pages/recipes/data/recipes/`](https://github.com/aaif-goose/goose/tree/main/documentation/src/pages/recipes/data/recipes) directory
-3. Create a pull request following our [Recipe Contribution Guide](https://github.com/aaif-goose/goose/blob/main/CONTRIBUTING_RECIPES.md)
+3. Create a pull request following our [Contribution Guide](https://github.com/aaif-goose/goose/blob/main/CONTRIBUTING.md)
 Browse [existing recipes](https://github.com/aaif-goose/goose/tree/main/documentation/src/pages/recipes/data/recipes) for inspiration and formatting examples.
 
 
