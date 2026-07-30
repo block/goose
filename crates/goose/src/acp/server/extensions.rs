@@ -10,7 +10,12 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
         let config = goose_extension_to_config_without_secrets(req.extension)?;
-        let agent = self.get_session_agent(&req.session_id).await?;
+        // An already-cached agent bypasses get_session_agent's activation guard, so
+        // a directory deleted after activation would still reach add_extension and
+        // spawn stdio MCP servers against goose's own cwd (child_process_client
+        // skips a missing current_dir). Reject with the structured reason instead.
+        self.validate_session_working_dir(session_id).await?;
+        let agent = self.get_session_agent(session_id).await?;
         agent
             .add_extension(config, session_id)
             .await

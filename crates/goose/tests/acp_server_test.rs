@@ -470,6 +470,67 @@ fn test_load_session_missing_working_dir_defers_extension_activation() {
 }
 
 #[test]
+fn test_add_session_extension_rejects_dir_deleted_after_activation() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Doomed worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                working_dir.path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading with a valid working dir must activate the agent");
+
+        working_dir.close().unwrap();
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/add",
+            serde_json::json!({
+                "sessionId": session.id,
+                "extension": {
+                    "type": "platform",
+                    "name": "summarize",
+                    "description": "summarize",
+                    "bundled": true
+                }
+            }),
+        )
+        .await
+        .expect_err("adding an extension after the working dir was deleted must be rejected");
+
+        assert_eq!(error.code, ErrorCode::InvalidParams);
+        assert_eq!(
+            error
+                .data
+                .as_ref()
+                .and_then(|data| data.get("reason"))
+                .and_then(serde_json::Value::as_str),
+            Some("working_dir_missing"),
+            "the cached-agent path must carry the same machine-readable reason as the \
+             prompt path so stdio servers never start against goose's own cwd"
+        );
+    });
+}
+
+#[test]
 fn test_deferred_session_rebuilds_extension_data_after_repoint() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
