@@ -30,6 +30,8 @@ Discord and GitHub Discussions remain useful for informal conversation, but deci
 ## How to Contribute
 
 If you find a bug or want a new feature, [open an issue](https://github.com/aaif-goose/goose/issues/new/choose). A good issue explains the problem, who it affects, and why it matters. For bugs, include clear reproduction steps and a diagnostics report when possible.
+Please write the issue yourself. Your agent can do the research and help you explore, but you should understand the issue. You can
+suggest a solution direction, but refrain from a detailed solution especially code.
 
 The best place to contribute is the discussion between **Accepted / design** and **Ready**. This is where the engineering happens: turning a worthwhile problem into a specific solution that an agent can implement. Take part in the issue discussion by bringing context and domain knowledge, challenging assumptions, comparing approaches, identifying constraints and trade-offs, and agreeing on how the result will be verified.
 
