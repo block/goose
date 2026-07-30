@@ -1,0 +1,25 @@
+---
+title: "Issues are the new PRs"
+description: "Coding agents have changed the economics of open source. The issue, not the patch, is becoming the real unit of contribution."
+authors:
+  - douwe
+featured: true
+---
+
+In the olden days, contributing your first PR to an open source project was rather involved. Even with great instructions, getting the project to build, the app to run and the tests to pass took real work. And even if you knew exactly which bug to fix, you needed a rough understanding of the project’s architecture and more detailed knowledge of the code you were changing.
+
+Coding agents have changed all this. The problem is not code quality. Complaints about AI slop are all over the internet, but code written by agents is often better than what you would get from a first-time contributor. The problem is that agents have changed the economics of open source.
+
+<!-- truncate -->
+
+A PR used to be imperfect evidence that someone had done their homework. Why would you painstakingly implement a feature unless you had some reason to believe the maintainers would want it? The work required to fix a bug also forced you to understand the surrounding code. That did not guarantee good judgment, but the friction selected for commitment and forced contributors to acquire context before writing code.
+
+Today, producing a plausible feature implementation or a bug fix is cheap. Deciding whether the change belongs in the project and what the right solution looks like remains expensive. A PR arrives with those questions apparently answered, but often the agent has merely made a series of plausible choices. The maintainer must uncover those choices, decide which ones are right and explain how the others should change. The contributor’s agent will rapidly revise the code, but the maintainer has supplied the judgment. At that point, couldn’t the maintainer simply run their own agent?
+
+Taken to its conclusion, this would leave open source projects with public code but no meaningful public participation: projects developed by a small core team and its agents, while everyone else becomes a passive user or ticket submitter. But the value of open source has never been limited to the code outsiders write. Outsiders bring fresh eyes, new ideas, unexpected use cases and domain knowledge. They encounter problems the core team never sees and question assumptions the core team no longer notices.
+
+To preserve that value, we have to let go of the PR as the main contribution mechanism and move outside contribution upstream. The valuable place to contribute is no longer primarily in writing the code, but in filing good issues and, more importantly, taking part in the discussion that turns those issues into well-considered solutions.
+
+In the coming weeks, we’ll move goose to this model. As before, if you find a bug or want a new feature, you file a GitHub issue. Based on signal from the community, the core team will decide whether the problem is something we want to solve and ask for any missing information. Accepted issues will then be used to work out the intended design, architectural constraints and how the result will be verified. When discussion has settled the issue will be marked ready for implementation. At that point an agent can write the code and a human can verify that it works. PRs that do not implement a ready issue will be closed, as will PRs where feedback is left unaddressed.
+
+This also changes who deserves credit. Reporting a problem, reproducing it, contributing domain knowledge, shaping the design, implementing the solution and verifying the result can all be meaningful work. Substantial contributors at each stage should be recognised as co-authors. The unit of open source contribution is no longer the patch; it is taking a problem all the way to a verified solution. Most of that contribution now happens in the issue.
