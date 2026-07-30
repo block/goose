@@ -248,7 +248,8 @@ run_model() {
   local log_file="$2"
 
   if [[ "$RUN_TIMEOUT" -eq 0 ]]; then
-    GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$log_file"
+    GOOSE_MODE=auto GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
+      "$GOOSE_BIN" run --no-profile --text "$INSTRUCTION" 2>&1 | tee "$log_file"
     return ${PIPESTATUS[0]}
   fi
 
@@ -273,8 +274,8 @@ run_model() {
     exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
   ' \
     "$RUN_TIMEOUT" \
-    env GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
-    "$GOOSE_BIN" run --text "$INSTRUCTION" 2>&1 | tee "$log_file"
+    env GOOSE_MODE=auto GOOSE_PROVIDER=local GOOSE_MODEL="$model_id" \
+    "$GOOSE_BIN" run --no-profile --text "$INSTRUCTION" 2>&1 | tee "$log_file"
   return ${PIPESTATUS[0]}
 }
 

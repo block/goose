@@ -2088,6 +2088,58 @@ fn gb_to_bytes(gb: f64) -> Result<u64> {
 }
 
 #[cfg(feature = "local-inference")]
+fn search_query_from_filters(
+    query: Option<String>,
+    repo_prefix: Option<&str>,
+    repo_suffix: Option<&str>,
+) -> String {
+    if let Some(query) = query {
+        return query;
+    }
+
+    if let Some(prefix) = repo_prefix {
+        let term = search_term_from_repo_filter(prefix);
+        if !term.is_empty() {
+            return term;
+        }
+    }
+
+    if let Some(suffix) = repo_suffix {
+        let term = search_term_from_repo_filter(suffix);
+        if !term.is_empty() {
+            return term;
+        }
+    }
+
+    String::new()
+}
+
+#[cfg(feature = "local-inference")]
+fn search_term_from_repo_filter(value: &str) -> String {
+    value
+        .trim_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .trim_matches(|c| matches!(c, '-' | '_' | '.'))
+        .to_string()
+}
+
+#[cfg(feature = "local-inference")]
+fn local_search_memory_limit(ram_gb: Option<f64>) -> Result<u64> {
+    if let Some(gb) = ram_gb {
+        return gb_to_bytes(gb);
+    }
+
+    match goose::providers::local_inference::InferenceRuntime::get_or_init() {
+        Ok(runtime) => Ok(
+            goose::providers::local_inference::available_inference_memory_bytes(runtime.as_ref()),
+        ),
+        Err(_) => gb_to_bytes(16.0),
+    }
+}
+
+#[cfg(feature = "local-inference")]
 fn format_size(bytes: u64) -> String {
     if bytes == 0 {
         "unknown".to_string()
@@ -2142,7 +2194,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             ram_gb,
             json,
         } => {
-            let query = query.unwrap_or_default();
+            let query =
+                search_query_from_filters(query, repo_prefix.as_deref(), repo_suffix.as_deref());
             if !json {
                 if query.is_empty() {
                     println!("Searching HuggingFace for local models...");
@@ -2150,7 +2203,13 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     println!("Searching HuggingFace for '{}'...", query);
                 }
             }
-            let fetch_limit = limit.saturating_mul(5).max(limit);
+            let has_local_filter =
+                repo_prefix.is_some() || repo_suffix.is_some() || quant.is_some();
+            let fetch_limit = if has_local_filter {
+                limit.saturating_mul(5).max(limit).max(50)
+            } else {
+                limit
+            };
             let mut results = hf_models::search_local_models(&query, fetch_limit).await?;
             let quant = quant.map(|value| value.to_lowercase());
             results.retain_mut(|model| {
@@ -2186,14 +2245,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 return Ok(());
             }
 
-            let available_memory = if let Some(gb) = ram_gb {
-                gb_to_bytes(gb)?
-            } else {
-                let runtime = goose::providers::local_inference::InferenceRuntime::get_or_init()?;
-                goose::providers::local_inference::available_inference_memory_bytes(
-                    runtime.as_ref(),
-                )
-            };
+            let available_memory = local_search_memory_limit(ram_gb)?;
 
             if json {
                 let output = results

@@ -9,6 +9,7 @@ show_usage() {
   echo "  -m, --models MODELS      Comma-separated model list. Skips fetching models."
   echo "  -o, --output-dir DIR     Directory for logs (default: ./openrouter-toolcall-results)"
   echo "  -s, --sort SORT          OpenRouter model sort (default: top-weekly)"
+  echo "      --run-timeout SEC    Kill a model run after this many seconds (default: 180, 0 disables)"
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Environment:"
@@ -26,6 +27,7 @@ MODEL_COUNT=10
 MODEL_LIST=""
 OUTPUT_DIR="./openrouter-toolcall-results"
 MODEL_SORT="top-weekly"
+RUN_TIMEOUT=180
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,6 +45,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -s|--sort)
       MODEL_SORT="$2"
+      shift 2
+      ;;
+    --run-timeout)
+      RUN_TIMEOUT="$2"
       shift 2
       ;;
     -h|--help)
@@ -74,6 +80,11 @@ fi
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "Error: uv is required to run the temporary FastMCP server"
+  exit 1
+fi
+
+if ! [[ "$RUN_TIMEOUT" =~ ^[0-9]+$ ]]; then
+  echo "Error: --run-timeout must be a non-negative integer"
   exit 1
 fi
 
@@ -173,6 +184,40 @@ summarize_error() {
   ' "$1"
 }
 
+run_model() {
+  local model="$1"
+
+  if [[ "$RUN_TIMEOUT" -eq 0 ]]; then
+    GOOSE_MODE=auto GOOSE_PROVIDER=openrouter GOOSE_MODEL="$model" \
+      "$GOOSE_BIN" run --no-profile --max-turns 4 --recipe recipe.yaml
+    return $?
+  fi
+
+  perl -e '
+    my $timeout = shift;
+    my $pid = fork();
+    die "fork failed: $!" unless defined $pid;
+    if ($pid == 0) {
+      exec @ARGV;
+      die "exec failed: $!";
+    }
+    local $SIG{ALRM} = sub {
+      kill "TERM", $pid;
+      sleep 2;
+      kill "KILL", $pid;
+      exit 124;
+    };
+    alarm $timeout;
+    waitpid($pid, 0);
+    my $status = $?;
+    alarm 0;
+    exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
+  ' \
+    "$RUN_TIMEOUT" \
+    env GOOSE_MODE=auto GOOSE_PROVIDER=openrouter GOOSE_MODEL="$model" \
+    "$GOOSE_BIN" run --no-profile --max-turns 4 --recipe recipe.yaml
+}
+
 echo "Testing ${#MODELS[@]} OpenRouter model(s)"
 echo ""
 
@@ -185,7 +230,7 @@ for model in "${MODELS[@]}"; do
   echo "Log:   $log_file"
   echo "=========================================================="
 
-  if (cd "$TESTDIR" && GOOSE_PROVIDER=openrouter GOOSE_MODEL="$model" "$GOOSE_BIN" run --recipe recipe.yaml 2>&1) | tee "$log_file"; then
+  if (cd "$TESTDIR" && run_model "$model" 2>&1) | tee "$log_file"; then
     if error_summary=$(summarize_error "$log_file"); then
       echo "✗ Goose reported an error for $model"
       echo "  $error_summary"
@@ -200,8 +245,11 @@ for model in "${MODELS[@]}"; do
       OVERALL_SUCCESS=false
     fi
   else
+    run_status=${PIPESTATUS[0]}
     echo "✗ Goose run failed for $model"
-    if error_summary=$(summarize_error "$log_file"); then
+    if [[ "$run_status" -eq 124 ]]; then
+      RESULTS+=("✗ $model - run timed out")
+    elif error_summary=$(summarize_error "$log_file"); then
       echo "  $error_summary"
       RESULTS+=("✗ $model - $error_summary")
     else
