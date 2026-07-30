@@ -14,10 +14,7 @@ pub struct AcpServerFactoryConfig {
     pub config_dir: std::path::PathBuf,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
-    // TODO(acp-migration): Temporary bridge for goosed, which still creates the REST AppState scheduler.
-    // When the REST/goose-server path is removed, make AcpServer own the scheduler
-    // directly and remove this optional injection.
-    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
+    pub enable_scheduler: bool,
 }
 
 pub struct AcpServer {
@@ -33,9 +30,9 @@ impl AcpServer {
         }
     }
 
-    async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
-        if let Some(scheduler) = &self.config.scheduler {
-            return Ok(Arc::clone(scheduler));
+    async fn scheduler(&self) -> Result<Option<Arc<dyn SchedulerTrait>>> {
+        if !self.config.enable_scheduler {
+            return Ok(None);
         }
 
         let data_dir = self.config.data_dir.clone();
@@ -51,6 +48,7 @@ impl AcpServer {
             })
             .await
             .cloned()
+            .map(Some)
     }
 
     pub async fn create_agent(&self) -> Result<Arc<GooseAcpAgent>> {
@@ -89,5 +87,38 @@ impl AcpServer {
         info!("Created new ACP agent");
 
         Ok(Arc::new(agent))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server(data_dir: std::path::PathBuf, enable_scheduler: bool) -> AcpServer {
+        AcpServer::new(AcpServerFactoryConfig {
+            builtins: Vec::new(),
+            config_dir: data_dir.clone(),
+            data_dir,
+            goose_platform: GoosePlatform::GooseCli,
+            additional_source_roots: Vec::new(),
+            enable_scheduler,
+        })
+    }
+
+    #[tokio::test]
+    async fn disabled_server_does_not_construct_scheduler() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), false);
+
+        assert!(server.scheduler().await.unwrap().is_none());
+        assert!(!root.path().join("schedule.json").exists());
+    }
+
+    #[tokio::test]
+    async fn automatic_server_constructs_scheduler() {
+        let root = tempfile::tempdir().unwrap();
+        let server = server(root.path().to_path_buf(), true);
+
+        assert!(server.scheduler().await.unwrap().is_some());
     }
 }

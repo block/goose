@@ -242,7 +242,9 @@ describe('startGooseServe', () => {
       expect(readinessUrls[0]).toMatch(/^https:\/\/127\.0\.0\.1:\d+\/status$/);
       expect(result.acpUrl).toMatch(/^wss:\/\/127\.0\.0\.1:\d+\/acp\?token=test-secret$/);
       expect(result.certFingerprint).toBe('DD:EE:FF');
-      await expect(waitForFileLines(argsPath)).resolves.toContain('--tls');
+      const args = await waitForFileLines(argsPath);
+      expect(args).toContain('--tls');
+      expect(args).toContain('--enable-scheduler');
     } finally {
       await result.cleanup();
     }

@@ -15,7 +15,6 @@ use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
-use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
@@ -24,6 +23,7 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use goose::session::{SessionManager, SessionType};
+use goose_providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose_providers::errors::ProviderError;
 use goose_test_support::{
     EnforceSessionId, ExpectedSessionId, IgnoreSessionId, McpFixture, FAKE_CODE,
@@ -217,10 +217,10 @@ impl ProviderFixture {
         for &var in config.clear_env {
             env_vars.push((var, None));
         }
-        let guard = env_lock::lock_env(env_vars.into_iter());
+        let guard = env_lock::lock_env(env_vars);
 
         let expected_session_id = (config.expected_session_id)();
-        let mcp = McpFixture::new(expected_session_id.clone()).await;
+        let mcp = McpFixture::new().await;
 
         let mcp_extension =
             ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
@@ -343,7 +343,7 @@ impl ProviderFixture {
         };
 
         // Provider already executed an externally-dispatched tool — don't redispatch.
-        if tool_req.is_externally_dispatched() {
+        if tool_req.was_executed_externally() {
             return Ok(response1);
         }
 

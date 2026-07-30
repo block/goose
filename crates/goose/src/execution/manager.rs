@@ -1,9 +1,7 @@
 use crate::agents::mcp_client::GooseMcpHostInfo;
 use crate::agents::{Agent, AgentConfig, ExtensionLoadResult, GoosePlatform};
-use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::Config;
-use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{SessionManager, SessionNameUpdate};
 use anyhow::Result;
@@ -72,15 +70,11 @@ impl AgentManager {
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let default_mode = config.get_goose_mode().unwrap_or_default();
-                let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let scheduler = Scheduler::new(schedule_file_path, Arc::clone(&session_manager))
-                    .await
-                    .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>)?;
                 let agent_config = AgentConfig::new(
                     session_manager,
                     PermissionManager::instance(),
-                    Some(scheduler),
+                    None,
                     default_mode,
                     config.get_goose_disable_session_naming().unwrap_or(false),
                     GoosePlatform::GooseDesktop,
@@ -92,13 +86,8 @@ impl AgentManager {
             .cloned()
     }
 
-    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
-        Arc::clone(
-            self.agent_config
-                .scheduler_service
-                .as_ref()
-                .expect("AgentManager scheduler is not configured"),
-        )
+    pub fn scheduler(&self) -> Option<Arc<dyn SchedulerTrait>> {
+        self.agent_config.scheduler_service.as_ref().map(Arc::clone)
     }
 
     /// Get the shared SessionManager for session-only operations
@@ -328,6 +317,21 @@ impl AgentManager {
         Ok(())
     }
 
+    /// Drops an in-memory agent when one is loaded for `session_id`.
+    pub async fn remove_session_if_loaded(&self, session_id: &str) -> Result<()> {
+        if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
+            token.cancel();
+        }
+        let mut sessions = self.sessions.write().await;
+        if sessions.pop(session_id).is_none() {
+            return Ok(());
+        }
+        drop(sessions);
+        self.prune_creation_lock(session_id).await;
+        info!("Removed session {}", session_id);
+        Ok(())
+    }
+
     pub async fn has_session(&self, session_id: &str) -> bool {
         self.sessions.read().await.contains(session_id)
     }
@@ -482,6 +486,20 @@ mod tests {
         assert!(!manager.has_session(&session).await);
 
         assert!(manager.remove_session(&session).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_remove_session_if_loaded() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let session = String::from("remove-if-loaded-test");
+
+        manager.remove_session_if_loaded(&session).await.unwrap();
+
+        manager.get_or_create_agent(session.clone()).await.unwrap();
+        manager.remove_session_if_loaded(&session).await.unwrap();
+        assert!(!manager.has_session(&session).await);
+        manager.remove_session_if_loaded(&session).await.unwrap();
     }
 
     #[tokio::test]

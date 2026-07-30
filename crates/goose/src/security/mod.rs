@@ -1,5 +1,6 @@
 pub mod adversary_inspector;
 pub mod classification_client;
+pub mod command_chunker;
 pub mod egress_inspector;
 pub mod patterns;
 pub mod scanner;

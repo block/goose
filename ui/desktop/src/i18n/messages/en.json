@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Custom app"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applications from your MCP servers and Apps built by goose itself. You can ask it to create new apps through the chat interface and they will appear here."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Error loading apps: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import App"
@@ -121,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Go home"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connection lost. Reconnecting…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
@@ -1736,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Downloading"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Featured Models"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Sign in to increase rate limits when searching and downloading models, and to access private or gated Hugging Face repositories."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Model Settings"
@@ -2011,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "waiting"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% of input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "cache read"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "cache write"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compaction"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Cost"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimated)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "First token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(reported)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Speed"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Total time"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Choose which microphone to use for dictation"
@@ -2753,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "From template or manual setup"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "No providers match \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Search providers..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "{providerName} logo"
   },
@@ -2956,12 +3025,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Use default provider"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Recipe Name"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Will be automatically formatted (lowercase, dashes for spaces)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Cancel"
@@ -3593,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Session JSON copied"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Text copied"
   },
@@ -3623,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Failed to rename session: {error}"
   },
@@ -3647,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "Session encountered an error"
   },
@@ -3655,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "This session doesn't contain any messages"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "No messages found"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Error Loading Session Details"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Try Again"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "You"
   },
   "sessions.action.delete": {
     "defaultMessage": "Delete session"
@@ -3983,6 +4040,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Chat"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "External Backend"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Keyboard"
   },
@@ -3995,14 +4055,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Prompts"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
-  },
   "settingsView.title": {
     "defaultMessage": "Settings"
-  },
-  "sheet.close": {
-    "defaultMessage": "Close"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Cancel"
@@ -4069,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} provider is configured"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama app"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "To use, either the"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "must be installed on your machine and open, or you must enter a value for OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Add Existing"

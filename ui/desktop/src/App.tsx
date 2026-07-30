@@ -18,6 +18,7 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
+import { acpListSessions, acpDeleteSession } from './acp/sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -57,6 +58,7 @@ import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import { reconnectAcpAfterSystemResume } from './acp/acpConnection';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -396,7 +398,26 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSessionShare = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleSystemResume = () => reconnectAcpAfterSystemResume();
+    window.electron.on('system-resume', handleSystemResume);
+    return () => window.electron.off('system-resume', handleSystemResume);
+  }, []);
+
+  useEffect(() => {
+    acpListSessions()
+      .then(({ sessions }) => {
+        const phantom = sessions.filter(
+          (s) => s.messageCount === 0 && !s.userSetName && !s.hasRecipe
+        );
+        for (const s of phantom) {
+          acpDeleteSession(s.id).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo('Opening session share link');
 
@@ -430,9 +451,9 @@ export function AppInner() {
         }
       }
     };
-    window.electron.on('open-shared-session', handleOpenSessionShare);
+    window.electron.on('open-shared-session', handleOpenSharedSession);
     return () => {
-      window.electron.off('open-shared-session', handleOpenSessionShare);
+      window.electron.off('open-shared-session', handleOpenSharedSession);
     };
   }, [navigate]);
 

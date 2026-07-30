@@ -53,7 +53,7 @@ interface ProviderOption {
 }
 
 interface ProviderSelectorProps {
-  onConfigured: (providerName: string, modelId?: string) => void;
+  onConfigured: (providerName: string, modelId?: string) => void | Promise<void>;
   onFirstSelection?: () => void;
 }
 
@@ -123,7 +123,7 @@ export default function ProviderSelector({
     const result = await acpCreateCustomProviderFromRequest(data);
     setShowCustomModal(false);
     if (result.provider_name) {
-      onConfigured(result.provider_name);
+      await onConfigured(result.provider_name);
     }
   };
 

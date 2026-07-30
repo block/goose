@@ -4,7 +4,7 @@ use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{
@@ -23,7 +23,13 @@ use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "composer-2", "composer-2-fast"];
+pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &[
+    "auto",
+    "composer-2",
+    "composer-2-fast",
+    "composer-2.5",
+    "composer-2.5-fast",
+];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 
@@ -94,8 +100,8 @@ impl CursorAgentProvider {
                             let content_text = result
                                 .content
                                 .iter()
-                                .filter_map(|content| match &content.raw {
-                                    rmcp::model::RawContent::Text(text_content) => {
+                                .filter_map(|content| match content {
+                                    rmcp::model::ContentBlock::Text(text_content) => {
                                         Some(text_content.text.as_str())
                                     }
                                     _ => None,
@@ -208,15 +214,17 @@ impl CursorAgentProvider {
 
         cmd.arg("--model").arg(&model.model_name);
 
-        cmd.arg("-p")
-            .arg(&prompt)
+        cmd.arg("--print")
             .arg("--output-format")
             .arg("json")
             .arg("--force");
 
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let mut child = cmd
+                .kill_on_drop(true)
                 .spawn()
                 .map_err(|e| ProviderError::RequestFailed(format!(
                     "Failed to spawn cursor-agent CLI command '{:?}': {}. \
@@ -224,10 +232,27 @@ impl CursorAgentProvider {
                     self.command, e
                 )))?;
 
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdin".to_string()))?;
+        let prompt_write = tokio::spawn(async move {
+            stdin.write_all(prompt.as_bytes()).await?;
+            stdin.shutdown().await
+        });
+
         let stdout = child
             .stdout
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
+        let stderr = child.stderr.take();
+        let stderr_drain = tokio::spawn(async move {
+            let mut output = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = stderr.read_to_string(&mut output).await;
+            }
+            output
+        });
 
         let mut reader = BufReader::new(stdout);
         let mut lines = Vec::new();
@@ -255,6 +280,8 @@ impl CursorAgentProvider {
         let exit_status = child.wait().await.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
         })?;
+        let prompt_write_result = prompt_write.await;
+        let _stderr = stderr_drain.await.unwrap_or_default();
 
         if !exit_status.success() {
             if !self.get_authentication_status().await {
@@ -267,6 +294,14 @@ impl CursorAgentProvider {
                 exit_status.code()
             )));
         }
+
+        prompt_write_result
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to write prompt to stdin: {e}"))
+            })?
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to write prompt to stdin: {e}"))
+            })?;
 
         tracing::debug!("Command executed successfully, got {} lines", lines.len());
         for (i, line) in lines.iter().enumerate() {
@@ -360,5 +395,75 @@ impl Provider for CursorAgentProvider {
 
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
         Ok(stream_from_single_message(message, provider_usage))
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+
+    const SENTINEL: &str = "loupe-sensitive-cursor-prompt";
+
+    fn recording_cli(directory: &Path) -> PathBuf {
+        let command = directory.join("cursor-agent-recording-shim");
+        fs::write(
+            &command,
+            r#"#!/bin/sh
+record_dir=${0%/*}
+printf '%s\n' "$@" > "$record_dir/args"
+cat > "$record_dir/stdin"
+printf '%s\n' '{"type":"result","result":"ok"}'
+"#,
+        )
+        .unwrap();
+        fs::set_permissions(&command, fs::Permissions::from_mode(0o755)).unwrap();
+        command
+    }
+
+    async fn assert_prompt_uses_stdin(messages: Vec<Message>) {
+        let directory = tempfile::tempdir().unwrap();
+        let provider = CursorAgentProvider {
+            command: recording_cli(directory.path()),
+            name: CURSOR_AGENT_PROVIDER_NAME.to_string(),
+        };
+
+        let lines = provider
+            .execute_command(
+                &ModelConfig::new(CURSOR_AGENT_DEFAULT_MODEL),
+                "system instructions",
+                &messages,
+                &[],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(lines, vec![r#"{"type":"result","result":"ok"}"#]);
+        let args = fs::read_to_string(directory.path().join("args")).unwrap();
+        let stdin = fs::read_to_string(directory.path().join("stdin")).unwrap();
+        assert!(!args.contains(SENTINEL));
+        assert!(stdin.contains(SENTINEL));
+        assert!(!args.lines().any(|arg| arg == "-p"));
+        assert!(args.contains("--model\nauto"));
+        assert!(args.lines().any(|arg| arg == "--print"));
+        assert!(args.contains("--output-format\njson"));
+        assert!(args.contains("--force"));
+    }
+
+    #[tokio::test]
+    async fn initial_prompt_is_sent_on_stdin() {
+        assert_prompt_uses_stdin(vec![Message::user().with_text(SENTINEL)]).await;
+    }
+
+    #[tokio::test]
+    async fn resumed_conversation_is_sent_on_stdin() {
+        assert_prompt_uses_stdin(vec![
+            Message::user().with_text("first turn"),
+            Message::assistant().with_text("first response"),
+            Message::user().with_text(SENTINEL),
+        ])
+        .await;
     }
 }

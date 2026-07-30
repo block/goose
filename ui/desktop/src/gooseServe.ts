@@ -360,6 +360,7 @@ export const startGooseServe = async ({
     ...(tls ? ['--tls'] : []),
     '--platform',
     'desktop',
+    '--enable-scheduler',
     '--host',
     '127.0.0.1',
     '--port',
@@ -387,7 +388,6 @@ export const startGooseServe = async ({
     env: buildGooseServeEnv(secretKey, goosePath, additionalEnv),
     cwd: workingDir,
     windowsHide: true,
-    detached: process.platform === 'win32',
     shell: false as const,
     stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
   };
