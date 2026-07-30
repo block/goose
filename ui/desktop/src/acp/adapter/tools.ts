@@ -3,7 +3,8 @@ import type {
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { ContentBlock as ApiContentBlock, Message } from '../../api';
+import type { Message } from '../../types/message';
+import type { ContentBlock as GooseContentBlock } from '../../types/message';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
@@ -17,9 +18,12 @@ import {
   rawInputToArguments,
   toolIdentity,
   type ToolIdentity,
+  type ToolCallState,
 } from './shared';
 
 export function applyToolCall(state: AdapterState, update: ToolCall): AcpChatStateChange[] {
+  updateToolCallState(state, update);
+
   const gooseMeta = getGooseMessageMeta(update);
   const message = getOrCreateAssistantMessageForUpdate(state, gooseMeta);
 
@@ -55,31 +59,56 @@ export function applyToolCallUpdate(
   state: AdapterState,
   update: ToolCallUpdate
 ): AcpChatStateChange[] {
-  if (update.status !== 'completed' && update.status !== 'failed') {
+  const toolCallState = updateToolCallState(state, update);
+  const isFinished = toolCallState.status === 'completed' || toolCallState.status === 'failed';
+
+  if (!isFinished) {
     const notificationChange = toolNotificationChange(update);
     return notificationChange ? [notificationChange] : [];
   }
 
   if (hasToolResponse(state, update.toolCallId)) {
+    state.toolCallStatesById.delete(update.toolCallId);
     return messagesChange(state);
   }
 
   const gooseMeta = getGooseMessageMeta(update);
   const message = getOrCreateToolResponseMessageForUpdate(state, gooseMeta);
   const identity = toolIdentity(update);
-  const metadata = toolResponseMetadata(update, identity);
+  const metadata = toolResponseMetadata(toolCallState, identity);
 
   message.content.push({
     type: 'toolResponse',
     id: update.toolCallId,
     toolResult:
-      update.status === 'failed'
-        ? { status: 'error', error: toolError(update) }
-        : { status: 'success', value: toolResultValue(update, mcpAppMetadata(update)) },
+      toolCallState.status === 'failed'
+        ? { status: 'error', error: toolError(toolCallState) }
+        : {
+            status: 'success',
+            value: toolResultValue(toolCallState, mcpAppMetadata(update)),
+          },
     ...(metadata ? { metadata } : {}),
   });
 
+  state.toolCallStatesById.delete(update.toolCallId);
   return messagesChange(state);
+}
+
+function updateToolCallState(
+  state: AdapterState,
+  update: ToolCall | ToolCallUpdate
+): ToolCallState {
+  const toolCallState = mergeToolCallState(state.toolCallStatesById.get(update.toolCallId), update);
+  state.toolCallStatesById.set(update.toolCallId, toolCallState);
+  return toolCallState;
+}
+
+function mergeToolCallState(
+  previous: ToolCallState | undefined,
+  update: ToolCall | ToolCallUpdate
+): ToolCallState {
+  const { _meta: _ignoredMeta, ...toolCallStateUpdate } = update;
+  return { ...previous, ...toolCallStateUpdate };
 }
 
 function getOrCreateAssistantMessageForUpdate(
@@ -183,15 +212,21 @@ function toolResultValue(
   update: ToolCallUpdate,
   mcpAppMeta: DesktopMcpAppMeta | undefined
 ): ToolResultValue {
-  return {
+  const toolResult: ToolResultValue = {
     content: toolResultContent(update),
     isError: false,
     ...(mcpAppMeta ? { _meta: mcpAppMeta } : {}),
   };
+
+  if (update.rawOutput !== undefined) {
+    toolResult.structuredContent = update.rawOutput;
+  }
+
+  return toolResult;
 }
 
-function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
-  const content: ApiContentBlock[] = [];
+function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {
+  const content: GooseContentBlock[] = [];
 
   for (const item of update.content ?? []) {
     if (item.type !== 'content') {
@@ -215,7 +250,9 @@ function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
   return [];
 }
 
-function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiContentBlock | undefined {
+function apiContentBlockFromAcpContentBlock(
+  content: AcpContentBlock
+): GooseContentBlock | undefined {
   switch (content.type) {
     case 'text':
       return {
@@ -260,7 +297,7 @@ function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiConten
 
 function apiResourceContentsFromAcpResource(
   resource: Extract<AcpContentBlock, { type: 'resource' }>['resource']
-): Extract<ApiContentBlock, { type: 'resource' }>['resource'] {
+): Extract<GooseContentBlock, { type: 'resource' }>['resource'] {
   if ('text' in resource) {
     return {
       uri: resource.uri,
@@ -303,7 +340,7 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
 }
 
 type ToolResultValue = {
-  content: ApiContentBlock[];
+  content: GooseContentBlock[];
   structuredContent?: unknown;
   isError: boolean;
   _meta?: DesktopMcpAppMeta;

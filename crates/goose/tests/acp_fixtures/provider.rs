@@ -75,9 +75,11 @@ impl AcpProviderSession {
             .get(session_id.as_ref())
             .cloned()
             .unwrap_or_else(|| ModelConfig::new(TEST_MODEL));
-        let mut stream = provider
-            .stream(&model_config, &session_id, "", &[message], &[])
-            .await?;
+        let mut stream = goose::session_context::with_session_id(
+            Some(session_id.to_string()),
+            provider.stream(&model_config, "", &[message], &[]),
+        )
+        .await?;
         let mut text = String::new();
         let mut tool_error = false;
         let mut saw_tool = false;
@@ -187,7 +189,7 @@ impl Connection for AcpProviderConnection {
                 .iter()
                 .map(|v| {
                     let mode = GooseMode::from_str(v).unwrap();
-                    (mode, mode.to_string())
+                    (mode, vec![mode.to_string()])
                 })
                 .collect(),
             notification_callback: Some(Arc::new(move |n| {

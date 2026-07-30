@@ -518,8 +518,8 @@ fn prepare_input(
                         let text: String = result
                             .content
                             .iter()
-                            .filter_map(|c| match &c.raw {
-                                rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                            .filter_map(|c| match c {
+                                rmcp::model::ContentBlock::Text(t) => Some(t.text.as_str()),
                                 _ => None,
                             })
                             .collect::<Vec<&str>>()
@@ -683,11 +683,11 @@ impl Provider for CodexProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         if super::cli_common::is_session_description_request(system) {
             let (message, provider_usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
@@ -701,7 +701,7 @@ impl Provider for CodexProvider {
 
         let goose_mode = {
             let map = self.mode_by_session.read().await;
-            map.get(session_id).copied().unwrap_or_default()
+            map.get(&session_id).copied().unwrap_or_default()
         };
         let lines = self
             .execute_command(model_config, system, messages, tools, goose_mode)
@@ -915,9 +915,9 @@ mod tests {
 
     #[test]
     fn test_prepare_input_tool_response() {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
         let dir = tempfile::tempdir().unwrap();
-        let result = CallToolResult::success(vec![Content::text("file1.txt\nfile2.txt")]);
+        let result = CallToolResult::success(vec![ContentBlock::text("file1.txt\nfile2.txt")]);
         let messages = vec![Message::new(
             Role::User,
             0,

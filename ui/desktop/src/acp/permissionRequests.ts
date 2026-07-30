@@ -1,5 +1,5 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
-import type { Permission } from '../api';
+import type { Permission } from '../types/permissions';
 import { acpChatSessionActions, acpPermissionUserInputRequestId } from './chatSessionStore';
 
 interface PendingPermissionRequest {

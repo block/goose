@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use base64::Engine;
 use image::GenericImageView;
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{Annotations, CallToolResult, ContentBlock, TextContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -12,6 +12,12 @@ use serde_json::json;
 use super::edit::resolve_path;
 
 const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+
+fn visible_text(text: impl Into<String>) -> ContentBlock {
+    ContentBlock::Text(
+        TextContent::new(text).with_annotations(Annotations::default().with_priority(0.0)),
+    )
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ImageReadParams {
@@ -50,8 +56,8 @@ impl ImageTool {
         match load_image(&params, working_dir).await {
             Ok(loaded) => {
                 let mut result = CallToolResult::success(vec![
-                    Content::text(loaded.summary(&params.source)).with_priority(0.0),
-                    Content::image(loaded.data, loaded.mime_type.clone()).with_priority(0.0),
+                    visible_text(loaded.summary(&params.source)),
+                    ContentBlock::image(loaded.data, loaded.mime_type.clone()),
                 ]);
                 result.structured_content = Some(json!({
                     "source": params.source,
@@ -65,9 +71,7 @@ impl ImageTool {
                 }));
                 result
             }
-            Err(error) => CallToolResult::error(vec![
-                Content::text(format!("Error: {error}")).with_priority(0.0)
-            ]),
+            Err(error) => CallToolResult::error(vec![visible_text(format!("Error: {error}"))]),
         }
     }
 }

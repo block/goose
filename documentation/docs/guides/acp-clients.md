@@ -165,51 +165,15 @@ All MCP servers in `context_servers` are automatically available to goose, provi
 If a server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
 :::
 
-## TUI Client
+## TUI Client (Deprecated)
 
-For terminal-based workflows, goose provides a TUI (Terminal User Interface) client that communicates with goose via ACP. This is useful for developers who prefer working entirely in the terminal or need a lightweight alternative to the desktop app.
+:::warning Deprecated
+The experimental terminal UI (TUI) client, formerly published to npm as `@aaif/goose`, is no longer maintained and has been removed. Use the [CLI](/docs/getting-started/installation) or the desktop app instead.
+:::
 
-### Features
+## Server Authentication
 
-- **Full terminal-based chat interface** - Interactive conversation UI rendered directly in your terminal
-- **Real-time streaming responses** - See goose's responses as they're generated
-- **Tool call visualization** - View tool executions with status indicators, inputs, and outputs
-- **Permission dialogs** - Approve or reject tool permissions inline
-- **Keyboard navigation** - Navigate conversation history and scroll through responses
-- **Markdown rendering** - Formatted output for code blocks, lists, and other markdown elements
-- **Message queuing** - Queue messages while goose is processing
-
-### Installation
-
-```bash
-cd ui/text
-npm install
-```
-
-### Running the TUI
-
-**Option 1: Auto-launch server (recommended)**
-
-The TUI will automatically start the goose acp server if you have it installed:
-
-```bash
-npm start
-```
-
-**Option 2: Connect to a custom server**
-
-For servers that support the draft standard ACP over Streamable HTTP https://github.com/agentclientprotocol/agent-client-protocol/pull/721
-
-```bash
-npm start -- --server http://HOST:PORT
-
-# example server
-cargo run -p goose-cli --bin goose -- serve
-```
-
-### Server Authentication
-
-Set the `GOOSE_SERVER__SECRET_KEY` environment variable to require authentication on the ACP endpoint. When it is set, `goose serve` rejects any request that doesn't present a matching token:
+Set the `GOOSE_SERVER__SECRET_KEY` environment variable to authenticate the ACP endpoint. `goose serve` refuses to start without this secret unless you explicitly pass `--dangerously-unauthenticated`:
 
 ```bash
 GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve
@@ -217,7 +181,16 @@ GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve
 
 Clients authenticate by sending the token in the `X-Secret-Key` header, or as a `?token=` query parameter for WebSocket connections (the browser WebSocket API can't set custom headers). Requests without a matching token receive `401 Unauthorized`, including WebSocket handshakes.
 
-When `GOOSE_SERVER__SECRET_KEY` is not set, the endpoint accepts unauthenticated connections and `goose serve` logs a warning at startup.
+ACP WebSocket Origin validation allows loopback web origins by default. For `goose serve`, ACP CORS follows the same policy. If you pass any `--allowed-origin` values, that explicit list replaces the default loopback origins, so include every origin the client needs:
+
+```bash
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve \
+  --allowed-origin 'http://localhost:5173' \
+  --allowed-origin 'app://localhost' \
+  --allowed-origin 'https://app.example'
+```
+
+For local development only, `goose serve --dangerously-unauthenticated` starts without a secret and logs a warning. Do not use this mode with shell-capable builtins enabled unless the server is isolated from untrusted browser traffic.
 
 ### Single Prompt Mode
 

@@ -5,11 +5,6 @@
 #  - pr-comment-bundle-desktop.yml (when added)
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch name to bundle app from'
-        required: true
-        type: string
   workflow_call:
     inputs:
       version:
@@ -23,6 +18,9 @@ on:
         default: ''
 
 name: "Bundle Desktop (Linux)"
+
+permissions:
+  contents: read
 
 jobs:
   build-desktop-linux:
@@ -39,21 +37,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ inputs.ref || inputs.branch }}
+          ref: ${{ inputs.ref }}
 
       - name: Update versions
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          # Update version in Cargo.toml
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
-          rm -f Cargo.toml.bak
-
-          # Update version in package.json
+          bash scripts/set-cargo-version.sh "$VERSION"
           source ./bin/activate-hermit
           cd ui/desktop
-          npm pkg set "version=${{ inputs.version }}"
+          npm pkg set "version=${VERSION}"
 
       - name: Debug workflow info
         env:
@@ -124,7 +120,7 @@ jobs:
         with:
           key: linux-${{ matrix.build-on }}-${{ matrix.variant }}
 
-      - name: Build goosed binary
+      - name: Build desktop backend binary
         env:
           RUST_LOG: debug
           RUST_BACKTRACE: 1
@@ -137,19 +133,25 @@ jobs:
             FEATURE_ARGS=(--features vulkan)
           fi
 
-          cargo build --release --target ${TARGET} -p goose-server "${FEATURE_ARGS[@]}"
+          cargo build --release --target ${TARGET} -p goose-cli --bin goose "${FEATURE_ARGS[@]}"
 
-      - name: Copy binaries into Electron folder
+      - name: Copy backend binary into Electron folder
         run: |
-          echo "Copying binaries to ui/desktop/src/bin/"
+          echo "Copying backend binary to ui/desktop/src/bin/"
           export TARGET="x86_64-unknown-linux-gnu"
           mkdir -p ui/desktop/src/bin
-          cp target/$TARGET/release/goosed ui/desktop/src/bin/
-          chmod +x ui/desktop/src/bin/goosed
+          rm -f ui/desktop/src/bin/goose
+          cp target/$TARGET/release/goose ui/desktop/src/bin/
+          chmod +x ui/desktop/src/bin/goose
           ls -la ui/desktop/src/bin/
 
+      - name: Free Rust build artifacts before packaging
+        run: |
+          source ./bin/activate-hermit
+          cargo clean
+
       - name: Cache pnpm dependencies
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             ui/desktop/node_modules

@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Application personnalisée"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applications provenant de vos serveurs MCP et applications créées par goose lui-même. Vous pouvez lui demander de créer de nouvelles applications via l'interface de chat et elles apparaîtront ici."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Erreur lors du chargement des applications : {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importer une application"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "Aucune application disponible"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "Réessayer"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Aller à l'accueil"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Connexion perdue. Reconnexion…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension mise à jour"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Par défaut, goose lance un serveur pour vous ; utilisez ceci pour vous connecter à un serveur goose externe"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Les modifications nécessitent le redémarrage de Goose pour prendre effet. Les nouvelles fenêtres de discussion se connecteront au serveur externe."
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "Clé secrète"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La clé secrète configurée sur le serveur goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La clé secrète configurée sur le serveur Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Saisissez la clé secrète du serveur"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL du serveur"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Serveur Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Format d'URL non valide"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Se connecter à un serveur goose exécuté ailleurs (nécessite le redémarrage de l'application)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Choisissez une option pour commencer."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratuit et privé"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Téléchargez un modèle et exécutez-le entièrement sur votre machine. Aucune clé d'API, aucun compte."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Utiliser un modèle local"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Inscrivez-vous pour recevoir 60 M de jetons gratuits pendant 7 jours."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Réessayer"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Accédez à plusieurs modèles d'IA avec une configuration automatique. Inscrivez-vous pour recevoir 10 $ de crédit."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router par Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Une erreur inattendue s'est produite lors de la configuration."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Fermer"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Téléchargement en cours"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Modèles en vedette"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Connectez-vous pour augmenter les limites de débit lors de la recherche et du téléchargement de modèles, et pour accéder aux dépôts Hugging Face privés ou à accès restreint."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Paramètres du modèle"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Afficher uniquement les modèles recommandés"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Retour"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Idéal pour votre machine"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Lecture en Picture-in-Picture"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Annuler"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Ouvrir"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Cela ouvrira : {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Message reçu pour {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Message MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Message reçu pour {message}. Les messages {messageType} ne sont pas encore pris en charge, consultez la console pour plus de détails."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# élément trouvé} other{# éléments trouvés}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "en attente"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent} % de l'entrée)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "lecture du cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "écriture du cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Compactage"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Coût"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(estimé)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Premier token"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Entrée"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Sortie"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(rapporté)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Vitesse"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Total"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Temps total"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Choisissez le microphone à utiliser pour la dictée"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "À partir d'un modèle ou d'une configuration manuelle"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Aucun fournisseur ne correspond à \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Rechercher des fournisseurs..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connectez OpenAI, Anthropic, Google, etc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Utilisez un modèle local ou un fournisseur offrant des crédits gratuits"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Téléchargez un modèle et exécutez-le entièrement sur votre machine. Aucune clé d'API, aucun compte."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Sélectionner un fournisseur"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Utiliser des fournisseurs gratuits/locaux"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Utiliser un modèle local"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Paramètres de configuration du fournisseur"
@@ -2998,12 +3025,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Utiliser le fournisseur par défaut"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nom de la recette"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sera automatiquement mis en forme (minuscules, tirets à la place des espaces)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Annuler"
@@ -3635,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON de la session copié"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texte copié"
   },
@@ -3665,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Chargement du JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Échec du renommage de la session : {error}"
   },
@@ -3689,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Afficher le JSON de la session"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "La session a rencontré une erreur"
   },
@@ -3697,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Diffusion en cours"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Cette session ne contient aucun message"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Aucun message trouvé"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Erreur lors du chargement des détails de la session"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Réessayer"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Vous"
   },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
@@ -4025,6 +4040,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Discussion"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend externe"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Clavier"
   },
@@ -4037,14 +4055,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Invites"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Session"
-  },
   "settingsView.title": {
     "defaultMessage": "Paramètres"
-  },
-  "sheet.close": {
-    "defaultMessage": "Fermer"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Annuler"
@@ -4111,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Le fournisseur {name} est configuré"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Application Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Pour l'utiliser, soit le"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "doit être installé sur votre machine et ouvert, soit vous devez saisir une valeur pour OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Ajouter une existante"
@@ -4429,9 +4432,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Journaux"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "L'interface MCP est expérimentale et peut changer à tout moment."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Sortie"

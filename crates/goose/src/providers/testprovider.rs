@@ -103,6 +103,7 @@ impl TestProvider {
                             ..
                         }) => {
                             result.is_error = None;
+                            result.result_type = None;
                         }
                         _ => {}
                     }
@@ -172,7 +173,6 @@ impl Provider for TestProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -181,9 +181,7 @@ impl Provider for TestProvider {
 
         if let Some(inner) = &self.inner {
             // Call inner provider's stream and collect it
-            let stream = inner
-                .stream(model_config, session_id, system, messages, tools)
-                .await?;
+            let stream = inner.stream(model_config, system, messages, tools).await?;
             let (message, usage) = super::base::collect_stream(stream).await?;
 
             let record = TestRecord {
@@ -226,7 +224,7 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent};
     use chrono::Utc;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-    use rmcp::model::{RawTextContent, Role, TextContent};
+    use rmcp::model::{Role, TextContent};
     use std::env;
 
     #[derive(Clone)]
@@ -243,7 +241,6 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -251,13 +248,9 @@ mod tests {
             let message = Message::new(
                 Role::Assistant,
                 Utc::now().timestamp(),
-                vec![MessageContent::Text(TextContent {
-                    raw: RawTextContent {
-                        text: self.response.clone(),
-                        meta: None,
-                    },
-                    annotations: None,
-                })],
+                vec![MessageContent::Text(TextContent::new(
+                    self.response.clone(),
+                ))],
             );
             let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
@@ -281,13 +274,7 @@ mod tests {
             let model_config = ModelConfig::new("test-model");
 
             let result = test_provider
-                .complete(
-                    &model_config,
-                    "test-session-id",
-                    "You are helpful",
-                    &[],
-                    &[],
-                )
+                .complete(&model_config, "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -306,13 +293,7 @@ mod tests {
             let model_config = ModelConfig::new("test-model");
 
             let result = replay_provider
-                .complete(
-                    &model_config,
-                    "test-session-id",
-                    "You are helpful",
-                    &[],
-                    &[],
-                )
+                .complete(&model_config, "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -338,13 +319,7 @@ mod tests {
         let model_config = ModelConfig::new("test-model");
 
         let result = replay_provider
-            .complete(
-                &model_config,
-                "test-session-id",
-                "Different system prompt",
-                &[],
-                &[],
-            )
+            .complete(&model_config, "Different system prompt", &[], &[])
             .await;
 
         assert!(result.is_err());

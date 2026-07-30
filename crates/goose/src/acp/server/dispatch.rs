@@ -56,11 +56,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                         let agent = agent.clone();
                         let cx_clone = cx.clone();
                         cx.spawn(async move {
+                            let session_id = req.session_id.0.to_string();
                             match agent.on_load_session(&cx_clone, req).await {
                                 Ok(response) => {
                                     responder.respond(response)?;
                                 }
                                 Err(e) => {
+                                    tracing::error!(
+                                        session_id = %session_id,
+                                        error = ?e,
+                                        "ACP load_session failed"
+                                    );
                                     responder.respond_with_error(e)?;
                                 }
                             }
@@ -103,13 +109,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                         let cx_spawn = cx.clone();
                         cx.spawn(async move {
                             let cx = cx_spawn;
-                            let value_id = req.value.as_value_id()
-                                .ok_or_else(|| agent_client_protocol::Error::invalid_params().data("Expected a value ID"))?
-                                .clone();
+                            let value_id = match req.value.as_value_id() {
+                                Some(value_id) => value_id.clone(),
+                                None => {
+                                    responder.respond_with_error(
+                                        agent_client_protocol::Error::invalid_params().data("Expected a value ID")
+                                    )?;
+                                    return Ok(());
+                                }
+                            };
                             let session_id = req.session_id.clone();
-                            let sid = sid_short(session_id.0.as_ref());
                             let config_id = req.config_id.0.to_string();
-                            let t_handler = std::time::Instant::now();
                             match config_id.as_ref() {
                                 "provider" => {
                                     Config::global().invalidate_secrets_cache();
@@ -144,7 +154,19 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 }
                             }
                             // Respond immediately using the current provider inventory snapshot.
-                            let (notification, config_options) = agent.build_config_update(&session_id).await?;
+                            let (notification, config_options) = match agent.build_config_update(&session_id).await {
+                                Ok(update) => update,
+                                Err(e) => {
+                                    warn!(
+                                        session_id = %session_id.0,
+                                        config_id = %config_id,
+                                        error = ?e,
+                                        "failed to build config update after config change"
+                                    );
+                                    responder.respond_with_error(e)?;
+                                    return Ok(());
+                                }
+                            };
                             cx.send_notification(notification)?;
                             responder.respond(SetSessionConfigOptionResponse::new(config_options))?;
 
@@ -283,7 +305,6 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 });
                             }
 
-                            debug!(target: "perf", sid = %sid, ms = t_handler.elapsed().as_millis() as u64, config_id = %config_id, "perf: set_config_option done");
                             Ok(())
                         })?;
                         Ok(())
@@ -340,7 +361,10 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     let cx = cx.clone();
                     |req: CloseSessionRequest, responder: Responder<CloseSessionResponse>| async move {
                         cx.spawn(async move {
-                            responder.respond(agent.on_close_session(&req.session_id.0).await?)?;
+                            match agent.on_close_session(&req.session_id.0).await {
+                                Ok(response) => responder.respond(response)?,
+                                Err(e) => responder.respond_with_error(e)?,
+                            }
                             Ok(())
                         })?;
                         Ok(())

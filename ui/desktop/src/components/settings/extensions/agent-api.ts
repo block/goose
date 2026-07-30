@@ -1,5 +1,5 @@
 import { toastService } from '../../../toasts';
-import { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { addSessionExtension, removeSessionExtension } from '../../../acp/session-extensions';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {
@@ -81,8 +81,4 @@ export async function removeFromAgent(
     }
     throw error;
   }
-}
-
-export function sanitizeName(name: string) {
-  return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
 }

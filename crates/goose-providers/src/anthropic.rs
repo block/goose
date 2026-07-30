@@ -1,4 +1,6 @@
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::request_log::{start_log, LoggerHandleExt};
 use anyhow::Result;
@@ -14,7 +16,8 @@ use tokio_util::io::StreamReader;
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request, response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
+    create_request_for_model, response_to_streaming_message, AnthropicFormatOptions,
+    ANTHROPIC_PROVIDER_NAME,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -26,6 +29,7 @@ use rmcp::model::Tool;
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
     // Claude 4.6 models
@@ -90,6 +94,24 @@ impl AnthropicProviderBuilder {
         }
     }
 
+    pub fn api_client(mut self, api_client: ApiClient) -> Self {
+        self.api_client = api_client;
+        self
+    }
+
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
+    }
+
     pub fn supports_streaming(mut self, supports_streaming: bool) -> Self {
         self.supports_streaming = supports_streaming;
         self
@@ -134,8 +156,56 @@ impl AnthropicProviderBuilder {
 }
 
 impl AnthropicProvider {
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request_for_model(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            wire_model,
+            system,
+            messages,
+            tools,
+            self.format_options,
+        )?;
+        payload["stream"] = Value::Bool(true);
+        let mut log = start_log(model_config, &payload)?;
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .request("v1/messages")
+                        .model_headers(model_config)?
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        let stream = response.bytes_stream().map_err(io::Error::other);
+        Ok(Box::pin(try_stream! {
+            let reader = StreamReader::new(stream);
+            let framed = tokio_util::codec::FramedRead::new(reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
+            let messages = response_to_streaming_message(framed);
+            pin!(messages);
+            while let Some(message) = futures::StreamExt::next(&mut messages).await {
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                yield (message, usage);
+            }
+        }))
+    }
+
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
+        let response = self.api_client.request("v1/models").api_get().await?;
 
         if response.status == StatusCode::NOT_FOUND {
             let msg = response
@@ -212,6 +282,13 @@ impl Provider for AnthropicProvider {
         &self.name
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        self.api_client
+            .refresh_credentials()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
@@ -241,50 +318,110 @@ impl Provider for AnthropicProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(
-            ANTHROPIC_PROVIDER_NAME,
+        self.stream_for_model(
             model_config,
+            &model_config.model_name,
             system,
             messages,
             tools,
-            self.format_options,
-        )?;
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("stream".to_string(), Value::Bool(true));
-
-        let mut log = start_log(model_config, &payload)?;
-
-        let response = self
-            .with_retry(|| async {
-                let request = self.api_client.request(Some(session_id), "v1/messages");
-                let resp = request.response_post(&payload).await?;
-                handle_status(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        )
+        .await
     }
+}
+
+fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptions {
+    AnthropicFormatOptions {
+        preserve_unsigned_thinking: preserves_thinking,
+        preserve_thinking_context: preserves_thinking,
+        thinking_disabled: false,
+    }
+}
+
+pub fn from_declarative_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<AnthropicProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key,
+        },
+        _ => AuthMethod::NoAuth,
+    };
+
+    let format_options = format_options_for_provider(config.preserves_thinking);
+
+    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?;
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        header_map.insert(
+            reqwest::header::HeaderName::from_static("anthropic-version"),
+            reqwest::header::HeaderValue::from_static(ANTHROPIC_API_VERSION),
+        );
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    } else {
+        api_client = api_client.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+    }
+
+    let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+    if !supports_streaming {
+        return Err(anyhow::anyhow!(
+            "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
+            Please remove 'supports_streaming: false' from your provider configuration."
+        ));
+    }
+
+    Ok(AnthropicProviderBuilder::new(api_client)
+        .supports_streaming(supports_streaming)
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering)
+        .format_options(format_options))
 }

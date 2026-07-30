@@ -1,24 +1,29 @@
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
 use super::retry::ProviderRetry;
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::conversation::message::Message;
-use crate::conversation::token_usage::ProviderUsage;
+use crate::conversation::token_usage::{CostSource, ProviderUsage};
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
-    create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
+    create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+    create_responses_request_for_model, get_responses_usage, responses_api_to_message,
+    ResponsesApiResponse,
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::request_log::{start_log, LoggerHandleExt};
+use crate::thinking::ThinkingEffort;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::StatusCode;
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -36,31 +41,39 @@ pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
-    ("gpt-4.1", 128_000),
-    ("gpt-4.1-mini", 128_000),
+    ("gpt-4.1", 1_047_576),
+    ("gpt-4.1-mini", 1_047_576),
+    ("gpt-4.1-nano", 1_047_576),
     ("o1", 200_000),
+    ("o1-pro", 200_000),
     ("o3", 200_000),
+    ("o3-mini", 200_000),
+    ("o3-pro", 200_000),
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
-    ("o4-mini", 128_000),
+    ("o4-mini", 200_000),
     ("gpt-5", 400_000),
     ("gpt-5-mini", 400_000),
     ("gpt-5-nano", 400_000),
     ("gpt-5-pro", 400_000),
-    ("gpt-5-codex", 400_000),
     ("gpt-5.1", 400_000),
-    ("gpt-5.1-codex", 400_000),
     ("gpt-5.2", 400_000),
-    ("gpt-5.2-codex", 400_000),
     ("gpt-5.2-pro", 400_000),
     ("gpt-5.3-codex", 400_000),
     ("gpt-5.4", 1_050_000),
     ("gpt-5.4-mini", 400_000),
     ("gpt-5.4-nano", 400_000),
     ("gpt-5.4-pro", 1_050_000),
+    ("gpt-5.5", 1_050_000),
+    ("gpt-5.5-pro", 1_050_000),
+    ("gpt-5.6", 1_050_000),
+    ("gpt-5.6-sol", 1_050_000),
+    ("gpt-5.6-terra", 1_050_000),
+    ("gpt-5.6-luna", 1_050_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
+const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
 
 type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
 
@@ -178,6 +191,19 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
+    }
+
     pub fn base_path(mut self, base_path: impl Into<String>) -> Self {
         self.base_path = base_path.into();
         self
@@ -247,6 +273,80 @@ impl OpenAiProviderBuilder {
 }
 
 impl OpenAiProvider {
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_responses_request_for_model(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+        )?;
+        payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
+        self.stream_responses_payload(model_config, payload).await
+    }
+
+    async fn stream_responses_payload(
+        &self,
+        model_config: &ModelConfig,
+        payload: serde_json::Value,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut log = start_log(model_config, &payload)?;
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .request(&Self::map_base_path(
+                            &self.base_path,
+                            "responses",
+                            OPEN_AI_DEFAULT_RESPONSES_PATH,
+                        ))
+                        .model_headers(model_config)?
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        if self.supports_streaming {
+            stream_responses_compat(response, log)
+        } else {
+            let json: serde_json::Value = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+            let parsed: ResponsesApiResponse =
+                serde_json::from_value(json.clone()).map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to parse responses API response: {}",
+                        e
+                    ))
+                })?;
+            let message = responses_api_to_message(&parsed)?;
+            let usage_data = get_responses_usage(&parsed);
+            let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            if let Some(cost) = get_cost(usage_json) {
+                usage = usage.with_cost(cost, CostSource::ProviderReported);
+            }
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage_data),
+            )?;
+            Ok(super::base::stream_from_single_message(message, usage))
+        }
+    }
+
     #[doc(hidden)]
     pub fn new(api_client: ApiClient) -> Self {
         Self {
@@ -325,7 +425,33 @@ impl OpenAiProvider {
 
     const PROVIDERS_NEEDING_STANDARD_CHAT_PARAMS: &[&str] = &["nearai"];
 
-    fn sanitize_request_for_compat(&self, mut payload: serde_json::Value) -> serde_json::Value {
+    /// Providers whose reasoning models accept an OpenAI-style
+    /// `reasoning_effort` field on chat-completions requests but aren't
+    /// matched by [`is_openai_responses_model`] (which only recognises
+    /// OpenAI's own `o*`/`gpt-5*` model names). These need the unified
+    /// [`ThinkingEffort`] mapped onto the request explicitly.
+    const PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING: &[&str] = &["meta"];
+
+    /// Maps the unified thinking effort onto Meta's Muse Spark
+    /// `reasoning_effort` levels: `low`, `medium`, `high`, `xhigh`.
+    ///
+    /// Muse Spark always reasons and has no supported "disable reasoning"
+    /// level, so `Off` is clamped to `low` (the lightest level Meta
+    /// supports) rather than sent as-is or omitted.
+    fn meta_reasoning_effort(effort: ThinkingEffort) -> &'static str {
+        match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High => "high",
+            ThinkingEffort::Max => "xhigh",
+        }
+    }
+
+    fn sanitize_request_for_compat(
+        &self,
+        mut payload: serde_json::Value,
+        model_config: &ModelConfig,
+    ) -> serde_json::Value {
         if let Some(obj) = payload.as_object_mut() {
             if Self::PROVIDERS_NEEDING_MAX_TOKENS_REMAP.contains(&self.name.as_str()) {
                 if let Some(value) = obj.remove("max_completion_tokens") {
@@ -348,6 +474,20 @@ impl OpenAiProvider {
                         {
                             message["role"] = serde_json::Value::String("system".to_string());
                         }
+                    }
+                }
+            }
+
+            if Self::PROVIDERS_NEEDING_REASONING_EFFORT_MAPPING.contains(&self.name.as_str()) {
+                match model_config.thinking_effort() {
+                    Some(effort) => {
+                        obj.insert(
+                            "reasoning_effort".to_string(),
+                            json!(Self::meta_reasoning_effort(effort)),
+                        );
+                    }
+                    None => {
+                        obj.remove("reasoning_effort");
                     }
                 }
             }
@@ -388,11 +528,7 @@ impl OpenAiProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
-        let response = self
-            .api_client
-            .request(None, &models_path)
-            .response_get()
-            .await?;
+        let response = self.api_client.request(&models_path).response_get().await?;
 
         if response.status() == StatusCode::NOT_FOUND {
             let body = response.text().await.unwrap_or_default();
@@ -408,15 +544,7 @@ impl OpenAiProvider {
             return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        parse_model_ids(&json)
     }
 
     /// llama.cpp and Ollama expose the actual allocated context window in the
@@ -427,13 +555,29 @@ impl OpenAiProvider {
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
         let response = self
             .api_client
-            .request(None, &models_path)
+            .request(&models_path)
             .response_get()
             .await
             .ok()?;
         let json = handle_response_openai_compat(response).await.ok()?;
         parse_n_ctx_from_models(&json, model_name)
     }
+}
+
+fn parse_model_ids(json: &serde_json::Value) -> Result<Vec<String>, ProviderError> {
+    let models = json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .or_else(|| json.as_array())
+        .ok_or_else(|| {
+            ProviderError::RequestFailed("Missing models array in JSON response".into())
+        })?;
+    let mut model_ids: Vec<String> = models
+        .iter()
+        .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+        .collect();
+    model_ids.sort();
+    Ok(model_ids)
 }
 
 /// Extract `meta.n_ctx` for `model_name` from a `/v1/models` response body.
@@ -515,6 +659,13 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        self.api_client
+            .refresh_credentials()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
@@ -581,65 +732,22 @@ impl Provider for OpenAiProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if self.should_use_responses_api_for_provider(&model_config.model_name) {
-            let mut payload = create_responses_request(model_config, system, messages, tools)?;
-            payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
-
-            let mut log = start_log(model_config, &payload)?;
-
-            let response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    let resp = self
-                        .api_client
-                        .response_post(
-                            Some(session_id),
-                            &Self::map_base_path(
-                                &self.base_path,
-                                "responses",
-                                OPEN_AI_DEFAULT_RESPONSES_PATH,
-                            ),
-                            &payload_clone,
-                        )
-                        .await?;
-                    handle_status(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            if self.supports_streaming {
-                stream_responses_compat(response, log)
-            } else {
-                let json: serde_json::Value = response.json().await.map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-                })?;
-
-                let responses_api_response: ResponsesApiResponse =
-                    serde_json::from_value(json.clone()).map_err(|e| {
-                        ProviderError::ExecutionError(format!(
-                            "Failed to parse responses API response: {}",
-                            e
-                        ))
-                    })?;
-
-                let message = responses_api_to_message(&responses_api_response)?;
-                let usage_data = get_responses_usage(&responses_api_response);
-                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
-
-                log.write(
-                    &serde_json::to_value(&message).unwrap_or_default(),
-                    Some(&usage_data),
-                )?;
-
-                Ok(super::base::stream_from_single_message(message, usage))
-            }
+            let (wire_model, _) =
+                crate::formats::openai::extract_reasoning_effort(&model_config.model_name);
+            self.stream_for_model(
+                model_config,
+                &wire_model,
+                &model_config.model_name,
+                system,
+                messages,
+                tools,
+            )
+            .await
         } else {
             let payload = create_request_with_options(
                 model_config,
@@ -652,14 +760,16 @@ impl Provider for OpenAiProvider {
                     preserve_thinking_context: self.preserve_thinking_context,
                 },
             )?;
-            let payload = self.sanitize_request_for_compat(payload);
+            let payload = self.sanitize_request_for_compat(payload, model_config);
             let mut log = start_log(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(Some(session_id), &self.base_path, &payload)
+                        .request(&self.base_path)
+                        .model_headers(model_config)?
+                        .response_post(&payload)
                         .await?;
                     handle_status(resp).await
                 })
@@ -679,8 +789,12 @@ impl Provider for OpenAiProvider {
                     ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
                 })?;
 
-                let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
-                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+                let usage_data = get_usage(usage_json);
+                let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                if let Some(cost) = get_cost(usage_json) {
+                    usage = usage.with_cost(cost, CostSource::ProviderReported);
+                }
 
                 log.write(
                     &serde_json::to_value(&message).unwrap_or_default(),
@@ -693,6 +807,97 @@ impl Provider for OpenAiProvider {
     }
 }
 
+pub fn from_declarative_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<OpenAiProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let normalized_base_url = ensure_url_scheme(&config.base_url);
+    let url = url::Url::parse(&normalized_base_url)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let host = url[..url::Position::BeforePath].to_string();
+    let base_path = if let Some(ref explicit_path) = config.base_path {
+        explicit_path.trim_start_matches('/').to_string()
+    } else {
+        derive_base_path(url.path())
+    };
+
+    let timeout_secs = config.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS);
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+    let mut api_client = ApiClient::with_timeout_and_tls(
+        host,
+        auth,
+        std::time::Duration::from_secs(timeout_secs),
+        tls_config,
+    )?;
+
+    if let Some(query) = url.query() {
+        let query_params = url::form_urlencoded::parse(query.as_bytes())
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        api_client = api_client.with_query(query_params);
+    }
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    Ok(OpenAiProviderBuilder::new(api_client)
+        .base_path(base_path)
+        .custom_headers(config.headers)
+        .supports_streaming(config.supports_streaming.unwrap_or(true))
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering)
+        .preserve_thinking_context(config.preserves_thinking))
+}
+
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
     s.split(',')
         .filter_map(|header| {
@@ -702,6 +907,26 @@ pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
             Some((key, value))
         })
         .collect()
+}
+
+pub fn derive_base_path(url_path: &str) -> String {
+    let stripped = url_path.trim_start_matches('/');
+    let normalized = stripped.trim_end_matches('/');
+    if normalized.is_empty() {
+        "v1/chat/completions".to_string()
+    } else if normalized.ends_with("chat/completions") {
+        stripped.to_string()
+    } else if ends_with_version_segment(normalized) {
+        format!("{}/chat/completions", normalized)
+    } else {
+        format!("{}/v1/chat/completions", normalized)
+    }
+}
+
+fn ends_with_version_segment(path: &str) -> bool {
+    let last = path.rsplit('/').next().unwrap_or(path);
+    last.strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -741,7 +966,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("mistral-medium-latest"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("max_completion_tokens"));
@@ -758,7 +984,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("mistral-medium-latest"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("max_completion_tokens"));
@@ -774,7 +1001,7 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider.sanitize_request_for_compat(payload, &ModelConfig::new("o3"));
         let obj = result.as_object().unwrap();
 
         assert!(obj.contains_key("max_completion_tokens"));
@@ -790,7 +1017,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result =
+            provider.sanitize_request_for_compat(payload, &ModelConfig::new("future-model"));
         let obj = result.as_object().unwrap();
 
         assert!(obj.contains_key("max_completion_tokens"));
@@ -805,7 +1033,10 @@ mod tests {
             "messages": []
         });
 
-        let result = provider.sanitize_request_for_compat(payload.clone());
+        let result = provider.sanitize_request_for_compat(
+            payload.clone(),
+            &ModelConfig::new("llama-3.3-70b-versatile"),
+        );
         assert_eq!(result, payload);
     }
 
@@ -828,7 +1059,8 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result = provider
+            .sanitize_request_for_compat(payload, &ModelConfig::new("Qwen/Qwen3.6-35B-A3B-FP8"));
         let obj = result.as_object().unwrap();
 
         assert!(!obj.contains_key("reasoning_effort"));
@@ -848,12 +1080,80 @@ mod tests {
             "max_completion_tokens": 16384
         });
 
-        let result = provider.sanitize_request_for_compat(payload);
+        let result =
+            provider.sanitize_request_for_compat(payload, &ModelConfig::new("openai/gpt-5"));
         let obj = result.as_object().unwrap();
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
         assert!(!obj.contains_key("max_completion_tokens"));
         assert_eq!(obj.get("max_tokens").unwrap(), &json!(16384));
+    }
+
+    #[test]
+    fn sanitize_meta_applies_reasoning_effort_from_thinking_effort() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::High);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("high")));
+    }
+
+    #[test]
+    fn sanitize_meta_maps_max_thinking_effort_to_xhigh() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::Max);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("xhigh")));
+    }
+
+    #[test]
+    fn sanitize_meta_clamps_off_thinking_effort_to_low() {
+        // Muse Spark always reasons and has no "disable reasoning" level,
+        // so an explicit `Off` must be clamped to the lightest supported
+        // level rather than omitted or sent as-is.
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": [],
+            "reasoning_effort": "high"
+        });
+        let model_config =
+            ModelConfig::new("muse-spark-1.1").with_thinking_effort(ThinkingEffort::Off);
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("low")));
+    }
+
+    #[test]
+    fn sanitize_meta_omits_reasoning_effort_when_unset() {
+        let provider = make_provider("meta");
+        let payload = json!({
+            "model": "muse-spark-1.1",
+            "messages": []
+        });
+        let model_config = ModelConfig::new("muse-spark-1.1");
+
+        let result = provider.sanitize_request_for_compat(payload, &model_config);
+        let obj = result.as_object().unwrap();
+
+        assert!(!obj.contains_key("reasoning_effort"));
     }
 
     #[test]
@@ -869,6 +1169,8 @@ mod tests {
         for (model_name, base_path, expected) in [
             ("gpt-5.4", "v1/chat/completions", true),
             ("gpt-5.4-xhigh", "v1/chat/completions", true),
+            ("gpt-5.6-sol", "v1/chat/completions", true),
+            ("gpt-5.6-terra-xhigh", "v1/chat/completions", true),
             ("gpt-5.2-pro-2025-12-11", "v1/chat/completions", true),
             ("gpt-4o", "v1/chat/completions", false),
             ("gpt-5.2-codex", "openai/v1/chat/completions", false),
@@ -896,6 +1198,36 @@ mod tests {
         let models_path =
             OpenAiProvider::map_base_path("openai/v1/responses", "models", "v1/models");
         assert_eq!(models_path, "openai/v1/models");
+    }
+
+    #[test]
+    fn parse_model_ids_accepts_openai_response() {
+        let response = json!({"data": [{"id": "model-b"}, {"id": "model-a"}]});
+
+        assert_eq!(parse_model_ids(&response).unwrap(), ["model-a", "model-b"]);
+    }
+
+    #[test]
+    fn parse_model_ids_accepts_together_response() {
+        let response = json!([
+            {"id": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "type": "chat"},
+            {"id": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8", "type": "code"}
+        ]);
+
+        assert_eq!(
+            parse_model_ids(&response).unwrap(),
+            [
+                "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+                "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_model_ids_rejects_unknown_response() {
+        let response = json!({"models": []});
+
+        assert!(parse_model_ids(&response).is_err());
     }
 
     #[test]
@@ -956,6 +1288,60 @@ mod tests {
         );
     }
 
+    fn custom_config(base_url: &str) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "test-openai".to_string(),
+            engine: crate::declarative::ProviderEngine::OpenAI,
+            display_name: "Test OpenAI".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: base_url.to_string(),
+            models: vec![crate::base::ModelInfo::new("test-model", 4096)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models: Some(false),
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[test]
+    fn from_custom_config_preserves_ipv6_authority() {
+        let provider = from_declarative_config(
+            custom_config("http://[::1]:1234/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(provider.api_client.host(), "http://[::1]:1234");
+    }
+
+    #[test]
+    fn from_custom_config_preserves_userinfo_authority() {
+        let provider = from_declarative_config(
+            custom_config("https://user:pass@gateway.example/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.api_client.host(),
+            "https://user:pass@gateway.example"
+        );
+    }
+
     #[test]
     fn parse_n_ctx_falls_back_to_sole_entry_when_id_differs() {
         let body = json!({
@@ -975,5 +1361,38 @@ mod tests {
             ]
         });
         assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
+    }
+
+    #[test]
+    fn derive_base_path_not_removing_api_path() {
+        let r = derive_base_path("https://opencode.ai/zen/go");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_v1() {
+        let r = derive_base_path("https://opencode.ai/zen/go/v1");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_no_base_path() {
+        let r = derive_base_path("https://opencode.ai/");
+        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_preserves_non_v1_version_prefix() {
+        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
+        // from_custom_config passes url.path() ("/api/paas/v4") here. The
+        // existing /api/paas/v4 version must not gain an extra /v1 segment.
+        let r = derive_base_path("/api/paas/v4");
+        assert_eq!(r, "api/paas/v4/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_does_not_treat_v_word_as_version() {
+        let r = derive_base_path("/api/voice");
+        assert_eq!(r, "api/voice/v1/chat/completions");
     }
 }

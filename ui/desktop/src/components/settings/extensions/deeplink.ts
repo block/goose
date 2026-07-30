@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { toastService } from '../../../toasts';
 import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
 
@@ -19,9 +19,8 @@ function getStdioConfig(
     'jbang',
     'npx',
     'uvx',
-    'goosed',
+    'goose',
     'npx.cmd',
-    'i-ching-mcp-server',
   ];
   if (!allowedCommands.includes(cmd)) {
     toastService.handleError(

@@ -44,9 +44,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
 use serde_json::{json, Value};
-use std::ops::Deref;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -581,7 +580,7 @@ impl LocalInterpreter {
 
         let request_messages = vec![Message::user().with_text(format_instruction)];
         let mut stream = provider
-            .stream(&model_config, "toolshim-local", "", &request_messages, &[])
+            .stream(&model_config, "", &request_messages, &[])
             .await?;
 
         let mut content = String::new();
@@ -922,8 +921,8 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                                 let text_contents: Vec<String> = result
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
                                         _ => None,
                                     })
                                     .collect();

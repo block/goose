@@ -1,6 +1,10 @@
 import type { Stream } from '@aaif/goose-sdk';
 
-export function createWebSocketStream(wsUrl: string): Stream {
+export type ClosableAcpStream = Stream & {
+  close: () => void;
+};
+
+export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
   const ws = new window.WebSocket(wsUrl);
 
   const incoming: unknown[] = [];
@@ -24,6 +28,11 @@ export function createWebSocketStream(wsUrl: string): Stream {
     ws.addEventListener('error', () => reject(new Error('ACP WebSocket connection failed')), {
       once: true,
     });
+    ws.addEventListener(
+      'close',
+      () => reject(new Error('ACP WebSocket closed before connection opened')),
+      { once: true }
+    );
   });
 
   ws.addEventListener('message', (event) => {
@@ -63,6 +72,9 @@ export function createWebSocketStream(wsUrl: string): Stream {
   const writable = new window.WritableStream({
     async write(message) {
       await openPromise;
+      if (closed || ws.readyState !== window.WebSocket.OPEN) {
+        throw new Error('ACP WebSocket connection lost');
+      }
       ws.send(JSON.stringify(message));
     },
     close() {
@@ -73,5 +85,9 @@ export function createWebSocketStream(wsUrl: string): Stream {
     },
   });
 
-  return { readable, writable } as Stream;
+  return {
+    readable,
+    writable,
+    close: () => ws.close(),
+  } as ClosableAcpStream;
 }

@@ -1,5 +1,5 @@
-import { Session, ExtensionConfig } from './api';
-import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
+import type { Session } from './types/session';
+import type { ExtensionConfig } from './types/extensions';
 import type { setViewType } from './hooks/useNavigation';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
@@ -13,32 +13,7 @@ export function getSessionDisplayName(session: Session): string {
   if (session.recipe?.title) {
     return session.recipe.title;
   }
-  if (shouldShowNewChatTitle(session)) {
-    return DEFAULT_CHAT_TITLE;
-  }
   return session.name;
-}
-
-export function shouldShowNewChatTitle(session: Session): boolean {
-  return !session.user_set_name && session.message_count === 0 && !session.recipe?.title;
-}
-
-export function resumeSession(session: Session, setView: setViewType) {
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage: undefined,
-  };
-
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
-    })
-  );
-
-  setView('pair', {
-    disableAnimation: true,
-    resumeSessionId: session.id,
-  });
 }
 
 interface CreateSessionOptions {

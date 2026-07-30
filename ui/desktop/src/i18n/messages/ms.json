@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Apl tersuai"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplikasi daripada pelayan MCP anda dan Apl yang dibina oleh goose sendiri. Anda boleh memintanya mencipta apl baharu melalui antara muka sembang dan ia akan muncul di sini."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Ralat memuatkan apl: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import Apl"
@@ -40,6 +49,12 @@
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "Tiada apl tersedia"
+  },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
   },
   "appsView.retry": {
     "defaultMessage": "Cuba semula"
@@ -115,6 +130,9 @@
   },
   "baseChat.goHome": {
     "defaultMessage": "Pergi ke laman utama"
+  },
+  "baseChat.reconnecting": {
+    "defaultMessage": "Sambungan terputus. Menyambung semula…"
   },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Sambungan Dikemas Kini"
@@ -1169,6 +1187,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Secara lalai goose melancarkan pelayan untuk anda, gunakan ini untuk menyambung ke pelayan goose luaran"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Perubahan memerlukan memulakan semula Goose untuk berkuat kuasa. Tetingkap sembang baharu akan menyambung ke pelayan luaran."
   },
@@ -1176,7 +1197,7 @@
     "defaultMessage": "Kunci Rahsia"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Kunci rahsia yang dikonfigurasikan pada pelayan goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Kunci rahsia yang dikonfigurasikan pada pelayan Goose (GOOSE_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Masukkan kunci rahsia pelayan"
@@ -1184,8 +1205,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL Pelayan"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Pelayan Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Format URL tidak sah"
@@ -1198,36 +1225,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Sambung ke pelayan goose yang berjalan di tempat lain (memerlukan memulakan semula aplikasi)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Pilih satu pilihan untuk bermula."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Percuma & Peribadi"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Guna Model Tempatan"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Daftar untuk menerima 60J token percuma selama 7 hari."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Cuba Semula"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Akses pelbagai model AI dengan persediaan automatik. Daftar untuk menerima kredit $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router oleh Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Ralat tidak dijangka berlaku semasa persediaan."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
@@ -1751,11 +1748,17 @@
   "localInferenceSettings.downloading": {
     "defaultMessage": "Memuat turun"
   },
+  "localInferenceSettings.evictFromMemory": {
+    "defaultMessage": "Evict from memory"
+  },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Model Pilihan"
   },
   "localInferenceSettings.huggingFaceSignInNote": {
     "defaultMessage": "Log masuk untuk meningkatkan had kadar semasa mencari dan memuat turun model, dan untuk mengakses repositori Hugging Face peribadi atau berpagar."
+  },
+  "localInferenceSettings.loadedInMemory": {
+    "defaultMessage": "Loaded in memory"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Tetapan Model"
@@ -1822,9 +1825,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Tunjukkan yang disyorkan sahaja"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Kembali"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Terbaik untuk mesin anda"
@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Bermain dalam Gambar-dalam-Gambar"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Batal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Pautan Luaran"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Buka pautan {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Mesej diterima untuk {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Mesej MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Mesej diterima untuk {message}. Mesej {messageType} belum disokong lagi, rujuk konsol untuk butiran lanjut."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item dijumpai} other{# item dijumpai}}"
   },
@@ -2053,6 +2029,51 @@
   },
   "messageQueue.waiting": {
     "defaultMessage": "menunggu"
+  },
+  "messageUsageStats.cacheHitRate": {
+    "defaultMessage": "({percent}% daripada input)"
+  },
+  "messageUsageStats.cacheRead": {
+    "defaultMessage": "baca cache"
+  },
+  "messageUsageStats.cacheWrite": {
+    "defaultMessage": "tulis cache"
+  },
+  "messageUsageStats.compaction": {
+    "defaultMessage": "Pemadatan"
+  },
+  "messageUsageStats.cost": {
+    "defaultMessage": "Kos"
+  },
+  "messageUsageStats.estimated": {
+    "defaultMessage": "(anggaran)"
+  },
+  "messageUsageStats.firstToken": {
+    "defaultMessage": "Token pertama"
+  },
+  "messageUsageStats.input": {
+    "defaultMessage": "Input"
+  },
+  "messageUsageStats.output": {
+    "defaultMessage": "Output"
+  },
+  "messageUsageStats.reported": {
+    "defaultMessage": "(dilaporkan)"
+  },
+  "messageUsageStats.speed": {
+    "defaultMessage": "Kelajuan"
+  },
+  "messageUsageStats.tokenUnit": {
+    "defaultMessage": "tok"
+  },
+  "messageUsageStats.tokensPerSecondUnit": {
+    "defaultMessage": "tok/s"
+  },
+  "messageUsageStats.total": {
+    "defaultMessage": "Jumlah"
+  },
+  "messageUsageStats.totalTime": {
+    "defaultMessage": "Jumlah masa"
   },
   "microphoneSelector.chooseDescription": {
     "defaultMessage": "Pilih mikrofon yang hendak digunakan untuk imlak"
@@ -2795,6 +2816,12 @@
   "providerGrid.fromTemplateOrManual": {
     "defaultMessage": "Daripada templat atau persediaan manual"
   },
+  "providerGrid.noMatch": {
+    "defaultMessage": "Tiada penyedia yang sepadan dengan \"{query}\""
+  },
+  "providerGrid.searchPlaceholder": {
+    "defaultMessage": "Cari penyedia..."
+  },
   "providerLogo.alt": {
     "defaultMessage": "Logo {providerName}"
   },
@@ -2810,14 +2837,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Sambung OpenAI, Anthropic, Google, dll"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Gunakan model setempat atau penyedia dengan kredit percuma"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Pilih penyedia"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Gunakan Penyedia Percuma/Setempat"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Guna Model Tempatan"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Tetapan Konfigurasi Penyedia"
@@ -2998,12 +3025,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Gunakan penyedia lalai"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nama Resipi"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Akan diformat secara automatik (huruf kecil, sengkang untuk ruang)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Batal"
@@ -3635,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON sesi disalin"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Teks disalin"
   },
@@ -3665,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Memuatkan JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Gagal menamakan semula sesi: {error}"
   },
@@ -3689,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Lihat JSON sesi"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "Sesi mengalami ralat"
   },
@@ -3697,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Sesi ini tidak mengandungi sebarang mesej"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Tiada mesej ditemui"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ralat Memuatkan Butiran Sesi"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Cuba Lagi"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Anda"
   },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
@@ -4025,6 +4040,9 @@
   "settingsView.tabChat": {
     "defaultMessage": "Sembang"
   },
+  "settingsView.tabExternalBackend": {
+    "defaultMessage": "Backend Luaran"
+  },
   "settingsView.tabKeyboard": {
     "defaultMessage": "Papan Kekunci"
   },
@@ -4037,14 +4055,8 @@
   "settingsView.tabPrompts": {
     "defaultMessage": "Gesaan"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "Sesi"
-  },
   "settingsView.title": {
     "defaultMessage": "Tetapan"
-  },
-  "sheet.close": {
-    "defaultMessage": "Tutup"
   },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Batal"
@@ -4111,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Penyedia {name} telah dikonfigurasikan"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Aplikasi Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Untuk menggunakannya, sama ada"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "mesti dipasang pada mesin anda dan dibuka, atau anda mesti memasukkan nilai untuk OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Tambah Sedia Ada"
@@ -4429,9 +4432,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Log"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI adalah eksperimen dan boleh berubah pada bila-bila masa."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

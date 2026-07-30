@@ -8,10 +8,10 @@ use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use tracing_futures::Instrument;
-use uuid::Uuid;
 
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
+use super::gen_ai_telemetry;
 use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
@@ -34,7 +34,7 @@ use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
-    ActionRequiredData, InferenceMetadata, Message, MessageContent, ProviderMetadata,
+    ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType, ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
@@ -53,11 +53,12 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
+use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    CallToolRequestParams, CallToolResult, ContentBlock, ElicitationAction, ErrorCode, ErrorData,
     GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -67,8 +68,11 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const DEFAULT_STOP_HOOK_BLOCK_CAP: u32 = 8;
-const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+const COMPACTION_PROGRESS_TEXT: &str = "goose is compacting the conversation...";
 const MAX_TURNS_MESSAGE: &str = "I've reached the maximum number of actions I can do without user input. Would you like me to continue?";
+const MAX_EMPTY_TURN_RETRIES: u32 = 3;
+const EMPTY_TURN_MESSAGE: &str =
+    "The model returned an empty response. Please resend your message to continue.";
 const DEFAULT_FRONTEND_INSTRUCTIONS: &str = "The following tools are provided directly by the frontend and will be executed by the frontend when called.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,7 +152,7 @@ pub struct ToolCategorizeResult {
     pub filtered_response: Message,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ExtensionLoadResult {
     pub name: String,
     pub success: bool,
@@ -264,8 +268,79 @@ pub struct Agent {
 pub enum AgentEvent {
     Message(Message),
     Usage(crate::providers::base::ProviderUsage),
+    MessageUsage {
+        message_id: Option<String>,
+        usage: MessageUsage,
+    },
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
+}
+
+fn ensure_message_event_id(event: AgentEvent) -> AgentEvent {
+    match event {
+        AgentEvent::Message(message) => AgentEvent::Message(message.with_generated_id_if_missing()),
+        other => other,
+    }
+}
+
+fn push_message_with_id(messages: &mut Conversation, message: Message) -> Message {
+    let message = message.with_generated_id_if_missing();
+    messages.push(message.clone());
+    message
+}
+
+async fn persist_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    message: Message,
+) -> Result<Message> {
+    let message = message.with_generated_id_if_missing();
+    session_manager.add_message(session_id, &message).await?;
+    Ok(message)
+}
+
+async fn persist_and_push_message_with_id(
+    session_manager: &SessionManager,
+    session_id: &str,
+    conversation: &mut Conversation,
+    message: Message,
+) -> Result<Message> {
+    let message = persist_message_with_id(session_manager, session_id, message).await?;
+    conversation.push(message.clone());
+    Ok(message)
+}
+
+fn project_message_for_user_event(message: &Message) -> Message {
+    message.user_visible_content()
+}
+
+fn agent_visible_message_text(message: &Message) -> String {
+    message.agent_visible_content().as_concat_text()
+}
+
+fn attach_turn_usage(
+    messages: &mut Conversation,
+    usage: &ProviderUsage,
+    preferred_message_id: Option<&str>,
+) -> Option<(Option<String>, MessageUsage)> {
+    let message_index = preferred_message_id
+        .and_then(|preferred_message_id| {
+            messages.messages().iter().rposition(|message| {
+                message.role == rmcp::model::Role::Assistant
+                    && message.id.as_deref() == Some(preferred_message_id)
+            })
+        })
+        .or_else(|| {
+            messages
+                .messages()
+                .iter()
+                .rposition(|message| message.role == rmcp::model::Role::Assistant)
+        })?;
+    let message = &mut messages.messages_mut()[message_index];
+    let has_user_visible_content = !message.user_visible_content().content.is_empty();
+    let message_usage = MessageUsage::from_provider_usage(usage, false);
+    message.metadata.usage = Some(Box::new(message_usage.clone()));
+    has_user_visible_content.then(|| (message.id.clone(), message_usage))
 }
 
 impl Default for Agent {
@@ -428,19 +503,26 @@ impl Agent {
     fn stop_hook_context(
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookContext {
         crate::hooks::HookContext::new(crate::hooks::HookEvent::Stop, session_id)
             .with_last_assistant_message(last_assistant_message.to_string())
+            .with_working_dir(working_dir.to_string())
     }
 
-    async fn emit_stop_hook(&self, session_id: &str, last_assistant_message: &str) {
+    async fn emit_stop_hook(
+        &self,
+        session_id: &str,
+        last_assistant_message: &str,
+        working_dir: &str,
+    ) {
         if !self.hook_manager.has_hooks(crate::hooks::HookEvent::Stop) {
             return;
         }
         self.hook_manager
             .emit(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await;
     }
@@ -449,11 +531,12 @@ impl Agent {
         &self,
         session_id: &str,
         last_assistant_message: &str,
+        working_dir: &str,
     ) -> crate::hooks::HookDecision {
         self.hook_manager
             .emit_blocking(
                 crate::hooks::HookEvent::Stop,
-                Self::stop_hook_context(session_id, last_assistant_message),
+                Self::stop_hook_context(session_id, last_assistant_message, working_dir),
             )
             .await
     }
@@ -562,10 +645,21 @@ impl Agent {
             .as_ref()
             .map(|a| serde_json::Value::Object(a.clone()));
         let category = categorize_tool(&tool_name);
+        let span = tracing::Span::current();
+        let capture_message_content = gen_ai_telemetry::capture_message_content();
 
         let fut = async move {
             let processed_result =
                 super::large_response_handler::process_tool_response(result.result.await);
+            if capture_message_content {
+                let output = gen_ai_telemetry::tool_result_json(&processed_result);
+                span.record("output", output.as_str());
+                if let Some(result) =
+                    gen_ai_telemetry::successful_tool_result_json(&processed_result)
+                {
+                    span.record("gen_ai.tool.call.result", result.as_str());
+                }
+            }
             let event = match &processed_result {
                 Ok(call_result) if call_result.is_error != Some(true) => {
                     crate::hooks::HookEvent::PostToolUse
@@ -668,23 +762,15 @@ impl Agent {
         messages: &mut Conversation,
         session_config: &SessionConfig,
         initial_messages: &[Message],
-    ) -> Result<bool> {
-        let result = self
-            .retry_manager
+    ) -> Result<RetryResult> {
+        self.retry_manager
             .handle_retry_logic(
                 messages,
                 session_config,
                 initial_messages,
                 &self.final_output_tool,
             )
-            .await?;
-
-        match result {
-            RetryResult::Retried => Ok(true),
-            RetryResult::Skipped
-            | RetryResult::MaxAttemptsReached
-            | RetryResult::SuccessChecksPassed => Ok(false),
-        }
+            .await
     }
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
@@ -725,10 +811,6 @@ impl Agent {
             .await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
-
-        if goose_mode == GooseMode::SmartApprove {
-            self.tool_inspection_manager.apply_tool_annotations(&tools);
-        }
 
         let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
         {
@@ -833,9 +915,9 @@ impl Agent {
             if let Some(response) = request_to_response_map.get_mut(&request.id) {
                 response.add_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
-                        DECLINED_RESPONSE,
-                    )])),
+                    Ok(CallToolResult::error(vec![
+                        rmcp::model::ContentBlock::text(DECLINED_RESPONSE),
+                    ])),
                     request.metadata.as_ref(),
                 );
             }
@@ -1028,7 +1110,20 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(input, output, session.id = %session.id))]
+    #[instrument(
+        skip(self, tool_call, request_id, cancellation_token, session),
+        fields(
+            input,
+            output,
+            session.id = %session.id,
+            gen_ai.conversation.id = %session.id,
+            gen_ai.operation.name = "execute_tool",
+            gen_ai.tool.name = %tool_call.name,
+            gen_ai.tool.call.id = %request_id,
+            gen_ai.tool.call.arguments = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        )
+    )]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -1041,6 +1136,17 @@ impl Agent {
             "arguments": tool_call.arguments,
         });
         tracing::Span::current().record("input", tracing::field::display(&input_summary));
+        if gen_ai_telemetry::capture_message_content() {
+            let arguments = tool_call
+                .arguments
+                .as_ref()
+                .map(|arguments| Value::Object(arguments.clone()))
+                .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+            tracing::Span::current().record(
+                "gen_ai.tool.call.arguments",
+                tracing::field::display(arguments),
+            );
+        }
 
         self.prompt_manager
             .lock()
@@ -1525,9 +1631,25 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let events = self
+            .reply_impl(user_message, session_config, cancel_token)
+            .await?;
+
+        // This is the single live-event identity boundary. Callers that intentionally stream
+        // multiple events for one logical message must assign their shared ID before this point.
+        Ok(Box::pin(events.map_ok(ensure_message_event_id)))
+    }
+
+    async fn reply_impl(
+        &self,
+        user_message: Message,
+        session_config: SessionConfig,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let user_message = user_message.with_generated_id_if_missing();
         let session_manager = self.config.session_manager.clone();
 
-        let message_text_for_trace = user_message.as_concat_text();
+        let message_text_for_trace = agent_visible_message_text(&user_message);
         tracing::Span::current().record("user_message", message_text_for_trace.as_str());
         tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
 
@@ -1549,6 +1671,7 @@ impl Agent {
                         ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
                         ElicitationAction::Decline => ElicitationOutcome::Decline,
                         ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                        _ => ElicitationOutcome::Cancel,
                     };
                     crate::elicitation::complete_elicitation_with_message(
                         &session_manager,
@@ -1567,7 +1690,37 @@ impl Agent {
             }
         }
 
-        let message_text = user_message.as_concat_text();
+        let message_text = message_text_for_trace;
+
+        let session = session_manager
+            .get_session(&session_config.id, true)
+            .await?;
+        let is_first_agent_turn = session
+            .conversation
+            .as_ref()
+            .map(|conversation| {
+                conversation.messages().iter().all(|message| {
+                    !message.is_agent_visible()
+                        || message.agent_visible_content().content.is_empty()
+                })
+            })
+            .unwrap_or(true);
+
+        if !user_message.is_agent_visible()
+            || user_message.agent_visible_content().content.is_empty()
+        {
+            let user_visibility = user_message.is_user_visible();
+            let user_message = user_message.with_visibility(user_visibility, false);
+            session_manager
+                .add_message(&session_config.id, &user_message)
+                .await?;
+            return Ok(Box::pin(futures::stream::empty()));
+        }
+
+        if is_first_agent_turn {
+            self.emit_hook(crate::hooks::HookEvent::SessionStart, &session_config.id)
+                .await;
+        }
 
         if self
             .hook_manager
@@ -1602,6 +1755,8 @@ impl Agent {
                 if response.role == rmcp::model::Role::Assistant
                     && crate::agents::execute_commands::command_starts_turn(&message_text) =>
             {
+                let response = response.with_generated_id_if_missing();
+
                 // Setting a goal/grind should immediately start a turn so the
                 // agent begins pursuing it, rather than waiting for the next
                 // user prompt. Record the command and its confirmation as
@@ -1637,6 +1792,8 @@ impl Agent {
                 ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
+                let response = response.with_generated_id_if_missing();
+
                 session_manager
                     .add_message(
                         &session_config.id,
@@ -1737,8 +1894,8 @@ impl Agent {
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
-                        SystemNotificationType::ThinkingMessage,
-                        COMPACTION_THINKING_TEXT,
+                        SystemNotificationType::ProgressMessage,
+                        COMPACTION_PROGRESS_TEXT,
                     )
                 );
 
@@ -1752,9 +1909,10 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok(compaction) => {
+                        let compacted_conversation = compaction.conversation;
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1876,6 +2034,8 @@ impl Agent {
                     .unwrap_or(DEFAULT_MAX_TURNS)
             });
             let mut compaction_attempts = 0;
+            let mut empty_turn_retries = 0u32;
+            let mut retrying_after_empty_turn = false;
             let mut last_assistant_text = String::new();
             let mut goal_check_pending = false;
             let mut tool_pair_summarization_done = false;
@@ -1884,6 +2044,11 @@ impl Agent {
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
             let mut can_drain_pending_steers = false;
+            let turn_start = chrono::Local::now();
+            let turn_start_compaction_info =
+                super::moim::compute_compaction_info(&session_config.id, &self.extension_manager)
+                    .await;
+            let turn_start_turns_taken = turns_taken;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1892,7 +2057,7 @@ impl Agent {
 
                 if can_drain_pending_steers {
                     for message in self.drain_pending_steers(&session_config.id).await {
-                        let message_text = message.as_concat_text();
+                        let message_text = agent_visible_message_text(&message);
                         if self
                             .hook_manager
                             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
@@ -1906,8 +2071,13 @@ impl Agent {
                                 .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
                                 .await;
                         }
-                        session_manager.add_message(&session_config.id, &message).await?;
-                        conversation.push(message.clone());
+                        let message = persist_and_push_message_with_id(
+                            &session_manager,
+                            &session_config.id,
+                            &mut conversation,
+                            message,
+                        )
+                        .await?;
                         yield AgentEvent::Message(message);
                     }
                 }
@@ -1918,13 +2088,15 @@ impl Agent {
                 };
                 if let Some(output) = final_output {
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
+                    let message = Message::assistant()
+                        .with_text(output)
+                        .with_generated_id_if_missing();
                     yield AgentEvent::Message(message.clone());
                     session_manager.add_message(&session_config.id, &message).await?;
                     conversation.push(message);
 
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -1934,15 +2106,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                             continue;
@@ -1952,6 +2132,8 @@ impl Agent {
 
                 if retrying_after_stop_hook_denial {
                     retrying_after_stop_hook_denial = false;
+                } else if retrying_after_empty_turn {
+                    retrying_after_empty_turn = false;
                 } else {
                     turns_taken += 1;
                 }
@@ -1965,9 +2147,12 @@ impl Agent {
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
-                    turns_taken,
+                    turn_start_turns_taken,
                     max_turns,
-                ).await;
+                    turn_start,
+                    turn_start_compaction_info.clone(),
+                )
+                .await;
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
@@ -2004,7 +2189,11 @@ impl Agent {
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
                 let mut exit_chat = false;
+                let mut provider_errored = false;
+                let mut provider_produced_content = false;
                 let mut pending_final_output: Option<String> = None;
+                let mut pending_turn_usage: Option<ProviderUsage> = None;
+                let mut preferred_turn_usage_message_id: Option<String> = None;
 
                 // Track whether this provider turn has already emitted visible
                 // thinking so a later tool-call chunk can suppress replayed
@@ -2021,11 +2210,41 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
-                                yield AgentEvent::Usage(usage.clone());
+                                let enriched = self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, None).await?;
+                                yield AgentEvent::Usage(enriched.clone());
+                                pending_turn_usage = Some(enriched);
                             }
 
                             if let Some(response) = response {
+                                if !response.content.is_empty()
+                                    && response
+                                    .content
+                                    .iter()
+                                    .all(|content| matches!(content, MessageContent::SystemNotification(_)))
+                                {
+                                    yield AgentEvent::Message(response);
+                                    tokio::task::yield_now().await;
+                                    continue;
+                                }
+
+                                provider_produced_content |= response.content.iter().any(|content| {
+                                    match content {
+                                        MessageContent::Text(text) => !text.text.is_empty(),
+                                        MessageContent::Image(image) => !image.data.is_empty(),
+                                        MessageContent::Thinking(thinking) => {
+                                            !thinking.thinking.is_empty()
+                                                || !thinking.signature.is_empty()
+                                        }
+                                        MessageContent::RedactedThinking(thinking) => {
+                                            !thinking.data.is_empty()
+                                        }
+                                        MessageContent::SystemNotification(notification) => {
+                                            !notification.msg.is_empty()
+                                        }
+                                        _ => true,
+                                    }
+                                });
+
                                 let ToolCategorizeResult {
                                     frontend_requests,
                                     remaining_requests,
@@ -2059,8 +2278,10 @@ impl Agent {
                                     },
                                 );
 
-                                yield AgentEvent::Message(filtered_response.clone());
-                                tokio::task::yield_now().await;
+                                if !filtered_response.content.is_empty() {
+                                    yield AgentEvent::Message(filtered_response.clone());
+                                    tokio::task::yield_now().await;
+                                }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
@@ -2103,7 +2324,7 @@ impl Agent {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
                                             response.add_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
+                                                Ok(CallToolResult::success(vec![ContentBlock::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }
@@ -2188,10 +2409,8 @@ impl Agent {
                                                 match tool_item {
                                                     Some((request_id, item)) => {
                                                         match item {
-                                                            ToolStreamItem::ActionRequired(mut msg) => {
-                                                                if msg.id.is_none() {
-                                                                    msg = msg.with_generated_id();
-                                                                }
+                                                            ToolStreamItem::ActionRequired(msg) => {
+                                                                let msg = msg.with_generated_id_if_missing();
                                                                 if let Err(e) = session_manager.add_message(&session_config.id, &msg).await {
                                                                     warn!("Failed to save elicitation message to session: {}", e);
                                                                 }
@@ -2246,9 +2465,16 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking/reasoning content from the original response.
-                                // Gemini (and other thinking models) require thinking to be echoed back.
-                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages.
+                                // Thinking/reasoning belongs on the tool-call messages, not also
+                                // as a separate standalone message: Gemini and Kimi/DeepSeek
+                                // require it echoed on each assistant tool-call message, and the
+                                // provider formatters reconstruct per-provider shape from there.
+                                // Storing it both standalone AND on the tool-call message
+                                // duplicates it; once merge_consecutive_messages glues the adjacent
+                                // standalone and tool-call messages together, the duplicate signed
+                                // blocks make Anthropic reject the turn with a 400. So the thinking
+                                // is carried onto the split request messages below and never kept
+                                // as a redundant standalone message.
                                 let direct_thinking: Vec<MessageContent> = response
                                     .content
                                     .iter()
@@ -2261,43 +2487,123 @@ impl Agent {
                                     })
                                     .cloned()
                                     .collect();
-                                if !direct_thinking.is_empty() {
-                                    let thinking_msg = Message::new(
-                                        response.role.clone(),
-                                        response.created,
-                                        direct_thinking.clone(),
-                                    )
-                                    .with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
-                                }
-                                // When thinking arrived in an earlier stream chunk (stored as a
-                                // thinking-only message) and this chunk has only tool calls,
-                                // reuse that thinking so each split request_msg carries it.
-                                let response_thinking = if direct_thinking.is_empty() {
-                                    messages_to_add
-                                        .messages()
-                                        .iter()
-                                        .rev()
-                                        .find(|m| {
-                                            m.role == response.role
-                                                && !m.content.is_empty()
-                                                && m.content.iter().all(|c| {
-                                                    matches!(
-                                                        c,
-                                                        MessageContent::Thinking(_)
-                                                            | MessageContent::RedactedThinking(_)
-                                                    )
-                                                })
+                                // When thinking arrived in earlier stream chunks it was stored as
+                                // standalone thinking-only messages; reuse that thinking on the
+                                // tool-call messages and drop the standalone messages so the
+                                // thinking isn't duplicated.
+                                // Always accumulate ALL prior thinking — even when
+                                // direct_thinking is non-empty (reasoning arrived on the same
+                                // chunk as tool_calls) — because otherwise only the last chunk's
+                                // reasoning ends up on split tool-call messages.
+                                // Also extract thinking from mixed (thinking+text) messages,
+                                // not just pure-thinking-only ones.
+                                let mut accumulated_prior: Vec<MessageContent> = Vec::new();
+                                let mut indices_to_remove: Vec<usize> = Vec::new();
+                                for (idx, m) in messages_to_add.messages_mut().iter_mut().enumerate()
+                                {
+                                    if m.role != response.role || m.content.is_empty() {
+                                        continue;
+                                    }
+                                    let thinking_only = m.content.iter().all(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    let has_thinking = m.content.iter().any(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    });
+                                    if has_thinking {
+                                        // Only accumulate thinking from messages that
+                                        // have not already been split into tool-call
+                                        // request_msg items — prior-split messages
+                                        // already carry their own thinking copy.
+                                        if !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
+                                        }) {
+                                            for c in &m.content {
+                                                if matches!(
+                                                    c,
+                                                    MessageContent::Thinking(_)
+                                                        | MessageContent::RedactedThinking(_)
+                                                ) {
+                                                    accumulated_prior.push(c.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if thinking_only {
+                                        indices_to_remove.push(idx);
+                                    } else if has_thinking
+                                        && !m.content.iter().any(|c| {
+                                            matches!(c, MessageContent::ToolRequest(_))
                                         })
-                                        .map(|m| m.content.clone())
-                                        .unwrap_or_default()
-                                } else {
+                                    {
+                                        // Strip thinking blocks from mixed text+thinking
+                                        // messages so the same signed/unsigned thinking is not
+                                        // duplicated when carried onto the tool-call request
+                                        // messages below. Messages that already contain tool
+                                        // requests are prior-split request_msg items whose
+                                        // thinking was already attached — stripping their
+                                        // thinking would leave only the last split message
+                                        // with reasoning, violating the signed-thinking
+                                        // dedup expectation that the first split message
+                                        // retains it.
+                                        m.content.retain(|c| {
+                                            !matches!(
+                                                c,
+                                                MessageContent::Thinking(_)
+                                                    | MessageContent::RedactedThinking(_)
+                                            )
+                                        });
+                                    }
+                                }
+                                // Remove in reverse order to preserve indices
+                                for idx in indices_to_remove.into_iter().rev() {
+                                    messages_to_add.remove(idx);
+                                }
+                                let response_thinking = if direct_thinking.is_empty() {
+                                    accumulated_prior
+                                } else if accumulated_prior.is_empty() {
                                     direct_thinking
+                                } else {
+                                    let mut merged = accumulated_prior;
+                                    merged.extend(direct_thinking);
+                                    merged
                                 };
 
+                                let response_message_id = response
+                                    .id
+                                    .as_deref()
+                                    .expect("provider stream responses have IDs");
+                                let has_existing_message_id_carrier = messages_to_add
+                                    .iter()
+                                    .any(|message| {
+                                        message.id.as_deref() == Some(response_message_id)
+                                    });
+                                let carrier_tool_call_id = if has_existing_message_id_carrier {
+                                    None
+                                } else {
+                                    remaining_requests
+                                        .first()
+                                        .or_else(|| frontend_requests.first())
+                                        .map(|request| request.id.as_str())
+                                };
+                                preferred_turn_usage_message_id =
+                                    Some(response_message_id.to_owned());
+
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-                                    let mut request_msg = Message::assistant()
-                                        .with_id(format!("msg_{}", Uuid::new_v4()));
+                                    let mut request_msg =
+                                        if carrier_tool_call_id == Some(request.id.as_str()) {
+                                            Message::assistant().with_id(response_message_id)
+                                        } else {
+                                            Message::assistant().with_generated_id()
+                                        };
 
                                     for thinking in &response_thinking {
                                         request_msg = request_msg.with_content(thinking.clone());
@@ -2359,7 +2665,7 @@ impl Agent {
                                         request_msg.created = final_response.created;
                                     }
                                     messages_to_add.push(request_msg);
-                                    yield AgentEvent::Message(final_response.clone());
+                                    yield AgentEvent::Message(project_message_for_user_event(&final_response));
                                     messages_to_add.push(final_response);
                                 }
 
@@ -2370,6 +2676,7 @@ impl Agent {
                         }
                         #[allow(unused_variables)]
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
@@ -2393,8 +2700,8 @@ impl Agent {
                             );
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
-                                    SystemNotificationType::ThinkingMessage,
-                                    COMPACTION_THINKING_TEXT,
+                                    SystemNotificationType::ProgressMessage,
+                                    COMPACTION_PROGRESS_TEXT,
                                 )
                             );
 
@@ -2407,10 +2714,10 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
-                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
-                                    conversation = compacted_conversation;
+                                Ok(compaction) => {
+                                    session_manager.replace_conversation(&session_config.id, &compaction.conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &compaction.usage, Some(compaction.retained_context_tokens)).await?;
+                                    conversation = compaction.conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
                                     break;
@@ -2429,6 +2736,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2453,6 +2761,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2468,6 +2777,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2479,6 +2789,7 @@ impl Agent {
                             break;
                         }
                         Err(ref provider_err) => {
+                            provider_errored = true;
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -2510,6 +2821,25 @@ impl Agent {
                     }
                 }
 
+                // An empty provider response — no tool calls, no text, and no error
+                // or recovery compaction that legitimately produces no assistant
+                // output — must never be persisted: strict providers reject a
+                // conversation that contains an empty assistant turn. Drop it here
+                // regardless of what the match below decides to do about the turn
+                // (final-output nudge, steer, goal/grind, retry, or fallback).
+                let empty_response = no_tools_called
+                    && !exit_chat
+                    && !provider_errored
+                    && !did_recovery_compact_this_iteration
+                    && !provider_produced_content
+                    && last_assistant_text.is_empty();
+
+                if empty_response {
+                    messages_to_add = Conversation::default();
+                } else {
+                    empty_turn_retries = 0;
+                }
+
                 if no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
@@ -2521,8 +2851,10 @@ impl Agent {
                     match final_output {
                         Some(None) => {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
-                            messages_to_add.push(message.clone());
+                            let message = push_message_with_id(
+                                &mut messages_to_add,
+                                Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE),
+                            );
                             yield AgentEvent::Message(message);
                         }
                         Some(Some(output)) => {
@@ -2543,7 +2875,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2561,7 +2893,7 @@ impl Agent {
                             );
                             let message = Message::user().with_text(&nudge)
                                 .with_visibility(false, true);
-                            messages_to_add.push(message);
+                            push_message_with_id(&mut messages_to_add, message);
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -2573,16 +2905,53 @@ impl Agent {
                         None => {
                             self.set_goal(None).await;
                             self.set_grind(None).await;
+                            // Recipe retry logic owns the turn whenever a
+                            // retry_config is present: it runs success checks,
+                            // on_failure, and max_retries. Only when no recipe
+                            // retry is configured (Skipped) does the empty-turn
+                            // fallback apply.
                             match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
-                                Ok(should_retry) => {
-                                    if should_retry {
-                                        info!("Retry logic triggered, restarting agent loop");
-                                        messages_to_add = Conversation::default();
-                                        session_manager.replace_conversation(&session_config.id, &conversation).await?;
-                                        yield AgentEvent::HistoryReplaced(conversation.clone());
+                                Ok(RetryResult::Retried) => {
+                                    info!("Retry logic triggered, restarting agent loop");
+                                    messages_to_add = Conversation::default();
+                                    session_manager.replace_conversation(&session_config.id, &conversation).await?;
+                                    yield AgentEvent::HistoryReplaced(conversation.clone());
+                                }
+                                Ok(RetryResult::Skipped) if empty_response => {
+                                    // No recipe retry configured, and this empty
+                                    // turn would otherwise fall through to a
+                                    // silent exit. Retry a bounded number of
+                                    // times, then surface a visible message so
+                                    // the user is never left with no response.
+                                    if empty_turn_retries < MAX_EMPTY_TURN_RETRIES {
+                                        empty_turn_retries += 1;
+                                        retrying_after_empty_turn = true;
+                                        warn!(
+                                            "Provider returned an empty response; retrying ({}/{})",
+                                            empty_turn_retries, MAX_EMPTY_TURN_RETRIES
+                                        );
                                     } else {
+                                        warn!("Provider returned an empty response after retries; ending turn");
+                                        last_assistant_text = EMPTY_TURN_MESSAGE.to_string();
+                                        let message = push_message_with_id(
+                                            &mut messages_to_add,
+                                            Message::assistant().with_text(EMPTY_TURN_MESSAGE),
+                                        );
+                                        yield AgentEvent::Message(message);
                                         exit_chat = true;
                                     }
+                                }
+                                Ok(RetryResult::MaxAttemptsReached(message)) => {
+                                    // Surface and persist the failure message
+                                    // through the normal path so recipes don't
+                                    // exit silently when retries are exhausted.
+                                    let message = push_message_with_id(&mut messages_to_add, message);
+                                    last_assistant_text = message.as_concat_text();
+                                    yield AgentEvent::Message(message);
+                                    exit_chat = true;
+                                }
+                                Ok(_) => {
+                                    exit_chat = true;
                                 }
                                 Err(e) => {
                                     error!("Retry logic failed: {}", e);
@@ -2622,7 +2991,7 @@ impl Agent {
 
                             if matching_ids.len() == 2 {
                                 for id in &matching_ids {
-                                    SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    session_manager.update_message_metadata(&session_config.id, id, |metadata| {
                                         metadata.with_agent_invisible()
                                     }).await?;
                                 }
@@ -2636,13 +3005,16 @@ impl Agent {
                 }
 
                 if let Some(output) = pending_final_output.take() {
+                    preferred_turn_usage_message_id = None;
                     last_assistant_text = output.clone();
-                    let message = Message::assistant().with_text(output);
-                    messages_to_add.push(message.clone());
+                    let message = push_message_with_id(
+                        &mut messages_to_add,
+                        Message::assistant().with_text(output),
+                    );
                     yield AgentEvent::Message(message);
                 }
 
-                let messages_to_add = if let Some(ref inference) = inference {
+                let mut messages_to_add = if let Some(ref inference) = inference {
                     Conversation::new_unvalidated(
                         messages_to_add
                             .into_iter()
@@ -2651,6 +3023,16 @@ impl Agent {
                 } else {
                     messages_to_add
                 };
+
+                if let Some(usage) = pending_turn_usage.take() {
+                    if let Some((message_id, usage)) = attach_turn_usage(
+                        &mut messages_to_add,
+                        &usage,
+                        preferred_turn_usage_message_id.as_deref(),
+                    ) {
+                        yield AgentEvent::MessageUsage { message_id, usage };
+                    }
+                }
 
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
@@ -2663,7 +3045,7 @@ impl Agent {
 
                 if exit_chat {
                     match self
-                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text)
+                        .emit_stop_hook_blocking(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy())
                         .await
                     {
                         crate::hooks::HookDecision::Allow => {
@@ -2673,15 +3055,23 @@ impl Agent {
                         crate::hooks::HookDecision::Deny { reason, plugin } => {
                             consecutive_stop_hook_blocks += 1;
                             if consecutive_stop_hook_blocks > stop_hook_block_cap {
-                                let message = stop_hook_block_cap_warning(&plugin, stop_hook_block_cap);
-                                session_manager.add_message(&session_config.id, &message).await?;
+                                let message = persist_message_with_id(
+                                    &session_manager,
+                                    &session_config.id,
+                                    stop_hook_block_cap_warning(&plugin, stop_hook_block_cap),
+                                )
+                                .await?;
                                 yield AgentEvent::Message(message);
                                 stop_hook_handled_for_exit = true;
                                 break;
                             }
-                            let message = stop_hook_denial_context_message(&plugin, &reason);
-                            session_manager.add_message(&session_config.id, &message).await?;
-                            conversation.push(message);
+                            persist_and_push_message_with_id(
+                                &session_manager,
+                                &session_config.id,
+                                &mut conversation,
+                                stop_hook_denial_context_message(&plugin, &reason),
+                            )
+                            .await?;
                             yield AgentEvent::Message(stop_hook_denial_notification(&plugin));
                             retrying_after_stop_hook_denial = true;
                         }
@@ -2696,7 +3086,7 @@ impl Agent {
             }
 
             if !stop_hook_handled_for_exit {
-                self.emit_stop_hook(&session_config.id, &last_assistant_text).await;
+                self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
         Ok(inner)
@@ -2844,7 +3234,7 @@ impl Agent {
             .or_else(|| config.get_goose_provider().ok())
             .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
 
-        let model_config = match session.model_config.clone() {
+        let mut model_config = match session.model_config.clone() {
             Some(saved_config) => saved_config,
             None => {
                 let model_name = config
@@ -2855,6 +3245,20 @@ impl Agent {
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
+
+        // if the saved model is the ACP sentinel "current", only preserve this if the provider
+        // uses this sentinel to indicate it's an ACP provider that manages its model
+        if model_config.model_name == crate::acp::ACP_CURRENT_MODEL {
+            if let Ok(entry) = crate::providers::get_from_registry(&provider_name).await {
+                if entry.metadata().default_model != crate::acp::ACP_CURRENT_MODEL {
+                    model_config = crate::model_config::model_config_from_user_config(
+                        &provider_name,
+                        &entry.metadata().default_model,
+                    )
+                    .map_err(|e| anyhow!("Could not resolve default model: {}", e))?;
+                }
+            }
+        }
 
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
@@ -3073,6 +3477,7 @@ impl Agent {
             .filter(super::reply_parts::is_tool_visible_to_model)
             .collect();
 
+        messages = Conversation::new_unvalidated(messages.agent_visible_messages());
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (messages, issues) = fix_conversation(messages);
@@ -3088,28 +3493,21 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
-        let (result, _usage) = self
-            .provider
-            .lock()
-            .await
-            .as_ref()
-            .ok_or_else(|| {
-                let error = anyhow!("Provider not available during recipe creation");
-                tracing::error!("{}", error);
-                error
-            })?
-            .complete(
-                &model_config,
-                session_id,
-                &system_prompt,
-                messages.messages(),
-                &tools,
-            )
-            .await
-            .map_err(|e| {
-                tracing::error!("Provider completion failed during recipe creation: {}", e);
-                e
-            })?;
+        let provider = self.provider.lock().await;
+        let provider = provider.as_ref().ok_or_else(|| {
+            let error = anyhow!("Provider not available during recipe creation");
+            tracing::error!("{}", error);
+            error
+        })?;
+        let (result, _usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
+            provider.complete(&model_config, &system_prompt, messages.messages(), &tools),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Provider completion failed during recipe creation: {}", e);
+            e
+        })?;
 
         let content = result.as_concat_text();
         tracing::debug!(
@@ -3256,6 +3654,7 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
     use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
@@ -3266,6 +3665,133 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    async fn tracing_test_agent_and_session() -> (Agent, Session, TempDir) {
+        let data_dir = TempDir::new().unwrap();
+        let data_path = data_dir.path().to_path_buf();
+        let session_manager = Arc::new(SessionManager::new(data_path.clone()));
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            Arc::new(PermissionManager::new(data_path)),
+            None,
+            GooseMode::default(),
+            false,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "otel-tool-span".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        (agent, session, data_dir)
+    }
+
+    #[tokio::test]
+    async fn tool_dispatch_records_gen_ai_span_attributes() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::object;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("dispatch_tool_call");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new(PLATFORM_MANAGE_SCHEDULE_TOOL_NAME)
+            .with_arguments(object!({ "action": "list" }));
+
+        let (request_id, result) = agent
+            .dispatch_tool_call(
+                tool_call,
+                "call-42".to_string(),
+                Some(CancellationToken::new()),
+                &session,
+            )
+            .await;
+        assert_eq!(request_id, "call-42");
+        let result = result.unwrap();
+        assert!(result.result.await.is_err());
+
+        let fields = capture.fields();
+        assert_eq!(fields["gen_ai.operation.name"], "execute_tool");
+        assert_eq!(
+            fields["gen_ai.tool.name"],
+            PLATFORM_MANAGE_SCHEDULE_TOOL_NAME
+        );
+        assert_eq!(fields["gen_ai.tool.call.id"], "call-42");
+        assert_eq!(fields["gen_ai.conversation.id"], session.id);
+        let arguments: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.arguments"].as_str().unwrap()).unwrap();
+        assert_eq!(arguments["action"], "list");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "error");
+        assert!(!fields.contains_key("gen_ai.tool.call.result"));
+    }
+
+    #[tokio::test]
+    async fn successful_tool_result_is_recorded_after_execution() {
+        use goose_test_support::otel::clear_otel_env;
+        use rmcp::model::ContentBlock;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("successful_tool");
+        let _subscriber = capture.clone().set_default();
+        let (agent, session, _data_dir) = tracing_test_agent_and_session().await;
+        let tool_call = CallToolRequestParams::new("test_tool");
+        let span = tracing::info_span!(
+            "successful_tool",
+            output = tracing::field::Empty,
+            gen_ai.tool.call.result = tracing::field::Empty,
+        );
+        let entered = span.enter();
+        let result = agent.with_post_tool_hook(
+            ToolCallResult::from(Ok(CallToolResult::success(vec![ContentBlock::text(
+                "done",
+            )]))),
+            &tool_call,
+            &session,
+        );
+        drop(entered);
+        drop(span);
+
+        assert!(result.result.await.is_ok());
+        let fields = capture.fields();
+        let result: Value =
+            serde_json::from_str(fields["gen_ai.tool.call.result"].as_str().unwrap()).unwrap();
+        assert_eq!(result["content"][0]["text"], "done");
+        let output: Value = serde_json::from_str(fields["output"].as_str().unwrap()).unwrap();
+        assert_eq!(output["status"], "success");
+    }
+
+    #[test]
+    fn ensure_message_event_id_assigns_missing_ids_and_preserves_existing_ids() {
+        let generated =
+            ensure_message_event_id(AgentEvent::Message(Message::assistant().with_text("hello")));
+        let AgentEvent::Message(generated_message) = generated else {
+            panic!("expected message event");
+        };
+        let generated_id = generated_message
+            .id
+            .as_deref()
+            .expect("generated message id");
+        assert!(generated_id.starts_with("msg_"));
+
+        let preserved = ensure_message_event_id(AgentEvent::Message(
+            Message::assistant()
+                .with_id("provider-message-id")
+                .with_text("hello"),
+        ));
+        let AgentEvent::Message(preserved_message) = preserved else {
+            panic!("expected message event");
+        };
+        assert_eq!(preserved_message.id.as_deref(), Some("provider-message-id"));
+
+        let non_message =
+            ensure_message_event_id(AgentEvent::HistoryReplaced(Conversation::empty()));
+        assert!(matches!(non_message, AgentEvent::HistoryReplaced(_)));
+    }
 
     #[test]
     fn resolve_use_login_shell_path_defaults_by_platform() {
@@ -3289,6 +3815,44 @@ mod tests {
             Some(false),
             &GoosePlatform::GooseDesktop
         ));
+    }
+
+    #[test]
+    fn user_event_projection_preserves_hidden_tool_response_wrapper() {
+        use rmcp::model::{Annotations, ContentBlock, Role, TextContent};
+
+        let hidden_only = Message::user().with_tool_response(
+            "tool-1",
+            Ok(CallToolResult::success(vec![ContentBlock::Text(
+                TextContent::new("provider-only")
+                    .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
+            )])),
+        );
+
+        let projected = project_message_for_user_event(&hidden_only);
+        let result = projected.content[0]
+            .as_tool_response()
+            .expect("hidden tool response wrapper")
+            .tool_result
+            .as_ref()
+            .expect("successful hidden tool result");
+        assert!(result.content.is_empty());
+    }
+
+    #[test]
+    fn agent_visible_message_text_excludes_user_only_blocks() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let user_only = TextContent::new("SECRET_USER_ONLY")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
+        let message = Message::user()
+            .with_text("/goal visible objective")
+            .with_content(MessageContent::Text(user_only));
+
+        assert_eq!(
+            agent_visible_message_text(&message),
+            "/goal visible objective"
+        );
     }
 
     struct ActionRequiredProvider {
@@ -3317,7 +3881,6 @@ mod tests {
         async fn stream(
             &self,
             _: &goose_providers::model::ModelConfig,
-            _: &str,
             _: &str,
             _: &[crate::conversation::message::Message],
             _: &[rmcp::model::Tool],
@@ -3490,6 +4053,64 @@ exit 0
         }
     }
 
+    struct SessionStartHookTestEnv {
+        temp_dir: TempDir,
+        hook_log: PathBuf,
+    }
+
+    impl SessionStartHookTestEnv {
+        fn new() -> Result<Self> {
+            let temp_dir = tempfile::tempdir()?;
+            let plugin_dir = temp_dir.path().join("session-start");
+            std::fs::create_dir_all(plugin_dir.join("hooks"))?;
+            std::fs::write(
+                plugin_dir.join("hooks/hooks.json"),
+                r#"{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh ${PLUGIN_ROOT}/start.sh" }
+        ]
+      }
+    ]
+  }
+}
+"#,
+            )?;
+            std::fs::write(
+                plugin_dir.join("start.sh"),
+                r#"#!/bin/sh
+echo start >> "$PLUGIN_ROOT/hook.log"
+"#,
+            )?;
+
+            Ok(Self {
+                temp_dir,
+                hook_log: plugin_dir.join("hook.log"),
+            })
+        }
+
+        fn hook_manager(&self) -> crate::hooks::HookManager {
+            crate::hooks::HookManager::from_plugins_for_test(vec![DiscoveredPlugin {
+                name: "session-start".into(),
+                root: self.temp_dir.path().join("session-start"),
+                scope: PluginScope::Project,
+            }])
+        }
+
+        fn data_dir(&self) -> PathBuf {
+            self.temp_dir.path().join("data")
+        }
+
+        fn hook_invocations(&self) -> usize {
+            std::fs::read_to_string(&self.hook_log)
+                .unwrap_or_default()
+                .lines()
+                .count()
+        }
+    }
+
     struct CountingTextProvider {
         call_count: AtomicUsize,
     }
@@ -3511,7 +4132,6 @@ exit 0
         async fn stream(
             &self,
             _model_config: &goose_providers::model::ModelConfig,
-            _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -3534,7 +4154,6 @@ exit 0
         async fn stream(
             &self,
             _model_config: &goose_providers::model::ModelConfig,
-            _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -3563,7 +4182,6 @@ exit 0
         async fn stream(
             &self,
             _model_config: &goose_providers::model::ModelConfig,
-            _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -3611,8 +4229,13 @@ exit 0
             .reply(Message::user().with_text("hi"), session_config, None)
             .await?;
         tokio::pin!(reply_stream);
+        let mut emitted_refusal_id = None;
         while let Some(event) = reply_stream.next().await {
-            event?;
+            if let AgentEvent::Message(message) = event? {
+                if message.as_concat_text().contains("provider refused") {
+                    emitted_refusal_id = message.id;
+                }
+            }
         }
 
         assert_eq!(
@@ -3620,6 +4243,9 @@ exit 0
             1,
             "a refused request must not be resent"
         );
+        let emitted_refusal_id =
+            emitted_refusal_id.expect("refusal message should be emitted with an ID");
+        assert!(emitted_refusal_id.starts_with("msg_"));
         Ok(())
     }
 
@@ -3691,7 +4317,8 @@ exit 0
                 AgentEvent::Message(message) => messages.push(message),
                 AgentEvent::McpNotification(_)
                 | AgentEvent::HistoryReplaced(_)
-                | AgentEvent::Usage(_) => {}
+                | AgentEvent::Usage(_)
+                | AgentEvent::MessageUsage { .. } => {}
             }
         }
         Ok(messages)
@@ -3703,6 +4330,101 @@ exit 0
             .map(Message::as_concat_text)
             .filter(|text| !text.is_empty())
             .collect()
+    }
+
+    #[tokio::test]
+    async fn session_start_hook_emits_once_for_first_reply_turn() -> Result<()> {
+        let env = SessionStartHookTestEnv::new()?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        run_stop_hook_test_turn(&agent, &session_id, "first").await?;
+        run_stop_hook_test_turn(&agent, &session_id, "second").await?;
+
+        assert_eq!(env.hook_invocations(), 1);
+        assert_eq!(provider.call_count(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn skipped_user_message_does_not_enter_empty_response_retry_loop() -> Result<()> {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let env = SessionStartHookTestEnv::new()?;
+        let provider = Arc::new(CountingTextProvider::new());
+        let hook_manager = env.hook_manager();
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), hook_manager, provider.clone()).await?;
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let user_only_content = MessageContent::Text(
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
+
+        let mut stream = agent
+            .reply(
+                Message::user().with_content(user_only_content),
+                session_config,
+                None,
+            )
+            .await?;
+
+        assert!(stream.next().await.is_none());
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(env.hook_invocations(), 0);
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let conversation = session.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert!(!conversation.messages()[0].is_agent_visible());
+
+        let visible_session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut visible_stream = agent
+            .reply(
+                Message::user().with_text("agent-visible"),
+                visible_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = visible_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(env.hook_invocations(), 1);
+
+        let final_session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let mut final_stream = agent
+            .reply(
+                Message::user().with_text("second-agent-visible"),
+                final_session_config,
+                None,
+            )
+            .await?;
+        while let Some(event) = final_stream.next().await {
+            event?;
+        }
+        assert_eq!(provider.call_count.load(Ordering::SeqCst), 2);
+        assert_eq!(env.hook_invocations(), 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -3736,6 +4458,34 @@ exit 0
                             && notification.msg.contains("GOOSE_STOP_HOOK_BLOCK_CAP")
                 )
             })
+        }));
+
+        let stored_session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
+            .await?;
+        let stored_messages = stored_session
+            .conversation
+            .expect("session should have stored conversation");
+        let stop_hook_context_messages = stored_messages
+            .messages()
+            .iter()
+            .filter(|message| {
+                message.role == rmcp::model::Role::User
+                    && !message.is_user_visible()
+                    && message.is_agent_visible()
+                    && message
+                        .as_concat_text()
+                        .contains("Address this policy hook denial")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(stop_hook_context_messages.len(), 2);
+        assert!(stop_hook_context_messages.iter().all(|message| {
+            message
+                .id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("msg_"))
         }));
 
         Ok(())
@@ -3911,5 +4661,79 @@ exit 0
         assert!(extract_string_arg(&input, &["path"]).is_none());
         let input = serde_json::json!({ "path": "" });
         assert!(extract_string_arg(&input, &["path"]).is_none());
+    }
+
+    #[test]
+    fn attach_turn_usage_targets_last_assistant_message() {
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_text("hi"),
+            Message::assistant().with_id("a1").with_text("first"),
+            Message::user().with_text("again"),
+            Message::assistant().with_id("a2").with_text("second"),
+        ]);
+
+        let (message_id, attached) =
+            attach_turn_usage(&mut conversation, &usage, None).expect("usage should attach");
+
+        assert_eq!(message_id.as_deref(), Some("a2"));
+        assert_eq!(attached.input_tokens, Some(1200));
+        assert_eq!(attached.output_tokens, Some(340));
+        assert!(!attached.is_compaction, "turn usage is not a compaction");
+
+        let messages = conversation.messages();
+        let stored = messages[3]
+            .metadata
+            .usage
+            .as_deref()
+            .expect("usage must be stored on the last assistant message");
+        assert_eq!(*stored, attached);
+        assert!(
+            messages[1].metadata.usage.is_none(),
+            "earlier assistant message must not receive the usage"
+        );
+    }
+
+    #[test]
+    fn attach_turn_usage_returns_none_without_assistant_message() {
+        let usage = ProviderUsage::new("test-model".to_string(), Usage::default());
+        let mut conversation = Conversation::new_unvalidated([Message::user().with_text("hi")]);
+
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
+        assert!(
+            conversation.messages()[0].metadata.usage.is_none(),
+            "user message must stay untouched"
+        );
+    }
+
+    #[test]
+    fn attach_turn_usage_suppresses_notification_for_assistant_only_message() {
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let usage = ProviderUsage::new(
+            "test-model".to_string(),
+            Usage::new(Some(1200), Some(340), None),
+        );
+        let assistant_only = TextContent::new("provider-only state")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
+        let mut conversation = Conversation::new_unvalidated([
+            Message::user().with_text("hi"),
+            Message::assistant()
+                .with_id("hidden")
+                .with_content(MessageContent::Text(assistant_only)),
+        ]);
+
+        assert!(attach_turn_usage(&mut conversation, &usage, None).is_none());
+
+        let stored = conversation.messages()[1]
+            .metadata
+            .usage
+            .as_deref()
+            .expect("usage must remain stored on the hidden assistant message");
+        assert_eq!(stored.input_tokens, Some(1200));
+        assert_eq!(stored.output_tokens, Some(340));
     }
 }

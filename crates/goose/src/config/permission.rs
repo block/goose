@@ -6,7 +6,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, RwLock};
 use tracing;
-use utoipa::ToSchema;
 
 const PERMISSION_FILE: &str = "permission.yaml";
 
@@ -14,7 +13,7 @@ static PERMISSION_MANAGER: LazyLock<Arc<PermissionManager>> =
     LazyLock::new(|| Arc::new(PermissionManager::new(Paths::config_dir())));
 
 /// Enum representing the possible permission levels for a tool.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PermissionLevel {
     AlwaysAllow, // Tool can always be used without prompt

@@ -1,5 +1,6 @@
-import { ProviderDetails, ThinkingEffort, listLocalModels } from '../../../api';
+import { listLocalModels } from '../../../acp/local-inference';
 import { acpListProviderDetails, acpListProviderModels } from '../../../acp/providers';
+import type { ProviderDetails, ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
@@ -12,25 +13,6 @@ export default interface Model {
   context_limit?: number; // optional context limit override
   reasoning?: boolean; // optional reasoning/thinking support metadata
   request_params?: Record<string, unknown> & { thinking_effort?: ThinkingEffort }; // provider-specific request parameters
-}
-
-export function createModelStruct(
-  modelName: string,
-  provider: string,
-  id?: number, // Make `id` optional to allow user-defined models
-  lastUsed?: string,
-  alias?: string, // optional model display name
-  subtext?: string
-): Model {
-  // use the metadata to create a Model
-  return {
-    name: modelName,
-    provider: provider,
-    alias: alias,
-    id: id,
-    lastUsed: lastUsed,
-    subtext: subtext,
-  };
 }
 
 export async function getProviderMetadata(providerName: string) {
@@ -56,8 +38,7 @@ export async function fetchModelsForProviders(
     try {
       // For local provider, use listLocalModels and filter to only downloaded models
       if (p.name === 'local') {
-        const response = await listLocalModels();
-        const allModels = response.data || [];
+        const allModels = await listLocalModels();
         const downloadedModels = allModels
           .filter((m) => m.status.state === 'Downloaded')
           .map((m) => ({ name: m.id, provider: p.name }) as Model);

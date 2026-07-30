@@ -8,8 +8,8 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.39.0"
-rust-version = "1.91.1"
+version = "1.45.0"
+rust-version = "1.94.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/aaif-goose/goose"
@@ -20,7 +20,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "1.4", default-features = false, features = ["schemars", "auth"] }
+rmcp = { version = "3.0.0", default-features = false, features = ["schemars", "auth"] }
 agent-client-protocol-schema = { version = "1.1", default-features = false, features = ["unstable"] }
 agent-client-protocol = { version = "1.0", default-features = false }
 agent-client-protocol-http = { version = "1.0", default-features = false, features = ["server", "unstable_cancel_request"] }
@@ -31,8 +31,8 @@ async-trait = { version = "0.1.89", default-features = false }
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "tokio", "query"] }
 base64 = { version = "0.22.1", default-features = false, features = ["std"] }
 bytes = { version = "1.10.1", default-features = false, features = ["std"] }
-candle-core = { version = "0.10", default-features = false }
-candle-nn = { version = "0.10", default-features = false }
+candle-core = { version = "0.11", default-features = false }
+candle-nn = { version = "0.11", default-features = false }
 chrono = { version = "0.4.44", default-features = false, features = ["serde", "std"] }
 clap = { version = "4.1.14", default-features = false, features = ["derive", "std", "help", "suggestions", "usage", "color", "error-context"] }
 dirs = { version = "6", default-features = false }
@@ -69,7 +69,6 @@ tracing-appender = { version = "0.2.1", default-features = false }
 tracing-futures = { version = "0.2.4", default-features = false, features = ["futures-03", "std", "std-future"] }
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std"] }
 urlencoding = { version = "2.1", default-features = false }
-utoipa = { version = "4.2", default-features = false }
 uuid = { version = "1.23", default-features = false, features = ["v4", "std"] }
 webbrowser = { version = "1", default-features = false }
 which = { version = "8", default-features = false, features = ["real-sys"] }
@@ -84,7 +83,7 @@ url = { version = "2.5.4", default-features = false, features = ["std"] }
 opentelemetry = { version = "0.32", default-features = false }
 opentelemetry_sdk = { version = "0.32", default-features = false, features = ["metrics"] }
 opentelemetry-http = { version = "0.32", default-features = false, features = ["internal-logs", "reqwest"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-blocking-client", "trace"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-client", "trace"] }
 opentelemetry-appender-tracing = { version = "0.32", default-features = false, features = ["experimental_span_attributes"] }
 opentelemetry-stdout = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = { version = "0.33", default-features = false, features = ["metrics"] }

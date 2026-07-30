@@ -5,8 +5,9 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Message, Session } from '../../api';
+import type { Message } from '../../types/message';
 import { ChatState } from '../../types/chatState';
+import type { Session } from '../../types/session';
 import {
   acpElicitationUserInputRequestId,
   acpChatSessionActions,
@@ -163,6 +164,20 @@ function activeRunNotification(sessionId: string, activeRunId: string | null): S
       _meta: {
         goose: {
           activeRunId,
+        },
+      },
+    } as SessionNotification['update'],
+  };
+}
+
+function queuedSteerNotification(sessionId: string, messageId: string): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'session_info_update',
+      _meta: {
+        goose: {
+          queuedSteer: { messageId, runId: 'run-1' },
         },
       },
     } as SessionNotification['update'],
@@ -414,6 +429,36 @@ describe('acpChatSessionStore', () => {
 
     const firstMessage = snapshot.messages.find((item) => item.id === 'steer-1');
     expect(firstMessage?.content[0]).toMatchObject({ type: 'text', text: 'hello' });
+  });
+
+  it('keeps steer message confirmed when queuedSteer arrives before addPendingLocalSteerMessage', () => {
+    const currentSessionId = sessionId('session-1');
+    const localSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+
+    // queuedSteer notification arrives before addPendingLocalSteerMessage (race condition)
+    acpChatSessionActions.applyAcpSessionNotification(
+      queuedSteerNotification(currentSessionId, 'steer-1')
+    );
+
+    // Now the UI adds the pending message after the RPC response returns
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, localSteerMessage);
+
+    // Message should be present and NOT in pending (already confirmed via queuedSteer)
+    const snapshot = acpChatSessionStore.getSnapshot(currentSessionId);
+    expect(snapshot?.messages).toHaveLength(1);
+
+    // Cancellation should keep it because it's confirmed, not pending
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+    expect(cancellationSnapshot?.messages).toHaveLength(1);
+    expect(cancellationSnapshot?.messages[0].id).toBe('steer-1');
   });
 
   it('stores active run ids from session info notifications', () => {
