@@ -86,6 +86,20 @@ pub fn get_active_model(config: &Config) -> Option<String> {
     config.get_param::<String>("GOOSE_MODEL").ok()
 }
 
+/// Drop process-level GOOSE_PROVIDER / GOOSE_MODEL so config is authoritative.
+///
+/// `get_active_provider` / `get_active_model` prefer those env vars over config.
+/// Desktop and other long-lived processes often inherit stale values from launch;
+/// after a UI/config save we must clear them or new sessions ignore the saved
+/// selection (#10583, regression of #2203).
+///
+/// We clear rather than rewrite env so we do not inject process-global state that
+/// races other tests (or concurrent config reads) via `get_param` env precedence.
+fn clear_active_provider_env() {
+    env::remove_var("GOOSE_PROVIDER");
+    env::remove_var("GOOSE_MODEL");
+}
+
 pub fn set_active_provider(config: &Config, name: &str, model: &str) -> Result<(), ConfigError> {
     config.set_param(ACTIVE_PROVIDER_KEY, name)?;
     let entry = ProviderEntry {
@@ -94,20 +108,7 @@ pub fn set_active_provider(config: &Config, name: &str, model: &str) -> Result<(
         configured: true,
     };
     set_provider_entry(config, name, &entry)?;
-
-    // Keep process env in sync with the saved defaults.
-    // `get_active_provider` / `get_active_model` prefer GOOSE_PROVIDER / GOOSE_MODEL
-    // from the environment over config file keys. Desktop/long-lived processes often
-    // inherit stale env from launch; without this sync, homepage model selection
-    // (defaultsSave → set_active_provider) writes config but new sessions still
-    // resolve the old provider/model (#10583, regression of #2203).
-    env::set_var("GOOSE_PROVIDER", name);
-    if model.is_empty() {
-        env::remove_var("GOOSE_MODEL");
-    } else {
-        env::set_var("GOOSE_MODEL", model);
-    }
-
+    clear_active_provider_env();
     Ok(())
 }
 
@@ -118,9 +119,7 @@ pub fn clear_active_provider(config: &Config) -> Result<(), ConfigError> {
             Err(e) => return Err(e),
         }
     }
-    // Drop stale process env so subsequent reads fall back to config (or empty).
-    env::remove_var("GOOSE_PROVIDER");
-    env::remove_var("GOOSE_MODEL");
+    clear_active_provider_env();
     Ok(())
 }
 
@@ -152,26 +151,45 @@ mod tests {
     }
 
     #[test]
-    fn test_set_active_provider_syncs_process_env() {
+    fn test_set_active_provider_clears_stale_process_env() {
         // Stale env must not shadow a newly saved default (#10583).
-        env::set_var("GOOSE_PROVIDER", "stale-provider");
-        env::set_var("GOOSE_MODEL", "stale-model");
+        // Lock so parallel tests cannot observe/mutate GOOSE_* mid-assertion.
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("stale-provider")),
+            ("GOOSE_MODEL", Some("stale-model")),
+        ]);
 
         let config = new_test_config();
         set_active_provider(&config, "a01_deepseek", "deepseek-v4-pro").unwrap();
 
-        assert_eq!(env::var("GOOSE_PROVIDER").ok().as_deref(), Some("a01_deepseek"));
-        assert_eq!(env::var("GOOSE_MODEL").ok().as_deref(), Some("deepseek-v4-pro"));
-        assert_eq!(get_active_provider(&config).as_deref(), Some("a01_deepseek"));
-        assert_eq!(get_active_model(&config).as_deref(), Some("deepseek-v4-pro"));
+        assert!(
+            env::var("GOOSE_PROVIDER").is_err(),
+            "stale GOOSE_PROVIDER must be cleared so config wins"
+        );
+        assert!(
+            env::var("GOOSE_MODEL").is_err(),
+            "stale GOOSE_MODEL must be cleared so config wins"
+        );
+        assert_eq!(
+            get_active_provider(&config).as_deref(),
+            Some("a01_deepseek")
+        );
+        assert_eq!(
+            get_active_model(&config).as_deref(),
+            Some("deepseek-v4-pro")
+        );
 
         clear_active_provider(&config).unwrap();
-        assert!(env::var("GOOSE_PROVIDER").is_err());
-        assert!(env::var("GOOSE_MODEL").is_err());
+        assert!(get_active_provider(&config).is_none());
+        assert!(get_active_model(&config).is_none());
     }
 
     #[test]
     fn test_set_active_provider_writes_structured_keys() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ]);
         let config = new_test_config();
         set_active_provider(&config, "claude-acp", "current").unwrap();
 
@@ -186,6 +204,10 @@ mod tests {
 
     #[test]
     fn test_clear_active_provider_preserves_provider_entries() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ]);
         let config = new_test_config();
         set_active_provider(&config, "openai", "gpt-4o").unwrap();
 
@@ -199,6 +221,10 @@ mod tests {
 
     #[test]
     fn test_clear_active_provider_removes_legacy_keys() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ]);
         let config = new_test_config();
         config.set_param("GOOSE_PROVIDER", "anthropic").unwrap();
         config.set_param("GOOSE_MODEL", "claude").unwrap();
@@ -211,6 +237,10 @@ mod tests {
 
     #[test]
     fn test_get_active_model_from_provider_entry() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ]);
         let config = new_test_config();
         set_active_provider(&config, "openai", "gpt-4o").unwrap();
 
@@ -220,6 +250,10 @@ mod tests {
 
     #[test]
     fn test_multiple_providers_preserved() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PROVIDER", None::<&str>),
+            ("GOOSE_MODEL", None::<&str>),
+        ]);
         let config = new_test_config();
         set_active_provider(&config, "openai", "gpt-4o").unwrap();
         set_active_provider(&config, "anthropic", "claude-3-opus").unwrap();
