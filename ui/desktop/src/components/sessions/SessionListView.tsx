@@ -801,9 +801,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       onToggleArchive: (session: SessionListItem) => void;
     isSharing: boolean;
   }) {
-      // Archiving removes the loaded agent without cancelling an active prompt
-      // run, and archiving mid-load races the server re-registering the agent,
-      // so gate the action unless the session is idle (like the sidebar does).
+      // Archive and delete remove the loaded agent without cancelling an active
+      // prompt run, and doing so mid-load races the server re-registering the
+      // agent, so gate both unless the session is idle (like the sidebar does).
       // Anything non-idle — streaming, thinking, compacting, loading, waiting
       // on a permission/elicitation, restarting — still has server-side work
       // that would resume into a removed session. The local snapshot cannot see
@@ -811,8 +811,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       // busy registry.
       const chatState = useAcpChatSessionSnapshot(session.id)?.chatState;
       const busyElsewhere = useSessionBusyElsewhere(session.id);
-      const isArchiveBlocked =
-        (chatState !== undefined && chatState !== ChatState.Idle) || busyElsewhere;
+      const isBusy = (chatState !== undefined && chatState !== ChatState.Idle) || busyElsewhere;
 
     const handleEditClick = useCallback(
       (e: React.MouseEvent) => {
@@ -923,14 +922,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
           </button>
           <button
             onClick={handleDeleteClick}
-            className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+              disabled={isBusy}
+              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             title={intl.formatMessage(i18n.deleteSession)}
           >
             <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
           </button>
           <button
             onClick={handleArchiveClick}
-              disabled={isArchiveBlocked}
+              disabled={isBusy}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             title={intl.formatMessage(
               session.archivedAt ? i18n.unarchiveSession : i18n.archiveSession

@@ -244,12 +244,12 @@ const SessionRow: React.FC<SessionRowProps> = ({
   const [editSignal, setEditSignal] = useState(0);
   const renameRequested = useRef(false);
   const isStreaming = status?.streamState === 'streaming';
-  // Archiving must not race an active run: mid-load the server can re-register
-  // the agent after archive removed it, and streaming or waiting-on-user-input
-  // prompts would resume into a removed session, so gate all three states —
-  // including runs owned by other desktop windows.
+  // Archive and delete both drop the loaded agent without cancelling an active
+  // run: mid-load the server can re-register the agent afterwards, and
+  // streaming or waiting-on-user-input prompts would resume into a session that
+  // is gone. Gate all three states — including runs owned by other windows.
   const busyElsewhere = useSessionBusyElsewhere(session.id);
-  const isArchiveBlocked =
+  const isBusy =
     isStreaming ||
     status?.streamState === 'loading' ||
     status?.streamState === 'waiting' ||
@@ -356,12 +356,16 @@ const SessionRow: React.FC<SessionRowProps> = ({
                 <Pencil className="w-4 h-4" />
                 {intl.formatMessage(i18n.rename)}
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={isArchiveBlocked} onSelect={() => void handleArchive()}>
+              <DropdownMenuItem disabled={isBusy} onSelect={() => void handleArchive()}>
                 <Archive className="w-4 h-4" />
                 {intl.formatMessage(i18n.archive)}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => onRequestDelete(session)}>
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={isBusy}
+                onSelect={() => onRequestDelete(session)}
+              >
                 <Trash2 className="w-4 h-4" />
                 {intl.formatMessage(i18n.delete)}
               </DropdownMenuItem>
