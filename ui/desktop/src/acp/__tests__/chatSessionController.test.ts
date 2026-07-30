@@ -308,6 +308,33 @@ describe('acpChatSessionController.submitMessage', () => {
     expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, [priorMessage]);
   });
 
+  it('finishes without a stored submit error when the working dir is missing', async () => {
+    const message = userMessage();
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [message],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+    vi.mocked(acpChatSessionActions.finishPromptAttemptIfCurrent).mockReturnValue(true);
+
+    const onFinish = vi.fn();
+    await acpChatSessionController.submitMessage(SESSION_ID, message, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish,
+    });
+
+    // A stored submit error would resurface, stale, after the user repoints the
+    // working directory; the missing-dir banner already explains the failure.
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.any(String)
+    );
+    expect(onFinish).toHaveBeenCalledWith();
+  });
+
   it('rejects while a cancellation barrier is pending', async () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
       ...snapshotWithActivePrompt(null),

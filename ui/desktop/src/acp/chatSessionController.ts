@@ -251,6 +251,12 @@ async function submitMessage(
         userMessage,
         options.messagesBeforeSubmit
       );
+      // The missing-dir banner already explains this failure; a stored submit
+      // error would resurface, stale, once the user repoints the directory.
+      if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
+        void options.onFinish();
+      }
+      return;
     }
 
     const submitError = 'Submit error: ' + errorMessage(error);

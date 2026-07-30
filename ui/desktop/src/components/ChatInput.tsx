@@ -1096,6 +1096,12 @@ export default function ChatInput({
 
   const performSubmit = useCallback(
     (text?: string) => {
+      // Dictation auto-submit calls this directly, bypassing canSubmit; without
+      // this guard a missing working dir would clear the dictated input while
+      // handleSubmit drops the message.
+      if (submissionDisabled) {
+        return;
+      }
       const imageData = convertImagesToImageData();
       const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
 
@@ -1133,6 +1139,7 @@ export default function ChatInput({
       }
     },
     [
+      submissionDisabled,
       convertImagesToImageData,
       appendDroppedFilePaths,
       displayValue,

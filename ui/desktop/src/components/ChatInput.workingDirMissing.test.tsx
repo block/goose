@@ -1,4 +1,4 @@
-import { render, type RenderOptions, screen, fireEvent } from '@testing-library/react';
+import { act, render, type RenderOptions, screen, fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntlTestWrapper } from '../i18n/test-utils';
 import { ChatState } from '../types/chatState';
@@ -18,15 +18,22 @@ vi.mock('./ModelAndProviderContext', () => ({
   }),
 }));
 
+const audioRecorderCallbacks = vi.hoisted(
+  () => ({}) as { onTranscription?: (text: string) => void }
+);
+
 vi.mock('../hooks/useAudioRecorder', () => ({
-  useAudioRecorder: () => ({
-    isEnabled: false,
-    dictationProvider: null,
-    isRecording: false,
-    isTranscribing: false,
-    startRecording: vi.fn(),
-    stopRecording: vi.fn(),
-  }),
+  useAudioRecorder: (options: { onTranscription: (text: string) => void }) => {
+    audioRecorderCallbacks.onTranscription = options.onTranscription;
+    return {
+      isEnabled: false,
+      dictationProvider: null,
+      isRecording: false,
+      isTranscribing: false,
+      startRecording: vi.fn(),
+      stopRecording: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('../hooks/useFileDrop', () => ({
@@ -105,6 +112,27 @@ describe('ChatInput submissionDisabled (working directory missing)', () => {
     expect(handleSubmit).not.toHaveBeenCalled();
     expect(textarea.value).toBe('blocked message');
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('preserves dictated input when voice auto-submit fires while submission is disabled', () => {
+    vi.useFakeTimers();
+    try {
+      const handleSubmit = vi.fn<(input: UserInput) => void>();
+      renderWithIntl(<ChatInput {...baseProps(handleSubmit)} submissionDisabled={true} />);
+
+      act(() => {
+        audioRecorderCallbacks.onTranscription?.('deploy the fix submit');
+      });
+      act(() => {
+        vi.runAllTimers();
+      });
+
+      expect(handleSubmit).not.toHaveBeenCalled();
+      const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+      expect(textarea.value).toBe('deploy the fix');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('submits and clears input when submission is enabled', () => {
