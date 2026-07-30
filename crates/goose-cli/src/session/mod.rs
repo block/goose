@@ -2327,7 +2327,10 @@ fn latest_shell_output_lines(
                 .map(move |line| (chunk.stream, line))
         })
         .take(SHELL_STATUS_MAX_LINES)
-        .map(|(stream, line)| (stream, safe_truncate(line, max_width)))
+        .map(|(stream, line)| {
+            let line = output::sanitize_terminal_line(line);
+            (stream, safe_truncate(&line, max_width))
+        })
         .collect::<Vec<_>>();
     lines.reverse();
     lines

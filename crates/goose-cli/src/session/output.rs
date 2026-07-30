@@ -1,4 +1,4 @@
-use anstream::println;
+use anstream::{adapter::strip_str, println};
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
@@ -559,6 +559,17 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
     }
 }
 
+pub(super) fn sanitize_terminal_line(line: &str) -> String {
+    strip_str(line)
+        .flat_map(str::chars)
+        .filter(|character| *character == '\t' || !character.is_control())
+        .collect()
+}
+
+fn print_tool_output_line(line: &str) {
+    println!("    {}", style(sanitize_terminal_line(line)).dim());
+}
+
 fn print_tool_output(text: &str) {
     if text.is_empty() {
         return;
@@ -575,13 +586,13 @@ fn print_tool_output(text: &str) {
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() <= max_lines {
         for line in &lines {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
     } else {
         let head = max_lines / 2;
         let tail = max_lines - head;
         for line in &lines[..head] {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
         println!(
             "    {}",
@@ -593,7 +604,7 @@ fn print_tool_output(text: &str) {
             .italic()
         );
         for line in &lines[lines.len() - tail..] {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
     }
 }
@@ -1565,6 +1576,30 @@ mod tests {
         }
 
         assert_eq!(rendered, "two\n  three\n  four");
+    }
+
+    #[test]
+    fn terminal_line_sanitizer_removes_escape_sequences_and_controls() {
+        assert_eq!(
+            sanitize_terminal_line(
+                "\x1b[31mred\x1b[0m \x1b[2J\x1b[H\
+                 \x1b]0;spoofed title\x07\
+                 \x1b]52;c;Y2xpcGJvYXJk\x1b\\safe"
+            ),
+            "red safe"
+        );
+        assert_eq!(
+            sanitize_terminal_line("before\x08after\x07\r\tvisible"),
+            "beforeafter\tvisible"
+        );
+    }
+
+    #[test]
+    fn terminal_line_sanitizer_preserves_plain_unicode_text() {
+        assert_eq!(
+            sanitize_terminal_line("goose 🪿\t日本語"),
+            "goose 🪿\t日本語"
+        );
     }
 
     #[test]
