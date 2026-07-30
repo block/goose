@@ -5,8 +5,6 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'documentation/src/pages/recipes/data/recipes/**'
-  pull_request_review:
-    types: [submitted, dismissed]
 
 concurrency:
   group: scanner-${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -25,7 +23,10 @@ jobs:
     name: Fork recipe review boundary
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
     permissions:
-      contents: read
+      # getCollaboratorPermissionLevel requires push access. This job runs only
+      # pinned base-branch JavaScript against GitHub metadata and never checks
+      # out or reads fork recipe content.
+      contents: write
       pull-requests: read
     runs-on: ubuntu-latest
     steps:
@@ -52,42 +53,55 @@ jobs:
               return;
             }
 
-            const reviewData = await github.graphql(
-              `query($owner: String!, $repo: String!, $number: Int!) {
-                repository(owner: $owner, name: $repo) {
-                  pullRequest(number: $number) {
-                    reviewDecision
-                  }
-                }
-              }`,
-              {
+            const currentHead = context.payload.pull_request.head.sha;
+            const reviews = await github.paginate(github.rest.pulls.listReviews, request);
+            const latestByReviewer = new Map();
+            for (const review of reviews) {
+              if (!review.user?.login || !review.submitted_at) continue;
+              const state = review.state?.toUpperCase();
+              if (!['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(state)) continue;
+              const current = latestByReviewer.get(review.user.login);
+              if (!current || new Date(review.submitted_at) > new Date(current.submitted_at)) {
+                latestByReviewer.set(review.user.login, review);
+              }
+            }
+
+            const allowedPermissions = new Set(['admin', 'maintain', 'write']);
+            const approvers = [];
+            for (const review of latestByReviewer.values()) {
+              if (review.state?.toUpperCase() !== 'APPROVED') continue;
+              if (review.commit_id !== currentHead) continue;
+              const response = await github.rest.repos.getCollaboratorPermissionLevel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                number: pullNumber,
+                username: review.user.login,
+              });
+              if (allowedPermissions.has(response.data.permission)) {
+                approvers.push(review.user.login);
               }
-            );
-            const reviewDecision = reviewData.repository.pullRequest.reviewDecision;
+            }
 
-            if (reviewDecision !== 'APPROVED') {
+            if (approvers.length === 0) {
               core.setFailed(
                 'Fork recipe instructions cannot enter the secret-bearing AI scanner. ' +
-                'An approving review from a user with write access is required.'
+                'The current head requires an approving review from a user with write access. ' +
+                'After approval, rerun this failed job.'
               );
               return;
             }
 
-            core.notice('GitHub reports that the fork recipe has the required approval.');
+            core.notice(`Current fork head approved by @${approvers.join(', @')}.`);
             await core.summary
               .addHeading('Fork recipe review boundary')
               .addRaw(
                 'The privileged AI scan was not run because this recipe comes from a fork. ' +
-                'GitHub reports that the repository review requirement is approved.'
+                `Write-access approval of the current head was verified from @${approvers.join(', @')}.`
               )
               .write();
 
   security-scan:
     # Never load fork-controlled recipe instructions into the privileged scanner.
-    if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
