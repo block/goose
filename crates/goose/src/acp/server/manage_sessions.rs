@@ -46,13 +46,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to reload session")?;
 
-        // A session loaded while its working directory was missing defers activation,
-        // so its recipe was never applied. get_session_agent activates it now against
-        // the repointed directory; apply the recipe to finish that deferred setup.
+        // A session loaded while its working directory was missing defers activation.
+        // get_session_agent activates it now against the repointed directory and
+        // applies the stored recipe as part of that deferred setup.
         let agent = self.get_session_agent(session_id).await?;
-        if !was_active {
-            self.apply_session_recipe(&agent, &session).await?;
-        }
 
         agent
             .restore_provider_from_session(&session)

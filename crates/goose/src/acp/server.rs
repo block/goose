@@ -1609,6 +1609,12 @@ impl GooseAcpAgent {
             };
 
         let (agent, _) = self.activate_acp_session(cx, &session).await?;
+
+        // A deferred session skipped apply_session_recipe at load, so every lazy
+        // activation — prompt-triggered ones included — must finish that setup or
+        // the first recovered prompt runs without the recipe instructions.
+        self.apply_session_recipe(&agent, &session).await?;
+
         Ok(agent)
     }
 

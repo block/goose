@@ -669,6 +669,75 @@ fn test_prompt_succeeds_after_repointing_missing_working_dir() {
 }
 
 #[test]
+fn test_prompt_triggered_deferred_activation_applies_recipe() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let recipe = Recipe::builder()
+            .title("Recovered recipe")
+            .description("Applies after deferred activation")
+            .instructions("RECIPE_MARKER_INSTRUCTIONS")
+            .build()
+            .unwrap();
+        session_manager
+            .update(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .unwrap();
+
+        // The fixture rejects any completion request whose body lacks the marker,
+        // so a passing prompt proves the recipe reached the system prompt.
+        let openai = OpenAiFixture::new(
+            vec![(
+                "RECIPE_MARKER_INSTRUCTIONS".to_string(),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let conn = new_connection_with_openai(data_root.path(), openai).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        std::fs::create_dir_all(&missing_dir).unwrap();
+
+        let response = conn
+            .cx()
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new("what is 1+1"))],
+            ))
+            .block_task()
+            .await
+            .expect("a prompt-triggered activation must apply the stored recipe");
+
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        std::fs::remove_dir_all(&missing_dir).ok();
+    });
+}
+
+#[test]
 fn test_recreating_same_working_dir_activates_deferred_session() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
