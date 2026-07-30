@@ -175,6 +175,25 @@ fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
     Value::Object(arguments.unwrap_or_default())
 }
 
+/// Anthropic Messages API enforces `tool_use.name` ≤ 200 characters.
+///
+/// ACP harness sessions often store the full shell command (or other long
+/// display titles) as the tool name. Replaying that history to an
+/// Anthropic-format provider then permanently 400s. Truncate at format time so
+/// already-poisoned sessions become usable again (see #10807). Pairing still
+/// uses `tool_use.id` / `tool_result.tool_use_id`, not the name.
+const ANTHROPIC_TOOL_USE_NAME_MAX_CHARS: usize = 200;
+
+fn sanitize_tool_use_name(name: &str) -> String {
+    if name.chars().count() <= ANTHROPIC_TOOL_USE_NAME_MAX_CHARS {
+        name.to_string()
+    } else {
+        name.chars()
+            .take(ANTHROPIC_TOOL_USE_NAME_MAX_CHARS)
+            .collect()
+    }
+}
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     format_messages_with_options(messages, AnthropicFormatOptions::default())
@@ -209,7 +228,7 @@ fn format_messages_with_options(
                             content.push(json!({
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
-                                NAME_FIELD: tool_call.name,
+                                NAME_FIELD: sanitize_tool_use_name(&tool_call.name),
                                 INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
@@ -377,7 +396,7 @@ fn format_messages_with_options(
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
-                            NAME_FIELD: tool_call.name,
+                            NAME_FIELD: sanitize_tool_use_name(&tool_call.name),
                             INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }
@@ -1873,6 +1892,47 @@ mod tests {
         assert!(value.is_object(), "expected JSON object, got {value:?}");
         assert_eq!(value, json!({}));
         assert!(!value.is_null());
+    }
+
+    #[test]
+    fn test_sanitize_tool_use_name_truncates_to_anthropic_limit() {
+        let short = "developer__shell";
+        assert_eq!(sanitize_tool_use_name(short), short);
+
+        // ACP harnesses often store the full shell command as the tool name (#10807).
+        let long: String = "git commit -m ".to_string() + &"x".repeat(250);
+        assert!(long.chars().count() > ANTHROPIC_TOOL_USE_NAME_MAX_CHARS);
+        let sanitized = sanitize_tool_use_name(&long);
+        assert_eq!(sanitized.chars().count(), ANTHROPIC_TOOL_USE_NAME_MAX_CHARS);
+        assert!(long.starts_with(&sanitized));
+    }
+
+    #[test]
+    fn test_long_tool_request_name_truncated_in_format_messages() {
+        // Regression for #10807: replaying ACP history with tool names longer
+        // than 200 chars must not emit Anthropic-rejected tool_use.name values.
+        let long_name: String = "a".repeat(250);
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_long",
+                Ok(CallToolRequestParams::new(long_name.clone())),
+            ),
+            Message::user().with_tool_response(
+                "tool_long",
+                Ok(rmcp::model::CallToolResult::success(vec![])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+        let name = spec[0]["content"][0]["name"].as_str().expect("name field");
+        assert_eq!(name.chars().count(), ANTHROPIC_TOOL_USE_NAME_MAX_CHARS);
+        let expected: String = long_name
+            .chars()
+            .take(ANTHROPIC_TOOL_USE_NAME_MAX_CHARS)
+            .collect();
+        assert_eq!(name, expected);
+        // Pairing is by id — result still points at the same tool_use id.
+        assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_long");
     }
 
     #[test]
