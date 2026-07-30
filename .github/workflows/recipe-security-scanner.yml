@@ -17,7 +17,30 @@ permissions:
   statuses: write
 
 jobs:
+  fork-review-boundary:
+    name: Fork recipe review boundary
+    if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Defer privileged scan
+        run: |
+          echo "::notice title=Privileged recipe scan deferred::Fork recipe instructions are untrusted input. A reviewer with write access must inspect the change before a maintainer mirrors it to an origin branch for the secret-bearing AI scan."
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          # Privileged recipe scan deferred
+
+          This recipe comes from a fork. The AI scanner has repository secrets,
+          outbound network access, and developer tooling, so it must not process
+          fork-controlled instructions in a `pull_request_target` job.
+
+          A reviewer with write access must inspect the recipe. If the AI scan is
+          needed, a maintainer can mirror the approved commit to a branch in this
+          repository, where the `security-scan` job is allowed to run.
+          EOF
+
   security-scan:
+    # Never load fork-controlled recipe instructions into the privileged scanner.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
