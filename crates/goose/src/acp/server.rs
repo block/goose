@@ -488,6 +488,22 @@ fn build_prompt_usage(session: &Session) -> Option<Usage> {
     Some(Usage::new(total, input, output))
 }
 
+fn prompt_stop_reason(was_cancelled: bool, output_token_limit_reached: bool) -> StopReason {
+    if was_cancelled {
+        StopReason::Cancelled
+    } else if output_token_limit_reached {
+        StopReason::MaxTokens
+    } else {
+        StopReason::EndTurn
+    }
+}
+
+fn update_output_token_limit_reached(output_token_limit_reached: &mut bool, message: &Message) {
+    if message.role == Role::Assistant {
+        *output_token_limit_reached = message.metadata.output_token_limit_reached;
+    }
+}
+
 pub(super) struct UsageUpdates {
     pub(super) custom: GooseSessionNotification,
     pub(super) standard: UsageUpdate,
@@ -1783,6 +1799,7 @@ impl GooseAcpAgent {
         };
 
         let mut was_cancelled = false;
+        let mut output_token_limit_reached = false;
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
@@ -1795,6 +1812,8 @@ impl GooseAcpAgent {
 
             match event {
                 Ok(crate::agents::AgentEvent::Message(message)) => {
+                    update_output_token_limit_reached(&mut output_token_limit_reached, &message);
+
                     // Agent persists messages via session_manager.add_message() internally.
                     let stored_message_id = message.id.clone();
 
@@ -1921,11 +1940,7 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        let stop_reason = if was_cancelled {
-            StopReason::Cancelled
-        } else {
-            StopReason::EndTurn
-        };
+        let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 
         let mut response = PromptResponse::new(stop_reason);
         if let Some(usage) = build_prompt_usage(&session) {
@@ -2554,6 +2569,42 @@ print(\"hello, world\")
             TokenUsage::default(),
         );
         assert!(build_prompt_usage(&session).is_none());
+    }
+
+    #[test_case(false, false, StopReason::EndTurn; "normal completion")]
+    #[test_case(false, true, StopReason::MaxTokens; "output token limit")]
+    #[test_case(true, true, StopReason::Cancelled; "cancellation takes precedence")]
+    fn test_prompt_stop_reason(
+        was_cancelled: bool,
+        output_token_limit_reached: bool,
+        expected: StopReason,
+    ) {
+        assert_eq!(
+            prompt_stop_reason(was_cancelled, output_token_limit_reached),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_output_token_limit_state_tracks_latest_assistant_message() {
+        let mut output_token_limit_reached = false;
+        let mut marker = Message::assistant();
+        marker.metadata.output_token_limit_reached = true;
+
+        update_output_token_limit_reached(&mut output_token_limit_reached, &marker);
+        assert!(output_token_limit_reached);
+
+        update_output_token_limit_reached(
+            &mut output_token_limit_reached,
+            &Message::user().with_text("continue"),
+        );
+        assert!(output_token_limit_reached);
+
+        update_output_token_limit_reached(
+            &mut output_token_limit_reached,
+            &Message::assistant().with_text("Complete response"),
+        );
+        assert!(!output_token_limit_reached);
     }
 
     #[test]
