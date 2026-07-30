@@ -22,6 +22,10 @@ impl GooseAcpAgent {
             });
         };
 
+        // A cached agent bypasses get_session_agent's activation guard; reject
+        // session-scoped app listing with the structured reason when the stored
+        // working dir vanished after activation, like the tool/resource paths.
+        self.validate_session_working_dir(&session_id).await?;
         let agent = self.get_session_agent(&session_id).await?;
         let mut apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
             .await

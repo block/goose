@@ -62,7 +62,11 @@ impl GooseAcpAgent {
         req: GooseToolCallRequest,
     ) -> Result<GooseToolCallResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id).await?;
+        // A cached agent bypasses get_session_agent's activation guard, so a
+        // directory deleted after activation would still reach dispatch_tool_call
+        // with the now-missing working dir. Reject with the structured reason.
+        self.validate_session_working_dir(session_id).await?;
+        let agent = self.get_session_agent(session_id).await?;
         let tools = agent.list_tools(session_id, None).await;
 
         let Some(tool) = tools.iter().find(|t| *t.name == req.name) else {

@@ -531,6 +531,82 @@ fn test_add_session_extension_rejects_dir_deleted_after_activation() {
 }
 
 #[test]
+fn test_cached_agent_endpoints_reject_dir_deleted_after_activation() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let working_dir = tempfile::tempdir().unwrap();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                working_dir.path().to_path_buf(),
+                "Doomed worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                working_dir.path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading with a valid working dir must activate the agent");
+
+        working_dir.close().unwrap();
+
+        // These endpoints reach the cached agent, bypassing the activation guard,
+        // and dispatch into the session's extensions with the stored working dir.
+        for (method, params) in [
+            (
+                "_goose/unstable/tools/call",
+                serde_json::json!({
+                    "sessionId": session.id,
+                    "name": "developer__shell",
+                    "arguments": {},
+                }),
+            ),
+            (
+                "_goose/unstable/resources/read",
+                serde_json::json!({
+                    "sessionId": session.id,
+                    "uri": "ui://apps/example",
+                    "extensionName": "apps",
+                }),
+            ),
+            (
+                "_goose/unstable/apps/list",
+                serde_json::json!({ "sessionId": session.id }),
+            ),
+        ] {
+            let error = match send_custom(conn.cx(), method, params).await {
+                Err(error) => error,
+                Ok(response) => {
+                    panic!("{method} must be rejected after the dir was deleted, got {response:?}")
+                }
+            };
+
+            assert_eq!(error.code, ErrorCode::InvalidParams, "{method}");
+            assert_eq!(
+                error
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.get("reason"))
+                    .and_then(serde_json::Value::as_str),
+                Some("working_dir_missing"),
+                "{method} must carry the same machine-readable reason as the prompt path"
+            );
+        }
+    });
+}
+
+#[test]
 fn test_deferred_session_rebuilds_extension_data_after_repoint() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
