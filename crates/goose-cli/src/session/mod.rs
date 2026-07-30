@@ -1043,8 +1043,11 @@ impl CliSession {
 
     async fn handle_clear(&mut self) -> Result<()> {
         let provider = self.agent.provider().await?;
-        let provider_reset = provider.reset_context().await;
 
+        // Clear locally before asking the provider to reset: a provider-side
+        // reset cannot be undone, so a failed local clear must leave both
+        // histories in place rather than handing the old transcript to a
+        // freshly reset agent-side session on the next prompt.
         if let Err(e) = self
             .agent
             .config
@@ -1055,9 +1058,9 @@ impl CliSession {
             output::render_error(&format!("Failed to clear session: {}", e));
             return Ok(());
         }
+        self.messages.clear();
 
-        if let Err(e) = provider_reset {
-            self.messages.clear();
+        if let Err(e) = provider.reset_context().await {
             tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
             output::render_error(&stale_provider_context_message(
                 provider.get_name(),
@@ -1083,7 +1086,6 @@ impl CliSession {
             return Ok(());
         }
 
-        self.messages.clear();
         tracing::info!("Chat context cleared by user.");
         output::render_message(
             &Message::assistant().with_text("Chat context cleared.\n"),

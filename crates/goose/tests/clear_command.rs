@@ -19,7 +19,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -297,6 +297,87 @@ async fn clear_falls_back_to_a_local_clear_without_a_provider() -> anyhow::Resul
         .messages()
         .is_empty());
     assert_eq!(updated.usage.total_tokens, Some(0));
+
+    Ok(())
+}
+
+/// A provider whose `reset_context` records whether goose's transcript was
+/// already empty when the reset arrived.
+struct ResetOrderProbe {
+    session_manager: Arc<goose::session::SessionManager>,
+    session_id: String,
+    local_already_cleared: AtomicBool,
+}
+
+#[async_trait]
+impl Provider for ResetOrderProbe {
+    async fn stream(
+        &self,
+        _model_config: &ModelConfig,
+        _system_prompt: &str,
+        _messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let usage = ProviderUsage::new(
+            "mock-model".to_string(),
+            Usage::new(Some(10), Some(10), Some(20)),
+        );
+        Ok(stream_from_single_message(
+            Message::assistant().with_text("ok"),
+            usage,
+        ))
+    }
+
+    fn get_name(&self) -> &str {
+        "reset-order-probe"
+    }
+
+    fn manages_own_context(&self) -> bool {
+        true
+    }
+
+    async fn reset_context(&self) -> Result<(), ProviderError> {
+        let cleared = self
+            .session_manager
+            .get_session(&self.session_id, true)
+            .await
+            .ok()
+            .and_then(|session| session.conversation)
+            .map(|conversation| conversation.messages().is_empty())
+            .unwrap_or(false);
+        self.local_already_cleared.store(cleared, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+/// The provider may only be reset after the local clear succeeds: a
+/// provider-side reset cannot be undone, so a failed local clear must leave
+/// both histories in place rather than only goose's.
+#[tokio::test]
+async fn clear_empties_the_local_transcript_before_resetting_the_provider() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let agent = Agent::new();
+    let session = setup_session(&agent, &temp_dir, "clear-ordering").await?;
+
+    let provider = Arc::new(ResetOrderProbe {
+        session_manager: agent.config.session_manager.clone(),
+        session_id: session.id.clone(),
+        local_already_cleared: AtomicBool::new(false),
+    });
+    agent
+        .update_provider(
+            provider.clone(),
+            ModelConfig::new("mock-model"),
+            &session.id,
+        )
+        .await?;
+
+    agent.execute_command("/clear", &session.id).await?;
+
+    assert!(
+        provider.local_already_cleared.load(Ordering::SeqCst),
+        "the local transcript must already be empty when the provider reset runs"
+    );
 
     Ok(())
 }

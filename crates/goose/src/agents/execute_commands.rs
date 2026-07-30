@@ -191,22 +191,22 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
-        let provider = self.provider().await.ok();
-        let provider_reset = match &provider {
-            Some(provider) => provider.reset_context().await,
-            None => Ok(()),
-        };
-
+        // Clear locally before asking the provider to reset: a provider-side
+        // reset cannot be undone, so a failed local clear must leave both
+        // histories in place rather than only goose's.
         let manager = self.config.session_manager.clone();
         manager
             .replace_conversation(session_id, &Conversation::default())
             .await?;
 
-        if let (Some(provider), Err(e)) = (&provider, provider_reset) {
-            tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
-            return Ok(Some(user_only_assistant_text(
-                stale_provider_context_message(provider.get_name(), &e.to_string()),
-            )));
+        // No provider means nothing agent-side to reset: a local-only clear.
+        if let Ok(provider) = self.provider().await {
+            if let Err(e) = provider.reset_context().await {
+                tracing::warn!(provider = provider.get_name(), error = %e, "provider-side context reset failed");
+                return Ok(Some(user_only_assistant_text(
+                    stale_provider_context_message(provider.get_name(), &e.to_string()),
+                )));
+            }
         }
 
         manager
