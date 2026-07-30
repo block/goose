@@ -2945,6 +2945,47 @@ async function appMain() {
     });
   });
 
+  // Relay per-session stream status between windows so archive/delete guards
+  // can see runs owned by other windows (local backends are per-window, so the
+  // server cannot). When a reporting window closes or reloads, tell the others
+  // to drop its statuses — otherwise a window closed mid-stream would leave its
+  // sessions marked busy forever.
+  const sessionStatusWiredIds = new Set<number>();
+  ipcMain.on('broadcast-session-status', (event, status) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!senderWindow) {
+      return;
+    }
+    const senderId = senderWindow.id;
+
+    if (!sessionStatusWiredIds.has(senderId)) {
+      sessionStatusWiredIds.add(senderId);
+      const clearReporter = () => {
+        BrowserWindow.getAllWindows().forEach((window) => {
+          if (window.id !== senderId && !window.webContents.isDestroyed()) {
+            window.webContents.send('remote-session-status-cleared', { windowId: senderId });
+          }
+        });
+      };
+      senderWindow.once('closed', () => {
+        sessionStatusWiredIds.delete(senderId);
+        clearReporter();
+      });
+      // A reload drops the renderer's streaming state without firing 'closed'.
+      senderWindow.webContents.on('did-start-navigation', (navigationEvent) => {
+        if (!navigationEvent.isSameDocument) {
+          clearReporter();
+        }
+      });
+    }
+
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (window.id !== senderId) {
+        window.webContents.send('remote-session-status-update', { windowId: senderId, ...status });
+      }
+    });
+  });
+
   ipcMain.on('reload-app', (event) => {
     // Get the window that sent the event
     const window = BrowserWindow.fromWebContents(event.sender);

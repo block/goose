@@ -254,6 +254,18 @@ impl GooseAcpAgent {
         &self,
         req: ArchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        // Archiving removes the loaded agent, so an in-flight prompt run would
+        // resume against a missing session. Client-side gating cannot see runs
+        // owned by other windows sharing this server, so refuse here too.
+        if self
+            .active_prompt_runs
+            .lock()
+            .await
+            .contains_key(&req.session_id)
+        {
+            return Err(agent_client_protocol::Error::invalid_params()
+                .data("cannot archive a session while it has an active prompt run"));
+        }
         self.session_manager
             .update(&req.session_id)
             .archived_at(Some(chrono::Utc::now()))

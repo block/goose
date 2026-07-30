@@ -156,6 +156,7 @@ type ElectronAPI = {
     theme: string;
     tokensUpdated?: boolean;
   }) => void;
+  broadcastSessionStatus: (status: { sessionId: string; streamState: string }) => void;
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
   getVersion: () => string;
@@ -292,6 +293,9 @@ const electronAPI: ElectronAPI = {
     tokensUpdated?: boolean;
   }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
+  },
+  broadcastSessionStatus: (status: { sessionId: string; streamState: string }) => {
+    ipcRenderer.send('broadcast-session-status', status);
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);

@@ -58,6 +58,7 @@ import {
 } from '../../acp/sessions';
 import type { SessionExportFormat } from '@aaif/goose-sdk';
 import { acpChatSessionActions, useAcpChatSessionSnapshot } from '../../acp/chatSessionStore';
+import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
 import { ChatState } from '../../types/chatState';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
@@ -810,9 +811,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
       // so gate the action unless the session is idle (like the sidebar does).
       // Anything non-idle — streaming, thinking, compacting, loading, waiting
       // on a permission/elicitation, restarting — still has server-side work
-      // that would resume into a removed session.
+      // that would resume into a removed session. The local snapshot cannot see
+      // runs owned by other desktop windows, so also consult the cross-window
+      // busy registry.
       const chatState = useAcpChatSessionSnapshot(session.id)?.chatState;
-      const isArchiveBlocked = chatState !== undefined && chatState !== ChatState.Idle;
+      const busyElsewhere = useSessionBusyElsewhere(session.id);
+      const isArchiveBlocked =
+        (chatState !== undefined && chatState !== ChatState.Idle) || busyElsewhere;
 
     const handleEditClick = useCallback(
       (e: React.MouseEvent) => {

@@ -206,6 +206,9 @@ export default function BaseChat({
         },
       })
     );
+    // Other desktop windows run their own backends and cannot see this run;
+    // relay the status through the main process so their archive guards can.
+    window.electron?.broadcastSessionStatus?.({ sessionId, streamState });
   }, [sessionId, chatState, messages.length, sessionLoadError]);
 
   // Generate command history from user messages (most recent first)

@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
+import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
 import {
   NAV_ITEMS,
   SETTINGS_NAV_ITEM,
@@ -247,9 +248,14 @@ const SessionRow: React.FC<SessionRowProps> = ({
   const isStreaming = status?.streamState === 'streaming';
   // Archiving must not race an active run: mid-load the server can re-register
   // the agent after archive removed it, and streaming or waiting-on-user-input
-  // prompts would resume into a removed session, so gate all three states.
+  // prompts would resume into a removed session, so gate all three states —
+  // including runs owned by other desktop windows.
+  const busyElsewhere = useSessionBusyElsewhere(session.id);
   const isArchiveBlocked =
-    isStreaming || status?.streamState === 'loading' || status?.streamState === 'waiting';
+    isStreaming ||
+    status?.streamState === 'loading' ||
+    status?.streamState === 'waiting' ||
+    busyElsewhere;
   const hasError = status?.streamState === 'error';
   const hasUnread = status?.hasUnreadActivity ?? false;
 
