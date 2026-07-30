@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'documentation/src/pages/recipes/data/recipes/**'
+  pull_request_review:
+    types: [submitted, dismissed]
 
 concurrency:
   group: scanner-${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -20,27 +22,84 @@ jobs:
   fork-review-boundary:
     name: Fork recipe review boundary
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
-    permissions: {}
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
-      - name: Defer privileged scan
-        run: |
-          echo "::notice title=Privileged recipe scan deferred::Fork recipe instructions are untrusted input. A reviewer with write access must inspect the change before a maintainer mirrors it to an origin branch for the secret-bearing AI scan."
-          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          # Privileged recipe scan deferred
+      - name: Require write-access approval
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const recipePrefix = 'documentation/src/pages/recipes/data/recipes/';
+            const pullNumber = context.payload.pull_request.number;
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+              per_page: 100,
+            };
 
-          This recipe comes from a fork. The AI scanner has repository secrets,
-          outbound network access, and developer tooling, so it must not process
-          fork-controlled instructions in a `pull_request_target` job.
+            const files = await github.paginate(github.rest.pulls.listFiles, request);
+            const hasReviewableRecipe = files.some(
+              (file) => file.filename.startsWith(recipePrefix) && file.status !== 'removed'
+            );
 
-          A reviewer with write access must inspect the recipe. If the AI scan is
-          needed, a maintainer can mirror the approved commit to a branch in this
-          repository, where the `security-scan` job is allowed to run.
-          EOF
+            if (!hasReviewableRecipe) {
+              core.notice('No added or modified recipe requires the fork review boundary.');
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, request);
+            const latestByReviewer = new Map();
+            for (const review of reviews) {
+              if (!review.user?.login || !review.submitted_at) continue;
+              const state = review.state?.toUpperCase();
+              if (!['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(state)) continue;
+              const current = latestByReviewer.get(review.user.login);
+              if (!current || new Date(review.submitted_at) > new Date(current.submitted_at)) {
+                latestByReviewer.set(review.user.login, review);
+              }
+            }
+
+            const allowedPermissions = new Set(['admin', 'maintain', 'write']);
+            const approvers = [];
+            for (const review of latestByReviewer.values()) {
+              if (review.state?.toUpperCase() !== 'APPROVED') continue;
+              try {
+                const response = await github.rest.repos.getCollaboratorPermissionLevel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  username: review.user.login,
+                });
+                if (allowedPermissions.has(response.data.permission)) {
+                  approvers.push(review.user.login);
+                }
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+
+            if (approvers.length === 0) {
+              core.setFailed(
+                'Fork recipe instructions cannot enter the secret-bearing AI scanner. ' +
+                'An approving review from a user with write access is required.'
+              );
+              return;
+            }
+
+            core.notice(`Fork recipe review boundary approved by @${approvers.join(', @')}.`);
+            await core.summary
+              .addHeading('Fork recipe review boundary')
+              .addRaw(
+                'The privileged AI scan was not run because this recipe comes from a fork. ' +
+                `Write-access approval was verified from @${approvers.join(', @')}.`
+              )
+              .write();
 
   security-scan:
     # Never load fork-controlled recipe instructions into the privileged scanner.
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
