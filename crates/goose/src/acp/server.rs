@@ -1887,6 +1887,15 @@ impl GooseAcpAgent {
             }
         }
 
+        // A cancel that lands while the provider stream is quiet ends the reply
+        // stream cleanly (EOF) rather than surfacing an event, so the in-loop
+        // check above never runs. Re-check the token before closing tool
+        // chains, so a cancelled EOF neither schedules chain-summary
+        // enrichment nor gets reported as a normal completion.
+        if cancel_token.is_cancelled() {
+            was_cancelled = true;
+        }
+
         if !was_cancelled && stream_error.is_none() {
             if let Some(chain) = chain_tracker.close_current_chain() {
                 self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
@@ -1896,14 +1905,6 @@ impl GooseAcpAgent {
         Self::send_active_run_update(cx, &args.session_id, None)?;
         if let Some(error) = stream_error {
             return Err(error);
-        }
-
-        // A cancel that lands while the provider stream is quiet ends the reply
-        // stream cleanly (EOF) rather than surfacing an event, so the in-loop
-        // check above never runs. Re-check the token so the turn is still
-        // reported as cancelled instead of a normal completion.
-        if cancel_token.is_cancelled() {
-            was_cancelled = true;
         }
 
         let session = self
