@@ -66,17 +66,31 @@ jobs:
 
             const allowedPermissions = new Set(['admin', 'maintain', 'write']);
             const approvers = [];
+            const blockers = [];
             for (const review of latestByReviewer.values()) {
-              if (review.state?.toUpperCase() !== 'APPROVED') continue;
               if (review.commit_id !== currentHead) continue;
+              const state = review.state?.toUpperCase();
+              if (!['APPROVED', 'CHANGES_REQUESTED'].includes(state)) continue;
               const response = await github.rest.repos.getCollaboratorPermissionLevel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 username: review.user.login,
               });
               if (allowedPermissions.has(response.data.permission)) {
-                approvers.push(review.user.login);
+                if (state === 'CHANGES_REQUESTED') {
+                  blockers.push(review.user.login);
+                } else {
+                  approvers.push(review.user.login);
+                }
               }
+            }
+
+            if (blockers.length > 0) {
+              core.setFailed(
+                'The current fork head has changes requested by a reviewer with write access: ' +
+                `@${blockers.join(', @')}.`
+              );
+              return;
             }
 
             if (approvers.length === 0) {
