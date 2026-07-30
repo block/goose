@@ -8,7 +8,7 @@ parameters:
   - key: task
     input_type: string
     requirement: user_prompt
-    description: "Describe the task, its destination, and any approval or retry constraints. Do not include secrets or personal data."
+    description: "Describe the task, its destination, and any approval or retry constraints. Supply any required domain extension through goose CLI or launch metadata. Do not include secrets or personal data."
 
 instructions: |
   You are goose executing the user's authorized task. Agent Enhancer is a
@@ -25,7 +25,14 @@ instructions: |
      send secrets, personal data, record content, or the raw task text to Agent
      Enhancer.
 
-  2. Use the Agent Enhancer extension through the owner-qualified tool names
+  2. Confirm the session has a tool that can perform the domain action and
+     read the destination back. This recipe declares only `developer` and
+     `agent-enhancer`; tasks requiring GitHub, Gmail, Slack, or another domain
+     extension must supply it separately through goose CLI or launch metadata.
+     If the required extension is not loaded, stop and ask the user to relaunch
+     with it. Never treat Agent Enhancer as the missing domain tool.
+
+  3. Use the Agent Enhancer extension through the owner-qualified tool names
      goose exposes:
      - call `agent-enhancer__lab.search_tools` for a workflow reliability planner;
      - call `agent-enhancer__lab.describe_tool` for `workflow-guard-planner`;
@@ -34,11 +41,11 @@ instructions: |
      Record assumptions explicitly. Treat the returned candidate tools as a
      plan, not proof that the destination supports them.
 
-  3. If the planner returns `no-sidecar`, execute the ordinary one-time,
+  4. If the planner returns `no-sidecar`, execute the ordinary one-time,
      low-risk task with the relevant goose tool, verify its result when
      practical, and report that no sidecar guard was needed.
 
-  4. For a guarded, duplicate-sensitive external effect, discover and describe
+  5. For a guarded, duplicate-sensitive external effect, discover and describe
      `workflow-checkpoint`. Generate opaque high-entropy values for namespace,
      workflow key, holder, observation key, and outer idempotency key. Keep one
      operation identity stable for this run and use fresh idempotency keys for
@@ -46,7 +53,7 @@ instructions: |
      retry was explicitly authorized. Never derive an identifier by sending
      raw task or destination content to the service.
 
-  5. Claim the checkpoint before the destination preflight. Use the shortest
+  6. Claim the checkpoint before the destination preflight. Use the shortest
      practical TTL, never start an external action within the final 15 seconds
      of the claim, and stand down if the claim is denied. After acquiring it,
      search or read the destination again. If the intended result already
@@ -54,7 +61,7 @@ instructions: |
      from `claimed` to `caller_verified` with the matching allowed evidence
      enum.
 
-  6. If the preflight establishes absence and the action remains authorized,
+  7. If the preflight establishes absence and the action remains authorized,
      make at most one domain attempt in this guarded run with the relevant
      goose tool. Agent Enhancer never substitutes for user approval. Do not
      retry a harmful create, send, delete, or other irreversible effect after a
@@ -63,14 +70,14 @@ instructions: |
      stop for user review if the result cannot be established safely. Abandon
      a claim only when it is certain that no external action started.
 
-  7. After an apparently successful action, verify it at the destination.
+  8. After an apparently successful action, verify it at the destination.
      Only then transition the current checkpoint generation to
      `caller_verified`, using one of the documented evidence enums and,
      optionally, an opaque HMAC-SHA-256 fingerprint. Remember that every
      checkpoint response has `external_proof: false`: it records the caller's
      assertion and does not attest to the external system.
 
-  8. Finish with a compact report containing: planner decision and profile,
+  9. Finish with a compact report containing: planner decision and profile,
      operation identity strategy, guards used, domain action performed,
      destination evidence observed, final checkpoint stage, honest guarantee
      label, residual risks, and any required human follow-up. Never claim
