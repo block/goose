@@ -87,10 +87,11 @@ enum ClientRequest {
         /// loop suppresses the prompt if a cancel has since been recorded for
         /// this epoch, even when it is handled after a newer reply started.
         cancel_epoch: u64,
-        /// Whether this prompt claimed the one-shot handoff context. If the
-        /// client loop suppresses the prompt, it rolls the claim back so the
-        /// next prompt still carries the context the backend never received.
-        claimed_handoff: bool,
+        /// Handoff-context memo to prepend if this turns out to be the first
+        /// prompt the client loop actually sends. Claiming at send time (rather
+        /// than when the prompt is built) keeps a prompt that is never sent
+        /// from spending the one-shot context.
+        handoff_prefix: Option<Box<ContentBlock>>,
         response_tx: mpsc::Sender<AcpUpdate>,
     },
 }
@@ -145,11 +146,6 @@ struct AcpSession {
     response: NewSessionResponse,
 }
 
-struct HandoffContextClaim {
-    first_prompt: bool,
-    include_context: bool,
-}
-
 pub struct AcpProvider {
     name: String,
     goose_mode: Arc<Mutex<GooseMode>>,
@@ -160,9 +156,6 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    /// Shared with the client loop so a suppressed (cancelled-before-send)
-    /// first prompt can roll back the handoff-context claim it made.
-    handoff_context_sent: Arc<AtomicBool>,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
     /// in which case `get_context_limit()` falls back to the supplied model
@@ -284,7 +277,6 @@ impl AcpProvider {
         let agent_cx: Arc<OnceLock<ConnectionTo<Agent>>> = Arc::new(OnceLock::new());
         let cancelled_epoch = Arc::new(AtomicU64::new(0));
         let active_prompt_epoch = Arc::new(AtomicU64::new(0));
-        let handoff_context_sent = Arc::new(AtomicBool::new(false));
         let client_loop = AcpClientLoop::new(
             config,
             goose_mode_shared.clone(),
@@ -293,7 +285,6 @@ impl AcpProvider {
             agent_cx.clone(),
             cancelled_epoch.clone(),
             active_prompt_epoch.clone(),
-            handoff_context_sent.clone(),
         );
         let loop_thread = spawn_client_loop(run(client_loop, rx, init_tx));
 
@@ -324,7 +315,6 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent,
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
@@ -416,7 +406,7 @@ impl AcpProvider {
         &self,
         session_id: SessionId,
         content: Vec<ContentBlock>,
-        claimed_handoff: bool,
+        handoff_prefix: Option<Box<ContentBlock>>,
     ) -> Result<mpsc::Receiver<AcpUpdate>> {
         let (response_tx, response_rx) = mpsc::channel(64);
         self.tx
@@ -426,7 +416,7 @@ impl AcpProvider {
                 session_id,
                 content,
                 cancel_epoch: self.cancel_epoch.load(Ordering::SeqCst),
-                claimed_handoff,
+                handoff_prefix,
                 response_tx,
             })
             .await
@@ -440,14 +430,6 @@ impl AcpProvider {
             .config_options
             .as_ref()
             .is_some_and(|opts| opts.iter().any(|o| o.category.as_ref() == Some(&category)))
-    }
-
-    fn claim_handoff_context(&self, messages: &[Message]) -> HandoffContextClaim {
-        let first_prompt = !self.handoff_context_sent.swap(true, Ordering::AcqRel);
-        HandoffContextClaim {
-            first_prompt,
-            include_context: first_prompt && has_handoff_context(messages),
-        }
     }
 }
 
@@ -574,36 +556,25 @@ impl Provider for AcpProvider {
                 ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
             })?;
 
-        let current_prompt_blocks = messages_to_prompt(messages, false);
-        if current_prompt_blocks.is_empty() {
+        let prompt_blocks = messages_to_prompt(messages);
+        if prompt_blocks.is_empty() {
             return Ok(Box::pin(futures::stream::empty()));
         }
 
-        let claim = self.claim_handoff_context(messages);
-        let prompt_blocks = if claim.include_context {
-            messages_to_prompt(messages, true)
-        } else {
-            current_prompt_blocks
-        };
+        // The handoff memo travels alongside the prompt rather than baked into
+        // it: the client loop claims the one-shot context when it actually
+        // sends, so a prompt that is never sent (cancelled or failed) neither
+        // spends the claim nor leaves a later prompt without the context.
+        let handoff_prefix = handoff_context_block(messages);
         // Drop any tool-call buffer state left over from a prior prompt
         // (e.g. cancelled or interrupted before its terminal status arrived).
         if let Ok(mut buffer) = self.pending_tool_updates.lock() {
             buffer.clear();
         }
-        let mut rx = match self
-            .prompt(session_id, prompt_blocks, claim.first_prompt)
+        let mut rx = self
+            .prompt(session_id, prompt_blocks, handoff_prefix)
             .await
-        {
-            Ok(rx) => rx,
-            Err(e) => {
-                if claim.first_prompt {
-                    self.handoff_context_sent.store(false, Ordering::Release);
-                }
-                return Err(ProviderError::RequestFailed(format!(
-                    "Failed to send ACP prompt: {e}"
-                )));
-            }
-        };
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to send ACP prompt: {e}")))?;
 
         let pending_confirmations = self.pending_confirmations.clone();
         let goose_mode = *self
@@ -804,7 +775,6 @@ impl AcpClientLoop {
         agent_cx: Arc<OnceLock<ConnectionTo<Agent>>>,
         cancelled_epoch: Arc<AtomicU64>,
         active_prompt_epoch: Arc<AtomicU64>,
-        handoff_context_sent: Arc<AtomicBool>,
     ) -> Self {
         Self {
             config,
@@ -815,7 +785,7 @@ impl AcpClientLoop {
             agent_cx,
             cancelled_epoch,
             active_prompt_epoch,
-            handoff_context_sent,
+            handoff_context_sent: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -1276,22 +1246,30 @@ async fn handle_requests(
                 session_id,
                 content,
                 cancel_epoch,
-                claimed_handoff,
+                handoff_prefix,
                 response_tx,
             } => {
                 // The turn's cancel already fired; a prompt sent now would be
                 // its backend's only run and nothing would ever cancel it.
+                // Nothing reached the backend, so the one-shot handoff context
+                // is still unclaimed and the next prompt carries it.
                 if cancelled_epoch.load(Ordering::SeqCst) >= cancel_epoch {
-                    // The backend never received this prompt, so give the
-                    // one-shot handoff-context claim back to the next prompt.
-                    if claimed_handoff {
-                        handoff_context_sent.store(false, Ordering::Release);
-                    }
                     log_undelivered(
                         response_tx.try_send(AcpUpdate::Complete(StopReason::Cancelled, None)),
                         AGENT_METHOD_NAMES.session_prompt,
                     );
                     continue;
+                }
+
+                // This prompt is going to the backend, so it claims the
+                // one-shot handoff context. The claim happens here, on the
+                // serial loop, so exactly one sent prompt carries the memo and
+                // it is the first one actually delivered.
+                let mut content = content;
+                if !handoff_context_sent.swap(true, Ordering::AcqRel) {
+                    if let Some(prefix) = handoff_prefix {
+                        content.insert(0, *prefix);
+                    }
                 }
 
                 *prompt_response_tx.lock().unwrap() = Some(response_tx.clone());
@@ -1515,7 +1493,7 @@ fn filter_supported_servers(
         .collect()
 }
 
-fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Vec<ContentBlock> {
+fn messages_to_prompt(messages: &[Message]) -> Vec<ContentBlock> {
     let Some(last_user_index) = last_user_message_index(messages) else {
         return Vec::new();
     };
@@ -1537,30 +1515,23 @@ fn messages_to_prompt(messages: &[Message], include_handoff_context: bool) -> Ve
         }
     }
 
-    if current_prompt_blocks.is_empty() || !include_handoff_context {
-        return current_prompt_blocks;
-    }
+    current_prompt_blocks
+}
 
-    let mut content_blocks = Vec::new();
-    if let Some(memo) = build_handoff_context_memo(&messages[..last_user_index]) {
-        content_blocks.push(ContentBlock::Text(TextContent::new(memo)));
-    }
-    content_blocks.extend(current_prompt_blocks);
-    content_blocks
+/// The handoff-context memo block to prepend to the prompt, if this
+/// conversation has agent-visible history predating the ACP session. Built
+/// separately from the prompt body so the client loop can decide at send time
+/// whether this prompt is the one that carries it.
+fn handoff_context_block(messages: &[Message]) -> Option<Box<ContentBlock>> {
+    let last_user_index = last_user_message_index(messages)?;
+    let memo = build_handoff_context_memo(&messages[..last_user_index])?;
+    Some(Box::new(ContentBlock::Text(TextContent::new(memo))))
 }
 
 fn last_user_message_index(messages: &[Message]) -> Option<usize> {
     messages
         .iter()
         .rposition(|m| m.role == Role::User && m.is_agent_visible())
-}
-
-fn has_handoff_context(messages: &[Message]) -> bool {
-    last_user_message_index(messages).is_some_and(|last_user_index| {
-        messages[..last_user_index]
-            .iter()
-            .any(Message::is_agent_visible)
-    })
 }
 
 fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
@@ -1827,6 +1798,20 @@ mod tests {
 
     use test_case::test_case;
 
+    /// The blocks a first-sent prompt carries: the handoff memo (when the
+    /// conversation has prior history) followed by the current prompt body.
+    fn prompt_with_handoff(messages: &[Message]) -> Vec<ContentBlock> {
+        let current = messages_to_prompt(messages);
+        if current.is_empty() {
+            return current;
+        }
+        handoff_context_block(messages)
+            .map(|block| *block)
+            .into_iter()
+            .chain(current)
+            .collect()
+    }
+
     fn prompt_text(block: &ContentBlock) -> &str {
         match block {
             ContentBlock::Text(text) => &text.text,
@@ -1852,7 +1837,6 @@ mod tests {
                 },
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                handoff_context_sent: Arc::new(AtomicBool::new(false)),
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
@@ -1871,7 +1855,7 @@ mod tests {
     fn messages_to_prompt_without_prior_history_preserves_current_prompt() {
         let messages = vec![Message::user().with_text("current request")];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages);
 
         assert_eq!(blocks.len(), 1);
         assert_eq!(prompt_text(&blocks[0]), "current request");
@@ -1893,7 +1877,7 @@ mod tests {
             Message::user().with_text("continue from there"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages);
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1918,7 +1902,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages);
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
@@ -1937,7 +1921,7 @@ mod tests {
                 .with_text("describe this"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages);
 
         assert_eq!(blocks.len(), 3);
         assert!(prompt_text(&blocks[0]).contains("[assistant]: prior answer"));
@@ -1971,7 +1955,7 @@ mod tests {
                 .with_content(user_only_text("SECRET_CURRENT")),
         ];
 
-        let rendered = messages_to_prompt(&messages, true)
+        let rendered = prompt_with_handoff(&messages)
             .iter()
             .filter_map(|block| match block {
                 ContentBlock::Text(text) => Some(text.text.as_str()),
@@ -1999,11 +1983,11 @@ mod tests {
             Message::user().with_content(current),
         ];
 
-        assert!(messages_to_prompt(&messages, true).is_empty());
+        assert!(prompt_with_handoff(&messages).is_empty());
     }
 
     #[tokio::test]
-    async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
+    async fn stream_skips_user_only_prompt_without_enqueueing_a_prompt() {
         use futures::StreamExt;
         use rmcp::model::{Annotations, TextContent};
 
@@ -2022,7 +2006,6 @@ mod tests {
 
         assert!(stream.next().await.is_none());
         assert!(rx.try_recv().is_err());
-        assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
     }
 
     #[tokio::test]
@@ -2112,39 +2095,51 @@ mod tests {
         assert!(!audience.contains(&Role::User));
     }
 
-    #[test]
-    fn handoff_context_is_sent_only_on_first_provider_prompt() {
-        let (provider, _) = test_provider();
+    #[tokio::test]
+    async fn handoff_context_is_sent_only_on_first_provider_prompt() {
+        use futures::StreamExt;
+
+        let (provider, prompts, _cancels) = fake_connected_provider().await;
+        let model = ModelConfig::new("test-model");
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
 
-        let first_claim = provider.claim_handoff_context(&messages);
-        assert!(first_claim.first_prompt);
-        assert!(first_claim.include_context);
+        for _ in 0..2 {
+            let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+            while stream.next().await.is_some() {}
+        }
 
-        let second_claim = provider.claim_handoff_context(&messages);
-        assert!(!second_claim.first_prompt);
-        assert!(!second_claim.include_context);
+        let prompts = prompts.lock().unwrap();
+        assert_eq!(prompts.len(), 2);
+        assert!(prompts[0].contains("Conversation context from goose"));
+        assert!(!prompts[1].contains("Conversation context from goose"));
     }
 
-    #[test]
-    fn first_prompt_without_history_still_marks_handoff_context_sent() {
-        let (provider, _) = test_provider();
+    #[tokio::test]
+    async fn first_prompt_without_history_still_marks_handoff_context_sent() {
+        use futures::StreamExt;
+
+        let (provider, prompts, _cancels) = fake_connected_provider().await;
+        let model = ModelConfig::new("test-model");
         let first_prompt = vec![Message::user().with_text("new conversation")];
         let later_prompt_with_history = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
 
-        let first_claim = provider.claim_handoff_context(&first_prompt);
-        assert!(first_claim.first_prompt);
-        assert!(!first_claim.include_context);
+        for messages in [&first_prompt, &later_prompt_with_history] {
+            let mut stream = provider.stream(&model, "", messages, &[]).await.unwrap();
+            while stream.next().await.is_some() {}
+        }
 
-        let later_claim = provider.claim_handoff_context(&later_prompt_with_history);
-        assert!(!later_claim.first_prompt);
-        assert!(!later_claim.include_context);
+        let prompts = prompts.lock().unwrap();
+        assert_eq!(prompts.len(), 2);
+        assert!(
+            !prompts[1].contains("Conversation context from goose"),
+            "a first prompt without history still spends the one-shot claim"
+        );
     }
 
     #[tokio::test]
@@ -2160,7 +2155,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
+    async fn failed_prompt_send_surfaces_a_request_failure() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
@@ -2172,9 +2167,6 @@ mod tests {
         let result = provider.stream(&model, "", &messages, &[]).await;
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
-        let next_claim = provider.claim_handoff_context(&messages);
-        assert!(next_claim.first_prompt);
-        assert!(next_claim.include_context);
     }
 
     fn test_provider_with_model_option(
@@ -2448,8 +2440,39 @@ mod tests {
         );
     }
 
+    /// Two prompts can be queued before the client loop handles either, so the
+    /// handoff memo must ride along with each rather than being baked into
+    /// whichever was built first: the prompt that is actually sent carries it.
     #[tokio::test]
-    async fn suppressed_first_prompt_rolls_back_handoff_claim() {
+    async fn queued_prompts_all_carry_the_handoff_memo_until_one_is_sent() {
+        let (tx, mut rx) = mpsc::channel(4);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("current request"),
+        ];
+
+        // Reply N is cancelled while still queued, and reply N+1 builds its
+        // prompt before the client loop has handled either.
+        let scope_n = provider.begin_cancel_scope();
+        let _stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        provider.cancel("goose-session", scope_n).await;
+        provider.begin_cancel_scope();
+        let _stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        for expected in ["cancelled prompt", "next reply's prompt"] {
+            match rx.recv().await.expect("expected ACP prompt request") {
+                ClientRequest::Prompt { handoff_prefix, .. } => assert!(
+                    handoff_prefix.is_some(),
+                    "{expected} must still carry the handoff memo"
+                ),
+                _ => panic!("expected ACP prompt request"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn suppressed_first_prompt_leaves_handoff_context_for_the_next_prompt() {
         use futures::StreamExt;
 
         let (provider, prompts, _cancels) = fake_connected_provider().await;
@@ -2696,7 +2719,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let blocks = messages_to_prompt(&messages, true);
+        let blocks = prompt_with_handoff(&messages);
 
         assert_eq!(blocks.len(), 2);
         let memo = prompt_text(&blocks[0]);
