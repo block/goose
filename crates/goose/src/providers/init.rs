@@ -391,7 +391,7 @@ mod tests {
   "api_key_env": "",
   "base_url": "https://example.invalid/v1/chat/completions",
   "models": [
-    {"name": "kimi-k2.5", "context_limit": 256000}
+    {"name": "kimi-k2.5", "context_limit": 256000, "reasoning": true}
   ],
   "requires_auth": false
 }"#;
@@ -427,6 +427,9 @@ mod tests {
             )
             .expect("custom_inf model config should normalize");
         assert_eq!(inf_config.context_limit, Some(256_000));
+        // Declarative `reasoning: true` must be backfilled onto ModelConfig
+        // so OpenAI-format requests can emit reasoning_effort (#10804).
+        assert_eq!(inf_config.reasoning, Some(true));
 
         let zero_entry = get_from_registry("custom_zero")
             .await
@@ -438,6 +441,7 @@ mod tests {
             )
             .expect("custom_zero model config should normalize");
         assert_eq!(zero_config.context_limit, None);
+        assert_eq!(zero_config.reasoning, Some(false));
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }

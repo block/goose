@@ -55,21 +55,28 @@ impl ProviderEntry {
     }
 
     /// Apply provider-specific normalization to a model config: materialize
-    /// global defaults and backfill `context_limit` from the provider's known
-    /// models when the canonical registry didn't already resolve one. Used by
-    /// the agent/session layer to resolve effective limits (e.g. for custom
-    /// providers that declare explicit context limits in their config).
+    /// global defaults and backfill `context_limit` / `reasoning` from the
+    /// provider's known models when the canonical registry didn't already
+    /// resolve them. Used by the agent/session layer to resolve effective
+    /// limits and reasoning flags (e.g. for custom providers that declare
+    /// those fields in their declarative config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
-        if model.context_limit.is_none() {
-            if let Some(info) = self
-                .metadata
-                .known_models
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&model.model_name) && m.context_limit > 0)
-            {
+        if let Some(info) = self
+            .metadata
+            .known_models
+            .iter()
+            .find(|m| m.name.eq_ignore_ascii_case(&model.model_name))
+        {
+            if model.context_limit.is_none() && info.context_limit > 0 {
                 model.context_limit = Some(info.context_limit);
+            }
+            // Declarative providers set `reasoning: true` per-model so OpenAI-
+            // format requests can emit reasoning_effort / include_reasoning
+            // (see #10804). Only backfill when unset so callers can override.
+            if model.reasoning.is_none() {
+                model.reasoning = Some(info.reasoning);
             }
         }
 

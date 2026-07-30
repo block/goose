@@ -1411,6 +1411,11 @@ pub fn create_request_with_options(
     let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let supports_xai_effort = supports_xai_reasoning_effort(&model_name);
+    // Explicit provider-declared reasoning (custom/declarative models with
+    // `reasoning: true` in config). Prefer this over `is_reasoning_model()`
+    // heuristics so fixed-reasoning models (e.g. grok-4.20-*-reasoning) are
+    // not incorrectly given a `reasoning_effort` field (#10804).
+    let provider_declared_reasoning = model_config.reasoning == Some(true);
     let reasoning_effort = if is_reasoning_model {
         model_config
             .thinking_effort()
@@ -1421,6 +1426,13 @@ pub fn create_request_with_options(
         model_config
             .thinking_effort()
             .and_then(|effort| xai_reasoning_effort_for_thinking(&model_name, effort))
+    } else if provider_declared_reasoning {
+        model_config
+            .thinking_effort()
+            .and_then(|effort| match effort {
+                ThinkingEffort::Off => None,
+                other => Some(other.to_string()),
+            })
     } else {
         None
     };
@@ -1445,6 +1457,14 @@ pub fn create_request_with_options(
 
     if let Some(effort) = reasoning_effort {
         payload["reasoning_effort"] = json!(effort);
+    }
+
+    // OpenAI-compatible gateways that support extended thinking often require
+    // `include_reasoning: true` before they return thinking content. Only set
+    // this for provider-declared reasoning models so we do not change payload
+    // shape for built-in OpenAI / xAI families (#10804).
+    if provider_declared_reasoning {
+        payload["include_reasoning"] = json!(true);
     }
 
     if !tools_spec.is_empty() {
@@ -2607,6 +2627,70 @@ mod tests {
 
         assert_eq!(obj.get("reasoning_effort"), Some(&json!("medium")));
         assert!(obj.get("thinking_effort").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_provider_declared_reasoning_sends_effort_and_include(
+    ) -> anyhow::Result<()> {
+        // Custom/declarative models with `reasoning: true` must receive
+        // reasoning_effort + include_reasoning so GOOSE_THINKING_EFFORT is
+        // honoured and thinking content is returned (#10804).
+        let model_config = ModelConfig {
+            model_name: "glm-5.2".to_string(),
+            context_limit: Some(1_048_576),
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: Some(true),
+            request_headers: None,
+        }
+        .with_thinking_effort(ThinkingEffort::Low);
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+        let obj = request.as_object().unwrap();
+
+        assert_eq!(obj.get("reasoning_effort"), Some(&json!("low")));
+        assert_eq!(obj.get("include_reasoning"), Some(&json!(true)));
+
+        // Off suppresses the effort field but still requests reasoning content.
+        let off_config = ModelConfig {
+            model_name: "glm-5.2".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: Some(true),
+            request_headers: None,
+        }
+        .with_thinking_effort(ThinkingEffort::Off);
+        let off_request =
+            create_request(&off_config, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let off_obj = off_request.as_object().unwrap();
+        assert!(off_obj.get("reasoning_effort").is_none());
+        assert_eq!(off_obj.get("include_reasoning"), Some(&json!(true)));
+
+        // Without the explicit flag, a plain model name must not pick up
+        // heuristic reasoning fields (regression guard for fixed-reasoning
+        // xAI models that reject reasoning_effort).
+        let plain = test_model_config("glm-5.2").with_thinking_effort(ThinkingEffort::Low);
+        let plain_request =
+            create_request(&plain, "system", &[], &[], &ImageFormat::OpenAi, false)?;
+        let plain_obj = plain_request.as_object().unwrap();
+        assert!(plain_obj.get("reasoning_effort").is_none());
+        assert!(plain_obj.get("include_reasoning").is_none());
 
         Ok(())
     }
