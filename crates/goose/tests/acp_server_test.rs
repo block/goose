@@ -31,7 +31,7 @@ use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
-use goose::session::{SessionManager, SessionType};
+use goose::session::{EnabledExtensionsState, SessionManager, SessionType};
 use goose_test_support::McpFixture;
 use std::path::Path;
 
@@ -412,7 +412,7 @@ fn test_load_session_missing_working_dir_defers_extension_activation() {
             .await
             .unwrap();
 
-        let mcp = McpFixture::new(<AcpServerConnection as Connection>::expected_session_id()).await;
+        let mcp = McpFixture::new().await;
         let mcp_servers = vec![McpServer::Http(McpServerHttp::new("mcp-fixture", &mcp.url))];
 
         let conn = new_connection(data_root.path()).await;
@@ -465,6 +465,68 @@ fn test_load_session_missing_working_dir_defers_extension_activation() {
                 == Some("mcp-fixture")),
             "after repointing to a valid dir the extensions must activate, got {:?}",
             extension_results(&response)
+        );
+    });
+}
+
+#[test]
+fn test_deferred_session_rebuilds_extension_data_after_repoint() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+
+        let persisted = session_manager
+            .get_session(&session.id, false)
+            .await
+            .unwrap();
+        assert!(
+            EnabledExtensionsState::from_extension_data(&persisted.extension_data).is_none(),
+            "loading with a missing working dir must not persist an extension set \
+             discovered from a non-existent project root"
+        );
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        let persisted = session_manager
+            .get_session(&session.id, false)
+            .await
+            .unwrap();
+        assert!(
+            EnabledExtensionsState::from_extension_data(&persisted.extension_data).is_some(),
+            "deferred activation must rebuild the extension set from the recovered directory"
         );
     });
 }
