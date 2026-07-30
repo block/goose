@@ -488,6 +488,48 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     };
     }, [loadSessions, debouncedSearchTerm, archivedView]);
 
+    // Sessions can be archived, restored, or deleted from the sidebar menu or
+    // another window while this view stays mounted, so consume the lifecycle
+    // events to keep the list current. A row leaving the current filter is
+    // dropped in place; an event that can surface a new row refetches under the
+    // current keyword/filter.
+    useEffect(() => {
+      const handleSessionDeleted = (event: Event) => {
+        const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      };
+
+      const handleSessionArchived = (event: Event) => {
+        const { sessionId, archived } = (
+          event as CustomEvent<{ sessionId: string; archived?: boolean }>
+        ).detail;
+        const filter = archivedFilterRef.current;
+        if (filter === 'all') {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? { ...s, archivedAt: archived ? new Date().toISOString() : undefined }
+                : s
+            )
+          );
+          return;
+        }
+        const leavesView = archived ? filter === 'active' : filter === 'archived';
+        if (leavesView) {
+          setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        } else {
+          void loadSessions();
+        }
+      };
+
+      window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.addEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
+      return () => {
+        window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+        window.removeEventListener(AppEvents.SESSION_ARCHIVED, handleSessionArchived);
+      };
+    }, [loadSessions]);
+
   // Hide Nostr sharing when explicitly disabled via env var (restricted/enterprise bundles)
   useEffect(() => {
     const config = window.electron.getConfig();
