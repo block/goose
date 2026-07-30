@@ -126,9 +126,13 @@ impl ShellOutputBatcher {
             truncated,
         };
         if let Ok(params) = serde_json::to_value(params) {
-            self.emitter.emit(ServerNotification::CustomNotification(
-                CustomNotification::new(DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD, Some(params)),
-            ));
+            self.emitter
+                .emit_best_effort(ServerNotification::CustomNotification(
+                    CustomNotification::new(
+                        DEVELOPER_SHELL_OUTPUT_NOTIFICATION_METHOD,
+                        Some(params),
+                    ),
+                ));
         }
     }
 }

@@ -1855,7 +1855,12 @@ impl ExtensionManager {
             ctx.tool_call_request_id.clone(),
         );
         let (owned_ctx, tool_call_notifications_receiver) =
-            if owned_ctx.tool_call_request_id.is_some() {
+            if let Some(notification_emitter) = ctx.notification_emitter().cloned() {
+                (
+                    owned_ctx.with_notification_emitter(notification_emitter),
+                    None,
+                )
+            } else if owned_ctx.tool_call_request_id.is_some() {
                 let (tool_call_notifications_sender, tool_call_notifications_receiver) =
                     mpsc::channel(TOOL_CALL_NOTIFICATION_CHANNEL_CAPACITY);
                 (
@@ -2321,7 +2326,7 @@ mod tests {
                     .tool_call_request_id
                     .as_deref()
                     .expect("an emitter requires a request ID");
-                emitter.emit(ServerNotification::CustomNotification(
+                emitter.emit_best_effort(ServerNotification::CustomNotification(
                     CustomNotification::new(format!("scoped/{request_id}"), None),
                 ));
             }
@@ -2386,6 +2391,57 @@ mod tests {
         .await;
 
         assert_eq!(methods, vec!["client/subscription", "scoped/request"]);
+    }
+
+    #[tokio::test]
+    async fn dispatch_reuses_existing_notification_emitter() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension(
+                "notifications".to_string(),
+                Arc::new(ContextNotificationClient),
+            )
+            .await;
+        let (sender, mut receiver) = mpsc::channel(1);
+        let ctx = ToolCallContext::new(
+            "nested-session".to_string(),
+            None,
+            Some("nested-request".to_string()),
+        )
+        .with_notification_emitter(ToolCallNotificationEmitter::new(sender));
+        let tool_call = CallToolRequestParams::new("notifications__tool".to_string())
+            .with_arguments(object!({}));
+
+        let dispatched = extension_manager
+            .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
+            .await
+            .expect("tool call should dispatch");
+        assert!(dispatched.result.await.is_ok());
+
+        let notification = receiver
+            .try_recv()
+            .expect("parent emitter should receive nested notification");
+        let ServerNotification::CustomNotification(notification) = notification else {
+            panic!("expected a custom notification");
+        };
+        assert_eq!(notification.method, "scoped/nested-request");
+
+        let methods = dispatched
+            .notification_stream
+            .expect("client notification stream should exist")
+            .filter_map(|notification| async move {
+                match notification {
+                    ServerNotification::CustomNotification(notification) => {
+                        Some(notification.method)
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
+        assert_eq!(methods, vec!["client/subscription"]);
     }
 
     #[tokio::test]

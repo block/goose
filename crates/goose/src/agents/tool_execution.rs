@@ -25,7 +25,8 @@ impl ToolCallNotificationEmitter {
         Self { sender }
     }
 
-    pub(crate) fn emit(&self, notification: ServerNotification) {
+    pub(crate) fn emit_best_effort(&self, notification: ServerNotification) {
+        // Do not let a slow notification consumer delay tool execution.
         let _ = self.sender.try_send(notification);
     }
 }

@@ -137,7 +137,6 @@ enum NotificationData {
         total: Option<f64>,
         message: Option<String>,
     },
-    ShellOutput(ShellOutputNotificationParams),
 }
 
 pub enum RunMode {
@@ -2274,40 +2273,24 @@ fn handle_mcp_notification(
         }
         ServerNotification::CustomNotification(notification) => {
             if let Some(params) = parse_shell_output_notification(notification) {
-                handle_shell_output_notification(
-                    extension_id,
-                    params,
-                    progress_bars,
-                    is_stream_json_mode,
-                    interactive,
-                    is_json_mode,
-                );
+                if is_stream_json_mode
+                    || is_json_mode
+                    || !interactive
+                    || !std::io::stdout().is_terminal()
+                {
+                    return;
+                }
+                display_shell_output_notification(params, progress_bars);
             }
         }
         _ => (),
     }
 }
 
-fn handle_shell_output_notification(
-    extension_id: &str,
+fn display_shell_output_notification(
     params: ShellOutputNotificationParams,
     progress_bars: &mut output::McpSpinners,
-    is_stream_json_mode: bool,
-    interactive: bool,
-    is_json_mode: bool,
 ) {
-    if is_stream_json_mode {
-        emit_stream_event(&StreamEvent::Notification {
-            extension_id: extension_id.to_string(),
-            data: NotificationData::ShellOutput(params),
-        });
-        return;
-    }
-
-    if is_json_mode || !interactive || !std::io::stdout().is_terminal() {
-        return;
-    }
-
     if params.truncated {
         return;
     }
@@ -2649,35 +2632,6 @@ mod tests {
                 (ShellOutputStream::Stderr, "warning two".to_string()),
             ]
         );
-    }
-
-    #[test]
-    fn stream_json_serializes_structured_shell_output() {
-        let event = StreamEvent::Notification {
-            extension_id: "tool-call-1".to_string(),
-            data: NotificationData::ShellOutput(ShellOutputNotificationParams {
-                sequence: 2,
-                chunks: vec![ShellOutputNotificationChunk {
-                    stream: ShellOutputStream::Stdout,
-                    output: "ready\n".to_string(),
-                }],
-                truncated: false,
-            }),
-        };
-
-        let value = serde_json::to_value(event).expect("stream event should serialize");
-        assert_eq!(value["type"], "notification");
-        assert_eq!(value["extension_id"], "tool-call-1");
-        assert_eq!(value["shell_output"]["sequence"], 2);
-        assert_eq!(
-            value["shell_output"]["chunks"][0]["stream"],
-            serde_json::json!("stdout")
-        );
-        assert_eq!(
-            value["shell_output"]["chunks"][0]["output"],
-            serde_json::json!("ready\n")
-        );
-        assert_eq!(value["shell_output"]["truncated"], false);
     }
 
     #[test]

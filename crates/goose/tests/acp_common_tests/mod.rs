@@ -371,7 +371,6 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
         &session.notifications(),
         &[
             Notification::ToolCall,
-            Notification::ToolCallStatus(ToolCallStatus::InProgress),
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
@@ -1452,6 +1451,7 @@ pub async fn run_shell_terminal_false<C: Connection>() {
         &session.notifications(),
         &[
             Notification::ToolCall,
+            Notification::ToolCallStatus(ToolCallStatus::InProgress),
             Notification::ToolCallContent("content".into()),
             Notification::ToolCallStatus(ToolCallStatus::Completed),
             Notification::AgentMessage,
