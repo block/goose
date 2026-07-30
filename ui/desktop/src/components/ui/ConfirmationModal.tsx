@@ -35,6 +35,7 @@ export function ConfirmationModal({
   confirmLabel,
   cancelLabel,
   isSubmitting = false,
+  confirmDisabled = false,
   confirmVariant = 'default',
 }: {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export function ConfirmationModal({
   confirmLabel?: string;
   cancelLabel?: string;
   isSubmitting?: boolean; // To handle debounce state
+  confirmDisabled?: boolean;
   confirmVariant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
 }) {
   const intl = useIntl();
@@ -74,7 +76,7 @@ export function ConfirmationModal({
           <Button
             variant={confirmVariant}
             onClick={onConfirm}
-            disabled={isSubmitting}
+            disabled={isSubmitting || confirmDisabled}
             className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
           >
             {isSubmitting ? intl.formatMessage(i18n.processing) : (confirmLabel || intl.formatMessage(i18n.defaultConfirm))}

@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { acpChatSessionStore, useAcpChatSessionSnapshot } from '../acp/chatSessionStore';
+import { ChatState } from '../types/chatState';
 
 // Local backends are per-window, so neither the server nor this renderer's ACP
 // snapshot can see a prompt run owned by another desktop window. The main
@@ -75,4 +77,20 @@ export function isSessionBusyElsewhere(sessionId: string): boolean {
 
 export function useSessionBusyElsewhere(sessionId: string): boolean {
   return useSyncExternalStore(subscribe, () => isSessionBusyElsewhere(sessionId));
+}
+
+// A session is busy when it has server-side work that archive/delete would rip
+// out from under it: any non-idle chat state in this window, or a run reported
+// by another window (whose backend this one cannot see).
+export function isSessionBusy(sessionId: string): boolean {
+  const chatState = acpChatSessionStore.getSnapshot(sessionId)?.chatState;
+  return (
+    (chatState !== undefined && chatState !== ChatState.Idle) || isSessionBusyElsewhere(sessionId)
+  );
+}
+
+export function useSessionBusy(sessionId: string): boolean {
+  const chatState = useAcpChatSessionSnapshot(sessionId)?.chatState;
+  const busyElsewhere = useSessionBusyElsewhere(sessionId);
+  return (chatState !== undefined && chatState !== ChatState.Idle) || busyElsewhere;
 }

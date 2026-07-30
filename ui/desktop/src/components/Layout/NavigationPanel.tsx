@@ -6,7 +6,11 @@ import { toast } from 'react-toastify';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
-import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
+import {
+  isSessionBusy,
+  useSessionBusy,
+  useSessionBusyElsewhere,
+} from '../../hooks/useSessionBusyElsewhere';
 import { dispatchSessionLifecycleEvent } from '../../sessionLifecycleBridge';
 import {
   NAV_ITEMS,
@@ -471,9 +475,14 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     setSessionPendingDelete(session);
   }, []);
 
+  // The dialog can sit open while the session starts a run elsewhere, so
+  // re-check instead of trusting the state the menu item was disabled on.
+  const pendingDeleteBusy = useSessionBusy(sessionPendingDelete?.id ?? '');
+
   const handleConfirmDelete = useCallback(async () => {
     if (!sessionPendingDelete) return;
     const { id, name } = sessionPendingDelete;
+    if (isSessionBusy(id)) return;
     setSessionPendingDelete(null);
     try {
       await acpDeleteSession(id);
@@ -604,6 +613,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         confirmLabel={intl.formatMessage(i18n.deleteConfirm)}
         cancelLabel={intl.formatMessage(i18n.deleteCancel)}
         confirmVariant="destructive"
+        confirmDisabled={pendingDeleteBusy}
         onConfirm={handleConfirmDelete}
         onCancel={() => setSessionPendingDelete(null)}
       />
