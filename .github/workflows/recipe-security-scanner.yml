@@ -52,37 +52,23 @@ jobs:
               return;
             }
 
-            const reviews = await github.paginate(github.rest.pulls.listReviews, request);
-            const latestByReviewer = new Map();
-            for (const review of reviews) {
-              if (!review.user?.login || !review.submitted_at) continue;
-              const state = review.state?.toUpperCase();
-              if (!['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(state)) continue;
-              const current = latestByReviewer.get(review.user.login);
-              if (!current || new Date(review.submitted_at) > new Date(current.submitted_at)) {
-                latestByReviewer.set(review.user.login, review);
-              }
-            }
-
-            const allowedPermissions = new Set(['admin', 'maintain', 'write']);
-            const approvers = [];
-            for (const review of latestByReviewer.values()) {
-              if (review.state?.toUpperCase() !== 'APPROVED') continue;
-              try {
-                const response = await github.rest.repos.getCollaboratorPermissionLevel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  username: review.user.login,
-                });
-                if (allowedPermissions.has(response.data.permission)) {
-                  approvers.push(review.user.login);
+            const reviewData = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviewDecision
+                  }
                 }
-              } catch (error) {
-                if (error.status !== 404) throw error;
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: pullNumber,
               }
-            }
+            );
+            const reviewDecision = reviewData.repository.pullRequest.reviewDecision;
 
-            if (approvers.length === 0) {
+            if (reviewDecision !== 'APPROVED') {
               core.setFailed(
                 'Fork recipe instructions cannot enter the secret-bearing AI scanner. ' +
                 'An approving review from a user with write access is required.'
@@ -90,12 +76,12 @@ jobs:
               return;
             }
 
-            core.notice(`Fork recipe review boundary approved by @${approvers.join(', @')}.`);
+            core.notice('GitHub reports that the fork recipe has the required approval.');
             await core.summary
               .addHeading('Fork recipe review boundary')
               .addRaw(
                 'The privileged AI scan was not run because this recipe comes from a fork. ' +
-                `Write-access approval was verified from @${approvers.join(', @')}.`
+                'GitHub reports that the repository review requirement is approved.'
               )
               .write();
 
