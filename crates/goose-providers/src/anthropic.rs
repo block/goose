@@ -222,10 +222,10 @@ impl AnthropicProvider {
 
         let response = handle_status(response).await?;
 
-        let body = response.text().await.map_err(|e| {
+        let body = response.bytes().await.map_err(|e| {
             ProviderError::NetworkError(format!("Failed to read response body: {}", e))
         })?;
-        let json: Value = serde_json::from_str(&body).map_err(|e| {
+        let json: Value = serde_json::from_slice(&body).map_err(|e| {
             ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
         })?;
 
