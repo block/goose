@@ -180,7 +180,7 @@ export default function BaseChat({
   });
 
   useEffect(() => {
-    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    let streamState: 'idle' | 'loading' | 'streaming' | 'waiting' | 'error' = 'idle';
     if (chatState === ChatState.LoadingConversation) {
       streamState = 'loading';
     } else if (
@@ -189,6 +189,10 @@ export default function BaseChat({
       chatState === ChatState.Compacting
     ) {
       streamState = 'streaming';
+    } else if (chatState === ChatState.WaitingForUserInput) {
+      // A prompt paused on a permission/elicitation request still has an
+      // active server run, so it must not report as idle.
+      streamState = 'waiting';
     } else if (sessionLoadError) {
       streamState = 'error';
     }

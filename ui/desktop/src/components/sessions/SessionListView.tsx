@@ -807,14 +807,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
   }) {
       // Archiving removes the loaded agent without cancelling an active prompt
       // run, and archiving mid-load races the server re-registering the agent,
-      // so gate the action while the session is streaming or still loading
-      // (like the sidebar does).
+      // so gate the action unless the session is idle (like the sidebar does).
+      // Anything non-idle — streaming, thinking, compacting, loading, waiting
+      // on a permission/elicitation, restarting — still has server-side work
+      // that would resume into a removed session.
       const chatState = useAcpChatSessionSnapshot(session.id)?.chatState;
-      const isArchiveBlocked =
-        chatState === ChatState.Streaming ||
-        chatState === ChatState.Thinking ||
-        chatState === ChatState.Compacting ||
-        chatState === ChatState.LoadingConversation;
+      const isArchiveBlocked = chatState !== undefined && chatState !== ChatState.Idle;
 
     const handleEditClick = useCallback(
       (e: React.MouseEvent) => {

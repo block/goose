@@ -39,7 +39,7 @@ import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
 import { defineMessages, useIntl } from '../../i18n';
 
-type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
+type StreamState = 'idle' | 'loading' | 'streaming' | 'waiting' | 'error';
 
 interface SessionStatus {
   streamState: StreamState;
@@ -245,9 +245,11 @@ const SessionRow: React.FC<SessionRowProps> = ({
   const [editSignal, setEditSignal] = useState(0);
   const renameRequested = useRef(false);
   const isStreaming = status?.streamState === 'streaming';
-  // Archiving a session that is still resuming races the load: the server can
-  // re-register the agent after archive removed it, so gate on loading too.
-  const isArchiveBlocked = isStreaming || status?.streamState === 'loading';
+  // Archiving must not race an active run: mid-load the server can re-register
+  // the agent after archive removed it, and streaming or waiting-on-user-input
+  // prompts would resume into a removed session, so gate all three states.
+  const isArchiveBlocked =
+    isStreaming || status?.streamState === 'loading' || status?.streamState === 'waiting';
   const hasError = status?.streamState === 'error';
   const hasUnread = status?.hasUnreadActivity ?? false;
 
@@ -404,7 +406,9 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       const { sessionId, streamState } = (event as CustomEvent).detail;
       setSessionStatuses((prev) => {
         const existing = prev.get(sessionId);
-        const shouldMarkUnread = existing?.streamState === 'streaming' && streamState === 'idle';
+        const shouldMarkUnread =
+          (existing?.streamState === 'streaming' || existing?.streamState === 'waiting') &&
+          streamState === 'idle';
         const next = new Map(prev);
         next.set(sessionId, {
           streamState,
