@@ -245,6 +245,9 @@ const SessionRow: React.FC<SessionRowProps> = ({
   const [editSignal, setEditSignal] = useState(0);
   const renameRequested = useRef(false);
   const isStreaming = status?.streamState === 'streaming';
+  // Archiving a session that is still resuming races the load: the server can
+  // re-register the agent after archive removed it, so gate on loading too.
+  const isArchiveBlocked = isStreaming || status?.streamState === 'loading';
   const hasError = status?.streamState === 'error';
   const hasUnread = status?.hasUnreadActivity ?? false;
 
@@ -348,7 +351,7 @@ const SessionRow: React.FC<SessionRowProps> = ({
                 <Pencil className="w-4 h-4" />
                 {intl.formatMessage(i18n.rename)}
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={isStreaming} onSelect={() => void handleArchive()}>
+              <DropdownMenuItem disabled={isArchiveBlocked} onSelect={() => void handleArchive()}>
                 <Archive className="w-4 h-4" />
                 {intl.formatMessage(i18n.archive)}
               </DropdownMenuItem>

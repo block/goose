@@ -806,13 +806,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
     isSharing: boolean;
   }) {
       // Archiving removes the loaded agent without cancelling an active prompt
-      // run, so gate the action while the session is streaming (like the
-      // sidebar does).
+      // run, and archiving mid-load races the server re-registering the agent,
+      // so gate the action while the session is streaming or still loading
+      // (like the sidebar does).
       const chatState = useAcpChatSessionSnapshot(session.id)?.chatState;
-      const isStreaming =
+      const isArchiveBlocked =
         chatState === ChatState.Streaming ||
         chatState === ChatState.Thinking ||
-        chatState === ChatState.Compacting;
+        chatState === ChatState.Compacting ||
+        chatState === ChatState.LoadingConversation;
 
     const handleEditClick = useCallback(
       (e: React.MouseEvent) => {
@@ -930,7 +932,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
           </button>
           <button
             onClick={handleArchiveClick}
-              disabled={isStreaming}
+              disabled={isArchiveBlocked}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             title={intl.formatMessage(
               session.archivedAt ? i18n.unarchiveSession : i18n.archiveSession
