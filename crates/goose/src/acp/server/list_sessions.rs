@@ -74,6 +74,14 @@ fn session_types_from_meta(
     }
 }
 
+// Empty sessions are normally hidden so freshly created chats stay out of
+// listings and search, but an archived session must remain reachable for
+// restore even before its first message (e.g. a new chat archived from the
+// sidebar), so the explicit Archived listing includes empty sessions.
+fn only_sessions_with_messages(archived: ArchivedFilter) -> bool {
+    !matches!(archived, ArchivedFilter::Archived)
+}
+
 /// Stable identifier for an archived filter, used when binding cursors to filters.
 fn archived_filter_key(archived: ArchivedFilter) -> &'static str {
     match archived {
@@ -144,7 +152,7 @@ fn session_list_filter_hash(
         cwd: cwd.map(|path| path.to_string_lossy().to_string()),
         session_types: session_type_names,
         keyword: keyword.map(ToString::to_string),
-        only_sessions_with_messages: true,
+        only_sessions_with_messages: only_sessions_with_messages(archived),
         archived: archived_filter_key(archived),
     };
     let bytes =
@@ -237,7 +245,7 @@ impl GooseAcpAgent {
                     types: Some(&session_types),
                     working_dir: cwd,
                     keyword: keyword.as_deref(),
-                    only_sessions_with_messages: true,
+                    only_sessions_with_messages: only_sessions_with_messages(archived),
                     archived,
                 },
                 cursor: cursor.as_ref(),

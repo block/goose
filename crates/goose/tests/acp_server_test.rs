@@ -316,6 +316,62 @@ fn test_list_sessions_pagination() {
 }
 
 #[test]
+fn test_list_sessions_archived_includes_empty_sessions() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list-archived-empty");
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let archived_empty = session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Archived before first message".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .update(&archived_empty.id)
+            .archived_at(Some(chrono::Utc::now()))
+            .apply()
+            .await
+            .unwrap();
+        session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Active empty".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let conn = new_connection(data_root.path()).await;
+
+        // An archived session must stay restorable even when it has no messages,
+        // so the explicit Archived listing includes empty sessions.
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "archived".to_string(),
+            serde_json::Value::String("archived".to_string()),
+        );
+        let response = list_sessions_request(&conn, ListSessionsRequest::new().meta(meta))
+            .await
+            .unwrap();
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(
+            response.sessions[0].session_id.0.as_ref(),
+            archived_empty.id.as_str()
+        );
+
+        // The default (active) listing keeps hiding empty sessions.
+        let response = list_sessions_request(&conn, ListSessionsRequest::new())
+            .await
+            .unwrap();
+        assert!(response.sessions.is_empty());
+    });
+}
+
+#[test]
 fn test_list_sessions_query_filters_results() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
