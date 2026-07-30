@@ -1,6 +1,8 @@
+import io.github.aaif_goose.MessageContent
 import io.github.aaif_goose.MessageRole
 import io.github.aaif_goose.ProviderMessage
 import io.github.aaif_goose.ProviderModelConfig
+import io.github.aaif_goose.StreamChunk
 import io.github.aaif_goose.streamFlow
 import io.github.aaif_goose.providers.openai.defaultModel
 import io.github.aaif_goose.providers.openai.provider as openAiProvider
@@ -17,7 +19,11 @@ fun main() = runBlocking {
     val messages = listOf(
         ProviderMessage(
             role = MessageRole.USER,
-            text = "What is the capital of France? Answer in one sentence.",
+            content = listOf(
+                MessageContent.Text(
+                    text = "What is the capital of France? Answer in one sentence.",
+                ),
+            ),
         ),
     )
 
@@ -28,8 +34,12 @@ fun main() = runBlocking {
             messages,
         )
         .collect { chunk ->
-            chunk.text?.let { print(it) }
-            chunk.usageJson?.let { println("\nusage: $it") }
+            when (chunk) {
+                is StreamChunk.TextChunk -> print(chunk.text)
+                is StreamChunk.EndChunk -> chunk.usage?.let { println("\nusage: $it") }
+                is StreamChunk.ErrorChunk -> System.err.println("\nerror: ${chunk.error.message}")
+                is StreamChunk.ToolChunk -> Unit
+            }
         }
     println()
 }

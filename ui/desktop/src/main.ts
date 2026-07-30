@@ -252,7 +252,17 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
 
     execFile(
       'git',
-      ['-C', dir, 'worktree', 'list', '--porcelain'],
+      [
+        '-c',
+        'safe.bareRepository=explicit',
+        '-c',
+        'core.fsmonitor=false',
+        '-C',
+        dir,
+        'worktree',
+        'list',
+        '--porcelain',
+      ],
       { timeout: 3000 },
       (error, stdout) => {
         if (error) {
@@ -834,6 +844,17 @@ const parseArgs = () => {
     if (args[i] === '--dir' && i + 1 < args.length) {
       dirPath = args[i + 1];
       break;
+    }
+  }
+
+  if (!dirPath && process.stdin.isTTY) {
+    try {
+      const cwd = process.cwd();
+      if (path.parse(cwd).root !== cwd) {
+        dirPath = cwd;
+      }
+    } catch {
+      // cwd unavailable; fall through to recentDirs
     }
   }
 

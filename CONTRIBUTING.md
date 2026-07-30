@@ -191,7 +191,7 @@ To debug the external ACP backend, run it from an IDE. The configuration will de
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
-cargo run --package goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
+cargo run --package goose-cli --bin goose -- serve --platform desktop --enable-scheduler --host 127.0.0.1 --port 3000
 ```
 
 The `debug-ui` recipe connects to `http://127.0.0.1:3000` by default. If the

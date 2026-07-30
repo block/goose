@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Varsayılan sağlayıcıyı kullan"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Tarif Adı"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Otomatik olarak biçimlendirilecektir (küçük harf, boşluklar için kısa çizgiler)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "İptal"
   },
@@ -3737,24 +3731,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Bu oturum herhangi bir mesaj içermiyor"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Mesaj bulunamadı"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Oturum Ayrıntıları Yüklenirken Hata Oluştu"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Tekrar Deneyin"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "sen"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -4082,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Ayarlar"
   },
-  "sheet.close": {
-    "defaultMessage": "Kapat"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "İptal"
   },
@@ -4150,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} sağlayıcısı yapılandırıldı"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama uygulaması"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Kullanmak için ya"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "makinenizde kurulu ve açık olmalı veya OLLAMA_HOST için bir değer girmelisiniz."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Mevcut Ekle"

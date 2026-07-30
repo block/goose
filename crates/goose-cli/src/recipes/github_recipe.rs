@@ -5,7 +5,7 @@ use goose::recipe::RECIPE_FILE_EXTENSIONS;
 use serde::{Deserialize, Serialize};
 
 use goose::recipe::read_recipe_file_content::RecipeFile;
-use goose::subprocess::SubprocessExt;
+use goose::subprocess::{git_command, SubprocessExt};
 use std::env;
 use std::fs;
 
@@ -190,7 +190,7 @@ fn ensure_repo_cloned(recipe_repo_full_name: &str) -> Result<PathBuf> {
 
 fn fetch_origin(local_repo_path: &Path) -> Result<()> {
     let error_message: String = format!("Failed to fetch at {}", local_repo_path.to_str().unwrap());
-    let status = Command::new("git")
+    let status = git_command()
         .args(["fetch", "origin"])
         .current_dir(local_repo_path)
         .set_no_window()
@@ -213,7 +213,7 @@ fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<P
     }
     fs::create_dir_all(&output_dir)?;
 
-    let archive_output = Command::new("git")
+    let archive_output = git_command()
         .args(["archive", &ref_and_path])
         .current_dir(local_repo_path)
         .stdout(Stdio::piped())

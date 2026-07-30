@@ -9,7 +9,7 @@
 //! - qwen3-coder
 //! - qwen3-coder-32b
 
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::{
     conversation::token_usage::ProviderUsage,
     formats::openai::{self, is_valid_function_name},
@@ -32,7 +32,7 @@ pub use crate::formats::openai::{
 /// Format: `<function=name><parameter=key>value</parameter>...</function>`
 ///
 /// Returns a tuple of (prefix_text, tool_calls) where prefix_text is any text before the first function tag.
-pub fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageContent>) {
+pub fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageContentBlock>) {
     let mut tool_calls = Vec::new();
 
     let function_re = Regex::new(r"<function=([^>]+)>([\s\S]*?)</function>").unwrap();
@@ -58,7 +58,7 @@ pub fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageConten
         let id = Uuid::new_v4().to_string();
 
         if is_valid_function_name(&function_name) {
-            tool_calls.push(MessageContent::tool_request(
+            tool_calls.push(MessageContentBlock::tool_request(
                 id,
                 Ok(CallToolRequestParams::new(function_name)
                     .with_arguments(object(serde_json::Value::Object(arguments)))),
@@ -72,7 +72,7 @@ pub fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageConten
                 )),
                 data: None,
             };
-            tool_calls.push(MessageContent::tool_request(id, Err(error)));
+            tool_calls.push(MessageContentBlock::tool_request(id, Err(error)));
         }
     }
 
@@ -89,7 +89,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let has_tool_requests = message
         .content
         .iter()
-        .any(|c| matches!(c, MessageContent::ToolRequest(_)));
+        .any(|c| matches!(c, MessageContentBlock::ToolRequest(_)));
 
     if has_tool_requests {
         return Ok(message);
@@ -107,7 +107,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                 if !xml_tool_calls.is_empty() {
                     let mut content = Vec::new();
                     if let Some(prefix_text) = prefix {
-                        content.push(MessageContent::text(prefix_text));
+                        content.push(MessageContentBlock::text(prefix_text));
                     }
                     content.extend(xml_tool_calls);
 
@@ -130,7 +130,7 @@ fn extract_text_from_message(message: &Message) -> String {
         .content
         .iter()
         .filter_map(|c| {
-            if let MessageContent::Text(text) = c {
+            if let MessageContentBlock::Text(text) = c {
                 Some(text.text.as_str())
             } else {
                 None
@@ -145,7 +145,7 @@ fn is_text_only_message(message: &Message) -> bool {
     message
         .content
         .iter()
-        .all(|c| matches!(c, MessageContent::Text(_)))
+        .all(|c| matches!(c, MessageContentBlock::Text(_)))
 }
 
 /// Streaming message handler with XML tool call post-processing for Ollama.
@@ -205,7 +205,7 @@ where
             if !xml_tool_calls.is_empty() {
                 let mut contents = Vec::new();
                 if let Some(prefix_text) = prefix {
-                    contents.push(MessageContent::text(prefix_text));
+                    contents.push(MessageContentBlock::text(prefix_text));
                 }
                 contents.extend(xml_tool_calls);
 
@@ -220,8 +220,9 @@ where
                 let msg = Message::new(
                     Role::Assistant,
                     chrono::Utc::now().timestamp(),
-                    vec![MessageContent::text(&accumulated_text)],
-                );
+                    vec![MessageContentBlock::text(&accumulated_text)],
+                )
+                .with_generated_id();
 
                 yield (Some(msg), last_usage);
             }
@@ -247,7 +248,7 @@ mod tests {
         assert!(prefix.is_none(), "Should have no prefix");
         assert_eq!(tool_calls.len(), 1, "Should have 1 tool call");
 
-        if let MessageContent::ToolRequest(request) = &tool_calls[0] {
+        if let MessageContentBlock::ToolRequest(request) = &tool_calls[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "developer__text_editor");
             let args = tool_call.arguments.as_ref().unwrap();
@@ -293,14 +294,14 @@ mod tests {
         assert!(prefix.is_none());
         assert_eq!(tool_calls.len(), 2, "Should have 2 tool calls");
 
-        if let MessageContent::ToolRequest(request) = &tool_calls[0] {
+        if let MessageContentBlock::ToolRequest(request) = &tool_calls[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "developer__shell");
         } else {
             panic!("Expected ToolRequest content");
         }
 
-        if let MessageContent::ToolRequest(request) = &tool_calls[1] {
+        if let MessageContentBlock::ToolRequest(request) = &tool_calls[1] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "developer__text_editor");
         } else {
@@ -341,7 +342,7 @@ hello
         assert!(prefix.is_some(), "Should have prefix");
         assert_eq!(tool_calls.len(), 1, "Should have 1 tool call");
 
-        if let MessageContent::ToolRequest(request) = &tool_calls[0] {
+        if let MessageContentBlock::ToolRequest(request) = &tool_calls[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "developer__text_editor");
             let args = tool_call.arguments.as_ref().unwrap();
@@ -353,8 +354,10 @@ hello
         }
     }
 
-    #[test]
-    fn test_response_to_message_xml_fallback() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn test_response_to_message_xml_fallback() -> anyhow::Result<()> {
+        use futures::StreamExt;
+
         // Test that response_to_message falls back to XML parsing when no JSON tool_calls
         let response = json!({
             "choices": [{
@@ -368,12 +371,38 @@ hello
         let message = response_to_message(&response)?;
 
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(request) = &message.content[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "developer__shell");
         } else {
             panic!("Expected ToolRequest content from XML parsing");
         }
+
+        let response_lines = r#"data: {"id":"ollama-source-id","model":"test-model","choices":[{"delta":{"role":"assistant","content":"literal <function=not-a-tool"},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","created":123}
+data: {"id":"ollama-source-id","model":"test-model","choices":[{"delta":{"content":" should remain text"},"index":0,"finish_reason":"stop"}],"object":"chat.completion.chunk","created":124}
+data: [DONE]"#;
+        let lines = response_lines.lines().map(|s| Ok(s.to_string()));
+        let response_stream = tokio_stream::iter(lines);
+        let mut messages = std::pin::pin!(response_to_streaming_message_ollama(response_stream));
+
+        let (message, usage) = messages
+            .next()
+            .await
+            .expect("expected invalid XML fallback message")?;
+        assert!(usage.is_none());
+        let message = message.expect("expected invalid XML fallback message");
+        assert_eq!(message.role, Role::Assistant);
+        assert_eq!(message.content.len(), 1);
+        let MessageContentBlock::Text(text) = &message.content[0] else {
+            panic!("expected invalid XML fallback to remain text-only");
+        };
+        assert_eq!(text.text, "literal <function=not-a-tool should remain text");
+        let message_id = message
+            .id
+            .as_deref()
+            .expect("invalid XML fallback message should have an ID");
+        assert!(message_id.starts_with("msg_"));
+        assert!(messages.next().await.is_none());
 
         Ok(())
     }
@@ -404,11 +433,11 @@ hello
         let tool_requests: Vec<_> = message
             .content
             .iter()
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .filter(|c| matches!(c, MessageContentBlock::ToolRequest(_)))
             .collect();
 
         assert_eq!(tool_requests.len(), 1);
-        if let MessageContent::ToolRequest(request) = tool_requests[0] {
+        if let MessageContentBlock::ToolRequest(request) = tool_requests[0] {
             let tool_call = request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "correct_tool");
         } else {

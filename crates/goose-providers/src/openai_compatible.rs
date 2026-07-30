@@ -107,7 +107,14 @@ impl OpenAiCompatibleProvider {
         let path = format!("{}chat/completions", self.completions_prefix);
         let response = self
             .with_retry(|| async {
-                handle_status(self.api_client.response_post(&path, &payload).await?).await
+                handle_status(
+                    self.api_client
+                        .request(&path)
+                        .model_headers(model_config)?
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
             })
             .await
             .inspect_err(|e| {

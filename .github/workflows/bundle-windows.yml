@@ -47,6 +47,11 @@ on:
         required: false
         type: boolean
         default: false
+      environment:
+        description: 'GitHub Environment containing signing secrets. Leave empty for unsigned builds.'
+        required: false
+        type: string
+        default: ''
       ref:
         description: 'Git ref to checkout'
         required: false
@@ -67,7 +72,7 @@ jobs:
     runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
@@ -181,7 +186,7 @@ jobs:
     runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
@@ -284,7 +289,7 @@ jobs:
     needs: build-desktop-windows
     if: ${{ inputs.package_desktop && inputs.signing }}
     runs-on: windows-latest
-    environment: ${{ inputs.signing && 'signing' || null }}
+    environment: ${{ inputs.environment || '' }}
     permissions:
       id-token: write
     steps:

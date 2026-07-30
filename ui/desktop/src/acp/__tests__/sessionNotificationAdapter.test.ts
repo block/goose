@@ -1,13 +1,23 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import type { Message, NotificationEvent } from '../../types/message';
+import { getToolResponses, type Message, type NotificationEvent } from '../../types/message';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
 } from '../sessionNotificationAdapter';
 
 const SESSION_ID = 'session-1';
+const DEFAULT_TOOL_CALL = {
+  sessionUpdate: 'tool_call',
+  toolCallId: 'tool-1',
+  title: 'Read file',
+  status: 'pending',
+} as const;
+const DEFAULT_TOOL_CALL_UPDATE = {
+  sessionUpdate: 'tool_call_update',
+  toolCallId: 'tool-1',
+} as const;
 
 function acpUpdate(update: SessionNotification['update']): SessionNotification {
   return {
@@ -414,33 +424,238 @@ describe('createAcpSessionNotificationAdapter', () => {
         });
       });
 
-      it('uses failed tool response text content when raw output is absent', () => {
+      it('preserves content from an unfinished tool call update', () => {
         const adapter = createAcpSessionNotificationAdapter();
+        const result = { type: 'text' as const, text: 'Intermediate result' };
+        const content = [{ type: 'content' as const, content: result }];
 
-        const failedToolStateChanges = adapter.apply(
-          acpUpdate({
-            sessionUpdate: 'tool_call_update',
-            toolCallId: 'tool-1',
-            status: 'failed',
-            title: 'Read file',
-            content: [
-              {
-                type: 'content',
-                content: { type: 'text', text: 'file not found' },
-              },
-            ],
-          })
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
         );
-        const messages = expectOnlyMessagesChange(failedToolStateChanges);
 
-        expect(firstContent(messages[0])).toMatchObject({
+        expect(messages).toHaveLength(2);
+        expect(firstContent(messages[1])).toMatchObject({
           type: 'toolResponse',
           id: 'tool-1',
+          metadata: {
+            title: 'Read file',
+            status: 'completed',
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [result],
+              isError: false,
+            },
+          },
+        });
+      });
+
+      it('replaces earlier content with later content', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const initialResult = { type: 'text' as const, text: 'First result' };
+        const replacementResult = { type: 'text' as const, text: 'Second result' };
+        const initialContent = [{ type: 'content' as const, content: initialResult }];
+        const replacementContent = [{ type: 'content' as const, content: replacementResult }];
+
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content: initialContent }));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content: replacementContent }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
+        );
+
+        expect(firstContent(messages[1])).toMatchObject({
+          type: 'toolResponse',
+          id: 'tool-1',
+          metadata: {
+            content: replacementContent,
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [replacementResult],
+              isError: false,
+            },
+          },
+        });
+      });
+
+      it('clears earlier content with an empty content update', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const result = { type: 'text' as const, text: 'Intermediate result' };
+        const content = [{ type: 'content' as const, content: result }];
+
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content }));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content: [] }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
+        );
+
+        expect(firstContent(messages[1])).toMatchObject({
+          type: 'toolResponse',
+          id: 'tool-1',
+          metadata: {
+            content: [],
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [],
+              isError: false,
+            },
+          },
+        });
+      });
+
+      it('preserves unsupported content without rendering it', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const diff = {
+          type: 'diff' as const,
+          path: '/tmp/file.txt',
+          oldText: 'old content',
+          newText: 'new content',
+        };
+        const terminalReference = {
+          type: 'terminal' as const,
+          terminalId: 'terminal-1',
+        };
+        const content = [diff, terminalReference];
+
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
+        );
+
+        expect(firstContent(messages[1])).toMatchObject({
+          type: 'toolResponse',
+          id: 'tool-1',
+          metadata: {
+            content,
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [],
+              isError: false,
+            },
+          },
+        });
+      });
+
+      it('uses unfinished content for a failed response when raw output is absent', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const result = { type: 'text' as const, text: 'file not found' };
+        const content = [{ type: 'content' as const, content: result }];
+
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'failed' }))
+        );
+
+        expect(messages).toHaveLength(2);
+        expect(firstContent(messages[1])).toMatchObject({
+          type: 'toolResponse',
+          id: 'tool-1',
+          metadata: {
+            title: 'Read file',
+            status: 'failed',
+            content,
+          },
           toolResult: {
             status: 'error',
             error: 'file not found',
           },
         });
+      });
+
+      it('keeps interleaved tool call state isolated by ID', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+        const toolOneResult = { type: 'text' as const, text: 'First tool result' };
+        const toolTwoResult = { type: 'text' as const, text: 'Second tool result' };
+        const toolOneContent = [{ type: 'content' as const, content: toolOneResult }];
+        const toolTwoContent = [{ type: 'content' as const, content: toolTwoResult }];
+
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL, title: 'First tool' }));
+        adapter.apply(
+          acpUpdate({ ...DEFAULT_TOOL_CALL, toolCallId: 'tool-2', title: 'Second tool' })
+        );
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, content: toolOneContent }));
+        adapter.apply(
+          acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, toolCallId: 'tool-2', content: toolTwoContent })
+        );
+
+        let messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              ...DEFAULT_TOOL_CALL_UPDATE,
+              toolCallId: 'tool-2',
+              status: 'completed',
+            })
+          )
+        );
+        const toolTwoResponse = messages
+          .flatMap(getToolResponses)
+          .find((response) => response.id === 'tool-2');
+
+        expect(toolTwoResponse).toMatchObject({
+          metadata: {
+            title: 'Second tool',
+            content: toolTwoContent,
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [toolTwoResult],
+            },
+          },
+        });
+
+        messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
+        );
+        const toolOneResponse = messages
+          .flatMap(getToolResponses)
+          .find((response) => response.id === 'tool-1');
+
+        expect(toolOneResponse).toMatchObject({
+          metadata: {
+            title: 'First tool',
+            content: toolOneContent,
+          },
+          toolResult: {
+            status: 'success',
+            value: {
+              content: [toolOneResult],
+            },
+          },
+        });
+      });
+
+      it('does not create a duplicate response for repeated completed updates', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(acpUpdate(DEFAULT_TOOL_CALL));
+        adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }));
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(acpUpdate({ ...DEFAULT_TOOL_CALL_UPDATE, status: 'completed' }))
+        );
+        const responses = messages
+          .flatMap(getToolResponses)
+          .filter((response) => response.id === 'tool-1');
+
+        expect(responses).toHaveLength(1);
       });
 
       it('maps in-progress tool message notifications', () => {
@@ -583,9 +798,7 @@ describe('createAcpSessionNotificationAdapter', () => {
           status: { type: 'progress', message: 'Still working' },
         })
       );
-      expect(progressStateChanges).toEqual([
-        { type: 'progressMessage', message: 'Still working' },
-      ]);
+      expect(progressStateChanges).toEqual([{ type: 'progressMessage', message: 'Still working' }]);
     });
   });
 

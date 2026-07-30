@@ -152,7 +152,9 @@ impl Provider for TetrateProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("v1/chat/completions", &payload)
+                    .request("v1/chat/completions")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 let resp = handle_status(resp)
                     .await

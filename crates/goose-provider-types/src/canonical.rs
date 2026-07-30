@@ -122,4 +122,14 @@ mod tests {
         assert!(canonical.cost.input.is_some());
         assert!(canonical.cost.output.is_some());
     }
+
+    #[test]
+    fn anthropic_opus_5_resolves() {
+        let canonical = maybe_get_canonical_model("anthropic", "claude-opus-5")
+            .expect("claude-opus-5 should resolve");
+        assert_eq!(canonical.limit.context, 1_000_000);
+        assert_eq!(canonical.limit.output, Some(128_000));
+        assert!(canonical.cost.input.is_some());
+        assert!(canonical.cost.output.is_some());
+    }
 }

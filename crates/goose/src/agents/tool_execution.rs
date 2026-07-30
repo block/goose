@@ -4,6 +4,7 @@ use futures::{Stream, StreamExt};
 use rmcp::model::CallToolResult;
 use std::collections::HashMap;
 use std::future::Future;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use std::path::PathBuf;
@@ -12,7 +13,23 @@ use crate::config::permission::PermissionLevel;
 use crate::conversation::message::Message;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
-use rmcp::model::{Content, ServerNotification};
+use rmcp::model::{ContentBlock, ServerNotification};
+
+#[derive(Clone)]
+pub(crate) struct ToolCallNotificationEmitter {
+    sender: mpsc::Sender<ServerNotification>,
+}
+
+impl ToolCallNotificationEmitter {
+    pub(crate) fn new(sender: mpsc::Sender<ServerNotification>) -> Self {
+        Self { sender }
+    }
+
+    pub(crate) fn emit_best_effort(&self, notification: ServerNotification) {
+        // Do not let a slow notification consumer delay tool execution.
+        let _ = self.sender.try_send(notification);
+    }
+}
 
 /// Context passed through the tool call dispatch chain.
 #[derive(Clone)]
@@ -20,6 +37,7 @@ pub struct ToolCallContext {
     pub session_id: String,
     pub working_dir: Option<PathBuf>,
     pub tool_call_request_id: Option<String>,
+    notification_emitter: Option<ToolCallNotificationEmitter>,
 }
 
 impl ToolCallContext {
@@ -32,11 +50,24 @@ impl ToolCallContext {
             session_id,
             working_dir,
             tool_call_request_id,
+            notification_emitter: None,
         }
     }
 
     pub fn working_dir_str(&self) -> Option<&str> {
         self.working_dir.as_ref().and_then(|p| p.to_str())
+    }
+
+    pub(crate) fn with_notification_emitter(
+        mut self,
+        notification_emitter: ToolCallNotificationEmitter,
+    ) -> Self {
+        self.notification_emitter = Some(notification_emitter);
+        self
+    }
+
+    pub(crate) fn notification_emitter(&self) -> Option<&ToolCallNotificationEmitter> {
+        self.notification_emitter.as_ref()
     }
 }
 
@@ -156,7 +187,7 @@ impl Agent {
                     if let Some(response) = request_to_response_map.get_mut(&request.id) {
                         response.add_tool_response_with_metadata(
                             request.id.clone(),
-                            Ok(CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
+                            Ok(CallToolResult::error(vec![ContentBlock::text(DECLINED_RESPONSE)])),
                             request.metadata.as_ref(),
                         );
                     }

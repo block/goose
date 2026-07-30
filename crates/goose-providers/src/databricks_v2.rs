@@ -205,7 +205,9 @@ impl DatabricksV2Provider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("ai-gateway/openai/v1/responses", &payload)
+                    .request("ai-gateway/openai/v1/responses")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -241,7 +243,9 @@ impl DatabricksV2Provider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("ai-gateway/mlflow/v1/chat/completions", &payload)
+                    .request("ai-gateway/mlflow/v1/chat/completions")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -275,7 +279,9 @@ impl DatabricksV2Provider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("ai-gateway/anthropic/v1/messages", &payload)
+                    .request("ai-gateway/anthropic/v1/messages")
+                    .model_headers(model_config)?
+                    .response_post(&payload)
                     .await?;
                 handle_status(resp).await
             })

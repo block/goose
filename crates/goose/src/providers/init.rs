@@ -105,13 +105,19 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::refresh_only()),
         );
-        registry.register::<GcpVertexAIProvider>(false);
+        registry.register_with_inventory::<GcpVertexAIProvider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register::<GeminiCliProvider>(false);
         registry.register_with_inventory::<GeminiOAuthProvider>(
             true,
             Some(registrations::gemini_oauth_inventory()),
         );
-        registry.register::<GithubCopilotProvider>(false);
+        registry.register_with_inventory::<GithubCopilotProvider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register_with_inventory::<GoogleProviderDef>(
             true,
             Some(registrations::google_inventory()),
@@ -120,7 +126,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::huggingface_inventory()),
         );
-        registry.register::<KimiCodeProvider>(true);
+        registry.register_with_inventory::<KimiCodeProvider>(
+            true,
+            Some(registrations::kimi_code_inventory()),
+        );
         registry.register_with_inventory::<LiteLLMProvider>(
             false,
             Some(registrations::refresh_only().with_configured(|| {
@@ -133,7 +142,8 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
                         .is_ok()
             })),
         );
-        registry.register::<NanoGptProvider>(true);
+        registry
+            .register_with_inventory::<NanoGptProvider>(true, Some(registrations::refresh_only()));
         registry.register_with_inventory::<OllamaProviderDef>(
             true,
             Some(registrations::ollama_inventory()),
@@ -142,7 +152,15 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::openai_inventory()),
         );
-        registry.register::<OpenRouterProvider>(true);
+        registry.register_with_inventory::<OpenRouterProvider>(
+            true,
+            Some(registrations::refresh_only().with_configured(|| {
+                let config = crate::config::Config::global();
+                config
+                    .get_secret::<serde_json::Value>("OPENROUTER_API_KEY")
+                    .is_ok()
+            })),
+        );
         registry.register_with_inventory::<PiAcpProvider>(
             false,
             Some(registrations::pi_acp_inventory()),
@@ -150,8 +168,9 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProviderDef>(false);
-        registry.register::<TetrateProvider>(true);
-        registry.register::<XaiProvider>(false);
+        registry
+            .register_with_inventory::<TetrateProvider>(true, Some(registrations::refresh_only()));
+        registry.register_with_inventory::<XaiProvider>(false, Some(registrations::refresh_only()));
         registry.register_with_inventory::<XaiOAuthProvider>(
             true,
             Some(registrations::xai_oauth_inventory()),
@@ -493,6 +512,27 @@ mod tests {
             entry.supports_inventory_refresh(),
             "litellm must support inventory refresh so the model picker calls fetch_supported_models"
         );
+    }
+
+    #[tokio::test]
+    async fn test_api_backed_model_providers_are_registered_for_refresh() {
+        for provider_name in [
+            "gcp_vertex_ai",
+            "github_copilot",
+            "kimi_code",
+            "nano-gpt",
+            "tetrate",
+            "xai",
+            "xai_oauth",
+        ] {
+            let entry = get_from_registry(provider_name)
+                .await
+                .expect("dynamic model provider should be registered");
+            assert!(
+                entry.supports_inventory_refresh(),
+                "{provider_name} must refresh its model inventory"
+            );
+        }
     }
 
     #[tokio::test]
