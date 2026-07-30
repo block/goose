@@ -390,32 +390,6 @@ impl AcpProvider {
             .is_some_and(|opts| opts.iter().any(|o| o.category.as_ref() == Some(&category)))
     }
 
-    /// `session/new` carries the current mode over only for agents that expose
-    /// `session.modes`. Agents that expose mode as a config option need it
-    /// re-sent, or a session opened by `reset_context` quietly reverts to the
-    /// agent default while goose still reports the previously selected mode.
-    async fn reapply_mode_config_option(&self) {
-        if !self.session_has_config_option(SessionConfigOptionCategory::Mode) {
-            return;
-        }
-        let Some(mode) = self.goose_mode.lock().ok().map(|mode| *mode) else {
-            return;
-        };
-        let Some(candidates) = self.mode_mapping.get(&mode) else {
-            return;
-        };
-        let Some(mode_id) = select_mode_id(candidates, self.session().response.modes.as_ref())
-        else {
-            return;
-        };
-        if let Err(e) = self
-            .send_set_config_option("", "mode".into(), mode_id)
-            .await
-        {
-            tracing::warn!(error = %e, "failed to reapply mode to the reset ACP session");
-        }
-    }
-
     fn claim_handoff_context(&self, messages: &[Message]) -> HandoffContextClaim {
         let first_prompt = !self.handoff_context_sent.swap(true, Ordering::AcqRel);
         HandoffContextClaim {
@@ -728,7 +702,6 @@ impl Provider for AcpProvider {
             .applied_model
             .lock()
             .expect("applied_model lock poisoned") = None;
-        self.reapply_mode_config_option().await;
 
         Ok(())
     }
@@ -1364,39 +1337,99 @@ async fn apply_session_mode(
     let current_mode = goose_mode.lock().ok().map(|mode| *mode);
     let candidates = initial_mode_candidates(config, current_mode);
 
-    if let Some(modes) = session.modes.as_ref() {
-        if !candidates.is_empty() {
-            let Some(mode_id) = select_mode_id(&candidates, Some(modes)) else {
-                let available: Vec<String> = modes
-                    .available_modes
-                    .iter()
-                    .map(|mode| mode.id.0.to_string())
-                    .collect();
-                return Err(anyhow::anyhow!(
-                    "Requested mode(s) [{}] not offered by agent. Available modes: {}",
-                    candidates.join(", "),
-                    available.join(", ")
-                ));
-            };
-            if modes.current_mode_id.0.as_ref() != mode_id.as_str() {
-                let _: SetSessionModeResponse = cx
-                    .send_request(SetSessionModeRequest::new(
-                        session.session_id.clone(),
-                        mode_id,
-                    ))
-                    .block_task()
-                    .await
-                    .map_err(|err| {
-                        anyhow::anyhow!(
-                            "ACP agent rejected {}: {err}",
-                            AGENT_METHOD_NAMES.session_set_mode
-                        )
-                    })?;
-            }
+    match initial_session_mode(&session, &candidates)? {
+        InitialSessionMode::ConfigOption(mode_id) => {
+            let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(mode_id);
+            cx.send_request(SetSessionConfigOptionRequest::new(
+                session.session_id.clone(),
+                "mode",
+                value_id,
+            ))
+            .block_task()
+            .await
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "ACP agent rejected {} for 'mode': {err}",
+                    AGENT_METHOD_NAMES.session_set_config_option
+                )
+            })?;
         }
+        InitialSessionMode::Mode(mode_id) => {
+            let _: SetSessionModeResponse = cx
+                .send_request(SetSessionModeRequest::new(
+                    session.session_id.clone(),
+                    mode_id,
+                ))
+                .block_task()
+                .await
+                .map_err(|err| {
+                    anyhow::anyhow!(
+                        "ACP agent rejected {}: {err}",
+                        AGENT_METHOD_NAMES.session_set_mode
+                    )
+                })?;
+        }
+        InitialSessionMode::Unchanged => {}
     }
 
     Ok(session)
+}
+
+#[derive(Debug, PartialEq)]
+enum InitialSessionMode {
+    ConfigOption(String),
+    Mode(String),
+    Unchanged,
+}
+
+/// Decide how the current goose mode reaches a freshly opened session. Agents
+/// that expose mode as a config option (rather than `session.modes`) start
+/// every new session in their own default, so the mode must be re-sent or a
+/// session opened by `reset_context` quietly reverts while goose still reports
+/// the previously selected mode. Running as part of session setup means a
+/// refusal fails the whole `session/new`: the caller keeps its old session
+/// instead of adopting one whose permission mode is unknown.
+fn initial_session_mode(
+    session: &NewSessionResponse,
+    candidates: &[String],
+) -> Result<InitialSessionMode> {
+    if candidates.is_empty() {
+        return Ok(InitialSessionMode::Unchanged);
+    }
+
+    if session_advertises_mode_config_option(session) {
+        return Ok(match select_mode_id(candidates, session.modes.as_ref()) {
+            Some(mode_id) => InitialSessionMode::ConfigOption(mode_id),
+            None => InitialSessionMode::Unchanged,
+        });
+    }
+
+    let Some(modes) = session.modes.as_ref() else {
+        return Ok(InitialSessionMode::Unchanged);
+    };
+    let Some(mode_id) = select_mode_id(candidates, Some(modes)) else {
+        let available: Vec<String> = modes
+            .available_modes
+            .iter()
+            .map(|mode| mode.id.0.to_string())
+            .collect();
+        return Err(anyhow::anyhow!(
+            "Requested mode(s) [{}] not offered by agent. Available modes: {}",
+            candidates.join(", "),
+            available.join(", ")
+        ));
+    };
+    if modes.current_mode_id.0.as_ref() == mode_id.as_str() {
+        return Ok(InitialSessionMode::Unchanged);
+    }
+    Ok(InitialSessionMode::Mode(mode_id))
+}
+
+fn session_advertises_mode_config_option(session: &NewSessionResponse) -> bool {
+    session.config_options.as_ref().is_some_and(|opts| {
+        opts.iter()
+            .any(|o| o.category.as_ref() == Some(&SessionConfigOptionCategory::Mode))
+    })
 }
 
 fn initial_mode_candidates(
@@ -2444,59 +2477,70 @@ mod tests {
         assert!(provider.applied_model.lock().unwrap().is_none());
         assert!(
             rx.try_recv().is_err(),
-            "an agent without a mode config option must not be sent one"
+            "session setup (mode, config options) belongs to the client loop; reset_context must send nothing beyond the swap"
         );
     }
 
-    #[tokio::test]
-    async fn reset_context_reapplies_mode_to_a_config_option_agent() {
-        let (tx, mut rx) = mpsc::channel(4);
-        let (mut provider, _) = test_provider_with_tx(Some(tx));
-        provider.mode_mapping = HashMap::from([(GooseMode::Auto, vec!["full-access".to_string()])]);
+    fn mode_config_option_session() -> NewSessionResponse {
+        NewSessionResponse::new("fresh-session").config_options(vec![SessionConfigOption::select(
+            "mode",
+            "Mode",
+            "read-only",
+            vec![
+                SessionConfigSelectOption::new("read-only", "Read only"),
+                SessionConfigSelectOption::new("full-access", "Full access"),
+            ],
+        )
+        .category(SessionConfigOptionCategory::Mode)])
+    }
 
-        let handle = tokio::spawn(async move {
-            provider.reset_context().await.unwrap();
-            provider
-        });
+    #[test]
+    fn a_new_session_sends_the_mode_to_a_config_option_agent() {
+        let session = mode_config_option_session();
+        let action = initial_session_mode(&session, &["full-access".to_string()]).unwrap();
+        assert_eq!(
+            action,
+            InitialSessionMode::ConfigOption("full-access".to_string())
+        );
+    }
 
-        match rx.recv().await.expect("expected a NewSession request") {
-            ClientRequest::NewSession { response_tx } => {
-                let _ = response_tx.send(Ok(NewSessionResponse::new("fresh-session")
-                    .config_options(vec![SessionConfigOption::select(
-                        "mode",
-                        "Mode",
-                        "read-only",
-                        vec![
-                            SessionConfigSelectOption::new("read-only", "Read only"),
-                            SessionConfigSelectOption::new("full-access", "Full access"),
-                        ],
-                    )
-                    .category(SessionConfigOptionCategory::Mode)])));
-            }
-            _ => panic!("unexpected request kind"),
-        }
-        match rx.recv().await.expect("expected a CloseSession request") {
-            ClientRequest::CloseSession { session_id } => {
-                assert_eq!(session_id, SessionId::new("test-session"));
-            }
-            _ => panic!("unexpected request kind"),
-        }
-        match rx.recv().await.expect("expected a SetConfigOption request") {
-            ClientRequest::SetConfigOption {
-                session_id,
-                config_id,
-                value,
-                response_tx,
-            } => {
-                assert_eq!(session_id, SessionId::new("fresh-session"));
-                assert_eq!(config_id, "mode");
-                assert_eq!(value, "full-access");
-                let _ = response_tx.send(Ok(()));
-            }
-            _ => panic!("unexpected request kind"),
-        }
+    #[test]
+    fn a_config_option_agent_is_preferred_over_session_modes() {
+        let session = mode_config_option_session()
+            .modes(mode_state("read-only", &["read-only", "full-access"]));
+        let action = initial_session_mode(&session, &["full-access".to_string()]).unwrap();
+        assert_eq!(
+            action,
+            InitialSessionMode::ConfigOption("full-access".to_string())
+        );
+    }
 
-        handle.await.unwrap();
+    #[test]
+    fn an_agent_without_mode_surfaces_is_not_sent_a_mode() {
+        let session = NewSessionResponse::new("fresh-session");
+        let action = initial_session_mode(&session, &["full-access".to_string()]).unwrap();
+        assert_eq!(action, InitialSessionMode::Unchanged);
+    }
+
+    #[test]
+    fn a_session_modes_agent_gets_set_mode_only_when_it_differs() {
+        let session = NewSessionResponse::new("fresh-session")
+            .modes(mode_state("read-only", &["read-only", "agent"]));
+        let action = initial_session_mode(&session, &["agent".to_string()]).unwrap();
+        assert_eq!(action, InitialSessionMode::Mode("agent".to_string()));
+
+        let session = NewSessionResponse::new("fresh-session")
+            .modes(mode_state("agent", &["read-only", "agent"]));
+        let action = initial_session_mode(&session, &["agent".to_string()]).unwrap();
+        assert_eq!(action, InitialSessionMode::Unchanged);
+    }
+
+    #[test]
+    fn a_session_modes_agent_offering_no_candidate_fails_setup() {
+        let session = NewSessionResponse::new("fresh-session")
+            .modes(mode_state("agent", &["agent", "agent-full-access"]));
+        let result = initial_session_mode(&session, &["read-only".to_string()]);
+        assert!(result.is_err());
     }
 
     #[test]
