@@ -119,11 +119,20 @@ impl OpenAiCompatibleProvider {
             let json = response.json().await.map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
             })?;
-            let message = response_to_message(&json)?;
-            Ok(stream_from_single_message(
-                message,
-                ProviderUsage::new(model_config.model_name.clone(), get_usage(&json)),
-            ))
+            let message = response_to_message(&json).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+            })?;
+            let usage_json = json.get("usage").unwrap_or(&Value::Null);
+            let usage_data = get_usage(usage_json);
+            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            if let Some(cost) = get_cost(usage_json) {
+                usage = usage.with_cost(cost, CostSource::ProviderReported);
+            }
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage.usage),
+            )?;
+            Ok(stream_from_single_message(message, usage))
         }
     }
 
@@ -201,47 +210,7 @@ impl Provider for OpenAiCompatibleProvider {
             tools,
             self.supports_streaming,
         )?;
-        let mut log = start_log(model_config, &payload)?;
-
-        let completions_path = format!("{}chat/completions", self.completions_prefix);
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(&completions_path, &payload)
-                    .await?;
-                handle_status(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-
-        if self.supports_streaming {
-            stream_openai_compat(response, log)
-        } else {
-            let json: serde_json::Value = response.json().await.map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-            })?;
-
-            let message = response_to_message(&json).map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
-            })?;
-
-            let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
-            let usage_data = get_usage(usage_json);
-            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
-            if let Some(cost) = get_cost(usage_json) {
-                usage = usage.with_cost(cost, CostSource::ProviderReported);
-            }
-
-            log.write(
-                &serde_json::to_value(&message).unwrap_or_default(),
-                Some(&usage.usage),
-            )?;
-
-            Ok(stream_from_single_message(message, usage))
-        }
+        self.stream_payload(model_config, payload).await
     }
 }
 
