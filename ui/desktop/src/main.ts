@@ -55,6 +55,7 @@ import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import { resolveWorkingDir } from './utils/workingDir';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -889,6 +890,7 @@ interface ExternalBackend {
   url: string;
   secret: string;
   certFingerprint?: string;
+  workingDir?: string;
 }
 
 const getExternalBackendUrlFromEnv = (): string | null => {
@@ -944,6 +946,7 @@ const getActiveExternalBackend = (settings: Settings): ExternalBackend | null =>
       url: settings.externalGoosed.url,
       secret: getServerSecret(settings),
       certFingerprint: settings.externalGoosed.certFingerprint,
+      workingDir: settings.externalGoosed.workingDir,
     };
   }
 
@@ -1067,7 +1070,7 @@ const createChat = async (
   }
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
-  let workingDir = dir || os.homedir();
+  let workingDir = resolveWorkingDir(externalBackend?.workingDir, dir, os.homedir());
   let gooseServeLease: GooseServeLease | null = null;
 
   if (externalBackend) {
