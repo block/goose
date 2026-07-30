@@ -19,6 +19,8 @@ permissions:
   statuses: write
 
 jobs:
+  # Forks are evaluated from GitHub file/review metadata only; recipe content
+  # never enters this job or the secret-bearing scanner.
   fork-review-boundary:
     name: Fork recipe review boundary
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
