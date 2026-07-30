@@ -621,21 +621,29 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Open a cancellation scope for the reply that is about to begin and
+    /// return its identifier.
+    ///
+    /// Called at reply setup, before that reply's own cancellation can fire.
+    /// The returned scope is passed back through [`cancel`](Self::cancel) so
+    /// the provider can tell which reply a (possibly late-firing) cancel
+    /// belongs to. The default returns 0, matching the no-op `cancel`.
+    fn begin_cancel_scope(&self) -> u64 {
+        0
+    }
+
     /// Cancel the in-flight turn for the given session.
+    ///
+    /// `scope` is the value [`begin_cancel_scope`](Self::begin_cancel_scope)
+    /// returned when the cancelled reply began, so a cancel that fires after
+    /// a newer reply has already started cannot be misattributed to it.
     ///
     /// Providers that drive a turn on a remote backend (e.g. ACP agents)
     /// override this to forward an out-of-band cancellation so the backend
     /// stops promptly instead of running the whole turn to completion. The
     /// default is a no-op, appropriate for providers whose turn ends as soon
     /// as goose stops polling the response stream.
-    async fn cancel(&self, _session_id: &str) {}
-
-    /// Discard any cancellation state latched by [`cancel`](Self::cancel).
-    ///
-    /// Called when a new reply begins, before that reply's own cancellation
-    /// can fire, so a cancel recorded during a previous reply cannot suppress
-    /// the new reply's work. The default is a no-op.
-    fn clear_pending_cancel(&self) {}
+    async fn cancel(&self, _session_id: &str, _scope: u64) {}
 }
 
 #[cfg(test)]

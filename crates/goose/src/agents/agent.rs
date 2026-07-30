@@ -95,11 +95,15 @@ impl CancelForwarder {
         token: CancellationToken,
         provider: Arc<dyn crate::providers::base::Provider>,
         session_id: String,
+        cancel_scope: u64,
     ) -> Self {
         let watch_token = token.clone();
         let handle = tokio::spawn(async move {
             watch_token.cancelled().await;
-            provider.cancel(&session_id).await;
+            // The scope captured at spawn keeps a forwarder that fires late —
+            // after a newer reply has begun — from being attributed to that
+            // newer reply's prompts.
+            provider.cancel(&session_id, cancel_scope).await;
         });
         Self { handle, token }
     }
@@ -2112,11 +2116,17 @@ impl Agent {
             }
         }
         // A cancel latched by the provider during a previous reply must not
-        // suppress this reply's prompts; this reply's own cancel can only fire
-        // through the forwarder spawned below.
-        provider.clear_pending_cancel();
+        // suppress this reply's prompts; opening a fresh scope here, before
+        // this reply's forwarder exists, ties every cancel to the reply it
+        // was actually issued for.
+        let cancel_scope = provider.begin_cancel_scope();
         let cancel_forwarder = cancel_token.as_ref().map(|token| {
-            CancelForwarder::spawn(token.clone(), provider.clone(), session_config.id.clone())
+            CancelForwarder::spawn(
+                token.clone(),
+                provider.clone(),
+                session_config.id.clone(),
+                cancel_scope,
+            )
         });
         let inner = Box::pin(async_stream::try_stream! {
             // Kept alive for the stream's lifetime; dropping the stream (e.g. a
@@ -3220,7 +3230,10 @@ impl Agent {
             gen_ai_telemetry::record_usage(&tracing::Span::current(), &turn_total_usage);
             gen_ai_telemetry::record_usage(&reply_span, &turn_total_usage);
 
-            if !stop_hook_handled_for_exit {
+            // A cancelled turn skips Stop hooks: they mark the agent finishing
+            // a response, and their commands could otherwise block a cancelled
+            // (e.g. quiet ACP) turn until they finish or time out.
+            if !stop_hook_handled_for_exit && !is_token_cancelled(&cancel_token) {
                 self.emit_stop_hook(&session_config.id, &last_assistant_text, &session.working_dir.to_string_lossy()).await;
             }
         }.instrument(reply_stream_span));
@@ -4424,7 +4437,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             "hanging"
         }
 
-        async fn cancel(&self, session_id: &str) {
+        async fn cancel(&self, session_id: &str, _scope: u64) {
             self.cancel_calls.fetch_add(1, Ordering::SeqCst);
             *self.cancelled_session.lock().unwrap() = Some(session_id.to_string());
             self.cancel_called.notify_one();
@@ -4606,6 +4619,49 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(
             !sentinel.exists(),
             "recipe retry success check ran during a cancelled turn"
+        );
+        Ok(())
+    }
+
+    /// A cancelled turn must not run Stop hooks: they mark the agent finishing
+    /// a response, and their commands could otherwise block the cancelled
+    /// reply until they finish or time out.
+    #[tokio::test]
+    async fn cancellation_skips_stop_hooks() -> Result<()> {
+        const COUNT_STOP_SCRIPT: &str = r#"#!/bin/sh
+echo ran >> "$PLUGIN_ROOT/hook.log"
+exit 0
+"#;
+        let env = StopHookTestEnv::new(COUNT_STOP_SCRIPT)?;
+        let provider = Arc::new(HangingProvider::new());
+        let (agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+
+        let cancel_token = CancellationToken::new();
+        let canceller =
+            cancel_once_stream_is_stalled(cancel_token.clone(), provider.stream_entered.clone());
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                stalled_reply_session_config(&session_id),
+                Some(cancel_token),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while let Some(event) = reply_stream.next().await {
+                let _ = event;
+            }
+        })
+        .await
+        .expect("reply did not stop promptly after cancellation");
+        canceller.await.expect("canceller task panicked");
+
+        assert_eq!(
+            env.hook_invocations(),
+            0,
+            "Stop hook ran during a cancelled turn"
         );
         Ok(())
     }

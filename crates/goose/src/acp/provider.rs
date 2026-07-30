@@ -169,8 +169,9 @@ pub struct AcpProvider {
     /// redundant `SetConfigOption` calls.
     applied_model: Arc<Mutex<Option<String>>>,
 
-    /// Current cancel epoch, bumped by `clear_pending_cancel()` when a new
-    /// reply begins. Prompts capture it at enqueue time.
+    /// Current cancel epoch, bumped by `begin_cancel_scope()` when a new
+    /// reply begins. Prompts capture it at enqueue time; each reply's cancel
+    /// forwarder passes its own epoch back through `cancel()`.
     cancel_epoch: Arc<AtomicU64>,
     /// Highest epoch for which `cancel()` has fired (0 = none). The client
     /// loop suppresses (or re-cancels) any prompt whose captured epoch is at
@@ -490,13 +491,16 @@ impl Provider for AcpProvider {
         true
     }
 
-    async fn cancel(&self, _session_id: &str) {
+    async fn cancel(&self, _session_id: &str, scope: u64) {
         // Latch first: if the prompt has not reached the wire yet, the
         // notification below targets no active run and the backend ignores
         // it, so the client loop must observe the latch around the prompt
-        // send to suppress or re-cancel the turn.
-        self.cancelled_epoch
-            .store(self.cancel_epoch.load(Ordering::SeqCst), Ordering::SeqCst);
+        // send to suppress or re-cancel the turn. Latching the caller's
+        // scope — not the current epoch — keeps a forwarder that fires late,
+        // after a newer reply bumped the epoch, from suppressing that newer
+        // reply's prompts. fetch_max keeps a late stale cancel from lowering
+        // the latch.
+        self.cancelled_epoch.fetch_max(scope, Ordering::SeqCst);
         let Some(cx) = self.agent_cx.get() else {
             return;
         };
@@ -505,12 +509,12 @@ impl Provider for AcpProvider {
         }
     }
 
-    fn clear_pending_cancel(&self) {
-        // Bump the epoch instead of clearing the latch: prompts from the
+    fn begin_cancel_scope(&self) -> u64 {
+        // Bump the epoch instead of clearing the latch: prompts from a
         // cancelled reply may still sit in the client-loop queue and must
         // stay cancelled, while the new reply's prompts capture the fresh
         // epoch and are unaffected.
-        self.cancel_epoch.fetch_add(1, Ordering::SeqCst);
+        self.cancel_epoch.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     async fn handle_permission_confirmation(
@@ -2254,10 +2258,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn cancel_before_prompt_send_suppresses_prompt_until_cleared() {
-        use futures::StreamExt;
-
+    async fn fake_connected_provider() -> (AcpProvider, Arc<Mutex<u32>>, Arc<Mutex<u32>>) {
         let prompts = Arc::new(Mutex::new(0));
         let cancels = Arc::new(Mutex::new(0));
         let provider = AcpProvider::connect_with_transport(
@@ -2271,13 +2272,22 @@ mod tests {
         )
         .await
         .unwrap();
+        (provider, prompts, cancels)
+    }
+
+    #[tokio::test]
+    async fn cancel_before_prompt_send_suppresses_prompt_until_new_scope() {
+        use futures::StreamExt;
+
+        let (provider, prompts, cancels) = fake_connected_provider().await;
         let model = ModelConfig::new("test-model");
         let messages = vec![Message::user().with_text("hello")];
 
         // Cancel fires before the prompt reaches the wire: the backend would
         // ignore the notification (no active run), so the prompt must be
         // suppressed instead of starting a turn nothing can cancel.
-        provider.cancel("goose-session").await;
+        let scope = provider.begin_cancel_scope();
+        provider.cancel("goose-session", scope).await;
         let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         assert!(stream.next().await.is_none());
         assert_eq!(
@@ -2287,14 +2297,37 @@ mod tests {
         );
         assert_eq!(*cancels.lock().unwrap(), 1);
 
-        // A new reply clears the latch, so prompting works again.
-        provider.clear_pending_cancel();
+        // A new reply opens a fresh scope, so prompting works again.
+        provider.begin_cancel_scope();
         let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         while stream.next().await.is_some() {}
         assert_eq!(
             *prompts.lock().unwrap(),
             1,
-            "prompt after clear_pending_cancel must reach the backend"
+            "prompt in a fresh cancel scope must reach the backend"
+        );
+    }
+
+    #[tokio::test]
+    async fn late_cancel_from_previous_reply_does_not_suppress_new_prompt() {
+        use futures::StreamExt;
+
+        let (provider, prompts, _cancels) = fake_connected_provider().await;
+        let model = ModelConfig::new("test-model");
+        let messages = vec![Message::user().with_text("hello")];
+
+        // Reply N's forwarder fires only after reply N+1 already began: the
+        // cancel must be attributed to reply N's scope, not the current one.
+        let stale_scope = provider.begin_cancel_scope();
+        provider.begin_cancel_scope();
+        provider.cancel("goose-session", stale_scope).await;
+
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        while stream.next().await.is_some() {}
+        assert_eq!(
+            *prompts.lock().unwrap(),
+            1,
+            "a stale cancel must not suppress the newer reply's prompt"
         );
     }
 
@@ -2305,6 +2338,7 @@ mod tests {
         let messages = vec![Message::user().with_text("hello")];
 
         // Reply N enqueues its prompt; the client loop has not handled it yet.
+        let scope_n = provider.begin_cancel_scope();
         let _stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         let stale_epoch = match rx.recv().await.expect("expected ACP prompt request") {
             ClientRequest::Prompt { cancel_epoch, .. } => cancel_epoch,
@@ -2312,8 +2346,8 @@ mod tests {
         };
 
         // Reply N is cancelled, then reply N+1 begins.
-        provider.cancel("goose-session").await;
-        provider.clear_pending_cancel();
+        provider.cancel("goose-session", scope_n).await;
+        provider.begin_cancel_scope();
         let _stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         let fresh_epoch = match rx.recv().await.expect("expected ACP prompt request") {
             ClientRequest::Prompt { cancel_epoch, .. } => cancel_epoch,
