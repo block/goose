@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "正在等待你的回复（剩余 {timeRemaining}）"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "按 Enter 键换行而不发送。使用 Shift+Enter 或 {sendShortcut} 发送。"
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter 键插入换行"
+  },
   "envVarsSection.add": {
     "defaultMessage": "添加"
   },

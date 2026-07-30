@@ -70,6 +70,7 @@ const mockSettings: Record<string, unknown> = {
   language: 'system',
   responseStyle: 'concise',
   showPricing: true,
+  enterInsertsNewline: false,
   seenAnnouncementIds: [],
 };
 

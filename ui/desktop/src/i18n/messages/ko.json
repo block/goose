@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "답변을 기다리는 중입니다. ({timeRemaining} 남음)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Enter 키를 누르면 전송하지 않고 새 줄을 시작합니다. Shift+Enter 또는 {sendShortcut}로 전송하세요."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter로 줄바꿈 삽입"
+  },
   "envVarsSection.add": {
     "defaultMessage": "추가"
   },

@@ -4,6 +4,7 @@ import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { GoosehintsSection } from './GoosehintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
+import { EnterInsertsNewlineToggle } from './EnterInsertsNewlineToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -52,6 +53,7 @@ export default function ChatSettingsSection() {
         <CardContent className="px-2">
           <DictationSettings />
           <SpellcheckToggle />
+          <EnterInsertsNewlineToggle />
         </CardContent>
       </Card>
 

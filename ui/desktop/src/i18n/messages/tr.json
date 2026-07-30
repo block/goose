@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "Yanıtınızı bekliyorum ({timeRemaining} kaldı)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Enter tuşuna basmak göndermek yerine yeni bir satır başlatır. Shift+Enter veya {sendShortcut} ile gönderin."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter yeni satır ekler"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Ekle"
   },

@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "En attente de votre réponse ({timeRemaining} restant)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Appuyer sur Entrée insère une nouvelle ligne au lieu d'envoyer. Envoyez avec Maj+Entrée ou {sendShortcut}."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Entrée insère un saut de ligne"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Ajouter"
   },

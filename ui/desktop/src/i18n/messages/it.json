@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "In attesa della tua risposta ({timeRemaining} rimanenti)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Premendo Invio si inizia una nuova riga invece di inviare. Invia con Shift+Invio o {sendShortcut}."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Invio inserisce una nuova riga"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Aggiungi"
   },

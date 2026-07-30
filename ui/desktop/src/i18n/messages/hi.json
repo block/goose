@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "आपकी प्रतिक्रिया की प्रतीक्षा में ({timeRemaining} शेष)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Enter दबाने पर संदेश भेजने के बजाय नई पंक्ति शुरू होती है। Shift+Enter या {sendShortcut} से भेजें।"
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter नई पंक्ति जोड़ता है"
+  },
   "envVarsSection.add": {
     "defaultMessage": "जोड़ें"
   },

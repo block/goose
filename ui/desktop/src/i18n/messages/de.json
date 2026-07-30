@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "Warten auf Ihre Antwort ({timeRemaining} verbleibend)"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Mit der Eingabetaste wird eine neue Zeile begonnen, statt zu senden. Senden mit Shift+Enter oder {sendShortcut}."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter fügt Zeilenumbruch ein"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Hinzufügen"
   },

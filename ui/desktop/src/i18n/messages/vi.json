@@ -953,6 +953,12 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "Đang chờ phản hồi của bạn (còn {timeRemaining})"
   },
+  "enterInsertsNewlineToggle.description": {
+    "defaultMessage": "Nhấn Enter sẽ bắt đầu dòng mới thay vì gửi. Gửi bằng Shift+Enter hoặc {sendShortcut}."
+  },
+  "enterInsertsNewlineToggle.title": {
+    "defaultMessage": "Enter chèn dòng mới"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Thêm"
   },
