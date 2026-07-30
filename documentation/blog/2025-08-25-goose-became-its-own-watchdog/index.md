@@ -35,7 +35,7 @@ In the end I crafted a series of recipes that were safe, some that were maybe a 
 
 The process at a glance seems surprisingly simple but it's pretty complex -- picture the graceful goose swimming on the water but under the water the feet are thrashing around doing lots of work!
 
-When someone submitted a recipe via our GitHub issue template, it started an automated scan. Goose ran in an isolated Docker container, analyzed the recipe using its own security expertise plus some of our guidance, scored it for risk, and posted the results back to the GitHub issue.
+When someone submitted a recipe via our GitHub issue template, it started an automated scan. goose ran in an isolated Docker container, analyzed the recipe using its own security expertise plus some of our guidance, scored it for risk, and posted the results back to the GitHub issue.
 
 The whole process took minutes instead of days, and the submitter received immediate, transparent feedback about their recipe's safety. If something looked off, our team could review what was going on and take appropriate action.
 
@@ -84,7 +84,7 @@ Goose catches edge cases that humans might miss, like subtle obfuscation techniq
 
 Sometimes the best way to solve a potential AI problem is with more AI. Goose understands Goose behavior patterns better than any human reviewer could. It knows the legitimate ways to automate tasks and can spot when something deviates from those patterns. Using Goose to build this scanner wasn't just a time-saver for making the tool, it's a productivity win for our team from manually review every recipe ourselves.
 
-At the time, anyone could submit a recipe knowing it would get a fair, thorough review. And when a recipe received security approval, it was approved by Goose itself.
+At the time, anyone could submit a recipe knowing it would get a fair, thorough review. And when a recipe received security approval, it was approved by goose itself.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/Jtw_FxF3Iug" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
