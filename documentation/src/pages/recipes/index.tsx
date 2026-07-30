@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Layout from "@theme/Layout";
 import Admonition from "@theme/Admonition";
+import { Button } from "@site/src/components/ui/button";
 import { SidebarFilter, type SidebarFilterGroup } from "@site/src/components/ui/sidebar-filter";
 import { Menu, X } from "lucide-react";
 import Link from '@docusaurus/Link';
