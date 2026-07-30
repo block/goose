@@ -33,9 +33,6 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { acpChatSessionActions } from '../../acp/chatSessionStore';
-import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
-import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { errorMessage } from '../../utils/conversionUtils';
 import { cn } from '../../utils';
 import type { ProjectGroup } from '../../utils/projectSessions';
@@ -476,10 +473,8 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     setSessionPendingDelete(null);
     try {
       await acpDeleteSession(id);
+      // App's SESSION_DELETED handler runs the ACP cleanup for every window.
       dispatchSessionLifecycleEvent(AppEvents.SESSION_DELETED, { sessionId: id });
-      cancelAcpPermissionRequestsForSession(id);
-      cancelAcpElicitationRequestsForSession(id);
-      acpChatSessionActions.deleteSnapshot(id);
       toast.success(intl.formatMessage(i18n.deleteSuccess));
     } catch (error) {
       toast.error(

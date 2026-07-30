@@ -390,6 +390,13 @@ export function AppInner() {
       const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
 
       setActiveSessions((prev) => prev.filter((session) => session.sessionId !== sessionId));
+
+      // Centralized here so relayed deletes from other windows clear their ACP
+      // state too, not just the window that initiated the delete.
+      cancelAcpPermissionRequestsForSession(sessionId);
+      cancelAcpElicitationRequestsForSession(sessionId);
+      acpChatSessionActions.deleteSnapshot(sessionId);
+
       leaveRouteIfCurrent(sessionId);
     };
 

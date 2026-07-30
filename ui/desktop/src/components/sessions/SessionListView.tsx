@@ -57,12 +57,10 @@ import {
   type SessionListItem,
 } from '../../acp/sessions';
 import type { SessionExportFormat } from '@aaif/goose-sdk';
-import { acpChatSessionActions, useAcpChatSessionSnapshot } from '../../acp/chatSessionStore';
+import { useAcpChatSessionSnapshot } from '../../acp/chatSessionStore';
 import { useSessionBusyElsewhere } from '../../hooks/useSessionBusyElsewhere';
 import { dispatchSessionLifecycleEvent } from '../../sessionLifecycleBridge';
 import { ChatState } from '../../types/chatState';
-import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
-import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 // In the Active view a keyword search still surfaces archived matches so a
@@ -632,9 +630,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(({ onSelectSe
         dispatchSessionLifecycleEvent(AppEvents.SESSION_DELETED, {
           sessionId: sessionToDeleteId,
         });
-      cancelAcpPermissionRequestsForSession(sessionToDeleteId);
-      cancelAcpElicitationRequestsForSession(sessionToDeleteId);
-      acpChatSessionActions.deleteSnapshot(sessionToDeleteId);
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error(
