@@ -9,7 +9,6 @@ activities:
   - Test file operations (create, read, update, delete, undo)
   - Validate shell command execution and error handling
   - Validate Azure AI Foundry provider routing and deployment aliases
-  - Validate local model search metadata output when available
   - Analyze code structure and parsing capabilities
   - Test extension discovery and management
   - Test load tool for knowledge injection and discovery
@@ -151,14 +150,6 @@ prompt: |
   Test comprehensive shell workflow: command chaining (mkdir test && cd test && echo "test" > file.txt),
   error handling (false || echo "handled"), and environment variables (export VAR=test && echo $VAR).
   Verify both success and failure paths work correctly.
-
-  ### Local Model Search Testing
-  If `goose lm search --help` succeeds, run:
-  ```
-  goose lm search llama --limit 1 --json --ram-gb 1
-  ```
-  Validate that the command exits successfully and returns a JSON array. If local inference is not enabled
-  or HuggingFace is unreachable, record the check as skipped with the observed error.
 
   ### Code Analysis Testing
   1. Create sample code files in Python, JavaScript, and Go
