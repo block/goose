@@ -29,7 +29,6 @@ export const EnterInsertsNewlineToggle = () => {
   const handleToggle = async (checked: boolean) => {
     setEnabled(checked);
     await window.electron.setSetting('enterInsertsNewline', checked);
-    window.dispatchEvent(new CustomEvent('enterInsertsNewlineChanged'));
   };
 
   const sendShortcut = window.electron?.platform === 'darwin' ? '⌘+Enter' : 'Ctrl+Enter';

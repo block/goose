@@ -547,8 +547,15 @@ export default function ChatInput({
       setEnterInsertsNewline(value === true);
     };
     loadEnterInsertsNewline();
-    window.addEventListener('enterInsertsNewlineChanged', loadEnterInsertsNewline);
-    return () => window.removeEventListener('enterInsertsNewlineChanged', loadEnterInsertsNewline);
+    // settings-changed is broadcast from the main process to every window,
+    // so toggling the setting in one window updates chat inputs in all of them
+    const handleSettingsChanged = (_event: unknown, payload: unknown) => {
+      if ((payload as { key?: string })?.key === 'enterInsertsNewline') {
+        loadEnterInsertsNewline();
+      }
+    };
+    window.electron.on('settings-changed', handleSettingsChanged);
+    return () => window.electron.off('settings-changed', handleSettingsChanged);
   }, []);
 
   // Use shared file drop hook for ChatInput
