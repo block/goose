@@ -229,7 +229,7 @@ impl AnthropicProvider {
             ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
         })?;
 
-        if let Some(err_obj) = json.get("error") {
+        if let Some(err_obj) = json.get("error").filter(|error| !error.is_null()) {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
@@ -585,6 +585,30 @@ mod tests {
             matches!(err, ProviderError::Authentication(_)),
             "expected Authentication error, got: {:?}",
             err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_accepts_null_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{"id": "model-a"}],
+                "error": null
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["model-a".to_string()]
         );
     }
 

@@ -552,7 +552,7 @@ impl OpenAiProvider {
             ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
         })?;
 
-        if let Some(err_obj) = json.get("error") {
+        if let Some(err_obj) = json.get("error").filter(|error| !error.is_null()) {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
@@ -1423,9 +1423,6 @@ mod tests {
 
     #[test]
     fn derive_base_path_preserves_non_v1_version_prefix() {
-        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
-        // from_custom_config passes url.path() ("/api/paas/v4") here. The
-        // existing /api/paas/v4 version must not gain an extra /v1 segment.
         let r = derive_base_path("/api/paas/v4");
         assert_eq!(r, "api/paas/v4/chat/completions");
     }
@@ -1450,7 +1447,12 @@ mod tests {
             custom_headers: None,
             supports_streaming: true,
             name: "test-provider".to_string(),
-            custom_models: Some(custom_models),
+            custom_models: Some(
+                custom_models
+                    .into_iter()
+                    .map(|model| ModelInfo::new(model, 4096))
+                    .collect(),
+            ),
             dynamic_models: Some(true),
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
@@ -1598,7 +1600,8 @@ mod tests {
             .and(path("/v1/models"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": [{"id": "model-a"}, {"id": "model-b"}],
-                "message": "ok"
+                "message": "ok",
+                "error": null
             })))
             .mount(&server)
             .await;
