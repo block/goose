@@ -2875,12 +2875,9 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // A provider's own with_retry covers only stream
-                            // initiation; a transient failure after the stream
-                            // opens is not retried by the provider, so the agent
-                            // must handle it even when it defers initiation
-                            // failures. Never retry once tools or visible content
-                            // have been emitted — the partial response is shown.
+                            // A provider's with_retry covers only stream initiation, so
+                            // the agent must still retry mid-stream failures. Never
+                            // retry once tools or visible content are emitted.
                             let retry_delay = if (!provider_owns_retry
                                 || provider_stream_created)
                                 && no_tools_called
@@ -2918,11 +2915,9 @@ impl Agent {
                                 }
                                 None => {
                                     yield AgentEvent::Message(provider_error_message(provider_err));
-                                    // The error could not be retried (non-transient,
-                                    // budget exhausted, or visible content already
-                                    // streamed). Treat it as terminal so goal/grind
-                                    // nudges don't immediately send another request
-                                    // that will fail the same way.
+                                    // Non-retryable: make it terminal so goal/grind
+                                    // nudges don't resend a request that will fail
+                                    // the same way.
                                     exit_chat = true;
                                 }
                             }
@@ -2934,10 +2929,9 @@ impl Agent {
                     retrying_after_provider_error = true;
                     continue;
                 }
-                // A provider error leaves the exhausted retry budget intact so
-                // a Stop-hook denial that restarts the loop can't trigger a
-                // fresh retry burst for the same persistent failure. The budget
-                // resets only on a successful turn.
+                // Preserve an exhausted retry budget across a Stop-hook restart
+                // so a persistent failure can't trigger a second retry burst.
+                // Resets only on a successful turn.
                 if !provider_errored {
                     transient_retry_attempts = 0;
                 }
