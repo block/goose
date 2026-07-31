@@ -30,6 +30,9 @@ pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-opus-5",
+    // Claude 5 family — pre-key picker (registry already has these; list was lagging)
+    "claude-sonnet-5",
+    "claude-fable-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
     // Claude 4.6 models
@@ -438,4 +441,55 @@ pub fn from_declarative_config(
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
         .format_options(format_options))
+}
+
+#[cfg(test)]
+mod known_models_tests {
+    use super::*;
+
+    #[test]
+    fn known_models_includes_claude_sonnet_5_and_fable_5() {
+        assert!(
+            ANTHROPIC_KNOWN_MODELS.contains(&"claude-sonnet-5"),
+            "claude-sonnet-5 must appear in the pre-key Anthropic model list"
+        );
+        assert!(
+            ANTHROPIC_KNOWN_MODELS.contains(&"claude-fable-5"),
+            "claude-fable-5 must appear in the pre-key Anthropic model list"
+        );
+    }
+
+    #[test]
+    fn known_models_keep_opus_5_and_list_claude_5_newest_first() {
+        assert_eq!(ANTHROPIC_KNOWN_MODELS[0], "claude-opus-5");
+        let sonnet = ANTHROPIC_KNOWN_MODELS
+            .iter()
+            .position(|&m| m == "claude-sonnet-5")
+            .expect("claude-sonnet-5 present");
+        let fable = ANTHROPIC_KNOWN_MODELS
+            .iter()
+            .position(|&m| m == "claude-fable-5")
+            .expect("claude-fable-5 present");
+        // Claude 5 entries should sit with opus-5 at the head, before 4.x legacy blocks
+        assert!(sonnet < 5, "claude-sonnet-5 should be near the top of the list");
+        assert!(fable < 5, "claude-fable-5 should be near the top of the list");
+    }
+
+    #[test]
+    fn metadata_surfaces_claude_5_models_for_pre_key_picker() {
+        let meta = AnthropicProvider::metadata();
+        let names: Vec<&str> = meta.known_models.iter().map(|m| m.name.as_str()).collect();
+        assert!(
+            names.contains(&"claude-sonnet-5"),
+            "ProviderMetadata must expose claude-sonnet-5 before API key is set"
+        );
+        assert!(
+            names.contains(&"claude-fable-5"),
+            "ProviderMetadata must expose claude-fable-5 before API key is set"
+        );
+        assert!(
+            names.contains(&"claude-opus-5"),
+            "regression: claude-opus-5 must remain in known models"
+        );
+    }
 }
