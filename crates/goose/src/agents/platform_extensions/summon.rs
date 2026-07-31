@@ -520,9 +520,7 @@ impl SummonClient {
         if !task_config.parent_session_id.is_empty() {
             self.context
                 .session_manager
-                .update(&session.id)
-                .parent_session_id(Some(task_config.parent_session_id.clone()))
-                .apply()
+                .attach_subagent(&session.id, &task_config.parent_session_id)
                 .await
                 .map_err(|e| format!("Failed to link subagent to parent session: {}", e))?;
         }

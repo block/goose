@@ -99,15 +99,22 @@ impl GooseAcpAgent {
         &self,
         req: DeleteSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.session_manager
+        let deleted_ids = self
+            .session_manager
             .delete_session(&req.session_id)
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
-        self.agent_manager
-            .remove_session_if_loaded(&req.session_id)
-            .await
-            .internal_err_ctx("Failed to remove in-memory agent")?;
+        let mut sessions = self.sessions.lock().await;
+        for session_id in &deleted_ids {
+            sessions.remove(session_id);
+        }
+        drop(sessions);
+        for session_id in &deleted_ids {
+            self.agent_manager
+                .remove_session_if_loaded(session_id)
+                .await
+                .internal_err_ctx("Failed to remove in-memory agent")?;
+        }
         Ok(EmptyResponse {})
     }
 

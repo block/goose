@@ -459,8 +459,20 @@ impl SessionManager {
         self.storage.list_sessions_by_types(None).await
     }
 
-    pub async fn delete_session(&self, id: &str) -> Result<()> {
+    /// Delete a session and all of its subagent descendants, returning the
+    /// deleted session ids.
+    pub async fn delete_session(&self, id: &str) -> Result<Vec<String>> {
         self.storage.delete_session(id).await
+    }
+
+    /// Link a freshly created subagent session to its parent, atomically with
+    /// respect to deletion: if the parent was deleted since the subagent was
+    /// created, the subagent is removed and an error returned rather than
+    /// leaving an orphan the delete cascade can no longer reach.
+    pub async fn attach_subagent(&self, session_id: &str, parent_session_id: &str) -> Result<()> {
+        self.storage
+            .attach_subagent(session_id, parent_session_id)
+            .await
     }
 
     pub async fn get_insights(&self) -> Result<SessionInsights> {
@@ -2045,7 +2057,37 @@ impl SessionStorage {
             .await
     }
 
-    async fn delete_session(&self, session_id: &str) -> Result<()> {
+    async fn attach_subagent(&self, session_id: &str, parent_session_id: &str) -> Result<()> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let parent_exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(parent_session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !parent_exists {
+            sqlx::query("DELETE FROM sessions WHERE id = ?")
+                .bind(session_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            anyhow::bail!("Parent session {parent_session_id} was deleted");
+        }
+
+        sqlx::query(
+            "UPDATE sessions SET parent_session_id = ?, updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(parent_session_id)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn delete_session(&self, session_id: &str) -> Result<Vec<String>> {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
@@ -2059,10 +2101,23 @@ impl SessionStorage {
             return Err(anyhow::anyhow!("Session not found"));
         }
 
+        const TREE_CTE: &str = r#"
+            WITH RECURSIVE tree(id) AS (
+                SELECT id FROM sessions WHERE id = ?
+                UNION
+                SELECT s.id FROM sessions s JOIN tree ON s.parent_session_id = tree.id
+            )
+        "#;
+
+        let deleted: Vec<(String,)> = sqlx::query_as(&format!("{TREE_CTE}SELECT id FROM tree"))
+            .bind(session_id)
+            .fetch_all(&mut *tx)
+            .await?;
+
         let artifacts_dir = self.artifacts_dir();
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT content_json FROM messages WHERE session_id = ? AND content_json LIKE ?",
-        )
+        let rows: Vec<(String,)> = sqlx::query_as(&format!(
+            "{TREE_CTE}SELECT content_json FROM messages WHERE session_id IN (SELECT id FROM tree) AND content_json LIKE ?"
+        ))
         .bind(session_id)
         .bind(format!(
             "%{}%",
@@ -2077,20 +2132,16 @@ impl SessionStorage {
             })
             .collect();
 
-        sqlx::query("DELETE FROM messages WHERE session_id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
-
-        sqlx::query("DELETE FROM usage_ledger WHERE session_id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
-
-        sqlx::query("DELETE FROM sessions WHERE id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
+        for statement in [
+            "DELETE FROM messages WHERE session_id IN (SELECT id FROM tree)",
+            "DELETE FROM usage_ledger WHERE session_id IN (SELECT id FROM tree)",
+            "DELETE FROM sessions WHERE id IN (SELECT id FROM tree)",
+        ] {
+            sqlx::query(&format!("{TREE_CTE}{statement}"))
+                .bind(session_id)
+                .execute(&mut *tx)
+                .await?;
+        }
 
         tx.commit().await?;
 
@@ -2112,13 +2163,16 @@ impl SessionStorage {
             }
         }
 
-        if let Err(e) = std::fs::remove_dir_all(self.session_spill_dir(session_id)) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!("Failed to remove spilled tool outputs for {session_id}: {e}");
+        let deleted: Vec<String> = deleted.into_iter().map(|(id,)| id).collect();
+        for id in &deleted {
+            if let Err(e) = std::fs::remove_dir_all(self.session_spill_dir(id)) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!("Failed to remove spilled tool outputs for {id}: {e}");
+                }
             }
         }
 
-        Ok(())
+        Ok(deleted)
     }
 
     async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
@@ -4717,6 +4771,83 @@ mod tests {
 
         sm.delete_session(&id).await.unwrap();
         assert!(sm.get_session(&id, false).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_cascades_to_descendants() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let root = new_session(&sm).await;
+        let child = new_session(&sm).await;
+        let grandchild = new_session(&sm).await;
+        let unrelated = new_session(&sm).await;
+
+        sm.update(&child)
+            .parent_session_id(Some(root.clone()))
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&grandchild)
+            .parent_session_id(Some(child.clone()))
+            .apply()
+            .await
+            .unwrap();
+
+        for id in [&root, &child, &grandchild, &unrelated] {
+            sm.add_message(id, &Message::user().with_text("hi"))
+                .await
+                .unwrap();
+            seed_ledger(&sm, id, &message_usage(100, 20, 0.10, false))
+                .await
+                .unwrap();
+        }
+
+        let child_spill_dir = sm.session_spill_dir(&child);
+        fs::create_dir_all(&child_spill_dir).unwrap();
+        fs::write(child_spill_dir.join("goose_mcp_response_x.txt"), "spilled").unwrap();
+
+        let mut deleted = sm.delete_session(&root).await.unwrap();
+        deleted.sort();
+        let mut expected = vec![root.clone(), child.clone(), grandchild.clone()];
+        expected.sort();
+        assert_eq!(deleted, expected);
+
+        let pool = sm.storage().pool().await.unwrap();
+        for id in [&root, &child, &grandchild] {
+            assert!(sm.get_session(id, false).await.is_err());
+            for (table, column) in [("messages", "session_id"), ("usage_ledger", "session_id")] {
+                let remaining: i64 =
+                    sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table} WHERE {column} = ?"))
+                        .bind(id)
+                        .fetch_one(pool)
+                        .await
+                        .unwrap();
+                assert_eq!(remaining, 0, "{table} rows for {id} should be deleted");
+            }
+        }
+
+        let survivor = sm.get_session(&unrelated, true).await.unwrap();
+        assert_eq!(survivor.message_count, 1);
+        assert!(
+            !child_spill_dir.exists(),
+            "descendant spill directories are removed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_attach_subagent_to_deleted_parent_removes_subagent() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let parent = new_session(&sm).await;
+        let child = new_session(&sm).await;
+
+        sm.delete_session(&parent).await.unwrap();
+
+        assert!(sm.attach_subagent(&child, &parent).await.is_err());
+        assert!(
+            sm.get_session(&child, false).await.is_err(),
+            "subagent that lost its parent mid-creation is removed"
+        );
     }
 
     #[tokio::test]
