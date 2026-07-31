@@ -22,9 +22,10 @@ use clap::Subcommand;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
+use goose::config::{Config, ConfigError};
 use goose_roaming::{
-    default_key_path, parse_endpoint_id, ConnectionCard, Directory, EndpointId, RelaySettings,
-    RoamingConfig, RoamingIdentity, RoamingNode, TrustBook,
+    default_key_path, parse_endpoint_id, ConnectionCard, Directory, EndpointId, RelayEntry,
+    RelaySettings, RoamingConfig, RoamingIdentity, RoamingNode, TrustBook,
 };
 
 use crate::commands::roam_full_bridge::FullAcpBridge;
@@ -41,6 +42,72 @@ fn trust_path() -> std::path::PathBuf {
 
 fn peerbook_path() -> std::path::PathBuf {
     Paths::config_dir().join("roaming_peers.json")
+}
+
+/// Config key (or `GOOSE_ROAM_RELAYS` env) overriding the relay URLs the
+/// roaming endpoint uses. When unset, roaming uses the managed relays below —
+/// never iroh's shared public n0 relays.
+const CONFIG_ROAM_RELAYS_KEY: &str = "GOOSE_ROAM_RELAYS";
+/// Optional shared bearer token (secret) presented to every *explicitly
+/// configured* relay (for gated / `AccessConfig::Restricted` relays). Not
+/// applied to the default managed relays, which register open.
+const CONFIG_ROAM_RELAY_TOKEN_KEY: &str = "GOOSE_ROAM_RELAY_TOKEN";
+
+/// Default managed iroh relays — the same four dedicated relays mesh-llm uses
+/// (provisioned via services.iroh.computer on the `iroh.link` domain), one per
+/// region for global coverage. They register open (`AccessConfig::Everyone`, no
+/// auth token), so a browser client can reach them over `wss://` with no auth
+/// header. We default to these rather than iroh's public n0 relays so roaming
+/// never depends on the shared, rate-limited, no-SLA public relays.
+///
+/// Override with `GOOSE_ROAM_RELAYS` to point at other relays (e.g. a Block-run
+/// deployment).
+const DEFAULT_ROAM_RELAYS: &[&str] = &[
+    "https://usw1-2.relay.michaelneale.mesh-llm.iroh.link./", // US West
+    "https://use1-1.relay.michaelneale.mesh-llm.iroh.link./", // US East
+    "https://euc1-1.relay.michaelneale.mesh-llm.iroh.link./", // EU Central
+    "https://aps1-1.relay.michaelneale.mesh-llm.iroh.link./", // Asia-Pacific South
+];
+
+/// Resolve the relay settings for a roaming endpoint.
+///
+/// Uses `GOOSE_ROAM_RELAYS` (env or config file) when set — optionally
+/// authenticated with the `GOOSE_ROAM_RELAY_TOKEN` secret applied to each —
+/// otherwise the default managed relays. Never iroh's public n0 relays.
+fn resolve_relay_settings() -> RelaySettings {
+    let config = Config::global();
+    let urls: Vec<String> = match config.get_param::<Vec<String>>(CONFIG_ROAM_RELAYS_KEY) {
+        Ok(urls) => urls,
+        Err(ConfigError::NotFound(_)) => Vec::new(),
+        Err(_) => Vec::new(),
+    };
+    let token = config
+        .get_secret::<String>(CONFIG_ROAM_RELAY_TOKEN_KEY)
+        .ok();
+    build_relay_settings(urls, token)
+}
+
+/// Pure relay-settings builder. With no configured URLs, use the default
+/// managed relays (open, no token). With configured URLs (empty entries
+/// filtered out), use those, applying a non-empty token to each.
+fn build_relay_settings(urls: Vec<String>, token: Option<String>) -> RelaySettings {
+    let urls: Vec<String> = urls.into_iter().filter(|u| !u.trim().is_empty()).collect();
+    if urls.is_empty() {
+        let entries = DEFAULT_ROAM_RELAYS
+            .iter()
+            .map(|url| RelayEntry::new(*url))
+            .collect();
+        return RelaySettings::Custom(entries);
+    }
+    let token = token.filter(|t| !t.is_empty());
+    let entries = urls
+        .into_iter()
+        .map(|url| match &token {
+            Some(token) => RelayEntry::with_auth(url, token.clone()),
+            None => RelayEntry::new(url),
+        })
+        .collect();
+    RelaySettings::Custom(entries)
 }
 
 #[derive(Debug, Subcommand)]
@@ -195,7 +262,7 @@ async fn handle_id() -> Result<()> {
     let identity = load_identity()?;
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: RelaySettings::N0Default,
+        relay: resolve_relay_settings(),
         trust: TrustBook::new(),
         trust_path: None,
         directory: Directory::new(),
@@ -402,7 +469,7 @@ async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) ->
 
     let node = RoamingNode::bind(RoamingConfig {
         identity,
-        relay: RelaySettings::N0Default,
+        relay: resolve_relay_settings(),
         trust,
         // Re-read acceptance on each connection so `peers accept`/`revoke` from
         // another process take effect against this live share without restart.
@@ -473,7 +540,7 @@ async fn dial_target(
     let card = resolve_card(target)?;
     let node = RoamingNode::bind(RoamingConfig {
         identity: load_identity()?,
-        relay: RelaySettings::N0Default,
+        relay: resolve_relay_settings(),
         trust: TrustBook::new(),
         trust_path: None,
         directory: Directory::new(),
@@ -590,4 +657,74 @@ async fn handle_bridge(
     drop(conn);
     node.shutdown().await?;
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_urls_uses_default_managed_relays_not_public() {
+        match build_relay_settings(vec![], None) {
+            RelaySettings::Custom(entries) => {
+                assert_eq!(entries.len(), DEFAULT_ROAM_RELAYS.len());
+                // Managed relays register open — no auth token attached.
+                assert!(entries.iter().all(|e| e.auth_token.is_none()));
+                assert!(entries.iter().all(|e| e.url.contains("iroh.link")));
+            }
+            other => panic!("expected Custom managed relays, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn blank_urls_are_filtered_and_fall_back_to_managed() {
+        match build_relay_settings(vec!["  ".into(), "".into()], None) {
+            RelaySettings::Custom(entries) => {
+                assert_eq!(entries.len(), DEFAULT_ROAM_RELAYS.len());
+            }
+            other => panic!("expected Custom managed relays, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn custom_urls_without_token() {
+        let settings = build_relay_settings(vec!["https://relay.example./".into()], None);
+        match settings {
+            RelaySettings::Custom(entries) => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].url, "https://relay.example./");
+                assert!(entries[0].auth_token.is_none());
+            }
+            other => panic!("expected Custom, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn custom_urls_apply_nonempty_token_to_each() {
+        let settings = build_relay_settings(
+            vec!["https://a.example./".into(), "https://b.example./".into()],
+            Some("tok".into()),
+        );
+        match settings {
+            RelaySettings::Custom(entries) => {
+                assert_eq!(entries.len(), 2);
+                assert!(entries
+                    .iter()
+                    .all(|e| e.auth_token.as_deref() == Some("tok")));
+            }
+            other => panic!("expected Custom, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_token_is_ignored() {
+        let settings =
+            build_relay_settings(vec!["https://relay.example./".into()], Some(String::new()));
+        match settings {
+            RelaySettings::Custom(entries) => {
+                assert!(entries[0].auth_token.is_none());
+            }
+            other => panic!("expected Custom, got {other:?}"),
+        }
+    }
 }
