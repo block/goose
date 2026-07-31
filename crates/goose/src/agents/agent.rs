@@ -562,22 +562,15 @@ impl Agent {
             return config.clone();
         }
 
+        let mut config = RetryConfig::default().transient_only();
+
         let enabled = Config::global()
             .get_param::<bool>("GOOSE_AGENT_RETRY_ENABLED")
             .unwrap_or(true);
-
-        let mut config = RetryConfig::default().transient_only();
         if !enabled {
             config.max_retries = 0;
-            return config;
         }
 
-        config.max_retries = Config::global()
-            .get_param::<usize>("GOOSE_AGENT_RETRY_MAX_ATTEMPTS")
-            .unwrap_or(config.max_retries);
-        config.initial_interval_ms = Config::global()
-            .get_param::<u64>("GOOSE_AGENT_RETRY_INITIAL_DELAY_MS")
-            .unwrap_or(config.initial_interval_ms);
         config
     }
 

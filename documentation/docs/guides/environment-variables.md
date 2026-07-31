@@ -67,8 +67,6 @@ These variables control the agent-layer retry of transient errors (network error
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_AGENT_RETRY_ENABLED` | Enables or disables agent-layer retry of transient errors | `true`, `false` | `true` |
-| `GOOSE_AGENT_RETRY_MAX_ATTEMPTS` | Maximum number of retry attempts before surfacing the error to the user | Positive integer (e.g., 3, 5) | `3` |
-| `GOOSE_AGENT_RETRY_INITIAL_DELAY_MS` | Initial delay (in milliseconds) before the first retry; subsequent retries use exponential backoff | Positive integer (e.g., 1000) | `1000` |
 | `GOOSE_PROVIDER_SKIP_BACKOFF` | Skips the backoff delay between retries (useful for tests) | `true`, `false` | `false` |
 
 **Examples**
@@ -76,12 +74,6 @@ These variables control the agent-layer retry of transient errors (network error
 ```bash
 # Disable agent-layer retry entirely
 export GOOSE_AGENT_RETRY_ENABLED=false
-
-# Allow up to 5 retry attempts
-export GOOSE_AGENT_RETRY_MAX_ATTEMPTS=5
-
-# Start with a 2-second initial delay
-export GOOSE_AGENT_RETRY_INITIAL_DELAY_MS=2000
 ```
 
 ### Claude Thinking Configuration
