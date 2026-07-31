@@ -35,7 +35,9 @@ use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt 
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::message::{
+    Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY, TOOL_META_TITLE_KEY,
+};
 use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -105,6 +107,7 @@ enum AcpUpdate {
     Thought(String),
     ToolCallStart {
         id: String,
+        title: String,
         kind: ToolKind,
         raw_input: Option<serde_json::Value>,
     },
@@ -586,6 +589,7 @@ impl Provider for AcpProvider {
                     }
                     AcpUpdate::ToolCallStart {
                         id,
+                        title,
                         kind,
                         raw_input,
                     } => {
@@ -597,12 +601,9 @@ impl Provider for AcpProvider {
                         } else {
                             let params = acp_tool_request_params(raw_input);
                             // external_dispatch tells the agent loop not to redispatch this
-                            // call. goose.acp.kind preserves ACP's stable categorization for
-                            // downstream consumers (metrics, observability, icon selection).
-                            let tool_meta = Some(serde_json::json!({
-                                TOOL_META_EXTERNAL_DISPATCH_KEY: true,
-                                "goose.acp.kind": kind,
-                            }));
+                            // call. The ACP title remains display-only metadata while the
+                            // persisted tool name stays provider-safe and stable.
+                            let tool_meta = Some(acp_tool_meta(&title, kind));
                             let message = Message::assistant().with_tool_request_with_metadata(
                                 id,
                                 Ok(params),
@@ -903,11 +904,12 @@ impl AcpClientLoop {
                                         } else {
                                             None
                                         };
-                                    // ACP carries no canonical tool name to clients. Keep the
-                                    // display title out of persisted tool-call history and
-                                    // surface `kind` separately via tool_meta.
+                                    // ACP carries no canonical tool name to clients. Preserve
+                                    // its display title as metadata while the persisted tool
+                                    // name remains provider-safe and stable.
                                     let _ = tx.try_send(AcpUpdate::ToolCallStart {
                                         id: id.clone(),
+                                        title: tool_call.title.clone(),
                                         kind: tool_call.kind,
                                         raw_input: tool_call.raw_input.clone(),
                                     });
@@ -1532,6 +1534,14 @@ fn acp_tool_request_params(raw_input: Option<serde_json::Value>) -> CallToolRequ
     params
 }
 
+fn acp_tool_meta(title: &str, kind: ToolKind) -> serde_json::Value {
+    serde_json::json!({
+        TOOL_META_EXTERNAL_DISPATCH_KEY: true,
+        TOOL_META_TITLE_KEY: title,
+        "goose.acp.kind": kind,
+    })
+}
+
 /// Convert ACP `ToolCallContent` blocks into the rmcp `Content` shape goose's
 /// `Message::with_tool_response` consumes. Handles `Content` (text/image/other),
 /// `Diff`, and `Terminal` variants; falls back to a JSON serialization of
@@ -1983,6 +1993,7 @@ mod tests {
             response_tx
                 .send(AcpUpdate::ToolCallStart {
                     id: id.to_string(),
+                    title: "Read file".to_string(),
                     kind: ToolKind::Read,
                     raw_input: None,
                 })
@@ -2779,13 +2790,9 @@ mod tests {
         );
     }
 
-    /// Pins the tool_meta shape that the `AcpUpdate::ToolCallStart` consumer
-    /// emits onto the synthesized `ToolRequest`. ACP doesn't expose a canonical
-    /// tool name to clients, so we surface `kind` here as a stable categorization
-    /// signal alongside the `external_dispatch` marker that bypasses agent-loop
-    /// routing.
+    /// Pins the tool_meta shape emitted onto synthesized ACP tool requests.
     #[test]
-    fn tool_meta_pairs_external_dispatch_marker_with_acp_kind() {
+    fn tool_meta_preserves_display_title_and_acp_kind() {
         let cases = [
             (ToolKind::Execute, "execute"),
             (ToolKind::Read, "read"),
@@ -2793,10 +2800,7 @@ mod tests {
             (ToolKind::Other, "other"),
         ];
         for (kind, expected) in cases {
-            let tool_meta = serde_json::json!({
-                TOOL_META_EXTERNAL_DISPATCH_KEY: true,
-                "goose.acp.kind": kind,
-            });
+            let tool_meta = acp_tool_meta("Read project configuration", kind);
             assert_eq!(
                 tool_meta[TOOL_META_EXTERNAL_DISPATCH_KEY],
                 serde_json::Value::Bool(true),
@@ -2806,6 +2810,11 @@ mod tests {
                 tool_meta["goose.acp.kind"],
                 serde_json::Value::String(expected.to_string()),
                 "goose.acp.kind serialized wrong for kind={kind:?}"
+            );
+            assert_eq!(
+                tool_meta[TOOL_META_TITLE_KEY],
+                serde_json::Value::String("Read project configuration".to_string()),
+                "ACP display title missing for kind={kind:?}"
             );
         }
     }
