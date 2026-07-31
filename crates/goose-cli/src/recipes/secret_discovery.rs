@@ -158,6 +158,7 @@ mod tests {
             description: "A test recipe with MCP extensions".to_string(),
             instructions: Some("Test instructions".to_string()),
             prompt: None,
+            has_explicit_extensions: true,
             extensions: Some(vec![
                 ExtensionConfig::StreamableHttp {
                     name: "github-mcp".to_string(),
@@ -242,6 +243,7 @@ mod tests {
             response: None,
             sub_recipes: None,
             retry: None,
+            has_explicit_extensions: false,
         };
 
         let secrets = discover_recipe_secrets(&recipe);
@@ -289,6 +291,7 @@ mod tests {
             response: None,
             sub_recipes: None,
             retry: None,
+            has_explicit_extensions: true,
         };
 
         let secrets = discover_recipe_secrets(&recipe);
@@ -343,6 +346,7 @@ mod tests {
             parameters: None,
             response: None,
             retry: None,
+            has_explicit_extensions: true,
         };
 
         let secrets = discover_recipe_secrets(&recipe);
