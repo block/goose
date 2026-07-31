@@ -1,6 +1,9 @@
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use agent_client_protocol::schema::v1::{ContentBlock, ContentChunk, MessageId, Meta};
 use serde::Serialize;
+
+const OUTPUT_TOKEN_LIMIT_TEXT: &str =
+    "Response stopped because the model reached its output-token limit.";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +13,8 @@ struct GooseMessageMeta<'a> {
     message_id: Option<&'a str>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     steer: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    output_token_limit_reached: bool,
 }
 
 fn goose_message_meta(
@@ -20,6 +25,7 @@ fn goose_message_meta(
         created: message.created,
         message_id: message.id.as_deref(),
         steer,
+        output_token_limit_reached: message.metadata.output_token_limit_reached,
     };
 
     match serde_json::to_value(message_meta) {
@@ -68,6 +74,19 @@ pub(super) fn content_chunk_for_message(message: &Message, content: ContentBlock
     chunk
 }
 
+pub(super) fn populate_output_token_limit_content(message: &mut Message) {
+    if message.role != rmcp::model::Role::Assistant
+        || !message.content.is_empty()
+        || !message.metadata.output_token_limit_reached
+    {
+        return;
+    }
+
+    message
+        .content
+        .push(MessageContent::text(OUTPUT_TOKEN_LIMIT_TEXT));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,7 +104,7 @@ mod tests {
             })),
         );
 
-        let steer_message = message.with_steer();
+        let steer_message = message.clone().with_steer();
         assert_eq!(
             message_meta(&steer_message).get("goose"),
             Some(&serde_json::json!({
@@ -109,13 +128,25 @@ mod tests {
                 "created": 1_700_000_000,
             })),
         );
+
+        let mut limited_message = message.clone();
+        limited_message.metadata.output_token_limit_reached = true;
+        assert_eq!(
+            message_meta(&limited_message).get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_live",
+                "outputTokenLimitReached": true,
+            })),
+        );
     }
 
     #[test]
     fn content_chunk_carries_message_id_and_metadata() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![])
+        let mut message = Message::new(Role::Assistant, 1_700_000_000, vec![])
             .with_id("msg_live")
             .with_steer();
+        message.metadata.output_token_limit_reached = true;
         let chunk =
             content_chunk_for_message(&message, ContentBlock::Text(TextContent::new("hello")));
 
@@ -125,14 +156,51 @@ mod tests {
             Some(&serde_json::json!({
                 "created": 1_700_000_000,
                 "messageId": "msg_live",
+                "outputTokenLimitReached": true,
                 "steer": true,
             })),
         );
     }
 
     #[test]
+    fn populate_output_token_limit_content_only_changes_empty_marked_assistant_messages() {
+        let mut message = Message::new(Role::Assistant, 1_700_000_000, vec![])
+            .with_id("msg_limited")
+            .with_steer();
+        message.metadata.output_token_limit_reached = true;
+
+        populate_output_token_limit_content(&mut message);
+
+        assert!(matches!(
+            message.content.as_slice(),
+            [MessageContent::Text(text)] if text.text == OUTPUT_TOKEN_LIMIT_TEXT
+        ));
+
+        let mut unmarked_message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
+        populate_output_token_limit_content(&mut unmarked_message);
+        assert!(unmarked_message.content.is_empty());
+
+        let mut marked_message_with_content =
+            Message::new(Role::Assistant, 1_700_000_000, vec![]).with_text("partial response");
+        marked_message_with_content
+            .metadata
+            .output_token_limit_reached = true;
+        populate_output_token_limit_content(&mut marked_message_with_content);
+        assert!(matches!(
+            marked_message_with_content.content.as_slice(),
+            [MessageContent::Text(text)] if text.text == "partial response"
+        ));
+
+        let mut marked_user_message = Message::new(Role::User, 1_700_000_000, vec![]);
+        marked_user_message.metadata.output_token_limit_reached = true;
+        populate_output_token_limit_content(&mut marked_user_message);
+        assert!(marked_user_message.content.is_empty());
+    }
+
+    #[test]
     fn merge_message_meta_preserves_existing_metadata() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
+        let mut message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
+        message.metadata.output_token_limit_reached = true;
         let existing = serde_json::from_value(serde_json::json!({
             "goose": {
                 "created": 1,
@@ -160,6 +228,7 @@ mod tests {
             Some(&serde_json::json!({
                 "created": 1_700_000_000,
                 "messageId": "msg_1",
+                "outputTokenLimitReached": true,
                 "toolCall": {
                     "toolName": "weather__render",
                     "extensionName": "weather",

@@ -75,10 +75,12 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use self::message_meta::{content_chunk_for_message, message_meta_without_steer};
+use self::message_meta::{
+    content_chunk_for_message, message_meta_without_steer, populate_output_token_limit_content,
+};
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
-    build_initial_tool_call, build_permission_tool_call_update,
+    build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
     tool_call_update_fields_from_response, trusted_update_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
@@ -1027,7 +1029,7 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(tool_request, session_id, agent, cx)
+                self.handle_tool_request(tool_request, message, session_id, agent, cx)
                     .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
@@ -1145,13 +1147,17 @@ impl GooseAcpAgent {
     async fn handle_tool_request(
         &self,
         tool_request: &ToolRequest,
+        message: &Message,
         session_id: &SessionId,
         agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
         let client_requests_label_enrichment = self.requests_tool_call_label_enrichment();
-        let initial_tool_call =
-            build_initial_tool_call(tool_request, client_requests_label_enrichment);
+        let initial_tool_call = build_initial_tool_call_with_message_meta(
+            tool_request,
+            message,
+            client_requests_label_enrichment,
+        );
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
 
@@ -1771,7 +1777,7 @@ impl GooseAcpAgent {
             }
 
             match event {
-                Ok(crate::agents::AgentEvent::Message(message)) => {
+                Ok(crate::agents::AgentEvent::Message(mut message)) => {
                     update_output_token_limit_reached(&mut output_token_limit_reached, &message);
 
                     let sessions = self.sessions.lock().await;
@@ -1783,6 +1789,7 @@ impl GooseAcpAgent {
                         break;
                     }
 
+                    populate_output_token_limit_content(&mut message);
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
                             stream_error = Some(error);
@@ -1826,6 +1833,7 @@ impl GooseAcpAgent {
                             self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
                         }
                     }
+
                     if stream_error.is_some() {
                         break;
                     }

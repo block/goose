@@ -1,9 +1,13 @@
-use super::message_meta::{content_chunk_for_message, merge_message_meta};
+use super::message_meta::{
+    content_chunk_for_message, merge_message_meta, populate_output_token_limit_content,
+};
 use super::tool_calls::conversion::{
-    build_initial_tool_call, tool_call_update_fields_from_response, trusted_update_meta,
+    build_initial_tool_call_with_message_meta, tool_call_update_fields_from_response,
+    trusted_update_meta,
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
+use crate::conversation::Conversation;
 use agent_client_protocol::schema::v1::ToolCall;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
@@ -16,6 +20,20 @@ fn replay_audience_annotations(audience: &[Role]) -> Annotations {
             })
             .collect::<Vec<_>>(),
     )
+}
+
+fn messages_for_acp_replay(conversation: &Conversation) -> Vec<Message> {
+    conversation
+        .messages()
+        .iter()
+        .filter(|message| message.is_user_visible())
+        .map(Message::user_visible_content)
+        .map(|mut message| {
+            populate_output_token_limit_content(&mut message);
+            message
+        })
+        .filter(|message| !message.content.is_empty())
+        .collect()
 }
 
 fn send_replay_content_chunk(
@@ -34,10 +52,14 @@ fn send_replay_content_chunk(
 
 fn build_replayed_tool_call(
     tool_request: &ToolRequest,
+    message: &Message,
     client_requests_tool_call_label_enrichment: bool,
 ) -> ToolCall {
-    let mut tool_call =
-        build_initial_tool_call(tool_request, client_requests_tool_call_label_enrichment);
+    let mut tool_call = build_initial_tool_call_with_message_meta(
+        tool_request,
+        message,
+        client_requests_tool_call_label_enrichment,
+    );
 
     if !client_requests_tool_call_label_enrichment {
         return tool_call;
@@ -74,7 +96,7 @@ fn replay_conversation_to_client(
     let messages = session
         .conversation
         .as_ref()
-        .map(|c| c.user_visible_messages())
+        .map(messages_for_acp_replay)
         .unwrap_or_default();
 
     let mut replay_tool_requests = HashMap::new();
@@ -110,12 +132,11 @@ fn replay_conversation_to_client(
                 MessageContent::ToolRequest(tool_request) => {
                     replay_tool_requests.insert(tool_request.id.clone(), tool_request.clone());
 
-                    let mut tool_call = build_replayed_tool_call(
+                    let tool_call = build_replayed_tool_call(
                         tool_request,
+                        message,
                         client_requests_tool_call_label_enrichment,
                     );
-                    let meta = tool_call.meta.take().unwrap_or_default();
-                    let tool_call = tool_call.meta(merge_message_meta(meta, message));
 
                     tool_call_notifier.send_initial(tool_call)?;
                 }
@@ -230,6 +251,49 @@ mod tests {
     use super::*;
     use rmcp::model::CallToolRequestParams;
 
+    #[test]
+    fn acp_replay_populates_only_empty_marked_assistant_messages() {
+        let visible_message = Message::assistant()
+            .with_text("visible")
+            .with_id("msg_visible");
+        let empty_message = Message::assistant().with_id("msg_empty");
+
+        let mut marked_message = Message::assistant().with_id("msg_limited");
+        marked_message.metadata.output_token_limit_reached = true;
+
+        let mut marked_user_message = Message::user().with_id("msg_user");
+        marked_user_message.metadata.output_token_limit_reached = true;
+
+        let mut hidden_marked_message = Message::assistant()
+            .with_id("msg_hidden")
+            .with_visibility(false, false);
+        hidden_marked_message.metadata.output_token_limit_reached = true;
+
+        let conversation = Conversation::new_unvalidated([
+            visible_message,
+            empty_message,
+            marked_message,
+            marked_user_message,
+            hidden_marked_message,
+        ]);
+
+        let messages = messages_for_acp_replay(&conversation);
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter_map(|message| message.id.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["msg_visible", "msg_limited"]
+        );
+        assert_eq!(
+            messages[1].as_concat_text(),
+            "Response stopped because the model reached its output-token limit."
+        );
+        assert!(messages[1].metadata.output_token_limit_reached);
+        assert!(conversation.messages()[2].content.is_empty());
+    }
+
     fn persisted_enriched_tool_request() -> ToolRequest {
         ToolRequest {
             id: "req_first".to_string(),
@@ -247,7 +311,11 @@ mod tests {
 
     #[test]
     fn replay_includes_persisted_enrichment_when_requested() {
-        let tool_call = build_replayed_tool_call(&persisted_enriched_tool_request(), true);
+        let mut message =
+            Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_replay");
+        message.metadata.output_token_limit_reached = true;
+        let tool_call =
+            build_replayed_tool_call(&persisted_enriched_tool_request(), &message, true);
         let goose = tool_call
             .meta
             .as_ref()
@@ -256,20 +324,28 @@ mod tests {
 
         assert_eq!(tool_call.title, "applied dark mode polish");
         assert_eq!(
-            goose.get("toolCall"),
-            Some(
-                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
-            ),
-        );
-        assert_eq!(
-            goose.get("toolChainSummary"),
-            Some(&serde_json::json!({ "summary": "applied dark mode polish", "count": 3 })),
+            goose,
+            &serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_replay",
+                "outputTokenLimitReached": true,
+                "toolCall": {
+                    "toolName": "developer__shell",
+                    "extensionName": "developer",
+                },
+                "toolChainSummary": {
+                    "summary": "applied dark mode polish",
+                    "count": 3,
+                },
+            }),
         );
     }
 
     #[test]
     fn replay_omits_persisted_enrichment_when_not_requested() {
-        let tool_call = build_replayed_tool_call(&persisted_enriched_tool_request(), false);
+        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_replay");
+        let tool_call =
+            build_replayed_tool_call(&persisted_enriched_tool_request(), &message, false);
         let goose = tool_call
             .meta
             .as_ref()
@@ -278,11 +354,15 @@ mod tests {
 
         assert_eq!(tool_call.title, "developer: shell");
         assert_eq!(
-            goose.get("toolCall"),
-            Some(
-                &serde_json::json!({ "toolName": "developer__shell", "extensionName": "developer" })
-            ),
+            goose,
+            &serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_replay",
+                "toolCall": {
+                    "toolName": "developer__shell",
+                    "extensionName": "developer",
+                },
+            }),
         );
-        assert_eq!(goose.get("toolChainSummary"), None);
     }
 }
