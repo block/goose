@@ -611,7 +611,7 @@ impl SummonClient {
                 "extensions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Extensions to enable. Omit to inherit all, empty array for none."
+                    "description": "Extensions to enable. Omit to use recipe extensions when present, otherwise inherit all. Empty array for none."
                 },
                 "provider": {
                     "type": "string",
