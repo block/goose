@@ -46,9 +46,6 @@ ollama pull mistral-nemo
 
 # Optional: use a different interpreter model
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
-
-# Optional: increase context length for better accuracy
-OLLAMA_CONTEXT_LENGTH=32768 ollama serve
 ```
 
 ### Local backend (llama.cpp / built-in inference)
