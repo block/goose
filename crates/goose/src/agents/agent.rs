@@ -2257,7 +2257,7 @@ impl Agent {
 
                 let provider = self.provider().await?;
                 let provider_owns_retry = provider.owns_stream_retry();
-                let mut stream = Self::stream_response_from_provider(
+                let (mut stream, provider_stream_created) = Self::stream_response_from_provider(
                     provider,
                     model_config.clone(),
                     &session_config.id,
@@ -2891,10 +2891,18 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // Don't retry once visible assistant content has been
-                            // streamed — the partial response is already shown,
-                            // so resending would produce a duplicate.
-                            let retry_delay = if !provider_owns_retry
+                            // Retry transient errors when it's safe to do so:
+                            //   - no tools called and no visible content streamed
+                            //     (otherwise the partial response is already shown),
+                            //   - and either the provider doesn't own retry
+                            //     (subprocess/ACP transports), or the stream was
+                            //     successfully created. A provider's with_retry only
+                            //     covers stream *initiation*; a failure that occurs
+                            //     after the stream opens is never seen by it, so the
+                            //     agent must handle those even when it defers
+                            //     initiation failures.
+                            let retry_delay = if (!provider_owns_retry
+                                || provider_stream_created)
                                 && no_tools_called
                                 && !visible_content_streamed
                                 && !is_token_cancelled(&cancel_token)
@@ -4403,6 +4411,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         success_text: &'static str,
         pre_fail_content: Option<PreFailContent>,
         owns_retry: bool,
+        // When true, stream() returns Err directly (models a stream-initiation
+        // failure that a provider's own with_retry would have already attempted).
+        fail_at_creation: bool,
     }
 
     impl MockProvider {
@@ -4414,6 +4425,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text: "",
                 pre_fail_content: None,
                 owns_retry: false,
+                fail_at_creation: false,
             }
         }
 
@@ -4425,6 +4437,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text,
                 pre_fail_content: None,
                 owns_retry: false,
+                fail_at_creation: false,
             }
         }
 
@@ -4440,6 +4453,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text,
                 pre_fail_content: Some(PreFailContent::Text(content)),
                 owns_retry: false,
+                fail_at_creation: false,
             }
         }
 
@@ -4455,6 +4469,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text,
                 pre_fail_content: Some(PreFailContent::Thinking(thinking)),
                 owns_retry: false,
+                fail_at_creation: false,
             }
         }
 
@@ -4466,11 +4481,19 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text,
                 pre_fail_content: Some(PreFailContent::Image),
                 owns_retry: false,
+                fail_at_creation: false,
             }
         }
 
         fn with_transport_retry(mut self) -> Self {
             self.owns_retry = true;
+            self
+        }
+
+        // Make stream() return Err directly instead of Ok(error-stream), modelling
+        // a stream-initiation failure that a provider's own with_retry covers.
+        fn fail_at_creation(mut self) -> Self {
+            self.fail_at_creation = true;
             self
         }
     }
@@ -4492,6 +4515,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             let should_fail = self.fail_times.map_or(true, |n| call < n);
             if should_fail {
                 let error = self.error.clone();
+                if self.fail_at_creation {
+                    return Err(error);
+                }
                 if let Some(content) = self.pre_fail_content {
                     let message = match content {
                         PreFailContent::Text(text) => Message::assistant().with_text(text),
@@ -4773,14 +4799,58 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     #[tokio::test]
-    async fn test_agent_defers_when_provider_owns_retry() -> Result<()> {
-        // Provider owns stream retry, so the agent must not retry on top — exactly 1 call.
+    async fn test_agent_defers_creation_failure_when_provider_owns_retry() -> Result<()> {
+        // A stream *initiation* failure (stream() returns Err) is already covered
+        // by the provider's own with_retry, so the agent must not retry on top —
+        // exactly 1 call.
         let temp_dir = tempfile::tempdir()?;
         let provider = Arc::new(
             MockProvider::flaky(
                 2,
-                ProviderError::NetworkError("Stream decode error: test".into()),
+                ProviderError::NetworkError("Connection refused".into()),
                 "should not get here",
+            )
+            .with_transport_retry()
+            .fail_at_creation(),
+        );
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "agent must not retry a creation failure when the provider owns stream retry"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — provider transport retry owns this"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "should surface error without agent retry: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_retries_mid_stream_failure_when_provider_owns_retry() -> Result<()> {
+        // A provider's with_retry only covers stream initiation: it returns once
+        // the stream opens. A transient failure that arrives *after* the stream
+        // opens but before any visible content is therefore not retried by the
+        // provider, so the agent must retry it even when it defers initiation
+        // failures.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(
+            MockProvider::flaky(
+                1,
+                ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+                "success after mid-stream retry",
             )
             .with_transport_retry(),
         );
@@ -4793,18 +4863,20 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
         assert_eq!(
             count_provider_retries(&messages),
-            0,
-            "agent must not retry when the provider owns stream retry"
+            1,
+            "agent must retry a mid-stream failure even when the provider owns stream retry"
         );
         assert_eq!(
             provider.call_count.load(Ordering::SeqCst),
-            1,
-            "exactly 1 call — provider transport retry owns this"
+            2,
+            "2 calls: 1 failed mid-stream + 1 success"
         );
         let texts = visible_texts(&messages);
         assert!(
-            texts.iter().any(|t| t.contains("Please resend")),
-            "should surface error without agent retry: {texts:?}"
+            texts
+                .iter()
+                .any(|t| t.contains("success after mid-stream retry")),
+            "should recover after the mid-stream retry: {texts:?}"
         );
         Ok(())
     }

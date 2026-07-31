@@ -320,7 +320,7 @@ impl Agent {
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(MessageStream, bool), ProviderError> {
         let config = model_config.clone();
 
         let projected_messages =
@@ -366,128 +366,136 @@ impl Agent {
         .await;
         debug!("WAITING_LLM_STREAM_END");
 
-        // If there was an error creating the stream, return a stream that yields that error
-        let mut stream = match stream_result {
-            Ok(s) => s,
+        // A creation-time failure is wrapped into a stream that immediately yields
+        // the error so it reaches the agent's existing error handling. The paired
+        // `true`/`false` tells the agent whether the provider's stream() itself
+        // succeeded: a mid-stream failure (true) is never seen by a provider's own
+        // with_retry, so the agent may retry it even when the provider owns retry.
+        let (mut stream, provider_stream_created) = match stream_result {
+            Ok(s) => (s, true),
             Err(e) => {
                 let enhanced_error = enhance_model_error(e, &provider, config.toolshim).await;
-                // Return a stream that immediately yields the error
-                // This allows the error to be caught by existing error handling in agent.rs
-                return Ok(Box::pin(try_stream! {
-                    yield Err(enhanced_error)?;
-                }));
+                return Ok((
+                    Box::pin(try_stream! {
+                        yield Err(enhanced_error)?;
+                    }),
+                    false,
+                ));
             }
         };
 
-        Ok(Box::pin(try_stream! {
-            if config.toolshim {
-                // Toolshim mode: accumulate the full response before processing
-                // so that tool-use markers spanning multiple chunks are detected
-                // and stripped before any output reaches the UI.
-                let mut accumulated_message: Option<Message> = None;
-                let mut final_usage: Option<ProviderUsage> = None;
-                let mut first_content_at: Option<std::time::Instant> = None;
+        Ok((
+            Box::pin(try_stream! {
+                if config.toolshim {
+                    // Toolshim mode: accumulate the full response before processing
+                    // so that tool-use markers spanning multiple chunks are detected
+                    // and stripped before any output reaches the UI.
+                    let mut accumulated_message: Option<Message> = None;
+                    let mut final_usage: Option<ProviderUsage> = None;
+                    let mut first_content_at: Option<std::time::Instant> = None;
 
-                while let Some(result) = stream.next().await {
-                    let (msg_opt, usage_opt) = result?;
+                    while let Some(result) = stream.next().await {
+                        let (msg_opt, usage_opt) = result?;
 
-                    if let Some(msg) = msg_opt {
-                        if first_content_at.is_none() && message_has_timing_content(&msg) {
-                            first_content_at = Some(std::time::Instant::now());
-                        }
-                        accumulated_message = Some(match accumulated_message {
-                            Some(mut prev) => {
-                                for new_content in msg.content {
-                                    match (&mut prev.content.last_mut(), &new_content) {
-                                        (
-                                            Some(MessageContent::Text(last_text)),
-                                            MessageContent::Text(new_text),
-                                        ) if last_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) == new_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) => {
-                                            last_text.text.push_str(&new_text.text);
-                                        }
-                                        _ => {
-                                            prev.content.push(new_content);
+                        if let Some(msg) = msg_opt {
+                            if first_content_at.is_none() && message_has_timing_content(&msg) {
+                                first_content_at = Some(std::time::Instant::now());
+                            }
+                            accumulated_message = Some(match accumulated_message {
+                                Some(mut prev) => {
+                                    for new_content in msg.content {
+                                        match (&mut prev.content.last_mut(), &new_content) {
+                                            (
+                                                Some(MessageContent::Text(last_text)),
+                                                MessageContent::Text(new_text),
+                                            ) if last_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) == new_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) => {
+                                                last_text.text.push_str(&new_text.text);
+                                            }
+                                            _ => {
+                                                prev.content.push(new_content);
+                                            }
                                         }
                                     }
+                                    prev
                                 }
-                                prev
-                            }
-                            None => msg,
-                        });
+                                None => msg,
+                            });
+                        }
+
+                        if let Some(usage) = usage_opt {
+                            final_usage = Some(usage);
+                        }
+
+                        // Yield empty item so the agent loop can check cancellation
+                        yield (None, None);
                     }
 
-                    if let Some(usage) = usage_opt {
-                        final_usage = Some(usage);
-                    }
-
-                    // Yield empty item so the agent loop can check cancellation
-                    yield (None, None);
-                }
-
-                // The toolshim interpreter call below must not count toward elapsed time.
-                if let Some(usage) = final_usage.as_mut() {
-                    fill_stream_timing(usage, request_started, first_content_at);
-                    gen_ai_telemetry::record_provider_usage(&span, usage);
-                }
-
-                if let Some(msg) = accumulated_message {
-                    let processed = toolshim_postprocess(msg, &toolshim_tools)
-                        .await?
-                        .with_generated_id_if_missing();
-                    if capture_message_content {
-                        let output_messages = gen_ai_telemetry::output_message_json(&processed);
-                        span.record("gen_ai.output.messages", output_messages.as_str());
-                    }
-                    yield (Some(processed), final_usage);
-                } else if final_usage.is_some() {
-                    // Preserve usage-only responses (no message content)
-                    yield (None, final_usage);
-                }
-            } else {
-                let mut first_content_at: Option<std::time::Instant> = None;
-                let mut active_mergeable_assistant_id: Option<String> = None;
-                let mut output_message: Option<Message> = None;
-                while let Some(result) = stream.next().await {
-                    let (message, mut usage) = result?;
-
-                    if first_content_at.is_none()
-                        && message.as_ref().is_some_and(message_has_timing_content)
-                    {
-                        first_content_at = Some(std::time::Instant::now());
-                    }
-                    if let Some(usage) = usage.as_mut() {
+                    // The toolshim interpreter call below must not count toward elapsed time.
+                    if let Some(usage) = final_usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
                         gen_ai_telemetry::record_provider_usage(&span, usage);
                     }
-                    if capture_message_content {
-                        if let Some(message) = message.as_ref() {
-                            gen_ai_telemetry::append_message(&mut output_message, message);
+
+                    if let Some(msg) = accumulated_message {
+                        let processed = toolshim_postprocess(msg, &toolshim_tools)
+                            .await?
+                            .with_generated_id_if_missing();
+                        if capture_message_content {
+                            let output_messages = gen_ai_telemetry::output_message_json(&processed);
+                            span.record("gen_ai.output.messages", output_messages.as_str());
                         }
+                        yield (Some(processed), final_usage);
+                    } else if final_usage.is_some() {
+                        // Preserve usage-only responses (no message content)
+                        yield (None, final_usage);
                     }
+                } else {
+                    let mut first_content_at: Option<std::time::Instant> = None;
+                    let mut active_mergeable_assistant_id: Option<String> = None;
+                    let mut output_message: Option<Message> = None;
+                    while let Some(result) = stream.next().await {
+                        let (message, mut usage) = result?;
 
-                    let message = message.map(|message| {
-                        if message.id.is_some() {
-                            active_mergeable_assistant_id = None;
-                            message
-                        } else if is_mergeable_assistant_chunk(&message) {
-                            let id = active_mergeable_assistant_id
-                                .get_or_insert_with(|| format!("msg_{}", uuid::Uuid::new_v4()))
-                                .clone();
-                            message.with_id(id)
-                        } else {
-                            active_mergeable_assistant_id = None;
-                            message.with_generated_id()
+                        if first_content_at.is_none()
+                            && message.as_ref().is_some_and(message_has_timing_content)
+                        {
+                            first_content_at = Some(std::time::Instant::now());
                         }
-                    });
+                        if let Some(usage) = usage.as_mut() {
+                            fill_stream_timing(usage, request_started, first_content_at);
+                            gen_ai_telemetry::record_provider_usage(&span, usage);
+                        }
+                        if capture_message_content {
+                            if let Some(message) = message.as_ref() {
+                                gen_ai_telemetry::append_message(&mut output_message, message);
+                            }
+                        }
 
-                    yield (message, usage);
+                        let message = message.map(|message| {
+                            if message.id.is_some() {
+                                active_mergeable_assistant_id = None;
+                                message
+                            } else if is_mergeable_assistant_chunk(&message) {
+                                let id = active_mergeable_assistant_id
+                                    .get_or_insert_with(|| format!("msg_{}", uuid::Uuid::new_v4()))
+                                    .clone();
+                                message.with_id(id)
+                            } else {
+                                active_mergeable_assistant_id = None;
+                                message.with_generated_id()
+                            }
+                        });
+
+                        yield (message, usage);
+                    }
+                    if let Some(output_message) = output_message {
+                        let output_messages = gen_ai_telemetry::output_message_json(&output_message);
+                        span.record("gen_ai.output.messages", output_messages.as_str());
+                    }
                 }
-                if let Some(output_message) = output_message {
-                    let output_messages = gen_ai_telemetry::output_message_json(&output_message);
-                    span.record("gen_ai.output.messages", output_messages.as_str());
-                }
-            }
-        }))
+            }),
+            provider_stream_created,
+        ))
     }
 
     /// Categorize tool requests from the response into different types
@@ -844,7 +852,7 @@ mod tests {
         let _subscriber = capture.clone().set_default();
         let messages = vec![Message::user().with_text("Say hello")];
 
-        let mut stream = Agent::stream_response_from_provider(
+        let (mut stream, _) = Agent::stream_response_from_provider(
             Arc::new(GenAiTracingProvider),
             ModelConfig::new("requested-model"),
             "test-session",
@@ -896,7 +904,7 @@ mod tests {
             messages: captured.clone(),
         });
 
-        let _stream = crate::agents::Agent::stream_response_from_provider(
+        let (_stream, _) = crate::agents::Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model"),
             "test-session",
@@ -928,7 +936,7 @@ mod tests {
             messages: captured.clone(),
         });
 
-        let _stream = crate::agents::Agent::stream_response_from_provider(
+        let (_stream, _) = crate::agents::Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model"),
             "test-session",
@@ -972,7 +980,7 @@ mod tests {
             messages: captured.clone(),
         });
 
-        let _stream = crate::agents::Agent::stream_response_from_provider(
+        let (_stream, _) = crate::agents::Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model"),
             "test-session",
@@ -1248,7 +1256,7 @@ mod tests {
     async fn normal_provider_stream_groups_only_contiguous_mergeable_chunks() -> anyhow::Result<()>
     {
         let provider = Arc::new(MixedMessageIdStreamProvider);
-        let mut stream = Agent::stream_response_from_provider(
+        let (mut stream, _) = Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model"),
             "test-session",
@@ -1354,7 +1362,7 @@ mod tests {
                 Message::assistant().with_text("lo"),
             ],
         });
-        let mut stream = Agent::stream_response_from_provider(
+        let (mut stream, _) = Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model").with_toolshim(true),
             "test-session",
@@ -1392,7 +1400,7 @@ mod tests {
                 .with_id("provider-toolshim-id")
                 .with_text("hello")],
         });
-        let mut stream = Agent::stream_response_from_provider(
+        let (mut stream, _) = Agent::stream_response_from_provider(
             provider,
             ModelConfig::new("test-model").with_toolshim(true),
             "test-session",
