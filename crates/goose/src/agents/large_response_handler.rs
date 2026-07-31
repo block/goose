@@ -4,15 +4,31 @@ use std::io::Write;
 
 const DEFAULT_LARGE_TEXT_THRESHOLD: usize = 200_000;
 
+pub(crate) const SPILL_MESSAGE_PREFIX: &str = "The response returned from the tool call was larger";
+pub(crate) const SPILL_FILE_PREFIX: &str = "goose_mcp_response_";
+
+/// Extract the file path from a spilled-large-response pointer message.
+pub(crate) fn spilled_file_path(text: &str) -> Option<&str> {
+    if !text.starts_with(SPILL_MESSAGE_PREFIX) {
+        return None;
+    }
+    text.rsplit_once(": ").map(|(_, path)| path.trim())
+}
+
 fn large_text_threshold() -> usize {
     Config::global()
         .get_param::<usize>("GOOSE_MAX_TOOL_RESPONSE_SIZE")
         .unwrap_or(DEFAULT_LARGE_TEXT_THRESHOLD)
 }
 
-/// Process tool response and handle large text content
+/// Process tool response and handle large text content. Large outputs are
+/// spilled into `spill_dir`, the owning session's spill directory, so a spill
+/// pointer proves which session produced the file: export uses this to reject
+/// forged pointers at other sessions' spills, and deleting the session removes
+/// the whole directory.
 pub fn process_tool_response(
     response: Result<CallToolResult, ErrorData>,
+    spill_dir: &std::path::Path,
 ) -> Result<CallToolResult, ErrorData> {
     let threshold = large_text_threshold();
     match response {
@@ -25,11 +41,11 @@ pub fn process_tool_response(
                         // Check if text exceeds threshold
                         if text_content.text.chars().count() > threshold {
                             // Write to temp file
-                            match write_large_text_to_file(&text_content.text) {
+                            match write_large_text_to_file(&text_content.text, spill_dir) {
                                 Ok(file_path) => {
                                     // Create a new text content with reference to the file
                                     let message = format!(
-                                        "The response returned from the tool call was larger ({} characters) and is stored in the file which you can use other tools to examine or search in: {}",
+                                        "{SPILL_MESSAGE_PREFIX} ({} characters) and is stored in the file which you can use other tools to examine or search in: {}",
                                         text_content.text.chars().count(),
                                         file_path
                                     );
@@ -64,12 +80,25 @@ pub fn process_tool_response(
     }
 }
 
-/// Write large text content to a temporary file
-fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
+/// Write large text content to a file in the session's spill directory
+fn write_large_text_to_file(
+    content: &str,
+    dir: &std::path::Path,
+) -> Result<String, std::io::Error> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)?;
+    }
+    #[cfg(not(unix))]
+    std::fs::create_dir_all(dir)?;
     let mut file = tempfile::Builder::new()
-        .prefix("goose_mcp_response_")
+        .prefix(SPILL_FILE_PREFIX)
         .suffix(".txt")
-        .tempfile()?;
+        .tempfile_in(dir)?;
     file.write_all(content.as_bytes())?;
     let (_, file_path) = file.keep()?;
 
@@ -84,6 +113,10 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    fn spill_dir() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
     #[test]
     fn test_small_text_response_passes_through() {
         // Create a small text response
@@ -93,7 +126,7 @@ mod tests {
         let response = Ok(CallToolResult::success(vec![content]));
 
         // Process the response
-        let processed = process_tool_response(response).unwrap();
+        let processed = process_tool_response(response, spill_dir().path()).unwrap();
 
         // Verify the response is unchanged
         assert_eq!(processed.content.len(), 1);
@@ -113,7 +146,8 @@ mod tests {
         let response = Ok(CallToolResult::success(vec![content]));
 
         // Process the response
-        let processed = process_tool_response(response).unwrap();
+        let dir = spill_dir();
+        let processed = process_tool_response(response, dir.path()).unwrap();
 
         // Verify the response contains a message about the file
         assert_eq!(processed.content.len(), 1);
@@ -146,7 +180,7 @@ mod tests {
         let response = Ok(CallToolResult::success(vec![image_content]));
 
         // Process the response
-        let processed = process_tool_response(response).unwrap();
+        let processed = process_tool_response(response, spill_dir().path()).unwrap();
 
         // Verify the response is unchanged
         assert_eq!(processed.content.len(), 1);
@@ -168,7 +202,8 @@ mod tests {
         let response = Ok(CallToolResult::success(vec![small_text, large_text, image]));
 
         // Process the response
-        let processed = process_tool_response(response).unwrap();
+        let dir = spill_dir();
+        let processed = process_tool_response(response, dir.path()).unwrap();
 
         // Verify each item is handled correctly
         assert_eq!(processed.content.len(), 3);
@@ -217,7 +252,7 @@ mod tests {
         let response: Result<CallToolResult, ErrorData> = Err(error);
 
         // Process the response
-        let processed = process_tool_response(response);
+        let processed = process_tool_response(response, spill_dir().path());
 
         // Verify the error is passed through unchanged
         assert!(processed.is_err());
@@ -232,8 +267,9 @@ mod tests {
 
     #[test]
     fn test_large_response_files_have_unique_paths() {
-        let first_path = write_large_text_to_file("first response").unwrap();
-        let second_path = write_large_text_to_file("second response").unwrap();
+        let dir = spill_dir();
+        let first_path = write_large_text_to_file("first response", dir.path()).unwrap();
+        let second_path = write_large_text_to_file("second response", dir.path()).unwrap();
         let paths_are_distinct = first_path != second_path;
         let first_content = fs::read_to_string(&first_path).unwrap();
         let second_content = fs::read_to_string(&second_path).unwrap();
@@ -253,7 +289,8 @@ mod tests {
     fn test_large_response_file_is_owner_only() {
         use std::os::unix::fs::PermissionsExt;
 
-        let file_path = write_large_text_to_file("sensitive response").unwrap();
+        let dir = spill_dir();
+        let file_path = write_large_text_to_file("sensitive response", dir.path()).unwrap();
         let metadata = fs::metadata(&file_path).unwrap();
         let mode = metadata.permissions().mode();
         let content = fs::read_to_string(&file_path).unwrap();

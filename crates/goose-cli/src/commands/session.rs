@@ -242,18 +242,6 @@ pub async fn handle_session_export(
         }
     };
 
-    let output = match format.as_str() {
-        "json" => serde_json::to_string_pretty(&session)?,
-        "yaml" => serde_yaml::to_string(&session)?,
-        "markdown" => {
-            let conversation = session
-                .conversation
-                .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
-            export_session_to_markdown(conversation.user_visible_messages(), &session.name)
-        }
-        _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
-    };
-
     #[cfg(feature = "nostr")]
     if nostr {
         if format != "json" {
@@ -268,7 +256,10 @@ pub async fn handle_session_export(
         }
 
         let relays = nostr_share::resolve_relays(relays, Config::global());
-        let share = nostr_share::publish_session_json(&output, relays).await?;
+        let data = session_manager
+            .export_session_without_artifacts(&session_id)
+            .await?;
+        let share = nostr_share::publish_session_json(&data, relays).await?;
         println!("Session published to Nostr relays:");
         for relay in &share.relays {
             println!("- {}", relay);
@@ -281,6 +272,21 @@ pub async fn handle_session_export(
     if nostr {
         return Err(anyhow::anyhow!("goose was not built with nostr support"));
     }
+
+    let output = match format.as_str() {
+        "json" => session_manager.export_session(&session_id).await?,
+        "yaml" => {
+            let bundle = session_manager.export_session(&session_id).await?;
+            serde_yaml::to_string(&serde_json::from_str::<serde_json::Value>(&bundle)?)?
+        }
+        "markdown" => {
+            let conversation = session
+                .conversation
+                .ok_or_else(|| anyhow::anyhow!("Session has no messages"))?;
+            export_session_to_markdown(conversation.user_visible_messages(), &session.name)
+        }
+        _ => return Err(anyhow::anyhow!("Unsupported format: {}", format)),
+    };
 
     if let Some(output_path) = output_path {
         fs::write(&output_path, output).with_context(|| {

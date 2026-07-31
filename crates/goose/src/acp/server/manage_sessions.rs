@@ -163,7 +163,7 @@ impl GooseAcpAgent {
     ) -> Result<ShareSessionNostrResponse, agent_client_protocol::Error> {
         let data = self
             .session_manager
-            .export_session(&req.session_id)
+            .export_session_without_artifacts(&req.session_id)
             .await
             .internal_err()?;
 

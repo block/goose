@@ -640,6 +640,7 @@ impl Agent {
     ) -> ToolCallResult {
         let hook_manager = self.hook_manager.clone();
         let session_id = session.id.clone();
+        let spill_dir = self.config.session_manager.session_spill_dir(&session.id);
         let working_dir = session.working_dir.to_string_lossy().to_string();
         let tool_name = tool_call.name.to_string();
         let tool_input = tool_call
@@ -651,8 +652,10 @@ impl Agent {
         let capture_message_content = gen_ai_telemetry::capture_message_content();
 
         let fut = async move {
-            let processed_result =
-                super::large_response_handler::process_tool_response(result.result.await);
+            let processed_result = super::large_response_handler::process_tool_response(
+                result.result.await,
+                &spill_dir,
+            );
             if capture_message_content {
                 let output = gen_ai_telemetry::tool_result_json(&processed_result);
                 span.record("output", output.as_str());

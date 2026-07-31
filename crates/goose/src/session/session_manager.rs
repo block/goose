@@ -5,6 +5,7 @@ use crate::conversation::Conversation;
 use crate::providers::base::CostSource;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
+use crate::session::export_bundle;
 use crate::session::extension_data::ExtensionData;
 use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
@@ -17,7 +18,7 @@ use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
@@ -485,8 +486,19 @@ impl SessionManager {
             .await
     }
 
+    /// Directory that receives this session's spilled large tool outputs.
+    pub fn session_spill_dir(&self, session_id: &str) -> PathBuf {
+        self.storage.session_spill_dir(session_id)
+    }
+
     pub async fn export_session(&self, id: &str) -> Result<String> {
-        self.storage.export_session(id).await
+        self.storage.export_session(id, true).await
+    }
+
+    /// Export without bundled artifact contents, for shares that must fit
+    /// inside a single Nostr event.
+    pub async fn export_session_without_artifacts(&self, id: &str) -> Result<String> {
+        self.storage.export_session(id, false).await
     }
 
     pub async fn import_session(
@@ -2047,6 +2059,24 @@ impl SessionStorage {
             return Err(anyhow::anyhow!("Session not found"));
         }
 
+        let artifacts_dir = self.artifacts_dir();
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT content_json FROM messages WHERE session_id = ? AND content_json LIKE ?",
+        )
+        .bind(session_id)
+        .bind(format!(
+            "%{}%",
+            crate::agents::large_response_handler::SPILL_MESSAGE_PREFIX
+        ))
+        .fetch_all(&mut *tx)
+        .await?;
+        let artifact_candidates: BTreeSet<String> = rows
+            .iter()
+            .flat_map(|(content_json,)| {
+                export_bundle::artifact_file_names(content_json, &artifacts_dir)
+            })
+            .collect();
+
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
             .execute(&mut *tx)
@@ -2063,6 +2093,31 @@ impl SessionStorage {
             .await?;
 
         tx.commit().await?;
+
+        for name in artifact_candidates {
+            let referenced: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM messages WHERE content_json LIKE ?)",
+            )
+            .bind(format!("%{name}%"))
+            .fetch_one(pool)
+            .await?;
+            if !referenced {
+                if let Err(e) = std::fs::remove_file(artifacts_dir.join(&name)) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        tracing::warn!(
+                            "Failed to remove unreferenced session artifact {name}: {e}"
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Err(e) = std::fs::remove_dir_all(self.session_spill_dir(session_id)) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!("Failed to remove spilled tool outputs for {session_id}: {e}");
+            }
+        }
+
         Ok(())
     }
 
@@ -2273,9 +2328,57 @@ impl SessionStorage {
         })
     }
 
-    async fn export_session(&self, id: &str) -> Result<String> {
+    async fn descendant_session_ids(&self, id: &str) -> Result<Vec<String>> {
+        let pool = self.pool().await?;
+        let rows: Vec<(String,)> = sqlx::query_as(
+            r#"
+            WITH RECURSIVE tree(id) AS (
+                SELECT id FROM sessions WHERE parent_session_id = ?
+                UNION
+                SELECT s.id FROM sessions s JOIN tree ON s.parent_session_id = tree.id
+            )
+            SELECT id FROM tree
+            "#,
+        )
+        .bind(id)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    fn artifacts_dir(&self) -> PathBuf {
+        self.session_dir.join("artifacts")
+    }
+
+    fn spills_dir(&self) -> PathBuf {
+        self.session_dir.join("spills")
+    }
+
+    fn session_spill_dir(&self, session_id: &str) -> PathBuf {
+        self.spills_dir().join(session_id)
+    }
+
+    async fn export_session(&self, id: &str, include_artifacts: bool) -> Result<String> {
         let session = self.get_session(id, true).await?;
-        serde_json::to_string_pretty(&session).map_err(Into::into)
+        let mut child_sessions = Vec::new();
+        for child_id in self.descendant_session_ids(id).await? {
+            child_sessions.push(self.get_session(&child_id, true).await?);
+        }
+        let artifacts = if include_artifacts {
+            export_bundle::collect_artifacts(
+                std::iter::once(&session).chain(&child_sessions),
+                &self.artifacts_dir(),
+                &self.spills_dir(),
+            )
+        } else {
+            Vec::new()
+        };
+        serde_json::to_string_pretty(&export_bundle::SessionExport {
+            session,
+            child_sessions,
+            artifacts,
+        })
+        .map_err(Into::into)
     }
 
     async fn import_session(
@@ -2285,7 +2388,26 @@ impl SessionStorage {
         session_type_override: Option<SessionType>,
     ) -> Result<Session> {
         let normalized = super::import_formats::convert_to_goose_session_json(json)?;
-        let import: Session = serde_json::from_str(&normalized)?;
+        let export_bundle::SessionExport {
+            session: import,
+            child_sessions,
+            mut artifacts,
+        } = serde_json::from_str(&normalized)?;
+
+        let referenced: std::collections::HashSet<String> = std::iter::once(&import)
+            .chain(&child_sessions)
+            .filter_map(|session| session.conversation.as_ref())
+            .flat_map(export_bundle::spilled_paths)
+            .collect();
+        artifacts.retain(|artifact| referenced.contains(&artifact.path));
+        // One artifact per referenced path: a crafted bundle repeating a path
+        // with different contents would otherwise persist files no rewritten
+        // pointer references, beyond the reach of the deletion GC.
+        let mut seen_paths = std::collections::HashSet::new();
+        artifacts.retain(|artifact| seen_paths.insert(artifact.path.clone()));
+
+        let artifact_paths =
+            export_bundle::artifact_destinations(&artifacts, &self.artifacts_dir());
 
         let session = self
             .create_session(
@@ -2309,15 +2431,116 @@ impl SessionStorage {
         if import.user_set_name {
             builder = builder.user_provided_name(import.name.clone());
         }
+        if let Some(provider_name) = import.provider_name {
+            builder = builder.provider_name(provider_name);
+        }
+        if let Some(model_config) = import.model_config {
+            builder = builder.model_config(model_config);
+        }
 
         builder.apply().await?;
 
+        let mut conversations = Vec::new();
         if let Some(conversation) = import.conversation {
-            self.replace_conversation(&session.id, &conversation)
-                .await?;
+            conversations.push((session.id.clone(), conversation));
         }
 
+        let id_map = self
+            .import_child_sessions(
+                session_manager,
+                &import.id,
+                &session.id,
+                child_sessions,
+                &mut conversations,
+            )
+            .await?;
+
+        for (target_id, conversation) in conversations {
+            let conversation = export_bundle::rewrite_spilled_paths(conversation, &artifact_paths);
+            let conversation = export_bundle::rewrite_subagent_session_ids(conversation, &id_map);
+            self.replace_conversation(&target_id, &conversation).await?;
+        }
+
+        // Written after the referencing messages are persisted, so a
+        // concurrent deletion's artifact GC can never observe these files
+        // without their references and remove them.
+        export_bundle::write_artifacts(&artifacts, &self.artifacts_dir())?;
+
         self.get_session(&session.id, true).await
+    }
+
+    /// Recreate exported subagent sessions under fresh ids, preserving the
+    /// parent links between them. Children whose exported parent is missing
+    /// from the bundle are attached to the imported root session. Their
+    /// conversations are pushed onto `conversations` for the caller to
+    /// persist once the full old-to-new id map is known, and that map is
+    /// returned.
+    async fn import_child_sessions(
+        &self,
+        session_manager: &SessionManager,
+        exported_root_id: &str,
+        new_root_id: &str,
+        child_sessions: Vec<Session>,
+        conversations: &mut Vec<(String, Conversation)>,
+    ) -> Result<HashMap<String, String>> {
+        let mut id_map = HashMap::new();
+        id_map.insert(exported_root_id.to_string(), new_root_id.to_string());
+
+        let mut pending = child_sessions;
+        while !pending.is_empty() {
+            let (ready, rest): (Vec<_>, Vec<_>) = pending.into_iter().partition(|child| {
+                child
+                    .parent_session_id
+                    .as_deref()
+                    .is_some_and(|parent| id_map.contains_key(parent))
+            });
+            let (batch, rest) = if ready.is_empty() {
+                (rest, Vec::new())
+            } else {
+                (ready, rest)
+            };
+            pending = rest;
+
+            for child in batch {
+                let parent_id = child
+                    .parent_session_id
+                    .as_deref()
+                    .and_then(|parent| id_map.get(parent))
+                    .unwrap_or(&id_map[exported_root_id])
+                    .clone();
+
+                let new_child = self
+                    .create_session(
+                        child.working_dir.clone(),
+                        child.name.clone(),
+                        child.session_type,
+                        child.goose_mode,
+                    )
+                    .await?;
+
+                let mut builder = session_manager
+                    .update(&new_child.id)
+                    .extension_data(child.extension_data)
+                    .usage(child.usage)
+                    .accumulated_usage(child.accumulated_usage)
+                    .accumulated_cost(child.accumulated_cost)
+                    .parent_session_id(Some(parent_id));
+                if let Some(provider_name) = child.provider_name {
+                    builder = builder.provider_name(provider_name);
+                }
+                if let Some(model_config) = child.model_config {
+                    builder = builder.model_config(model_config);
+                }
+                builder.apply().await?;
+
+                if let Some(conversation) = child.conversation {
+                    conversations.push((new_child.id.clone(), conversation));
+                }
+
+                id_map.insert(child.id, new_child.id);
+            }
+        }
+        Ok(id_map)
     }
 
     async fn copy_session(
@@ -3778,6 +4001,172 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_export_import_bundles_children_and_artifacts() {
+        use rmcp::model::{CallToolResult, ContentBlock};
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let create = |name: &str, session_type| {
+            sm.create_session(
+                PathBuf::from("/tmp/test"),
+                name.to_string(),
+                session_type,
+                GooseMode::default(),
+            )
+        };
+
+        let root = create("Root", SessionType::User).await.unwrap();
+        let child = create("Child", SessionType::SubAgent).await.unwrap();
+        let grandchild = create("Grandchild", SessionType::SubAgent).await.unwrap();
+
+        sm.update(&root.id)
+            .provider_name("anthropic".to_string())
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&child.id)
+            .parent_session_id(Some(root.id.clone()))
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&grandchild.id)
+            .parent_session_id(Some(child.id.clone()))
+            .apply()
+            .await
+            .unwrap();
+
+        const SPILLED: &str = "the very large tool output";
+        let spill_dir = sm.session_spill_dir(&child.id);
+        fs::create_dir_all(&spill_dir).unwrap();
+        let spill_file = spill_dir.join("goose_mcp_response_test.txt");
+        fs::write(&spill_file, SPILLED).unwrap();
+        let secret_file = temp_dir.path().join("secret.txt");
+        fs::write(&secret_file, "must not leak").unwrap();
+        let foreign_spill_dir = sm.session_spill_dir("some-other-session");
+        fs::create_dir_all(&foreign_spill_dir).unwrap();
+        let foreign_spill_file = foreign_spill_dir.join("goose_mcp_response_foreign.txt");
+        fs::write(&foreign_spill_file, "other session's output").unwrap();
+        let pointer_to = |path: &std::path::Path| {
+            format!(
+                "The response returned from the tool call was larger (250000 characters) and is stored in the file which you can use other tools to examine or search in: {}",
+                path.display()
+            )
+        };
+        sm.add_message(
+            &child.id,
+            &Message::user().with_tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::text(pointer_to(&spill_file)),
+                    ContentBlock::text(pointer_to(&secret_file)),
+                    ContentBlock::text(pointer_to(&foreign_spill_file)),
+                ])),
+            ),
+        )
+        .await
+        .unwrap();
+
+        let mut delegate_meta = rmcp::model::MetaObject::new();
+        delegate_meta.0.insert(
+            "subagent_session_id".to_string(),
+            serde_json::Value::String(grandchild.id.clone()),
+        );
+        sm.add_message(
+            &root.id,
+            &Message::user().with_tool_response(
+                "call_2",
+                Ok(
+                    CallToolResult::success(vec![ContentBlock::text("delegated")])
+                        .with_meta(Some(delegate_meta)),
+                ),
+            ),
+        )
+        .await
+        .unwrap();
+
+        let exported = sm.export_session(&root.id).await.unwrap();
+        let unbundled = sm.export_session_without_artifacts(&root.id).await.unwrap();
+        fs::remove_file(&spill_file).unwrap();
+
+        assert!(
+            !exported.contains("must not leak"),
+            "non-goose files must not be bundled"
+        );
+        assert!(
+            !exported.contains("other session's output"),
+            "another session's spills must not be bundled"
+        );
+        assert!(exported.contains(SPILLED));
+        assert!(
+            !unbundled.contains(SPILLED),
+            "artifact contents must stay out of size-bounded exports"
+        );
+
+        let imported = sm.import_session(&exported, None).await.unwrap();
+        assert_eq!(imported.provider_name.as_deref(), Some("anthropic"));
+
+        let descendant_ids = sm
+            .storage
+            .descendant_session_ids(&imported.id)
+            .await
+            .unwrap();
+        assert_eq!(descendant_ids.len(), 2);
+
+        let mut new_child = None;
+        let mut new_grandchild = None;
+        for id in &descendant_ids {
+            let session = sm.get_session(id, true).await.unwrap();
+            match session.name.as_str() {
+                "Child" => new_child = Some(session),
+                "Grandchild" => new_grandchild = Some(session),
+                other => panic!("unexpected descendant {other}"),
+            }
+        }
+        let new_child = new_child.unwrap();
+        let new_grandchild = new_grandchild.unwrap();
+        assert_eq!(
+            new_child.parent_session_id.as_deref(),
+            Some(imported.id.as_str())
+        );
+        assert_eq!(new_child.session_type, SessionType::SubAgent);
+        assert_eq!(
+            new_grandchild.parent_session_id.as_deref(),
+            Some(new_child.id.as_str())
+        );
+
+        let conversation = new_child.conversation.unwrap();
+        let child_result = conversation.messages()[0]
+            .content
+            .iter()
+            .find_map(|c| match c {
+                MessageContent::ToolResponse(r) => r.tool_result.as_ref().ok(),
+                _ => None,
+            })
+            .unwrap();
+        let rewritten = child_result.content[0].as_text().unwrap().text.clone();
+        assert!(!rewritten.contains(&spill_file.display().to_string()));
+        let restored_path = rewritten.rsplit_once(": ").unwrap().1.trim();
+        assert_eq!(fs::read_to_string(restored_path).unwrap(), SPILLED);
+
+        let root_conversation = imported.conversation.unwrap();
+        let root_meta = root_conversation.messages()[0]
+            .content
+            .iter()
+            .find_map(|c| match c {
+                MessageContent::ToolResponse(r) => r.tool_result.as_ref().ok(),
+                _ => None,
+            })
+            .and_then(|result| result.meta.as_ref())
+            .unwrap();
+        assert_eq!(
+            root_meta.0.get("subagent_session_id"),
+            Some(&serde_json::Value::String(new_grandchild.id.clone())),
+            "subagent references must point at the recreated session"
+        );
+    }
+
+    #[tokio::test]
     async fn test_list_sessions_filters_by_type() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -4328,6 +4717,105 @@ mod tests {
 
         sm.delete_session(&id).await.unwrap();
         assert!(sm.get_session(&id, false).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_removes_unreferenced_artifacts() {
+        use rmcp::model::{CallToolResult, ContentBlock};
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Exporter".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let spill_dir = sm.session_spill_dir(&session.id);
+        fs::create_dir_all(&spill_dir).unwrap();
+        let spill_file = spill_dir.join("goose_mcp_response_gc.txt");
+        fs::write(&spill_file, "spilled").unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                    "The response returned from the tool call was larger (250000 characters) and is stored in the file which you can use other tools to examine or search in: {}",
+                    spill_file.display()
+                ))])),
+            ),
+        )
+        .await
+        .unwrap();
+
+        let exported = sm.export_session(&session.id).await.unwrap();
+        fs::remove_file(&spill_file).unwrap();
+
+        let first = sm.import_session(&exported, None).await.unwrap();
+        let second = sm.import_session(&exported, None).await.unwrap();
+
+        let artifacts_dir = temp_dir.path().join(SESSIONS_FOLDER).join("artifacts");
+        let artifact_count = || fs::read_dir(&artifacts_dir).unwrap().count();
+        assert_eq!(artifact_count(), 1);
+
+        sm.delete_session(&first.id).await.unwrap();
+        assert_eq!(
+            artifact_count(),
+            1,
+            "artifact still referenced by the second import"
+        );
+
+        sm.delete_session(&second.id).await.unwrap();
+        assert_eq!(artifact_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_import_dedupes_artifacts_by_path() {
+        use rmcp::model::{CallToolResult, ContentBlock};
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Exporter".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let spill_dir = sm.session_spill_dir(&session.id);
+        fs::create_dir_all(&spill_dir).unwrap();
+        let spill_file = spill_dir.join("goose_mcp_response_dup.txt");
+        fs::write(&spill_file, "spilled").unwrap();
+        sm.add_message(
+            &session.id,
+            &Message::user().with_tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                    "The response returned from the tool call was larger (250000 characters) and is stored in the file which you can use other tools to examine or search in: {}",
+                    spill_file.display()
+                ))])),
+            ),
+        )
+        .await
+        .unwrap();
+
+        let exported = sm.export_session(&session.id).await.unwrap();
+        let mut bundle: serde_json::Value = serde_json::from_str(&exported).unwrap();
+        let mut smuggled = bundle["artifacts"][0].clone();
+        smuggled["content"] = serde_json::Value::String("unreferenced payload".to_string());
+        bundle["artifacts"].as_array_mut().unwrap().push(smuggled);
+
+        sm.import_session(&bundle.to_string(), None).await.unwrap();
+
+        let artifacts_dir = temp_dir.path().join(SESSIONS_FOLDER).join("artifacts");
+        assert_eq!(fs::read_dir(&artifacts_dir).unwrap().count(), 1);
     }
 
     #[tokio::test]

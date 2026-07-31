@@ -306,7 +306,9 @@ pub async fn generate_diagnostics(
     let mut errors = Vec::new();
 
     let session = if is_full {
-        let session_data = session_manager.export_session(session_id).await?;
+        let session_data = session_manager
+            .export_session_without_artifacts(session_id)
+            .await?;
         Some(serde_json::from_str(&session_data)?)
     } else {
         None

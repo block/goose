@@ -1,6 +1,8 @@
 //! Importers for non-goose session formats.
 //!
-//! Goose's native session export is a JSON-serialized [`crate::session::Session`].
+//! Goose's native session export is a JSON-serialized
+//! [`crate::session::export_bundle::SessionExport`]: a [`crate::session::Session`]
+//! plus optional bundled subagent sessions and spilled tool-output artifacts.
 //! These submodules let users also import sessions exported by other coding
 //! agents — currently:
 //!
