@@ -17,6 +17,7 @@ enum SelectChoice {
 
 struct SingleSelect<'a> {
     field_name: &'a str,
+    description: Option<&'a str>,
     options: Vec<(SelectChoice, String)>,
     initial_value: Option<SelectChoice>,
 }
@@ -28,7 +29,7 @@ pub fn collect_elicitation_input(message: &str, schema: &Value) -> io::Result<El
 
     let properties = schema.get("properties").and_then(|p| p.as_object());
 
-    if io::stdin().is_terminal() {
+    if io::stdin().is_terminal() && io::stderr().is_terminal() {
         if let Some(select) = single_select(schema) {
             return prompt_single_select(select);
         }
@@ -169,6 +170,7 @@ fn single_select(schema: &Value) -> Option<SingleSelect<'_>> {
     }
 
     let (field_name, field_schema) = properties.iter().next()?;
+    let description = field_schema.get("description").and_then(Value::as_str);
     let mut options: Vec<(SelectChoice, String)> =
         if let Some(one_of) = field_schema.get("oneOf").and_then(Value::as_array) {
             one_of
@@ -218,6 +220,7 @@ fn single_select(schema: &Value) -> Option<SingleSelect<'_>> {
 
     Some(SingleSelect {
         field_name,
+        description,
         options,
         initial_value,
     })
@@ -229,7 +232,11 @@ fn prompt_single_select(select: SingleSelect<'_>) -> io::Result<ElicitationInput
         .iter()
         .map(|(value, label)| (value.clone(), label, ""))
         .collect();
-    let mut prompt = cliclack::select(select.field_name).items(&items);
+    let label = match select.description {
+        Some(desc) => format!("{} ({})", select.field_name, desc),
+        None => select.field_name.to_string(),
+    };
+    let mut prompt = cliclack::select(label).items(&items);
     if let Some(initial_value) = select.initial_value {
         prompt = prompt.initial_value(initial_value);
     }
