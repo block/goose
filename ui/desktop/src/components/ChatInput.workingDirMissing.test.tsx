@@ -135,6 +135,54 @@ describe('ChatInput submissionDisabled (working directory missing)', () => {
     }
   });
 
+  it('takes back input rejected because the working directory disappeared mid-session', () => {
+    const handleSubmit = vi.fn<(input: UserInput) => void>();
+    const onRejectedInputRestored = vi.fn();
+    const { rerender } = renderWithIntl(
+      <ChatInput {...baseProps(handleSubmit)} onRejectedInputRestored={onRejectedInputRestored} />
+    );
+
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'lost message' } });
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+
+    expect(handleSubmit).toHaveBeenCalledWith({ msg: 'lost message', images: [] });
+    expect(textarea.value).toBe('');
+
+    // The server rejects only after the composer has cleared, and the banner
+    // appears with it, so the rejection arrives alongside submissionDisabled.
+    rerender(
+      <ChatInput
+        {...baseProps(handleSubmit)}
+        submissionDisabled={true}
+        rejectedInput={{ msg: 'lost message', images: [] }}
+        onRejectedInputRestored={onRejectedInputRestored}
+      />
+    );
+
+    expect((screen.getByTestId('chat-input') as HTMLTextAreaElement).value).toBe('lost message');
+    expect(onRejectedInputRestored).toHaveBeenCalled();
+  });
+
+  it('keeps newer typed text when restoring rejected input', () => {
+    const handleSubmit = vi.fn<(input: UserInput) => void>();
+    const { rerender } = renderWithIntl(<ChatInput {...baseProps(handleSubmit)} />);
+
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'newer draft' } });
+
+    rerender(
+      <ChatInput
+        {...baseProps(handleSubmit)}
+        submissionDisabled={true}
+        rejectedInput={{ msg: 'older rejected message', images: [] }}
+        onRejectedInputRestored={vi.fn()}
+      />
+    );
+
+    expect((screen.getByTestId('chat-input') as HTMLTextAreaElement).value).toBe('newer draft');
+  });
+
   it('submits and clears input when submission is enabled', () => {
     const handleSubmit = vi.fn<(input: UserInput) => void>();
     renderWithIntl(<ChatInput {...baseProps(handleSubmit)} submissionDisabled={false} />);

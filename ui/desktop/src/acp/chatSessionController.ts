@@ -8,6 +8,7 @@ import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import {
   createUserMessage,
   getPendingToolConfirmationIds,
+  imageDataFromMessage,
   type ImageData,
   type Message,
 } from '../types/message';
@@ -114,6 +115,36 @@ function restoreTranscriptAfterWorkingDirMissing(
   if (filtered.length !== currentMessages.length) {
     acpChatSessionActions.setMessages(sessionId, filtered);
   }
+}
+
+// The composer clears itself as soon as it hands a message off, so a rejection
+// the user could not have anticipated -- the working directory disappearing
+// mid-session -- would otherwise destroy the typed text and pasted images. Hand
+// the input back for the composer to reinstate. A resume submit re-sends a
+// message that was already in the transcript and had no composer content, so
+// only the freshly appended shape is restorable.
+function stashRejectedInput(
+  sessionId: string,
+  userMessage: Message,
+  messagesBeforeSubmit: Message[] | undefined
+): void {
+  if (messagesBeforeSubmit?.some((message) => message.id === userMessage.id)) {
+    return;
+  }
+
+  const msg = userMessage.content
+    .filter(
+      (content): content is Extract<Message['content'][number], { type: 'text' }> =>
+        content.type === 'text'
+    )
+    .map((content) => content.text)
+    .join('\n');
+  const images = imageDataFromMessage(userMessage);
+  if (!msg && images.length === 0) {
+    return;
+  }
+
+  acpChatSessionActions.setRejectedInput(sessionId, { msg, images });
 }
 
 function assertNoPendingPromptCancellation(sessionId: string): void {
@@ -246,11 +277,8 @@ async function submitMessage(
 
     if (isWorkingDirMissingError(error)) {
       acpChatSessionActions.markSessionWorkingDirMissing(sessionId);
-      restoreTranscriptAfterWorkingDirMissing(
-        sessionId,
-        userMessage,
-        options.messagesBeforeSubmit
-      );
+      restoreTranscriptAfterWorkingDirMissing(sessionId, userMessage, options.messagesBeforeSubmit);
+      stashRejectedInput(sessionId, userMessage, options.messagesBeforeSubmit);
       // The missing-dir banner already explains this failure; a stored submit
       // error would resurface, stale, once the user repoints the directory. Still
       // pass the error to onFinish so the rejected prompt is not treated as a

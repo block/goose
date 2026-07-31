@@ -3,7 +3,7 @@ import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
-import type { Message, NotificationEvent } from '../types/message';
+import type { Message, NotificationEvent, UserInput } from '../types/message';
 import type { Session } from '../types/session';
 import {
   createAcpSessionNotificationAdapter,
@@ -26,6 +26,8 @@ export interface AcpChatSessionSnapshot {
   activePromptAttemptId: string | null;
   activeRunId: string | null;
   pendingCancelPromptAttemptId: string | null;
+  // Input the server refused to accept, held so the composer can take it back.
+  rejectedInput: UserInput | null;
 }
 
 type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
@@ -81,6 +83,8 @@ export interface AcpChatSessionActions {
   ): AcpChatSessionSnapshot;
 
   setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  setRejectedInput(sessionId: string, rejectedInput: UserInput): AcpChatSessionSnapshot | undefined;
+  clearRejectedInput(sessionId: string): AcpChatSessionSnapshot | undefined;
   addPendingLocalSteerMessage(sessionId: string, message: Message): AcpChatSessionSnapshot;
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
   resolveUserInputRequest(
@@ -166,6 +170,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       activePromptAttemptId: null,
       activeRunId: null,
       pendingCancelPromptAttemptId: null,
+      rejectedInput: null,
       promptCancellationRestoreState: null,
       pendingUserInputRequestIds: new Set(),
       pendingLocalSteerMessageIds: new Set(),
@@ -241,6 +246,32 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.messages = cloneMessages(messages);
     retainPendingLocalSteerMessageIds(entry);
     entry.adapter = createAdapterForEntry(entry);
+    return notify(sessionId, entry);
+  };
+
+  const setRejectedInput: AcpChatSessionActions['setRejectedInput'] = (
+    sessionId,
+    rejectedInput
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry) {
+      return undefined;
+    }
+
+    entry.rejectedInput = rejectedInput;
+    return notify(sessionId, entry);
+  };
+
+  const clearRejectedInput: AcpChatSessionActions['clearRejectedInput'] = (sessionId) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry) {
+      return undefined;
+    }
+    if (!entry.rejectedInput) {
+      return snapshotFromEntry(entry);
+    }
+
+    entry.rejectedInput = null;
     return notify(sessionId, entry);
   };
 
@@ -515,6 +546,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     failSessionLoad,
     setSessionLoadError,
     setMessages,
+    setRejectedInput,
+    clearRejectedInput,
     addPendingLocalSteerMessage,
     setChatState,
     resolveUserInputRequest,
@@ -594,6 +627,8 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     failSessionLoad: store.failSessionLoad,
     setSessionLoadError: store.setSessionLoadError,
     setMessages: store.setMessages,
+    setRejectedInput: store.setRejectedInput,
+    clearRejectedInput: store.clearRejectedInput,
     addPendingLocalSteerMessage: store.addPendingLocalSteerMessage,
     setChatState: store.setChatState,
     resolveUserInputRequest: store.resolveUserInputRequest,
@@ -738,6 +773,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     activePromptAttemptId: entry.activePromptAttemptId,
     activeRunId: entry.activeRunId,
     pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,
+    rejectedInput: entry.rejectedInput,
   };
 }
 

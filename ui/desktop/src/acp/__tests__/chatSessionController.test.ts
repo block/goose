@@ -41,6 +41,8 @@ vi.mock('../chatSessionStore', () => ({
     setChatState: vi.fn(),
     setSessionMetadata: vi.fn(),
     markSessionWorkingDirMissing: vi.fn(),
+    setRejectedInput: vi.fn(),
+    clearRejectedInput: vi.fn(),
     setSessionLoadError: vi.fn(),
   },
 }));
@@ -117,6 +119,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     activePromptAttemptId,
     activeRunId: activePromptAttemptId ? 'run-1' : null,
     pendingCancelPromptAttemptId: null,
+    rejectedInput: null,
   };
 }
 
@@ -306,6 +309,60 @@ describe('acpChatSessionController.submitMessage', () => {
 
     expect(acpChatSessionActions.markSessionWorkingDirMissing).toHaveBeenCalledWith(SESSION_ID);
     expect(acpChatSessionActions.setMessages).toHaveBeenCalledWith(SESSION_ID, [priorMessage]);
+  });
+
+  it('hands the rejected input back to the composer when the working dir is missing', async () => {
+    const message: Message & { id: string } = {
+      id: 'message-with-image',
+      role: 'user',
+      created: 123,
+      content: [
+        { type: 'text', text: 'Hello' },
+        { type: 'image', data: 'aGk=', mimeType: 'image/png' },
+      ],
+      metadata: { userVisible: true, agentVisible: true },
+    };
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [message],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await acpChatSessionController.submitMessage(SESSION_ID, message, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+      messagesBeforeSubmit: [],
+    });
+
+    expect(acpChatSessionActions.setRejectedInput).toHaveBeenCalledWith(SESSION_ID, {
+      msg: 'Hello',
+      images: [{ data: 'aGk=', mimeType: 'image/png' }],
+    });
+  });
+
+  it('does not restore composer input for an empty resume submit', async () => {
+    const existing = userMessage();
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      messages: [existing],
+    });
+    vi.mocked(acpPromptSession).mockRejectedValue({
+      message: 'Working directory no longer exists',
+      data: { reason: 'working_dir_missing' },
+    } as never);
+
+    await acpChatSessionController.submitMessage(SESSION_ID, existing, {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+      messagesBeforeSubmit: [existing],
+    });
+
+    // The resume path re-sends a message that was already in the transcript, so
+    // there was never composer content to give back.
+    expect(acpChatSessionActions.setRejectedInput).not.toHaveBeenCalled();
   });
 
   it('finishes without a stored submit error when the working dir is missing', async () => {

@@ -169,6 +169,8 @@ interface ChatInputProps {
   pauseQueueOnStop?: boolean;
   queueProcessingBlocked?: boolean;
   submissionDisabled?: boolean;
+  rejectedInput?: UserInput | null;
+  onRejectedInputRestored?: () => void;
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
@@ -205,6 +207,8 @@ export default function ChatInput({
   pauseQueueOnStop = false,
   queueProcessingBlocked = false,
   submissionDisabled = false,
+  rejectedInput = null,
+  onRejectedInputRestored,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
@@ -670,7 +674,7 @@ export default function ChatInput({
       });
     }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
@@ -837,6 +841,31 @@ export default function ChatInput({
       setLocalDroppedFiles([]);
     }
   }, [droppedFiles.length, localDroppedFiles.length, onFilesProcessed, setLocalDroppedFiles]);
+
+  // A prompt the server refuses -- the working directory vanished between load
+  // and send -- is rejected after the composer already cleared itself, so the
+  // typed text and pasted images would be gone before the user can pick a new
+  // directory. Take them back. Text the user has since typed wins, since it is
+  // the newer draft; the images are additive either way.
+  useEffect(() => {
+    if (!rejectedInput) {
+      return;
+    }
+
+    onRejectedInputRestored?.();
+    setDisplayValue((current) => (current.trim() ? current : rejectedInput.msg));
+    setValue((current) => (current.trim() ? current : rejectedInput.msg));
+    if (rejectedInput.images.length > 0) {
+      setPastedImages((current) => [
+        ...current,
+        ...rejectedInput.images.map((image, index) => ({
+          id: `restored-${Date.now()}-${index}`,
+          dataUrl: `data:${image.mimeType};base64,${image.data}`,
+          isLoading: false,
+        })),
+      ]);
+    }
+  }, [rejectedInput, onRejectedInputRestored]);
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (isRecording) return;
