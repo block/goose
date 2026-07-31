@@ -2918,6 +2918,12 @@ impl Agent {
                                 }
                                 None => {
                                     yield AgentEvent::Message(provider_error_message(provider_err));
+                                    // The error could not be retried (non-transient,
+                                    // budget exhausted, or visible content already
+                                    // streamed). Treat it as terminal so goal/grind
+                                    // nudges don't immediately send another request
+                                    // that will fail the same way.
+                                    exit_chat = true;
                                 }
                             }
                             break;
@@ -4867,6 +4873,42 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 "the transient error should surface rather than retry silently: {texts:?}"
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_exhausted_skips_goal_nudge() -> Result<()> {
+        // When a transient error exhausts the retry budget while a goal is
+        // active, the surfaced error must be terminal for the turn — the
+        // post-loop goal nudge must not reset the counter and send another
+        // provider request that will fail the same way.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::failing(ProviderError::NetworkError(
+            "boom".into(),
+        )));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+        agent.set_goal(Some("Build the thing".to_string())).await;
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            3,
+            "should exhaust all 3 retries before surfacing"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            4,
+            "4 calls: initial + 3 retries, no extra call from a goal nudge"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "should surface error: {texts:?}"
+        );
         Ok(())
     }
 
