@@ -2256,10 +2256,6 @@ impl Agent {
                 .await;
 
                 let provider = self.provider().await?;
-                // When the provider retries stream-initiation failures itself
-                // (via `with_retry`), defer to it so the two retry layers don't
-                // stack. Providers without transport-level retry (subprocess/ACP)
-                // report false, making the agent layer their sole retry owner.
                 let provider_owns_retry = provider.owns_stream_retry();
                 let mut stream = Self::stream_response_from_provider(
                     provider,
@@ -2895,14 +2891,9 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // Skip retry when the provider already retries
-                            // stream-initiation failures itself (with_retry):
-                            // stacking the two layers would multiply HTTP
-                            // attempts and backoff. Don't retry once any visible
-                            // assistant content (text, reasoning, images, …) has
-                            // been streamed to the client either: the partial
-                            // response is already shown, so resending would
-                            // produce a duplicate/incoherent one.
+                            // Don't retry once visible assistant content has been
+                            // streamed — the partial response is already shown,
+                            // so resending would produce a duplicate.
                             let retry_delay = if !provider_owns_retry
                                 && no_tools_called
                                 && !visible_content_streamed
@@ -4478,8 +4469,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             }
         }
 
-        /// Simulate a provider that retries stream-initiation itself (HTTP
-        /// providers with `with_retry`). The agent layer must defer to it.
         fn with_transport_retry(mut self) -> Self {
             self.owns_retry = true;
             self
@@ -4785,10 +4774,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_agent_defers_when_provider_owns_retry() -> Result<()> {
-        // A provider that retries stream-initiation itself (HTTP providers with
-        // `with_retry`). The agent must NOT add its own retry on top — that would
-        // stack budgets. Even though the provider is flaky and agent retry is
-        // enabled, exactly 1 call is made and the error surfaces.
+        // Provider owns stream retry, so the agent must not retry on top — exactly 1 call.
         let temp_dir = tempfile::tempdir()?;
         let provider = Arc::new(
             MockProvider::flaky(
