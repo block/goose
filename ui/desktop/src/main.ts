@@ -3002,7 +3002,17 @@ async function appMain() {
         throw new Error('No backend lease found for launching window');
       }
 
-      const workingDir = app.getPath('home');
+      const launchingWorkingDir = await launchingWindow.webContents
+        .executeJavaScript(`window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`)
+        .catch((error) => {
+          console.warn('Failed to get working directory from launching window:', error);
+          return undefined;
+        });
+      const workingDir = resolveWorkingDir(
+        typeof launchingWorkingDir === 'string' ? launchingWorkingDir : undefined,
+        undefined,
+        app.getPath('home')
+      );
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
