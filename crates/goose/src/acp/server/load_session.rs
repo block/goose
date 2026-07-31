@@ -1,48 +1,10 @@
+use super::message_meta::{content_chunk_for_message, merge_message_meta};
 use super::tool_calls::conversion::{
     build_initial_tool_call, tool_call_update_fields_from_response, trusted_update_meta,
 };
 use super::tool_calls::enrichment::tool_chain_summary;
 use super::*;
-use agent_client_protocol::schema::v1::{MessageId, ToolCall};
-
-fn replay_message_meta(message: &Message) -> Meta {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "goose".to_string(),
-        serde_json::Value::Object(replay_message_goose_meta(message)),
-    );
-    meta
-}
-
-fn replay_message_goose_meta(message: &Message) -> serde_json::Map<String, serde_json::Value> {
-    let mut goose = serde_json::Map::new();
-    goose.insert("created".to_string(), serde_json::json!(message.created));
-    if let Some(id) = &message.id {
-        goose.insert("messageId".to_string(), serde_json::json!(id));
-    }
-    if message.metadata.steer {
-        goose.insert("steer".to_string(), serde_json::json!(true));
-    }
-    goose
-}
-
-fn merge_replay_message_meta(meta: Option<Meta>, message: &Message) -> Meta {
-    let replay_goose = replay_message_goose_meta(message);
-    let mut meta = meta.unwrap_or_default();
-    let goose_value = meta
-        .entry("goose".to_string())
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-
-    if let serde_json::Value::Object(goose) = goose_value {
-        for (key, value) in replay_goose {
-            goose.insert(key, value);
-        }
-    } else {
-        *goose_value = serde_json::Value::Object(replay_goose);
-    }
-
-    meta
-}
+use agent_client_protocol::schema::v1::ToolCall;
 
 fn replay_audience_annotations(audience: &[Role]) -> Annotations {
     Annotations::new().audience(
@@ -62,20 +24,12 @@ fn send_replay_content_chunk(
     message: &Message,
     content: ContentBlock,
 ) -> std::result::Result<(), agent_client_protocol::Error> {
-    let chunk = replay_content_chunk_for_message(message, content);
+    let chunk = content_chunk_for_message(message, content);
     let update = match message.role {
         Role::User => SessionUpdate::UserMessageChunk(chunk),
         Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
     };
     cx.send_notification(SessionNotification::new(session_id.clone(), update))
-}
-
-fn replay_content_chunk_for_message(message: &Message, content: ContentBlock) -> ContentChunk {
-    let mut chunk = ContentChunk::new(content).meta(replay_message_meta(message));
-    if let Some(message_id) = message.id.as_deref() {
-        chunk = chunk.message_id(MessageId::new(message_id));
-    }
-    chunk
 }
 
 fn build_replayed_tool_call(
@@ -160,8 +114,8 @@ fn replay_conversation_to_client(
                         tool_request,
                         client_requests_tool_call_label_enrichment,
                     );
-                    let meta = tool_call.meta.take();
-                    let tool_call = tool_call.meta(merge_replay_message_meta(meta, message));
+                    let meta = tool_call.meta.take().unwrap_or_default();
+                    let tool_call = tool_call.meta(merge_message_meta(meta, message));
 
                     tool_call_notifier.send_initial(tool_call)?;
                 }
@@ -171,19 +125,17 @@ fn replay_conversation_to_client(
                         replay_tool_requests.get(&tool_response.id),
                         true,
                     );
+                    let meta = trusted_update_meta(tool_response).unwrap_or_default();
 
                     let update =
                         ToolCallUpdate::new(ToolCallId::new(tool_response.id.clone()), fields)
-                            .meta(merge_replay_message_meta(
-                                trusted_update_meta(tool_response),
-                                message,
-                            ));
+                            .meta(merge_message_meta(meta, message));
                     tool_call_notifier.send_update(update)?;
                 }
                 MessageContent::Thinking(thinking) => {
                     cx.send_notification(SessionNotification::new(
                         session_id.clone(),
-                        SessionUpdate::AgentThoughtChunk(replay_content_chunk_for_message(
+                        SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
                             message,
                             ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
                         )),
@@ -332,99 +284,5 @@ mod tests {
             ),
         );
         assert_eq!(goose.get("toolChainSummary"), None);
-    }
-
-    #[test]
-    fn merge_replay_message_meta_preserves_existing_goose_meta() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_1");
-        let existing = serde_json::from_value(serde_json::json!({
-            "goose": {
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            }
-        }))
-        .unwrap();
-
-        let merged = merge_replay_message_meta(Some(existing), &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_1",
-                "mcpApp": {
-                    "resourceUri": "ui://trusted/app",
-                    "extensionName": "weather",
-                    "toolName": "weather__render",
-                },
-            })),
-        );
-    }
-
-    #[test]
-    fn merge_replay_message_meta_creates_fresh_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_2");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_2",
-            })),
-        );
-
-        let chunk = replay_content_chunk_for_message(
-            &message,
-            ContentBlock::Text(TextContent::new("replayed text")),
-        );
-
-        assert_eq!(chunk.message_id, Some(MessageId::new("msg_2")));
-    }
-
-    #[test]
-    fn merge_replay_message_meta_includes_steer_marker() {
-        let message = Message::new(Role::User, 1_700_000_000, vec![])
-            .with_id("msg_steer")
-            .with_steer();
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_steer",
-                "steer": true,
-            })),
-            "replay must carry the steer marker so the boundary survives reload"
-        );
-    }
-
-    #[test]
-    fn merge_replay_message_meta_omits_steer_when_not_set() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]).with_id("msg_plain");
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(merged.get("goose").and_then(|g| g.get("steer")), None);
-    }
-
-    #[test]
-    fn merge_replay_message_meta_omits_message_id_when_none() {
-        let message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
-
-        let merged = merge_replay_message_meta(None, &message);
-
-        assert_eq!(
-            merged.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-            })),
-        );
     }
 }

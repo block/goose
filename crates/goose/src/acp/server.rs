@@ -41,17 +41,17 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
-    EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse,
-    ImageContent, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
-    ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    MessageId, Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
-    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
-    RequestPermissionRequest, ResourceLink, SessionCapabilities, SessionCloseCapabilities,
-    SessionConfigOption, SessionId, SessionInfoUpdate, SessionListCapabilities,
-    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallId, ToolCallUpdate, Usage, UsageUpdate,
+    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, EmbeddedResourceResource,
+    FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation,
+    InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse,
+    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, Meta, NewSessionRequest,
+    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
+    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
+    SessionCapabilities, SessionCloseCapabilities, SessionConfigOption, SessionId,
+    SessionInfoUpdate, SessionListCapabilities, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
+    SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
+    UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -75,6 +75,7 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
+use self::message_meta::{content_chunk_for_message, message_meta_without_steer};
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
     build_initial_tool_call, build_permission_tool_call_update,
@@ -98,6 +99,7 @@ mod list_sessions;
 mod load_session;
 mod local_inference;
 mod manage_sessions;
+mod message_meta;
 mod new_session;
 mod onboarding;
 mod prompts;
@@ -1001,27 +1003,22 @@ impl GooseAcpAgent {
         message
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn handle_message_content(
         &self,
         content_item: &MessageContent,
+        message: &Message,
         session_id: &SessionId,
-        session_id_str: &str,
-        message_id: Option<&str>,
-        message_created: i64,
-        role: &Role,
-        steer: bool,
         agent: &Arc<Agent>,
         tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
+        let role = &message.role;
+
         match content_item {
             MessageContent::Text(text) => {
                 let chunk = content_chunk_for_message(
+                    message,
                     ContentBlock::Text(TextContent::new(text.text.clone())),
-                    message_id,
-                    message_created,
-                    steer,
                 );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
@@ -1030,7 +1027,7 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(tool_request, session_id, session_id_str, agent, cx)
+                self.handle_tool_request(tool_request, session_id, agent, cx)
                     .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
@@ -1046,10 +1043,8 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
                     SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
+                        message,
                         ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
-                        message_id,
-                        message_created,
-                        steer,
                     )),
                 ))?;
             }
@@ -1072,16 +1067,16 @@ impl GooseAcpAgent {
                 }
                 ActionRequiredData::Elicitation {
                     id,
-                    message,
+                    message: elicitation_message,
                     requested_schema,
                 } => {
                     self.handle_form_elicitation(
                         cx,
                         session_id,
                         id,
-                        message,
+                        elicitation_message,
                         requested_schema,
-                        message_update_meta(message_id, message_created, false),
+                        message_meta_without_steer(message),
                     )
                     .await?;
                 }
@@ -1106,12 +1101,7 @@ impl GooseAcpAgent {
                         ),
                     );
                 }
-                let chunk = content_chunk_for_message(
-                    ContentBlock::Image(image_content),
-                    message_id,
-                    message_created,
-                    steer,
-                );
+                let chunk = content_chunk_for_message(message, ContentBlock::Image(image_content));
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1156,7 +1146,6 @@ impl GooseAcpAgent {
         &self,
         tool_request: &ToolRequest,
         session_id: &SessionId,
-        session_id_for_persist: &str,
         agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
@@ -1175,7 +1164,7 @@ impl GooseAcpAgent {
                 agent,
                 tool_call_notifier,
                 &self.session_manager,
-                session_id_for_persist,
+                session_id.0.as_ref(),
                 tool_request,
             );
         }
@@ -1404,35 +1393,6 @@ fn message_usage_update(
             is_compaction: usage.is_compaction,
         },
     }
-}
-
-fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> Meta {
-    let mut goose = serde_json::Map::new();
-    goose.insert("created".to_string(), serde_json::json!(created));
-    if let Some(id) = message_id {
-        goose.insert("messageId".to_string(), serde_json::json!(id));
-    }
-    if steer {
-        goose.insert("steer".to_string(), serde_json::json!(true));
-    }
-
-    let mut meta = serde_json::Map::new();
-    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
-    meta
-}
-
-fn content_chunk_for_message(
-    content: ContentBlock,
-    message_id: Option<&str>,
-    created: i64,
-    steer: bool,
-) -> ContentChunk {
-    let mut chunk =
-        ContentChunk::new(content).meta(message_update_meta(message_id, created, steer));
-    if let Some(message_id) = message_id {
-        chunk = chunk.message_id(MessageId::new(message_id));
-    }
-    chunk
 }
 
 impl GooseAcpAgent {
@@ -1814,9 +1774,6 @@ impl GooseAcpAgent {
                 Ok(crate::agents::AgentEvent::Message(message)) => {
                     update_output_token_limit_reached(&mut output_token_limit_reached, &message);
 
-                    // Agent persists messages via session_manager.add_message() internally.
-                    let stored_message_id = message.id.clone();
-
                     let sessions = self.sessions.lock().await;
                     if !sessions.contains_key(&session_id) {
                         stream_error = Some(
@@ -1839,12 +1796,8 @@ impl GooseAcpAgent {
                         if let Err(error) = self
                             .handle_message_content(
                                 content_item,
+                                &message,
                                 &args.session_id,
-                                &session_id,
-                                stored_message_id.as_deref(),
-                                message.created,
-                                &message.role,
-                                message.metadata.steer,
                                 &agent,
                                 &tool_requests,
                                 cx,
@@ -2459,28 +2412,6 @@ print(\"hello, world\")
         expected: PermissionConfirmation,
     ) {
         assert_eq!(outcome_to_confirmation(&input), expected);
-    }
-
-    #[test]
-    fn test_message_update_meta_includes_created_and_message_id() {
-        let meta = message_update_meta(Some("msg_live"), 1_700_000_000, false);
-
-        assert_eq!(
-            meta.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_live",
-            })),
-        );
-
-        let chunk = content_chunk_for_message(
-            ContentBlock::Text(TextContent::new("hello")),
-            Some("msg_live"),
-            1_700_000_000,
-            true,
-        );
-
-        assert_eq!(chunk.message_id, Some(MessageId::new("msg_live")));
     }
 
     #[test]
