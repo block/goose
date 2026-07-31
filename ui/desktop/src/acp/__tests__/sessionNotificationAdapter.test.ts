@@ -334,6 +334,62 @@ describe('createAcpSessionNotificationAdapter', () => {
           signature: '',
         });
       });
+
+      it('preserves output-limit metadata when creating a thought message', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_thought_chunk',
+              content: { type: 'text', text: 'Truncated thinking' },
+              _meta: {
+                goose: {
+                  messageId: 'thought-1',
+                  outputTokenLimitReached: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
+      });
+
+      it('preserves output-limit metadata when updating a thought message', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'agent_thought_chunk',
+            content: { type: 'text', text: 'Truncated ' },
+            _meta: { goose: { messageId: 'thought-1' } },
+          } as SessionNotification['update'])
+        );
+
+        const messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'agent_thought_chunk',
+              content: { type: 'text', text: 'thinking' },
+              _meta: {
+                goose: {
+                  messageId: 'thought-1',
+                  outputTokenLimitReached: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages).toHaveLength(1);
+        expect(firstContent(messages[0])).toMatchObject({
+          type: 'thinking',
+          thinking: 'Truncated thinking',
+        });
+        expect(messages[0].metadata.outputTokenLimitReached).toBe(true);
+      });
     });
 
     describe('tools', () => {

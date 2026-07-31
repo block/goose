@@ -87,23 +87,26 @@ export function applyThoughtChunk(
 
   const gooseMeta = getGooseMessageMeta(update);
   const messageId = update.messageId ?? gooseMeta.messageId;
-  const existing = findMessageForChunk(state, 'assistant', messageId, gooseMeta.created);
+  let message = findMessageForChunk(state, 'assistant', messageId, gooseMeta.created);
 
-  if (existing) {
-    const lastContent = existing.content[existing.content.length - 1];
-    if (lastContent?.type === 'thinking') {
-      lastContent.thinking += update.content.text;
-    } else {
-      existing.content.push({ type: 'thinking', thinking: update.content.text, signature: '' });
-    }
-  } else {
-    state.messages.push({
+  if (!message) {
+    message = {
       ...(messageId ? { id: messageId } : {}),
       role: 'assistant',
       created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
-      content: [{ type: 'thinking', thinking: update.content.text, signature: '' }],
+      content: [],
       metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
-    });
+    };
+    state.messages.push(message);
+  }
+
+  message.metadata.outputTokenLimitReached = gooseMeta.outputTokenLimitReached;
+
+  const lastContent = message.content[message.content.length - 1];
+  if (lastContent?.type === 'thinking') {
+    lastContent.thinking += update.content.text;
+  } else {
+    message.content.push({ type: 'thinking', thinking: update.content.text, signature: '' });
   }
 
   return messagesChange(state);
