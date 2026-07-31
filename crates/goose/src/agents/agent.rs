@@ -2934,7 +2934,13 @@ impl Agent {
                     retrying_after_provider_error = true;
                     continue;
                 }
-                transient_retry_attempts = 0;
+                // A provider error leaves the exhausted retry budget intact so
+                // a Stop-hook denial that restarts the loop can't trigger a
+                // fresh retry burst for the same persistent failure. The budget
+                // resets only on a successful turn.
+                if !provider_errored {
+                    transient_retry_attempts = 0;
+                }
                 can_drain_pending_steers = true;
 
                 if tools_updated {
@@ -4908,6 +4914,45 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(
             texts.iter().any(|t| t.contains("Please resend")),
             "should surface error: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_budget_preserved_across_stop_hook_denial() -> Result<()> {
+        // A Stop hook that denies the exit from an exhausted retry budget must
+        // not give the restarted turn a fresh retry budget — otherwise a
+        // persistent 429/network failure triggers another full retry burst. The
+        // exhausted count is preserved, so the restarted turn surfaces at once.
+        let env = StopHookTestEnv::new(ALWAYS_BLOCK_SCRIPT)?;
+        let provider = Arc::new(MockProvider::failing(ProviderError::NetworkError(
+            "persistent 429".into(),
+        )));
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+        // cap=1: the Stop hook denies once (restarting the loop) and the second
+        // denial exceeds the cap, breaking out.
+        agent.set_stop_hook_block_cap_for_test(1);
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        // First turn exhausts 3 retries; the stop-hook-restarted second turn
+        // makes a single call that surfaces immediately (no second burst).
+        assert_eq!(
+            count_provider_retries(&messages),
+            3,
+            "no retry burst after the stop-hook restart"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            5,
+            "5 calls: 4 from the exhausted burst + 1 surfaced call after the restart"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "the persistent error should surface: {texts:?}"
         );
         Ok(())
     }
