@@ -471,8 +471,14 @@ mod known_models_tests {
             .position(|&m| m == "claude-fable-5")
             .expect("claude-fable-5 present");
         // Claude 5 entries should sit with opus-5 at the head, before 4.x legacy blocks
-        assert!(sonnet < 5, "claude-sonnet-5 should be near the top of the list");
-        assert!(fable < 5, "claude-fable-5 should be near the top of the list");
+        assert!(
+            sonnet < 5,
+            "claude-sonnet-5 should be near the top of the list"
+        );
+        assert!(
+            fable < 5,
+            "claude-fable-5 should be near the top of the list"
+        );
     }
 
     #[test]
