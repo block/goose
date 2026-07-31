@@ -2083,7 +2083,9 @@ mod tests {
         // Emit text before the error — the agent retry guard will not resend,
         // so the flag must stay set to avoid duplicating handoff context.
         response_tx
-            .send(AcpUpdate::Text(TextContent::new("partial answer".to_string())))
+            .send(AcpUpdate::Text(TextContent::new(
+                "partial answer".to_string(),
+            )))
             .await
             .unwrap();
         response_tx

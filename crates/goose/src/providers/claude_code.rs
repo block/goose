@@ -713,13 +713,10 @@ impl Provider for ClaudeCodeProvider {
     }
 
     fn owns_stream_retry(&self) -> bool {
-        // In Auto mode, Claude Code runs with --dangerously-skip-permissions and
-        // disables the control protocol, so tool/file actions are not surfaced to
-        // the agent as action_required events that the retry guard can observe. A
-        // blind retry could therefore rerun workspace mutations. Defer to keep
-        // retries safe. In SmartApprove/Approve modes the control protocol
-        // surfaces each tool call as an action_required message, so the retry
-        // guard sees it and never retries after side effects.
+        // In Auto mode Claude Code skips the control protocol, so tool actions
+        // aren't surfaced as events the retry guard can observe — a blind retry
+        // could rerun workspace mutations. Other modes surface each tool call,
+        // so the guard blocks retries after side effects.
         let goose_mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
         matches!(goose_mode, GooseMode::Auto)
     }

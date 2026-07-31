@@ -2876,12 +2876,9 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // A provider's with_retry covers only stream initiation, so
-                            // the agent must still retry mid-stream failures — but only
-                            // for providers whose stream failures are side-effect-free
-                            // (HTTP body drops). Whole-run subprocess providers opt out
-                            // via safe_for_mid_stream_retry. Never retry once tools or
-                            // visible content are emitted.
+                            // The agent retries mid-stream failures that a provider's
+                            // with_retry can't see, but only for side-effect-free
+                            // providers and never after tools or visible content.
                             let retry_delay = if (!provider_owns_retry
                                 || (provider_stream_created && safe_mid_stream_retry))
                                 && no_tools_called
@@ -2913,10 +2910,8 @@ impl Agent {
                                         delay,
                                     ));
                                     if backoff_or_cancelled(delay, &cancel_token).await {
-                                        // The user cancelled the retry wait. Mark the
-                                        // turn terminal so the post-loop goal/grind
-                                        // and recipe-retry nudges don't append hidden
-                                        // messages after the user has interrupted.
+                                        // Terminal so goal/grind and recipe-retry nudges
+                                        // don't append hidden messages after the interrupt.
                                         exit_chat = true;
                                         break;
                                     }
@@ -2924,9 +2919,8 @@ impl Agent {
                                 }
                                 None => {
                                     yield AgentEvent::Message(provider_error_message(provider_err));
-                                    // Non-retryable: make it terminal so goal/grind
-                                    // nudges don't resend a request that will fail
-                                    // the same way.
+                                    // Terminal so goal/grind nudges don't resend a
+                                    // request that will fail the same way.
                                     exit_chat = true;
                                 }
                             }
@@ -2940,7 +2934,6 @@ impl Agent {
                 }
                 // Preserve an exhausted retry budget across a Stop-hook restart
                 // so a persistent failure can't trigger a second retry burst.
-                // Resets only on a successful turn.
                 if !provider_errored {
                     transient_retry_attempts = 0;
                 }
@@ -4543,14 +4536,27 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     async fn collect_reply_messages(agent: &Agent, session_id: &str) -> Result<Vec<Message>> {
+        collect_reply(agent, session_id, 10, None).await
+    }
+
+    async fn collect_reply(
+        agent: &Agent,
+        session_id: &str,
+        max_turns: u32,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<Vec<Message>> {
         let session_config = SessionConfig {
             id: session_id.to_string(),
             schedule_id: None,
-            max_turns: Some(10),
+            max_turns: Some(max_turns),
             retry_config: None,
         };
         let reply_stream = agent
-            .reply(Message::user().with_text("hi"), session_config, None)
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                cancel_token,
+            )
             .await?;
         tokio::pin!(reply_stream);
         let mut messages = Vec::new();
@@ -4728,26 +4734,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
         agent.set_provider_retry_config_for_test(fast_retry_config(5));
 
-        let session_config = SessionConfig {
-            id: session_id.to_string(),
-            schedule_id: None,
-            max_turns: Some(1),
-            retry_config: None,
-        };
-        let reply_stream = agent
-            .reply(Message::user().with_text("hi"), session_config, None)
-            .await?;
-        tokio::pin!(reply_stream);
-        let mut messages = Vec::new();
-        while let Some(event) = reply_stream.next().await {
-            match event? {
-                AgentEvent::Message(message) => messages.push(message),
-                AgentEvent::McpNotification(_)
-                | AgentEvent::HistoryReplaced(_)
-                | AgentEvent::Usage(_)
-                | AgentEvent::MessageUsage { .. } => {}
-            }
-        }
+        let messages = collect_reply(&agent, &session_id, 1, None).await?;
 
         let texts = visible_texts(&messages);
         assert!(

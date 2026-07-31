@@ -344,12 +344,7 @@ const TRANSPORT_NETWORK_ERROR_MARKERS: &[&str] = &[
 
 /// Classify a transport-layer error message from CLI/ACP subprocess providers
 /// (which lack typed HTTP status codes) into the appropriate `ProviderError`
-/// variant so that [`should_retry`] can correctly identify transient failures.
-///
-/// Without this, every transport error surfaces as `RequestFailed`, which
-/// `should_retry` with `transient_only` never retries — leaving the transports
-/// that opted into agent-layer retry ([`Provider::owns_stream_retry`] == false)
-/// effectively uncovered.
+/// variant so that [`should_retry`] can identify transient failures.
 pub fn classify_transport_error(message: &str) -> ProviderError {
     let lower = message.to_lowercase();
     if lower.contains("context window exceeded") || lower.contains("context length") {

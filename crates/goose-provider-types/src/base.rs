@@ -458,27 +458,17 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    /// Whether the agent should defer transient-error retries to the provider.
-    /// `true` for providers that already retry stream-initiation via
-    /// `with_retry` (avoids stacking budgets) and for whole-run subprocess
-    /// providers whose retries may re-run workspace mutations. Streaming
-    /// transports override to `false` so the agent is the sole retry owner.
+    /// Whether the provider owns transient-error retry (via `with_retry`).
+    /// When false, the agent is the sole retry owner — used by streaming
+    /// transports that lack transport-level retry.
     fn owns_stream_retry(&self) -> bool {
         true
     }
 
-    /// Whether the agent may safely retry a mid-stream transient failure.
-    ///
-    /// Only consulted when owns_stream_retry is true and the provider's
-    /// stream() call itself succeeded. HTTP providers with with_retry keep
-    /// the default true: their stream() returns once the HTTP connection
-    /// opens, so a mid-stream failure is a side-effect-free body/connection
-    /// drop that the provider's own retry never observes.
-    ///
-    /// Whole-run subprocess providers override to false: stream() returns
-    /// Ok as soon as the subprocess is spawned, but the subprocess may
-    /// mutate the workspace inside that stream, so a mid-stream failure may
-    /// follow unobserved side effects that a retry would duplicate.
+    /// Whether a mid-stream failure is side-effect-free and safe for the
+    /// agent to retry. HTTP providers keep the default (a body/connection
+    /// drop); whole-run subprocess providers override to false because the
+    /// subprocess may mutate the workspace mid-stream.
     fn safe_for_mid_stream_retry(&self) -> bool {
         true
     }
