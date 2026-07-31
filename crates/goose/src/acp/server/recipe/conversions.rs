@@ -16,7 +16,6 @@ impl TryFrom<RecipeDto> for Recipe {
     type Error = anyhow::Error;
 
     fn try_from(dto: RecipeDto) -> Result<Self> {
-        let has_explicit_extensions = dto.extensions.is_some();
         Ok(Self {
             version: dto.version,
             title: dto.title,
@@ -43,7 +42,7 @@ impl TryFrom<RecipeDto> for Recipe {
                 .sub_recipes
                 .map(|sub_recipes| sub_recipes.into_iter().map(SubRecipe::from).collect()),
             retry: dto.retry.map(RetryConfig::from),
-            has_explicit_extensions,
+            has_explicit_extensions: dto.has_explicit_extensions,
         })
     }
 }
@@ -81,6 +80,7 @@ impl TryFrom<Recipe> for RecipeDto {
                 .sub_recipes
                 .map(|sub_recipes| sub_recipes.into_iter().map(SubRecipeDto::from).collect()),
             retry: recipe.retry.map(RecipeRetryConfigDto::from),
+            has_explicit_extensions: recipe.has_explicit_extensions,
         })
     }
 }
@@ -572,6 +572,7 @@ mod tests {
                 timeout_seconds: Some(10),
                 on_failure_timeout_seconds: Some(20),
             }),
+            has_explicit_extensions: true,
             ..RecipeDto::default()
         };
 

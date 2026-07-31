@@ -38,6 +38,8 @@ pub struct RecipeDto {
     pub sub_recipes: Option<Vec<SubRecipeDto>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RecipeRetryConfigDto>,
+    #[serde(default)]
+    pub has_explicit_extensions: bool,
 }
 
 impl Default for RecipeDto {
@@ -56,6 +58,7 @@ impl Default for RecipeDto {
             response: None,
             sub_recipes: None,
             retry: None,
+            has_explicit_extensions: false,
         }
     }
 }

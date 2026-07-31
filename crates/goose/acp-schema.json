@@ -3650,6 +3650,10 @@
               "type": "null"
             }
           ]
+        },
+        "has_explicit_extensions": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [
