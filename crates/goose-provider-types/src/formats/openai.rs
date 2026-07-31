@@ -48,6 +48,16 @@ fn describe_json_value(value: &Value) -> &'static str {
     }
 }
 
+fn output_token_limit_tool_error(function_name: &str, id: &str) -> ErrorData {
+    ErrorData {
+        code: ErrorCode::INVALID_PARAMS,
+        message: Cow::from(format!(
+            "Tool arguments for {function_name} (id {id}) were truncated because the model reached its output token limit"
+        )),
+        data: None,
+    }
+}
+
 fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
@@ -1250,7 +1260,13 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = if arguments.is_empty() {
+                        let content = if output_token_limit_reached {
+                            MessageContentBlock::tool_request_with_metadata(
+                                id.clone(),
+                                Err(output_token_limit_tool_error(function_name, id)),
+                                metadata.as_ref(),
+                            )
+                        } else if arguments.is_empty() {
                             MessageContentBlock::tool_request_with_metadata(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
@@ -3150,7 +3166,7 @@ data: [DONE]"#;
         // Streamed tool call whose arguments are valid JSON but NOT an object.
         // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
         let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, "},"type":"function","index":0}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
-data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"2, 3]"},"index":0}]},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"2, 3]"},"index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
 data: [DONE]"#;
 
         let response_stream =
@@ -3167,7 +3183,7 @@ data: [DONE]"#;
             }
             if let Some(msg) = message {
                 if let MessageContentBlock::ToolRequest(request) = &msg.content[0] {
-                    assert!(msg.metadata.output_token_limit_reached);
+                    assert!(!msg.metadata.output_token_limit_reached);
                     assert_eq!(msg.id.as_deref(), Some("test-id"));
                     match &request.tool_call {
                         Err(ErrorData {
@@ -3189,6 +3205,49 @@ data: [DONE]"#;
         }
 
         assert!(found_tool_error, "expected a tool request message");
+        assert_eq!(usage_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_length_rejects_tool_calls_regardless_of_arguments() -> anyhow::Result<()>
+    {
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_empty","function":{"name":"empty_tool","arguments":""},"type":"function","index":0},{"id":"call_valid","function":{"name":"valid_tool","arguments":"{\"value\":"},"type":"function","index":1}]},"index":0,"finish_reason":null}],"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: {"model":"test-model","choices":[{"delta":{"tool_calls":[{"function":{"arguments":""},"index":0},{"function":{"arguments":"true}"},"index":1}]},"index":0,"finish_reason":"length"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut tool_error_ids = Vec::new();
+        let mut usage_count = 0;
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(msg) = message {
+                assert!(msg.metadata.output_token_limit_reached);
+                assert_eq!(msg.id.as_deref(), Some("test-id"));
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        let request_id = request.id.clone();
+                        match request.tool_call {
+                            Err(error) => {
+                                assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+                                assert!(error.message.contains("output token limit"));
+                                tool_error_ids.push(request_id);
+                            }
+                            Ok(_) => panic!("length-terminated tool call must not be executable"),
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_error_ids, vec!["call_empty", "call_valid"]);
         assert_eq!(usage_count, 1);
         Ok(())
     }
