@@ -3212,8 +3212,11 @@ You review code."#;
             bundled: None,
             available_tools: vec![],
         };
-        let mut session = session_with_extension_data(vec![parent_ext]);
-        session.provider_name = Some(provider_name);
+        let session = crate::session::Session {
+            extension_data: session_with_extension_data(vec![parent_ext]).extension_data,
+            provider_name: Some(provider_name),
+            ..Default::default()
+        };
 
         let task_config = client
             .build_task_config(&DelegateParams::default(), &recipe, &session)
@@ -3256,8 +3259,10 @@ You review code."#;
         };
         let recipe = recipe_with_extensions(vec![dev_ext, analyze_ext]);
 
-        let mut session = crate::session::Session::default();
-        session.provider_name = Some(provider_name);
+        let session = crate::session::Session {
+            provider_name: Some(provider_name),
+            ..Default::default()
+        };
         let params = DelegateParams {
             extensions: Some(vec!["developer".to_string()]),
             ..Default::default()
@@ -3297,8 +3302,11 @@ You review code."#;
             bundled: None,
             available_tools: vec![],
         };
-        let mut session = session_with_extension_data(vec![parent_ext]);
-        session.provider_name = Some(provider_name);
+        let session = crate::session::Session {
+            extension_data: session_with_extension_data(vec![parent_ext]).extension_data,
+            provider_name: Some(provider_name),
+            ..Default::default()
+        };
 
         let task_config = client
             .build_task_config(&DelegateParams::default(), &recipe, &session)
