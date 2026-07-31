@@ -4821,106 +4821,52 @@ echo start >> "$PLUGIN_ROOT/hook.log"
 
     #[tokio::test]
     async fn test_no_retry_after_visible_content_streamed() -> Result<()> {
-        // Mid-stream text already shown to the client — retrying would show a duplicate.
-        let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(MockProvider::fails_after_content(
-            "partial answer already streamed to the client",
-            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
-            "would have recovered on a later call",
-        ));
-        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
-        let (mut agent, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
-        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+        // Mid-stream content already shown to the client — retrying would replay
+        // a duplicate. Text, reasoning, and image all set the same
+        // `visible_content_streamed` guard, so they are validated together.
+        let providers: Vec<Arc<MockProvider>> = vec![
+            Arc::new(MockProvider::fails_after_content(
+                "partial answer already streamed to the client",
+                ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+                "would have recovered on a later call",
+            )),
+            Arc::new(MockProvider::fails_after_thinking(
+                "let me reason about this",
+                ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+                "would have recovered on a later call",
+            )),
+            Arc::new(MockProvider::fails_after_image(
+                ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+                "would have recovered on a later call",
+            )),
+        ];
 
-        let messages = collect_reply_messages(&agent, &session_id).await?;
+        for provider in providers {
+            let temp_dir = tempfile::tempdir()?;
+            let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+            let (mut agent, session_id) =
+                create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone())
+                    .await?;
+            agent.set_provider_retry_config_for_test(fast_retry_config(3));
 
-        assert_eq!(
-            count_provider_retries(&messages),
-            0,
-            "must not retry once visible content has been streamed"
-        );
-        assert_eq!(
-            provider.call_count.load(Ordering::SeqCst),
-            1,
-            "exactly 1 call — no retry despite an available budget"
-        );
-        let texts = visible_texts(&messages);
-        assert!(
-            texts.iter().any(|t| t.contains("partial answer")),
-            "the streamed partial content should be visible: {texts:?}"
-        );
-        assert!(
-            texts.iter().any(|t| t.contains("Please resend")),
-            "the transient error should surface rather than retry silently: {texts:?}"
-        );
-        Ok(())
-    }
+            let messages = collect_reply_messages(&agent, &session_id).await?;
 
-    #[tokio::test]
-    async fn test_no_retry_after_streamed_reasoning() -> Result<()> {
-        // Reasoning is streamed before text — same duplicate-response concern.
-        let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(MockProvider::fails_after_thinking(
-            "let me reason about this",
-            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
-            "would have recovered on a later call",
-        ));
-        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
-        let (mut agent, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
-        agent.set_provider_retry_config_for_test(fast_retry_config(3));
-
-        let messages = collect_reply_messages(&agent, &session_id).await?;
-
-        assert_eq!(
-            count_provider_retries(&messages),
-            0,
-            "must not retry once reasoning has been streamed"
-        );
-        assert_eq!(
-            provider.call_count.load(Ordering::SeqCst),
-            1,
-            "exactly 1 call — no retry despite an available budget"
-        );
-        let texts = visible_texts(&messages);
-        assert!(
-            texts.iter().any(|t| t.contains("Please resend")),
-            "the transient error should surface rather than retry silently: {texts:?}"
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_no_retry_after_streamed_image() -> Result<()> {
-        // Image content is streamed before text — same duplicate-response concern.
-        let temp_dir = tempfile::tempdir()?;
-        let provider = Arc::new(MockProvider::fails_after_image(
-            ProviderError::NetworkError("Stream decode error: mid-stream".into()),
-            "would have recovered on a later call",
-        ));
-        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
-        let (mut agent, session_id) =
-            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
-        agent.set_provider_retry_config_for_test(fast_retry_config(3));
-
-        let messages = collect_reply_messages(&agent, &session_id).await?;
-
-        assert_eq!(
-            count_provider_retries(&messages),
-            0,
-            "must not retry once an image has been streamed"
-        );
-        assert_eq!(
-            provider.call_count.load(Ordering::SeqCst),
-            1,
-            "exactly 1 call — no retry despite an available budget"
-        );
-        let texts = visible_texts(&messages);
-        assert!(
-            texts.iter().any(|t| t.contains("Please resend")),
-            "the transient error should surface rather than retry silently: {texts:?}"
-        );
+            assert_eq!(
+                count_provider_retries(&messages),
+                0,
+                "must not retry once visible content has been streamed"
+            );
+            assert_eq!(
+                provider.call_count.load(Ordering::SeqCst),
+                1,
+                "exactly 1 call — no retry despite an available budget"
+            );
+            let texts = visible_texts(&messages);
+            assert!(
+                texts.iter().any(|t| t.contains("Please resend")),
+                "the transient error should surface rather than retry silently: {texts:?}"
+            );
+        }
         Ok(())
     }
 

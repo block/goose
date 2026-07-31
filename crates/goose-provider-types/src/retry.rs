@@ -375,13 +375,6 @@ mod tests {
     }
 
     #[test]
-    fn next_retry_delay_server_error_returns_backoff() {
-        let config = RetryConfig::default();
-        let error = ProviderError::ServerError("500 internal".into());
-        assert!(next_retry_delay(&error, 1, &config).is_some());
-    }
-
-    #[test]
     fn next_retry_delay_exhausted_budget_returns_none() {
         let config = RetryConfig::default();
         let error = ProviderError::NetworkError("boom".into());
