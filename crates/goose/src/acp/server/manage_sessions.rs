@@ -40,16 +40,21 @@ impl GooseAcpAgent {
                 .internal_err_ctx("Failed to update session working directory")?;
         }
 
+        // A session loaded while its working directory was missing defers activation.
+        // get_session_agent activates it now against the repointed directory and
+        // applies the stored recipe as part of that deferred setup.
+        let agent = self.get_session_agent(session_id).await?;
+
+        // Read the session only after activation: a deferred session had no
+        // persisted extension state, and activation rebuilds it. ACP providers
+        // derive their mcp_servers from that state, so restoring from a
+        // pre-activation copy would recreate the provider without the recipe's
+        // and project's MCP servers.
         let session = self
             .session_manager
             .get_session(session_id, false)
             .await
             .internal_err_ctx("Failed to reload session")?;
-
-        // A session loaded while its working directory was missing defers activation.
-        // get_session_agent activates it now against the repointed directory and
-        // applies the stored recipe as part of that deferred setup.
-        let agent = self.get_session_agent(session_id).await?;
 
         agent
             .restore_provider_from_session(&session)
