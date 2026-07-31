@@ -280,6 +280,105 @@ impl<P: Provider> ProviderRetry for P {
     }
 }
 
+/// Substrings marking a transport error message as a rate-limit condition.
+const TRANSPORT_RATE_LIMIT_MARKERS: &[&str] = &[
+    "rate limit",
+    "rate_limit",
+    "ratelimit",
+    "rate-limit",
+    "429",
+    "too many requests",
+    "too_many_requests",
+    "overloaded",
+    "overload",
+    "throttl",
+    "quota",
+    "resource exhausted",
+    "resource_exhausted",
+];
+
+/// Substrings marking a transport error message as a server-side (5xx) failure.
+const TRANSPORT_SERVER_ERROR_MARKERS: &[&str] = &[
+    "internal server error",
+    "internal error",
+    "service unavailable",
+    "bad gateway",
+    "gateway timeout",
+    "server error",
+    "500",
+    "502",
+    "503",
+    "504",
+    "5xx",
+    "try again later",
+    "temporarily unavailable",
+];
+
+/// Substrings marking a transport error message as a network/connection failure.
+const TRANSPORT_NETWORK_ERROR_MARKERS: &[&str] = &[
+    "connection refused",
+    "connection reset",
+    "connection aborted",
+    "connection closed",
+    "connection error",
+    "broken pipe",
+    "timeout",
+    "timed out",
+    "network error",
+    "network unreachable",
+    "econnreset",
+    "econnrefused",
+    "epipe",
+    "etimedout",
+    "socket",
+    "transport error",
+    "stream reset",
+    "stream closed",
+    "stream error",
+    "disconnected",
+    "disconnect",
+    "unreachable",
+    "i/o error",
+    "io error",
+];
+
+/// Classify a transport-layer error message from CLI/ACP subprocess providers
+/// (which lack typed HTTP status codes) into the appropriate `ProviderError`
+/// variant so that [`should_retry`] can correctly identify transient failures.
+///
+/// Without this, every transport error surfaces as `RequestFailed`, which
+/// `should_retry` with `transient_only` never retries — leaving the transports
+/// that opted into agent-layer retry ([`Provider::owns_stream_retry`] == false)
+/// effectively uncovered.
+pub fn classify_transport_error(message: &str) -> ProviderError {
+    let lower = message.to_lowercase();
+    if lower.contains("context window exceeded") || lower.contains("context length") {
+        return ProviderError::ContextLengthExceeded(message.to_string());
+    }
+    if TRANSPORT_RATE_LIMIT_MARKERS
+        .iter()
+        .any(|m| lower.contains(m))
+    {
+        return ProviderError::RateLimitExceeded {
+            details: message.to_string(),
+            retry_delay: None,
+        };
+    }
+    if TRANSPORT_SERVER_ERROR_MARKERS
+        .iter()
+        .any(|m| lower.contains(m))
+    {
+        return ProviderError::ServerError(message.to_string());
+    }
+    if TRANSPORT_NETWORK_ERROR_MARKERS
+        .iter()
+        .any(|m| lower.contains(m))
+    {
+        return ProviderError::NetworkError(message.to_string());
+    }
+    ProviderError::RequestFailed(message.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,5 +525,86 @@ mod tests {
         let config = RetryConfig::default().transient_only();
         let error = ProviderError::RequestFailed("400 bad request".into());
         assert_eq!(next_retry_delay(&error, 0, &config), None);
+    }
+
+    #[test]
+    fn classify_rate_limit_messages() {
+        for msg in [
+            "Rate limit exceeded",
+            "429 Too Many Requests",
+            "overloaded",
+            "throttling due to quota",
+            "resource exhausted",
+        ] {
+            assert!(
+                matches!(
+                    classify_transport_error(msg),
+                    ProviderError::RateLimitExceeded { .. }
+                ),
+                "{msg:?} should classify as RateLimitExceeded"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_server_error_messages() {
+        for msg in [
+            "503 Service Unavailable",
+            "internal server error",
+            "bad gateway",
+            "server error (500)",
+        ] {
+            assert!(
+                matches!(classify_transport_error(msg), ProviderError::ServerError(_)),
+                "{msg:?} should classify as ServerError"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_network_error_messages() {
+        for msg in [
+            "connection refused",
+            "operation timed out",
+            "ECONNRESET",
+            "transport error: stream closed",
+        ] {
+            assert!(
+                matches!(
+                    classify_transport_error(msg),
+                    ProviderError::NetworkError(_)
+                ),
+                "{msg:?} should classify as NetworkError"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_context_length_message() {
+        assert!(matches!(
+            classify_transport_error("context window exceeded"),
+            ProviderError::ContextLengthExceeded(_)
+        ));
+    }
+
+    #[test]
+    fn classify_generic_message_stays_request_failed() {
+        assert!(matches!(
+            classify_transport_error("Model not supported"),
+            ProviderError::RequestFailed(_)
+        ));
+    }
+
+    #[test]
+    fn classified_transient_errors_retry_under_transient_only() {
+        let config = RetryConfig::default().transient_only();
+        assert!(should_retry(
+            &classify_transport_error("429 rate limit"),
+            &config
+        ));
+        assert!(should_retry(
+            &classify_transport_error("connection reset"),
+            &config
+        ));
     }
 }

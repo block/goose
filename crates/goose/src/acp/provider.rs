@@ -44,6 +44,7 @@ use crate::subprocess::configure_subprocess;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::retry::classify_transport_error;
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
@@ -672,7 +673,7 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        Err(ProviderError::RequestFailed(e))?;
+                        Err(classify_transport_error(&e))?;
                     }
                 }
             }

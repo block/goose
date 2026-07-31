@@ -4,6 +4,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::utils::safe_truncate;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
+use goose_providers::retry::classify_transport_error;
 use rmcp::model::Role;
 
 pub(crate) fn extract_usage_tokens(usage_info: &Value) -> Usage {
@@ -28,11 +29,7 @@ pub(crate) fn error_from_event(provider_name: &str, parsed: &Value) -> ProviderE
         .and_then(|e| e.as_str())
         .or_else(|| parsed.get("message").and_then(|m| m.as_str()))
         .unwrap_or("Unknown error");
-    if error_msg.contains("context window exceeded") {
-        ProviderError::ContextLengthExceeded(error_msg.to_string())
-    } else {
-        ProviderError::RequestFailed(format!("{provider_name} error: {error_msg}"))
-    }
+    classify_transport_error(&format!("{provider_name} error: {error_msg}"))
 }
 
 pub(crate) const SESSION_NAME_BEGIN_MARKER: &str = "---BEGIN USER MESSAGES---";

@@ -176,7 +176,9 @@ prompt: |
      that mid-stream failures are retried even when the provider owns initiation retry, that
      stream-creation failures are deferred to the provider, that errors after visible content is
      streamed are never retried, that an exhausted retry budget survives a Stop-hook restart without
-     triggering a second retry burst, and that cancelling the retry backoff is terminal for the turn.
+     triggering a second retry burst, that cancelling the retry backoff is terminal for the turn, and that
+     transport errors from opted-in CLI/ACP providers are classified as transient:
+     `cargo test -p goose-provider-types --lib -- retry::tests::classify_`
   If the source checkout or Rust toolchain is unavailable, mark this validation as skipped rather than failed.
 
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
