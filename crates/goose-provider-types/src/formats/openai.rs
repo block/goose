@@ -1366,7 +1366,8 @@ where
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
-                    msg.metadata.output_token_limit_reached = output_token_limit_reached;
+                    msg.metadata.output_token_limit_reached =
+                        output_token_limit_reached && pending_inline_thinking.is_empty();
 
                     yield (
                         Some(msg),
@@ -1376,12 +1377,12 @@ where
                             None
                         },
                     )
-                } else if output_token_limit_reached {
+                } else if output_token_limit_reached && pending_inline_thinking.is_empty() {
                     yield (Some(output_token_limit_marker(chunk.id)), usage)
                 } else if usage.is_some() {
                     yield (None, usage)
                 }
-            } else if output_token_limit_reached {
+            } else if output_token_limit_reached && pending_inline_thinking.is_empty() {
                 yield (Some(output_token_limit_marker(chunk.id)), usage)
             } else if usage.is_some() {
                 yield (None, usage)
@@ -3304,13 +3305,26 @@ data: [DONE]"#;
             tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
         let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
         let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
 
         while let Some(result) = messages.next().await {
-            if let Some(message) = result?.0 {
+            let (message, usage) = result?;
+            if usage.is_some() {
+                usage_count += 1;
+            }
+            if let Some(message) = message {
                 streamed_messages.push(message);
             }
         }
 
+        assert_eq!(usage_count, 1);
+        assert_eq!(
+            streamed_messages
+                .iter()
+                .filter(|message| message.metadata.output_token_limit_reached)
+                .count(),
+            1
+        );
         let trailing_message = streamed_messages
             .last()
             .expect("expected trailing thinking");
