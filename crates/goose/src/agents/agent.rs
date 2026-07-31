@@ -2909,6 +2909,11 @@ impl Agent {
                                         delay,
                                     ));
                                     if backoff_or_cancelled(delay, &cancel_token).await {
+                                        // The user cancelled the retry wait. Mark the
+                                        // turn terminal so the post-loop goal/grind
+                                        // and recipe-retry nudges don't append hidden
+                                        // messages after the user has interrupted.
+                                        exit_chat = true;
                                         break;
                                     }
                                     pending_provider_retry = true;
@@ -4947,6 +4952,95 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         assert!(
             texts.iter().any(|t| t.contains("Please resend")),
             "the persistent error should surface: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_backoff_cancel_skips_goal_nudge() -> Result<()> {
+        // When the user cancels during the retry backoff, the turn must end
+        // immediately. The backoff-cancel break must be terminal for the turn so
+        // the post-loop goal nudge does not append hidden messages after the
+        // user has interrupted.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(MockProvider::failing(ProviderError::NetworkError(
+            "boom".into(),
+        )));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        // Large backoff so only the cancel can end the wait — never elapses on
+        // its own.
+        agent.set_provider_retry_config_for_test(RetryConfig {
+            max_retries: 3,
+            initial_interval_ms: 60000,
+            backoff_multiplier: 2.0,
+            max_interval_ms: 120000,
+            transient_only: true,
+        });
+        agent.set_goal(Some("Build the thing".to_string())).await;
+
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("hi"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        tokio::pin!(reply_stream);
+        let mut messages = Vec::new();
+        while let Some(event) = reply_stream.next().await {
+            match event? {
+                AgentEvent::Message(message) => {
+                    // Cancel the instant the retry notification arrives — the
+                    // generator is then suspended at backoff_or_cancelled.
+                    if message.content.iter().any(|c| {
+                        matches!(
+                            c,
+                            MessageContent::SystemNotification(sn) if sn.msg.contains("Retrying")
+                        )
+                    }) {
+                        cancel_token.cancel();
+                    }
+                    messages.push(message);
+                }
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_)
+                | AgentEvent::MessageUsage { .. } => {}
+            }
+        }
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            1,
+            "exactly one retry notification before the cancel"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "the cancelled retry must not issue another provider call"
+        );
+        let goal_nudges = messages
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| {
+                matches!(
+                    c,
+                    MessageContent::SystemNotification(sn) if sn.msg.contains("Goal:")
+                )
+            })
+            .count();
+        assert_eq!(
+            goal_nudges, 0,
+            "goal nudge must not run after a backoff cancel"
         );
         Ok(())
     }
