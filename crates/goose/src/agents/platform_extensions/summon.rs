@@ -1554,8 +1554,9 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let mut extensions = if let Some(recipe_exts) = &recipe.extensions {
-            recipe_exts.clone()
+        let mut extensions = if recipe.has_explicit_extensions {
+            // Safe to unwrap: has_explicit_extensions guarantees extensions is Some
+            recipe.extensions.as_ref().unwrap().clone()
         } else {
             EnabledExtensionsState::extensions_or_default(
                 Some(&session.extension_data),
@@ -2575,6 +2576,7 @@ You review code."#;
                 response: None,
                 sub_recipes: None,
                 retry: None,
+                has_explicit_extensions: false,
             }),
             ..Default::default()
         };
@@ -2641,6 +2643,7 @@ You review code."#;
             response: None,
             sub_recipes: None,
             retry: None,
+            has_explicit_extensions: false,
         }
     }
 
@@ -3160,6 +3163,7 @@ You review code."#;
     ) -> crate::recipe::Recipe {
         crate::recipe::Recipe {
             extensions: Some(extensions),
+            has_explicit_extensions: true,
             ..empty_recipe()
         }
     }
@@ -3313,6 +3317,67 @@ You review code."#;
             .await
             .unwrap();
 
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
+    }
+
+    #[tokio::test]
+    async fn test_build_task_config_falls_back_to_parent_when_only_auto_injected_summon() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let provider_name = parent_provider.get_name().to_string();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        // Simulate a recipe that has sub_recipes but no explicit extensions block.
+        // ensure_summon_for_subrecipes() auto-injects summon into extensions,
+        // but has_explicit_extensions remains false.
+        let recipe = crate::recipe::Recipe {
+            extensions: Some(vec![crate::agents::ExtensionConfig::Platform {
+                name: "summon".to_string(),
+                description: String::new(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec![],
+            }]),
+            sub_recipes: Some(vec![crate::recipe::SubRecipe {
+                name: "worker".to_string(),
+                path: "worker.yaml".to_string(),
+                description: None,
+                values: None,
+                sequential_when_repeated: false,
+            }]),
+            has_explicit_extensions: false,
+            ..empty_recipe()
+        };
+
+        let parent_ext = crate::agents::ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let session = crate::session::Session {
+            extension_data: session_with_extension_data(vec![parent_ext]).extension_data,
+            provider_name: Some(provider_name),
+            ..Default::default()
+        };
+
+        let task_config = client
+            .build_task_config(&DelegateParams::default(), &recipe, &session)
+            .await
+            .unwrap();
+
+        // Should fall back to parent extensions since user didn't explicitly declare extensions
         assert_eq!(task_config.extensions.len(), 1);
         assert_eq!(task_config.extensions[0].name(), "developer");
     }

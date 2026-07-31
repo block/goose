@@ -83,6 +83,11 @@ pub struct Recipe {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
+
+    /// Whether the user explicitly declared an `extensions` block in the recipe YAML.
+    /// Set during parsing, before auto-injection via ensure_summon_for_subrecipes().
+    #[serde(skip, default)]
+    pub has_explicit_extensions: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -334,6 +339,7 @@ impl Recipe {
                 .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
 
+        recipe.has_explicit_extensions = recipe.extensions.is_some();
         recipe.ensure_analyze_for_developer();
         recipe.ensure_summon_for_subrecipes();
         Ok(recipe)
@@ -414,6 +420,8 @@ impl RecipeBuilder {
             return Err("At least one of 'prompt' or 'instructions' is required");
         }
 
+        let has_explicit_extensions = self.extensions.is_some();
+
         Ok(Recipe {
             version: self.version,
             title,
@@ -421,6 +429,7 @@ impl RecipeBuilder {
             instructions: self.instructions,
             prompt: self.prompt,
             extensions: self.extensions,
+            has_explicit_extensions,
             settings: self.settings,
             activities: self.activities,
             author: self.author,
@@ -763,6 +772,7 @@ isGlobal: true"#;
             instructions: Some("clean instructions".to_string()),
             prompt: Some("clean prompt".to_string()),
             extensions: None,
+            has_explicit_extensions: false,
             settings: None,
             activities: Some(vec!["clean activity 1".to_string()]),
             author: None,
