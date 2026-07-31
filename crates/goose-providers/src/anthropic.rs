@@ -230,11 +230,27 @@ impl AnthropicProvider {
         })?;
 
         if let Some(err_obj) = json.get("error").filter(|error| !error.is_null()) {
-            let msg = err_obj
+            let message = err_obj
                 .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+                .and_then(Value::as_str)
+                .unwrap_or("unknown error")
+                .to_string();
+            let error_type = err_obj.get("type").and_then(Value::as_str);
+            return Err(match error_type {
+                Some("authentication_error" | "permission_error") => {
+                    ProviderError::Authentication(message)
+                }
+                Some("rate_limit_error") => ProviderError::RateLimitExceeded {
+                    details: message,
+                    retry_delay: None,
+                },
+                Some("billing_error") => ProviderError::CreditsExhausted {
+                    details: message,
+                    top_up_url: None,
+                },
+                Some("api_error" | "overloaded_error") => ProviderError::ServerError(message),
+                _ => ProviderError::RequestFailed(message),
+            });
         }
 
         let arr = match json.get("data").and_then(|v| v.as_array()) {
@@ -610,6 +626,33 @@ mod tests {
             provider.fetch_supported_models().await.unwrap(),
             vec!["model-a".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_preserves_200_error_type() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "type": "error",
+                "error": {
+                    "type": "rate_limit_error",
+                    "message": "quota exceeded"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        assert!(matches!(
+            provider.fetch_supported_models().await.unwrap_err(),
+            ProviderError::RateLimitExceeded { .. }
+        ));
     }
 
     #[tokio::test]
