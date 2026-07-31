@@ -12,7 +12,7 @@ use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
 use goose_providers::conversation::token_usage::Usage;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
+use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument, Role};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -26,6 +26,8 @@ use super::streaming_buffer::MarkdownBuffer;
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
+const OUTPUT_TOKEN_LIMIT_WARNING: &str =
+    "Warning: Response reached the model's output-token limit and may be incomplete.";
 
 fn accent<T: Display>(value: T) -> StyledObject<T> {
     style(value).cyan()
@@ -289,6 +291,9 @@ pub fn render_message(message: &Message, debug: bool) {
         }
     }
 
+    if reached_output_token_limit(&message) {
+        render_output_token_limit_warning();
+    }
     let _ = std::io::stdout().flush();
 }
 
@@ -379,7 +384,19 @@ pub fn render_message_streaming(
         }
     }
 
+    if reached_output_token_limit(&message) {
+        flush_markdown_buffer(buffer, theme);
+        render_output_token_limit_warning();
+    }
     let _ = std::io::stdout().flush();
+}
+
+fn reached_output_token_limit(message: &Message) -> bool {
+    message.role == Role::Assistant && message.metadata.output_token_limit_reached
+}
+
+fn render_output_token_limit_warning() {
+    println!("\n{}", warning(OUTPUT_TOKEN_LIMIT_WARNING));
 }
 
 fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {

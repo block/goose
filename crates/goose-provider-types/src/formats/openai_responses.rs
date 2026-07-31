@@ -24,8 +24,6 @@ pub struct ResponsesApiResponse {
     pub model: String,
     pub output: Vec<ResponseOutputItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub incomplete_details: Option<ResponseIncompleteDetails>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<ResponseUsage>,
@@ -338,7 +336,7 @@ pub struct ResponseMetadata {
     pub usage: Option<ResponseUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub incomplete_details: Option<ResponseIncompleteDetails>,
 }
 
@@ -790,10 +788,6 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
     let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
 
     message = message.with_id(response.id.clone());
-    message.metadata.output_token_limit_reached = response_reached_output_token_limit(
-        &response.status,
-        response.incomplete_details.as_ref(),
-    );
 
     Ok(message)
 }
@@ -1168,6 +1162,55 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(4));
         assert_eq!(usage.usage.total_tokens, Some(14));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_marks_output_token_limit_when_incomplete() -> anyhow::Result<()>
+    {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Partial response"}"#.to_string(),
+            r#"data: {"type":"response.incomplete","sequence_number":3,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text_parts = Vec::new();
+        let mut output_token_limit_markers = Vec::new();
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                if msg.metadata.output_token_limit_reached {
+                    output_token_limit_markers.push((msg.id.clone(), msg.content.is_empty()));
+                }
+                for content in msg.content {
+                    if let MessageContentBlock::Text(text) = content {
+                        text_parts.push(text.text);
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(text_parts.concat(), "Partial response");
+        assert_eq!(
+            output_token_limit_markers,
+            vec![(Some("resp_1".to_string()), true)]
+        );
+        let usage = usage.expect("usage should be present when the response is incomplete");
+        assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.usage.total_tokens, Some(15));
 
         Ok(())
     }
