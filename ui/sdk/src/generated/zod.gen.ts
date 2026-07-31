@@ -1713,7 +1713,7 @@ export const zRecipeDto = z.object({
         zRecipeRetryConfigDto,
         z.null()
     ]).optional(),
-    has_explicit_extensions: z.boolean().optional()
+    has_explicit_extensions: z.boolean().optional().default(false)
 });
 
 export const zEncodeRecipeRequest_unstable = z.object({
