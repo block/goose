@@ -537,6 +537,7 @@ impl Provider for AcpProvider {
             // Stable id+timestamp per contiguous run so Desktop coalesces chunks into one bubble.
             let mut text_run: Option<(String, i64)> = None;
             let mut thought_run: Option<(String, i64)> = None;
+            let mut tool_call_seen = false;
 
             while let Some(update) = rx.recv().await {
                 match update {
@@ -562,6 +563,7 @@ impl Provider for AcpProvider {
                     AcpUpdate::ToolCallStart { id, name, kind, raw_input } => {
                         text_run = None;
                         thought_run = None;
+                        tool_call_seen = true;
                         if reject_all_tools {
                             suppress_text = true;
                             rejected_tool_calls.insert(id);
@@ -595,6 +597,7 @@ impl Provider for AcpProvider {
                     } => {
                         text_run = None;
                         thought_run = None;
+                        tool_call_seen = true;
                         if rejected_tool_calls.remove(&id) {
                             // In chat mode no tool_request was emitted (suppressed at
                             // ToolCallStart), so surface a plain text message. In other
@@ -627,6 +630,7 @@ impl Provider for AcpProvider {
                     AcpUpdate::PermissionRequest { request, response_tx } => {
                         text_run = None;
                         thought_run = None;
+                        tool_call_seen = true;
                         if let Some(decision) = permission_decision_from_mode(goose_mode) {
                             if decision.should_record_rejection() {
                                 rejected_tool_calls.insert(request.tool_call.tool_call_id.0.to_string());
@@ -675,10 +679,26 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
-                        if first_prompt {
+                        let classified = classify_transport_error(&e);
+                        let transient = matches!(
+                            classified,
+                            ProviderError::NetworkError(_)
+                                | ProviderError::ServerError(_)
+                                | ProviderError::RateLimitExceeded { .. }
+                        );
+                        // Only roll back when the agent will actually retry:
+                        // no visible content or tool calls were emitted, and the
+                        // error is transient. Otherwise the next normal user turn
+                        // would re-send the full handoff memo and duplicate history.
+                        if first_prompt
+                            && !tool_call_seen
+                            && text_run.is_none()
+                            && thought_run.is_none()
+                            && transient
+                        {
                             handoff_context_sent.store(false, Ordering::Release);
                         }
-                        Err(classify_transport_error(&e))?;
+                        Err(classified)?;
                     }
                 }
             }
@@ -2038,6 +2058,79 @@ mod tests {
         assert!(
             !provider.handoff_context_sent.load(Ordering::Acquire),
             "flag must be reset after a mid-stream error so a retry re-sends full context"
+        );
+    }
+
+    #[tokio::test]
+    async fn mid_stream_error_after_content_keeps_handoff_context() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(4);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("follow up"),
+        ];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(provider.handoff_context_sent.load(Ordering::Acquire));
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        // Emit text before the error — the agent retry guard will not resend,
+        // so the flag must stay set to avoid duplicating handoff context.
+        response_tx
+            .send(AcpUpdate::Text(TextContent::new("partial answer".to_string())))
+            .await
+            .unwrap();
+        response_tx
+            .send(AcpUpdate::Error("429 rate limit".to_string()))
+            .await
+            .unwrap();
+
+        // Drain the stream (text chunk + error).
+        stream.next().await;
+        stream.next().await;
+
+        assert!(
+            provider.handoff_context_sent.load(Ordering::Acquire),
+            "flag must stay set when content was emitted before the error"
+        );
+    }
+
+    #[tokio::test]
+    async fn mid_stream_error_non_transient_keeps_handoff_context() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(4);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("follow up"),
+        ];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+        assert!(provider.handoff_context_sent.load(Ordering::Acquire));
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        // Non-retryable error — the agent will not retry, so keep the flag.
+        response_tx
+            .send(AcpUpdate::Error("Model not supported".to_string()))
+            .await
+            .unwrap();
+
+        stream.next().await;
+
+        assert!(
+            provider.handoff_context_sent.load(Ordering::Acquire),
+            "flag must stay set for a non-transient error"
         );
     }
 
