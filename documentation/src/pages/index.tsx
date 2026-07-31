@@ -256,7 +256,7 @@ function CommunitySection() {
         </p>
         <div className={styles.communityGrid}>
           <a
-            href="https://discord.gg/goose-oss"
+            href="https://discord.gg/n8R5VaWDAn"
             target="_blank"
             rel="noopener"
             className={styles.communityCard}

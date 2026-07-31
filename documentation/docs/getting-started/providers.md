@@ -1571,7 +1571,7 @@ Reasoning output can be useful for understanding how the model arrived at its an
 
 ---
 
-If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/goose-oss) or on the [goose repo](https://github.com/aaif-goose/goose).
+If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/n8R5VaWDAn) or on the [goose repo](https://github.com/aaif-goose/goose).
 
 
 [providers]: /docs/getting-started/providers
