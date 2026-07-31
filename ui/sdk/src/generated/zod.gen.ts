@@ -1712,7 +1712,8 @@ export const zRecipeDto = z.object({
     retry: z.union([
         zRecipeRetryConfigDto,
         z.null()
-    ]).optional()
+    ]).optional(),
+    has_explicit_extensions: z.boolean().optional()
 });
 
 export const zEncodeRecipeRequest_unstable = z.object({
