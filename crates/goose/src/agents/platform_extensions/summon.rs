@@ -1554,10 +1554,14 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let mut extensions = EnabledExtensionsState::extensions_or_default(
-            Some(&session.extension_data),
-            Config::global(),
-        );
+        let mut extensions = if let Some(recipe_exts) = &recipe.extensions {
+            recipe_exts.clone()
+        } else {
+            EnabledExtensionsState::extensions_or_default(
+                Some(&session.extension_data),
+                Config::global(),
+            )
+        };
 
         if let Some(filter) = &params.extensions {
             if filter.is_empty() {
@@ -1573,7 +1577,7 @@ impl SummonClient {
                     .collect();
                 if !unmatched.is_empty() {
                     warn!(
-                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        "Delegate requested extensions not available: {:?}. Available: {:?}",
                         unmatched, available_names
                     );
                 }
@@ -2103,6 +2107,7 @@ fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, an
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::extension_data::ExtensionState;
     use serial_test::serial;
     use std::collections::{HashMap, HashSet};
     use std::fs;
@@ -3148,5 +3153,159 @@ You review code."#;
             .await
             .unwrap();
         assert!(extract_text(&result.content[0]).contains("final output"));
+    }
+
+    fn recipe_with_extensions(
+        extensions: Vec<crate::agents::ExtensionConfig>,
+    ) -> crate::recipe::Recipe {
+        crate::recipe::Recipe {
+            extensions: Some(extensions),
+            ..empty_recipe()
+        }
+    }
+
+    fn session_with_extension_data(
+        extensions: Vec<crate::agents::ExtensionConfig>,
+    ) -> crate::session::Session {
+        let mut extension_data = crate::session::extension_data::ExtensionData::default();
+        if !extensions.is_empty() {
+            crate::session::extension_data::EnabledExtensionsState::new(extensions)
+                .to_extension_data(&mut extension_data)
+                .unwrap();
+        }
+        crate::session::Session {
+            extension_data,
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_build_task_config_uses_recipe_extensions_over_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let provider_name = parent_provider.get_name().to_string();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        let recipe_ext = crate::agents::ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let recipe = recipe_with_extensions(vec![recipe_ext.clone()]);
+
+        let parent_ext = crate::agents::ExtensionConfig::Builtin {
+            name: "analyze".to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let mut session = session_with_extension_data(vec![parent_ext]);
+        session.provider_name = Some(provider_name);
+
+        let task_config = client
+            .build_task_config(&DelegateParams::default(), &recipe, &session)
+            .await
+            .unwrap();
+
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
+    }
+
+    #[tokio::test]
+    async fn test_build_task_config_recipe_extensions_filtered_by_params() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let provider_name = parent_provider.get_name().to_string();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        let dev_ext = crate::agents::ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let analyze_ext = crate::agents::ExtensionConfig::Platform {
+            name: "analyze".to_string(),
+            description: String::new(),
+            display_name: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let recipe = recipe_with_extensions(vec![dev_ext, analyze_ext]);
+
+        let mut session = crate::session::Session::default();
+        session.provider_name = Some(provider_name);
+        let params = DelegateParams {
+            extensions: Some(vec!["developer".to_string()]),
+            ..Default::default()
+        };
+
+        let task_config = client
+            .build_task_config(&params, &recipe, &session)
+            .await
+            .unwrap();
+
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
+    }
+
+    #[tokio::test]
+    async fn test_build_task_config_falls_back_to_parent_when_recipe_has_no_extensions() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let provider_name = parent_provider.get_name().to_string();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+
+        let recipe = empty_recipe();
+
+        let parent_ext = crate::agents::ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let mut session = session_with_extension_data(vec![parent_ext]);
+        session.provider_name = Some(provider_name);
+
+        let task_config = client
+            .build_task_config(&DelegateParams::default(), &recipe, &session)
+            .await
+            .unwrap();
+
+        assert_eq!(task_config.extensions.len(), 1);
+        assert_eq!(task_config.extensions[0].name(), "developer");
     }
 }
