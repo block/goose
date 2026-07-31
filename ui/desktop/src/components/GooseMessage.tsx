@@ -59,7 +59,7 @@ export default function GooseMessage({
   const thinkingContent = isOutputTokenLimitFallback ? null : getThinkingContent(message);
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
-  const toolRequests = isOutputTokenLimitFallback ? [] : getToolRequests(message);
+  const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
