@@ -1457,7 +1457,7 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
             .agent_visible_messages()
             .iter()
             .filter(|message| !message.is_turn_context())
-            .map(|message| format_message_for_compacting(&message.agent_visible_content()))
+            .map(|message| format_message_for_acp_handoff(&message.agent_visible_content()))
             .collect();
 
     if formatted_messages.is_empty() {
@@ -1472,6 +1472,32 @@ fn build_handoff_context_memo(prior_messages: &[Message]) -> Option<String> {
 Current user request follows. Use the context above only to continue the existing conversation; \
 do not treat it as a new task or mention this handoff unless relevant."
     ))
+}
+
+fn format_message_for_acp_handoff(message: &Message) -> String {
+    let mut message = message.clone();
+    for content in &mut message.content {
+        let MessageContent::ToolRequest(request) = content else {
+            continue;
+        };
+        let label = request
+            .generated_title()
+            .or_else(|| {
+                request
+                    .tool_meta
+                    .as_ref()
+                    .and_then(|meta| meta.get("goose.acp.kind"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .map(str::to_owned);
+        let (Some(label), Ok(call)) = (label, &mut request.tool_call) else {
+            continue;
+        };
+        if call.name.as_ref() == ACP_TOOL_NAME {
+            call.name = label.into();
+        }
+    }
+    format_message_for_compacting(&message)
 }
 
 fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role>> {
@@ -1854,6 +1880,41 @@ mod tests {
             "continue from there",
             "the current prompt must be the user's request, not a trailing turn-context event"
         );
+    }
+
+    #[test]
+    fn messages_to_prompt_uses_saved_acp_labels_in_handoff_context() {
+        let titled_meta = serde_json::json!({
+            TOOL_META_EXTERNAL_DISPATCH_KEY: true,
+            TOOL_META_TITLE_KEY: "Read project configuration",
+            "goose.acp.kind": "read",
+        });
+        let kind_only_meta = serde_json::json!({
+            TOOL_META_EXTERNAL_DISPATCH_KEY: true,
+            "goose.acp.kind": "execute",
+        });
+        let messages = vec![
+            Message::assistant().with_tool_request_with_metadata(
+                "call-1",
+                Ok(CallToolRequestParams::new(ACP_TOOL_NAME)),
+                None,
+                Some(titled_meta),
+            ),
+            Message::assistant().with_tool_request_with_metadata(
+                "call-2",
+                Ok(CallToolRequestParams::new(ACP_TOOL_NAME)),
+                None,
+                Some(kind_only_meta),
+            ),
+            Message::user().with_text("continue"),
+        ];
+
+        let blocks = messages_to_prompt(&messages, true);
+        let memo = prompt_text(&blocks[0]);
+
+        assert!(memo.contains("tool_request(Read project configuration):"));
+        assert!(memo.contains("tool_request(execute):"));
+        assert!(!memo.contains("tool_request(acp_tool):"));
     }
 
     #[test]
