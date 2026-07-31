@@ -2384,12 +2384,9 @@ impl Agent {
                                 );
 
                                 if !filtered_response.content.is_empty() {
+                                    visible_content_streamed = true;
                                     yield AgentEvent::Message(filtered_response.clone());
                                     tokio::task::yield_now().await;
-                                }
-
-                                if !filtered_response.content.is_empty() {
-                                    visible_content_streamed = true;
                                 }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
@@ -2891,16 +2888,12 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // Retry transient errors when it's safe to do so:
-                            //   - no tools called and no visible content streamed
-                            //     (otherwise the partial response is already shown),
-                            //   - and either the provider doesn't own retry
-                            //     (subprocess/ACP transports), or the stream was
-                            //     successfully created. A provider's with_retry only
-                            //     covers stream *initiation*; a failure that occurs
-                            //     after the stream opens is never seen by it, so the
-                            //     agent must handle those even when it defers
-                            //     initiation failures.
+                            // A provider's own with_retry covers only stream
+                            // initiation; a transient failure after the stream
+                            // opens is not retried by the provider, so the agent
+                            // must handle it even when it defers initiation
+                            // failures. Never retry once tools or visible content
+                            // have been emitted — the partial response is shown.
                             let retry_delay = if (!provider_owns_retry
                                 || provider_stream_created)
                                 && no_tools_called
@@ -2919,10 +2912,9 @@ impl Agent {
                             match retry_delay {
                                 Some(delay) => {
                                     transient_retry_attempts += 1;
-                                    // Abort this attempt's summarization task
-                                    // before the backoff so it can't finish and
-                                    // make a discarded, billable provider call
-                                    // during the wait; the retry spawns its own.
+                                    // Abort the summarization task so it can't make
+                                    // a discarded provider call during the backoff;
+                                    // the retry spawns its own.
                                     if let Some(task) = &tool_pair_summarization_task {
                                         task.abort();
                                     }
@@ -4417,28 +4409,28 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     }
 
     impl MockProvider {
-        fn failing(error: ProviderError) -> Self {
+        fn new(
+            error: ProviderError,
+            fail_times: Option<usize>,
+            success_text: &'static str,
+        ) -> Self {
             Self {
                 call_count: AtomicUsize::new(0),
                 error,
-                fail_times: None,
-                success_text: "",
+                fail_times,
+                success_text,
                 pre_fail_content: None,
                 owns_retry: false,
                 fail_at_creation: false,
             }
         }
 
+        fn failing(error: ProviderError) -> Self {
+            Self::new(error, None, "")
+        }
+
         fn flaky(fail_times: usize, error: ProviderError, success_text: &'static str) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                error,
-                fail_times: Some(fail_times),
-                success_text,
-                pre_fail_content: None,
-                owns_retry: false,
-                fail_at_creation: false,
-            }
+            Self::new(error, Some(fail_times), success_text)
         }
 
         fn fails_after_content(
@@ -4446,15 +4438,9 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             error: ProviderError,
             success_text: &'static str,
         ) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                error,
-                fail_times: Some(1),
-                success_text,
-                pre_fail_content: Some(PreFailContent::Text(content)),
-                owns_retry: false,
-                fail_at_creation: false,
-            }
+            let mut provider = Self::new(error, Some(1), success_text);
+            provider.pre_fail_content = Some(PreFailContent::Text(content));
+            provider
         }
 
         fn fails_after_thinking(
@@ -4462,27 +4448,15 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             error: ProviderError,
             success_text: &'static str,
         ) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                error,
-                fail_times: Some(1),
-                success_text,
-                pre_fail_content: Some(PreFailContent::Thinking(thinking)),
-                owns_retry: false,
-                fail_at_creation: false,
-            }
+            let mut provider = Self::new(error, Some(1), success_text);
+            provider.pre_fail_content = Some(PreFailContent::Thinking(thinking));
+            provider
         }
 
         fn fails_after_image(error: ProviderError, success_text: &'static str) -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-                error,
-                fail_times: Some(1),
-                success_text,
-                pre_fail_content: Some(PreFailContent::Image),
-                owns_retry: false,
-                fail_at_creation: false,
-            }
+            let mut provider = Self::new(error, Some(1), success_text);
+            provider.pre_fail_content = Some(PreFailContent::Image);
+            provider
         }
 
         fn with_transport_retry(mut self) -> Self {
@@ -4490,8 +4464,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             self
         }
 
-        // Make stream() return Err directly instead of Ok(error-stream), modelling
-        // a stream-initiation failure that a provider's own with_retry covers.
         fn fail_at_creation(mut self) -> Self {
             self.fail_at_creation = true;
             self
