@@ -97,8 +97,7 @@ export type SystemNotificationType =
   | 'thinkingMessage'
   | 'progressMessage'
   | 'inlineMessage'
-  | 'creditsExhausted'
-  | 'providerRetry';
+  | 'creditsExhausted';
 
 export type SystemNotificationContent = {
   data?: unknown;

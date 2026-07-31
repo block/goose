@@ -135,7 +135,6 @@ export default function ProgressiveMessageList({
       case 'creditsExhausted':
         return <CreditsExhaustedNotification notification={notification} />;
       case 'inlineMessage':
-      case 'providerRetry':
         return <SystemNotificationInline notification={notification} />;
       default:
         return null;

@@ -274,8 +274,7 @@ pub fn render_message(message: &Message, debug: bool) {
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }
-                    SystemNotificationType::InlineMessage
-                    | SystemNotificationType::ProviderRetry => {
+                    SystemNotificationType::InlineMessage => {
                         hide_thinking();
                         println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
@@ -362,8 +361,7 @@ pub fn render_message_streaming(
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }
-                    SystemNotificationType::InlineMessage
-                    | SystemNotificationType::ProviderRetry => {
+                    SystemNotificationType::InlineMessage => {
                         flush_markdown_buffer(buffer, theme);
                         hide_thinking();
                         println!("\n{} {}", style("·").dim(), &notification.msg);

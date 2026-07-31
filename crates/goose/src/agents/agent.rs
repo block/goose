@@ -142,8 +142,8 @@ fn provider_retry_notification(
     max_attempts: usize,
     delay: Duration,
 ) -> Message {
-    Message::assistant().with_system_notification_with_data(
-        SystemNotificationType::ProviderRetry,
+    Message::assistant().with_system_notification(
+        SystemNotificationType::InlineMessage,
         format!(
             "Transient {} error. Retrying (attempt {}/{}) in {:.1}s…",
             error.telemetry_type(),
@@ -151,12 +151,6 @@ fn provider_retry_notification(
             max_attempts,
             delay.as_secs_f64(),
         ),
-        serde_json::json!({
-            "attempt": attempt,
-            "max_attempts": max_attempts,
-            "retry_delay_ms": delay.as_millis() as u64,
-            "error_type": error.telemetry_type(),
-        }),
     )
 }
 
@@ -4561,25 +4555,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 matches!(
                     c,
                     MessageContent::SystemNotification(sn)
-                        if sn.notification_type == SystemNotificationType::ProviderRetry
+                        if sn.notification_type == SystemNotificationType::InlineMessage
+                            && sn.msg.contains("Retrying")
                 )
             })
             .count()
-    }
-
-    fn provider_retry_data(messages: &[Message]) -> Vec<serde_json::Value> {
-        messages
-            .iter()
-            .flat_map(|m| m.content.iter())
-            .filter_map(|c| match c {
-                MessageContent::SystemNotification(sn)
-                    if sn.notification_type == SystemNotificationType::ProviderRetry =>
-                {
-                    sn.data.clone()
-                }
-                _ => None,
-            })
-            .collect()
     }
 
     #[tokio::test]
@@ -4708,13 +4688,6 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         let messages = collect_reply_messages(&agent, &session_id).await?;
 
         assert_eq!(count_provider_retries(&messages), 1);
-        let retry_data = provider_retry_data(&messages);
-        assert_eq!(retry_data.len(), 1);
-        assert_eq!(
-            retry_data[0].get("retry_delay_ms").and_then(|v| v.as_u64()),
-            Some(10),
-            "notification should carry provider-specified retry_delay_ms"
-        );
         assert_eq!(
             provider.call_count.load(Ordering::SeqCst),
             2,
