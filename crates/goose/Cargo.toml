@@ -215,7 +215,7 @@ rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem
 axum-server = { version = "0.8", default-features = false, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
+pem = { version = "4.0.0", default-features = false, features = ["std"], optional = true }
 
 pctx_code_mode = { version = "0.4.1", default-features = false, optional = true }
 
