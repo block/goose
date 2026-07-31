@@ -3,49 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>goose roam — web</title>
+    <title>goose roam · web</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <header>
-        <h1>goose roam <span class="sub">· web client</span></h1>
-        <div class="identity">
-          <span class="label">this browser's card</span>
-          <code id="my-card">…</code>
-          <button id="copy-card" title="copy">copy</button>
+      <div id="topbar">
+        <div class="brand">goose roam <span class="sub">· web</span></div>
+        <div class="topbar-right">
+          <span id="agent-badge" class="agent-badge" hidden></span>
+          <span id="status" class="status">loading…</span>
         </div>
-        <p class="hint">
-          On the host, run
-          <code>goose roam peers accept '&lt;this card&gt;'</code> once (key
-          <code id="my-endpoint-id">…</code>), then paste the host's
-          <code>goose roam id</code> card below.
-        </p>
-      </header>
+      </div>
 
+      <!-- Pairing / connect view -->
       <section id="connect-panel">
-        <textarea
-          id="card-input"
-          rows="3"
-          placeholder="paste the host's goose+roam://… card here"
-        ></textarea>
-        <div class="row">
-          <button id="connect-btn">connect</button>
-          <span id="status" class="status">not connected</span>
+        <div class="pair-card">
+          <h2>Connect to your roaming agent</h2>
+          <ol class="pair-steps">
+            <li>
+              On the host, accept this browser once:
+              <div class="mine">
+                <code id="my-card" class="mono">…</code>
+                <button id="copy-card" class="ghost" title="copy card">copy</button>
+              </div>
+              <div class="cmd">
+                <code class="mono">goose roam peers accept '&lt;card&gt;'</code>
+              </div>
+              <div class="key-line">key <code id="my-endpoint-id" class="mono dim">…</code></div>
+            </li>
+            <li>
+              Start sharing (<code class="mono">goose roam share</code>) and paste
+              its card here:
+              <textarea
+                id="card-input"
+                rows="3"
+                placeholder="goose+roam://…  (the host's card)"
+              ></textarea>
+            </li>
+          </ol>
+          <div class="pair-actions">
+            <button id="connect-btn" class="primary">connect</button>
+          </div>
         </div>
       </section>
 
-      <section id="chat" hidden>
-        <div id="log" class="log"></div>
-        <form id="prompt-form">
-          <input
-            id="prompt-input"
-            type="text"
-            autocomplete="off"
-            placeholder="message the agent…"
-          />
-          <button type="submit">send</button>
-        </form>
+      <!-- Connected workspace: session sidebar + chat -->
+      <section id="workspace" hidden>
+        <aside id="sidebar">
+          <button id="new-session" class="primary block">+ New session</button>
+          <div id="session-list" class="session-list"></div>
+        </aside>
+        <main id="chat">
+          <div id="log" class="log"></div>
+          <form id="prompt-form" class="composer">
+            <textarea
+              id="prompt-input"
+              rows="1"
+              autocomplete="off"
+              placeholder="Message the agent…  (Enter to send, Shift+Enter for newline)"
+            ></textarea>
+            <button type="submit" class="primary" id="send-btn">send</button>
+          </form>
+        </main>
       </section>
     </div>
     <script type="module" src="/src/main.ts"></script>

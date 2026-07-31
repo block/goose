@@ -3,16 +3,11 @@
 // The whole stack, entirely in the browser tab (no Tauri, no local server):
 //
 //   iroh (wasm, relay-only) ── roam handshake ──► authorized ACP byte duplex
-//        │
-//        ▼  roamByteStreams()
-//   Web Streams <Uint8Array>
-//        │
-//        ▼  ndJsonStream()            (from @agentclientprotocol/sdk)
-//   Stream<AnyMessage>
-//        │
-//        ▼  new ClientSideConnection(client, stream)
-//   typed ACP: initialize / newSession / prompt / sessionUpdate
+//        ▼  roamByteStreams()  →  ndJsonStream()  →  ClientSideConnection
+//   typed ACP: initialize / listSessions / newSession / loadSession / prompt
 //
+// Session list/new/load all work because goose's ACP server advertises them
+// and replays history on loadSession through the same sessionUpdate callback.
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -22,10 +17,11 @@ import {
   type SessionNotification,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type ContentBlock,
+  type SessionInfo,
 } from "@agentclientprotocol/sdk";
 import initWasm, { RoamClient, type RoamConnection } from "./wasm/goose_roaming_web.js";
 import { roamByteStreams } from "./roam-stream.js";
+import { ChatRenderer } from "./render.js";
 
 const SECRET_STORAGE_KEY = "goose-roam-secret-hex";
 
@@ -38,11 +34,16 @@ const els = {
   cardInput: $<HTMLTextAreaElement>("card-input"),
   connectBtn: $<HTMLButtonElement>("connect-btn"),
   status: $("status"),
+  agentBadge: $("agent-badge"),
   connectPanel: $("connect-panel"),
-  chat: $("chat"),
+  workspace: $("workspace"),
+  sidebar: $("sidebar"),
+  sessionList: $("session-list"),
+  newSession: $<HTMLButtonElement>("new-session"),
   log: $("log"),
   promptForm: $<HTMLFormElement>("prompt-form"),
-  promptInput: $<HTMLInputElement>("prompt-input"),
+  promptInput: $<HTMLTextAreaElement>("prompt-input"),
+  sendBtn: $<HTMLButtonElement>("send-btn"),
 };
 
 function setStatus(text: string, kind: "idle" | "busy" | "ok" | "err" = "idle") {
@@ -50,68 +51,37 @@ function setStatus(text: string, kind: "idle" | "busy" | "ok" | "err" = "idle") 
   els.status.className = `status ${kind}`;
 }
 
-// --- chat log rendering -------------------------------------------------
+const chat = new ChatRenderer(els.log);
 
-function addLine(role: string, text: string): HTMLDivElement {
-  const line = document.createElement("div");
-  line.className = `line ${role}`;
-  const who = document.createElement("span");
-  who.className = "who";
-  who.textContent = role;
-  const body = document.createElement("span");
-  body.className = "body";
-  body.textContent = text;
-  line.append(who, body);
-  els.log.appendChild(line);
-  els.log.scrollTop = els.log.scrollHeight;
-  return line;
-}
+let agent: Agent | null = null;
+let sessionId: string | null = null;
+let roamConn: RoamConnection | null = null;
+let busy = false;
 
-function contentText(content: ContentBlock): string {
-  return content?.type === "text" ? content.text : `[${content?.type ?? "content"}]`;
-}
-
-// A single agent turn streams as many chunks; coalesce them into one line.
-let currentAgentLine: HTMLSpanElement | null = null;
-function appendAgentChunk(text: string) {
-  if (!currentAgentLine) {
-    const line = addLine("agent", "");
-    currentAgentLine = line.querySelector(".body");
-  }
-  if (currentAgentLine) {
-    currentAgentLine.textContent += text;
-    els.log.scrollTop = els.log.scrollHeight;
-  }
-}
-function endAgentTurn() {
-  currentAgentLine = null;
-}
-
-// --- ACP client callbacks (host drives these) --------------------------
+// --- ACP client callbacks (the host drives these) ----------------------
 
 function makeClient(): Client {
   return {
     async sessionUpdate(params: SessionNotification): Promise<void> {
       const u = params.update;
       switch (u.sessionUpdate) {
+        case "user_message_chunk":
+          chat.chunk("user", u.content);
+          break;
         case "agent_message_chunk":
-          appendAgentChunk(contentText(u.content));
+          chat.chunk("agent", u.content);
           break;
         case "agent_thought_chunk":
-          // keep thoughts visible but muted
-          addLine("thought", contentText(u.content));
+          chat.chunk("thought", u.content);
           break;
         case "tool_call":
-          addLine("tool", `▶ ${u.title ?? u.toolCallId ?? "tool call"}`);
+          chat.toolCall(u);
           break;
         case "tool_call_update":
-          if (u.status) addLine("tool", `  ${u.status}`);
+          chat.toolUpdate(u);
           break;
         case "plan":
-          addLine("plan", "📋 plan updated");
-          break;
-        default:
-          // ignore the rest for this lean client
+          chat.plan(u.entries);
           break;
       }
     },
@@ -120,38 +90,26 @@ function makeClient(): Client {
       params: RequestPermissionRequest,
     ): Promise<RequestPermissionResponse> {
       const title = params.toolCall?.title ?? "the agent";
-      const labels = params.options.map((o) => o.name).join(" / ");
-      const ok = window.confirm(
-        `${title} requests permission.\n\nAllow?\n(options: ${labels})`,
+      // Inline, non-blocking permission card (never window.confirm, which would
+      // freeze the JS thread and stall the ACP message pump mid-turn).
+      const optionId = await chat.permission(
+        title,
+        params.options.map((o) => ({ optionId: o.optionId, name: o.name, kind: o.kind })),
       );
-      // Prefer an explicit allow/reject option by kind; else fall back to
-      // the first / cancel.
-      const pick = (kinds: string[]) =>
-        params.options.find((o) => kinds.includes(o.kind))?.optionId;
-      if (ok) {
-        const id = pick(["allow_once", "allow_always"]) ?? params.options[0]?.optionId;
-        if (id) return { outcome: { outcome: "selected", optionId: id } };
-      } else {
-        const id = pick(["reject_once", "reject_always"]);
-        if (id) return { outcome: { outcome: "selected", optionId: id } };
-      }
+      if (optionId) return { outcome: { outcome: "selected", optionId } };
       return { outcome: { outcome: "cancelled" } };
     },
   };
 }
 
-// --- wiring -------------------------------------------------------------
-
-let agent: Agent | null = null;
-let sessionId: string | null = null;
-let roamConn: RoamConnection | null = null;
+// --- connect + handshake ------------------------------------------------
 
 async function connect(cardText: string, client: RoamClient) {
   setStatus("dialing host over relay…", "busy");
   els.connectBtn.disabled = true;
   try {
     roamConn = await client.connect(cardText.trim(), "web");
-    setStatus(`connected to ${roamConn.agentId()}`, "ok");
+    const agentId = roamConn.agentId();
 
     const bytes = roamByteStreams(roamConn);
     const stream = ndJsonStream(bytes.writable, bytes.readable);
@@ -160,20 +118,21 @@ async function connect(cardText: string, client: RoamClient) {
 
     await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      // The host imposes its own cwd/tools; the browser advertises no fs or
-      // terminal capabilities.
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
     });
 
-    // Host ignores our cwd (it uses the share's working dir), but ACP requires
-    // a syntactically-absolute path.
-    const session = await conn.newSession({ cwd: "/", mcpServers: [] });
-    sessionId = session.sessionId;
-
     els.connectPanel.hidden = true;
-    els.chat.hidden = false;
+    els.workspace.hidden = false;
+    els.agentBadge.hidden = false;
+    els.agentBadge.textContent = `agent ${agentId.slice(0, 12)}…`;
+    setStatus("connected", "ok");
+
+    // Keep the composer disabled until a session is actually ready, so a send
+    // can't be silently dropped in the gap.
+    setBusy(true);
+    await refreshSessions();
+    await startNewSession();
     els.promptInput.focus();
-    addLine("system", `session ${sessionId.slice(0, 8)}… ready — say hello`);
   } catch (err) {
     console.error(err);
     setStatus(`connect failed: ${err}`, "err");
@@ -181,56 +140,158 @@ async function connect(cardText: string, client: RoamClient) {
   }
 }
 
-async function sendPrompt(text: string) {
-  if (!agent || !sessionId) return;
-  addLine("you", text);
-  endAgentTurn();
-  els.promptInput.value = "";
-  els.promptInput.disabled = true;
+// --- sessions -----------------------------------------------------------
+
+let sessions: SessionInfo[] = [];
+
+async function refreshSessions() {
+  if (!agent?.listSessions) return;
   try {
-    const res = await agent.prompt({
-      sessionId,
-      prompt: [{ type: "text", text }],
-    });
-    endAgentTurn();
-    if (res.stopReason && res.stopReason !== "end_turn") {
-      addLine("system", `· ${res.stopReason}`);
-    }
+    const res = await agent.listSessions({});
+    sessions = res.sessions ?? [];
+    renderSessionList();
+  } catch (err) {
+    // listSessions is optional; a host without it just shows the current one.
+    console.warn("listSessions unavailable:", err);
+  }
+}
+
+function renderSessionList() {
+  els.sessionList.replaceChildren();
+  for (const s of sessions) {
+    const btn = document.createElement("button");
+    btn.className = "session-item" + (s.sessionId === sessionId ? " active" : "");
+    const title = document.createElement("div");
+    title.className = "s-title";
+    title.textContent = s.title || "(untitled session)";
+    const sub = document.createElement("div");
+    sub.className = "s-sub";
+    sub.textContent = s.sessionId.slice(0, 8);
+    btn.append(title, sub);
+    btn.onclick = () => void openSession(s.sessionId);
+    els.sessionList.appendChild(btn);
+  }
+}
+
+async function startNewSession() {
+  if (!agent) return;
+  setBusy(true);
+  try {
+    // Host ignores our cwd (uses the share's dir) but ACP wants an absolute path.
+    const res = await agent.newSession({ cwd: "/", mcpServers: [] });
+    sessionId = res.sessionId;
+    chat.clear();
+    chat.system("New session — say hello 👋");
+    await refreshSessions();
+    renderSessionList();
   } catch (err) {
     console.error(err);
-    addLine("system", `error: ${err}`);
+    chat.system(`could not start session: ${err}`);
   } finally {
-    els.promptInput.disabled = false;
+    setBusy(false);
+  }
+}
+
+async function openSession(id: string) {
+  if (!agent?.loadSession || id === sessionId) {
+    if (id === sessionId) return;
+    chat.system("this host doesn't support loading past sessions");
+    return;
+  }
+  setBusy(true);
+  setStatus("loading session…", "busy");
+  try {
+    chat.clear();
+    sessionId = id;
+    renderSessionList();
+    // Replays the session's history back through sessionUpdate → chat renders it.
+    await agent.loadSession({ sessionId: id, cwd: "/", mcpServers: [] });
+    chat.finalizeTurn();
+    if (chat.isEmpty) chat.system("(empty session)");
+    setStatus("connected", "ok");
+  } catch (err) {
+    console.error(err);
+    chat.system(`could not load session: ${err}`);
+    setStatus("connected", "ok");
+  } finally {
+    setBusy(false);
     els.promptInput.focus();
   }
 }
+
+// --- prompting ----------------------------------------------------------
+
+function setBusy(b: boolean) {
+  busy = b;
+  els.promptInput.disabled = b;
+  els.sendBtn.disabled = b;
+  els.newSession.disabled = b;
+}
+
+async function sendPrompt(text: string) {
+  if (!agent || !sessionId || busy) return;
+  chat.userMessage(text);
+  els.promptInput.value = "";
+  autosize();
+  setBusy(true);
+  setStatus("thinking…", "busy");
+  try {
+    const res = await agent.prompt({ sessionId, prompt: [{ type: "text", text }] });
+    chat.finalizeTurn();
+    if (res.stopReason && res.stopReason !== "end_turn") {
+      chat.system(`· ${res.stopReason}`);
+    }
+    setStatus("connected", "ok");
+    // A first prompt often names the session — refresh titles.
+    void refreshSessions();
+  } catch (err) {
+    console.error(err);
+    chat.system(`error: ${err}`);
+    setStatus("connected", "ok");
+  } finally {
+    setBusy(false);
+    els.promptInput.focus();
+  }
+}
+
+function autosize() {
+  els.promptInput.style.height = "auto";
+  els.promptInput.style.height = Math.min(els.promptInput.scrollHeight, 200) + "px";
+}
+
+// --- boot ---------------------------------------------------------------
 
 async function main() {
   setStatus("loading…", "busy");
   await initWasm();
 
-  // Stable per-browser identity: reuse the persisted secret so the host only
-  // has to `accept` this key once.
   const saved = localStorage.getItem(SECRET_STORAGE_KEY) ?? undefined;
   const client = new RoamClient(saved);
   if (!saved) localStorage.setItem(SECRET_STORAGE_KEY, client.secretHex());
 
-  const id = client.endpointId();
-  const card = client.myCard();
-  els.myId.textContent = id;
-  els.myCard.textContent = card;
-  els.copyCard.onclick = () => navigator.clipboard?.writeText(card);
+  els.myId.textContent = client.endpointId();
+  els.myCard.textContent = client.myCard();
+  els.copyCard.onclick = () => navigator.clipboard?.writeText(client.myCard());
   setStatus("not connected");
 
   els.connectBtn.onclick = () => {
     const card = els.cardInput.value.trim();
     if (card) void connect(card, client);
   };
+  els.newSession.onclick = () => void startNewSession();
   els.promptForm.onsubmit = (e) => {
     e.preventDefault();
     const text = els.promptInput.value.trim();
     if (text) void sendPrompt(text);
   };
+  els.promptInput.addEventListener("input", autosize);
+  els.promptInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const text = els.promptInput.value.trim();
+      if (text) void sendPrompt(text);
+    }
+  });
 }
 
 void main();

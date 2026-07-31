@@ -110,11 +110,11 @@ try {
   await page.locator("#card-input").fill(hostCard);
   await page.locator("#connect-btn").click();
 
-  // #chat unhides and a "ready" system line appears once initialize +
+  // #workspace unhides and a "say hello" system line appears once initialize +
   // newSession succeed over the roaming ACP stream.
-  await page.locator("#chat").waitFor({ state: "visible", timeout: 45000 });
+  await page.locator("#workspace").waitFor({ state: "visible", timeout: 45000 });
   await page
-    .locator(".line.system", { hasText: "ready" })
+    .locator(".msg.system", { hasText: "say hello" })
     .first()
     .waitFor({ timeout: 45000 });
   const status = (await page.locator("#status").textContent())?.trim();
@@ -126,7 +126,7 @@ try {
   await page.locator("#prompt-input").fill("Reply with exactly: roam works");
   await page.locator("#prompt-form button[type=submit]").click();
 
-  const agentLine = page.locator(".line.agent .body").first();
+  const agentLine = page.locator(".msg.agent .body").first();
   await agentLine.waitFor({ timeout: 90000 });
   // wait for the streamed text to settle
   let last = "";

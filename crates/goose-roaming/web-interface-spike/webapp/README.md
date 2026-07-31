@@ -1,9 +1,25 @@
 # goose roam — web client (spike)
 
-A lean browser chat client that connects to a `goose roam share` agent **over
-iroh, entirely in the browser** (iroh compiled to wasm, relay-only via
+A browser chat client that connects to a `goose roam share` agent **over iroh,
+entirely in the browser** (iroh compiled to wasm, relay-only via
 WebSocket-to-relay). No Tauri, no Electron, no local bridge process — the
 browser tab itself is the roam peer.
+
+The UI is a real chat app, not a toy:
+
+- **markdown agent messages** — headings, lists, fenced code blocks, inline
+  code, links (rendered XSS-safe via a dependency-free `textContent`-only
+  renderer — untrusted agent output is never treated as HTML).
+- **tool-call widgets** that update in place (icon by kind, status, collapsible
+  output).
+- **collapsible thinking blocks** and a **plan checklist**.
+- **inline, non-blocking permission cards** (not `window.confirm`, which would
+  freeze the JS thread and stall the ACP message pump mid-turn).
+- **session sidebar**: list past sessions, click to load (history replays via
+  ACP), and start new ones.
+
+Still deliberately lean: single main thread (no Web Worker yet), text prompts
+only, no reconnect. Hardening is tracked in `../README.md`.
 
 ## The stack (all in the tab)
 
@@ -15,9 +31,10 @@ Web Streams <Uint8Array>
      ▼  ndJsonStream()                (@agentclientprotocol/sdk)
 Stream<AnyMessage>
      ▼  new ClientSideConnection(client, stream)
-typed ACP: initialize / newSession / prompt / sessionUpdate / requestPermission
+typed ACP: initialize / listSessions / newSession / loadSession / prompt
+           / sessionUpdate / requestPermission
      ▼
-lean chat UI
+chat UI (markdown · tool widgets · thinking · plan · sessions)
 ```
 
 The wasm module (`../goose-roaming-web`) does **only** the transport: hold a
@@ -69,8 +86,11 @@ relay/handshake path.
 
 ## Status
 
-Spike. Build-time green (compiles, `tsc` clean vs ACP SDK 0.19.0, Vite bundles)
-and **in-browser wasm runtime green** (smoke test). Still unproven: a live
-round trip against a running `goose roam share`. Runtime hardening (Web Worker,
-reconnect, backpressure tuning, key security, revocation-closes-connections) is
-tracked in `../README.md`.
+Spike, but proven end to end. Build-time green (`tsc` clean vs ACP SDK 0.19.0,
+Vite bundles), in-browser wasm runtime green (`tests/smoke.mjs`), and a **live
+round trip green** (`tests/e2e.mjs`: real Chrome → managed relay → running
+`goose roam share` → agent response). `tests/visual.mjs` captures the rendered
+GUI (markdown + tool widget + session sidebar) as a screenshot.
+
+Hardening tracked in `../README.md`: Web Worker, reconnect, backpressure
+tuning, key security, revocation-closes-connections.
