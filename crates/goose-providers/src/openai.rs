@@ -8,7 +8,8 @@ use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
-    create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
+    create_request_with_options, get_cost, get_usage, is_reserved_request_param_key,
+    response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
     create_responses_request_for_model, get_responses_usage, responses_api_to_message,
@@ -142,7 +143,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -163,7 +164,7 @@ pub struct OpenAiProviderBuilder {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -234,7 +235,7 @@ impl OpenAiProviderBuilder {
         self
     }
 
-    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+    pub fn custom_models(mut self, custom_models: Option<Vec<ModelInfo>>) -> Self {
         self.custom_models = custom_models;
         self
     }
@@ -445,6 +446,13 @@ impl OpenAiProvider {
             ThinkingEffort::High => "high",
             ThinkingEffort::Max => "xhigh",
         }
+    }
+
+    fn declared_model(&self, model_name: &str) -> Option<&ModelInfo> {
+        self.custom_models
+            .as_ref()?
+            .iter()
+            .find(|m| m.name == model_name)
     }
 
     fn sanitize_request_for_compat(
@@ -717,8 +725,9 @@ impl Provider for OpenAiProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
+            let names: Vec<String> = custom_models.iter().map(|m| m.name.clone()).collect();
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(names);
             }
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
@@ -728,7 +737,7 @@ impl Provider for OpenAiProvider {
                         self.name,
                         e
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(names);
                 }
                 Err(e) => return Err(e),
             }
@@ -757,7 +766,11 @@ impl Provider for OpenAiProvider {
             )
             .await
         } else {
-            let payload = create_request_with_options(
+            let declared_model = self.declared_model(&model_config.model_name);
+            let thinking_preservation_format =
+                declared_model.and_then(|m| m.thinking_preservation_format);
+
+            let mut payload = create_request_with_options(
                 model_config,
                 system,
                 messages,
@@ -765,9 +778,16 @@ impl Provider for OpenAiProvider {
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
                 OpenAiFormatOptions {
-                    preserve_thinking_context: self.preserve_thinking_context,
+                    preserve_thinking_context: self.preserve_thinking_context
+                        || thinking_preservation_format.is_some(),
+                    thinking_preservation_format,
                 },
             )?;
+
+            if let Some(params) = declared_model.and_then(|m| m.request_params.as_ref()) {
+                apply_declared_request_params(&mut payload, params);
+            }
+
             let payload = self.sanitize_request_for_compat(payload, model_config);
             let mut log = start_log(model_config, &payload)?;
 
@@ -815,19 +835,31 @@ impl Provider for OpenAiProvider {
     }
 }
 
+/// Merges a model's declared `request_params` into an already-built payload.
+///
+/// Reserved keys are skipped so a declaration cannot clobber the streaming setup.
+fn apply_declared_request_params(
+    payload: &mut serde_json::Value,
+    params: &HashMap<String, serde_json::Value>,
+) {
+    let Some(object) = payload.as_object_mut() else {
+        return;
+    };
+
+    for (key, value) in params {
+        if !is_reserved_request_param_key(key) {
+            object.insert(key.clone(), value.clone());
+        }
+    }
+}
+
 pub fn from_declarative_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
 ) -> Result<OpenAiProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
+        Some(config.models.clone())
     } else {
         None
     };
@@ -1579,5 +1611,90 @@ mod tests {
 
         let models = provider.fetch_supported_models().await.unwrap();
         assert_eq!(models, vec!["model-a".to_string(), "model-b".to_string()]);
+    }
+
+    use crate::base::ThinkingPreservationFormat;
+
+    fn cerebras_config() -> DeclarativeProviderConfig {
+        crate::declarative::fixed_provider_configs()
+            .expect("bundled providers should load")
+            .into_iter()
+            .find(|config| config.name == "cerebras")
+            .expect("cerebras should be bundled")
+    }
+
+    fn cerebras_provider() -> OpenAiProvider {
+        struct StaticKeyResolver;
+        impl KeyResolver for StaticKeyResolver {
+            type Error = std::convert::Infallible;
+
+            fn resolve_key(&self, _key: &str) -> std::result::Result<String, Self::Error> {
+                Ok("test-key".to_string())
+            }
+        }
+
+        from_declarative_config(cerebras_config(), None, StaticKeyResolver)
+            .expect("cerebras config should build a provider")
+            .build()
+    }
+
+    #[test]
+    fn cerebras_models_declare_thinking_preservation_and_reasoning_format() {
+        let provider = cerebras_provider();
+
+        for (model, expected_format) in [
+            ("gpt-oss-120b", ThinkingPreservationFormat::ContentPrepend),
+            ("zai-glm-4.7", ThinkingPreservationFormat::ContentXml),
+            ("gemma-4-31b", ThinkingPreservationFormat::ContentPrepend),
+        ] {
+            let declared = provider
+                .declared_model(model)
+                .unwrap_or_else(|| panic!("{model} should be declared"));
+
+            assert_eq!(declared.thinking_preservation_format, Some(expected_format));
+
+            let reasoning_format = declared
+                .request_params
+                .as_ref()
+                .and_then(|params| params.get("reasoning_format"));
+            assert_eq!(
+                reasoning_format,
+                Some(&json!("parsed")),
+                "{model} must request parsed reasoning"
+            );
+        }
+
+        assert!(provider.declared_model("not-a-cerebras-model").is_none());
+    }
+
+    #[test]
+    fn cerebras_preserves_thinking_by_default() {
+        assert!(cerebras_config().preserves_thinking);
+    }
+
+    #[test]
+    fn apply_declared_request_params_skips_reserved_keys() {
+        let mut payload = json!({
+            "model": "zai-glm-4.7",
+            "stream": true,
+            "stream_options": {"include_usage": true},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+
+        let params = HashMap::from([
+            ("reasoning_format".to_string(), json!("parsed")),
+            ("model".to_string(), json!("hijacked")),
+            ("stream".to_string(), json!(false)),
+            ("stream_options".to_string(), json!(null)),
+            ("messages".to_string(), json!([])),
+        ]);
+
+        apply_declared_request_params(&mut payload, &params);
+
+        assert_eq!(payload["reasoning_format"], json!("parsed"));
+        assert_eq!(payload["model"], json!("zai-glm-4.7"));
+        assert_eq!(payload["stream"], json!(true));
+        assert_eq!(payload["stream_options"], json!({"include_usage": true}));
+        assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
     }
 }
