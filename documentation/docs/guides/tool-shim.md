@@ -22,7 +22,7 @@ Enable the tool shim when:
 - You're using a local model (Ollama, llama.cpp) that doesn't have native tool calling support
 - Your OpenAI-compatible provider routes to models that mix reasoning tags (`<think>`) with tool calls, causing parsing failures
 
-Models known to sometimes need the shim: DeepSeek R1/V3, Qwen, Kimi K2.5, and most locally-hosted models without fine-tuning for tool use.
+Most locally-hosted models and some cloud models that weren't fine-tuned for structured tool calling will need the shim.
 
 ## How it works
 
@@ -130,4 +130,4 @@ export GOOSE_TOOLSHIM_OLLAMA_MODEL=qwen2.5:3b
 
 **Model outputs reasoning before tool calls (`<think>` tags)**
 
-Some reasoning models (e.g. DeepSeek R1, Kimi K2.5) mix thinking tags with tool calls. The shim handles this automatically — enable it and the reasoning content is stripped from the final message.
+Some reasoning models mix thinking tags with tool calls, causing parsing failures. The shim handles this automatically — enable it and the reasoning content is stripped from the final message.
