@@ -53,12 +53,10 @@ OLLAMA_CONTEXT_LENGTH=32768 ollama serve
 
 ### Local backend (llama.cpp / built-in inference)
 
-If you're running goose with the built-in local inference backend, you can use it as the interpreter instead of a separate Ollama instance:
+If you're running goose with the built-in local inference backend, you can use it as the interpreter instead of a separate Ollama instance. A model name is required — set either `GOOSE_TOOLSHIM_MODEL` or the `LOCAL_LLM_MODEL` config key, otherwise goose will error on startup:
 
 ```bash
 export GOOSE_TOOLSHIM_BACKEND=local
-# The interpreter will use the same model configured for local inference.
-# Override with a specific model if needed:
 export GOOSE_TOOLSHIM_MODEL=my-model-name
 ```
 
@@ -92,10 +90,11 @@ Valid values for `GOOSE_TOOLSHIM_BACKEND`: `ollama` (default), `local`, `llama.c
   ```bash
   GOOSE_TOOLSHIM=true \
   GOOSE_TOOLSHIM_BACKEND=local \
+  GOOSE_TOOLSHIM_MODEL=my-model-name \
   goose session
   ```
 
-  Uses goose's built-in llama.cpp backend as the interpreter. Requires local inference to be configured.
+  Uses goose's built-in llama.cpp backend as the interpreter. `GOOSE_TOOLSHIM_MODEL` (or `LOCAL_LLM_MODEL` in config) is required — startup fails if neither is set.
 
   </TabItem>
 </Tabs>
@@ -107,7 +106,7 @@ Valid values for `GOOSE_TOOLSHIM_BACKEND`: `ollama` (default), `local`, `llama.c
 | `GOOSE_TOOLSHIM` | Enable the tool shim (`true` or `1`) | `false` |
 | `GOOSE_TOOLSHIM_BACKEND` | Interpreter backend: `ollama`, `local`, or `llama.cpp` | `ollama` |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Ollama model used as the interpreter | `mistral-nemo` |
-| `GOOSE_TOOLSHIM_MODEL` | Model name for the local interpreter backend | Uses `LOCAL_LLM_MODEL` config |
+| `GOOSE_TOOLSHIM_MODEL` | Model name for the local interpreter backend (required if using `local` backend and `LOCAL_LLM_MODEL` config is not set) | — |
 
 ## Troubleshooting
 
