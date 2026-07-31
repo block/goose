@@ -715,6 +715,27 @@ impl Session {
     }
 }
 
+fn deserialize_session_model_config(
+    provider_name: Option<&str>,
+    json: &str,
+) -> Option<ModelConfig> {
+    let mut model_config: ModelConfig = serde_json::from_str(json).ok()?;
+    // TODO: Remove this workaround once ModelConfig guarantees deserialize(serialize(config)) == config.
+    if provider_name == Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME) {
+        #[derive(Deserialize)]
+        struct AzurePersistedFields {
+            model_name: String,
+            #[serde(default)]
+            request_params: Option<HashMap<String, serde_json::Value>>,
+        }
+
+        let persisted: AzurePersistedFields = serde_json::from_str(json).ok()?;
+        model_config.model_name = persisted.model_name;
+        model_config.request_params = persisted.request_params;
+    }
+    Some(model_config)
+}
+
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -726,8 +747,11 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
 
+        let provider_name: Option<String> = row.try_get("provider_name").ok().flatten();
         let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
-        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
+        let model_config = model_config_json
+            .as_deref()
+            .and_then(|json| deserialize_session_model_config(provider_name.as_deref(), json));
 
         let name: String = {
             let name_val: String = row.try_get("name").unwrap_or_default();
@@ -788,7 +812,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
             last_message_at,
-            provider_name: row.try_get("provider_name").ok().flatten(),
+            provider_name,
             model_config,
             goose_mode: row
                 .try_get::<String, _>("goose_mode")
@@ -2586,6 +2610,61 @@ mod tests {
 
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
+
+    #[test]
+    fn azure_session_model_config_preserves_suffixed_deployment_id() {
+        let json = serde_json::to_string(&ModelConfig {
+            model_name: "gpt-5-high".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        })
+        .unwrap();
+
+        let config = deserialize_session_model_config(
+            Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME),
+            &json,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(config.thinking_effort(), None);
+    }
+
+    #[test]
+    fn azure_session_model_config_preserves_explicit_thinking_effort() {
+        let config = deserialize_session_model_config(
+            Some(goose_providers::azure_foundry::AZURE_FOUNDRY_PROVIDER_NAME),
+            r#"{"model_name":"gpt-5-high","context_limit":null,"temperature":null,"max_tokens":null,"toolshim":false,"toolshim_model":null,"request_params":{"thinking_effort":"low"}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5-high");
+        assert_eq!(
+            config.thinking_effort(),
+            Some(goose_providers::thinking::ThinkingEffort::Low)
+        );
+    }
+
+    #[test]
+    fn non_azure_session_model_config_keeps_suffix_normalization() {
+        let config = deserialize_session_model_config(
+            Some(goose_providers::openai::OPEN_AI_PROVIDER_NAME),
+            r#"{"model_name":"gpt-5-high","context_limit":null,"temperature":null,"max_tokens":null,"toolshim":false,"toolshim_model":null}"#,
+        )
+        .unwrap();
+
+        assert_eq!(config.model_name, "gpt-5");
+        assert_eq!(
+            config.thinking_effort(),
+            Some(goose_providers::thinking::ThinkingEffort::High)
+        );
+    }
 
     struct NamingTestProvider;
 

@@ -2,6 +2,19 @@
 
 goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
 
+## Contribution Workflow
+
+The issue is the source of truth for work intended for an upstream pull request. Track issue status on the [Goose Issues board](https://github.com/orgs/aaif-goose/projects/1).
+
+- Before implementing an issue for a pull request, confirm that it is on the board with Status **Ready**.
+- Do not implement issues in **Inbox**, **Needs info**, or **Accepted / design**. Help resolve the issue discussion instead.
+- Read the agreed design, constraints, non-goals, and verification plan before changing code.
+- Keep the implementation within the issue's agreed scope.
+- If implementation reveals a material design change, return to the issue before continuing.
+- Every external pull request must link the Ready issue it implements and explain how the verification plan was performed.
+
+Maintainer-directed work, urgent security fixes, release automation, and local or exploratory changes do not require a Ready issue.
+
 ## Setup
 ```bash
 source bin/activate-hermit

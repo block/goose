@@ -20,6 +20,7 @@ use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
 use crate::providers::xai_oauth::TokenCache as XaiOAuthTokenCache;
+use goose_providers::azure_foundry::{endpoint_kind, EndpointKind, AZURE_FOUNDRY_PROVIDER_NAME};
 
 pub fn openai_inventory() -> InventoryRegistration {
     InventoryRegistration::new(true, || {
@@ -65,6 +66,52 @@ pub fn openai_inventory() -> InventoryRegistration {
             .get_secret::<serde_json::Value>("OPENAI_API_KEY")
             .is_ok()
     })
+}
+
+pub fn azure_foundry_inventory() -> InventoryRegistration {
+    InventoryRegistration::new(true, || {
+        let config = Config::global();
+        let mut identity =
+            InventoryIdentityInput::new(AZURE_FOUNDRY_PROVIDER_NAME, AZURE_FOUNDRY_PROVIDER_NAME);
+        if let Ok(endpoint) = config.get_param::<String>("AZURE_FOUNDRY_ENDPOINT") {
+            identity = identity.with_public("endpoint", endpoint);
+        }
+        if let Ok(api_version) = config.get_param::<String>("AZURE_FOUNDRY_API_VERSION") {
+            identity = identity.with_public("api_version", api_version);
+        }
+        if let Ok(model) = config.get_param::<String>("AZURE_FOUNDRY_MODEL") {
+            identity = identity.with_public("model", model);
+        }
+        if let Some(api_key) = config_secret_value(config, "AZURE_FOUNDRY_API_KEY") {
+            identity = identity.with_secret("api_key", api_key);
+        }
+        if let Some(ad_token) = config_secret_value(config, "AZURE_FOUNDRY_AD_TOKEN") {
+            identity = identity.with_secret("ad_token", ad_token);
+        }
+        Ok(identity)
+    })
+    .with_configured(|| azure_foundry_configured(Config::global()))
+}
+
+fn azure_foundry_configured(config: &Config) -> bool {
+    azure_foundry_configured_values(
+        config
+            .get_param::<String>("AZURE_FOUNDRY_ENDPOINT")
+            .ok()
+            .as_deref(),
+        config
+            .get_param::<String>("AZURE_FOUNDRY_MODEL")
+            .ok()
+            .as_deref(),
+    )
+}
+
+fn azure_foundry_configured_values(endpoint: Option<&str>, model: Option<&str>) -> bool {
+    let Some(endpoint) = endpoint.filter(|endpoint| !endpoint.trim().is_empty()) else {
+        return false;
+    };
+    endpoint_kind(endpoint) != EndpointKind::Maas
+        || model.is_some_and(|model| !model.trim().is_empty())
 }
 
 pub fn anthropic_inventory() -> InventoryRegistration {
@@ -221,6 +268,30 @@ mod tests {
     use super::*;
     use crate::config::paths::Paths;
     use chrono::Utc;
+
+    #[test]
+    fn azure_foundry_maas_requires_a_model_to_be_configured() {
+        assert!(!azure_foundry_configured_values(
+            Some("https://deployment.models.ai.azure.com"),
+            None,
+        ));
+        assert!(!azure_foundry_configured_values(
+            Some("https://deployment.models.ai.azure.com"),
+            Some("  "),
+        ));
+        assert!(azure_foundry_configured_values(
+            Some("https://deployment.models.ai.azure.com"),
+            Some("Phi-4"),
+        ));
+        assert!(azure_foundry_configured_values(
+            Some("https://hub.services.ai.azure.com/api/projects/project"),
+            None,
+        ));
+        assert!(azure_foundry_configured_values(
+            Some("https://hub.services.ai.azure.com"),
+            None,
+        ));
+    }
 
     #[test]
     #[serial_test::serial]

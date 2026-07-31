@@ -1,3 +1,4 @@
+use crate::base::ThinkingPreservationFormat;
 use crate::conversation::message::{Message, MessageContentBlock, ProviderMetadata};
 use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
@@ -58,13 +59,14 @@ fn output_token_limit_tool_error(function_name: &str, id: &str) -> ErrorData {
     }
 }
 
-fn is_reserved_request_param_key(key: &str) -> bool {
+pub fn is_reserved_request_param_key(key: &str) -> bool {
     matches!(key, "messages" | "model" | "stream" | "stream_options")
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OpenAiFormatOptions {
     pub preserve_thinking_context: bool,
+    pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
 }
 
 fn merge_reasoning_text(prefix: &str, suffix: &str) -> String {
@@ -197,6 +199,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         image_format,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -510,7 +513,41 @@ pub fn format_messages_with_options(
     }
 
     merge_split_tool_call_messages(&mut messages_spec);
+
+    if let Some(format) = options.thinking_preservation_format {
+        inline_reasoning_content(&mut messages_spec, format);
+    }
+
     messages_spec
+}
+
+/// Rewrites `reasoning_content` into the message `content` for models that reject a
+/// separate reasoning field on replay.
+///
+/// Must run after `merge_split_tool_call_messages`, which relies on `reasoning_content`
+/// to identify messages split from the same assistant turn.
+fn inline_reasoning_content(messages: &mut [Value], format: ThinkingPreservationFormat) {
+    let wrap: fn(&str) -> String = match format {
+        ThinkingPreservationFormat::ReasoningContent => return,
+        ThinkingPreservationFormat::ContentPrepend => |text| format!("{text}\n\n"),
+        ThinkingPreservationFormat::ContentXml => |text| format!("<think>\n{text}\n</think>\n\n"),
+    };
+
+    for message in messages {
+        let Some(object) = message.as_object_mut() else {
+            continue;
+        };
+        let Some(Value::String(reasoning)) = object.remove("reasoning_content") else {
+            continue;
+        };
+        let prefix = wrap(&reasoning);
+
+        match object.entry("content").or_insert(Value::Null) {
+            Value::String(content) => content.insert_str(0, &prefix),
+            Value::Array(blocks) => blocks.insert(0, json!({"type": "text", "text": prefix})),
+            content => *content = json!(prefix.trim_end()),
+        }
+    }
 }
 
 /// The agent splits a single assistant response with N tool_calls into N
@@ -1437,6 +1474,7 @@ pub fn create_request(
         for_streaming,
         OpenAiFormatOptions {
             preserve_thinking_context: true,
+            ..Default::default()
         },
     )
 }
@@ -1450,13 +1488,39 @@ pub fn create_request_with_options(
     for_streaming: bool,
     format_options: OpenAiFormatOptions,
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_request_for_model_with_options(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+        image_format,
+        for_streaming,
+        format_options,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn create_request_for_model_with_options(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    image_format: &ImageFormat,
+    for_streaming: bool,
+    format_options: OpenAiFormatOptions,
+) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
             "o1-mini model is not currently supported since goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let supports_xai_effort = supports_xai_reasoning_effort(&model_name);
     let reasoning_effort = if is_reasoning_model {
@@ -1487,7 +1551,7 @@ pub fn create_request_with_options(
     messages_array.extend(messages_spec);
 
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "messages": messages_array
     });
 
@@ -3502,6 +3566,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3560,6 +3625,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: false,
+                ..Default::default()
             },
         );
 
@@ -3612,6 +3678,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3642,6 +3709,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3670,6 +3738,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3694,6 +3763,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3730,6 +3800,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3788,6 +3859,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -3835,6 +3907,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
 
@@ -4105,6 +4178,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4139,6 +4213,7 @@ data: [DONE]"#;
             &ImageFormat::OpenAi,
             OpenAiFormatOptions {
                 preserve_thinking_context: true,
+                ..Default::default()
             },
         );
         assert_eq!(spec.len(), 1);
@@ -4589,5 +4664,112 @@ data: [DONE]"#;
                 _ => {}
             }
         }
+    }
+
+    fn format_with_preservation(
+        messages: &[Message],
+        format: ThinkingPreservationFormat,
+    ) -> Vec<Value> {
+        format_messages_with_options(
+            messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+                thinking_preservation_format: Some(format),
+            },
+        )
+    }
+
+    #[test]
+    fn test_thinking_preservation_content_prepend() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ContentPrepend,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], json!("Thinking process\n\nHello"));
+        assert!(spec[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn test_thinking_preservation_content_xml() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ContentXml,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(
+            spec[0]["content"],
+            json!("<think>\nThinking process\n</think>\n\nHello")
+        );
+        assert!(spec[0].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn test_thinking_preservation_reasoning_content_is_unchanged() {
+        let message = Message::assistant()
+            .with_thinking("Thinking process", "")
+            .with_text("Hello");
+
+        let spec = format_with_preservation(
+            std::slice::from_ref(&message),
+            ThinkingPreservationFormat::ReasoningContent,
+        );
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["content"], json!("Hello"));
+        assert_eq!(spec[0]["reasoning_content"], json!("Thinking process"));
+    }
+
+    #[test]
+    fn test_thinking_preservation_runs_after_split_tool_call_merge() {
+        // Split tool-call messages are reunited by matching reasoning_content, so
+        // inlining must happen afterwards or the merge silently stops working.
+        let messages = vec![
+            Message::assistant().with_thinking("reasoning", ""),
+            Message::assistant()
+                .with_thinking("reasoning", "")
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+                ),
+            Message::user().with_tool_response(
+                "tool1",
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("result1"),
+                ])),
+            ),
+            Message::assistant()
+                .with_thinking("reasoning", "")
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_with_preservation(&messages, ThinkingPreservationFormat::ContentXml);
+
+        let assistant: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+
+        assert_eq!(assistant.len(), 1);
+        assert_eq!(assistant[0]["tool_calls"].as_array().unwrap().len(), 2);
+        assert!(assistant[0].get("reasoning_content").is_none());
+        assert_eq!(
+            assistant[0]["content"],
+            json!("<think>\nreasoning\n</think>")
+        );
     }
 }

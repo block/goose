@@ -4538,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Düzenle"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Ekli görseller:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Yerinde Düzenle"
   },
@@ -4545,7 +4548,7 @@
     "defaultMessage": "Mesajı yerinde düzenleyin"
   },
   "userMessage.editInPlaceDescription": {
-    "defaultMessage": "<b>Edit in Place</b> bu oturumu günceller • <b>Fork Session</b> yeni bir oturum oluşturur"
+    "defaultMessage": "<b>Yerinde Düzenle</b> bu oturumu günceller • <b>Oturumu Çatalla</b> yeni bir oturum oluşturur"
   },
   "userMessage.editInPlaceTitle": {
     "defaultMessage": "Bu oturumdaki mesajı güncelleyin"
@@ -4570,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Düzenlenen mesajla yeni bir oturum oluşturun"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Görseli mesajdan kaldır"
   }
 }

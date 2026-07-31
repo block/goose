@@ -1,64 +1,56 @@
 # Contribution Guide
 
-goose is open source!
+goose is open source, and code is only one way to contribute. Reporting a problem, reproducing it, sharing domain knowledge, shaping the design, implementing the solution, and verifying the result are all valuable work.
 
-We welcome pull requests for general contributions! In these days of AI it is easier than ever to contribute, but
-there are some pitfalls to avoid. This document describes the best practices for new and experienced contributors
-to get work landed as smoothly as possible.
+We organize this work on the public [Goose Issues board](https://github.com/orgs/aaif-goose/projects/1). The issue is the main record of a contribution, from the first report through design, implementation, and verification.
 
 > [!TIP]
 > Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
 ---
 
-## Getting Started
+## Issue Workflow
 
-Your first contribution to goose should probably be a small bug fix. The goose maintainers have a lot of incoming
-PRs to review, and the reputation of the author is an important signal. While contributions to goose are generally
-of remarkably high quality, we do get our fair share of AI slop. When a first-time contributor opens a
-3k line PR touching 20 files, we have no easy way to tell whether it’s thoughtful work or
-blindly AI-generated without doing a deep dive.
+Every open issue is tracked on the [Goose Issues board](https://github.com/orgs/aaif-goose/projects/1):
 
-So please start small to establish trust and work your way up from there. A small bug fix or performance improvement
-is a good start. Linking your fix to an existing issue shows that you are responding to a community need.
+- **Inbox**: The issue is waiting for triage.
+- **Needs info**: More information is needed before the issue can progress.
+- **Accepted / design**: We want to solve the problem and are working out the design, constraints, and verification plan.
+- **Ready**: The intended solution is settled and implementation can begin.
+- **In progress**: Implementation is underway.
+- **Verification**: The implementation is ready for a human to confirm that it works.
+- **Done**: The result has been verified and the issue is closed.
 
-If your first PR gets closed with a link to this section, please don’t take it personally. 
-It just means the change was too large for a first contribution. Start with something smaller and try again.
+Issues we do not plan to pursue are closed with an explanation. We do not use rejection labels.
 
-## Discussions, Issues and PRs
+Feature requests should describe a broadly useful problem rather than only a preferred implementation. Adding features is easy; maintaining them is a long-term cost, so we may decline features that add complexity without enough general benefit.
 
-### Issues
+Discord and GitHub Discussions remain useful for informal conversation, but decisions that affect an implementation should be captured in the issue.
 
-If you spot a bug, please open an issue. This shows the community and the maintainers the direction of your
-thinking.
+## How to Contribute
 
-For bugs, describe how to reproduce the problem as clearly as possible. If the issue involves an interaction
-with an LLM, include a diagnostics report if possible.
+If you find a bug or want a new feature, [open an issue](https://github.com/aaif-goose/goose/issues/new/choose). A good issue explains the problem, who it affects, and why it matters. For bugs, include clear reproduction steps and a diagnostics report when possible.
+Please write the issue yourself. Your agent can do the research and help you explore, but you should understand the issue. You can
+suggest a solution direction, but refrain from a detailed solution especially code.
 
-### Discussions
+The best place to contribute is the discussion between **Accepted / design** and **Ready**. This is where the engineering happens: turning a worthwhile problem into a specific solution that an agent can implement. Take part in the issue discussion by bringing context and domain knowledge, challenging assumptions, comparing approaches, identifying constraints and trade-offs, and agreeing on how the result will be verified.
 
-Before opening a feature request or beginning implementation, please start with a discussion in the
-[goose-eng Discord channel](https://discord.com/channels/1287729918100246654/1514412780504088677). Discussions
-are a good place to explore design questions, alternatives, and whether something fits the goals of the project.
+Substantial contributors at any stage may be recognized as co-authors. The unit of contribution is taking a problem to a verified solution, not writing the patch.
 
-If a change is large or touches multiple parts of the codebase, please start with a discussion before opening a PR.
-This helps us align on direction before you spend time implementing something.
+## From Issue to Pull Request
 
-### Pull Requests
+Do not begin implementation or open a pull request until the issue has reached **Ready** on the Goose Issues board.
 
-Open a PR when you have a concrete change ready. For first contributions we strongly recommend starting small
-(see [Getting Started](#getting-started)). Don't open many PRs in quick succession. Submit them in order of 
-your preference and wait for them to land before opening more. 
+Every external pull request must:
 
-If the code is still evolving but useful for discussion, open the PR in draft mode. Draft PRs are for discussion, 
-not just unfinished work. If it’s not ready yet, keep the branch local.
+- link the Ready issue it implements;
+- stay within the design and scope agreed in the issue;
+- explain how the issue's verification plan was carried out; and
+- return material design changes to the issue for discussion.
 
-### Feature Requests
+Pull requests that do not implement a Ready issue will be closed. Automated dependency and release pull requests, urgent security fixes, and work explicitly directed by the core team are exempt.
 
-Before proposing a new feature, consider whether it is something broadly useful or mainly a personal preference.
-Adding features is easy; maintaining them is a long-term cost, so we may decline features that add complexity
-without clear general benefit.
-
+Don't open many pull requests in quick succession. Submit them in order of preference and wait for them to land before opening more.
 
 ## AI Code Reviews
 
@@ -120,7 +112,7 @@ sudo apt install build-essential  # build-essential is a package that installs a
 sudo apt install libxcb1-dev      # libxcb1-dev is the development package for the X C Binding (XCB) library on Linux
 ```
 
-## Getting Started
+## Development Setup
 
 ### Rust
 

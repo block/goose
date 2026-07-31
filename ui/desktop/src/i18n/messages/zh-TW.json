@@ -4538,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "編輯"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "附加圖片："
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "就地編輯"
   },
@@ -4570,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "以編輯後的訊息建立新的工作階段"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "從訊息中移除圖片"
   }
 }
