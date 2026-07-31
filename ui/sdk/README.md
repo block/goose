@@ -44,14 +44,14 @@ npm run build:native:all
 
 ### Local Development with npm link
 
-To use this package locally in another project (e.g., `@aaif/goose`):
+To use this package locally in another project:
 
 ```bash
 # In ui/sdk
 npm run build
 npm link
 
-# In ui/text (or another project)
+# In the consuming project
 npm link @aaif/goose-sdk
 ```
 
@@ -113,7 +113,6 @@ For manual publishing:
 This will:
 1. Build and publish `@aaif/goose-sdk`
 2. Publish all native binary packages
-3. Publish `@aaif/goose` (which depends on the above)
 
 ## Usage
 

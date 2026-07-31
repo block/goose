@@ -10,7 +10,7 @@ native_lib="$1"
 resource_prefix="${2:-$(crates/goose-sdk/scripts/maven-resource-prefix.sh)}"
 
 case "$resource_prefix" in
-  darwin-aarch64|linux-x86-64|win32-x86-64) ;;
+  darwin-aarch64|darwin-x86-64|linux-x86-64|linux-aarch64|win32-x86-64) ;;
   *) echo "unsupported JNA resource prefix: $resource_prefix" >&2; exit 1 ;;
 esac
 

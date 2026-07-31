@@ -96,6 +96,9 @@ function recoverConnection(immediate: boolean): void {
       }
     },
     () => {
+      if (pendingConnection === recoveryAttempt) {
+        pendingConnection = null;
+      }
       if (generation === connectionGeneration) {
         setRecovering(false);
       }

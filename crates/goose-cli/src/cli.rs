@@ -838,6 +838,9 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        #[arg(long, help = "Enable scheduled recipe execution")]
+        enable_scheduler: bool,
     },
 
     /// Start ACP server over HTTP and WebSocket
@@ -884,6 +887,9 @@ enum Command {
             help = "Allow an exact Origin value for ACP CORS; may be specified multiple times and replaces the default loopback origins"
         )]
         allowed_origins: Vec<String>,
+
+        #[arg(long, help = "Enable scheduled recipe execution")]
+        enable_scheduler: bool,
     },
 
     /// Start or resume interactive chat sessions
@@ -1388,6 +1394,7 @@ struct ServeCommandArgs {
     builtins: Vec<String>,
     dangerously_unauthenticated: bool,
     allowed_origins: Vec<String>,
+    enable_scheduler: bool,
 }
 
 async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
@@ -1409,6 +1416,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         builtins,
         dangerously_unauthenticated,
         allowed_origins,
+        enable_scheduler,
     } = args;
 
     let builtins = if builtins.is_empty() {
@@ -1435,6 +1443,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         config_dir: Paths::config_dir(),
         goose_platform: platform.into(),
         additional_source_roots,
+        enable_scheduler,
     }));
     let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
@@ -1839,7 +1848,9 @@ fn parse_run_input(
             Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            eprintln!(
+                "Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin."
+            );
             std::process::exit(1);
         }
     }
@@ -2228,7 +2239,10 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Doctor {}) => crate::commands::doctor::handle_doctor().await,
         Some(Command::Info { verbose, check }) => handle_info(verbose, check).await,
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => goose::acp::server::run(builtins).await,
+        Some(Command::Acp {
+            builtins,
+            enable_scheduler,
+        }) => goose::acp::server::run(builtins, enable_scheduler).await,
         Some(Command::Serve {
             host,
             port,
@@ -2239,6 +2253,7 @@ pub async fn cli() -> anyhow::Result<()> {
             builtins,
             dangerously_unauthenticated,
             allowed_origins,
+            enable_scheduler,
         }) => {
             handle_serve_command(ServeCommandArgs {
                 host,
@@ -2250,6 +2265,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 builtins,
                 dangerously_unauthenticated,
                 allowed_origins,
+                enable_scheduler,
             })
             .await
         }

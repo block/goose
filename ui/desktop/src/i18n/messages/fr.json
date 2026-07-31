@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Utiliser le fournisseur par défaut"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nom de la recette"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sera automatiquement mis en forme (minuscules, tirets à la place des espaces)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -3662,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON de la session copié"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texte copié"
   },
@@ -3692,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Chargement du JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Échec du renommage de la session : {error}"
   },
@@ -3716,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Afficher le JSON de la session"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "La session a rencontré une erreur"
   },
@@ -3724,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Diffusion en cours"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Cette session ne contient aucun message"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Aucun message trouvé"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Erreur lors du chargement des détails de la session"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Réessayer"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Vous"
   },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
@@ -4070,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Paramètres"
   },
-  "sheet.close": {
-    "defaultMessage": "Fermer"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -4138,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Le fournisseur {name} est configuré"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Application Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Pour l'utiliser, soit le"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "doit être installé sur votre machine et ouvert, soit vous devez saisir une valeur pour OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Ajouter une existante"

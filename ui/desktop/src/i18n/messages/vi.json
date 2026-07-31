@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Sử dụng nhà cung cấp mặc định"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Tên công thức"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sẽ được định dạng tự động (chữ thường, dấu gạch ngang thay cho khoảng trắng)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Hủy"
   },
@@ -3662,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Đã sao chép JSON của phiên"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Đã sao chép văn bản"
   },
@@ -3692,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Đang tải JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Không thể đổi tên phiên: {error}"
   },
@@ -3716,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Xem JSON của phiên"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "Phiên gặp lỗi"
   },
@@ -3724,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Đang truyền phát"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Phiên này không chứa tin nhắn nào"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Không tìm thấy tin nhắn nào"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Lỗi khi tải chi tiết phiên"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Thử lại"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Bạn"
   },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
@@ -4070,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Cài đặt"
   },
-  "sheet.close": {
-    "defaultMessage": "Đóng"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Hủy"
   },
@@ -4138,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Nhà cung cấp {name} đã được định cấu hình"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ứng dụng Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Để sử dụng, hoặc là"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "phải được cài đặt trên máy của bạn và đang mở, hoặc bạn phải nhập một giá trị cho OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Thêm hiện có"

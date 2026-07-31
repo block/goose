@@ -1,5 +1,5 @@
 use crate::config::Config;
-use rmcp::model::{CallToolResult, Content, ErrorData};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorData};
 use std::io::Write;
 
 const DEFAULT_LARGE_TEXT_THRESHOLD: usize = 200_000;
@@ -33,7 +33,7 @@ pub fn process_tool_response(
                                         text_content.text.chars().count(),
                                         file_path
                                     );
-                                    processed_contents.push(Content::text(message));
+                                    processed_contents.push(ContentBlock::text(message));
                                 }
                                 Err(e) => {
                                     // If file writing fails, include original content with warning
@@ -42,7 +42,7 @@ pub fn process_tool_response(
                                         e,
                                         text_content.text
                                     );
-                                    processed_contents.push(Content::text(warning));
+                                    processed_contents.push(ContentBlock::text(warning));
                                 }
                             }
                         } else {
@@ -79,7 +79,7 @@ fn write_large_text_to_file(content: &str) -> Result<String, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::{Content, ErrorCode, ErrorData};
+    use rmcp::model::{ContentBlock, ErrorCode, ErrorData};
     use std::borrow::Cow;
     use std::fs;
     use std::path::Path;
@@ -88,7 +88,7 @@ mod tests {
     fn test_small_text_response_passes_through() {
         // Create a small text response
         let small_text = "This is a small text response";
-        let content = Content::text(small_text.to_string());
+        let content = ContentBlock::text(small_text.to_string());
 
         let response = Ok(CallToolResult::success(vec![content]));
 
@@ -108,7 +108,7 @@ mod tests {
     fn test_large_text_response_redirected_to_file() {
         // Create a text larger than the threshold
         let large_text = "a".repeat(DEFAULT_LARGE_TEXT_THRESHOLD + 1000);
-        let content = Content::text(large_text.clone());
+        let content = ContentBlock::text(large_text.clone());
 
         let response = Ok(CallToolResult::success(vec![content]));
 
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_image_content_passes_through() {
         // Create an image content
-        let image_content = Content::image("base64data".to_string(), "image/png".to_string());
+        let image_content = ContentBlock::image("base64data".to_string(), "image/png".to_string());
 
         let response = Ok(CallToolResult::success(vec![image_content]));
 
@@ -161,9 +161,9 @@ mod tests {
     #[test]
     fn test_mixed_content_handled_correctly() {
         // Create a response with mixed content types
-        let small_text = Content::text("Small text");
-        let large_text = Content::text("a".repeat(DEFAULT_LARGE_TEXT_THRESHOLD + 1000));
-        let image = Content::image("image_data".to_string(), "image/jpeg".to_string());
+        let small_text = ContentBlock::text("Small text");
+        let large_text = ContentBlock::text("a".repeat(DEFAULT_LARGE_TEXT_THRESHOLD + 1000));
+        let image = ContentBlock::image("image_data".to_string(), "image/jpeg".to_string());
 
         let response = Ok(CallToolResult::success(vec![small_text, large_text, image]));
 

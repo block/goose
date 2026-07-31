@@ -11,7 +11,7 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, ErrorCode, ErrorData};
 use serde_json::{json, Map, Value};
 
 use crate::conversation::message::Message;
@@ -174,7 +174,9 @@ pub fn convert(content: &str) -> Result<String> {
                 resp.created = created;
                 resp = resp.with_tool_response(
                     id,
-                    Ok(CallToolResult::success(vec![Content::text(result_text)])),
+                    Ok(CallToolResult::success(vec![ContentBlock::text(
+                        result_text,
+                    )])),
                 );
                 messages.push(resp);
             }
@@ -324,7 +326,7 @@ fn build_tool_result(content: Option<&Value>, is_error: bool) -> Result<CallTool
     if is_error {
         Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, text, None))
     } else {
-        Ok(CallToolResult::success(vec![Content::text(text)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(text)]))
     }
 }
 

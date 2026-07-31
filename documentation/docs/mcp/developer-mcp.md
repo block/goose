@@ -184,10 +184,12 @@ The Developer extension provides these tools:
 | Tool | Description | Use Cases | Risk Level |
 |------|-------------|-----------|------------|
 | `shell` | Execute shell commands | Running tests, installing packages, git operations | ⚠️ High<br />Can run any system command with your user privileges |
-| `text_editor` | Read, write, and edit files | Code refactoring, creating files, updating configs | ⚠️ High<br />Can modify any accessible file |
-| `analyze` | Analyze code structure | Understanding codebase, finding dependencies | ✅ Low<br />Read-only code analysis |
-| `screen_capture` | Take screenshots | Debugging UI issues, documenting state | ✅ Low<br />Visual information only |
-| `image_processor` | Process and resize images | Optimizing assets, format conversion | ✅ Low<br />Image manipulation only |
+| `write` | Create or overwrite files | Creating files, updating generated assets, writing configs | ⚠️ High<br />Can modify any accessible file |
+| `edit` | Replace exact text in files | Code refactoring, targeted edits, deleting matched text | ⚠️ High<br />Can modify any accessible file |
+| `tree` | List directory trees with line counts | Understanding project structure before reading files | ✅ Low<br />Read-only file listing |
+| `read_image` | Read a local or remote image for model inspection | Inspecting screenshots, diagrams, and visual assets | ✅ Low<br />Read-only image access |
+
+For code structure analysis, use the separate [Analyze platform extension](/docs/guides/codebase-analysis).
 
 ### Access Control Features
 

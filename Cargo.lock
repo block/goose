@@ -201,7 +201,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -212,7 +212,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -532,9 +532,9 @@ dependencies = [
 
 [[package]]
 name = "async-utility"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a34a3b57207a7a1007832416c3e4862378c8451b4e8e093e436f48c2d3d2c151"
+checksum = "188f83b9a198af8c336e505611edb00d6d2ac5c694241c5a4f9a12316938cfe9"
 dependencies = [
  "futures-util",
  "gloo-timers",
@@ -1206,6 +1206,12 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "base64"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
 
 [[package]]
 name = "base64-simd"
@@ -2429,7 +2435,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -3692,7 +3698,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4011,7 +4017,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4908,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4986,7 +4992,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "rubato",
  "rustls",
  "schemars 1.2.1",
@@ -5044,7 +5050,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "quote",
  "syn 2.0.118",
@@ -5052,7 +5058,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -5082,7 +5088,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5108,7 +5114,7 @@ dependencies = [
 
 [[package]]
 name = "goose-download-manager"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -5120,7 +5126,7 @@ dependencies = [
 
 [[package]]
 name = "goose-local-inference"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5128,6 +5134,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "encoding_rs",
+ "env-lock",
  "etcetera 0.11.0",
  "fs2",
  "futures",
@@ -5141,7 +5148,7 @@ dependencies = [
  "minijinja",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5155,7 +5162,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5169,7 +5176,7 @@ dependencies = [
  "once_cell",
  "process-wrap",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -5185,7 +5192,7 @@ dependencies = [
 
 [[package]]
 name = "goose-provider-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5198,7 +5205,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5214,7 +5221,7 @@ dependencies = [
 
 [[package]]
 name = "goose-providers"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5229,7 +5236,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "sec1",
  "serde",
  "serde_json",
@@ -5246,14 +5253,16 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
  "anyhow",
+ "base64 0.22.1",
  "futures",
  "goose-providers",
  "goose-sdk-types",
+ "rmcp 3.0.0",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -5263,7 +5272,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5274,7 +5283,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5282,12 +5291,12 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.43.0"
+version = "1.45.0"
 dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp",
+ "rmcp 3.0.0",
  "serde_json",
  "tokio",
 ]
@@ -7017,9 +7026,9 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.44.4"
+version = "0.44.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98cf5d15d70d1f8f4059e5f79923ac15891eb691d2843d01191e0585fb064d70"
+checksum = "e826dd648489de2c5b293920e20b92932ef820302007c1987c758d4d06eeb2cf"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -7107,7 +7116,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7278,7 +7287,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.17",
  "http 1.4.2",
@@ -7852,7 +7861,7 @@ dependencies = [
  "deno_error",
  "pctx_config",
  "pctx_registry",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -7863,9 +7872,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_mode"
-version = "0.3.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d9f5ffc774d0c440e780aaa2593fbf5c5710e5b5c63a6b498116d3f46a09fe0"
+checksum = "f55b3476b133078b55bc808aad1ff880428bf3de3127415ec33ceab50ef230d9"
 dependencies = [
  "futures",
  "pctx_codegen",
@@ -7883,9 +7892,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_codegen"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b05191d9a37d1101f3a78e770e1a2b5521e75ce718f1165fb15ac16025d297b"
+checksum = "a56b53c02b41420f6bd3baa7046a5a7509a38114fffa52f737f44c9044eac646"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -7918,7 +7927,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.1",
  "opentelemetry_sdk 0.31.0",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "shlex 1.3.0",
@@ -7965,13 +7974,13 @@ dependencies = [
 
 [[package]]
 name = "pctx_registry"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f5a53bf73ba98a5352e788391f47c33af096c696c64e130110b85cc51336e20"
+checksum = "251c06ac888c315c7e23d210e4e9ffa88d5dc08225c0d8de96f1263837d72896"
 dependencies = [
  "deno_error",
  "pctx_config",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -8604,7 +8613,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9075,6 +9084,33 @@ checksum = "1d1f571c72940a19d9532fe52dbea8bc9912bf1d766c2970bb824056b86f3f59"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "http 1.4.2",
+ "pastey",
+ "pin-project-lite",
+ "process-wrap",
+ "reqwest 0.13.4",
+ "rmcp-macros 1.8.0",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sse-stream",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcd2b6dd3b18129368955f32661a7718969e8c152c7d8866434c09cf15a512e0"
+dependencies = [
+ "async-trait",
+ "base64 0.23.0",
  "bytes",
  "chrono",
  "futures",
@@ -9089,7 +9125,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros",
+ "rmcp-macros 3.0.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -9109,6 +9145,19 @@ name = "rmcp-macros"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aad0035b69380782d78ea95b508327e6deaa2235909053e596eea8f27b5e1d5"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1aa4b9345795260a43fc23d6d05e096407c8b953903f673af7c4404b49fb2d6"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -9212,7 +9261,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9270,7 +9319,7 @@ dependencies = [
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -10281,7 +10330,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -10563,7 +10612,7 @@ dependencies = [
  "cfg-if 1.0.4",
  "libc",
  "psm",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -11402,10 +11451,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -13199,7 +13248,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

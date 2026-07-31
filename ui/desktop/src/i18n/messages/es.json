@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Usar el proveedor por defecto"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nombre de la receta"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Se formateará automáticamente (minúsculas, guiones en lugar de espacios)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -3662,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON de la sesión copiado"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Texto copiado"
   },
@@ -3692,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Cargando JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "No se pudo renombrar la sesión: {error}"
   },
@@ -3716,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
   },
@@ -3724,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Tú"
   },
   "sessions.action.delete": {
     "defaultMessage": "Eliminar sesión"
@@ -4070,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Ajustes"
   },
-  "sheet.close": {
-    "defaultMessage": "Cerrar"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -4138,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "El proveedor {name} está configurado"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "App de Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Para usarlo, o bien la"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "debe estar instalada en tu máquina y abierta, o debes ingresar un valor para OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Agregar existente"

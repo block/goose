@@ -7,19 +7,18 @@ use async_trait::async_trait;
 use pctx_code_mode::{
     config::ToolDisclosure,
     descriptions::{tools as tool_descriptions, workflow::get_workflow_description},
-    model::{CallbackConfig, ExecuteBashInput, ExecuteInput, GetFunctionDetailsInput},
+    model::{CallbackConfig, ExecuteBashInput, ExecuteTypescriptInput, GetFunctionDetailsInput},
     registry::{CallbackFn, PctxRegistry},
     CodeMode,
 };
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
+    CallToolRequestParams, CallToolResult, ContentBlock, Implementation, InitializeResult,
+    JsonObject, ListToolsResult, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
@@ -29,117 +28,6 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "code_execution";
-
-fn sanitize_schema_for_code_mode(schema: &mut Value) {
-    let Some(obj) = schema.as_object_mut() else {
-        return;
-    };
-
-    let Some(defs_key) = ["$defs", "definitions"]
-        .into_iter()
-        .find(|key| obj.get(*key).is_some_and(Value::is_object))
-    else {
-        return;
-    };
-
-    let names: Vec<String> = obj[defs_key]
-        .as_object()
-        .map(|defs| defs.keys().cloned().collect())
-        .unwrap_or_default();
-
-    let mut edges: HashMap<String, HashSet<String>> = HashMap::new();
-    if let Some(defs) = obj.get(defs_key).and_then(Value::as_object) {
-        for name in &names {
-            let mut refs = HashSet::new();
-            if let Some(def_value) = defs.get(name) {
-                collect_ref_targets(def_value, &mut refs);
-            }
-            edges.insert(name.clone(), refs);
-        }
-    }
-
-    let cuts = find_cycle_edges(&names, &edges);
-    if cuts.is_empty() {
-        return;
-    }
-
-    if let Some(defs) = obj.get_mut(defs_key).and_then(Value::as_object_mut) {
-        for (from, to) in &cuts {
-            if let Some(def_value) = defs.get_mut(from) {
-                neutralize_refs_to(def_value, to);
-            }
-        }
-    }
-}
-
-fn collect_ref_targets(value: &Value, out: &mut HashSet<String>) {
-    match value {
-        Value::Object(map) => {
-            if let Some(Value::String(r)) = map.get("$ref") {
-                if let Some(name) = r.rsplit('/').next() {
-                    out.insert(name.to_string());
-                }
-            }
-            map.values().for_each(|v| collect_ref_targets(v, out));
-        }
-        Value::Array(items) => items.iter().for_each(|v| collect_ref_targets(v, out)),
-        _ => {}
-    }
-}
-
-fn neutralize_refs_to(value: &mut Value, target: &str) {
-    let is_target_ref = matches!(
-        value.as_object().and_then(|map| map.get("$ref")),
-        Some(Value::String(r)) if r.rsplit('/').next() == Some(target)
-    );
-    if is_target_ref {
-        *value = json!({});
-        return;
-    }
-    match value {
-        Value::Object(map) => map.values_mut().for_each(|v| neutralize_refs_to(v, target)),
-        Value::Array(items) => items.iter_mut().for_each(|v| neutralize_refs_to(v, target)),
-        _ => {}
-    }
-}
-
-fn find_cycle_edges(
-    names: &[String],
-    edges: &HashMap<String, HashSet<String>>,
-) -> Vec<(String, String)> {
-    enum State {
-        InProgress,
-        Done,
-    }
-
-    fn visit<'a>(
-        node: &'a str,
-        edges: &'a HashMap<String, HashSet<String>>,
-        state: &mut HashMap<&'a str, State>,
-        cuts: &mut Vec<(String, String)>,
-    ) {
-        state.insert(node, State::InProgress);
-        if let Some(targets) = edges.get(node) {
-            for target in targets {
-                match state.get(target.as_str()) {
-                    Some(State::InProgress) => cuts.push((node.to_string(), target.clone())),
-                    Some(State::Done) => {}
-                    None => visit(target, edges, state, cuts),
-                }
-            }
-        }
-        state.insert(node, State::Done);
-    }
-
-    let mut state: HashMap<&str, State> = HashMap::new();
-    let mut cuts = Vec::new();
-    for name in names {
-        if !state.contains_key(name.as_str()) {
-            visit(name, edges, &mut state, &mut cuts);
-        }
-    }
-    cuts
-}
 
 pub struct CodeExecutionClient {
     info: InitializeResult,
@@ -162,7 +50,7 @@ struct ToolGraphNode {
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteWithToolGraph {
     #[serde(flatten)]
-    input: ExecuteInput,
+    input: ExecuteTypescriptInput,
     /// DAG of tool calls showing execution flow. Each node represents a tool call.
     /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
     #[serde(default)]
@@ -212,20 +100,12 @@ impl CodeExecutionClient {
                 (tool.name.to_string(), None)
             };
 
-            let mut input_schema = json!(tool.input_schema);
-            sanitize_schema_for_code_mode(&mut input_schema);
-
-            let mut output_schema = tool.output_schema.as_ref().map(|s| json!(s));
-            if let Some(schema) = output_schema.as_mut() {
-                sanitize_schema_for_code_mode(schema);
-            }
-
             cfgs.push(CallbackConfig {
                 name,
                 namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
-                input_schema: Some(input_schema),
-                output_schema,
+                input_schema: Some(json!(tool.input_schema)),
+                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
             })
         }
         Some(cfgs)
@@ -271,6 +151,7 @@ impl CodeExecutionClient {
         ctx: &ToolCallContext,
         code_mode: &CodeMode,
         cancellation_token: CancellationToken,
+        rt: tokio::runtime::Handle,
     ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
@@ -294,6 +175,7 @@ impl CodeExecutionClient {
                 full_name,
                 manager.clone(),
                 cancellation_token.clone(),
+                rt.clone(),
             );
             registry
                 .add_callback(&cfg.id(), callback)
@@ -304,11 +186,11 @@ impl CodeExecutionClient {
     }
 
     /// Handle the list_functions tool call
-    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<Content>, String> {
+    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<ContentBlock>, String> {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.list_functions();
 
-        Ok(vec![Content::text(output.code)])
+        Ok(vec![ContentBlock::text(output.code)])
     }
 
     /// Handle the get_function_details tool call
@@ -316,7 +198,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let input: GetFunctionDetailsInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -326,7 +208,7 @@ impl CodeExecutionClient {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.get_function_details(input);
 
-        Ok(vec![Content::text(output.code)])
+        Ok(vec![ContentBlock::text(output.code)])
     }
 
     /// Handle the execute bash tool call
@@ -335,7 +217,7 @@ impl CodeExecutionClient {
         session_id: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let input: ExecuteBashInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -358,7 +240,10 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![Content::text(output.markdown())])
+        Ok(vec![ContentBlock::text(format!(
+            "Exit Code: {}\n\n# STDOUT\n{}\n\n# STDERR\n{}",
+            output.exit_code, output.stdout, output.stderr
+        ))])
     }
 
     /// Handle the execute typescript tool call
@@ -367,7 +252,7 @@ impl CodeExecutionClient {
         ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let args: ExecuteWithToolGraph = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
@@ -377,7 +262,8 @@ impl CodeExecutionClient {
         let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
         let dispatch_token = cancellation_token.child_token();
-        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone())?;
+        let rt = tokio::runtime::Handle::current();
+        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone(), rt)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -394,7 +280,7 @@ impl CodeExecutionClient {
         )
         .await?;
 
-        Ok(vec![Content::text(output.markdown())])
+        Ok(vec![ContentBlock::text(output.markdown())])
     }
 }
 
@@ -474,12 +360,14 @@ fn create_tool_callback(
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
     cancellation_token: CancellationToken,
+    rt: tokio::runtime::Handle,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
         let cancellation_token = cancellation_token.clone();
+        let rt = rt.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -488,39 +376,74 @@ fn create_tool_callback(
                 }
                 params
             };
-            match manager
-                .dispatch_tool_call(&ctx, tool_call, cancellation_token)
-                .await
-            {
-                Ok(dispatch_result) => match dispatch_result.result.await {
-                    Ok(result) => {
-                        if let Some(sc) = &result.structured_content {
-                            Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
-                        } else {
-                            // Filter to assistant-audience or no-audience content,
-                            // skipping user-only content to avoid duplicated output
-                            let text: String = result
-                                .content
-                                .iter()
-                                .filter(|c| {
-                                    c.audience().is_none_or(|audiences| {
-                                        audiences.is_empty() || audiences.contains(&Role::Assistant)
+
+            let handle = rt.spawn(async move {
+                match manager
+                    .dispatch_tool_call(&ctx, tool_call, cancellation_token)
+                    .await
+                {
+                    Ok(dispatch_result) => match dispatch_result.result.await {
+                        Ok(result) => {
+                            if let Some(sc) = &result.structured_content {
+                                Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
+                            } else {
+                                let text: String = result
+                                    .content
+                                    .iter()
+                                    .filter(|c| {
+                                        let audience = match c {
+                                            ContentBlock::Text(t) => t
+                                                .annotations
+                                                .as_ref()
+                                                .and_then(|a| a.audience.as_ref()),
+                                            ContentBlock::Image(i) => i
+                                                .annotations
+                                                .as_ref()
+                                                .and_then(|a| a.audience.as_ref()),
+                                            ContentBlock::Audio(a) => a
+                                                .annotations
+                                                .as_ref()
+                                                .and_then(|a| a.audience.as_ref()),
+                                            ContentBlock::Resource(r) => r
+                                                .annotations
+                                                .as_ref()
+                                                .and_then(|a| a.audience.as_ref()),
+                                            ContentBlock::ResourceLink(r) => r
+                                                .annotations
+                                                .as_ref()
+                                                .and_then(|a| a.audience.as_ref()),
+                                            _ => None,
+                                        };
+                                        audience.is_none_or(|audiences| {
+                                            audiences.is_empty()
+                                                || audiences.contains(&Role::Assistant)
+                                        })
                                     })
-                                })
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            // Try to parse as JSON, otherwise return as string
-                            Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                Ok(serde_json::from_str(&text).unwrap_or(Value::String(text)))
+                            }
                         }
-                    }
-                    Err(e) => Err(format!("Tool error: {}", e.message)),
-                },
-                Err(e) => Err(format!("Dispatch error: {e}")),
+                        Err(e) => Err(format!("Tool error: {}", e.message)),
+                    },
+                    Err(e) => Err(format!("Dispatch error: {e}")),
+                }
+            });
+
+            struct AbortOnDrop(tokio::task::AbortHandle);
+            impl Drop for AbortOnDrop {
+                fn drop(&mut self) {
+                    self.0.abort();
+                }
             }
+            let _guard = AbortOnDrop(handle.abort_handle());
+            handle
+                .await
+                .unwrap_or_else(|e| Err(format!("Callback task failed: {e}")))
         }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
     })
 }
@@ -597,11 +520,11 @@ impl McpClientTrait for CodeExecutionClient {
                         schema::<ExecuteBashInput>(),
                     )
                     .annotate(ToolAnnotations::from_raw(
-                        Some("Get function details".to_string()),
-                        Some(true),
+                        Some("Execute Bash".to_string()),
                         Some(false),
                         Some(true),
                         Some(false),
+                        Some(true),
                     )),
                     McpTool::new(
                         "execute_typescript".to_string(),
@@ -637,6 +560,7 @@ impl McpClientTrait for CodeExecutionClient {
             meta: None,
             next_cursor: None,
             tools,
+            ..Default::default()
         })
     }
 
@@ -667,7 +591,7 @@ impl McpClientTrait for CodeExecutionClient {
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {error}"
             ))])),
         }
@@ -759,6 +683,7 @@ impl CodeModeState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pctx_code_mode::model::FunctionId;
 
     #[tokio::test]
     async fn run_in_deno_runtime_times_out_on_hung_execution() {
@@ -902,6 +827,66 @@ mod tests {
         );
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn callback_completing_from_main_runtime_does_not_hang() {
+        let rt = tokio::runtime::Handle::current();
+        let (tx, rx) = tokio::sync::oneshot::channel::<serde_json::Value>();
+        let rx = Arc::new(std::sync::Mutex::new(Some(rx)));
+
+        let callback: CallbackFn = Arc::new({
+            let rt = rt.clone();
+            move |_args: Option<Value>| {
+                let rt = rt.clone();
+                let rx = rx.clone();
+                Box::pin(async move {
+                    let receiver = rx.lock().unwrap().take().expect("receiver taken once");
+                    let handle = rt.spawn(async move {
+                        receiver.await.map_err(|_| "channel closed".to_string())
+                    });
+                    handle.await.unwrap_or_else(|e| Err(e.to_string()))
+                }) as Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
+            }
+        });
+
+        rt.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let _ = tx.send(serde_json::json!({"done": true}));
+        });
+
+        let cfg = CallbackConfig {
+            name: "ping".to_string(),
+            namespace: Some("Test".to_string()),
+            description: Some("ping".to_string()),
+            input_schema: None,
+            output_schema: None,
+        };
+        let code_mode = CodeMode::default()
+            .with_callback(&cfg)
+            .expect("add callback");
+        let registry = PctxRegistry::default();
+        registry.add_callback(&cfg.id(), callback).unwrap();
+
+        let result = run_in_deno_runtime(
+            Duration::from_secs(5),
+            CancellationToken::new(),
+            CancellationToken::new(),
+            move || async move {
+                code_mode
+                    .execute_typescript(
+                        "async function run() { return await Test.ping(); }",
+                        ToolDisclosure::default(),
+                        Some(registry),
+                    )
+                    .await
+                    .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await
+        .expect("script should not time out");
+
+        assert!(result.success, "callback should succeed: {}", result.stderr);
+    }
+
     #[test]
     fn catalog_moim_mentions_inspection_tools_without_function_names() {
         let moim = catalog_disclosure_moim(3);
@@ -911,6 +896,40 @@ mod tests {
         assert!(moim.contains("get_function_details"));
         assert!(!moim.contains("extract_relations"));
         assert!(!moim.contains("ask_heimdall"));
+    }
+
+    #[tokio::test]
+    async fn execute_bash_annotations_require_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = CodeExecutionClient::new(
+            PlatformExtensionContext {
+                extension_manager: None,
+                session_manager: Arc::new(crate::session::SessionManager::new(
+                    temp.path().join("sessions"),
+                )),
+                session: None,
+                use_login_shell_path: false,
+            },
+            ToolDisclosure::Filesystem,
+        )
+        .unwrap();
+
+        let tools = client
+            .list_tools("test", None, CancellationToken::new())
+            .await
+            .unwrap()
+            .tools;
+        let execute_bash = tools
+            .iter()
+            .find(|tool| tool.name == "execute_bash")
+            .unwrap();
+        let annotations = execute_bash.annotations.as_ref().unwrap();
+
+        assert_eq!(annotations.title.as_deref(), Some("Execute Bash"));
+        assert_eq!(annotations.read_only_hint, Some(false));
+        assert_eq!(annotations.destructive_hint, Some(true));
+        assert_eq!(annotations.idempotent_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(true));
     }
 
     fn self_referential_any_schema() -> Value {
@@ -932,96 +951,7 @@ mod tests {
     }
 
     #[test]
-    fn collect_ref_targets_finds_nested_refs() {
-        let schema = self_referential_any_schema();
-        let mut refs = HashSet::new();
-        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
-
-        assert_eq!(refs, HashSet::from(["Any".to_string()]));
-    }
-
-    #[test]
-    fn find_cycle_edges_detects_self_loop() {
-        let mut edges = HashMap::new();
-        edges.insert("Any".to_string(), HashSet::from(["Any".to_string()]));
-        let names = vec!["Any".to_string()];
-
-        let cuts = find_cycle_edges(&names, &edges);
-
-        assert_eq!(cuts, vec![("Any".to_string(), "Any".to_string())]);
-    }
-
-    #[test]
-    fn find_cycle_edges_detects_longer_cycle_without_flagging_acyclic_refs() {
-        let mut edges = HashMap::new();
-        edges.insert("A".to_string(), HashSet::from(["B".to_string()]));
-        edges.insert("B".to_string(), HashSet::from(["C".to_string()]));
-        edges.insert("C".to_string(), HashSet::from(["A".to_string()]));
-        edges.insert("D".to_string(), HashSet::from(["A".to_string()]));
-        let names = vec![
-            "A".to_string(),
-            "B".to_string(),
-            "C".to_string(),
-            "D".to_string(),
-        ];
-
-        let cuts = find_cycle_edges(&names, &edges);
-
-        assert_eq!(cuts, vec![("C".to_string(), "A".to_string())]);
-    }
-
-    #[test]
-    fn neutralize_refs_to_replaces_matching_refs_only() {
-        let mut value = json!({
-            "anyOf": [
-                {"$ref": "#/$defs/Any"},
-                {"$ref": "#/$defs/Other"}
-            ]
-        });
-
-        neutralize_refs_to(&mut value, "Any");
-
-        assert_eq!(value["anyOf"][0], json!({}));
-        assert_eq!(value["anyOf"][1], json!({"$ref": "#/$defs/Other"}));
-    }
-
-    #[test]
-    fn sanitize_schema_for_code_mode_breaks_self_referential_defs() {
-        let mut schema = self_referential_any_schema();
-
-        sanitize_schema_for_code_mode(&mut schema);
-
-        let mut refs = HashSet::new();
-        collect_ref_targets(&schema["$defs"]["Any"], &mut refs);
-        assert!(
-            !refs.contains("Any"),
-            "cycle should be broken, got: {schema}"
-        );
-    }
-
-    #[test]
-    fn sanitize_schema_for_code_mode_leaves_acyclic_schemas_untouched() {
-        let mut schema = json!({
-            "type": "object",
-            "properties": {
-                "content": {"$ref": "#/$defs/Content"}
-            },
-            "$defs": {
-                "Content": {"type": "string"}
-            }
-        });
-        let original = schema.clone();
-
-        sanitize_schema_for_code_mode(&mut schema);
-
-        assert_eq!(schema, original);
-    }
-
-    #[test]
-    fn code_mode_accepts_previously_crashing_self_referential_schema() {
-        let mut output_schema = self_referential_any_schema();
-        sanitize_schema_for_code_mode(&mut output_schema);
-
+    fn code_mode_preserves_types_for_self_referential_schema() {
         let cfg = CallbackConfig {
             name: "retain".to_string(),
             namespace: Some("hindsight".to_string()),
@@ -1031,10 +961,29 @@ mod tests {
                 "properties": {"content": {"type": "string"}},
                 "required": ["content"]
             })),
-            output_schema: Some(output_schema),
+            output_schema: Some(self_referential_any_schema()),
         };
 
-        let result = CodeMode::default().with_callback(&cfg);
-        assert!(result.is_ok(), "{:?}", result.err());
+        let code_mode = CodeMode::default()
+            .with_callback(&cfg)
+            .expect("recursive schemas should be supported");
+        let details = code_mode.get_function_details(GetFunctionDetailsInput {
+            functions: vec![FunctionId {
+                mod_name: "Hindsight".to_string(),
+                fn_name: "retain".to_string(),
+            }],
+        });
+        let function = details
+            .functions
+            .first()
+            .expect("hindsight.retain should have generated details");
+
+        assert_ne!(function.output_type, "any");
+        assert!(
+            function.types.contains("export type RetainOutputAny =")
+                && function.types.contains("[key: string]: RetainOutputAny"),
+            "expected RetainOutputAny to reference itself, got: {}",
+            function.types
+        );
     }
 }

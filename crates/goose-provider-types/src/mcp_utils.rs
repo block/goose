@@ -22,6 +22,7 @@ pub fn extract_text_from_resource(resource: &ResourceContents) -> String {
             }
             Err(_) => blob.clone(),
         },
+        _ => String::new(),
     }
 }
 

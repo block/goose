@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Gunakan penyedia lalai"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nama Resipi"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Akan diformat secara automatik (huruf kecil, sengkang untuk ruang)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Batal"
   },
@@ -3662,6 +3656,9 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON sesi disalin"
   },
+  "sessionActionsHeader.copiedModelInteractions": {
+    "defaultMessage": "Recent model interactions copied"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Teks disalin"
   },
@@ -3692,6 +3689,12 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Memuatkan JSON..."
   },
+  "sessionActionsHeader.modelInteractionsFailed": {
+    "defaultMessage": "Failed to load model interactions: {error}"
+  },
+  "sessionActionsHeader.modelInteractionsTitle": {
+    "defaultMessage": "Recent model interactions"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Gagal menamakan semula sesi: {error}"
   },
@@ -3716,6 +3719,9 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Lihat JSON sesi"
   },
+  "sessionActionsHeader.viewModelInteractions": {
+    "defaultMessage": "View recent model interactions"
+  },
   "sessionIndicators.error": {
     "defaultMessage": "Sesi mengalami ralat"
   },
@@ -3724,24 +3730,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Sesi ini tidak mengandungi sebarang mesej"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Tiada mesej ditemui"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ralat Memuatkan Butiran Sesi"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Cuba Lagi"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Anda"
   },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
@@ -4070,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Tetapan"
   },
-  "sheet.close": {
-    "defaultMessage": "Tutup"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Batal"
   },
@@ -4138,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Penyedia {name} telah dikonfigurasikan"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Aplikasi Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Untuk menggunakannya, sama ada"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "mesti dipasang pada mesin anda dan dibuka, atau anda mesti memasukkan nilai untuk OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Tambah Sedia Ada"

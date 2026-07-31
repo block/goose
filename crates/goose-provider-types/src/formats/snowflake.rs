@@ -1,4 +1,4 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::Usage;
 use crate::errors::ProviderError;
 use crate::mcp_utils::extract_text_from_resource;
@@ -23,18 +23,18 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
 
         for msg_content in &message.content {
             match msg_content {
-                MessageContent::Text(text) => {
+                MessageContentBlock::Text(text) => {
                     if !text_content.is_empty() {
                         text_content.push('\n');
                     }
                     text_content.push_str(&text.text);
                 }
-                MessageContent::ToolRequest(_tool_request) => {
+                MessageContentBlock::ToolRequest(_tool_request) => {
                     // Skip tool requests in message formatting - tools are handled separately
                     // through the tools parameter in the API request
                     continue;
                 }
-                MessageContent::ToolResponse(tool_response) => {
+                MessageContentBlock::ToolResponse(tool_response) => {
                     if let Ok(result) = &tool_response.tool_result {
                         let text = result
                             .content
@@ -62,19 +62,19 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {}
-                MessageContent::ActionRequired(_) => {}
-                MessageContent::SystemNotification(_) => {
+                MessageContentBlock::ToolConfirmationRequest(_) => {}
+                MessageContentBlock::ActionRequired(_) => {}
+                MessageContentBlock::SystemNotification(_) => {
                     // Skip
                 }
-                MessageContent::Thinking(_thinking) => {
+                MessageContentBlock::Thinking(_thinking) => {
                     // Skip thinking for now
                 }
-                MessageContent::RedactedThinking(_redacted) => {
+                MessageContentBlock::RedactedThinking(_redacted) => {
                     // Skip redacted thinking for now
                 }
-                MessageContent::Image(_) => continue, // Snowflake doesn't support image content yet
-                MessageContent::FrontendToolRequest(_tool_request) => {
+                MessageContentBlock::Image(_) => continue, // Snowflake doesn't support image content yet
+                MessageContentBlock::FrontendToolRequest(_tool_request) => {
                     // Skip frontend tool requests
                 }
             }
@@ -397,7 +397,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello! How can I assist you today?");
         } else {
             panic!("Expected Text content");
@@ -434,7 +434,7 @@ mod tests {
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
 
-        if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
+        if let MessageContentBlock::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
             assert_eq!(tool_call.arguments, Some(object!({"expression": "2 + 2"})));
@@ -539,13 +539,13 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
         // Should have both text and tool request
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert!(text.text.contains("I'll help you check Nvidia's current"));
         } else {
             panic!("Expected Text content first");
         }
 
-        if let MessageContent::ToolRequest(tool_request) = &message.content[1] {
+        if let MessageContentBlock::ToolRequest(tool_request) = &message.content[1] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "get_stock_price");
             assert_eq!(tool_call.arguments, Some(object!({"symbol": "NVDA"})));
@@ -642,13 +642,13 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
         // Should have both text and tool request content
         assert_eq!(message.content.len(), 2);
 
-        if let MessageContent::Text(text) = &message.content[0] {
+        if let MessageContentBlock::Text(text) = &message.content[0] {
             assert_eq!(text.text, "I'll help you with that calculation.");
         } else {
             panic!("Expected Text content first");
         }
 
-        if let MessageContent::ToolRequest(tool_request) = &message.content[1] {
+        if let MessageContentBlock::ToolRequest(tool_request) = &message.content[1] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
             assert_eq!(tool_request.id, "tool_1");

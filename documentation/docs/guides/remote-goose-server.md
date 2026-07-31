@@ -31,7 +31,7 @@ On the remote machine, launch `goose serve` with the host, port, TLS, and a shar
 
 ```bash
 GOOSE_SERVER__SECRET_KEY='YOUR_SECRET' \
-goose serve --platform desktop --host 0.0.0.0 --port 3000 --tls
+goose serve --platform desktop --enable-scheduler --host 0.0.0.0 --port 3000 --tls
 ```
 
 If you are using the binary bundled with the macOS app, the command path is `/Applications/Goose.app/Contents/Resources/bin/goose`.
@@ -128,6 +128,7 @@ Create a LaunchAgent plist at `~/Library/LaunchAgents/com.goose.serve.external.p
       <string>serve</string>
       <string>--platform</string>
       <string>desktop</string>
+      <string>--enable-scheduler</string>
       <string>--host</string>
       <string>0.0.0.0</string>
       <string>--port</string>

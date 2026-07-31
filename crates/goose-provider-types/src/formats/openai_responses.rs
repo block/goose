@@ -1,4 +1,4 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContentBlock};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::formats::openai::{
@@ -11,10 +11,9 @@ use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, ContentBlock, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::ops::Deref;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
@@ -36,7 +35,7 @@ pub struct SummaryText {
     pub text: String,
 }
 
-fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
+fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContentBlock> {
     let text: String = summary
         .iter()
         .map(|s| s.text.as_str())
@@ -45,7 +44,7 @@ fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
     if text.is_empty() {
         None
     } else {
-        Some(MessageContent::thinking(text, ""))
+        Some(MessageContentBlock::thinking(text, ""))
     }
 }
 
@@ -160,12 +159,12 @@ pub enum ResponsesStreamEvent {
         item: ResponseOutputItemInfo,
     },
     #[serde(rename = "response.content_part.added")]
-    ContentPartAdded {
+    ContentBlockPartAdded {
         sequence_number: i32,
         item_id: String,
         output_index: i32,
         content_index: i32,
-        part: ContentPart,
+        part: ContentBlockPart,
     },
     #[serde(rename = "response.output_text.delta")]
     OutputTextDelta {
@@ -186,12 +185,12 @@ pub enum ResponsesStreamEvent {
         item: ResponseOutputItemInfo,
     },
     #[serde(rename = "response.content_part.done")]
-    ContentPartDone {
+    ContentBlockPartDone {
         sequence_number: i32,
         item_id: String,
         output_index: i32,
         content_index: i32,
-        part: ContentPart,
+        part: ContentBlockPart,
     },
     #[serde(rename = "response.output_text.done")]
     OutputTextDone {
@@ -329,7 +328,7 @@ pub enum ResponseOutputItemInfo {
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<String>,
         role: String,
-        content: Vec<ContentPart>,
+        content: Vec<ContentBlockPart>,
     },
     FunctionCall {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -346,7 +345,7 @@ pub enum ResponseOutputItemInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-pub enum ContentPart {
+pub enum ContentBlockPart {
     OutputText {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -375,7 +374,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         for content in &message.content {
             match content {
-                MessageContent::Text(text) if !text.text.is_empty() => {
+                MessageContentBlock::Text(text) if !text.text.is_empty() => {
                     let content_type = if message.role == Role::Assistant {
                         "output_text"
                     } else {
@@ -386,9 +385,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         "text": text.text
                     }));
                 }
-                MessageContent::ToolRequest(request) if message.role == Role::Assistant => {
+                MessageContentBlock::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -427,15 +427,16 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }
                     }
                 }
-                MessageContent::Image(image) => {
+                MessageContentBlock::Image(image) => {
                     text_items.push(json!({
                         "type": "input_image",
                         "image_url": format!("data:{};base64,{}", image.mime_type, image.data)
                     }));
                 }
-                MessageContent::ToolResponse(response) => {
+                MessageContentBlock::ToolResponse(response) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -447,32 +448,35 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                             let has_images = contents
                                 .content
                                 .iter()
-                                .any(|c| matches!(c.deref(), RawContent::Image(_)));
+                                .any(|c| matches!(c, ContentBlock::Image(_)));
 
                             let output = if has_images {
                                 json!(contents
                                     .content
                                     .iter()
-                                    .map(|c| match c.deref() {
-                                        RawContent::Text(t) => json!({
+                                    .map(|c| match c {
+                                        ContentBlock::Text(t) => json!({
                                             "type": "input_text", "text": t.text
                                         }),
-                                        RawContent::Resource(r) => json!({
+                                        ContentBlock::Resource(r) => json!({
                                             "type": "input_text",
                                             "text": extract_text_from_resource(&r.resource)
                                         }),
-                                        RawContent::Image(image) => json!({
+                                        ContentBlock::Image(image) => json!({
                                             "type": "input_image",
                                             "image_url": format!(
                                                 "data:{};base64,{}",
                                                 image.mime_type, image.data
                                             )
                                         }),
-                                        RawContent::Audio(_) => json!({
+                                        ContentBlock::Audio(_) => json!({
                                             "type": "input_text", "text": "[Audio content]"
                                         }),
-                                        RawContent::ResourceLink(_) => json!({
+                                        ContentBlock::ResourceLink(_) => json!({
                                             "type": "input_text", "text": "[Resource link]"
+                                        }),
+                                        _ => json!({
+                                            "type": "input_text", "text": "[Unsupported content]"
                                         }),
                                     })
                                     .collect::<Vec<Value>>())
@@ -480,16 +484,17 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                                 json!(contents
                                     .content
                                     .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(r) => {
+                                    .filter_map(|c| match c {
+                                        ContentBlock::Text(t) => Some(t.text.clone()),
+                                        ContentBlock::Resource(r) => {
                                             Some(extract_text_from_resource(&r.resource))
                                         }
-                                        RawContent::Audio(_) => Some("[Audio content]".into()),
-                                        RawContent::ResourceLink(_) => {
+                                        ContentBlock::Audio(_) => Some("[Audio content]".into()),
+                                        ContentBlock::ResourceLink(_) => {
                                             Some("[Resource link]".into())
                                         }
-                                        RawContent::Image(_) => None,
+                                        ContentBlock::Image(_) => None,
+                                        _ => Some("[Unsupported content]".into()),
                                     })
                                     .collect::<Vec<String>>()
                                     .join("\n"))
@@ -514,9 +519,10 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }
                     }
                 }
-                MessageContent::FrontendToolRequest(request) => {
+                MessageContentBlock::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -556,6 +562,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         if !text_items.is_empty() {
             input_items.push(json!({
+                "type": "message",
                 "role": role,
                 "content": text_items
             }));
@@ -577,10 +584,30 @@ pub fn create_responses_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> anyhow::Result<Value, Error> {
+    let (wire_model_name, _) = extract_reasoning_effort(&model_config.model_name);
+    create_responses_request_for_model(
+        model_config,
+        &wire_model_name,
+        &model_config.model_name,
+        system,
+        messages,
+        tools,
+    )
+}
+
+pub fn create_responses_request_for_model(
+    model_config: &ModelConfig,
+    wire_model_name: &str,
+    capability_model_name: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
     let mut input_items = Vec::new();
 
     if !system.is_empty() {
         input_items.push(json!({
+            "type": "message",
             "role": "system",
             "content": [{
                 "type": "input_text",
@@ -591,7 +618,7 @@ pub fn create_responses_request(
 
     add_message_items(&mut input_items, messages);
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(capability_model_name);
     // All models routed here are responses-capable; temperature is rejected
     // by the API for reasoning models regardless of whether an explicit
     // effort suffix was provided.
@@ -636,7 +663,7 @@ pub fn create_responses_request(
         ));
     }
     let mut payload = json!({
-        "model": model_name,
+        "model": wire_model_name,
         "input": input_items,
         "store": store,
     });
@@ -711,16 +738,16 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                     match block {
                         ResponseContentBlock::OutputText { text, .. } => {
                             if !text.is_empty() {
-                                content.push(MessageContent::text(text));
+                                content.push(MessageContentBlock::text(text));
                             }
                         }
                         ResponseContentBlock::Refusal { refusal } => {
                             if !refusal.is_empty() {
-                                content.push(MessageContent::text(refusal));
+                                content.push(MessageContentBlock::text(refusal));
                             }
                         }
                         ResponseContentBlock::ToolCall { id, name, input } => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id.clone(),
                                 Ok(CallToolRequestParams::new(name.clone())
                                     .with_arguments(object(input.clone()))),
@@ -745,7 +772,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                     serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
                 };
 
-                content.push(MessageContent::tool_request(
+                content.push(MessageContentBlock::tool_request(
                     request_id,
                     Ok(CallToolRequestParams::new(name.clone())
                         .with_arguments(object(parsed_args))),
@@ -771,7 +798,7 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
 fn process_streaming_output_items(
     output_items: Vec<ResponseOutputItemInfo>,
     is_text_response: bool,
-) -> anyhow::Result<Vec<MessageContent>> {
+) -> anyhow::Result<Vec<MessageContentBlock>> {
     let mut content = Vec::new();
 
     for item in output_items {
@@ -782,17 +809,17 @@ fn process_streaming_output_items(
             ResponseOutputItemInfo::Message { content: parts, .. } => {
                 for part in parts {
                     match part {
-                        ContentPart::OutputText { text, .. } => {
+                        ContentBlockPart::OutputText { text, .. } => {
                             if !text.is_empty() && !is_text_response {
-                                content.push(MessageContent::text(&text));
+                                content.push(MessageContentBlock::text(&text));
                             }
                         }
-                        ContentPart::Refusal { refusal } => {
+                        ContentBlockPart::Refusal { refusal } => {
                             if !refusal.is_empty() && !is_text_response {
-                                content.push(MessageContent::text(&refusal));
+                                content.push(MessageContentBlock::text(&refusal));
                             }
                         }
-                        ContentPart::ToolCall {
+                        ContentBlockPart::ToolCall {
                             id,
                             name,
                             arguments,
@@ -803,7 +830,7 @@ fn process_streaming_output_items(
                                 serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
                             };
 
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContentBlock::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(name)
                                     .with_arguments(object(parsed_args))),
@@ -828,7 +855,7 @@ fn process_streaming_output_items(
                     serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
                 };
 
-                content.push(MessageContent::tool_request(
+                content.push(MessageContentBlock::tool_request(
                     request_id,
                     Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
@@ -905,7 +932,7 @@ where
                         let mut msg = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
-                            vec![MessageContent::text(&delta)],
+                            vec![MessageContentBlock::text(&delta)],
                         );
 
                         // Add ID so desktop client knows these deltas are part of the same message
@@ -958,7 +985,7 @@ where
                         let mut msg = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
-                            vec![MessageContent::text(&delta)],
+                            vec![MessageContentBlock::text(&delta)],
                         );
 
                         if let Some(id) = &response_id {
@@ -988,7 +1015,7 @@ where
                 }
 
                 _ => {
-                    // Ignore other event types (OutputItemAdded, ContentPartAdded, ContentPartDone)
+                    // Ignore other event types (OutputItemAdded, ContentBlockPartAdded, ContentBlockPartDone)
                 }
             }
         }
@@ -1011,7 +1038,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::MessageContent;
+    use crate::conversation::message::MessageContentBlock;
     use crate::model::ModelConfig;
     use futures::StreamExt;
     use rmcp::model::CallToolRequestParams;
@@ -1039,7 +1066,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1082,7 +1109,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1123,7 +1150,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         text_parts.push(text.text.clone());
                     }
                 }
@@ -1162,7 +1189,7 @@ mod tests {
             let (message, maybe_usage) = item?;
             if let Some(msg) = message {
                 for content in msg.content {
-                    if let MessageContent::ToolRequest(request) = content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
                         tool_request_id = Some(request.id);
                     }
                 }
@@ -1276,8 +1303,8 @@ mod tests {
             if let Some(msg) = message {
                 for content in msg.content {
                     match &content {
-                        MessageContent::Thinking(t) => thinking_parts.push(t.thinking.clone()),
-                        MessageContent::Text(t) => text_parts.push(t.text.clone()),
+                        MessageContentBlock::Thinking(t) => thinking_parts.push(t.thinking.clone()),
+                        MessageContentBlock::Text(t) => text_parts.push(t.text.clone()),
                         _ => {}
                     }
                 }
@@ -1330,6 +1357,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let messages = vec![
@@ -1354,16 +1382,12 @@ mod tests {
 
         let types: Vec<&str> = input
             .iter()
-            .map(|item| {
-                item.get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| item["role"].as_str().unwrap())
-            })
+            .map(|item| item["type"].as_str().unwrap())
             .collect();
 
         assert_eq!(
             types,
-            vec!["assistant", "function_call", "assistant", "function_call"]
+            vec!["message", "function_call", "message", "function_call"]
         );
     }
 
@@ -1388,7 +1412,7 @@ mod tests {
 
         let message = responses_api_to_message(&response).unwrap();
         assert_eq!(message.content.len(), 1);
-        let MessageContent::ToolRequest(tool_request) = &message.content[0] else {
+        let MessageContentBlock::ToolRequest(tool_request) = &message.content[0] else {
             panic!("expected tool request content");
         };
         assert_eq!(tool_request.id, "call_abc");
@@ -1421,6 +1445,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let tool = Tool::new(
@@ -1464,6 +1489,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1544,6 +1570,7 @@ mod tests {
                 toolshim_model: None,
                 request_params: None,
                 reasoning: None,
+                request_headers: None,
             };
 
             let result =
@@ -1594,6 +1621,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
@@ -1619,6 +1647,7 @@ mod tests {
                 serde_json::json!(true),
             )])),
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &[], &[]).unwrap();
@@ -1643,6 +1672,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result =
@@ -1670,15 +1700,17 @@ mod tests {
     #[test]
     fn test_tool_response_with_image_serializes_as_typed_array() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let messages = vec![Message::user().with_content(MessageContent::tool_response(
-            "call_1",
-            Ok(CallToolResult::success(vec![
-                Content::text("caption"),
-                Content::image("a+/=".to_string(), "image/png".to_string()),
-            ])),
-        ))];
+        let messages = vec![
+            Message::user().with_content(MessageContentBlock::tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::text("caption"),
+                    ContentBlock::image("a+/=".to_string(), "image/png".to_string()),
+                ])),
+            )),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1689,6 +1721,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1725,6 +1758,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1756,6 +1790,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1786,6 +1821,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1801,15 +1837,14 @@ mod tests {
     #[test]
     fn test_text_flushed_before_tool_response() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
-        let messages =
-            vec![Message::user()
-                .with_text("context")
-                .with_content(MessageContent::tool_response(
-                    "call_1",
-                    Ok(CallToolResult::success(vec![Content::text("done")])),
-                ))];
+        let messages = vec![Message::user().with_text("context").with_content(
+            MessageContentBlock::tool_response(
+                "call_1",
+                Ok(CallToolResult::success(vec![ContentBlock::text("done")])),
+            ),
+        )];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1820,6 +1855,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1838,14 +1874,16 @@ mod tests {
         use crate::conversation::message::Message;
         use rmcp::model::{ErrorCode, ErrorData};
 
-        let messages = vec![Message::user().with_content(MessageContent::tool_response(
-            "call_err",
-            Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                message: "file not found".into(),
-                data: None,
-            }),
-        ))];
+        let messages = vec![
+            Message::user().with_content(MessageContentBlock::tool_response(
+                "call_err",
+                Err(ErrorData {
+                    code: ErrorCode::INTERNAL_ERROR,
+                    message: "file not found".into(),
+                    data: None,
+                }),
+            )),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1856,6 +1894,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1881,6 +1920,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1912,6 +1952,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1943,6 +1984,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -1973,7 +2015,7 @@ mod tests {
         let response: ResponsesApiResponse = serde_json::from_str(json).unwrap();
         let message = responses_api_to_message(&response).unwrap();
         assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(t) = &message.content[0] {
+        if let MessageContentBlock::Text(t) = &message.content[0] {
             assert_eq!(t.text, "I cannot help with that request.");
         } else {
             panic!("expected text content from refusal");
@@ -1993,7 +2035,7 @@ mod tests {
         let item: ResponseOutputItemInfo = serde_json::from_str(json).unwrap();
         let content = process_streaming_output_items(vec![item], false)?;
         assert_eq!(content.len(), 1);
-        if let MessageContent::Text(t) = &content[0] {
+        if let MessageContentBlock::Text(t) = &content[0] {
             assert_eq!(t.text, "I'm unable to assist.");
         } else {
             panic!("expected text content from refusal");
@@ -2021,7 +2063,7 @@ mod tests {
             id: Some("msg_1".to_string()),
             status: Some("completed".to_string()),
             role: "assistant".to_string(),
-            content: vec![ContentPart::Refusal {
+            content: vec![ContentBlockPart::Refusal {
                 refusal: "I cannot help with that.".to_string(),
             }],
         }];
@@ -2062,7 +2104,7 @@ mod tests {
     #[test]
     fn test_frontend_tool_request_serialized_in_responses_request() {
         use crate::conversation::message::Message;
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
 
         let messages = vec![
             Message::assistant().with_frontend_tool_request(
@@ -2070,9 +2112,9 @@ mod tests {
                 Ok(CallToolRequestParams::new("browser_click")
                     .with_arguments(object!({"selector": "#btn"}))),
             ),
-            Message::user().with_content(MessageContent::tool_response(
+            Message::user().with_content(MessageContentBlock::tool_response(
                 "call_ft1",
-                Ok(CallToolResult::success(vec![Content::text("clicked")])),
+                Ok(CallToolResult::success(vec![ContentBlock::text("clicked")])),
             )),
         ];
 
@@ -2085,6 +2127,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2125,6 +2168,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2137,6 +2181,32 @@ mod tests {
         assert_eq!(input[1]["type"], "function_call");
         assert_eq!(input[1]["call_id"], "call_frontend_agent");
         assert_eq!(input[1]["name"], "_Review_Agent");
+    }
+
+    #[test]
+    fn test_responses_request_limits_replayed_function_call_names() {
+        use crate::conversation::message::Message;
+
+        let messages = vec![Message::assistant().with_tool_request(
+            "call_long_name",
+            Ok(CallToolRequestParams::new("a".repeat(160))),
+        )];
+        let model_config = ModelConfig {
+            model_name: "gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+            request_headers: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let name = result["input"][0]["name"].as_str().unwrap();
+
+        assert_eq!(name.len(), 128);
     }
 
     #[test]
@@ -2162,6 +2232,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
@@ -2199,6 +2270,7 @@ mod tests {
             toolshim_model: None,
             request_params: None,
             reasoning: None,
+            request_headers: None,
         };
 
         let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
