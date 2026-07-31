@@ -2108,7 +2108,6 @@ fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, an
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::extension_data::ExtensionState;
     use serial_test::serial;
     use std::collections::{HashMap, HashSet};
     use std::fs;
