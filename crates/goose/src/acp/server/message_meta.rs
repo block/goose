@@ -15,6 +15,8 @@ struct GooseMessageMeta<'a> {
     steer: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     output_token_limit_reached: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    fallback_content: bool,
 }
 
 fn goose_message_meta(
@@ -26,6 +28,7 @@ fn goose_message_meta(
         message_id: message.id.as_deref(),
         steer,
         output_token_limit_reached: message.metadata.output_token_limit_reached,
+        fallback_content: has_output_token_limit_fallback_content(message),
     };
 
     match serde_json::to_value(message_meta) {
@@ -87,6 +90,15 @@ pub(super) fn populate_output_token_limit_content(message: &mut Message) {
         .push(MessageContent::text(OUTPUT_TOKEN_LIMIT_TEXT));
 }
 
+fn has_output_token_limit_fallback_content(message: &Message) -> bool {
+    message.role == rmcp::model::Role::Assistant
+        && message.metadata.output_token_limit_reached
+        && matches!(
+            message.content.as_slice(),
+            [MessageContent::Text(text)] if text.text == OUTPUT_TOKEN_LIMIT_TEXT
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,6 +151,17 @@ mod tests {
                 "outputTokenLimitReached": true,
             })),
         );
+
+        populate_output_token_limit_content(&mut limited_message);
+        assert_eq!(
+            message_meta(&limited_message).get("goose"),
+            Some(&serde_json::json!({
+                "created": 1_700_000_000,
+                "messageId": "msg_live",
+                "outputTokenLimitReached": true,
+                "fallbackContent": true,
+            })),
+        );
     }
 
     #[test]
@@ -147,8 +170,11 @@ mod tests {
             .with_id("msg_live")
             .with_steer();
         message.metadata.output_token_limit_reached = true;
-        let chunk =
-            content_chunk_for_message(&message, ContentBlock::Text(TextContent::new("hello")));
+        populate_output_token_limit_content(&mut message);
+        let chunk = content_chunk_for_message(
+            &message,
+            ContentBlock::Text(TextContent::new(OUTPUT_TOKEN_LIMIT_TEXT)),
+        );
 
         assert_eq!(chunk.message_id, Some(MessageId::new("msg_live")));
         assert_eq!(
@@ -157,6 +183,7 @@ mod tests {
                 "created": 1_700_000_000,
                 "messageId": "msg_live",
                 "outputTokenLimitReached": true,
+                "fallbackContent": true,
                 "steer": true,
             })),
         );
@@ -175,10 +202,12 @@ mod tests {
             message.content.as_slice(),
             [MessageContent::Text(text)] if text.text == OUTPUT_TOKEN_LIMIT_TEXT
         ));
+        assert!(has_output_token_limit_fallback_content(&message));
 
         let mut unmarked_message = Message::new(Role::Assistant, 1_700_000_000, vec![]);
         populate_output_token_limit_content(&mut unmarked_message);
         assert!(unmarked_message.content.is_empty());
+        assert!(!has_output_token_limit_fallback_content(&unmarked_message));
 
         let mut marked_message_with_content =
             Message::new(Role::Assistant, 1_700_000_000, vec![]).with_text("partial response");
@@ -190,11 +219,17 @@ mod tests {
             marked_message_with_content.content.as_slice(),
             [MessageContent::Text(text)] if text.text == "partial response"
         ));
+        assert!(!has_output_token_limit_fallback_content(
+            &marked_message_with_content
+        ));
 
         let mut marked_user_message = Message::new(Role::User, 1_700_000_000, vec![]);
         marked_user_message.metadata.output_token_limit_reached = true;
         populate_output_token_limit_content(&mut marked_user_message);
         assert!(marked_user_message.content.is_empty());
+        assert!(!has_output_token_limit_fallback_content(
+            &marked_user_message
+        ));
     }
 
     #[test]
