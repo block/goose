@@ -826,6 +826,95 @@ fn test_deferred_rebuild_uses_recipe_extensions() {
 }
 
 #[test]
+fn test_deferred_activation_surfaces_extension_load_failures() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let missing_dir = deleted_absolute_dir();
+
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                missing_dir.clone(),
+                "Deleted worktree".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let recipe = Recipe::builder()
+            .title("Recipe with a broken extension")
+            .description("Prescribes an extension that cannot start")
+            .instructions("use the broken extension")
+            .extensions(vec![goose::agents::ExtensionConfig::Stdio {
+                name: "broken".to_string(),
+                description: "Never starts".to_string(),
+                cmd: "goose-nonexistent-extension-binary".to_string(),
+                args: vec![],
+                envs: Default::default(),
+                env_keys: vec![],
+                timeout: Some(5),
+                cwd: None,
+                bundled: None,
+                available_tools: vec![],
+            }])
+            .build()
+            .unwrap();
+        session_manager
+            .update(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let session_id = SessionId::new(session.id.clone());
+
+        conn.cx()
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                missing_dir.as_path(),
+            ))
+            .block_task()
+            .await
+            .expect("loading a session with a deleted working dir must succeed");
+        conn.drain_custom_notifications();
+
+        let valid_dir = tempfile::tempdir().unwrap();
+        send_custom(
+            conn.cx(),
+            "_goose/unstable/session/working-dir/update",
+            serde_json::json!({
+                "sessionId": session.id,
+                "workingDir": valid_dir.path().to_string_lossy(),
+            }),
+        )
+        .await
+        .expect("repointing to a valid working dir must succeed");
+
+        let notices = conn
+            .drain_custom_notifications()
+            .into_iter()
+            .filter_map(|notification| match notification.update {
+                goose::custom_notifications::GooseSessionUpdate::StatusMessage(update) => {
+                    match update.status {
+                        goose::custom_notifications::StatusMessage::Notice { message } => {
+                            Some(message)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            notices.iter().any(|message| message.contains("broken")),
+            "deferred activation must report the failed extension instead of leaving it \
+             silently unavailable, got {notices:?}"
+        );
+    });
+}
+
+#[test]
 fn test_prompt_triggered_deferred_activation_applies_recipe() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();

@@ -1610,14 +1610,47 @@ impl GooseAcpAgent {
                 session
             };
 
-        let (agent, _) = self.activate_acp_session(cx, &session).await?;
+        let (agent, extension_results) = self.activate_acp_session(cx, &session).await?;
 
         // A deferred session skipped apply_session_recipe at load, so every lazy
         // activation — prompt-triggered ones included — must finish that setup or
         // the first recovered prompt runs without the recipe instructions.
         self.apply_session_recipe(&agent, &session).await?;
 
+        // Deferred activation has no create/load response to carry
+        // `extensionResults`, so a failed MCP start would otherwise leave the
+        // extension silently unavailable once the recovery banner clears.
+        self.notify_extension_load_failures(cx, session_id, &extension_results)?;
+
         Ok(agent)
+    }
+
+    fn notify_extension_load_failures(
+        &self,
+        cx: &ConnectionTo<Client>,
+        session_id: &str,
+        extension_results: &[ExtensionLoadResult],
+    ) -> Result<(), agent_client_protocol::Error> {
+        for result in extension_results.iter().filter(|result| !result.success) {
+            let message = match &result.error {
+                Some(error) => format!("Extension \"{}\" failed to load: {error}", result.name),
+                None => format!("Extension \"{}\" failed to load", result.name),
+            };
+            warn!(
+                session_id,
+                extension = result.name,
+                "deferred activation failed to load extension"
+            );
+            if self.supports_goose_custom_notifications() {
+                cx.send_notification(GooseSessionNotification {
+                    session_id: session_id.to_string(),
+                    update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                        status: StatusMessage::Notice { message },
+                    }),
+                })?;
+            }
+        }
+        Ok(())
     }
 
     async fn start_active_run(

@@ -16,6 +16,7 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use async_trait::async_trait;
 use goose::config::PermissionManager;
+use goose::custom_notifications::GooseSessionNotification;
 use goose_test_support::{ExpectedSessionId, IgnoreSessionId};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -28,6 +29,7 @@ pub struct AcpServerConnection {
     cwd: Option<tempfile::TempDir>,
     data_root: std::path::PathBuf,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
+    custom_updates: Arc<Mutex<Vec<GooseSessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
     permission_manager: Arc<PermissionManager>,
@@ -111,6 +113,11 @@ impl AcpServerConnection {
             .map(|n| n.update)
             .collect()
     }
+
+    #[allow(dead_code)]
+    pub fn drain_custom_notifications(&self) -> Vec<GooseSessionNotification> {
+        self.custom_updates.lock().unwrap().drain(..).collect()
+    }
 }
 
 #[async_trait]
@@ -145,6 +152,7 @@ impl Connection for AcpServerConnection {
         .await;
 
         let updates = Arc::new(Mutex::new(Vec::new()));
+        let custom_updates = Arc::new(Mutex::new(Vec::new()));
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
@@ -158,6 +166,7 @@ impl Connection for AcpServerConnection {
 
         let cx = {
             let updates_clone = updates.clone();
+            let custom_updates_clone = custom_updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
             let read_handler = config.read_text_file;
@@ -178,6 +187,18 @@ impl Connection for AcpServerConnection {
                             let notify = notify_clone.clone();
                             async move |notification: SessionNotification, _cx| {
                                 updates.lock().unwrap().push(notification);
+                                notify.notify_waiters();
+                                Ok(())
+                            }
+                        },
+                        agent_client_protocol::on_receive_notification!(),
+                    )
+                    .on_receive_notification(
+                        {
+                            let custom_updates = custom_updates_clone.clone();
+                            let notify = notify_clone.clone();
+                            async move |notification: GooseSessionNotification, _cx| {
+                                custom_updates.lock().unwrap().push(notification);
                                 notify.notify_waiters();
                                 Ok(())
                             }
@@ -289,7 +310,8 @@ impl Connection for AcpServerConnection {
                                         .client_capabilities(
                                             ClientCapabilities::new()
                                                 .fs(fs_cap)
-                                                .terminal(terminal.is_some()),
+                                                .terminal(terminal.is_some())
+                                                .meta(goose_client_capabilities_meta()),
                                         ),
                                 )
                                 .block_task()
@@ -325,6 +347,7 @@ impl Connection for AcpServerConnection {
             cwd: config.cwd,
             data_root,
             updates,
+            custom_updates,
             permission,
             notify,
             permission_manager,
@@ -547,6 +570,18 @@ fn extract_model_state_from_config_options(
         current_model_id: select.current_value.0.to_string(),
         available_models,
     })
+}
+
+fn goose_client_capabilities_meta() -> serde_json::Map<String, serde_json::Value> {
+    let mut goose = serde_json::Map::new();
+    goose.insert(
+        "customNotifications".to_string(),
+        serde_json::Value::Bool(true),
+    );
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    meta
 }
 
 fn collect_agent_text(updates: &Arc<Mutex<Vec<SessionNotification>>>) -> String {
