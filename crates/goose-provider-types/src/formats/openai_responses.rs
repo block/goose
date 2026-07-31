@@ -24,6 +24,8 @@ pub struct ResponsesApiResponse {
     pub model: String,
     pub output: Vec<ResponseOutputItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub incomplete_details: Option<ResponseIncompleteDetails>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<ResponseUsage>,
@@ -105,6 +107,26 @@ pub struct ResponseReasoningInfo {
     pub effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResponseIncompleteDetails {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+fn is_output_token_limit_incomplete_reason(reason: &str) -> bool {
+    matches!(reason, "max_output_tokens" | "max_tokens")
+}
+
+fn response_reached_output_token_limit(
+    status: &str,
+    incomplete_details: Option<&ResponseIncompleteDetails>,
+) -> bool {
+    status == "incomplete"
+        && incomplete_details
+            .and_then(|details| details.reason.as_deref())
+            .is_some_and(is_output_token_limit_incomplete_reason)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -207,6 +229,11 @@ pub enum ResponsesStreamEvent {
         sequence_number: i32,
         response: ResponseMetadata,
     },
+    #[serde(rename = "response.incomplete")]
+    ResponseIncomplete {
+        sequence_number: i32,
+        response: ResponseMetadata,
+    },
     #[serde(rename = "response.failed")]
     ResponseFailed { sequence_number: i32, error: Value },
     #[serde(rename = "response.function_call_arguments.delta")]
@@ -262,6 +289,7 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
             | "response.content_part.done"
             | "response.output_text.done"
             | "response.completed"
+            | "response.incomplete"
             | "response.failed"
             | "response.function_call_arguments.delta"
             | "response.function_call_arguments.done"
@@ -310,6 +338,8 @@ pub struct ResponseMetadata {
     pub usage: Option<ResponseUsage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ResponseReasoningInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incomplete_details: Option<ResponseIncompleteDetails>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -760,6 +790,10 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
     let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
 
     message = message.with_id(response.id.clone());
+    message.metadata.output_token_limit_reached = response_reached_output_token_limit(
+        &response.status,
+        response.incomplete_details.as_ref(),
+    );
 
     Ok(message)
 }
@@ -842,6 +876,15 @@ fn process_streaming_output_items(
     Ok(content)
 }
 
+fn output_token_limit_marker(id: Option<String>) -> Message {
+    let mut message = Message::assistant();
+    if let Some(id) = id {
+        message = message.with_id(id);
+    }
+    message.metadata.output_token_limit_reached = true;
+    message
+}
+
 pub fn responses_api_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -857,6 +900,7 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
         let mut is_text_response = false;
+        let mut output_token_limit_reached = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -944,6 +988,26 @@ where
                     break 'outer;
                 }
 
+                ResponsesStreamEvent::ResponseIncomplete { response, .. } => {
+                    let model = model_name.as_ref().unwrap_or(&response.model);
+                    let usage = response.usage.as_ref().map_or_else(
+                        Usage::default,
+                        ResponseUsage::to_usage,
+                    );
+                    final_usage = Some(ProviderUsage::new(model.clone(), usage));
+                    response_id = Some(response.id.clone());
+                    output_token_limit_reached = response_reached_output_token_limit(
+                        &response.status,
+                        response.incomplete_details.as_ref(),
+                    );
+
+                    if !response.output.is_empty() {
+                        output_items = response.output;
+                    }
+
+                    break 'outer;
+                }
+
                 ResponsesStreamEvent::FunctionCallArgumentsDelta { .. } => {
                     // Function call arguments are being streamed, but we'll get the complete
                     // arguments in the OutputItemDone event, so we can ignore deltas for now
@@ -1004,7 +1068,10 @@ where
             if let Some(id) = response_id {
                 message = message.with_id(id);
             }
+            message.metadata.output_token_limit_reached = output_token_limit_reached;
             yield (Some(message), final_usage);
+        } else if output_token_limit_reached {
+            yield (Some(output_token_limit_marker(response_id)), final_usage);
         } else if let Some(usage) = final_usage {
             yield (None, Some(usage));
         }

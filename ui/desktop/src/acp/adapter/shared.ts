@@ -26,6 +26,8 @@ export type ToolCallState = Omit<ToolCallUpdate, '_meta'>;
 export interface GooseMessageMeta {
   messageId?: string;
   created?: number;
+  outputTokenLimitReached?: boolean;
+  fallbackContent?: boolean;
   steer?: boolean;
 }
 
@@ -61,9 +63,13 @@ export function getGooseMessageMeta(update: { _meta?: unknown }): GooseMessageMe
     return {};
   }
 
+  const outputTokenLimitReached = goose.outputTokenLimitReached === true;
+
   return {
     created: typeof goose.created === 'number' ? goose.created : undefined,
     messageId: typeof goose.messageId === 'string' ? goose.messageId : undefined,
+    outputTokenLimitReached: outputTokenLimitReached ? true : undefined,
+    fallbackContent: goose.fallbackContent === true ? true : undefined,
     steer: goose.steer === true ? true : undefined,
   };
 }

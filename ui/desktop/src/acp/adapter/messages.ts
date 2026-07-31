@@ -31,6 +31,20 @@ export function applyContentChunk(
   const existing = findMessageForChunk(state, role, messageId, gooseMeta.created);
 
   if (existing) {
+    const isOutputLimitFallbackChunk =
+      gooseMeta.outputTokenLimitReached === true && gooseMeta.fallbackContent === true;
+    const existingMessageHasContent = existing.content.length > 0;
+    const shouldSkipFallbackChunk = isOutputLimitFallbackChunk && existingMessageHasContent;
+
+    existing.metadata.outputTokenLimitReached = gooseMeta.outputTokenLimitReached;
+    existing.metadata.fallbackContent = shouldSkipFallbackChunk
+      ? undefined
+      : gooseMeta.fallbackContent;
+
+    if (shouldSkipFallbackChunk) {
+      return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
+    }
+
     const lastContent = existing.content[existing.content.length - 1];
     if (reconcileLocalSteerTextChunk(state, existing, content, gooseMeta.steer)) {
       return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
@@ -54,6 +68,8 @@ export function applyContentChunk(
       metadata: {
         ...DEFAULT_VISIBLE_MESSAGE_METADATA,
         ...(gooseMeta.steer ? { steer: true } : {}),
+        outputTokenLimitReached: gooseMeta.outputTokenLimitReached,
+        fallbackContent: gooseMeta.fallbackContent,
       },
     });
   }
