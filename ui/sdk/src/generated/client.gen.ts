@@ -11,6 +11,8 @@ import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddSessionExtensionRequest_unstable,
+  AppsDeleteRequest_unstable,
+  AppsDeleteResponse_unstable,
   AppsExportRequest_unstable,
   AppsExportResponse_unstable,
   AppsImportRequest_unstable,
@@ -121,6 +123,7 @@ import type {
   LocalInferenceModelDownloadProgressResponse_unstable,
   LocalInferenceModelDownloadRequest_unstable,
   LocalInferenceModelDownloadResponse_unstable,
+  LocalInferenceModelEvictRequest_unstable,
   LocalInferenceModelSettingsReadRequest_unstable,
   LocalInferenceModelSettingsReadResponse_unstable,
   LocalInferenceModelSettingsUpdateRequest_unstable,
@@ -198,6 +201,7 @@ import type {
   UpdateWorkingDirRequest_unstable,
 } from './types.gen.js';
 import {
+  zAppsDeleteResponse_unstable,
   zAppsExportResponse_unstable,
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
@@ -362,6 +366,18 @@ export class GooseExtClient {
     return zAppsImportResponse_unstable.parse(
       raw,
     ) as AppsImportResponse_unstable;
+  }
+
+  async appsDelete_unstable(
+    params: AppsDeleteRequest_unstable,
+  ): Promise<AppsDeleteResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/apps/delete",
+      params,
+    );
+    return zAppsDeleteResponse_unstable.parse(
+      raw,
+    ) as AppsDeleteResponse_unstable;
   }
 
   async sessionWorkingDirUpdate_unstable(
@@ -1373,6 +1389,15 @@ export class GooseExtClient {
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/local-inference/models/delete",
+      params,
+    );
+  }
+
+  async localInferenceModelsEvict_unstable(
+    params: LocalInferenceModelEvictRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/local-inference/models/evict",
       params,
     );
   }

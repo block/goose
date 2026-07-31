@@ -28,7 +28,7 @@ impl ModelMapping {
 ///
 /// This avoids network calls by looking up all known models for the provider,
 /// filtering to text-input + tool-calling models, and sorting by release date.
-/// The returned names are the canonical short names (e.g. "claude-3.5-sonnet").
+/// The returned names are the canonical short names (e.g. "claude-sonnet-4.5").
 ///
 /// TODO: This trades speed for correctness — the canonical registry may not perfectly
 /// match what the provider API returns (new models not yet in the registry, deprecated
@@ -65,10 +65,10 @@ pub fn recommended_models_from_registry(provider: &str) -> Vec<String> {
         .collect()
 }
 
-/// Providers that run models locally — their cost is always zero regardless
-/// of what the canonical registry says for the underlying model architecture.
-fn is_local_provider(provider: &str) -> bool {
-    matches!(provider, "ollama" | "local")
+/// Catalog pricing is not valid for local inference or Azure Foundry deployments.
+/// Azure billing depends on deployment region, SKU, offer, and contract.
+fn should_clear_catalog_pricing(provider: &str) -> bool {
+    matches!(provider, "ollama" | "local" | "azure_foundry")
 }
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
@@ -81,9 +81,7 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
         return None;
     };
 
-    // Local providers run models on the user's own hardware — zero out cloud
-    // pricing so every consumer (CLI, server, etc.) sees the correct cost.
-    if is_local_provider(provider) {
+    if should_clear_catalog_pricing(provider) {
         canonical.cost = Pricing::default();
     }
 
@@ -109,9 +107,28 @@ mod tests {
     }
 
     #[test]
+    fn azure_foundry_models_retain_limits_without_catalog_pricing() {
+        let canonical = maybe_get_canonical_model("azure_foundry", "gpt-5")
+            .expect("gpt-5 should resolve through the Azure catalog");
+        assert_eq!(canonical.limit.context, 400_000);
+        assert_eq!(canonical.cost.input, None);
+        assert_eq!(canonical.cost.output, None);
+    }
+
+    #[test]
     fn cloud_provider_retains_cost() {
-        let canonical = maybe_get_canonical_model("anthropic", "claude-3-5-sonnet-20241022")
-            .expect("claude-3.5-sonnet should resolve");
+        let canonical = maybe_get_canonical_model("anthropic", "claude-sonnet-4-5-20250929")
+            .expect("claude-sonnet-4.5 should resolve");
+        assert!(canonical.cost.input.is_some());
+        assert!(canonical.cost.output.is_some());
+    }
+
+    #[test]
+    fn anthropic_opus_5_resolves() {
+        let canonical = maybe_get_canonical_model("anthropic", "claude-opus-5")
+            .expect("claude-opus-5 should resolve");
+        assert_eq!(canonical.limit.context, 1_000_000);
+        assert_eq!(canonical.limit.output, Some(128_000));
         assert!(canonical.cost.input.is_some());
         assert!(canonical.cost.output.is_some());
     }

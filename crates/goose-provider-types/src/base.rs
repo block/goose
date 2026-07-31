@@ -2,13 +2,14 @@ use async_trait::async_trait;
 use futures::Stream;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::pin::Pin;
-use utoipa::ToSchema;
 
 use crate::{
     canonical::{map_to_canonical_model, CanonicalModelRegistry},
     conversation::{
-        message::{Message, MessageContent},
+        message::{Message, MessageContentBlock},
         token_usage::{ProviderUsage, Usage},
     },
     errors::ProviderError,
@@ -19,7 +20,7 @@ use crate::{
 };
 
 /// Metadata about a provider's configuration requirements and capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderMetadata {
     /// The unique identifier for this provider
     pub name: String,
@@ -129,7 +130,7 @@ impl ProviderMetadata {
 }
 
 /// Configuration key metadata for provider setup
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigKey {
     /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
@@ -217,8 +218,23 @@ impl ConfigKey {
     }
 }
 
+/// How a model's thinking is replayed back to the provider on subsequent turns.
+///
+/// Cerebras rejects requests that replay `messages[].reasoning_content`, so such models
+/// declare an inline `content` form instead.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinkingPreservationFormat {
+    /// Prepend the thinking to the message content as plain text.
+    ContentPrepend,
+    /// Prepend the thinking to the message content wrapped in `<think>` tags.
+    ContentXml,
+    /// Replay in the separate `reasoning_content` field, the OpenAI-compatible default.
+    ReasoningContent,
+}
+
 /// Information about a model's capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelInfo {
     /// The name of the model
     pub name: String,
@@ -238,6 +254,11 @@ pub struct ModelInfo {
     /// Whether this model supports reasoning/thinking controls
     #[serde(default)]
     pub reasoning: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_preservation_format: Option<ThinkingPreservationFormat>,
+    /// Static params merged into the request body for this model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_params: Option<HashMap<String, Value>>,
 }
 
 impl ModelInfo {
@@ -252,6 +273,8 @@ impl ModelInfo {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            thinking_preservation_format: None,
+            request_params: None,
         }
     }
 
@@ -271,6 +294,8 @@ impl ModelInfo {
             currency: Some("$".to_string()),
             supports_cache_control: None,
             reasoning: false,
+            thinking_preservation_format: None,
+            request_params: None,
         }
     }
 }
@@ -316,6 +341,8 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
         currency: None,
         supports_cache_control: None,
         reasoning,
+        thinking_preservation_format: None,
+        request_params: None,
     }
 }
 
@@ -338,9 +365,17 @@ pub async fn collect_stream(
                         match (&mut prev.content.last_mut(), &new_content) {
                             // Coalesce consecutive text blocks
                             (
-                                Some(MessageContent::Text(last_text)),
-                                MessageContent::Text(new_text),
-                            ) => {
+                                Some(MessageContentBlock::Text(last_text)),
+                                MessageContentBlock::Text(new_text),
+                            ) if last_text
+                                .annotations
+                                .as_ref()
+                                .and_then(|a| a.audience.as_ref())
+                                == new_text
+                                    .annotations
+                                    .as_ref()
+                                    .and_then(|a| a.audience.as_ref()) =>
+                            {
                                 last_text.text.push_str(&new_text.text);
                             }
                             _ => {
@@ -359,13 +394,21 @@ pub async fn collect_stream(
         }
     }
 
-    match final_message {
-        Some(msg) => {
-            let usage = final_usage
+    match (final_message, final_usage) {
+        (Some(msg), usage) => {
+            let usage = usage
                 .unwrap_or_else(|| ProviderUsage::new("unknown".to_string(), Usage::default()));
             Ok((msg, usage))
         }
-        None => Err(ProviderError::ExecutionError(
+        (None, Some(usage)) => Ok((
+            Message::new(
+                rmcp::model::Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                Vec::new(),
+            ),
+            usage,
+        )),
+        (None, None) => Err(ProviderError::ExecutionError(
             "Stream yielded no message".to_string(),
         )),
     }
@@ -457,10 +500,14 @@ pub trait Provider: Send + Sync {
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
             .filter_map(|model| {
-                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
-
-                let (provider, model_name) = canonical_id.split_once('/')?;
-                let canonical_model = registry.get(provider, model_name)?;
+                let canonical_model = map_to_canonical_model(provider_name, model, registry)
+                    .and_then(|canonical_id| {
+                        let (provider, model_name) = canonical_id.split_once('/')?;
+                        registry.get(provider, model_name)
+                    });
+                let Some(canonical_model) = canonical_model else {
+                    return Some((model.clone(), None));
+                };
 
                 if !canonical_model
                     .modalities
@@ -580,17 +627,42 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    fn content_from_str(s: String) -> MessageContent {
+    struct ModelInventoryProvider {
+        models: Vec<String>,
+    }
+
+    #[async_trait]
+    impl Provider for ModelInventoryProvider {
+        fn get_name(&self) -> &str {
+            "xai"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            unimplemented!()
+        }
+
+        async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+            Ok(self.models.clone())
+        }
+    }
+
+    fn content_from_str(s: String) -> MessageContentBlock {
         if let Some(img_data) = s.strip_prefix("*img:") {
-            MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
+            MessageContentBlock::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
             let tool_call = Ok(
                 rmcp::model::CallToolRequestParams::new(tool_name.to_string())
                     .with_arguments(serde_json::Map::new()),
             );
-            MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
+            MessageContentBlock::tool_request(format!("tool_{}", tool_name), tool_call)
         } else {
-            MessageContent::text(s)
+            MessageContentBlock::text(s)
         }
     }
 
@@ -613,9 +685,9 @@ mod tests {
         msg.content
             .iter()
             .map(|c| match c {
-                MessageContent::Text(t) => t.text.clone(),
-                MessageContent::Image(_) => "*img".to_string(),
-                MessageContent::ToolRequest(tr) => {
+                MessageContentBlock::Text(t) => t.text.clone(),
+                MessageContentBlock::Image(_) => "*img".to_string(),
+                MessageContentBlock::ToolRequest(tr) => {
                     if let Ok(call) = &tr.tool_call {
                         format!("*tool:{}", call.name)
                     } else {
@@ -663,6 +735,62 @@ mod tests {
         assert_eq!(usage.model, "unknown");
     }
 
+    #[tokio::test]
+    async fn test_collect_stream_usage_only_yields_empty_message() {
+        let usage = ProviderUsage::new("claude-sonnet-4".to_string(), Usage::default());
+        let stream = futures::stream::once(async move { Ok((None, Some(usage))) });
+        let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
+        assert!(msg.content.is_empty());
+        assert_eq!(usage.model, "claude-sonnet-4");
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_no_message_no_usage_errors() {
+        let stream = futures::stream::empty();
+        let result = collect_stream(Box::pin(stream)).await;
+        assert!(matches!(result, Err(ProviderError::ExecutionError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_preserves_text_audience_boundaries() {
+        use futures::stream;
+        use rmcp::model::{Annotations, Role, TextContent};
+
+        let message = |text: &str, audience| {
+            Message::assistant().with_content(MessageContentBlock::Text(
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![audience])),
+            ))
+        };
+        let stream = stream::iter([
+            Ok((Some(message("public", Role::User)), None)),
+            Ok((Some(message("private", Role::Assistant)), None)),
+        ]);
+
+        let (message, _) = collect_stream(Box::pin(stream)).await.unwrap();
+
+        assert_eq!(message.content.len(), 2);
+        assert_eq!(message.user_visible_content().as_concat_text(), "public");
+        assert_eq!(message.agent_visible_content().as_concat_text(), "private");
+    }
+
+    #[tokio::test]
+    async fn recommended_models_preserve_unknown_future_models() {
+        let provider = ModelInventoryProvider {
+            models: vec![
+                "grok-4.5".to_string(),
+                "grok-future-unlisted".to_string(),
+                "grok-4.20-multi-agent".to_string(),
+            ],
+        };
+
+        let models = provider.fetch_recommended_models(false).await.unwrap();
+
+        assert!(models.contains(&"grok-4.5".to_string()));
+        assert!(models.contains(&"grok-future-unlisted".to_string()));
+        assert!(!models.contains(&"grok-4.20-multi-agent".to_string()));
+    }
+
     #[test]
     fn test_model_info_creation() {
         // Test direct ModelInfo creation
@@ -675,6 +803,8 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            thinking_preservation_format: None,
+            request_params: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -688,6 +818,8 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            thinking_preservation_format: None,
+            request_params: None,
         };
         assert_eq!(info, info2);
 
@@ -701,8 +833,37 @@ mod tests {
             currency: None,
             supports_cache_control: None,
             reasoning: false,
+            thinking_preservation_format: None,
+            request_params: None,
         };
         assert_ne!(info, info3);
+    }
+
+    #[test]
+    fn test_model_info_deserializes_thinking_preservation_and_request_params() {
+        let info: ModelInfo = serde_json::from_str(
+            r#"{
+                "name": "zai-glm-4.7",
+                "context_limit": 131072,
+                "thinking_preservation_format": "content_xml",
+                "request_params": {"reasoning_format": "parsed"}
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            info.thinking_preservation_format,
+            Some(ThinkingPreservationFormat::ContentXml)
+        );
+        assert_eq!(
+            info.request_params.unwrap().get("reasoning_format"),
+            Some(&serde_json::json!("parsed"))
+        );
+
+        let bare: ModelInfo =
+            serde_json::from_str(r#"{"name": "gpt-4o", "context_limit": 128000}"#).unwrap();
+        assert_eq!(bare.thinking_preservation_format, None);
+        assert_eq!(bare.request_params, None);
     }
 
     #[test]

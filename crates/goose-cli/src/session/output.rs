@@ -1,10 +1,10 @@
-use anstream::println;
+use anstream::{adapter::strip_str, println};
 use bat::WrappingMode;
-use console::{measure_text_width, style, Color, Term};
+use console::{measure_text_width, style, Color, StyledObject, Term};
 use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
-    ToolRequest, ToolResponse,
+    ToolNameParts, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -15,7 +15,8 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::fmt::Display;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
 use std::time::Duration;
@@ -25,6 +26,22 @@ use super::streaming_buffer::MarkdownBuffer;
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
+
+fn accent<T: Display>(value: T) -> StyledObject<T> {
+    style(value).cyan()
+}
+
+fn success<T: Display>(value: T) -> StyledObject<T> {
+    style(value).green()
+}
+
+fn warning<T: Display>(value: T) -> StyledObject<T> {
+    style(value).yellow()
+}
+
+fn danger<T: Display>(value: T) -> StyledObject<T> {
+    style(value).red()
+}
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -220,6 +237,10 @@ pub fn set_thinking_message(s: &String) {
 }
 
 pub fn render_message(message: &Message, debug: bool) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -248,13 +269,14 @@ pub fn render_message(message: &Message, debug: bool) {
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
-                    SystemNotificationType::ThinkingMessage => {
+                    SystemNotificationType::ThinkingMessage
+                    | SystemNotificationType::ProgressMessage => {
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
                         hide_thinking();
-                        println!("\n{}", style(&notification.msg).yellow());
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
                     SystemNotificationType::CreditsExhausted => {
                         render_credits_exhausted_notification(notification);
@@ -278,6 +300,10 @@ pub fn render_message_streaming(
     thinking_header_shown: &mut bool,
     debug: bool,
 ) {
+    if !message.is_user_visible() {
+        return;
+    }
+    let message = message.user_visible_content();
     let theme = get_theme();
 
     for content in &message.content {
@@ -330,14 +356,15 @@ pub fn render_message_streaming(
             }
             MessageContent::SystemNotification(notification) => {
                 match notification.notification_type {
-                    SystemNotificationType::ThinkingMessage => {
+                    SystemNotificationType::ThinkingMessage
+                    | SystemNotificationType::ProgressMessage => {
                         show_thinking();
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
                         flush_markdown_buffer(buffer, theme);
                         hide_thinking();
-                        println!("\n{}", style(&notification.msg).yellow());
+                        println!("\n{} {}", style("·").dim(), &notification.msg);
                     }
                     SystemNotificationType::CreditsExhausted => {
                         flush_markdown_buffer(buffer, theme);
@@ -357,7 +384,7 @@ pub fn render_message_streaming(
 
 fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
     hide_thinking();
-    println!("\n{}", style(&notification.msg).yellow());
+    println!("\n{} {}", warning("warning:").bold(), &notification.msg);
 
     if let Some(url) = notification
         .data
@@ -365,10 +392,7 @@ fn render_credits_exhausted_notification(notification: &SystemNotificationConten
         .and_then(|d| d.get("top_up_url"))
         .and_then(|v| v.as_str())
     {
-        println!(
-            "{}",
-            style(format!("Visit this URL to top up credits: {url}")).yellow()
-        );
+        println!("{} {}", style("top up:").dim(), accent(url));
     }
 }
 
@@ -415,8 +439,6 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
     }
     if let Some(color) = color {
         styled_text = styled_text.fg(color);
-    } else {
-        styled_text = styled_text.green();
     }
     print!("{}", styled_text);
 }
@@ -424,9 +446,8 @@ pub fn render_text_no_newlines(text: &str, color: Option<Color>, dim: bool) {
 pub fn render_enter_plan_mode() {
     println!(
         "\n{} {}\n",
-        style("Entering plan mode.").green().bold(),
+        accent("Entering plan mode.").bold(),
         style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
-            .green()
             .dim()
     );
 }
@@ -434,18 +455,16 @@ pub fn render_enter_plan_mode() {
 pub fn render_act_on_plan() {
     println!(
         "\n{}\n",
-        style("Exiting plan mode and acting on the above plan")
-            .green()
-            .bold(),
+        accent("Exiting plan mode and acting on the above plan").bold(),
     );
 }
 
 pub fn render_exit_plan_mode() {
-    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+    println!("\n{}\n", accent("Exiting plan mode.").bold());
 }
 
 pub fn goose_mode_message(text: &str) {
-    println!("\n{}", style(text).yellow(),);
+    println!("\n{} {}", accent("mode:"), text);
 }
 
 fn should_show_thinking() -> bool {
@@ -501,7 +520,15 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
     match &resp.tool_result {
         Ok(result) => {
             for content in &result.content {
-                if let Some(audience) = content.audience() {
+                let annotations = match content {
+                    rmcp::model::ContentBlock::Text(t) => t.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Image(i) => i.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Audio(a) => a.annotations.as_ref(),
+                    rmcp::model::ContentBlock::Resource(r) => r.annotations.as_ref(),
+                    rmcp::model::ContentBlock::ResourceLink(r) => r.annotations.as_ref(),
+                    _ => None,
+                };
+                if let Some(audience) = annotations.and_then(|a| a.audience.as_ref()) {
                     if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
@@ -512,10 +539,9 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
                     .ok()
                     .unwrap_or(DEFAULT_MIN_PRIORITY);
 
-                if content
-                    .priority()
-                    .is_some_and(|priority| priority < min_priority)
-                    || (content.priority().is_none() && !debug)
+                let priority = annotations.and_then(|a| a.priority);
+                if priority.is_some_and(|priority| priority < min_priority)
+                    || (priority.is_none() && !debug)
                 {
                     continue;
                 }
@@ -531,6 +557,17 @@ fn render_tool_response(resp: &ToolResponse, debug: bool) {
             println!("    {}", style(e.to_string()).red().dim());
         }
     }
+}
+
+pub(super) fn sanitize_terminal_line(line: &str) -> String {
+    strip_str(line)
+        .flat_map(str::chars)
+        .filter(|character| *character == '\t' || !character.is_control())
+        .collect()
+}
+
+fn print_tool_output_line(line: &str) {
+    println!("    {}", style(sanitize_terminal_line(line)).dim());
 }
 
 fn print_tool_output(text: &str) {
@@ -549,13 +586,13 @@ fn print_tool_output(text: &str) {
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() <= max_lines {
         for line in &lines {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
     } else {
         let head = max_lines / 2;
         let tail = max_lines - head;
         for line in &lines[..head] {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
         println!(
             "    {}",
@@ -567,7 +604,7 @@ fn print_tool_output(text: &str) {
             .italic()
         );
         for line in &lines[lines.len() - tail..] {
-            println!("    {}", style(line).dim());
+            print_tool_output_line(line);
         }
     }
 }
@@ -581,13 +618,13 @@ fn is_file_tool_name(name: &str) -> bool {
 }
 
 pub fn render_error(message: &str) {
-    println!("\n  {} {}\n", style("error:").red().bold(), message);
+    println!("\n  {} {}\n", danger("error:").bold(), message);
 }
 
 pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
     println!();
     for (extension, prompts) in prompts {
-        println!(" {}", style(extension).green());
+        println!(" {}", accent(extension));
         for prompt in prompts {
             println!("  - {}", style(prompt).cyan());
         }
@@ -598,7 +635,7 @@ pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
 pub fn render_prompt_info(info: &PromptInfo) {
     println!();
     if let Some(ext) = &info.extension {
-        println!(" {}: {}", style("Extension").green(), ext);
+        println!(" {}: {}", accent("Extension"), ext);
     }
     println!(" Prompt: {}", style(&info.name).cyan().bold());
     if let Some(desc) = &info.description {
@@ -614,14 +651,14 @@ fn render_arguments(info: &PromptInfo) {
         for arg in args {
             let required = arg.required.unwrap_or(false);
             let req_str = if required {
-                style("(required)").red()
+                style("(required)").bold()
             } else {
                 style("(optional)").dim()
             };
 
             println!(
                 "  {} {} {}",
-                style(&arg.name).yellow(),
+                accent(&arg.name),
                 req_str,
                 arg.description.as_deref().unwrap_or("")
             );
@@ -631,21 +668,13 @@ fn render_arguments(info: &PromptInfo) {
 
 pub fn render_extension_success(name: &str) {
     println!();
-    println!(
-        "  {} extension `{}`",
-        style("added").green(),
-        style(name).cyan(),
-    );
+    println!("  {} extension `{}`", success("added"), accent(name),);
     println!();
 }
 
 pub fn render_extension_error(name: &str, error: &str) {
     println!();
-    println!(
-        "  {} to add extension {}",
-        style("failed").red(),
-        style(name).red()
-    );
+    println!("  {} to add extension {}", danger("failed"), danger(name));
     println!();
     println!("{}", style(error).dim());
     println!();
@@ -655,9 +684,9 @@ pub fn render_builtin_success(names: &str) {
     println!();
     println!(
         "  {} builtin{}: {}",
-        style("added").green(),
+        success("added"),
         if names.contains(',') { "s" } else { "" },
-        style(names).cyan()
+        accent(names)
     );
     println!();
 }
@@ -666,9 +695,9 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
     println!(
         "  {} to add builtin{}: {}",
-        style("failed").red(),
+        danger("failed"),
         if names.contains(',') { "s" } else { "" },
-        style(names).red()
+        danger(names)
     );
     println!();
     println!("{}", style(error).dim());
@@ -769,7 +798,7 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
         .and_then(Value::as_str)
         .filter(|c| !c.is_empty());
     if code.is_some_and(|_| debug) {
-        println!("{}", style(code.unwrap_or_default()).green());
+        println!("{}", code.unwrap_or_default());
     }
 
     println!();
@@ -833,31 +862,25 @@ fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
-fn split_tool_name(tool_name: &str) -> (String, String) {
-    let parts: Vec<_> = tool_name.rsplit("__").collect();
-    let tool = parts.first().copied().unwrap_or("unknown");
-    let extension = parts
-        .split_first()
-        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-        .unwrap_or_default();
-    (tool.to_string(), extension_display_name(&extension))
-}
-
-fn extension_display_name(name: &str) -> String {
+fn extension_display_name(name: &str) -> &str {
     match name {
-        "code_execution" => "Code Mode".to_string(),
-        _ => name.to_string(),
+        "code_execution" => "Code Mode",
+        _ => name,
     }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
     let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
-    let (tool, extension) = split_tool_name(tool_name);
+    let parts = ToolNameParts::from(tool_name);
 
-    if extension.is_empty() {
-        format!("[subagent:{}] {}", short_id, tool)
-    } else {
-        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+    match parts.extension_name {
+        Some(extension_name) => format!(
+            "[subagent:{}] {} | {}",
+            short_id,
+            parts.tool_name,
+            extension_display_name(extension_name)
+        ),
+        None => format!("[subagent:{}] {}", short_id, parts.tool_name),
     }
 }
 
@@ -937,16 +960,17 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParams) {
-    let (tool, extension) = split_tool_name(&call.name);
-    let tool_header = if extension.is_empty() {
-        format!("  {} {}", style("▸").dim(), style(&tool).dim())
-    } else {
-        format!(
+    let parts = ToolNameParts::from(call.name.as_ref());
+    let tool_header = match parts.extension_name {
+        Some(extension_name) => format!(
             "  {} {} {}",
             style("▸").dim(),
-            style(&tool).dim(),
-            style(extension).magenta().dim(),
-        )
+            style(parts.tool_name).dim(),
+            style(extension_display_name(extension_name))
+                .magenta()
+                .dim(),
+        ),
+        None => format!("  {} {}", style("▸").dim(), style(parts.tool_name).dim()),
     };
     println!();
     println!("  {}", style("─".repeat(40)).dim());
@@ -978,15 +1002,29 @@ fn print_markdown(content: &str, theme: Theme) {
 }
 
 /// Renders markdown content using bat (no table processing)
+///
+/// The printer is cached per thread because `PrettyPrinter::new()`
+/// deserializes bat's bundled syntax/theme assets; `print()` drains the
+/// queued inputs but leaves the printer reusable.
 fn print_markdown_raw(content: &str, theme: Theme) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme.as_str())
-        .colored_output(env_no_color())
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::NoWrapping(true))
-        .print()
-        .unwrap();
+    use std::cell::RefCell;
+    thread_local! {
+        static PRINTER: RefCell<bat::PrettyPrinter<'static>> =
+            RefCell::new(bat::PrettyPrinter::new());
+    }
+    PRINTER.with(|printer| {
+        printer
+            .borrow_mut()
+            .input(bat::Input::from_reader(Box::new(std::io::Cursor::new(
+                content.as_bytes().to_vec(),
+            ))))
+            .theme(theme.as_str())
+            .colored_output(env_no_color())
+            .language("Markdown")
+            .wrapping_mode(WrappingMode::NoWrapping(true))
+            .print()
+            .unwrap();
+    });
 }
 
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
@@ -1450,7 +1488,7 @@ pub fn display_cost_usage(provider: &str, model: &str, usage: &Usage) {
 pub struct McpSpinners {
     bars: HashMap<String, ProgressBar>,
     log_spinner: Option<ProgressBar>,
-
+    shell_output_lines: VecDeque<String>,
     multi_bar: MultiProgress,
 }
 
@@ -1459,6 +1497,7 @@ impl McpSpinners {
         McpSpinners {
             bars: HashMap::new(),
             log_spinner: None,
+            shell_output_lines: VecDeque::new(),
             multi_bar: MultiProgress::new(),
         }
     }
@@ -1479,6 +1518,13 @@ impl McpSpinners {
         });
 
         spinner.set_message(message.to_string());
+    }
+
+    pub fn log_shell_output(&mut self, lines: Vec<String>, max_lines: usize) {
+        let message = update_recent_lines(&mut self.shell_output_lines, lines, max_lines);
+        if !message.is_empty() {
+            self.log(&message);
+        }
     }
 
     pub fn update(&mut self, token: &str, value: f64, total: Option<f64>, message: Option<&str>) {
@@ -1507,8 +1553,25 @@ impl McpSpinners {
         if let Some(spinner) = self.log_spinner.as_mut() {
             spinner.disable_steady_tick();
         }
+        self.shell_output_lines.clear();
         self.multi_bar.clear()
     }
+}
+
+fn update_recent_lines(
+    recent_lines: &mut VecDeque<String>,
+    lines: impl IntoIterator<Item = String>,
+    max_lines: usize,
+) -> String {
+    recent_lines.extend(lines);
+    while recent_lines.len() > max_lines {
+        recent_lines.pop_front();
+    }
+    recent_lines
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join("\n  ")
 }
 
 #[cfg(test)]
@@ -1516,6 +1579,62 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::env;
+
+    #[test]
+    fn recent_lines_accumulate_across_updates() {
+        let mut recent_lines = VecDeque::new();
+        let mut rendered = String::new();
+
+        for line in ["one", "two", "three", "four"] {
+            rendered = update_recent_lines(&mut recent_lines, [line.to_string()], 3);
+        }
+
+        assert_eq!(rendered, "two\n  three\n  four");
+    }
+
+    #[test]
+    fn terminal_line_sanitizer_removes_escape_sequences_and_controls() {
+        assert_eq!(
+            sanitize_terminal_line(
+                "\x1b[31mred\x1b[0m \x1b[2J\x1b[H\
+                 \x1b]0;spoofed title\x07\
+                 \x1b]52;c;Y2xpcGJvYXJk\x1b\\safe"
+            ),
+            "red safe"
+        );
+        assert_eq!(
+            sanitize_terminal_line("before\x08after\x07\r\tvisible"),
+            "beforeafter\tvisible"
+        );
+    }
+
+    #[test]
+    fn terminal_line_sanitizer_preserves_plain_unicode_text() {
+        assert_eq!(
+            sanitize_terminal_line("goose 🪿\t日本語"),
+            "goose 🪿\t日本語"
+        );
+    }
+
+    #[test]
+    fn formats_subagent_tool_call_names() {
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "read"),
+            "[subagent:42] read"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "developer__shell"),
+            "[subagent:42] shell | developer"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "code_execution__execute_typescript"),
+            "[subagent:42] execute_typescript | Code Mode"
+        );
+        assert_eq!(
+            format_subagent_tool_call_message("subagent_42", "calendar__events__list"),
+            "[subagent:42] events__list | calendar"
+        );
+    }
 
     #[test]
     fn test_short_paths_unchanged() {

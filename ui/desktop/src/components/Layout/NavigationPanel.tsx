@@ -135,8 +135,14 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
-  const { recentSessions, recentSessionsByProject, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
-    useNavigationSessions();
+  const {
+    recentSessions,
+    recentSessionsByProject,
+    activeSessionId,
+    fetchSessions,
+    handleNavClick,
+    handleSessionClick,
+  } = useNavigationSessions();
 
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
 

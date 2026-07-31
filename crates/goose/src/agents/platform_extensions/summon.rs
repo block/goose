@@ -18,8 +18,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
-    ServerCapabilities, ServerNotification, Tool,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    MetaObject, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -84,10 +84,27 @@ pub struct CompletedTask {
     pub completed_at: Instant,
 }
 
+fn merge_subrecipe_parameters(
+    fixed_values: Option<&HashMap<String, String>>,
+    provided_parameters: Option<&HashMap<String, serde_json::Value>>,
+) -> HashMap<String, String> {
+    let mut merged = fixed_values.cloned().unwrap_or_default();
+    if let Some(provided_parameters) = provided_parameters {
+        for (key, value) in provided_parameters {
+            let value = match value {
+                serde_json::Value::String(value) => value.clone(),
+                other => other.to_string(),
+            };
+            merged.entry(key.clone()).or_insert(value);
+        }
+    }
+    merged
+}
+
 /// Result from handle_load_task_result with structured metadata for the caller
 #[derive(Debug)]
 struct TaskLoadResult {
-    content: Vec<Content>,
+    content: Vec<ContentBlock>,
     status: &'static str,
     turns: Option<u32>,
     duration_secs: Option<u64>,
@@ -483,6 +500,36 @@ impl SummonClient {
         })
     }
 
+    async fn create_subagent_session(
+        &self,
+        task_config: &TaskConfig,
+        name: String,
+    ) -> Result<crate::session::Session, String> {
+        let session = self
+            .context
+            .session_manager
+            .create_session(
+                task_config.parent_working_dir.clone(),
+                name,
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
+            .await
+            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+
+        if !task_config.parent_session_id.is_empty() {
+            self.context
+                .session_manager
+                .update(&session.id)
+                .parent_session_id(Some(task_config.parent_session_id.clone()))
+                .apply()
+                .await
+                .map_err(|e| format!("Failed to link subagent to parent session: {}", e))?;
+        }
+
+        Ok(session)
+    }
+
     fn spawn_notification_bridge(
         mut notif_rx: tokio::sync::mpsc::UnboundedReceiver<ServerNotification>,
         subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
@@ -841,7 +888,7 @@ impl SummonClient {
 
         if is_session_id(name) {
             let task_result = self.handle_load_task_result(name, cancel, peek).await?;
-            let mut meta = Meta::new();
+            let mut meta = MetaObject::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(name.to_string()),
@@ -914,7 +961,7 @@ impl SummonClient {
                 Err(error) => format!("Error: {}", error),
             };
             return Ok(TaskLoadResult {
-                content: vec![Content::text(format!(
+                content: vec![ContentBlock::text(format!(
                     "# Background Task Result: {}\n\n\
                      **Task:** {}\n\
                      **Status:** {}\n\
@@ -964,7 +1011,7 @@ impl SummonClient {
                 }
 
                 return Ok(TaskLoadResult {
-                    content: vec![Content::text(output)],
+                    content: vec![ContentBlock::text(output)],
                     status: "running",
                     turns: Some(turns_taken),
                     duration_secs: Some(elapsed.as_secs()),
@@ -996,7 +1043,7 @@ impl SummonClient {
                 };
 
                 return Ok(TaskLoadResult {
-                    content: vec![Content::text(format!(
+                    content: vec![ContentBlock::text(format!(
                         "# Background Task Result: {}\n\n\
                          **Task:** {}\n\
                          **Status:** ⊘ Cancelled\n\
@@ -1048,7 +1095,7 @@ impl SummonClient {
                         _ => "✗ Failed",
                     };
                     return Ok(TaskLoadResult {
-                        content: vec![Content::text(format!(
+                        content: vec![ContentBlock::text(format!(
                             "# Background Task Result: {}\n\n\
                              **Task:** {}\n\
                              **Status:** {}\n\
@@ -1085,7 +1132,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         working_dir: &Path,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         {
             let mut cache = self.source_cache.lock().await;
             *cache = None;
@@ -1095,7 +1142,7 @@ impl SummonClient {
         let completed = self.completed_tasks.lock().await;
 
         if sources.is_empty() && completed.is_empty() {
-            return Ok(vec![Content::text(
+            return Ok(vec![ContentBlock::text(
                 "No sources available for load/delegate.\n\n\
                  Sources are discovered from:\n\
                  • Current recipe's sub_recipes\n\
@@ -1141,7 +1188,7 @@ impl SummonClient {
         output.push_str("\nUse load(source: \"name\") to load into context.\n");
         output.push_str("Use delegate(source: \"name\") to run as subagent.");
 
-        Ok(vec![Content::text(output)])
+        Ok(vec![ContentBlock::text(output)])
     }
 
     async fn handle_load_source(
@@ -1149,7 +1196,7 @@ impl SummonClient {
         session_id: &str,
         name: &str,
         working_dir: &Path,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<Vec<ContentBlock>, String> {
         let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
@@ -1161,7 +1208,7 @@ impl SummonClient {
                     source.name, source.source_type, content
                 );
 
-                Ok(vec![Content::text(output)])
+                Ok(vec![ContentBlock::text(output)])
             }
             None => {
                 let sources = self.get_sources(session_id, working_dir).await;
@@ -1223,7 +1270,7 @@ impl SummonClient {
 
         if params.r#async {
             let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
-            let mut meta = Meta::new();
+            let mut meta = MetaObject::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(task_id),
@@ -1255,16 +1302,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                "Delegated task".to_string(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, "Delegated task".to_string())
+            .await?;
 
         let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
         Self::spawn_notification_bridge(
@@ -1287,7 +1326,7 @@ impl SummonClient {
         })
         .await;
 
-        let mut meta = Meta::new();
+        let mut meta = MetaObject::new();
         meta.0.insert(
             "subagent_session_id".to_string(),
             serde_json::Value::String(subagent_session_id),
@@ -1295,9 +1334,9 @@ impl SummonClient {
 
         match result {
             Ok(text) => {
-                Ok(CallToolResult::success(vec![Content::text(text)]).with_meta(Some(meta)))
+                Ok(CallToolResult::success(vec![ContentBlock::text(text)]).with_meta(Some(meta)))
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Delegation failed: {}",
                 e
             ))])
@@ -1419,21 +1458,8 @@ impl SummonClient {
                         format!("Failed to load subrecipe '{}': {}", source.name, e)
                     })?;
 
-                    let mut merged: HashMap<String, String> = HashMap::new();
-                    if let Some(values) = &sr.values {
-                        for (k, v) in values {
-                            merged.insert(k.clone(), v.clone());
-                        }
-                    }
-                    if let Some(provided_params) = &params.parameters {
-                        for (k, v) in provided_params {
-                            let value_str = match v {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            };
-                            merged.insert(k.clone(), value_str);
-                        }
-                    }
+                    let merged =
+                        merge_subrecipe_parameters(sr.values.as_ref(), params.parameters.as_ref());
                     let param_values: Vec<(String, String)> = merged.into_iter().collect();
 
                     return build_recipe_from_template(
@@ -1528,8 +1554,6 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let (provider, model_config) = self.resolve_provider(params, recipe, session).await?;
-
         let mut extensions = EnabledExtensionsState::extensions_or_default(
             Some(&session.extension_data),
             Config::global(),
@@ -1555,6 +1579,10 @@ impl SummonClient {
                 }
             }
         }
+
+        let (provider, model_config) = self
+            .resolve_provider(params, recipe, session, &extensions)
+            .await?;
 
         let max_turns = params
             .max_turns
@@ -1650,6 +1678,7 @@ impl SummonClient {
         params: &DelegateParams,
         recipe: &Recipe,
         session: &crate::session::Session,
+        extensions: &[crate::config::ExtensionConfig],
     ) -> Result<
         (
             Arc<dyn crate::providers::base::Provider>,
@@ -1675,7 +1704,31 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        let provider = providers::create(&provider_name, Vec::new()).await?;
+        let provider = match providers::get_from_registry(&provider_name).await {
+            Ok(entry) => entry.create(extensions.to_vec()).await?,
+            Err(error) => {
+                let parent_provider = if let Some(extension_manager) = self
+                    .context
+                    .extension_manager
+                    .as_ref()
+                    .and_then(|weak| weak.upgrade())
+                {
+                    extension_manager.get_provider().lock().await.clone()
+                } else {
+                    None
+                };
+
+                match parent_provider {
+                    Some(provider)
+                        if provider.get_name() == provider_name
+                            && !provider.manages_own_context() =>
+                    {
+                        provider
+                    }
+                    _ => return Err(error),
+                }
+            }
+        };
         Ok((provider, model_config))
     }
 
@@ -1762,7 +1815,7 @@ impl SummonClient {
         &self,
         session_id: &str,
         params: DelegateParams,
-    ) -> Result<(Vec<Content>, String), String> {
+    ) -> Result<(Vec<ContentBlock>, String), String> {
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1805,16 +1858,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                description.clone(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, description.clone())
+            .await?;
 
         let task_id = subagent_session.id.clone();
 
@@ -1871,7 +1916,7 @@ impl SummonClient {
             .await
             .insert(task_id.clone(), task);
 
-        let content = vec![Content::text(format!(
+        let content = vec![ContentBlock::text(format!(
             "Task {} started in background: \"{}\"\n\
              Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
@@ -1908,6 +1953,7 @@ impl McpClientTrait for SummonClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -1922,7 +1968,7 @@ impl McpClientTrait for SummonClient {
         match name {
             "load" => match self.handle_load(session_id, arguments).await {
                 Ok(result) => Ok(result),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: {}",
                     error
                 ))])),
@@ -1933,13 +1979,13 @@ impl McpClientTrait for SummonClient {
                     .await
                 {
                     Ok(result) => Ok(result),
-                    Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                         "Error: {}",
                         error
                     ))])),
                 }
             }
-            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+            _ => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: Unknown tool: {}",
                 name
             ))])),
@@ -2434,6 +2480,32 @@ You review code."#;
     }
 
     #[test]
+    fn test_subrecipe_fixed_values_take_precedence_over_delegate_parameters() {
+        let fixed = HashMap::from([("fixed".to_string(), "parent-value".to_string())]);
+        let provided = HashMap::from([
+            (
+                "fixed".to_string(),
+                serde_json::Value::String("delegate-value".to_string()),
+            ),
+            (
+                "caller".to_string(),
+                serde_json::Value::String("caller-value".to_string()),
+            ),
+        ]);
+
+        let merged = merge_subrecipe_parameters(Some(&fixed), Some(&provided));
+
+        assert_eq!(
+            merged.get("fixed").map(String::as_str),
+            Some("parent-value")
+        );
+        assert_eq!(
+            merged.get("caller").map(String::as_str),
+            Some("caller-value")
+        );
+    }
+
+    #[test]
     fn test_build_instructions_with_context_wraps_existing_instructions() {
         assert_eq!(
             build_instructions_with_context("background info", "Run deploy steps"),
@@ -2565,6 +2637,78 @@ You review code."#;
             sub_recipes: None,
             retry: None,
         }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_provider_reuses_unregistered_parent_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider: Arc<dyn crate::providers::base::Provider> = Arc::new(
+            crate::providers::testprovider::TestProvider::new_replaying(
+                temp_dir.path().join("records.json").display().to_string(),
+            )
+            .unwrap(),
+        );
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+        let session = crate::session::Session {
+            provider_name: Some(parent_provider.get_name().to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new("test-model")),
+            ..Default::default()
+        };
+
+        let params = DelegateParams {
+            provider: Some(parent_provider.get_name().to_string()),
+            model: Some("test-model".to_string()),
+            ..Default::default()
+        };
+        let (resolved_provider, _) = client
+            .resolve_provider(&params, &empty_recipe(), &session, &[])
+            .await
+            .unwrap();
+
+        assert!(Arc::ptr_eq(&parent_provider, &resolved_provider));
+    }
+
+    #[tokio::test]
+    async fn test_build_task_config_recreates_registered_parent_provider() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent_provider = providers::create("openai", Vec::new()).await.unwrap();
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp_dir.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await = Some(Arc::clone(&parent_provider));
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+        let session = crate::session::Session {
+            provider_name: Some(parent_provider.get_name().to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new("test-model")),
+            working_dir: temp_dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let params = DelegateParams {
+            extensions: Some(Vec::new()),
+            provider: Some(parent_provider.get_name().to_string()),
+            model: Some("test-model".to_string()),
+            ..Default::default()
+        };
+
+        let task_config = client
+            .build_task_config(&params, &empty_recipe(), &session)
+            .await
+            .unwrap();
+
+        assert!(!Arc::ptr_eq(&parent_provider, &task_config.provider));
+        assert!(task_config.extensions.is_empty());
     }
 
     const PARENT_MODEL: &str = "claude-3-5-sonnet-20241022";
@@ -2700,10 +2844,10 @@ You review code."#;
         );
     }
 
-    fn extract_text(content: &Content) -> &str {
-        use rmcp::model::RawContent;
-        match &content.raw {
-            RawContent::Text(t) => t.text.as_str(),
+    fn extract_text(content: &ContentBlock) -> &str {
+        use rmcp::model::ContentBlock;
+        match content {
+            ContentBlock::Text(t) => t.text.as_str(),
             _ => panic!("Expected text content"),
         }
     }
@@ -2779,7 +2923,8 @@ You review code."#;
             .try_recv()
             .expect("subscriber should receive buffered notification");
         if let ServerNotification::LoggingMessageNotification(log) = notif {
-            let data = log.params.data.as_object().unwrap();
+            let params = serde_json::to_value(&log.params).unwrap();
+            let data = params.get("data").and_then(|v| v.as_object()).unwrap();
             assert_eq!(
                 data.get("subagent_id").and_then(|v| v.as_str()),
                 Some("20260204_1")

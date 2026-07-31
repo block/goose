@@ -57,5 +57,6 @@
       "max_tokens": 1024
     }
   ],
-  "supports_streaming": true
+  "supports_streaming": true,
+  "preserves_thinking": false
 }

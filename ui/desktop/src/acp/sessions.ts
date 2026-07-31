@@ -7,7 +7,6 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
-import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import type { ExtensionLoadResult } from '../types/extensions';
 import type { Session } from '../types/session';
 import type { Recipe } from '../recipe';
@@ -93,7 +92,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
 
   return {
     id: String(s.sessionId),
-    name: s.title ?? DEFAULT_CHAT_TITLE,
+    name: s.title ?? '',
     working_dir: loadMeta.workingDir ?? s.cwd,
     created_at: createdAt,
     updated_at: updatedAt,
@@ -116,7 +115,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
   const meta = sessionInfoMeta(s);
   return {
     id: String(s.sessionId),
-    name: s.title ?? DEFAULT_CHAT_TITLE,
+    name: s.title ?? '',
     workingDir: s.cwd,
     updatedAt: s.updatedAt ?? '',
     messageCount: meta.messageCount ?? 0,

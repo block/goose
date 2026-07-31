@@ -8,6 +8,7 @@ import type { Session } from '../types/session';
 
 import {
   createUserMessage,
+  type ImageData,
   type Message,
   type NotificationEvent,
   type UserInput,
@@ -22,6 +23,7 @@ import {
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
 import { acpSteerSession } from '../acp/prompt';
+import { isAcpRecovering } from '../acp/acpConnection';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -61,6 +63,7 @@ export function useChatSession({
   const messages = acpSnapshot?.messages ?? [];
   const session = acpSnapshot?.session;
   const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
+  const progressMessage = acpSnapshot?.progressMessage;
   const sessionLoadError = acpSnapshot?.sessionLoadError;
   const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
   const queueProcessingBlocked = acpSnapshot?.pendingCancelPromptAttemptId != null;
@@ -149,6 +152,10 @@ export function useChatSession({
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
+      if (isAcpRecovering()) {
+        return;
+      }
+
       const { msg: userMessage, images } = input;
       const currentSnapshot = getCurrentSnapshot();
 
@@ -274,12 +281,24 @@ export function useChatSession({
   }, [sessionId]);
 
   const onMessageUpdate = useCallback(
-    async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
+    async (
+      messageId: string,
+      newContent: string,
+      editType: 'fork' | 'edit',
+      retainedImages: ImageData[]
+    ) => {
       try {
-        await acpChatSessionController.updateMessage(sessionId, messageId, newContent, editType, {
-          getCurrentSnapshot,
-          onFinish,
-        });
+        await acpChatSessionController.updateMessage(
+          sessionId,
+          messageId,
+          newContent,
+          editType,
+          retainedImages,
+          {
+            getCurrentSnapshot,
+            onFinish,
+          }
+        );
       } catch (error) {
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
@@ -319,6 +338,7 @@ export function useChatSession({
     messages,
     session,
     chatState,
+    progressMessage,
     updateSession,
     handleSubmit,
     onSteerQueuedMessage,

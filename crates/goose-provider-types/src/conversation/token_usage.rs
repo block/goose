@@ -1,7 +1,6 @@
 use std::ops::{Add, AddAssign};
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -9,11 +8,23 @@ pub struct ProviderUsage {
     pub usage: Usage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<ProviderStats>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_source: Option<CostSource>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CostSource {
+    ProviderReported,
+    Estimated,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderStats {
     pub time_to_first_token_ms: Option<u64>,
+    pub model_load_ms: Option<u64>,
     pub elapsed_ms: Option<u64>,
     pub output_tokens: Option<usize>,
     pub draft: Option<DraftStats>,
@@ -35,6 +46,8 @@ impl ProviderUsage {
             model,
             usage,
             stats: None,
+            cost: None,
+            cost_source: None,
         }
     }
 
@@ -43,14 +56,10 @@ impl ProviderUsage {
         self
     }
 
-    /// Combine this ProviderUsage with another, adding their token counts
-    /// Uses the model from this ProviderUsage
-    pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
-        ProviderUsage {
-            model: self.model.clone(),
-            usage: self.usage + other.usage,
-            stats: self.stats.clone().or_else(|| other.stats.clone()),
-        }
+    pub fn with_cost(mut self, cost: f64, source: CostSource) -> Self {
+        self.cost = Some(cost);
+        self.cost_source = Some(source);
+        self
     }
 }
 
@@ -58,7 +67,7 @@ impl ProviderUsage {
 /// the cache fields are breakdown subsets of it. Parsers for providers
 /// that report cache tokens separately from input (e.g. Anthropic,
 /// Bedrock) must fold them into `input_tokens`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq)]
 pub struct Usage {
     /// All prompt tokens, including any served from or written to cache.
     /// `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.

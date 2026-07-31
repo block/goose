@@ -56,7 +56,7 @@ describe('useAutoSubmit', () => {
     expect(dispatchEventSpy).not.toHaveBeenCalled();
   });
 
-  it('auto-submits once recipe acceptance is confirmed', () => {
+  it('keeps the initial message while blocked and submits it once unblocked', () => {
     const handleSubmit = vi.fn();
     const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
 
@@ -82,6 +82,7 @@ describe('useAutoSubmit', () => {
     );
 
     expect(handleSubmit).not.toHaveBeenCalled();
+    expect(dispatchEventSpy).not.toHaveBeenCalled();
 
     rerender({ canAutoSubmit: true });
 

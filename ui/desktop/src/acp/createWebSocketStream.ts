@@ -28,6 +28,11 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
     ws.addEventListener('error', () => reject(new Error('ACP WebSocket connection failed')), {
       once: true,
     });
+    ws.addEventListener(
+      'close',
+      () => reject(new Error('ACP WebSocket closed before connection opened')),
+      { once: true }
+    );
   });
 
   ws.addEventListener('message', (event) => {
@@ -67,6 +72,9 @@ export function createWebSocketStream(wsUrl: string): ClosableAcpStream {
   const writable = new window.WritableStream({
     async write(message) {
       await openPromise;
+      if (closed || ws.readyState !== window.WebSocket.OPEN) {
+        throw new Error('ACP WebSocket connection lost');
+      }
       ws.send(JSON.stringify(message));
     },
     close() {

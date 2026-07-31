@@ -5,6 +5,7 @@ mod provider;
 mod response_builder;
 pub mod server;
 pub mod server_factory;
+pub(crate) mod tool_call_notifier;
 pub(crate) mod tools;
 pub mod transport;
 

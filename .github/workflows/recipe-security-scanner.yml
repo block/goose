@@ -17,11 +17,108 @@ permissions:
   statuses: write
 
 jobs:
-  security-scan:
+  # Forks are evaluated from GitHub file/review metadata only; recipe content
+  # never enters this job or the secret-bearing scanner.
+  fork-review-boundary:
+    name: Fork recipe review boundary
+    if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+    permissions:
+      # GitHub App installation tokens can query collaborator permission with
+      # their implicit metadata read access.
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require write-access approval
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const recipePrefix = 'documentation/src/pages/recipes/data/recipes/';
+            const pullNumber = context.payload.pull_request.number;
+            const request = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+              per_page: 100,
+            };
+
+            const files = await github.paginate(github.rest.pulls.listFiles, request);
+            const hasReviewableRecipe = files.some(
+              (file) => file.filename.startsWith(recipePrefix) && file.status !== 'removed'
+            );
+
+            if (!hasReviewableRecipe) {
+              core.notice('No added or modified recipe requires the fork review boundary.');
+              return;
+            }
+
+            const currentHead = context.payload.pull_request.head.sha;
+            const reviews = await github.paginate(github.rest.pulls.listReviews, request);
+            const latestByReviewer = new Map();
+            for (const review of reviews) {
+              if (!review.user?.login || !review.submitted_at) continue;
+              const state = review.state?.toUpperCase();
+              if (!['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(state)) continue;
+              const current = latestByReviewer.get(review.user.login);
+              if (!current || new Date(review.submitted_at) > new Date(current.submitted_at)) {
+                latestByReviewer.set(review.user.login, review);
+              }
+            }
+
+            const allowedPermissions = new Set(['admin', 'maintain', 'write']);
+            const approvers = [];
+            const blockers = [];
+            for (const review of latestByReviewer.values()) {
+              if (review.commit_id !== currentHead) continue;
+              const state = review.state?.toUpperCase();
+              if (!['APPROVED', 'CHANGES_REQUESTED'].includes(state)) continue;
+              const response = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: review.user.login,
+              });
+              if (allowedPermissions.has(response.data.permission)) {
+                if (state === 'CHANGES_REQUESTED') {
+                  blockers.push(review.user.login);
+                } else {
+                  approvers.push(review.user.login);
+                }
+              }
+            }
+
+            if (blockers.length > 0) {
+              core.setFailed(
+                'The current fork head has changes requested by a reviewer with write access: ' +
+                `@${blockers.join(', @')}.`
+              );
+              return;
+            }
+
+            if (approvers.length === 0) {
+              core.setFailed(
+                'Fork recipe instructions cannot enter the secret-bearing AI scanner. ' +
+                'The current head requires an approving review from a user with write access. ' +
+                'After approval, rerun this failed job.'
+              );
+              return;
+            }
+
+            core.notice(`Current fork head approved by @${approvers.join(', @')}.`);
+            await core.summary
+              .addHeading('Fork recipe review boundary')
+              .addRaw(
+                'The privileged AI scan was not run because this recipe comes from a fork. ' +
+                `Write-access approval of the current head was verified from @${approvers.join(', @')}.`
+              )
+              .write();
+
+  origin-ai-scan:
+    name: Origin recipe AI scan
+    # Never load fork-controlled recipe instructions into the privileged scanner.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920  # v2.20.0
         with:
           egress-policy: audit
       
@@ -30,14 +127,14 @@ jobs:
       # We checkout the base branch (trusted) for building the scanner image,
       # and only fetch recipe files from the PR for scanning.
       - name: Checkout base branch (trusted code)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           path: trusted
 
       - name: Fetch PR recipe files only
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -119,7 +216,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
 
       - name: Prune Docker caches
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
@@ -427,3 +524,54 @@ jobs:
             echo "::error::No scan summary found - scan may have failed completely"
             exit 1
           fi
+
+  # Preserve the existing required job context. This job always runs and
+  # reflects the applicable isolated check instead of allowing a skipped
+  # privileged scanner to satisfy branch protection for a fork.
+  security-scan:
+    name: security-scan
+    if: ${{ always() }}
+    needs:
+      - fork-review-boundary
+      - origin-ai-scan
+    permissions:
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce the applicable security boundary
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        env:
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          FORK_BOUNDARY_RESULT: ${{ needs.fork-review-boundary.result }}
+          ORIGIN_SCAN_RESULT: ${{ needs.origin-ai-scan.result }}
+        with:
+          script: |
+            const isFork = process.env.IS_FORK === 'true';
+            const applicableResult = isFork
+              ? process.env.FORK_BOUNDARY_RESULT
+              : process.env.ORIGIN_SCAN_RESULT;
+            const checkName = isFork ? 'fork review boundary' : 'origin recipe AI scan';
+            const passed = applicableResult === 'success';
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: passed ? 'success' : 'failure',
+              target_url: `${context.payload.pull_request.html_url}/checks`,
+              description: passed
+                ? `${checkName} passed`
+                : `${checkName} result: ${applicableResult}`,
+              context: 'security-scan/recipe-scanner',
+            });
+
+            if (!passed) {
+              core.setFailed(`${checkName} result: ${applicableResult}`);
+              return;
+            }
+
+            core.notice(
+              isFork
+                ? 'Fork review boundary passed; privileged AI scan was not run.'
+                : 'Origin recipe AI scan passed.'
+            );
