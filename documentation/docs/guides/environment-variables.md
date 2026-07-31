@@ -60,28 +60,28 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
-### Provider Retry Configuration
+### Agent Retry Configuration
 
-These variables control automatic retry of transient provider errors (network errors, server errors, and rate limits) at the agent layer. When a transient error occurs and no tools have been called yet in the current turn, goose waits with exponential backoff and retries the request.
+These variables control the agent-layer retry of transient errors (network errors, server errors, and rate limits). When a transient error occurs before any content is streamed and no tools have been called yet in the current turn, goose waits with exponential backoff and retries the request. This layer is **mutually exclusive** with the provider transport-level retry (`with_retry`): HTTP providers that already retry stream-initiation themselves are left alone, so the two layers never stack. The agent layer is the sole retry owner for providers without transport-level retry (subprocess/ACP transports).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_PROVIDER_RETRY_ENABLED` | Enables or disables automatic retry of transient provider errors | `true`, `false` | `true` |
-| `GOOSE_PROVIDER_RETRY_MAX_ATTEMPTS` | Maximum number of retry attempts before surfacing the error to the user | Positive integer (e.g., 3, 5) | `3` |
-| `GOOSE_PROVIDER_RETRY_INITIAL_DELAY_MS` | Initial delay (in milliseconds) before the first retry; subsequent retries use exponential backoff | Positive integer (e.g., 1000) | `1000` |
+| `GOOSE_AGENT_RETRY_ENABLED` | Enables or disables agent-layer retry of transient errors | `true`, `false` | `true` |
+| `GOOSE_AGENT_RETRY_MAX_ATTEMPTS` | Maximum number of retry attempts before surfacing the error to the user | Positive integer (e.g., 3, 5) | `3` |
+| `GOOSE_AGENT_RETRY_INITIAL_DELAY_MS` | Initial delay (in milliseconds) before the first retry; subsequent retries use exponential backoff | Positive integer (e.g., 1000) | `1000` |
 | `GOOSE_PROVIDER_SKIP_BACKOFF` | Skips the backoff delay between retries (useful for tests) | `true`, `false` | `false` |
 
 **Examples**
 
 ```bash
-# Disable provider retry entirely
-export GOOSE_PROVIDER_RETRY_ENABLED=false
+# Disable agent-layer retry entirely
+export GOOSE_AGENT_RETRY_ENABLED=false
 
 # Allow up to 5 retry attempts
-export GOOSE_PROVIDER_RETRY_MAX_ATTEMPTS=5
+export GOOSE_AGENT_RETRY_MAX_ATTEMPTS=5
 
 # Start with a 2-second initial delay
-export GOOSE_PROVIDER_RETRY_INITIAL_DELAY_MS=2000
+export GOOSE_AGENT_RETRY_INITIAL_DELAY_MS=2000
 ```
 
 ### Claude Thinking Configuration

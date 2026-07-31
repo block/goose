@@ -711,6 +711,10 @@ impl Provider for ClaudeCodeProvider {
         false
     }
 
+    fn owns_stream_retry(&self) -> bool {
+        false
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,

@@ -569,7 +569,7 @@ impl Agent {
         }
 
         let enabled = Config::global()
-            .get_param::<bool>("GOOSE_PROVIDER_RETRY_ENABLED")
+            .get_param::<bool>("GOOSE_AGENT_RETRY_ENABLED")
             .unwrap_or(true);
 
         let mut config = RetryConfig::default().transient_only();
@@ -579,10 +579,10 @@ impl Agent {
         }
 
         config.max_retries = Config::global()
-            .get_param::<usize>("GOOSE_PROVIDER_RETRY_MAX_ATTEMPTS")
+            .get_param::<usize>("GOOSE_AGENT_RETRY_MAX_ATTEMPTS")
             .unwrap_or(config.max_retries);
         config.initial_interval_ms = Config::global()
-            .get_param::<u64>("GOOSE_PROVIDER_RETRY_INITIAL_DELAY_MS")
+            .get_param::<u64>("GOOSE_AGENT_RETRY_INITIAL_DELAY_MS")
             .unwrap_or(config.initial_interval_ms);
         config
     }
@@ -2255,8 +2255,14 @@ impl Agent {
                 )
                 .await;
 
+                let provider = self.provider().await?;
+                // When the provider retries stream-initiation failures itself
+                // (via `with_retry`), defer to it so the two retry layers don't
+                // stack. Providers without transport-level retry (subprocess/ACP)
+                // report false, making the agent layer their sole retry owner.
+                let provider_owns_retry = provider.owns_stream_retry();
                 let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
+                    provider,
                     model_config.clone(),
                     &session_config.id,
                     &system_prompt,
@@ -2889,11 +2895,16 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            // Don't retry once any visible assistant content
-                            // (text, reasoning, images, …) has been streamed to
-                            // the client: the partial response is already shown,
-                            // so resending would produce a duplicate/incoherent one.
-                            let retry_delay = if no_tools_called
+                            // Skip retry when the provider already retries
+                            // stream-initiation failures itself (with_retry):
+                            // stacking the two layers would multiply HTTP
+                            // attempts and backoff. Don't retry once any visible
+                            // assistant content (text, reasoning, images, …) has
+                            // been streamed to the client either: the partial
+                            // response is already shown, so resending would
+                            // produce a duplicate/incoherent one.
+                            let retry_delay = if !provider_owns_retry
+                                && no_tools_called
                                 && !visible_content_streamed
                                 && !is_token_cancelled(&cancel_token)
                             {
@@ -4400,6 +4411,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         fail_times: Option<usize>,
         success_text: &'static str,
         pre_fail_content: Option<PreFailContent>,
+        owns_retry: bool,
     }
 
     impl MockProvider {
@@ -4410,6 +4422,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 fail_times: None,
                 success_text: "",
                 pre_fail_content: None,
+                owns_retry: false,
             }
         }
 
@@ -4420,6 +4433,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 fail_times: Some(fail_times),
                 success_text,
                 pre_fail_content: None,
+                owns_retry: false,
             }
         }
 
@@ -4434,6 +4448,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 fail_times: Some(1),
                 success_text,
                 pre_fail_content: Some(PreFailContent::Text(content)),
+                owns_retry: false,
             }
         }
 
@@ -4448,6 +4463,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 fail_times: Some(1),
                 success_text,
                 pre_fail_content: Some(PreFailContent::Thinking(thinking)),
+                owns_retry: false,
             }
         }
 
@@ -4458,12 +4474,24 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 fail_times: Some(1),
                 success_text,
                 pre_fail_content: Some(PreFailContent::Image),
+                owns_retry: false,
             }
+        }
+
+        /// Simulate a provider that retries stream-initiation itself (HTTP
+        /// providers with `with_retry`). The agent layer must defer to it.
+        fn with_transport_retry(mut self) -> Self {
+            self.owns_retry = true;
+            self
         }
     }
 
     #[async_trait::async_trait]
     impl crate::providers::base::Provider for MockProvider {
+        fn owns_stream_retry(&self) -> bool {
+            self.owns_retry
+        }
+
         async fn stream(
             &self,
             _model_config: &goose_providers::model::ModelConfig,
@@ -4751,6 +4779,46 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             provider.call_count.load(Ordering::SeqCst),
             4,
             "4 calls: 3 failures + 1 success"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_defers_when_provider_owns_retry() -> Result<()> {
+        // A provider that retries stream-initiation itself (HTTP providers with
+        // `with_retry`). The agent must NOT add its own retry on top — that would
+        // stack budgets. Even though the provider is flaky and agent retry is
+        // enabled, exactly 1 call is made and the error surfaces.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(
+            MockProvider::flaky(
+                2,
+                ProviderError::NetworkError("Stream decode error: test".into()),
+                "should not get here",
+            )
+            .with_transport_retry(),
+        );
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "agent must not retry when the provider owns stream retry"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — provider transport retry owns this"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "should surface error without agent retry: {texts:?}"
         );
         Ok(())
     }

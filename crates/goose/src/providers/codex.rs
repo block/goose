@@ -680,6 +680,10 @@ impl Provider for CodexProvider {
         &self.name
     }
 
+    fn owns_stream_retry(&self) -> bool {
+        false
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
