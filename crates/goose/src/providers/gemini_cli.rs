@@ -210,6 +210,10 @@ impl Provider for GeminiCliProvider {
             .collect())
     }
 
+    fn safe_for_mid_stream_retry(&self) -> bool {
+        false
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,

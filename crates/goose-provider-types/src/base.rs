@@ -467,6 +467,22 @@ pub trait Provider: Send + Sync {
         true
     }
 
+    /// Whether the agent may safely retry a mid-stream transient failure.
+    ///
+    /// Only consulted when owns_stream_retry is true and the provider's
+    /// stream() call itself succeeded. HTTP providers with with_retry keep
+    /// the default true: their stream() returns once the HTTP connection
+    /// opens, so a mid-stream failure is a side-effect-free body/connection
+    /// drop that the provider's own retry never observes.
+    ///
+    /// Whole-run subprocess providers override to false: stream() returns
+    /// Ok as soon as the subprocess is spawned, but the subprocess may
+    /// mutate the workspace inside that stream, so a mid-stream failure may
+    /// follow unobserved side effects that a retry would duplicate.
+    fn safe_for_mid_stream_retry(&self) -> bool {
+        true
+    }
+
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(vec![])
     }

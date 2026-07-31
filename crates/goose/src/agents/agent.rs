@@ -2244,6 +2244,7 @@ impl Agent {
 
                 let provider = self.provider().await?;
                 let provider_owns_retry = provider.owns_stream_retry();
+                let safe_mid_stream_retry = provider.safe_for_mid_stream_retry();
                 let (mut stream, provider_stream_created) = Self::stream_response_from_provider(
                     provider,
                     model_config.clone(),
@@ -2876,10 +2877,13 @@ impl Agent {
                             error!("Error: {}", provider_err);
 
                             // A provider's with_retry covers only stream initiation, so
-                            // the agent must still retry mid-stream failures. Never
-                            // retry once tools or visible content are emitted.
+                            // the agent must still retry mid-stream failures — but only
+                            // for providers whose stream failures are side-effect-free
+                            // (HTTP body drops). Whole-run subprocess providers opt out
+                            // via safe_for_mid_stream_retry. Never retry once tools or
+                            // visible content are emitted.
                             let retry_delay = if (!provider_owns_retry
-                                || provider_stream_created)
+                                || (provider_stream_created && safe_mid_stream_retry))
                                 && no_tools_called
                                 && !visible_content_streamed
                                 && !is_token_cancelled(&cancel_token)
@@ -4401,6 +4405,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
         success_text: &'static str,
         pre_fail_content: Option<PreFailContent>,
         owns_retry: bool,
+        safe_mid_stream: bool,
         // When true, stream() returns Err directly (models a stream-initiation
         // failure that a provider's own with_retry would have already attempted).
         fail_at_creation: bool,
@@ -4419,6 +4424,7 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 success_text,
                 pre_fail_content: None,
                 owns_retry: false,
+                safe_mid_stream: true,
                 fail_at_creation: false,
             }
         }
@@ -4462,6 +4468,11 @@ echo start >> "$PLUGIN_ROOT/hook.log"
             self
         }
 
+        fn unsafe_mid_stream(mut self) -> Self {
+            self.safe_mid_stream = false;
+            self
+        }
+
         fn fail_at_creation(mut self) -> Self {
             self.fail_at_creation = true;
             self
@@ -4472,6 +4483,10 @@ echo start >> "$PLUGIN_ROOT/hook.log"
     impl crate::providers::base::Provider for MockProvider {
         fn owns_stream_retry(&self) -> bool {
             self.owns_retry
+        }
+
+        fn safe_for_mid_stream_retry(&self) -> bool {
+            self.safe_mid_stream
         }
 
         async fn stream(
@@ -4826,6 +4841,48 @@ echo start >> "$PLUGIN_ROOT/hook.log"
                 .iter()
                 .any(|t| t.contains("success after mid-stream retry")),
             "should recover after the mid-stream retry: {texts:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_does_not_retry_mid_stream_for_unsafe_provider() -> Result<()> {
+        // A whole-run subprocess provider (owns_stream_retry = true,
+        // safe_for_mid_stream_retry = false) whose stream() opens successfully
+        // but then fails mid-stream: the mid-stream exception must NOT apply
+        // because the provider's stream is the subprocess execution and a retry
+        // could duplicate unobserved workspace mutations.
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(
+            MockProvider::flaky(
+                1,
+                ProviderError::NetworkError("Stream decode error: mid-stream".into()),
+                "should not get here",
+            )
+            .with_transport_retry()
+            .unsafe_mid_stream(),
+        );
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (mut agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+        agent.set_provider_retry_config_for_test(fast_retry_config(3));
+
+        let messages = collect_reply_messages(&agent, &session_id).await?;
+
+        assert_eq!(
+            count_provider_retries(&messages),
+            0,
+            "must not retry mid-stream for an unsafe whole-run provider"
+        );
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "exactly 1 call — no retry despite an available budget"
+        );
+        let texts = visible_texts(&messages);
+        assert!(
+            texts.iter().any(|t| t.contains("Please resend")),
+            "the transient error should surface: {texts:?}"
         );
         Ok(())
     }

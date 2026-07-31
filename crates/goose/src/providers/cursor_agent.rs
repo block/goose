@@ -495,6 +495,10 @@ impl Provider for CursorAgentProvider {
         &self.name
     }
 
+    fn safe_for_mid_stream_retry(&self) -> bool {
+        false
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         // Cursor model IDs are CLI/account-specific and often absent from the
         // canonical registry. Keep the live list intact for inventory/config.

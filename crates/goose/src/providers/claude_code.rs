@@ -724,6 +724,10 @@ impl Provider for ClaudeCodeProvider {
         matches!(goose_mode, GooseMode::Auto)
     }
 
+    fn safe_for_mid_stream_retry(&self) -> bool {
+        false
+    }
+
     async fn stream(
         &self,
         model_config: &ModelConfig,
