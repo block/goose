@@ -153,7 +153,7 @@ pub struct AcpProvider {
     pending_confirmations:
         Arc<TokioMutex<HashMap<String, oneshot::Sender<PermissionConfirmation>>>>,
     pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>>,
-    handoff_context_sent: AtomicBool,
+    handoff_context_sent: Arc<AtomicBool>,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
     /// in which case `get_context_limit()` falls back to the supplied model
@@ -281,7 +281,7 @@ impl AcpProvider {
             session,
             pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
             pending_tool_updates,
-            handoff_context_sent: AtomicBool::new(false),
+            handoff_context_sent: Arc::new(AtomicBool::new(false)),
             context_size,
             model_config_option_id,
             applied_model: Arc::new(Mutex::new(applied_model)),
@@ -528,6 +528,8 @@ impl Provider for AcpProvider {
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
         let model_name = model_config.model_name.clone();
+        let handoff_context_sent = Arc::clone(&self.handoff_context_sent);
+        let first_prompt = claim.first_prompt;
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
@@ -673,6 +675,9 @@ impl Provider for AcpProvider {
                         break;
                     }
                     AcpUpdate::Error(e) => {
+                        if first_prompt {
+                            handoff_context_sent.store(false, Ordering::Release);
+                        }
                         Err(classify_transport_error(&e))?;
                     }
                 }
@@ -1705,7 +1710,7 @@ mod tests {
                 },
                 pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-                handoff_context_sent: AtomicBool::new(false),
+                handoff_context_sent: Arc::new(AtomicBool::new(false)),
                 context_size: Arc::new(AtomicU64::new(0)),
                 model_config_option_id: None,
                 applied_model: Arc::new(Mutex::new(None)),
@@ -1994,6 +1999,46 @@ mod tests {
         let later_claim = provider.claim_handoff_context(&later_prompt_with_history);
         assert!(!later_claim.first_prompt);
         assert!(!later_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn mid_stream_error_resets_handoff_context_for_retry() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+
+        // Messages with prior history so the first prompt includes handoff context.
+        let messages = vec![
+            Message::assistant().with_text("prior answer"),
+            Message::user().with_text("follow up"),
+        ];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        assert!(
+            provider.handoff_context_sent.load(Ordering::Acquire),
+            "flag should be set after stream() opens"
+        );
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        // Simulate a transient mid-stream error before any content.
+        response_tx
+            .send(AcpUpdate::Error("429 rate limit".to_string()))
+            .await
+            .unwrap();
+
+        // Drive the generator so it processes the error.
+        let next = stream.next().await;
+        assert!(next.is_some(), "stream should yield the error");
+
+        assert!(
+            !provider.handoff_context_sent.load(Ordering::Acquire),
+            "flag must be reset after a mid-stream error so a retry re-sends full context"
+        );
     }
 
     #[tokio::test]
