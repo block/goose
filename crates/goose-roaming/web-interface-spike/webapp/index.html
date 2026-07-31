@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>goose roam — web</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>goose roam <span class="sub">· web client</span></h1>
+        <div class="identity">
+          <span class="label">this browser's card</span>
+          <code id="my-card">…</code>
+          <button id="copy-card" title="copy">copy</button>
+        </div>
+        <p class="hint">
+          On the host, run
+          <code>goose roam peers accept '&lt;this card&gt;'</code> once (key
+          <code id="my-endpoint-id">…</code>), then paste the host's
+          <code>goose roam id</code> card below.
+        </p>
+      </header>
+
+      <section id="connect-panel">
+        <textarea
+          id="card-input"
+          rows="3"
+          placeholder="paste the host's goose+roam://… card here"
+        ></textarea>
+        <div class="row">
+          <button id="connect-btn">connect</button>
+          <span id="status" class="status">not connected</span>
+        </div>
+      </section>
+
+      <section id="chat" hidden>
+        <div id="log" class="log"></div>
+        <form id="prompt-form">
+          <input
+            id="prompt-input"
+            type="text"
+            autocomplete="off"
+            placeholder="message the agent…"
+          />
+          <button type="submit">send</button>
+        </form>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

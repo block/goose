@@ -145,6 +145,20 @@ The agent can reach other agents with **no new code**: a builtin skill
 the shell. It ships in core but is inert unless the `roaming` CLI feature is
 built in, keeping iroh out of core.
 
+## Browser web client (spike)
+
+`web-interface-spike/` holds a working proof that a **pure-browser web app** can connect to a
+`goose roam share` agent — iroh compiled to wasm and run *inside the browser
+tab*, relay-only, driving the agent over ACP. No Tauri, no local bridge; the tab
+is the roam peer. It's been proven end to end (real Chrome → managed relay →
+live agent response).
+
+It is **not part of the goose build** (the wasm crate has its own `[workspace]`,
+so `cargo build`/`test`/`clippy` never touch it) and needs an extra wasm
+toolchain to build. See `web-interface-spike/README.md` for what it proves, how
+to build the wasm, and `web-interface-spike/webapp/TRYME.md` for how to try it.
+Kept as a self-contained exploration, not shipped product code.
+
 ## Prior art
 
 Patterns here were informed by studying a sibling production project that runs

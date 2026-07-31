@@ -1,0 +1,19 @@
+{
+  "name": "goose-roam-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Lean browser chat client that connects to a goose roam agent over iroh (relay-only, in-browser wasm). No Tauri, no local server.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "0.19.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,35 @@
+# Browser (wasm) roaming client — standalone spike crate, NOT in the goose
+# workspace (the empty [workspace] table makes it its own root so it never
+# entangles the native build). Build with ../build-wasm.sh goose-roaming-web.
+[workspace]
+
+[package]
+name = "goose-roaming-web"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Browser posture: no default features (drops native UDP/portmapper/metrics),
+# tls-ring (aws-lc-rs does not build for wasm here). Proven to compile in the
+# the browser transport stack (iroh + noq QUIC + tokio-websockets + web-sys).
+iroh = { version = "=1.0.2", default-features = false, features = ["tls-ring"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+async-channel = "2"
+futures = "0.3"
+tokio-util = { version = "0.7", features = ["compat"] }
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
