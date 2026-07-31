@@ -996,7 +996,16 @@ where
                     );
 
                     if !response.output.is_empty() {
-                        output_items = response.output;
+                        output_items = response
+                            .output
+                            .into_iter()
+                            .filter(|item| match item {
+                                ResponseOutputItemInfo::FunctionCall { status, .. } => {
+                                    status.as_deref() == Some("completed")
+                                }
+                                _ => true,
+                            })
+                            .collect();
                     }
 
                     break 'outer;
@@ -1208,6 +1217,47 @@ mod tests {
         );
         let usage = usage.expect("usage should be present when the response is incomplete");
         assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+        assert_eq!(usage.usage.total_tokens, Some(15));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_drops_incomplete_function_calls() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.incomplete","sequence_number":2,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"incomplete","model":"gpt-5.2-pro","output":[{"type":"function_call","id":"fc_complete","status":"completed","call_id":"call_complete","name":"read_file","arguments":"{\"path\":\"README.md\"}"},{"type":"function_call","id":"fc_partial","status":"in_progress","call_id":"call_partial","name":"shell","arguments":"{\"command\":\"echo"}],"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut tool_request_ids = Vec::new();
+        let mut output_token_limit_reached = false;
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                output_token_limit_reached |= msg.metadata.output_token_limit_reached;
+                for content in msg.content {
+                    if let MessageContentBlock::ToolRequest(request) = content {
+                        tool_request_ids.push(request.id);
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(tool_request_ids, vec!["call_complete"]);
+        assert!(output_token_limit_reached);
+        let usage = usage.expect("usage should be present when the response is incomplete");
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(5));
         assert_eq!(usage.usage.total_tokens, Some(15));
