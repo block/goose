@@ -681,7 +681,11 @@ impl Provider for CodexProvider {
     }
 
     fn owns_stream_retry(&self) -> bool {
-        false
+        // `codex exec` runs to completion as one opaque subprocess. The agent
+        // never observes the intermediate file edits or commands it performs
+        // (--yolo/--full-auto), so a retry would re-run those mutations from
+        // scratch. Keep the agent out until the provider streams its actions.
+        true
     }
 
     async fn stream(

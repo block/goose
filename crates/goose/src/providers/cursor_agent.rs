@@ -521,7 +521,11 @@ impl Provider for CursorAgentProvider {
     }
 
     fn owns_stream_retry(&self) -> bool {
-        false
+        // cursor-agent runs as one opaque subprocess (--force), so the agent
+        // never observes its intermediate workspace mutations before it fails.
+        // A retry would re-run those mutations from scratch — keep the agent
+        // out until the provider streams its actions.
+        true
     }
 
     async fn stream(

@@ -458,10 +458,14 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    /// Whether the provider retries transient stream-initiation failures
-    /// itself. When true (HTTP providers with `with_retry`), the agent defers
-    /// to avoid stacking retry budgets. Subprocess/ACP transports override to
-    /// false so the agent is the sole retry owner.
+    /// Whether the agent should defer transient-error retries to the provider
+    /// rather than applying its own retry budget. `true` when the provider
+    /// already retries stream-initiation itself (HTTP providers with
+    /// `with_retry`, to avoid stacking budgets) or when its execution makes an
+    /// agent retry unsafe: a whole-run subprocess may have already mutated the
+    /// workspace before failing, and a retry would re-run those mutations.
+    /// Streaming transports where the agent can observe emitted content before
+    /// a failure override to `false` so the agent is the sole retry owner.
     fn owns_stream_retry(&self) -> bool {
         true
     }
