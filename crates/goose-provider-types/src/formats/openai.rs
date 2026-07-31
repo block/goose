@@ -1058,6 +1058,7 @@ where
         // reasoning_content in a later chunk would produce duplicated reasoning.
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
+        let mut output_token_limit_reached = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1092,7 +1093,7 @@ where
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk, last_seen_model.as_deref());
-            let mut output_token_limit_reached = chunk
+            output_token_limit_reached |= chunk
                 .choices
                 .first()
                 .and_then(|choice| choice.finish_reason.as_deref())
@@ -1390,14 +1391,14 @@ where
                 content.push(MessageContentBlock::thinking(trailing_thinking, ""));
             }
 
-            yield (
-                Some(Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    content,
-                )),
-                None,
-            )
+            let mut message = Message::new(
+                Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                content,
+            );
+            message.metadata.output_token_limit_reached = output_token_limit_reached;
+
+            yield (Some(message), None)
         }
     }
 }
@@ -3227,6 +3228,39 @@ data: [DONE]"#;
 
         assert_eq!(text, "y");
         assert_eq!(thinking, "x");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_inline_think_preserves_output_token_limit(
+    ) -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+
+        while let Some(result) = messages.next().await {
+            if let Some(message) = result?.0 {
+                streamed_messages.push(message);
+            }
+        }
+
+        let trailing_message = streamed_messages
+            .last()
+            .expect("expected trailing thinking");
+        assert!(trailing_message.metadata.output_token_limit_reached);
+        assert!(matches!(
+            trailing_message.content.as_slice(),
+            [MessageContentBlock::Thinking(thinking)]
+                if thinking.thinking == "unfinished reasoning"
+        ));
 
         Ok(())
     }
