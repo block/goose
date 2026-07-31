@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
+use goose_providers::retry::classify_transport_error;
 use rmcp::model::{Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -897,7 +898,7 @@ impl Provider for ClaudeCodeProvider {
                                             (_, false) => format!("{subtype}: {details}"),
                                             _ => subtype.to_string(),
                                         };
-                                        stream_error = Some(ProviderError::RequestFailed(format!(
+                                        stream_error = Some(classify_transport_error(&format!(
                                             "Claude CLI error: {message}"
                                         )));
                                         break;
