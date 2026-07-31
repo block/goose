@@ -500,12 +500,19 @@ pub(super) fn build_usage_updates(
     used_override: Option<u64>,
 ) -> Option<UsageUpdates> {
     // Providers can report the tokens currently in context (e.g. AcpProvider
-    // captures `used` from the CLI's usage updates). Accumulated session usage
-    // is a cumulative billing total, not the current context occupancy.
-    let used = match used_override {
-        Some(used) => used,
-        None => session.usage.total_tokens.unwrap_or(0).max(0) as u64,
-    };
+    // captures `used` from the CLI's usage updates). When no live figure is
+    // available yet — e.g. a freshly resumed session whose provider hasn't
+    // reported — fall back to the last persisted figure before resorting to
+    // accumulated session usage, which is a cumulative billing total, not the
+    // current context occupancy.
+    let used = used_override
+        .or_else(|| {
+            session
+                .context_used
+                .and_then(|used| u64::try_from(used).ok())
+                .filter(|&used| used > 0)
+        })
+        .unwrap_or_else(|| session.usage.total_tokens.unwrap_or(0).max(0) as u64);
     // Providers can report a more accurate context limit than the static model
     // config (e.g. AcpProvider captures the size from the CLI's usage updates).
     let ctx_limit = match context_limit_override {
@@ -1949,6 +1956,19 @@ impl GooseAcpAgent {
             .unwrap_or_default();
         let context_limit_override = self.provider_context_limit(&session_id).await;
         let used_override = self.provider_context_used(&session_id).await;
+        // Persist the live figure so a later resume can show it before the
+        // provider reports again — the in-memory value dies with the process.
+        if let Some(used) = used_override.and_then(|used| i64::try_from(used).ok()) {
+            if let Err(e) = self
+                .session_manager
+                .update(&session_id)
+                .context_used(used)
+                .apply()
+                .await
+            {
+                warn!("Failed to persist context_used for session {session_id}: {e}");
+            }
+        }
         if let Some(updates) =
             build_usage_updates(&session, &totals, context_limit_override, used_override)
         {
@@ -2690,6 +2710,30 @@ print(\"hello, world\")
         assert_eq!(usage.context_limit, 1_000_000);
         assert_eq!(updates.standard.used, 53_000);
         assert_eq!(updates.standard.size, 1_000_000);
+    }
+
+    #[test]
+    fn test_build_usage_update_falls_back_to_persisted_context_used() {
+        // A resumed session has no live provider figure yet (used_override is
+        // None), but the last reported figure was persisted. It must win over
+        // the cumulative billing total in session usage.
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(1_900_000), Some(100_000), Some(2_000_000)),
+            TokenUsage::default(),
+        );
+        session.context_used = Some(53_000);
+        session.model_config = Some(
+            goose_providers::model::ModelConfig::new("test-model")
+                .with_context_limit(Some(1_000_000)),
+        );
+        let updates = build_usage_updates(&session, &SessionUsageTotals::default(), None, None)
+            .expect("usage updates should be present");
+        let usage = match updates.custom.update {
+            GooseSessionUpdate::UsageUpdate(usage) => usage,
+            other => panic!("expected usage update, got {other:?}"),
+        };
+        assert_eq!(usage.used, 53_000);
+        assert_eq!(updates.standard.used, 53_000);
     }
 
     #[test]

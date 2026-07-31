@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 15;
+pub const CURRENT_SCHEMA_VERSION: i32 = 16;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -93,6 +93,12 @@ pub struct Session {
     pub parent_session_id: Option<String>,
     #[serde(default)]
     pub last_message_snippet: Option<String>,
+    /// Last provider-reported count of tokens occupying the context window,
+    /// persisted so a resumed session can show its context usage before the
+    /// provider reports a fresh figure. `None` for providers whose session
+    /// usage already reflects context occupancy.
+    #[serde(default)]
+    pub context_used: Option<i64>,
 }
 
 impl From<&Session> for TokenState {
@@ -165,6 +171,7 @@ pub struct SessionUpdateBuilder<'a> {
 
     project_id: Option<Option<String>>,
     parent_session_id: Option<Option<String>>,
+    context_used: Option<i64>,
 }
 
 #[derive(Serialize, Debug)]
@@ -202,6 +209,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             archived_at: None,
             project_id: None,
             parent_session_id: None,
+            context_used: None,
         }
     }
 
@@ -307,6 +315,11 @@ impl<'a> SessionUpdateBuilder<'a> {
 
     pub fn parent_session_id(mut self, parent_session_id: Option<String>) -> Self {
         self.parent_session_id = Some(parent_session_id);
+        self
+    }
+
+    pub fn context_used(mut self, context_used: i64) -> Self {
+        self.context_used = Some(context_used);
         self
     }
 }
@@ -704,6 +717,7 @@ impl Default for Session {
             project_id: None,
             parent_session_id: None,
             last_message_snippet: None,
+            context_used: None,
         }
     }
 }
@@ -799,6 +813,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             project_id: row.try_get("project_id").ok().flatten(),
             parent_session_id: row.try_get("parent_session_id").ok().flatten(),
             last_message_snippet: None,
+            context_used: row.try_get("context_used").ok().flatten(),
         })
     }
 }
@@ -952,7 +967,8 @@ impl SessionStorage {
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
                 project_id TEXT,
-                parent_session_id TEXT
+                parent_session_id TEXT,
+                context_used INTEGER
             )
         "#,
         )
@@ -1486,6 +1502,19 @@ impl SessionStorage {
                 .execute(&mut **tx)
                 .await?;
             }
+            16 => {
+                let has_column = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'context_used'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_column {
+                    sqlx::query("ALTER TABLE sessions ADD COLUMN context_used INTEGER")
+                        .execute(&mut **tx)
+                        .await?;
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1551,7 +1580,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id, parent_session_id
+               archived_at, project_id, parent_session_id, context_used
         FROM sessions
         WHERE id = ?
     "#,
@@ -1631,6 +1660,7 @@ impl SessionStorage {
 
         add_update!(builder.project_id, "project_id");
         add_update!(builder.parent_session_id, "parent_session_id");
+        add_update!(builder.context_used, "context_used");
 
         if updates.is_empty() {
             return Ok(());
@@ -1709,6 +1739,9 @@ impl SessionStorage {
         }
         if let Some(ref parent_session_id) = builder.parent_session_id {
             q = q.bind(parent_session_id.as_ref());
+        }
+        if let Some(context_used) = builder.context_used {
+            q = q.bind(context_used);
         }
 
         let pool = self.pool().await?;
@@ -1902,7 +1935,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id, s.parent_session_id,
+                   s.archived_at, s.project_id, s.parent_session_id, s.context_used,
                    COUNT(m.id) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
@@ -2792,6 +2825,33 @@ mod tests {
         let with_messages = sm.get_session(&session.id, true).await.unwrap();
         assert_eq!(with_messages.message_count, 2);
         assert_eq!(with_messages.last_message_at, Some(expected));
+    }
+
+    #[tokio::test]
+    async fn test_context_used_roundtrips_through_storage() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Context used".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let fresh = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(fresh.context_used, None);
+
+        sm.update(&session.id)
+            .context_used(53_000)
+            .apply()
+            .await
+            .unwrap();
+
+        let reloaded = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(reloaded.context_used, Some(53_000));
     }
 
     #[tokio::test]
