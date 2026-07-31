@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Se connecter à un serveur goose exécuté ailleurs (nécessite le redémarrage de l'application)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Répertoire de travail distant (facultatif)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Chemin sur la machine exécutant le backend externe. Laissez vide pour utiliser la valeur par défaut."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Fermer"
   },

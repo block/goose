@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "別の場所で実行中の goose サーバーに接続します（アプリの再起動が必要）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "リモート作業ディレクトリ（任意）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "外部バックエンドを実行しているマシン上のパスです。既定値を使用するには空白のままにします。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "閉じる"
   },

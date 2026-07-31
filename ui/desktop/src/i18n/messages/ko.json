@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "다른 곳에서 실행 중인 ACP 호환 백엔드에 연결합니다."
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "원격 작업 디렉터리(선택 사항)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "외부 백엔드를 실행하는 컴퓨터의 경로입니다. 기본값을 사용하려면 비워 두세요."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
   },

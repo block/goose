@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "连接到运行在其他位置的 goose 服务器（需要重启应用）"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "远程工作目录（可选）"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "运行外部后端的计算机上的路径。留空以使用默认值。"
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "关闭"
   },

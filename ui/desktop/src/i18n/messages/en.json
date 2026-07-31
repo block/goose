@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Remote Working Directory (optional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Path on the machine running the external backend. Leave blank to use its default."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },

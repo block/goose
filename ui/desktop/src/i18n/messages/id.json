@@ -1226,6 +1226,15 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Terhubung ke server goose yang berjalan di tempat lain (memerlukan mulai ulang aplikasi)"
   },
+  "externalBackendSection.workingDir": {
+    "defaultMessage": "Direktori kerja jarak jauh (opsional)"
+  },
+  "externalBackendSection.workingDirHelp": {
+    "defaultMessage": "Jalur pada mesin yang menjalankan backend eksternal. Biarkan kosong untuk menggunakan nilai default."
+  },
+  "externalBackendSection.workingDirPlaceholder": {
+    "defaultMessage": "/home/goose/workspace"
+  },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
   },
