@@ -1540,6 +1540,7 @@ export type RecipeDto = {
     response?: RecipeResponseDto | null;
     sub_recipes?: Array<SubRecipeDto> | null;
     retry?: RecipeRetryConfigDto | null;
+    has_explicit_extensions?: boolean;
 };
 
 export type RecipeExtensionDto = {
