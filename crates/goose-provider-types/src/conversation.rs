@@ -257,6 +257,121 @@ pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String
     (Conversation::new_unvalidated(final_messages), issues)
 }
 
+/// Strip provider-bound opaque state minted by a different provider or model
+/// than the one about to serve the request: thinking signatures, redacted
+/// thinking blobs, and Gemini thought signatures only validate against the
+/// model that produced them, so replaying them after a provider or model
+/// switch gets the request rejected. Readable thinking text is kept; only the
+/// opaque attachments are removed. Messages without inference provenance are
+/// left untouched. A tool response is scrubbed only when it pairs with a
+/// foreign request, where pairing follows the transcript order: a response
+/// belongs to the most recent preceding request with its id, so a later
+/// same-provider turn that reuses an id keeps its signatures.
+pub fn scrub_foreign_provider_state(
+    conversation: Conversation,
+    provider: &str,
+    model: &str,
+    resolved_model: Option<&str>,
+) -> (Conversation, Vec<String>) {
+    let mut issues = Vec::new();
+    let mut foreign_request_ids: HashSet<String> = HashSet::new();
+    let mut messages: Vec<Message> = conversation.into_iter().collect();
+
+    for message in &mut messages {
+        for content in &mut message.content {
+            if let MessageContentBlock::ToolResponse(response) = content {
+                if foreign_request_ids.remove(&response.id)
+                    && remove_thought_signature(&mut response.metadata)
+                {
+                    issues.push("Removed foreign thought signature".to_string());
+                }
+            }
+        }
+
+        let foreign = message
+            .metadata
+            .inference
+            .as_ref()
+            .is_some_and(|inference| {
+                inference.provider != provider
+                    || inference.requested_model != model
+                    || matches!(
+                        (inference.resolved_model.as_deref(), resolved_model),
+                        (Some(recorded), Some(current)) if recorded != current
+                    )
+            });
+        if !foreign {
+            for content in &message.content {
+                if let MessageContentBlock::ToolRequest(request) = content {
+                    foreign_request_ids.remove(&request.id);
+                }
+            }
+            continue;
+        }
+        message.content.retain_mut(|content| match content {
+            MessageContentBlock::Thinking(thinking) => {
+                if !thinking.signature.is_empty() {
+                    thinking.signature.clear();
+                    issues.push("Cleared foreign thinking signature".to_string());
+                }
+                true
+            }
+            MessageContentBlock::RedactedThinking(_) => {
+                issues.push("Removed foreign redacted thinking".to_string());
+                false
+            }
+            MessageContentBlock::ToolRequest(request) => {
+                foreign_request_ids.insert(request.id.clone());
+                if remove_thought_signature(&mut request.metadata) {
+                    issues.push("Removed foreign thought signature".to_string());
+                }
+                true
+            }
+            _ => true,
+        });
+    }
+
+    (Conversation::new_unvalidated(messages), issues)
+}
+
+/// Gemini thought signatures live either at the metadata top level (native
+/// Google format) or nested under `extra_content.google.thought_signature`
+/// (OpenAI-compatible endpoints); both are replayed, so both are removed.
+fn remove_thought_signature(
+    metadata: &mut Option<crate::conversation::message::ProviderMetadata>,
+) -> bool {
+    let Some(map) = metadata else { return false };
+    let mut removed = map
+        .remove(crate::formats::google::THOUGHT_SIGNATURE_KEY)
+        .is_some();
+    if let Some(google) = map
+        .get_mut("extra_content")
+        .and_then(|extra| extra.get_mut("google"))
+        .and_then(|google| google.as_object_mut())
+    {
+        removed |= google.remove("thought_signature").is_some();
+    }
+    if let Some(extra) = map
+        .get_mut("extra_content")
+        .and_then(|extra| extra.as_object_mut())
+    {
+        if extra
+            .get("google")
+            .and_then(|google| google.as_object())
+            .is_some_and(|google| google.is_empty())
+        {
+            extra.remove("google");
+        }
+        if extra.is_empty() {
+            map.remove("extra_content");
+        }
+    }
+    if map.is_empty() {
+        *metadata = None;
+    }
+    removed
+}
+
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     [
         merge_text_content_items,
@@ -1878,6 +1993,208 @@ mod tests {
                 assert_eq!(c.text, "and now text");
             }
             other => panic!("unexpected content shape: {:?}", other),
+        }
+    }
+
+    mod scrub_foreign_provider_state {
+        use super::*;
+        use crate::conversation::message::InferenceMetadata;
+        use crate::conversation::scrub_foreign_provider_state;
+        use crate::formats::google::metadata_with_signature;
+        use rmcp::model::{CallToolResult, ContentBlock};
+
+        fn provenance(provider: &str, model: &str) -> InferenceMetadata {
+            InferenceMetadata {
+                provider: provider.to_string(),
+                requested_model: model.to_string(),
+                resolved_model: None,
+            }
+        }
+
+        fn conversation_with_provenance(inference: Option<InferenceMetadata>) -> Conversation {
+            let mut metadata = metadata_with_signature("gemini-sig");
+            metadata.insert(
+                "extra_content".to_string(),
+                serde_json::json!({"google": {"thought_signature": "nested-sig"}}),
+            );
+            let mut assistant = Message::assistant()
+                .with_thinking("planning the search", "anthropic-sig")
+                .with_content(MessageContentBlock::redacted_thinking("opaque-blob"))
+                .with_content(MessageContentBlock::tool_request_with_metadata(
+                    "call_1",
+                    Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
+                    Some(&metadata),
+                ));
+            if let Some(inference) = inference {
+                assistant = assistant.with_inference(inference);
+            }
+            Conversation::new_unvalidated(vec![
+                Message::user().with_text("find it"),
+                assistant,
+                Message::user().with_content(MessageContentBlock::tool_response_with_metadata(
+                    "call_1",
+                    Ok(CallToolResult::success(vec![ContentBlock::text("found")])),
+                    Some(&metadata),
+                )),
+            ])
+        }
+
+        fn opaque_state(conversation: &Conversation) -> (Vec<String>, usize, usize) {
+            let mut signatures = Vec::new();
+            let mut redacted = 0;
+            let mut thought_signatures = 0;
+            for message in conversation.messages() {
+                for content in &message.content {
+                    match content {
+                        MessageContentBlock::Thinking(t) if !t.signature.is_empty() => {
+                            signatures.push(t.signature.clone())
+                        }
+                        MessageContentBlock::RedactedThinking(_) => redacted += 1,
+                        MessageContentBlock::ToolRequest(r) if r.metadata.is_some() => {
+                            thought_signatures += 1
+                        }
+                        MessageContentBlock::ToolResponse(r) if r.metadata.is_some() => {
+                            thought_signatures += 1
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            (signatures, redacted, thought_signatures)
+        }
+
+        #[test]
+        fn foreign_provider_state_is_removed() {
+            let conversation =
+                conversation_with_provenance(Some(provenance("anthropic", "claude-opus-4-8")));
+
+            let (scrubbed, issues) =
+                scrub_foreign_provider_state(conversation, "openai", "gpt-5.2", None);
+
+            let (signatures, redacted, thought_signatures) = opaque_state(&scrubbed);
+            assert!(signatures.is_empty());
+            assert_eq!(redacted, 0);
+            assert_eq!(thought_signatures, 0);
+            assert_eq!(issues.len(), 4);
+            let thinking_text: Vec<_> = scrubbed
+                .messages()
+                .iter()
+                .flat_map(|m| m.content.iter())
+                .filter_map(|c| c.as_thinking())
+                .collect();
+            assert_eq!(thinking_text.len(), 1, "readable thinking text is kept");
+            assert_eq!(thinking_text[0].thinking, "planning the search");
+        }
+
+        #[test]
+        fn model_switch_within_provider_is_foreign() {
+            let conversation =
+                conversation_with_provenance(Some(provenance("anthropic", "claude-opus-4-8")));
+
+            let (scrubbed, issues) =
+                scrub_foreign_provider_state(conversation, "anthropic", "claude-sonnet-5", None);
+
+            let (signatures, redacted, _) = opaque_state(&scrubbed);
+            assert!(signatures.is_empty());
+            assert_eq!(redacted, 0);
+            assert!(!issues.is_empty());
+        }
+
+        #[test]
+        fn resolved_model_drift_is_foreign() {
+            let mut inference = provenance("anthropic", "claude-opus-4-8");
+            inference.resolved_model = Some("claude-opus-4-8-v1".to_string());
+            let conversation = conversation_with_provenance(Some(inference));
+
+            let (scrubbed, issues) = scrub_foreign_provider_state(
+                conversation,
+                "anthropic",
+                "claude-opus-4-8",
+                Some("claude-opus-4-8-v2"),
+            );
+
+            let (signatures, redacted, _) = opaque_state(&scrubbed);
+            assert!(signatures.is_empty());
+            assert_eq!(redacted, 0);
+            assert!(!issues.is_empty());
+        }
+
+        #[test]
+        fn matching_provenance_is_untouched() {
+            let conversation =
+                conversation_with_provenance(Some(provenance("anthropic", "claude-opus-4-8")));
+
+            let (scrubbed, issues) = scrub_foreign_provider_state(
+                conversation.clone(),
+                "anthropic",
+                "claude-opus-4-8",
+                None,
+            );
+
+            assert!(issues.is_empty());
+            assert_eq!(scrubbed.messages(), conversation.messages());
+        }
+
+        #[test]
+        fn reused_tool_id_keeps_native_response_signature() {
+            let mut metadata = metadata_with_signature("gemini-sig");
+            metadata.insert(
+                "extra_content".to_string(),
+                serde_json::json!({"google": {"thought_signature": "nested-sig"}}),
+            );
+            let tool_request = |inference: InferenceMetadata| {
+                Message::assistant()
+                    .with_content(MessageContentBlock::tool_request_with_metadata(
+                        "call_1",
+                        Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
+                        Some(&metadata),
+                    ))
+                    .with_inference(inference)
+            };
+            let tool_response = || {
+                Message::user().with_content(MessageContentBlock::tool_response_with_metadata(
+                    "call_1",
+                    Ok(CallToolResult::success(vec![ContentBlock::text("found")])),
+                    Some(&metadata),
+                ))
+            };
+            let conversation = Conversation::new_unvalidated(vec![
+                tool_request(provenance("openai", "gpt-5.2")),
+                tool_response(),
+                tool_request(provenance("google", "gemini-3-pro")),
+                tool_response(),
+            ]);
+
+            let (scrubbed, issues) =
+                scrub_foreign_provider_state(conversation, "google", "gemini-3-pro", None);
+
+            assert_eq!(issues.len(), 2, "only the foreign pair is scrubbed");
+            let with_metadata: Vec<bool> = scrubbed
+                .messages()
+                .iter()
+                .flat_map(|m| m.content.iter())
+                .map(|c| match c {
+                    MessageContentBlock::ToolRequest(r) => r.metadata.is_some(),
+                    MessageContentBlock::ToolResponse(r) => r.metadata.is_some(),
+                    _ => unreachable!(),
+                })
+                .collect();
+            assert_eq!(
+                with_metadata,
+                vec![false, false, true, true],
+                "the native pair that reuses the id keeps its signatures"
+            );
+        }
+
+        #[test]
+        fn missing_provenance_is_untouched() {
+            let conversation = conversation_with_provenance(None);
+
+            let (scrubbed, issues) =
+                scrub_foreign_provider_state(conversation.clone(), "openai", "gpt-5.2", None);
+
+            assert!(issues.is_empty());
+            assert_eq!(scrubbed.messages(), conversation.messages());
         }
     }
 }

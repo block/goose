@@ -37,7 +37,9 @@ use crate::conversation::message::{
     ActionRequiredData, InferenceMetadata, Message, MessageContent, MessageUsage, ProviderMetadata,
     SystemNotificationType, ToolRequest,
 };
-use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
+use crate::conversation::{
+    debug_conversation_fix, fix_conversation, scrub_foreign_provider_state, Conversation,
+};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
@@ -792,6 +794,31 @@ impl Agent {
         unfixed_conversation: Conversation,
         working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
+        let (tools, toolshim_tools, system_prompt, model_config) = self
+            .prepare_tools_and_prompt(session_id, working_dir)
+            .await?;
+
+        let unfixed_conversation = match self.provider().await {
+            Ok(provider) => {
+                let resolved_model = provider
+                    .fetch_model_info(&model_config.model_name)
+                    .await
+                    .ok()
+                    .and_then(|model_info| model_info.resolved_model);
+                let (scrubbed, issues) = scrub_foreign_provider_state(
+                    unfixed_conversation,
+                    provider.get_name(),
+                    &model_config.model_name,
+                    resolved_model.as_deref(),
+                );
+                if !issues.is_empty() {
+                    debug!("Scrubbed foreign provider state: {}", issues.join(", "));
+                }
+                scrubbed
+            }
+            Err(_) => unfixed_conversation,
+        };
+
         let unfixed_messages = unfixed_conversation.messages().clone();
         let (conversation, issues) = fix_conversation(unfixed_conversation.clone());
         if !issues.is_empty() {
@@ -805,10 +832,6 @@ impl Agent {
             );
         }
         let initial_messages = conversation.messages().clone();
-
-        let (tools, toolshim_tools, system_prompt, model_config) = self
-            .prepare_tools_and_prompt(session_id, working_dir)
-            .await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
 
@@ -1973,16 +1996,15 @@ impl Agent {
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
         let requested_model = model_config.model_name.clone();
-        let inference = provider
-            .fetch_model_info(&requested_model)
-            .await
-            .ok()
-            .and_then(|model_info| model_info.resolved_model)
-            .map(|resolved_model| InferenceMetadata {
-                provider: provider_name,
-                requested_model,
-                resolved_model: Some(resolved_model),
-            });
+        let inference = InferenceMetadata {
+            provider: provider_name,
+            resolved_model: provider
+                .fetch_model_info(&requested_model)
+                .await
+                .ok()
+                .and_then(|model_info| model_info.resolved_model),
+            requested_model,
+        };
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
@@ -2257,16 +2279,9 @@ impl Agent {
                                     )
                                     .await;
 
-                                let filtered_response = if let Some(inference) = inference.as_ref() {
-                                    filtered_response.with_inference(inference.clone())
-                                } else {
-                                    filtered_response
-                                };
-                                let response = if let Some(inference) = inference.as_ref() {
-                                    response.with_inference(inference.clone())
-                                } else {
-                                    response
-                                };
+                                let filtered_response =
+                                    filtered_response.with_inference(inference.clone());
+                                let response = response.with_inference(inference.clone());
 
                                 surfaced_thinking_in_turn |= filtered_response.content.iter().any(
                                     |content| {
@@ -3014,15 +3029,11 @@ impl Agent {
                     yield AgentEvent::Message(message);
                 }
 
-                let mut messages_to_add = if let Some(ref inference) = inference {
-                    Conversation::new_unvalidated(
-                        messages_to_add
-                            .into_iter()
-                            .map(|message| message.with_inference_if_assistant(inference.clone())),
-                    )
-                } else {
+                let mut messages_to_add = Conversation::new_unvalidated(
                     messages_to_add
-                };
+                        .into_iter()
+                        .map(|message| message.with_inference_if_assistant(inference.clone())),
+                );
 
                 if let Some(usage) = pending_turn_usage.take() {
                     if let Some((message_id, usage)) = attach_turn_usage(
