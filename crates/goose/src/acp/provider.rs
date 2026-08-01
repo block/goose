@@ -39,7 +39,7 @@ use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_D
 use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
-use crate::providers::base::{MessageStream, PermissionRouting, Provider};
+use crate::providers::base::{collect_stream, MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
 use crate::utils::sanitize_unicode_tags;
 use goose_providers::errors::ProviderError;
@@ -411,6 +411,24 @@ fn fresh_text_run() -> (String, i64) {
 impl Provider for AcpProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    async fn complete(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        if crate::providers::cli_common::is_session_description_request(system) {
+            return crate::providers::cli_common::generate_simple_session_description(
+                &model_config.model_name,
+                messages,
+            );
+        }
+
+        let stream = self.stream(model_config, system, messages, tools).await?;
+        collect_stream(stream).await
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
@@ -1989,6 +2007,35 @@ mod tests {
         let later_claim = provider.claim_handoff_context(&later_prompt_with_history);
         assert!(!later_claim.first_prompt);
         assert!(!later_claim.include_context);
+    }
+
+    #[tokio::test]
+    async fn complete_session_description_request_stays_local() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        let system = "Please generate a title in four words or less.";
+        let messages = vec![Message::user().with_text(
+            "---BEGIN USER MESSAGES---
+Investigate ACP title leak
+---END USER MESSAGES---
+
+Generate a short title for the above messages.",
+        )];
+
+        let (message, usage) = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            provider.complete(&model, system, &messages, &[]),
+        )
+        .await
+        .expect("session naming should not wait for the live ACP session")
+        .expect("session naming should complete locally");
+
+        assert_eq!(message.as_concat_text(), "Investigate ACP title leak");
+        assert_eq!(usage.model, "test-model");
+        assert!(
+            rx.try_recv().is_err(),
+            "session naming should not send a prompt into the live ACP session"
+        );
     }
 
     #[tokio::test]
