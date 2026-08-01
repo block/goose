@@ -245,19 +245,23 @@ fn assert_conversation_compacted(conversation: &Conversation) {
     let messages = conversation.messages();
     assert!(!messages.is_empty(), "Conversation should not be empty");
 
-    // Find the summary message (contains "mock summary")
+    // Find the actual compaction summary message. Match on both content and
+    // visibility so an ordinary visible user/assistant message that happens to
+    // mention "mock summary" is not mistaken for the summary boundary.
     let summary_index = messages
         .iter()
         .position(|msg| {
-            msg.content.iter().any(|content| {
-                if let MessageContent::Text(text) = content {
-                    text.text.contains("mock summary")
-                } else {
-                    false
-                }
-            })
+            msg.is_agent_visible()
+                && !msg.is_user_visible()
+                && msg.content.iter().any(|content| {
+                    if let MessageContent::Text(text) = content {
+                        text.text.contains("mock summary")
+                    } else {
+                        false
+                    }
+                })
         })
-        .expect("Conversation should contain the summary message");
+        .expect("Conversation should contain an agent-only summary message");
 
     let summary_msg = &messages[summary_index];
 
@@ -334,6 +338,20 @@ fn assert_conversation_compacted(conversation: &Conversation) {
             }
         }
     }
+}
+
+#[test]
+fn compacted_conversation_assertion_ignores_user_visible_mock_summary_text() {
+    let conversation = Conversation::new_unvalidated(vec![
+        Message::user()
+            .with_text("This visible user message mentions mock summary before compaction")
+            .user_only(),
+        Message::assistant()
+            .with_text("<mock summary of conversation>")
+            .with_metadata(goose::conversation::message::MessageMetadata::agent_only()),
+    ]);
+
+    assert_conversation_compacted(&conversation);
 }
 
 #[tokio::test]
