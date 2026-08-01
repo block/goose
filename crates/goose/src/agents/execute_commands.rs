@@ -104,6 +104,8 @@ fn is_skill_command_name_char(c: char) -> bool {
 ///
 /// Shared across every expanded skill so `$ARGUMENTS` / `$1` placeholders see
 /// one coherent request blob when multiple skills appear in the same message.
+/// Internal whitespace (newlines, indentation, code fences) is preserved;
+/// only leading/trailing whitespace on the joined result is trimmed.
 pub fn user_text_without_skill_tokens(
     message_text: &str,
     skills: &[InlineSkillCommand<'_>],
@@ -134,11 +136,38 @@ pub fn user_text_without_skill_tokens(
         }
     }
 
-    pieces
-        .join(" ")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    // At each skill-token seam, drop abutting horizontal whitespace but keep
+    // newlines so pasted code/markdown stays intact. Insert a single space only
+    // when both sides are non-whitespace (e.g. "fix /skill now" → "fix now").
+    let mut out = String::new();
+    for piece in pieces {
+        if piece.is_empty() {
+            continue;
+        }
+        if out.is_empty() {
+            out.push_str(piece);
+            continue;
+        }
+
+        let left = out.trim_end_matches([' ', '\t']);
+        let right = piece.trim_start_matches([' ', '\t']);
+        out.truncate(left.len());
+        if right.is_empty() {
+            continue;
+        }
+        if out.is_empty() {
+            out.push_str(right);
+            continue;
+        }
+
+        let left_ws = out.chars().next_back().is_some_and(char::is_whitespace);
+        let right_ws = right.chars().next().is_some_and(char::is_whitespace);
+        if !left_ws && !right_ws {
+            out.push(' ');
+        }
+        out.push_str(right);
+    }
+    out.trim().to_string()
 }
 
 /// Find every whitespace-bounded `/skill-name` token whose name is accepted by
@@ -220,15 +249,19 @@ where
         .next()
 }
 
-/// Builtin and recipe slash names that must not expand as mid-message skills.
+/// Builtin and resolvable recipe slash names that must not expand as mid-message skills.
+///
+/// Stale recipe mappings (missing files) are excluded so an installed skill with
+/// the same name can still expand when the recipe is gone.
 pub fn reserved_inline_skill_names() -> HashSet<String> {
     let mut reserved: HashSet<String> = COMMANDS
         .iter()
         .map(|command| normalize_command_name(command.name))
         .collect();
 
-    for mapping in recipe_slash_command::list_commands() {
-        reserved.insert(normalize_command_name(&mapping.command));
+    for entry in recipe_slash_command::commands_from_mappings(recipe_slash_command::list_commands())
+    {
+        reserved.insert(normalize_command_name(&entry.name));
     }
 
     reserved
@@ -867,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn user_text_without_skill_tokens_collapses_whitespace() {
+    fn user_text_without_skill_tokens_trims_edges_and_token_seams() {
         assert_eq!(
             user_text_without_skill_tokens(
                 "  fix   login  /code-review   and  /deploy  now  ",
@@ -876,11 +909,28 @@ mod tests {
                     known_skill
                 )
             ),
-            "fix login and now"
+            "fix   login and now"
         );
         assert_eq!(
             user_text_without_skill_tokens("only prose", &[]),
             "only prose"
+        );
+    }
+
+    #[test]
+    fn user_text_without_skill_tokens_preserves_newlines_and_code() {
+        let text = "/code-review please review:\n```rust\nfn main() {}\n```";
+        let found = find_inline_skill_commands(text, known_skill);
+        assert_eq!(
+            user_text_without_skill_tokens(text, &found),
+            "please review:\n```rust\nfn main() {}\n```"
+        );
+
+        let text = "do /deploy\nthen /code-review please";
+        let found = find_inline_skill_commands(text, known_skill);
+        assert_eq!(
+            user_text_without_skill_tokens(text, &found),
+            "do\nthen please"
         );
     }
 

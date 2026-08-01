@@ -65,7 +65,7 @@ pub fn get_recipe_for_command(command: &str) -> Option<PathBuf> {
         .map(|mapping| PathBuf::from(mapping.recipe_path))
 }
 
-pub(super) fn commands_from_mappings(mappings: Vec<SlashCommandMapping>) -> Vec<SlashCommandEntry> {
+pub fn commands_from_mappings(mappings: Vec<SlashCommandMapping>) -> Vec<SlashCommandEntry> {
     mappings
         .into_iter()
         .filter_map(|mapping| {
