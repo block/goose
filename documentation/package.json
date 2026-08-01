@@ -63,5 +63,8 @@
   },
   "engines": {
     "node": ">=18.0"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.8"
   }
 }
