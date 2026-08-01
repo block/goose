@@ -1230,7 +1230,7 @@
     "defaultMessage": "Thư mục làm việc từ xa (tùy chọn)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Đường dẫn trên máy đang chạy phần phụ trợ bên ngoài. Để trống để dùng giá trị mặc định."
+    "defaultMessage": "Đường dẫn tuyệt đối trên backend bên ngoài. Để trống để gửi thư mục làm việc cục bộ."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

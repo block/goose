@@ -1230,7 +1230,7 @@
     "defaultMessage": "遠端工作目錄（選用）"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "外部後端執行所在電腦上的路徑。留空以使用預設值。"
+    "defaultMessage": "外部後端上的絕對路徑。留空時將傳送本機工作目錄。"
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

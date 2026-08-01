@@ -1230,7 +1230,7 @@
     "defaultMessage": "Répertoire de travail distant (facultatif)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Chemin sur la machine exécutant le backend externe. Laissez vide pour utiliser la valeur par défaut."
+    "defaultMessage": "Chemin absolu sur le backend externe. Laissez vide pour envoyer le répertoire de travail local."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

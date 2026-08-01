@@ -1230,7 +1230,7 @@
     "defaultMessage": "원격 작업 디렉터리(선택 사항)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "외부 백엔드를 실행하는 컴퓨터의 경로입니다. 기본값을 사용하려면 비워 두세요."
+    "defaultMessage": "외부 백엔드의 절대 경로입니다. 비워 두면 로컬 작업 디렉터리를 전송합니다."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

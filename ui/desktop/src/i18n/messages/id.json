@@ -1230,7 +1230,7 @@
     "defaultMessage": "Direktori kerja jarak jauh (opsional)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Jalur pada mesin yang menjalankan backend eksternal. Biarkan kosong untuk menggunakan nilai default."
+    "defaultMessage": "Jalur absolut pada backend eksternal. Biarkan kosong untuk mengirim direktori kerja lokal."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

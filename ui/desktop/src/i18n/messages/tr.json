@@ -1230,7 +1230,7 @@
     "defaultMessage": "Uzak çalışma dizini (isteğe bağlı)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Harici arka ucun çalıştığı makinedeki yol. Varsayılanı kullanmak için boş bırakın."
+    "defaultMessage": "Harici arka uçtaki mutlak yol. Yerel çalışma dizinini göndermek için boş bırakın."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

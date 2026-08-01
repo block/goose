@@ -1230,7 +1230,7 @@
     "defaultMessage": "Удалённый рабочий каталог (необязательно)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Путь на компьютере, где запущен внешний бэкенд. Оставьте пустым, чтобы использовать значение по умолчанию."
+    "defaultMessage": "Абсолютный путь на внешнем бэкенде. Оставьте пустым, чтобы передать локальный рабочий каталог."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

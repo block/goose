@@ -1230,7 +1230,7 @@
     "defaultMessage": "远程工作目录（可选）"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "运行外部后端的计算机上的路径。留空以使用默认值。"
+    "defaultMessage": "外部后端上的绝对路径。留空时将发送本地工作目录。"
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

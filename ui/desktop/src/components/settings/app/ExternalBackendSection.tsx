@@ -44,7 +44,8 @@ const i18n = defineMessages({
   },
   workingDirHelp: {
     id: 'externalBackendSection.workingDirHelp',
-    defaultMessage: 'Path on the machine running the external backend. Leave blank to use its default.',
+    defaultMessage:
+      'Absolute path on the external backend. Leave blank to send the local working directory.',
   },
   secretKey: {
     id: 'externalBackendSection.secretKey',

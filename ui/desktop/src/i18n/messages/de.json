@@ -1230,7 +1230,7 @@
     "defaultMessage": "Remote-Arbeitsverzeichnis (optional)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Pfad auf dem Computer, auf dem das externe Backend ausgeführt wird. Leer lassen, um den Standard zu verwenden."
+    "defaultMessage": "Absoluter Pfad auf dem externen Backend. Leer lassen, um das lokale Arbeitsverzeichnis zu senden."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"

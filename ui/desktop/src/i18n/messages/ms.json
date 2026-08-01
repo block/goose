@@ -1230,7 +1230,7 @@
     "defaultMessage": "Direktori kerja jauh (pilihan)"
   },
   "externalBackendSection.workingDirHelp": {
-    "defaultMessage": "Laluan pada mesin yang menjalankan backend luaran. Biarkan kosong untuk menggunakan nilai lalai."
+    "defaultMessage": "Laluan mutlak pada backend luaran. Biarkan kosong untuk menghantar direktori kerja setempat."
   },
   "externalBackendSection.workingDirPlaceholder": {
     "defaultMessage": "/home/goose/workspace"
