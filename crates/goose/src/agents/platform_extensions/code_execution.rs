@@ -635,7 +635,7 @@ fn catalog_disclosure_moim(function_count: usize) -> String {
         "No execute_typescript callback functions are currently registered.".to_string()
     } else {
         format!(
-            "{function_count} callback functions are available only from inside execute_typescript. Do not call callback function names directly as tools. Use list_functions and get_function_details to inspect signatures before writing one execute_typescript call."
+            "{function_count} callback functions are available only from inside execute_typescript. Do not call callback function names directly as tools. Use list_functions and get_function_details to inspect signatures before writing one execute_typescript call. Call callbacks as namespace.functionName(...), for example await Developer.write(...). Do not use a `functions.*` wrapper."
         )
     }
 }
@@ -896,6 +896,13 @@ mod tests {
         assert!(moim.contains("get_function_details"));
         assert!(!moim.contains("extract_relations"));
         assert!(!moim.contains("ask_heimdall"));
+    }
+    #[test]
+    fn catalog_moim_warns_against_functions_namespace() {
+        let moim = catalog_disclosure_moim(3);
+
+        assert!(moim.contains("Do not use a `functions.*` wrapper"));
+        assert!(moim.contains("namespace.functionName"));
     }
 
     #[tokio::test]
