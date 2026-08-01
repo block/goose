@@ -78,7 +78,7 @@ enum ClientRequest {
         session_id: SessionId,
         config_id: String,
         value: String,
-        response_tx: oneshot::Sender<Result<()>>,
+        response_tx: oneshot::Sender<Result<SetConfigOptionOutcome>>,
     },
     Prompt {
         session_id: SessionId,
@@ -87,6 +87,7 @@ enum ClientRequest {
     },
 }
 
+#[derive(Debug)]
 enum SetConfigOptionOutcome {
     Applied,
     Rejected(anyhow::Error),
@@ -344,10 +345,7 @@ impl AcpProvider {
             })
             .await
             .context("ACP client is unavailable")?;
-        match response_rx.await.context("ACP request cancelled")? {
-            Ok(()) => Ok(SetConfigOptionOutcome::Applied),
-            Err(error) => Ok(SetConfigOptionOutcome::Rejected(error)),
-        }
+        response_rx.await.context("ACP request cancelled")?
     }
 
     /// Re-apply the model selection config option when the active session model
@@ -1169,14 +1167,12 @@ async fn handle_requests(
             } => {
                 let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value);
                 let req = SetSessionConfigOptionRequest::new(session_id, config_id, value_id);
-                let result: Result<()> = cx
-                    .send_request(req)
-                    .block_task()
-                    .await
-                    .map(|_| ())
-                    .map_err(anyhow::Error::from);
+                let outcome = match cx.send_request(req).block_task().await {
+                    Ok(_) => SetConfigOptionOutcome::Applied,
+                    Err(error) => SetConfigOptionOutcome::Rejected(anyhow::Error::from(error)),
+                };
                 log_undelivered(
-                    response_tx.send(result),
+                    response_tx.send(Ok(outcome)),
                     AGENT_METHOD_NAMES.session_set_config_option,
                 );
             }
@@ -2011,7 +2007,7 @@ mod tests {
             } => {
                 assert_eq!(config_id, "model");
                 assert_eq!(value, "new-model");
-                let _ = response_tx.send(Ok(()));
+                let _ = response_tx.send(Ok(SetConfigOptionOutcome::Applied));
             }
             _ => panic!("unexpected request kind"),
         }
@@ -2034,9 +2030,9 @@ mod tests {
 
         match rx.recv().await.expect("expected a SetConfigOption request") {
             ClientRequest::SetConfigOption { response_tx, .. } => {
-                let _ = response_tx.send(Err(anyhow::anyhow!(
+                let _ = response_tx.send(Ok(SetConfigOptionOutcome::Rejected(anyhow::anyhow!(
                     "Invalid value for config option model: test-model"
-                )));
+                ))));
             }
             _ => panic!("unexpected request kind"),
         }
@@ -2069,7 +2065,9 @@ mod tests {
 
         match rx.recv().await.expect("expected a SetConfigOption request") {
             ClientRequest::SetConfigOption { response_tx, .. } => {
-                let _ = response_tx.send(Err(anyhow::anyhow!("unsupported model")));
+                let _ = response_tx.send(Ok(SetConfigOptionOutcome::Rejected(anyhow::anyhow!(
+                    "unsupported model"
+                ))));
             }
             _ => panic!("unexpected request kind"),
         }
@@ -2089,6 +2087,25 @@ mod tests {
             .unwrap_err();
 
         assert!(error.to_string().contains("ACP client is unavailable"));
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_propagates_cancelled_request() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, None);
+
+        let handle =
+            tokio::spawn(async move { provider.apply_model_if_changed("new-model").await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => {
+                let _ = response_tx.send(Err(anyhow::anyhow!("reply cancelled")));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        let error = handle.await.unwrap().unwrap_err();
+        assert!(error.to_string().contains("reply cancelled"));
     }
 
     #[tokio::test]
