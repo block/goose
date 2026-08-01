@@ -616,7 +616,7 @@ pre:has(> code.bg-inline-code) {
   padding: 0.625rem 1rem;
 }
 
-.dark :is(.agent-message-bubble, .user-message-bubble) .bg-inline-code {
+.dark :is(.agent-message-bubble, .user-message-bubble) :not(pre) > code.bg-inline-code {
   background-color: transparent;
   color: #8cd3d6;
   padding: 0;
