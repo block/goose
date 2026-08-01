@@ -414,6 +414,10 @@ impl Provider for AcpProvider {
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(context_limit) = model_config.context_limit {
+            return Ok(context_limit);
+        }
+
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
             return Ok(size as usize);
@@ -2001,6 +2005,16 @@ mod tests {
 
         provider.context_size.store(200_000, Ordering::Relaxed);
         assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
+    }
+
+    #[tokio::test]
+    async fn explicit_context_limit_overrides_captured_context_size() {
+        let (provider, model) = test_provider();
+        let model = model.with_context_limit(Some(64_000));
+
+        provider.context_size.store(200_000, Ordering::Relaxed);
+
+        assert_eq!(provider.get_context_limit(&model).await.unwrap(), 64_000);
     }
 
     #[tokio::test]
