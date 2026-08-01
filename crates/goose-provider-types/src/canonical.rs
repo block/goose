@@ -132,4 +132,20 @@ mod tests {
         assert!(canonical.cost.input.is_some());
         assert!(canonical.cost.output.is_some());
     }
+
+    #[test]
+    fn nvidia_deepseek_v4_output_limits_match_api_cap() {
+        for model in [
+            "deepseek-ai/deepseek-v4-flash",
+            "deepseek-ai/deepseek-v4-pro",
+        ] {
+            let canonical = maybe_get_canonical_model("nvidia", model)
+                .expect("NVIDIA DeepSeek V4 model should resolve");
+            assert_eq!(
+                canonical.limit.output,
+                Some(262_144),
+                "{model} should not exceed NVIDIA's max_completion_tokens cap"
+            );
+        }
+    }
 }
