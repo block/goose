@@ -522,13 +522,17 @@ impl GooseCompleter {
         token_start: usize,
         token: &str,
     ) -> Result<(usize, Vec<Pair>)> {
+        use goose::agents::execute_commands::is_reserved_inline_skill_name;
         use goose::skills::list_installed_skills;
 
         let partial = token.strip_prefix('/').unwrap_or(token).to_lowercase();
         let cwd = std::env::current_dir().unwrap_or_default();
         let mut candidates: Vec<Pair> = list_installed_skills(Some(&cwd))
             .into_iter()
-            .filter(|skill| skill.name.to_lowercase().starts_with(&partial))
+            .filter(|skill| {
+                !is_reserved_inline_skill_name(&skill.name)
+                    && skill.name.to_lowercase().starts_with(&partial)
+            })
             .map(|skill| Pair {
                 display: format!("/{}", skill.name),
                 replacement: format!("/{} ", skill.name),

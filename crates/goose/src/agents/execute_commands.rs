@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, Result};
 
 use crate::context_mgmt::compact_messages;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
+use crate::slash_commands::util::normalize_command_name;
 use crate::slash_commands::{recipe_slash_command, skill_slash_command};
 
 use super::Agent;
@@ -219,6 +220,39 @@ where
         .next()
 }
 
+/// Builtin and recipe slash names that must not expand as mid-message skills.
+pub fn reserved_inline_skill_names() -> HashSet<String> {
+    let mut reserved: HashSet<String> = COMMANDS
+        .iter()
+        .map(|command| normalize_command_name(command.name))
+        .collect();
+
+    for mapping in recipe_slash_command::list_commands() {
+        reserved.insert(normalize_command_name(&mapping.command));
+    }
+
+    reserved
+}
+
+/// Whether `name` is reserved by a builtin or recipe slash command.
+pub fn is_reserved_inline_skill_name(name: &str) -> bool {
+    reserved_inline_skill_names().contains(&normalize_command_name(name))
+}
+
+/// Build the agent-visible message for expanded skills, keeping non-text
+/// attachments (images, etc.) from the original user message.
+pub fn message_with_skill_prompts(original: Option<&Message>, prompts: String) -> Message {
+    let mut message = Message::user().with_text(prompts);
+    if let Some(original) = original {
+        for content in &original.agent_visible_content().content {
+            if !matches!(content, MessageContent::Text(_)) {
+                message = message.with_content(content.clone());
+            }
+        }
+    }
+    message
+}
+
 pub fn list_commands() -> &'static [CommandDef] {
     COMMANDS
 }
@@ -243,6 +277,18 @@ impl Agent {
     pub async fn execute_command(
         &self,
         message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<Message>> {
+        self.execute_command_for_message(message_text, None, session_id)
+            .await
+    }
+
+    /// Like [`execute_command`], but preserves non-text attachments from
+    /// `original_message` when expanding skills (images, etc.).
+    pub async fn execute_command_for_message(
+        &self,
+        message_text: &str,
+        original_message: Option<&Message>,
         session_id: &str,
     ) -> Result<Option<Message>> {
         if let Some(parsed) = parse_slash_command(message_text) {
@@ -279,7 +325,7 @@ impl Agent {
                     // leading `/a /b prose` loads every skill, not only the first.
                     // Unknown leading tokens still fall through as plain text.
                     if let Some(message) = self
-                        .handle_inline_skill_command(message_text, session_id)
+                        .handle_inline_skill_command(message_text, original_message, session_id)
                         .await?
                     {
                         return Ok(Some(message));
@@ -291,13 +337,14 @@ impl Agent {
         }
 
         // Mid-message skill slash: "fix login /code-review focusing on auth"
-        self.handle_inline_skill_command(message_text, session_id)
+        self.handle_inline_skill_command(message_text, original_message, session_id)
             .await
     }
 
     async fn handle_inline_skill_command(
         &self,
         message_text: &str,
+        original_message: Option<&Message>,
         session_id: &str,
     ) -> Result<Option<Message>> {
         // Cheap gates before skill-directory discovery (list_commands walks
@@ -320,11 +367,14 @@ impl Agent {
             .ok()
             .map(|session| session.working_dir);
 
+        let reserved = reserved_inline_skill_names();
         let skill_entries = skill_slash_command::list_commands(working_dir.as_deref());
         let matches = find_inline_skill_commands(message_text, |name| {
-            skill_entries
-                .iter()
-                .any(|skill| skill.name.eq_ignore_ascii_case(name))
+            let normalized = normalize_command_name(name);
+            !reserved.contains(&normalized)
+                && skill_entries
+                    .iter()
+                    .any(|skill| skill.name.eq_ignore_ascii_case(name))
         });
         if matches.is_empty() {
             return Ok(None);
@@ -357,7 +407,10 @@ impl Agent {
             return Ok(None);
         }
 
-        Ok(Some(Message::user().with_text(prompts.join("\n\n"))))
+        Ok(Some(message_with_skill_prompts(
+            original_message,
+            prompts.join("\n\n"),
+        )))
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
@@ -845,6 +898,62 @@ mod tests {
             user_text_without_skill_tokens("please /maybe-a-skill now", &candidates),
             "please now"
         );
+    }
+
+    #[test]
+    fn reserved_inline_skill_names_include_builtins() {
+        let reserved = reserved_inline_skill_names();
+        assert!(reserved.contains("compact"));
+        assert!(reserved.contains("clear"));
+        assert!(reserved.contains("status"));
+        assert!(is_reserved_inline_skill_name("Compact"));
+        assert!(!is_reserved_inline_skill_name("code-review"));
+    }
+
+    #[test]
+    fn inline_skill_predicate_excludes_reserved_even_if_skill_exists() {
+        // A skill named "compact" must not match mid-message.
+        let is_skill = |name: &str| {
+            !is_reserved_inline_skill_name(name)
+                && matches!(
+                    name.to_ascii_lowercase().as_str(),
+                    "compact" | "code-review"
+                )
+        };
+        assert!(find_inline_skill_command("please /compact now", is_skill).is_none());
+        assert_eq!(
+            find_inline_skill_command("please /code-review now", is_skill)
+                .unwrap()
+                .command,
+            "code-review"
+        );
+    }
+
+    #[test]
+    fn message_with_skill_prompts_preserves_images() {
+        let original = Message::user()
+            .with_text("analyze this /ui-review")
+            .with_image("abc123", "image/png");
+        let expanded =
+            message_with_skill_prompts(Some(&original), "# Loaded Skill: ui-review".to_string());
+
+        assert_eq!(expanded.as_concat_text(), "# Loaded Skill: ui-review");
+        assert!(
+            expanded
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Image(_))),
+            "expected image attachment to be preserved"
+        );
+        // Original user text is replaced by skill prompts, not duplicated.
+        assert!(!expanded.as_concat_text().contains("analyze this"));
+    }
+
+    #[test]
+    fn message_with_skill_prompts_without_original_is_text_only() {
+        let expanded = message_with_skill_prompts(None, "skill body".to_string());
+        assert_eq!(expanded.as_concat_text(), "skill body");
+        assert_eq!(expanded.content.len(), 1);
     }
 
     #[test]

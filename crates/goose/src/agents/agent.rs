@@ -1752,7 +1752,7 @@ impl Agent {
         }
 
         let command_result = self
-            .execute_command(&message_text, &session_config.id)
+            .execute_command_for_message(&message_text, Some(&user_message), &session_config.id)
             .await;
 
         let mut command_preamble: Vec<AgentEvent> = Vec::new();
