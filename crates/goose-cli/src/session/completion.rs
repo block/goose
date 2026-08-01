@@ -500,10 +500,10 @@ impl Completer for GooseCompleter {
             return Ok((pos, vec![]));
         }
 
-        // Mid-message skill/slash token (Cursor-style): complete the trailing
-        // `/partial` token even when the line has a prose prefix. Prefer skills
-        // (execution only expands known skills mid-line) and fall back to
-        // builtins/recipes listed by complete_slash_commands.
+        // Mid-message skill/slash token: complete the trailing `/partial` token
+        // even when the line has a prose prefix. Prefer skills (execution only
+        // expands known skills mid-line) and fall back to builtins/recipes
+        // listed by complete_slash_commands.
         if let Some((token_start, token)) = trailing_slash_token(line) {
             return self.complete_inline_slash_token(token_start, token);
         }

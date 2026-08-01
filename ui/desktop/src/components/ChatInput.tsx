@@ -741,8 +741,7 @@ export default function ChatInput({
     const beforeCursor = text.slice(0, cursorPosition);
 
     // Prefer an active @-mention token before the cursor (files/agents).
-    // Slash skills may appear mid-message at a whitespace token boundary,
-    // matching Cursor-style skill invocation.
+    // Slash skills may appear mid-message at a whitespace token boundary.
     const lastAtIndex = beforeCursor.lastIndexOf('@');
     const atIsActive =
       lastAtIndex !== -1 &&

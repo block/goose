@@ -60,7 +60,7 @@ pub struct ParsedSlashCommand<'a> {
     pub params_str: &'a str,
 }
 
-/// A skill slash token found anywhere in the message (Cursor-style).
+/// A skill slash token found anywhere in the message at a whitespace boundary.
 ///
 /// Unlike [`parse_slash_command`], this can match mid-message when `/name` sits
 /// at a whitespace token boundary and `name` is a known skill. Builtins such as

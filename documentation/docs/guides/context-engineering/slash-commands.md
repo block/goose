@@ -80,7 +80,7 @@ You can pass one parameter after the command (if needed). Quotation marks are op
 
 ### Skills mid-message
 
-[Skills](/docs/guides/context-engineering/using-skills) can also be invoked mid-message, the same way Cursor-style skill mentions work. Built-in control commands such as `/compact` and `/clear` still require the start of the message.
+[Skills](/docs/guides/context-engineering/using-skills) can also be invoked mid-message with a leading `/` after whitespace. Built-in control commands such as `/compact` and `/clear` still require the start of the message.
 
 ```
 fix the login bug /code-review focusing on auth
