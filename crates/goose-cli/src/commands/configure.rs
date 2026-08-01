@@ -930,7 +930,11 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let model: String = match models_res {
         Err(e) => {
             // Provider hook error
-            cliclack::outro(style(e.to_string()).on_red().white())?;
+            cliclack::outro(
+                style(provider_configuration_error_message(&provider_name, &e))
+                    .on_red()
+                    .white(),
+            )?;
             return Ok(false);
         }
         Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
@@ -982,14 +986,32 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
             Ok(true)
         }
         Err(e) => {
-            spin.stop(style(e.to_string()).red());
+            let message = provider_configuration_error_message(&provider_name, &e);
+            spin.stop(style(&message).red());
             cliclack::outro(
-                style(format!("Failed to configure provider: {e}"))
+                style(format!("Failed to configure provider: {message}"))
                     .on_red()
                     .white(),
             )?;
             Ok(false)
         }
+    }
+}
+
+fn provider_configuration_error_message(
+    provider_name: &str,
+    error: impl std::fmt::Display,
+) -> String {
+    let message = error.to_string();
+    if provider_name == "copilot-acp" && message.to_lowercase().contains("authentication required")
+    {
+        format!(
+            "{message}
+
+GitHub Copilot CLI authentication is required. Run `copilot login` and retry `goose configure`. If the Copilot CLI opens an interactive prompt, run `/login` there."
+        )
+    } else {
+        message
     }
 }
 
@@ -2375,5 +2397,24 @@ mod tests {
         let filtered = fuzzy_filter_provider_items(&items, "open ai");
 
         assert_eq!(filtered.first().map(|item| item.0.as_str()), Some("openai"));
+    }
+    #[test]
+    fn copilot_acp_auth_errors_include_login_hint() {
+        let error = anyhow::anyhow!("ACP session/new failed: Authentication required");
+
+        let message = provider_configuration_error_message("copilot-acp", &error);
+
+        assert!(message.contains("ACP session/new failed: Authentication required"));
+        assert!(message.contains("GitHub Copilot CLI authentication is required"));
+        assert!(message.contains("copilot login"));
+    }
+
+    #[test]
+    fn generic_auth_errors_do_not_get_copilot_hint() {
+        let error = anyhow::anyhow!("Authentication required");
+
+        let message = provider_configuration_error_message("other-provider", &error);
+
+        assert_eq!(message, "Authentication required");
     }
 }
