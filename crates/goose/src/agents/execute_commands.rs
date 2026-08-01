@@ -67,10 +67,6 @@ pub struct ParsedSlashCommand<'a> {
 /// `/compact` are intentionally excluded from mid-message matching.
 pub struct InlineSkillCommand<'a> {
     pub command: &'a str,
-    /// Text after the skill token (trimmed of leading whitespace).
-    pub args: &'a str,
-    /// Text before the skill token (trimmed of trailing whitespace).
-    pub prefix: &'a str,
     /// Byte range of `/command` within the original message.
     pub span: std::ops::Range<usize>,
 }
@@ -102,34 +98,62 @@ fn is_skill_command_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':')
 }
 
-/// Compose surrounding user text into the skill args string.
+/// User-facing prose with skill slash tokens removed.
 ///
-/// Prefix and trailing args are joined with a single space so skill placeholders
-/// (`$ARGUMENTS`, `$1`, …) still see one coherent argument blob.
-pub fn compose_inline_skill_args(prefix: &str, args: &str) -> String {
-    [prefix, args]
-        .into_iter()
-        .map(str::trim)
-        .filter(|part| !part.is_empty())
+/// Shared across every expanded skill so `$ARGUMENTS` / `$1` placeholders see
+/// one coherent request blob when multiple skills appear in the same message.
+pub fn user_text_without_skill_tokens(
+    message_text: &str,
+    skills: &[InlineSkillCommand<'_>],
+) -> String {
+    if skills.is_empty() {
+        return message_text.trim().to_string();
+    }
+
+    let mut ranges = skills
+        .iter()
+        .map(|skill| skill.span.clone())
+        .collect::<Vec<_>>();
+    ranges.sort_by_key(|range| range.start);
+
+    let mut pieces = Vec::new();
+    let mut cursor = 0usize;
+    for range in ranges {
+        if range.start > cursor {
+            if let Some(piece) = message_text.get(cursor..range.start) {
+                pieces.push(piece);
+            }
+        }
+        cursor = range.end.max(cursor);
+    }
+    if cursor < message_text.len() {
+        if let Some(piece) = message_text.get(cursor..) {
+            pieces.push(piece);
+        }
+    }
+
+    pieces
+        .join(" ")
+        .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
 }
 
-/// Find the first whitespace-bounded `/skill-name` token whose name is accepted
-/// by `is_skill`.
+/// Find every whitespace-bounded `/skill-name` token whose name is accepted by
+/// `is_skill`, left-to-right.
 ///
 /// Rules:
 /// - `/` must start a token (start of string or preceded by whitespace)
 /// - name chars: ASCII alnum plus `-_.:` (plugin skills use `:`)
 /// - path-like `/usr/bin` is rejected (name followed immediately by `/`)
-/// - only the first matching skill is returned
-pub fn find_inline_skill_command<'a, F>(
+pub fn find_inline_skill_commands<'a, F>(
     message_text: &'a str,
     mut is_skill: F,
-) -> Option<InlineSkillCommand<'a>>
+) -> Vec<InlineSkillCommand<'a>>
 where
     F: FnMut(&str) -> bool,
 {
+    let mut found = Vec::new();
     let mut prev_was_whitespace = true;
     let mut chars = message_text.char_indices().peekable();
 
@@ -164,11 +188,8 @@ where
                     continue;
                 };
                 if is_skill(name) {
-                    let prefix = message_text.get(..i).unwrap_or("").trim_end();
-                    return Some(InlineSkillCommand {
+                    found.push(InlineSkillCommand {
                         command: name,
-                        args: after_name.trim_start(),
-                        prefix,
                         span: i..name_end,
                     });
                 }
@@ -181,7 +202,20 @@ where
         prev_was_whitespace = ch.is_whitespace();
     }
 
-    None
+    found
+}
+
+/// First matching skill token, if any.
+pub fn find_inline_skill_command<'a, F>(
+    message_text: &'a str,
+    is_skill: F,
+) -> Option<InlineSkillCommand<'a>>
+where
+    F: FnMut(&str) -> bool,
+{
+    find_inline_skill_commands(message_text, is_skill)
+        .into_iter()
+        .next()
 }
 
 pub fn list_commands() -> &'static [CommandDef] {
@@ -264,7 +298,7 @@ impl Agent {
         }
         // Token-shape scan (always-true predicate): rejects https://… and /usr/…
         // while still allowing a later real skill after a non-skill token.
-        if find_inline_skill_command(message_text, |_| true).is_none() {
+        if find_inline_skill_commands(message_text, |_| true).is_empty() {
             return Ok(None);
         }
 
@@ -276,25 +310,44 @@ impl Agent {
             .ok()
             .map(|session| session.working_dir);
 
-        let skills = skill_slash_command::list_commands(working_dir.as_deref());
-        let Some(inline) = find_inline_skill_command(message_text, |name| {
-            skills
+        let skill_entries = skill_slash_command::list_commands(working_dir.as_deref());
+        let matches = find_inline_skill_commands(message_text, |name| {
+            skill_entries
                 .iter()
                 .any(|skill| skill.name.eq_ignore_ascii_case(name))
-        }) else {
+        });
+        if matches.is_empty() {
             return Ok(None);
-        };
+        }
 
-        // Prefer the installed skill's canonical casing.
-        let command = skills
-            .iter()
-            .find(|skill| skill.name.eq_ignore_ascii_case(inline.command))
-            .map(|skill| skill.name.as_str())
-            .unwrap_or(inline.command);
-        let params_str = compose_inline_skill_args(inline.prefix, inline.args);
+        let params_str = user_text_without_skill_tokens(message_text, &matches);
+        let mut prompts = Vec::with_capacity(matches.len());
 
-        self.handle_skill_command(command, &params_str, session_id)
-            .await
+        for inline in &matches {
+            // Prefer the installed skill's canonical casing.
+            let command = skill_entries
+                .iter()
+                .find(|skill| skill.name.eq_ignore_ascii_case(inline.command))
+                .map(|skill| skill.name.as_str())
+                .unwrap_or(inline.command);
+
+            match skill_slash_command::resolve_command(command, &params_str, working_dir.as_deref())
+            {
+                Ok(None) => {}
+                Ok(Some(prompt)) => prompts.push(prompt),
+                Err(text) => {
+                    // Surface the first resolve error the same way a single
+                    // skill slash does (assistant-visible message).
+                    return Ok(Some(Message::assistant().with_text(text)));
+                }
+            }
+        }
+
+        if prompts.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(Message::user().with_text(prompts.join("\n\n"))))
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
@@ -694,21 +747,20 @@ mod tests {
     fn find_inline_skill_at_start_of_message() {
         let found = find_inline_skill_command("/code-review auth paths", known_skill).unwrap();
         assert_eq!(found.command, "code-review");
-        assert_eq!(found.args, "auth paths");
-        assert_eq!(found.prefix, "");
         assert_eq!(found.span, 0..12);
+        assert_eq!(
+            user_text_without_skill_tokens("/code-review auth paths", &[found]),
+            "auth paths"
+        );
     }
 
     #[test]
     fn find_inline_skill_mid_message_with_prefix_and_args() {
-        let found =
-            find_inline_skill_command("fix login /code-review focusing on auth", known_skill)
-                .unwrap();
+        let text = "fix login /code-review focusing on auth";
+        let found = find_inline_skill_command(text, known_skill).unwrap();
         assert_eq!(found.command, "code-review");
-        assert_eq!(found.prefix, "fix login");
-        assert_eq!(found.args, "focusing on auth");
         assert_eq!(
-            compose_inline_skill_args(found.prefix, found.args),
+            user_text_without_skill_tokens(text, &[found]),
             "fix login focusing on auth"
         );
     }
@@ -729,11 +781,17 @@ mod tests {
     }
 
     #[test]
-    fn find_inline_skill_takes_first_match_only() {
-        let found =
-            find_inline_skill_command("do /deploy then /code-review please", known_skill).unwrap();
-        assert_eq!(found.command, "deploy");
-        assert_eq!(found.args, "then /code-review please");
+    fn find_inline_skill_returns_all_matches_left_to_right() {
+        let text = "do /deploy then /code-review please";
+        let found = find_inline_skill_commands(text, known_skill);
+        assert_eq!(
+            found.iter().map(|skill| skill.command).collect::<Vec<_>>(),
+            vec!["deploy", "code-review"]
+        );
+        assert_eq!(
+            user_text_without_skill_tokens(text, &found),
+            "do then please"
+        );
     }
 
     #[test]
@@ -741,7 +799,7 @@ mod tests {
         let found =
             find_inline_skill_command("please /plugin:triage this PR", known_skill).unwrap();
         assert_eq!(found.command, "plugin:triage");
-        assert_eq!(found.args, "this PR");
+        assert_eq!(found.span, 7..21);
     }
 
     #[test]
@@ -751,27 +809,37 @@ mod tests {
     }
 
     #[test]
-    fn compose_inline_skill_args_joins_nonempty_parts() {
+    fn user_text_without_skill_tokens_collapses_whitespace() {
         assert_eq!(
-            compose_inline_skill_args("fix login", "auth"),
-            "fix login auth"
+            user_text_without_skill_tokens(
+                "  fix   login  /code-review   and  /deploy  now  ",
+                &find_inline_skill_commands(
+                    "  fix   login  /code-review   and  /deploy  now  ",
+                    known_skill
+                )
+            ),
+            "fix login and now"
         );
-        assert_eq!(compose_inline_skill_args("", "auth"), "auth");
-        assert_eq!(compose_inline_skill_args("fix login", ""), "fix login");
-        assert_eq!(compose_inline_skill_args("  ", "  "), "");
+        assert_eq!(
+            user_text_without_skill_tokens("only prose", &[]),
+            "only prose"
+        );
     }
 
     #[test]
     fn find_inline_skill_shape_scan_skips_messages_without_token() {
         // handle_inline_skill_command uses an always-true predicate as a cheap
         // precheck before listing installed skills from disk.
-        assert!(find_inline_skill_command("fix the login bug", |_| true).is_none());
-        assert!(find_inline_skill_command("see https://example.com/path", |_| true).is_none());
+        assert!(find_inline_skill_commands("fix the login bug", |_| true).is_empty());
+        assert!(find_inline_skill_commands("see https://example.com/path", |_| true).is_empty());
 
-        let candidate = find_inline_skill_command("please /maybe-a-skill now", |_| true).unwrap();
-        assert_eq!(candidate.command, "maybe-a-skill");
-        assert_eq!(candidate.prefix, "please");
-        assert_eq!(candidate.args, "now");
+        let candidates = find_inline_skill_commands("please /maybe-a-skill now", |_| true);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].command, "maybe-a-skill");
+        assert_eq!(
+            user_text_without_skill_tokens("please /maybe-a-skill now", &candidates),
+            "please now"
+        );
     }
 
     #[test]

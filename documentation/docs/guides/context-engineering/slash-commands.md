@@ -80,10 +80,11 @@ You can pass one parameter after the command (if needed). Quotation marks are op
 
 ### Skills mid-message
 
-[Skills](/docs/guides/context-engineering/using-skills) can also be invoked mid-message with a leading `/` after whitespace. Built-in control commands such as `/compact` and `/clear` still require the start of the message.
+[Skills](/docs/guides/context-engineering/using-skills) can also be invoked mid-message with a leading `/` after whitespace. You can include multiple skills in one message; each expands with the surrounding user text as its arguments. Built-in control commands such as `/compact` and `/clear` still require the start of the message.
 
 ```
 fix the login bug /code-review focusing on auth
+review this PR /code-review /security-audit
 ```
 
 When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly.
