@@ -937,7 +937,10 @@ const getServerSecret = (settings: Settings): string => {
 const getActiveExternalBackend = (settings: Settings): ExternalBackend | null => {
   const envBackend = getExternalBackendFromEnv();
   if (envBackend) {
-    return envBackend;
+    return {
+      ...envBackend,
+      workingDir: settings.externalGoosed?.workingDir,
+    };
   }
 
   if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
