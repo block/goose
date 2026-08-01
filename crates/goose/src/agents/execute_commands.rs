@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::Message;
@@ -47,8 +47,7 @@ static COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "grind",
-        description:
-            "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
+        description: "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
     },
     CommandDef {
         name: "status",
@@ -257,6 +256,18 @@ impl Agent {
         message_text: &str,
         session_id: &str,
     ) -> Result<Option<Message>> {
+        // Cheap gates before skill-directory discovery (list_commands walks
+        // project/global/plugin dirs). Ordinary prompts and URL/path-only `/`
+        // forms must not pay for that traversal every turn.
+        if !message_text.as_bytes().contains(&b'/') {
+            return Ok(None);
+        }
+        // Token-shape scan (always-true predicate): rejects https://… and /usr/…
+        // while still allowing a later real skill after a non-skill token.
+        if find_inline_skill_command(message_text, |_| true).is_none() {
+            return Ok(None);
+        }
+
         let working_dir = self
             .config
             .session_manager
@@ -751,6 +762,19 @@ mod tests {
     }
 
     #[test]
+    fn find_inline_skill_shape_scan_skips_messages_without_token() {
+        // handle_inline_skill_command uses an always-true predicate as a cheap
+        // precheck before listing installed skills from disk.
+        assert!(find_inline_skill_command("fix the login bug", |_| true).is_none());
+        assert!(find_inline_skill_command("see https://example.com/path", |_| true).is_none());
+
+        let candidate = find_inline_skill_command("please /maybe-a-skill now", |_| true).unwrap();
+        assert_eq!(candidate.command, "maybe-a-skill");
+        assert_eq!(candidate.prefix, "please");
+        assert_eq!(candidate.args, "now");
+    }
+
+    #[test]
     fn command_starts_turn_only_for_goal_and_grind_with_description() {
         assert!(command_starts_turn("/goal make all tests pass"));
         assert!(command_starts_turn("/grind keep refactoring"));
@@ -783,8 +807,10 @@ mod tests {
 
     #[test]
     fn status_is_registered_as_a_builtin_command() {
-        assert!(list_commands()
-            .iter()
-            .any(|command| command.name == "status"));
+        assert!(
+            list_commands()
+                .iter()
+                .any(|command| command.name == "status")
+        );
     }
 }
