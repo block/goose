@@ -446,6 +446,7 @@ export default function ChatInput({
     mentionStart: number;
     selectedIndex: number;
     isSlashCommand: boolean;
+    slashSkillsOnly: boolean;
   }>({
     isOpen: false,
     position: { x: 0, y: 0 },
@@ -453,6 +454,7 @@ export default function ChatInput({
     mentionStart: -1,
     selectedIndex: 0,
     isSlashCommand: false,
+    slashSkillsOnly: false,
   });
   const mentionPopoverRef = useRef<{
     getDisplayFiles: () => DisplayItemWithMatch[];
@@ -750,6 +752,7 @@ export default function ChatInput({
 
     let triggerIndex = -1;
     let isSlashCommand = false;
+    let slashSkillsOnly = false;
     let query = '';
 
     if (atIsActive) {
@@ -766,6 +769,8 @@ export default function ChatInput({
       if (slashIsActive) {
         triggerIndex = lastSlashIndex;
         isSlashCommand = true;
+        // Mid-message `/` only executes skills; keep the popover aligned.
+        slashSkillsOnly = lastSlashIndex > 0;
         query = beforeCursor.slice(lastSlashIndex + 1);
       }
     }
@@ -789,6 +794,7 @@ export default function ChatInput({
       mentionStart: triggerIndex,
       selectedIndex: 0, // Reset selection when query changes
       isSlashCommand,
+      slashSkillsOnly,
       // filteredFiles will be populated by the MentionPopover component
     }));
   };
@@ -1877,6 +1883,7 @@ export default function ChatInput({
           ref={mentionPopoverRef}
           isOpen={mentionPopover.isOpen}
           isSlashCommand={mentionPopover.isSlashCommand}
+          slashSkillsOnly={mentionPopover.slashSkillsOnly}
           onClose={() => setMentionPopover((prev) => ({ ...prev, isOpen: false }))}
           onSelect={handleMentionItemSelect}
           position={mentionPopover.position}

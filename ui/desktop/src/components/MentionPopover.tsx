@@ -68,6 +68,8 @@ interface MentionPopoverProps {
   position: { x: number; y: number };
   query: string;
   isSlashCommand: boolean;
+  /** When true, mid-message `/` only offers skills (execution ignores builtins/recipes). */
+  slashSkillsOnly?: boolean;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   workingDir?: string;
@@ -150,6 +152,7 @@ const MentionPopover = forwardRef<
       position,
       query,
       isSlashCommand,
+      slashSkillsOnly = false,
       selectedIndex,
       onSelectedIndexChange,
       workingDir,
@@ -493,7 +496,12 @@ const MentionPopover = forwardRef<
           if (isSlashCommand) {
             const commandItems = await listSlashCommandItems(currentWorkingDir);
             if (cancelled) return;
-            setItems(commandItems);
+            // Mid-message execution only expands skills; don't offer builtins/recipes.
+            setItems(
+              slashSkillsOnly
+                ? commandItems.filter((item) => item.itemType === 'Skill')
+                : commandItems
+            );
           } else {
             // Fetch agents from server and scan files in parallel
             const [agentItems, scannedFiles] = await Promise.all([
@@ -522,7 +530,7 @@ const MentionPopover = forwardRef<
       return () => {
         cancelled = true;
       };
-    }, [isOpen, isSlashCommand, scanDirectoryFromRoot, currentWorkingDir, sessionId]);
+    }, [isOpen, isSlashCommand, slashSkillsOnly, scanDirectoryFromRoot, currentWorkingDir, sessionId]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {

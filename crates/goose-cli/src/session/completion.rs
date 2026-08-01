@@ -500,12 +500,15 @@ impl Completer for GooseCompleter {
             return Ok((pos, vec![]));
         }
 
-        // Mid-message skill/slash token: complete the trailing `/partial` token
-        // even when the line has a prose prefix. Prefer skills (execution only
-        // expands known skills mid-line) and fall back to builtins/recipes
-        // listed by complete_slash_commands.
+        // Mid-message skill slash token: complete the trailing `/partial` token
+        // even when the line has a prose prefix. Only installed skills — builtins
+        // are start-of-line only, and absolute paths still fall through to
+        // complete_file_path when no skill matches (e.g. `open /tm` → `/tmp`).
         if let Some((token_start, token)) = trailing_slash_token(line) {
-            return self.complete_inline_slash_token(token_start, token);
+            let (pos, candidates) = self.complete_inline_skill_token(token_start, token)?;
+            if !candidates.is_empty() {
+                return Ok((pos, candidates));
+            }
         }
 
         // For normal text (not slash commands), try file path completion
@@ -514,7 +517,7 @@ impl Completer for GooseCompleter {
 }
 
 impl GooseCompleter {
-    fn complete_inline_slash_token(
+    fn complete_inline_skill_token(
         &self,
         token_start: usize,
         token: &str,
@@ -531,16 +534,6 @@ impl GooseCompleter {
                 replacement: format!("/{} ", skill.name),
             })
             .collect();
-
-        let (_, builtin_candidates) = self.complete_slash_commands(token)?;
-        for candidate in builtin_candidates {
-            if !candidates
-                .iter()
-                .any(|existing| existing.display == candidate.display)
-            {
-                candidates.push(candidate);
-            }
-        }
 
         candidates.sort_by(|a, b| a.display.cmp(&b.display));
         Ok((token_start, candidates))
@@ -765,25 +758,37 @@ mod tests {
     }
 
     #[test]
-    fn complete_mid_message_slash_token_returns_token_start() {
+    fn complete_mid_message_skill_token_returns_token_start() {
         let cache = create_test_cache();
         let completer = GooseCompleter::new(cache);
-        let line = "please /ex";
+        let line = "please /code";
         let (token_start, token) = trailing_slash_token(line).expect("mid-message slash token");
         let (pos, candidates) = completer
-            .complete_inline_slash_token(token_start, token)
+            .complete_inline_skill_token(token_start, token)
             .unwrap();
         assert_eq!(pos, "please ".len());
+        // Without installed skills matching "code", candidates may be empty —
+        // the important contract is we complete at the token start and do not
+        // claim builtins mid-line.
         assert!(
-            candidates
-                .iter()
-                .any(|candidate| candidate.display == "/exit"),
-            "expected /exit among {:?}",
+            candidates.iter().all(|candidate| {
+                candidate.display.starts_with('/')
+                    && candidate.display != "/exit"
+                    && candidate.display != "/compact"
+            }),
+            "mid-message candidates should be skills only, got {:?}",
             candidates
                 .iter()
                 .map(|candidate| candidate.display.as_str())
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn trailing_slash_token_matches_absolute_path_shape() {
+        // Absolute paths look like slash tokens; completion must fall through
+        // to file-path completion when no skill matches.
+        assert_eq!(trailing_slash_token("open /tm"), Some((5, "/tm")));
     }
 
     #[test]
