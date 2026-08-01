@@ -48,7 +48,7 @@ slash_commands:
 
 ## Use Slash Commands
 
-In any chat session, type your custom command with a leading slash at the start of your message:
+In any chat session, type your custom command with a leading slash:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -58,7 +58,7 @@ In any chat session, type your custom command with a leading slash at the start 
 ```
 
 :::tip Available Commands
-Typing `/` in goose Desktop shows a popup menu with the available slash commands.
+Typing `/` in goose Desktop shows a popup menu with the available slash commands. You can start the `/` token at the beginning of the message or after whitespace mid-message.
 :::
 
   </TabItem>
@@ -76,6 +76,14 @@ You can pass one parameter after the command (if needed). Quotation marks are op
 
 ```
 /translator where is the library
+```
+
+### Skills mid-message
+
+[Skills](/docs/guides/context-engineering/using-skills) can also be invoked mid-message, the same way Cursor-style skill mentions work. Built-in control commands such as `/compact` and `/clear` still require the start of the message.
+
+```
+fix the login bug /code-review focusing on auth
 ```
 
 When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly.

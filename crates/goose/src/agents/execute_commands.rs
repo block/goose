@@ -61,6 +61,21 @@ pub struct ParsedSlashCommand<'a> {
     pub params_str: &'a str,
 }
 
+/// A skill slash token found anywhere in the message (Cursor-style).
+///
+/// Unlike [`parse_slash_command`], this can match mid-message when `/name` sits
+/// at a whitespace token boundary and `name` is a known skill. Builtins such as
+/// `/compact` are intentionally excluded from mid-message matching.
+pub struct InlineSkillCommand<'a> {
+    pub command: &'a str,
+    /// Text after the skill token (trimmed of leading whitespace).
+    pub args: &'a str,
+    /// Text before the skill token (trimmed of trailing whitespace).
+    pub prefix: &'a str,
+    /// Byte range of `/command` within the original message.
+    pub span: std::ops::Range<usize>,
+}
+
 pub fn parse_slash_command(message_text: &str) -> Option<ParsedSlashCommand<'_>> {
     let mut trimmed = message_text.trim();
 
@@ -82,6 +97,92 @@ pub fn parse_slash_command(message_text: &str) -> Option<ParsedSlashCommand<'_>>
         command,
         params_str,
     })
+}
+
+fn is_skill_command_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':')
+}
+
+/// Compose surrounding user text into the skill args string.
+///
+/// Prefix and trailing args are joined with a single space so skill placeholders
+/// (`$ARGUMENTS`, `$1`, …) still see one coherent argument blob.
+pub fn compose_inline_skill_args(prefix: &str, args: &str) -> String {
+    [prefix, args]
+        .into_iter()
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Find the first whitespace-bounded `/skill-name` token whose name is accepted
+/// by `is_skill`.
+///
+/// Rules:
+/// - `/` must start a token (start of string or preceded by whitespace)
+/// - name chars: ASCII alnum plus `-_.:` (plugin skills use `:`)
+/// - path-like `/usr/bin` is rejected (name followed immediately by `/`)
+/// - only the first matching skill is returned
+pub fn find_inline_skill_command<'a, F>(
+    message_text: &'a str,
+    mut is_skill: F,
+) -> Option<InlineSkillCommand<'a>>
+where
+    F: FnMut(&str) -> bool,
+{
+    let mut prev_was_whitespace = true;
+    let mut chars = message_text.char_indices().peekable();
+
+    while let Some((i, ch)) = chars.next() {
+        if ch == '/' && prev_was_whitespace {
+            let name_start = i + ch.len_utf8();
+            let mut name_end = name_start;
+
+            while let Some(&(j, c)) = chars.peek() {
+                if is_skill_command_name_char(c) {
+                    name_end = j + c.len_utf8();
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+
+            if name_end > name_start {
+                // Indices come from char_indices(); slicing on those boundaries is safe.
+                let Some(after_name) = message_text.get(name_end..) else {
+                    prev_was_whitespace = false;
+                    continue;
+                };
+                // `/usr/bin`-style paths: reject when another `/` follows immediately.
+                if after_name.starts_with('/') {
+                    prev_was_whitespace = false;
+                    continue;
+                }
+
+                let Some(name) = message_text.get(name_start..name_end) else {
+                    prev_was_whitespace = false;
+                    continue;
+                };
+                if is_skill(name) {
+                    let prefix = message_text.get(..i).unwrap_or("").trim_end();
+                    return Some(InlineSkillCommand {
+                        command: name,
+                        args: after_name.trim_start(),
+                        prefix,
+                        span: i..name_end,
+                    });
+                }
+            }
+
+            prev_was_whitespace = false;
+            continue;
+        }
+
+        prev_was_whitespace = ch.is_whitespace();
+    }
+
+    None
 }
 
 pub fn list_commands() -> &'static [CommandDef] {
@@ -110,43 +211,79 @@ impl Agent {
         message_text: &str,
         session_id: &str,
     ) -> Result<Option<Message>> {
-        let Some(parsed) = parse_slash_command(message_text) else {
+        if let Some(parsed) = parse_slash_command(message_text) {
+            let command = parsed.command;
+            let params_str = parsed.params_str;
+
+            let params: Vec<&str> = if params_str.is_empty() {
+                vec![]
+            } else {
+                params_str.split_whitespace().collect()
+            };
+
+            return match command {
+                "prompts" => self.handle_prompts_command(&params, session_id).await,
+                "prompt" => self.handle_prompt_command(&params, session_id).await,
+                "compact" => self.handle_compact_command(session_id).await,
+                "clear" => self.handle_clear_command(session_id).await,
+                "skills" => self.handle_skills_command(session_id).await,
+                "doctor" => Ok(Some(crate::doctor::run(self, session_id).await?)),
+                "status" => self.handle_status_command(session_id).await,
+                "goal" => self.handle_goal_command(params_str).await,
+                "grind" => self.handle_grind_command(params_str).await,
+                _ => {
+                    if let Some(message) = self
+                        .handle_recipe_command(command, params_str, session_id)
+                        .await?
+                    {
+                        #[cfg(feature = "telemetry")]
+                        crate::posthog::emit_custom_slash_command_used();
+                        return Ok(Some(message));
+                    }
+
+                    self.handle_skill_command(command, params_str, session_id)
+                        .await
+                }
+            };
+        }
+
+        // Mid-message skill slash: "fix login /code-review focusing on auth"
+        self.handle_inline_skill_command(message_text, session_id)
+            .await
+    }
+
+    async fn handle_inline_skill_command(
+        &self,
+        message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<Message>> {
+        let working_dir = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .ok()
+            .map(|session| session.working_dir);
+
+        let skills = skill_slash_command::list_commands(working_dir.as_deref());
+        let Some(inline) = find_inline_skill_command(message_text, |name| {
+            skills
+                .iter()
+                .any(|skill| skill.name.eq_ignore_ascii_case(name))
+        }) else {
             return Ok(None);
         };
 
-        let command = parsed.command;
-        let params_str = parsed.params_str;
+        // Prefer the installed skill's canonical casing.
+        let command = skills
+            .iter()
+            .find(|skill| skill.name.eq_ignore_ascii_case(inline.command))
+            .map(|skill| skill.name.as_str())
+            .unwrap_or(inline.command);
+        let params_str = compose_inline_skill_args(inline.prefix, inline.args);
 
-        let params: Vec<&str> = if params_str.is_empty() {
-            vec![]
-        } else {
-            params_str.split_whitespace().collect()
-        };
-
-        match command {
-            "prompts" => self.handle_prompts_command(&params, session_id).await,
-            "prompt" => self.handle_prompt_command(&params, session_id).await,
-            "compact" => self.handle_compact_command(session_id).await,
-            "clear" => self.handle_clear_command(session_id).await,
-            "skills" => self.handle_skills_command(session_id).await,
-            "doctor" => Ok(Some(crate::doctor::run(self, session_id).await?)),
-            "status" => self.handle_status_command(session_id).await,
-            "goal" => self.handle_goal_command(params_str).await,
-            "grind" => self.handle_grind_command(params_str).await,
-            _ => {
-                if let Some(message) = self
-                    .handle_recipe_command(command, params_str, session_id)
-                    .await?
-                {
-                    #[cfg(feature = "telemetry")]
-                    crate::posthog::emit_custom_slash_command_used();
-                    return Ok(Some(message));
-                }
-
-                self.handle_skill_command(command, params_str, session_id)
-                    .await
-            }
-        }
+        self.handle_skill_command(command, &params_str, session_id)
+            .await
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
@@ -533,6 +670,84 @@ mod tests {
         let parsed = parse_slash_command("/speckit.plan\nhello").unwrap();
         assert_eq!(parsed.command, "speckit.plan\nhello");
         assert_eq!(parsed.params_str, "");
+    }
+
+    fn known_skill(name: &str) -> bool {
+        matches!(
+            name.to_ascii_lowercase().as_str(),
+            "code-review" | "deploy" | "plugin:triage"
+        )
+    }
+
+    #[test]
+    fn find_inline_skill_at_start_of_message() {
+        let found = find_inline_skill_command("/code-review auth paths", known_skill).unwrap();
+        assert_eq!(found.command, "code-review");
+        assert_eq!(found.args, "auth paths");
+        assert_eq!(found.prefix, "");
+        assert_eq!(found.span, 0..12);
+    }
+
+    #[test]
+    fn find_inline_skill_mid_message_with_prefix_and_args() {
+        let found =
+            find_inline_skill_command("fix login /code-review focusing on auth", known_skill)
+                .unwrap();
+        assert_eq!(found.command, "code-review");
+        assert_eq!(found.prefix, "fix login");
+        assert_eq!(found.args, "focusing on auth");
+        assert_eq!(
+            compose_inline_skill_args(found.prefix, found.args),
+            "fix login focusing on auth"
+        );
+    }
+
+    #[test]
+    fn find_inline_skill_ignores_unknown_and_builtins() {
+        assert!(find_inline_skill_command("please /compact now", known_skill).is_none());
+        assert!(find_inline_skill_command("run /unknown-skill please", known_skill).is_none());
+    }
+
+    #[test]
+    fn find_inline_skill_ignores_urls_and_paths() {
+        assert!(
+            find_inline_skill_command("see https://example.com/code-review", known_skill).is_none()
+        );
+        assert!(find_inline_skill_command("open /usr/bin/code-review", known_skill).is_none());
+        assert!(find_inline_skill_command("path /code-review/extra", known_skill).is_none());
+    }
+
+    #[test]
+    fn find_inline_skill_takes_first_match_only() {
+        let found =
+            find_inline_skill_command("do /deploy then /code-review please", known_skill).unwrap();
+        assert_eq!(found.command, "deploy");
+        assert_eq!(found.args, "then /code-review please");
+    }
+
+    #[test]
+    fn find_inline_skill_supports_plugin_colon_names() {
+        let found =
+            find_inline_skill_command("please /plugin:triage this PR", known_skill).unwrap();
+        assert_eq!(found.command, "plugin:triage");
+        assert_eq!(found.args, "this PR");
+    }
+
+    #[test]
+    fn find_inline_skill_is_case_insensitive_via_predicate() {
+        let found = find_inline_skill_command("run /Code-Review now", known_skill).unwrap();
+        assert_eq!(found.command, "Code-Review");
+    }
+
+    #[test]
+    fn compose_inline_skill_args_joins_nonempty_parts() {
+        assert_eq!(
+            compose_inline_skill_args("fix login", "auth"),
+            "fix login auth"
+        );
+        assert_eq!(compose_inline_skill_args("", "auth"), "auth");
+        assert_eq!(compose_inline_skill_args("fix login", ""), "fix login");
+        assert_eq!(compose_inline_skill_args("  ", "  "), "");
     }
 
     #[test]

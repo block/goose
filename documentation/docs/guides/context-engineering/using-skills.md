@@ -16,6 +16,9 @@ When a session starts, goose adds discovered skill names and descriptions to its
   - "Use the code-review skill to review this PR"
   - "Follow the new-service skill to set up the auth service"
   - "Apply the deployment skill"
+- You invoke a skill with a slash command at the start of a message **or mid-message**:
+  - `/code-review review the auth changes`
+  - `fix the login bug /code-review focusing on auth`
 
 You can also ask goose what skills are available, run `goose skills list`, or use the CLI `/skills` command to list available skills and load one or more by name:
 

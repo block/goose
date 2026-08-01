@@ -738,19 +738,40 @@ export default function ChatInput({
     cursorPosition: number,
     textArea: HTMLTextAreaElement
   ) => {
-    const isSlashCommand = text.startsWith('/');
     const beforeCursor = text.slice(0, cursorPosition);
-    const lastAtIndex = isSlashCommand ? 0 : beforeCursor.lastIndexOf('@');
 
-    if (lastAtIndex === -1) {
-      // No @ found, close mention popover
-      setMentionPopover((prev) => ({ ...prev, isOpen: false }));
-      return;
+    // Prefer an active @-mention token before the cursor (files/agents).
+    // Slash skills may appear mid-message at a whitespace token boundary,
+    // matching Cursor-style skill invocation.
+    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    const atIsActive =
+      lastAtIndex !== -1 &&
+      (lastAtIndex === 0 || /\s/.test(beforeCursor[lastAtIndex - 1] ?? '')) &&
+      !beforeCursor.slice(lastAtIndex + 1).match(/[\s\n]/);
+
+    let triggerIndex = -1;
+    let isSlashCommand = false;
+    let query = '';
+
+    if (atIsActive) {
+      triggerIndex = lastAtIndex;
+      isSlashCommand = false;
+      query = beforeCursor.slice(lastAtIndex + 1);
+    } else {
+      const lastSlashIndex = beforeCursor.lastIndexOf('/');
+      const slashIsActive =
+        lastSlashIndex !== -1 &&
+        (lastSlashIndex === 0 || /\s/.test(beforeCursor[lastSlashIndex - 1] ?? '')) &&
+        !beforeCursor.slice(lastSlashIndex + 1).match(/[\s\n/]/);
+
+      if (slashIsActive) {
+        triggerIndex = lastSlashIndex;
+        isSlashCommand = true;
+        query = beforeCursor.slice(lastSlashIndex + 1);
+      }
     }
 
-    // Check if there's a space between @ and cursor (which would end the mention)
-    const afterAt = beforeCursor.slice(lastAtIndex + 1);
-    if (afterAt.includes(' ') || afterAt.includes('\n')) {
+    if (triggerIndex === -1) {
       setMentionPopover((prev) => ({ ...prev, isOpen: false }));
       return;
     }
@@ -765,8 +786,8 @@ export default function ChatInput({
         x: textAreaRect.left,
         y: textAreaRect.top, // Position at the top of the textarea
       },
-      query: afterAt,
-      mentionStart: lastAtIndex,
+      query,
+      mentionStart: triggerIndex,
       selectedIndex: 0, // Reset selection when query changes
       isSlashCommand,
       // filteredFiles will be populated by the MentionPopover component
@@ -1293,22 +1314,25 @@ export default function ChatInput({
   };
 
   const handleMentionItemSelect = (itemText: string) => {
-    // Replace the @ mention with the file path
+    // Replace the active @ or / token (from trigger through typed query).
+    // itemText already includes the leading @ or / from MentionPopover.
     const beforeMention = displayValue.slice(0, mentionPopover.mentionStart);
     const afterMention = displayValue.slice(
       mentionPopover.mentionStart + 1 + mentionPopover.query.length
     );
-    const newValue = `${beforeMention}${itemText}${afterMention}`;
+    // Ensure a trailing space after slash insertions so the user can keep typing args.
+    const insertion =
+      mentionPopover.isSlashCommand && !itemText.endsWith(' ') ? `${itemText} ` : itemText;
+    const newValue = `${beforeMention}${insertion}${afterMention}`;
 
     setDisplayValue(newValue);
     setValue(newValue);
     setMentionPopover((prev) => ({ ...prev, isOpen: false }));
     textAreaRef.current?.focus();
 
-    // Set cursor position after the inserted file path
     setTimeout(() => {
       if (textAreaRef.current) {
-        const newCursorPosition = beforeMention.length + itemText.length;
+        const newCursorPosition = beforeMention.length + insertion.length;
         textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
       }
     }, 0);

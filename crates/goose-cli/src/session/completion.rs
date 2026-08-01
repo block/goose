@@ -420,7 +420,7 @@ impl Completer for GooseCompleter {
             return Ok((pos, vec![]));
         }
 
-        // If the line starts with '/', it might be a slash command
+        // Start-of-line slash commands keep their specialized completions.
         if line.starts_with('/') {
             // If it's just a partial slash command (no space yet)
             if !line.contains(' ') {
@@ -500,9 +500,70 @@ impl Completer for GooseCompleter {
             return Ok((pos, vec![]));
         }
 
+        // Mid-message skill/slash token (Cursor-style): complete the trailing
+        // `/partial` token even when the line has a prose prefix. Prefer skills
+        // (execution only expands known skills mid-line) and fall back to
+        // builtins/recipes listed by complete_slash_commands.
+        if let Some((token_start, token)) = trailing_slash_token(line) {
+            return self.complete_inline_slash_token(token_start, token);
+        }
+
         // For normal text (not slash commands), try file path completion
         self.complete_file_path(line, ctx)
     }
+}
+
+impl GooseCompleter {
+    fn complete_inline_slash_token(
+        &self,
+        token_start: usize,
+        token: &str,
+    ) -> Result<(usize, Vec<Pair>)> {
+        use goose::skills::list_installed_skills;
+
+        let partial = token.strip_prefix('/').unwrap_or(token).to_lowercase();
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let mut candidates: Vec<Pair> = list_installed_skills(Some(&cwd))
+            .into_iter()
+            .filter(|skill| skill.name.to_lowercase().starts_with(&partial))
+            .map(|skill| Pair {
+                display: format!("/{}", skill.name),
+                replacement: format!("/{} ", skill.name),
+            })
+            .collect();
+
+        let (_, builtin_candidates) = self.complete_slash_commands(token)?;
+        for candidate in builtin_candidates {
+            if !candidates
+                .iter()
+                .any(|existing| existing.display == candidate.display)
+            {
+                candidates.push(candidate);
+            }
+        }
+
+        candidates.sort_by(|a, b| a.display.cmp(&b.display));
+        Ok((token_start, candidates))
+    }
+}
+
+/// If `line` ends with a whitespace-bounded `/token` (no spaces after `/`),
+/// return `(byte_index_of_slash, token_slice)`.
+fn trailing_slash_token(line: &str) -> Option<(usize, &str)> {
+    let slash = line.rfind('/')?;
+    if slash > 0 {
+        let before = line.get(..slash)?.chars().next_back()?;
+        if !before.is_whitespace() {
+            return None;
+        }
+    }
+    let token = line.get(slash..)?;
+    // `/` is ASCII, so skipping one byte is a valid UTF-8 boundary.
+    let after_slash = token.get(1..)?;
+    if after_slash.chars().any(|c| c.is_whitespace()) {
+        return None;
+    }
+    Some((slash, token))
 }
 
 // Implement the Helper trait which is required by rustyline
@@ -692,6 +753,37 @@ mod tests {
         // Test no match
         let (_pos, candidates) = completer.complete_slash_commands("/nonexistent").unwrap();
         assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn trailing_slash_token_finds_mid_message_token() {
+        assert_eq!(trailing_slash_token("fix login /code"), Some((10, "/code")));
+        assert_eq!(trailing_slash_token("/code"), Some((0, "/code")));
+        assert_eq!(trailing_slash_token("no slash here"), None);
+        assert_eq!(trailing_slash_token("path/like"), None);
+        assert_eq!(trailing_slash_token("done /code-review now"), None);
+    }
+
+    #[test]
+    fn complete_mid_message_slash_token_returns_token_start() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+        let line = "please /ex";
+        let (token_start, token) = trailing_slash_token(line).expect("mid-message slash token");
+        let (pos, candidates) = completer
+            .complete_inline_slash_token(token_start, token)
+            .unwrap();
+        assert_eq!(pos, "please ".len());
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| candidate.display == "/exit"),
+            "expected /exit among {:?}",
+            candidates
+                .iter()
+                .map(|candidate| candidate.display.as_str())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
