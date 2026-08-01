@@ -65,7 +65,8 @@ impl OpenRouterProvider {
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
-            .with_header("X-Title", "goose")?;
+            .with_header("X-Title", "goose")?
+            .with_header("X-OpenRouter-Categories", "cli-agent,productivity")?;
 
         Ok(Self {
             api_client,
@@ -321,10 +322,13 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        // Add user field for OpenRouter attribution/rate-limiting
         if !session_id.is_empty() {
             if let Some(obj) = payload.as_object_mut() {
                 obj.insert("user".to_string(), Value::String(session_id.to_string()));
+                obj.insert(
+                    "session_id".to_string(),
+                    Value::String(session_id.to_string()),
+                );
             }
         }
 
