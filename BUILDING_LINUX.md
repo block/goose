@@ -46,7 +46,6 @@ cargo build --release -p goose-cli --bin goose --no-default-features --features 
 > **Note:** The musl/portable build disables `local-inference` (V8) and
 > `system-keyring` (D-Bus SecretService) since neither is available on Android.
 
-Community builds: https://github.com/shawn111/goose/releases/download/termux/goose-termux-aarch64.tar.bz2
 Original PR: https://github.com/aaif-goose/goose/pull/3890
 
 ### Development Tools
