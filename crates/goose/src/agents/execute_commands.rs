@@ -275,8 +275,17 @@ impl Agent {
                         return Ok(Some(message));
                     }
 
-                    self.handle_skill_command(command, params_str, session_id)
-                        .await
+                    // Known skills go through the multi-skill expander so a
+                    // leading `/a /b prose` loads every skill, not only the first.
+                    // Unknown leading tokens still fall through as plain text.
+                    if let Some(message) = self
+                        .handle_inline_skill_command(message_text, session_id)
+                        .await?
+                    {
+                        return Ok(Some(message));
+                    }
+
+                    Ok(None)
                 }
             };
         }
@@ -639,27 +648,6 @@ impl Agent {
         }
     }
 
-    async fn handle_skill_command(
-        &self,
-        command: &str,
-        params_str: &str,
-        session_id: &str,
-    ) -> Result<Option<Message>> {
-        let working_dir = self
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .ok()
-            .map(|session| session.working_dir);
-
-        match skill_slash_command::resolve_command(command, params_str, working_dir.as_deref()) {
-            Ok(None) => Ok(None),
-            Ok(Some(prompt)) => Ok(Some(Message::user().with_text(prompt))),
-            Err(text) => Ok(Some(Message::assistant().with_text(text))),
-        }
-    }
-
     async fn handle_goal_command(&self, params_str: &str) -> Result<Option<Message>> {
         if params_str.is_empty() {
             let current = self.get_goal().await;
@@ -792,6 +780,22 @@ mod tests {
         assert_eq!(
             user_text_without_skill_tokens(text, &found),
             "do then please"
+        );
+    }
+
+    #[test]
+    fn find_inline_skill_leading_multi_skill_strips_all_tokens() {
+        // Leading-slash prompts used to expand only the first skill via
+        // parse_slash_command; multi-skill expansion must cover this shape too.
+        let text = "/code-review /deploy review this PR";
+        let found = find_inline_skill_commands(text, known_skill);
+        assert_eq!(
+            found.iter().map(|skill| skill.command).collect::<Vec<_>>(),
+            vec!["code-review", "deploy"]
+        );
+        assert_eq!(
+            user_text_without_skill_tokens(text, &found),
+            "review this PR"
         );
     }
 
