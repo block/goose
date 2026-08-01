@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use goose::agents::{Agent, AgentEvent, GoosePlatform};
-use goose::config::extensions::{ExtensionEntry, set_extension};
+use goose::config::extensions::{set_extension, ExtensionEntry};
 
 #[cfg(test)]
 mod tests {
@@ -14,10 +14,10 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use chrono::{DateTime, Utc};
-        use goose::agents::AgentConfig;
         use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
-        use goose::config::GooseMode;
+        use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::scheduler::{ScheduledJob, SchedulerError, ValidatedScheduleRecipe};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
@@ -238,12 +238,11 @@ mod tests {
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
-            assert!(
-                tool.description
-                    .clone()
-                    .unwrap_or_default()
-                    .contains("Manage goose's internal scheduled recipe execution")
-            );
+            assert!(tool
+                .description
+                .clone()
+                .unwrap_or_default()
+                .contains("Manage goose's internal scheduled recipe execution"));
         }
 
         #[tokio::test]
@@ -285,12 +284,11 @@ mod tests {
             assert!(schedule_tool.is_some());
 
             let tool = schedule_tool.unwrap();
-            assert!(
-                tool.description
-                    .clone()
-                    .unwrap_or_default()
-                    .contains("Manage goose's internal scheduled recipe execution")
-            );
+            assert!(tool
+                .description
+                .clone()
+                .unwrap_or_default()
+                .contains("Manage goose's internal scheduled recipe execution"));
 
             // Verify the tool has the expected actions in its schema
             if let Some(properties) = tool.input_schema.get("properties") {
@@ -347,14 +345,12 @@ mod tests {
                         session_id_prop.get("type").unwrap().as_str().unwrap(),
                         "string"
                     );
-                    assert!(
-                        session_id_prop
-                            .get("description")
-                            .unwrap()
-                            .as_str()
-                            .unwrap()
-                            .contains("Session identifier for session_content action")
-                    );
+                    assert!(session_id_prop
+                        .get("description")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .contains("Session identifier for session_content action"));
                 }
             }
         }
@@ -465,11 +461,9 @@ mod tests {
                 validation_result.is_err(),
                 "Should validate max_retries > 0"
             );
-            assert!(
-                validation_result
-                    .unwrap_err()
-                    .contains("max_retries must be greater than 0")
-            );
+            assert!(validation_result
+                .unwrap_err()
+                .contains("max_retries must be greater than 0"));
 
             Ok(())
         }
@@ -501,7 +495,7 @@ mod tests {
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
         use goose::session::session_manager::SessionType;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -660,14 +654,14 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentConfig, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
-        use goose::session::SessionManager;
         use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -841,12 +835,12 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentConfig, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::base::Config;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
         use goose::session::{SessionManager, SessionType};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -854,8 +848,8 @@ mod tests {
         use goose_providers::model::ModelConfig;
         use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
         use std::path::PathBuf;
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
 
         /// Mock provider that returns text for the main reply and summaries for
         /// summarization calls. Distinguishes by checking if tools are empty
@@ -1103,13 +1097,13 @@ mod tests {
     #[cfg(test)]
     mod extension_manager_tests {
         use super::*;
-        use goose::agents::AgentConfig;
         use goose::agents::extension::ExtensionConfig;
         use goose::agents::platform_extensions::{
             MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
         };
-        use goose::config::GooseMode;
+        use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::session::SessionManager;
 
         async fn setup_agent_with_extension_manager() -> (Agent, String) {
@@ -1202,12 +1196,12 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentConfig, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
-        use goose::session::SessionManager;
         use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -1472,12 +1466,12 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentConfig, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
         use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
-        use goose::session::SessionManager;
         use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -1632,7 +1626,7 @@ mod tests {
 
         fn assert_formatter_adds_reasoning_to_tool_calls(messages: &[Message], provider: &str) {
             use goose_providers::formats::openai::{
-                OpenAiFormatOptions, format_messages_with_options,
+                format_messages_with_options, OpenAiFormatOptions,
             };
             use goose_providers::images::ImageFormat;
 
@@ -1930,10 +1924,10 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_multi_tool_response_preserves_reasoning_and_message_id_correlation()
-        -> Result<()> {
+        async fn test_multi_tool_response_preserves_reasoning_and_message_id_correlation(
+        ) -> Result<()> {
             use goose_providers::formats::openai::{
-                OpenAiFormatOptions, format_messages_with_options,
+                format_messages_with_options, OpenAiFormatOptions,
             };
             use goose_providers::images::ImageFormat;
 
@@ -2185,14 +2179,14 @@ mod tests {
         use async_trait::async_trait;
         use goose::agents::AgentConfig;
         use goose::agents::SessionConfig;
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
-        use goose::session::SessionManager;
         use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -2777,12 +2771,12 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use goose::agents::{AgentConfig, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::providers::base::{MessageStream, Provider, stream_from_single_message};
-        use goose::session::SessionManager;
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
         use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
         use goose_providers::model::ModelConfig;
@@ -2891,8 +2885,8 @@ mod tests {
     mod frontend_extension_tests {
         use super::*;
         use goose::agents::{AgentConfig, ExtensionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
         use goose::session::session_manager::SessionType;
         use goose::session::{
             EnabledExtensionsState, ExtensionData, ExtensionState, SessionManager,
@@ -2957,11 +2951,9 @@ mod tests {
                 .unwrap();
 
             let listed_tools = agent.list_tools(&session.id, None).await;
-            assert!(
-                listed_tools
-                    .iter()
-                    .any(|tool| tool.name == "frontend__echo")
-            );
+            assert!(listed_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__echo"));
 
             let filtered_tools = agent
                 .list_tools(&session.id, Some("frontend-e2e".to_string()))
@@ -2980,11 +2972,9 @@ mod tests {
                 EnabledExtensionsState::from_extension_data(&persisted_session.extension_data)
                     .unwrap()
                     .extensions;
-            assert!(
-                persisted_extensions
-                    .iter()
-                    .any(|extension| extension.name() == "frontend-e2e")
-            );
+            assert!(persisted_extensions
+                .iter()
+                .any(|extension| extension.name() == "frontend-e2e"));
 
             agent
                 .remove_extension("frontend-e2e", &session.id)
@@ -2992,11 +2982,9 @@ mod tests {
                 .unwrap();
 
             let listed_tools = agent.list_tools(&session.id, None).await;
-            assert!(
-                !listed_tools
-                    .iter()
-                    .any(|tool| tool.name == "frontend__echo")
-            );
+            assert!(!listed_tools
+                .iter()
+                .any(|tool| tool.name == "frontend__echo"));
 
             let persisted_session = session_manager
                 .get_session(&session.id, false)
@@ -3006,11 +2994,9 @@ mod tests {
                 EnabledExtensionsState::from_extension_data(&persisted_session.extension_data)
                     .unwrap()
                     .extensions;
-            assert!(
-                persisted_extensions
-                    .iter()
-                    .all(|extension| extension.name() != "frontend-e2e")
-            );
+            assert!(persisted_extensions
+                .iter()
+                .all(|extension| extension.name() != "frontend-e2e"));
         }
 
         #[tokio::test]
@@ -3090,7 +3076,7 @@ mod tests {
         use goose::agents::{AgentConfig, SessionConfig};
         use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
         use goose::conversation::message::{Message, MessageContent};
-        use goose::providers::base::{MessageStream, Provider, stream_from_single_message};
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
         use goose::session::{SessionManager, SessionType};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
@@ -3246,12 +3232,12 @@ mod tests {
         use async_trait::async_trait;
         use goose::agents::final_output_tool::FINAL_OUTPUT_TOOL_NAME;
         use goose::agents::{AgentConfig, AgentEvent, GoosePlatform, SessionConfig};
-        use goose::config::GooseMode;
         use goose::config::permission::PermissionManager;
-        use goose::conversation::Conversation;
+        use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
+        use goose::conversation::Conversation;
         use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, stream_from_single_message,
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
         use goose::session::session_manager::SessionType;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -3260,8 +3246,8 @@ mod tests {
         use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
 
         fn usage() -> ProviderUsage {
             ProviderUsage::new(
