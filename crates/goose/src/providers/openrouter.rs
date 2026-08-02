@@ -1,8 +1,8 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -15,7 +15,7 @@ use goose_providers::cache_semantics::{apply_chat_payload_breakpoints, CacheSema
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use goose_providers::request_log::{LoggerHandleExt, start_log};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -294,6 +294,12 @@ impl Provider for OpenRouterProvider {
             obj.insert("usage".to_string(), json!({ "include": true }));
         }
 
+        // Models like thinkingmachines/inkling advertise tools at the model level, but some
+        // OpenRouter backends (e.g. DeepInfra) do not implement tool calling. Without
+        // require_parameters, OpenRouter may still route tool requests there and the model
+        // answers as plain text / ignores tools — which looks like "strange" agent behavior.
+        ensure_tool_compatible_routing(&mut payload);
+
         let mut log = start_log(model_config, &payload)?;
 
         let response = match self.post_chat_completions(model_config, &payload).await {
@@ -312,6 +318,43 @@ impl Provider for OpenRouterProvider {
         })?;
 
         stream_openai_compat(response, log)
+    }
+}
+
+/// When the request includes tools, force OpenRouter to only use providers that support every
+/// request parameter (including `tools`). Leaves an explicit user `provider` object alone if it
+/// already sets `require_parameters`.
+fn ensure_tool_compatible_routing(payload: &mut Value) {
+    let has_tools = payload
+        .get("tools")
+        .and_then(|tools| tools.as_array())
+        .is_some_and(|tools| !tools.is_empty());
+    if !has_tools {
+        return;
+    }
+
+    let Some(obj) = payload.as_object_mut() else {
+        return;
+    };
+
+    match obj.get_mut("provider") {
+        Some(Value::Object(provider)) => {
+            provider.entry("require_parameters").or_insert(json!(true));
+        }
+        Some(_) => {
+            // Non-object provider values are invalid for OpenRouter; replace with the constraint
+            // goose needs for tool-capable routing.
+            obj.insert(
+                "provider".to_string(),
+                json!({ "require_parameters": true }),
+            );
+        }
+        None => {
+            obj.insert(
+                "provider".to_string(),
+                json!({ "require_parameters": true }),
+            );
+        }
     }
 }
 
@@ -338,10 +381,12 @@ mod tests {
     fn metadata_includes_openrouter_parameters_config_key() {
         let metadata = OpenRouterProvider::metadata();
 
-        assert!(metadata
-            .config_keys
-            .iter()
-            .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY));
+        assert!(
+            metadata
+                .config_keys
+                .iter()
+                .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY)
+        );
     }
 
     #[test]
@@ -371,9 +416,10 @@ mod tests {
     fn parse_openrouter_parameters_rejects_non_object_json_string() {
         let err = parse_openrouter_parameters(json!(r#"["web"]"#)).unwrap_err();
 
-        assert!(err
-            .to_string()
-            .contains("OPENROUTER_PARAMETERS must be a JSON object"));
+        assert!(
+            err.to_string()
+                .contains("OPENROUTER_PARAMETERS must be a JSON object")
+        );
     }
 
     #[test]
@@ -448,5 +494,79 @@ mod tests {
             .stream(&config, "system", &[Message::user().with_text("hi")], &[])
             .await
             .unwrap();
+    }
+
+    #[test]
+    fn ensure_tool_compatible_routing_adds_require_parameters_when_tools_present() {
+        let mut payload = json!({
+            "model": "thinkingmachines/inkling-small",
+            "messages": [],
+            "tools": [{
+                "type": "function",
+                "function": { "name": "shell", "parameters": { "type": "object" } }
+            }]
+        });
+
+        ensure_tool_compatible_routing(&mut payload);
+
+        assert_eq!(payload["provider"], json!({ "require_parameters": true }));
+    }
+
+    #[test]
+    fn ensure_tool_compatible_routing_skips_requests_without_tools() {
+        let mut payload = json!({
+            "model": "thinkingmachines/inkling-small",
+            "messages": []
+        });
+
+        ensure_tool_compatible_routing(&mut payload);
+
+        assert!(payload.get("provider").is_none());
+    }
+
+    #[test]
+    fn ensure_tool_compatible_routing_preserves_existing_provider_fields() {
+        let mut payload = json!({
+            "model": "thinkingmachines/inkling-small",
+            "messages": [],
+            "tools": [{
+                "type": "function",
+                "function": { "name": "shell", "parameters": { "type": "object" } }
+            }],
+            "provider": {
+                "order": ["together"],
+                "allow_fallbacks": false
+            }
+        });
+
+        ensure_tool_compatible_routing(&mut payload);
+
+        assert_eq!(
+            payload["provider"],
+            json!({
+                "order": ["together"],
+                "allow_fallbacks": false,
+                "require_parameters": true
+            })
+        );
+    }
+
+    #[test]
+    fn ensure_tool_compatible_routing_does_not_override_explicit_require_parameters() {
+        let mut payload = json!({
+            "model": "thinkingmachines/inkling-small",
+            "messages": [],
+            "tools": [{
+                "type": "function",
+                "function": { "name": "shell", "parameters": { "type": "object" } }
+            }],
+            "provider": {
+                "require_parameters": false
+            }
+        });
+
+        ensure_tool_compatible_routing(&mut payload);
+
+        assert_eq!(payload["provider"], json!({ "require_parameters": false }));
     }
 }
