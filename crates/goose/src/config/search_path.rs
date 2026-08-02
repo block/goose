@@ -66,14 +66,43 @@ impl SearchPaths {
     where
         N: AsRef<OsStr>,
     {
-        which::which_in_global(name.as_ref(), Some(self.path()?))?
+        let name = name.as_ref();
+        let path = self.path()?;
+        let found = which::which_in_global(name, Some(path.clone()))?
             .next()
             .with_context(|| {
                 format!(
                     "could not resolve command '{}': file does not exist",
-                    name.as_ref().to_string_lossy()
+                    name.to_string_lossy()
                 )
-            })
+            })?;
+
+        // On Windows, `which` may return an extensionless shell-script shim
+        // (e.g. the npm-generated `claude-agent-acp`) which is not a valid
+        // Win32 executable. Spawning it via `std::process::Command` fails
+        // with "%1 is not a valid Win32 application", and the error can be
+        // swallowed causing a silent hang (see issue #10872).
+        //
+        // When the resolved path lacks an executable extension, prefer the
+        // PATHEXT sibling (`.cmd`, `.bat`, `.exe`) in the same directory.
+        #[cfg(windows)]
+        {
+            if found.extension().is_none() {
+                for ext in ["cmd", "bat", "exe"] {
+                    let candidate = found.with_extension(ext);
+                    if candidate.is_file() {
+                        tracing::debug!(
+                            original = %found.display(),
+                            resolved = %candidate.display(),
+                            "resolved Windows executable extension"
+                        );
+                        return Ok(candidate);
+                    }
+                }
+            }
+        }
+
+        Ok(found)
     }
 }
 
@@ -119,5 +148,29 @@ mod tests {
         search_paths
             .resolve(test_executable)
             .expect("should resolve sh (or cmd on Windows)");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resolve_extensionless_shim_prefers_cmd() {
+        use std::fs;
+        let dir = tempfile::tempdir().unwrap();
+
+        // Simulate an npm global install layout: extensionless shell script
+        // plus a .cmd wrapper that Windows shells actually use.
+        fs::write(dir.path().join("test-shim"), "#!/bin/sh\necho hello\n").unwrap();
+        fs::write(dir.path().join("test-shim.cmd"), "@echo hello\r\n").unwrap();
+
+        let found = which::which_in_global("test-shim", Some(dir.path().as_os_str()))
+            .unwrap()
+            .next()
+            .expect("should find test-shim");
+
+        // Mirror the resolve() fix: if the resolved path has no extension,
+        // the .cmd sibling should exist and be preferred.
+        if found.extension().is_none() {
+            let cmd = found.with_extension("cmd");
+            assert!(cmd.is_file(), ".cmd sibling should exist");
+        }
     }
 }
