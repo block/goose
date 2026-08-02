@@ -137,6 +137,11 @@ const CACHE_CONTROL_FIELD: &str = "cache_control";
 const ID_FIELD: &str = "id";
 const NAME_FIELD: &str = "name";
 const INPUT_FIELD: &str = "input";
+/// Anthropic rejects `tool_use.name` past this length. History written by an ACP
+/// harness stores the call's display title as the name, and for shell calls that
+/// title is the whole command, so a replayed session can carry names far past the
+/// limit and 400 on every retry until it is clamped here.
+const MAX_TOOL_USE_NAME_CHARS: usize = 200;
 const TOOL_USE_ID_FIELD: &str = "tool_use_id";
 const IS_ERROR_FIELD: &str = "is_error";
 const SIGNATURE_FIELD: &str = "signature";
@@ -180,6 +185,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     format_messages_with_options(messages, AnthropicFormatOptions::default())
 }
 
+fn clamp_tool_use_name(name: &str) -> String {
+    name.chars().take(MAX_TOOL_USE_NAME_CHARS).collect()
+}
+
 fn format_messages_with_options(
     messages: &[Message],
     options: AnthropicFormatOptions,
@@ -209,7 +218,7 @@ fn format_messages_with_options(
                             content.push(json!({
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
-                                NAME_FIELD: tool_call.name,
+                                NAME_FIELD: clamp_tool_use_name(&tool_call.name),
                                 INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
@@ -377,7 +386,7 @@ fn format_messages_with_options(
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
-                            NAME_FIELD: tool_call.name,
+                            NAME_FIELD: clamp_tool_use_name(&tool_call.name),
                             INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }
@@ -1686,6 +1695,52 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    /// A session that ran on an ACP harness stores the call's display title as
+    /// the tool name, and for a shell call that title is the whole command. On
+    /// one reported machine those names reached 2143 characters, so every replay
+    /// of that history 400s on `tool_use.name` until the name is clamped.
+    #[test]
+    fn test_over_long_tool_name_is_clamped_to_the_provider_limit() {
+        let long_name = "g".repeat(2143);
+        let messages = vec![Message::assistant().with_tool_request(
+            "tool_1",
+            Ok(CallToolRequestParams::new(long_name.clone())
+                .with_arguments(object!({"command": "git commit"}))),
+        )];
+
+        let spec = format_messages(&messages);
+        let emitted = spec[0]["content"][0]["name"].as_str().unwrap();
+
+        assert_eq!(emitted.chars().count(), MAX_TOOL_USE_NAME_CHARS);
+        assert!(long_name.starts_with(emitted));
+    }
+
+    #[test]
+    fn test_tool_name_at_the_limit_is_left_alone() {
+        let exact_name = "g".repeat(MAX_TOOL_USE_NAME_CHARS);
+        let messages = vec![Message::assistant()
+            .with_tool_request("tool_1", Ok(CallToolRequestParams::new(exact_name.clone())))];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[0]["content"][0]["name"], exact_name);
+    }
+
+    /// The limit counts characters, so clamping a multibyte name by bytes would
+    /// either split a code point and panic or emit a name still over the limit.
+    #[test]
+    fn test_multibyte_tool_name_is_clamped_on_a_character_boundary() {
+        let multibyte_name = "ş".repeat(300);
+        let messages = vec![Message::assistant()
+            .with_tool_request("tool_1", Ok(CallToolRequestParams::new(multibyte_name)))];
+
+        let spec = format_messages(&messages);
+        let emitted = spec[0]["content"][0]["name"].as_str().unwrap();
+
+        assert_eq!(emitted.chars().count(), MAX_TOOL_USE_NAME_CHARS);
+        assert_eq!(emitted, "ş".repeat(MAX_TOOL_USE_NAME_CHARS));
     }
 
     #[test]
