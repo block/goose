@@ -98,6 +98,8 @@ describe('ScheduleModal', () => {
         expect.objectContaining({
           id: 'my-recipe',
           cron: expect.any(String),
+          sourceType: 'saved',
+          recipe: expect.objectContaining({ title: 'My Recipe' }),
         })
       );
     });
@@ -113,5 +115,47 @@ describe('ScheduleModal', () => {
     await waitFor(() => {
       expect(screen.getByText('No saved recipes found.')).toBeInTheDocument();
     });
+  });
+
+  it('surfaces recipe list failures instead of an empty state', async () => {
+    vi.mocked(listSavedRecipes).mockRejectedValue(new Error('ACP down'));
+    const user = userEvent.setup();
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Saved recipes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load recipes.')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No saved recipes found.')).not.toBeInTheDocument();
+  });
+
+  it('clears a previously parsed recipe when switching source tabs', async () => {
+    const user = userEvent.setup();
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Saved recipes' }));
+    await waitFor(() => {
+      expect(listSavedRecipes).toHaveBeenCalled();
+    });
+
+    const picker = within(screen.getByTestId('saved-recipe-picker'));
+    await user.click(await picker.findByRole('combobox'));
+    await user.click(await picker.findByRole('option', { name: 'My Recipe' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Title: My Recipe')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'YAML' }));
+    expect(screen.queryByText('Title: My Recipe')).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/name/i), 'stale-job');
+    await user.click(screen.getByRole('button', { name: 'Create Schedule' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Please provide a valid recipe source.')).toBeInTheDocument();
+    });
+    expect(baseProps.onSubmit).not.toHaveBeenCalled();
   });
 });

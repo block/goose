@@ -44,10 +44,13 @@ const i18n = defineMessages({
   provideValidRecipe: { id: 'scheduleModal.provideValidRecipe', defaultMessage: 'Please provide a valid recipe source.' },
 });
 
+type SourceType = 'file' | 'deeplink' | 'saved';
+
 export interface NewSchedulePayload {
   id: string;
   recipe: Recipe;
   cron: string;
+  sourceType: SourceType;
 }
 
 interface ScheduleModalProps {
@@ -59,8 +62,6 @@ interface ScheduleModalProps {
   apiErrorExternally: string | null;
   initialDeepLink: string | null;
 }
-
-type SourceType = 'file' | 'deeplink' | 'saved';
 
 const modalLabelClassName = 'block text-sm font-medium text-text-primary mb-1';
 
@@ -96,6 +97,25 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       .replace(/-+/g, '-');
     setScheduleId(cleanId);
   };
+
+  const clearRecipeSourceState = useCallback(() => {
+    setParsedRecipe(null);
+    setRecipeSourcePath('');
+    setDeepLinkInput('');
+    setSelectedSavedRecipeId(null);
+    setInternalValidationError(null);
+  }, []);
+
+  const handleSourceTypeChange = useCallback(
+    (next: SourceType) => {
+      if (next === sourceType) {
+        return;
+      }
+      clearRecipeSourceState();
+      setSourceType(next);
+    },
+    [clearRecipeSourceState, sourceType]
+  );
 
   const handleSelectSavedRecipe = useCallback((manifest: RecipeManifest | null) => {
     setSelectedSavedRecipeId(manifest?.id ?? null);
@@ -236,10 +256,26 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
 
+    if (sourceType === 'saved' && !selectedSavedRecipeId) {
+      setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
+      return;
+    }
+
+    if (sourceType === 'file' && !recipeSourcePath) {
+      setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
+      return;
+    }
+
+    if (sourceType === 'deeplink' && !deepLinkInput.trim()) {
+      setInternalValidationError(intl.formatMessage(i18n.provideValidRecipe));
+      return;
+    }
+
     const newSchedulePayload: NewSchedulePayload = {
       id: scheduleId.trim(),
       recipe: parsedRecipe,
       cron: cronExpression,
+      sourceType,
     };
 
     await onSubmit(newSchedulePayload);
@@ -316,7 +352,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
                     <button
                       type="button"
-                      onClick={() => setSourceType('file')}
+                      onClick={() => handleSourceTypeChange('file')}
                       className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                         sourceType === 'file'
                           ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
@@ -327,7 +363,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSourceType('deeplink')}
+                      onClick={() => handleSourceTypeChange('deeplink')}
                       className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                         sourceType === 'deeplink'
                           ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
@@ -338,7 +374,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSourceType('saved')}
+                      onClick={() => handleSourceTypeChange('saved')}
                       className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                         sourceType === 'saved'
                           ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'

@@ -296,8 +296,8 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         });
       } else {
         const newPayload = payload as NewSchedulePayload;
-        await acpCreateSchedule(newPayload);
-        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
+        const { sourceType, ...createRequest } = newPayload;
+        await acpCreateSchedule(createRequest);
         trackScheduleCreated(sourceType, true);
       }
       await fetchSchedules();
@@ -309,8 +309,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       setSubmitApiError(errorMsg);
 
       if (!editingSchedule) {
-        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
-        trackScheduleCreated(sourceType, false, getErrorType(error));
+        const failedSourceType =
+          typeof payload === 'object' && payload && 'sourceType' in payload
+            ? payload.sourceType
+            : pendingDeepLink
+              ? 'deeplink'
+              : 'file';
+        trackScheduleCreated(failedSourceType, false, getErrorType(error));
       }
     } finally {
       setIsSubmitting(false);
