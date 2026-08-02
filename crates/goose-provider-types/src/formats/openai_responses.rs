@@ -1351,6 +1351,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.2-codex".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1439,6 +1440,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.4".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1483,6 +1485,7 @@ mod tests {
             let model_config = ModelConfig {
                 model_name: model_name.to_string(),
                 context_limit: None,
+                context_limit_explicit: false,
                 temperature: None,
                 max_tokens: None,
                 toolshim: false,
@@ -1564,6 +1567,7 @@ mod tests {
             let model_config = ModelConfig {
                 model_name: model_name.to_string(),
                 context_limit: None,
+                context_limit_explicit: false,
                 temperature: None,
                 max_tokens: None,
                 toolshim: false,
@@ -1615,6 +1619,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1638,6 +1643,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "o3".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1666,6 +1672,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1715,6 +1722,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1752,6 +1760,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1784,6 +1793,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1815,6 +1825,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1849,6 +1860,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1888,6 +1900,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1914,6 +1927,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1946,6 +1960,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -1978,6 +1993,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -2121,6 +2137,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -2162,6 +2179,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -2194,6 +2212,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -2226,6 +2245,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -2264,6 +2284,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,

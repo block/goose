@@ -2794,6 +2794,7 @@ mod tests {
         let current_model_config = goose_providers::model::ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128_000),
+            context_limit_explicit: false,
             temperature: Some(0.25),
             max_tokens: Some(16_384),
             toolshim: true,

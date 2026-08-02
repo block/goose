@@ -1064,6 +1064,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1099,6 +1100,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1119,6 +1121,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "databricks-o3-mini".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1140,6 +1143,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "databricks-gpt-5.2-pro".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1159,6 +1163,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "o3-xhigh".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1178,6 +1183,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "o3-none".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1197,6 +1203,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "databricks-gpt-5.4-high".to_string(),
             context_limit: Some(4096),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
@@ -1687,6 +1694,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "databricks-claude-sonnet-4".to_string(),
             context_limit: Some(200000),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(8192),
             toolshim: false,
@@ -1740,6 +1748,7 @@ mod tests {
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
             context_limit: Some(128000),
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: Some(4096),
             toolshim: false,
