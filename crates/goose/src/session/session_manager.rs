@@ -2616,6 +2616,7 @@ mod tests {
         let json = serde_json::to_string(&ModelConfig {
             model_name: "gpt-5-high".to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,

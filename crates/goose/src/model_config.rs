@@ -63,9 +63,10 @@ fn materialize_model_config_inner(
         model = model.with_toolshim_model(get_goose_toolshim_model(config)?);
     }
 
-    model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?);
+    if let Some(context_limit) = config.get_goose_context_limit()? {
+        model = model.with_context_limit(Some(context_limit));
+    }
+    model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
@@ -185,6 +186,7 @@ fn base_model_config_from_user_config(
     let mut model = ModelConfig {
         model_name: model_name.to_string(),
         context_limit: None,
+        context_limit_explicit: false,
         temperature: get_goose_temperature(config)?,
         max_tokens: None,
         toolshim: get_goose_toolshim(config)?.unwrap_or(false),

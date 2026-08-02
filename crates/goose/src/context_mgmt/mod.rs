@@ -706,6 +706,7 @@ mod tests {
                 config: ModelConfig {
                     model_name: "test".to_string(),
                     context_limit: Some(context_limit),
+                    context_limit_explicit: false,
                     temperature: None,
                     max_tokens: None,
                     toolshim: false,

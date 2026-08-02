@@ -414,8 +414,10 @@ impl Provider for AcpProvider {
     }
 
     async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
-        if let Some(context_limit) = model_config.context_limit {
-            return Ok(context_limit);
+        if model_config.has_explicit_context_limit() {
+            if let Some(context_limit) = model_config.context_limit {
+                return Ok(context_limit);
+            }
         }
 
         let size = self.context_size.load(Ordering::Relaxed);
@@ -2018,10 +2020,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn derived_context_limit_does_not_override_captured_context_size() {
+        let (provider, mut model) = test_provider();
+        model.context_limit = Some(128_000);
+
+        provider.context_size.store(200_000, Ordering::Relaxed);
+
+        assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
+    }
+
+    #[tokio::test]
     async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let (provider, model) = test_provider_with_tx(Some(tx));
+
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),

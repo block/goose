@@ -27,6 +27,10 @@ const INHERITED_SESSION_PARAM_KEYS: &[&str] = &[
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
+    /// True when `context_limit` came from an explicit user/request override
+    /// rather than canonical model metadata or a provider default.
+    #[serde(default)]
+    pub context_limit_explicit: bool,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
@@ -51,6 +55,8 @@ impl<'de> Deserialize<'de> for ModelConfig {
         struct RawModelConfig {
             model_name: String,
             context_limit: Option<usize>,
+            #[serde(default)]
+            context_limit_explicit: bool,
             temperature: Option<f32>,
             max_tokens: Option<i32>,
             toolshim: bool,
@@ -65,6 +71,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
         let mut config = Self {
             model_name: raw.model_name,
             context_limit: raw.context_limit,
+            context_limit_explicit: raw.context_limit_explicit,
             temperature: raw.temperature,
             max_tokens: raw.max_tokens,
             toolshim: raw.toolshim,
@@ -83,6 +90,7 @@ impl ModelConfig {
         let mut config = Self {
             model_name: model_name.as_ref().to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
@@ -133,8 +141,13 @@ impl ModelConfig {
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
         if limit.is_some() {
             self.context_limit = limit;
+            self.context_limit_explicit = true;
         }
         self
+    }
+
+    pub fn has_explicit_context_limit(&self) -> bool {
+        self.context_limit.is_some() && self.context_limit_explicit
     }
 
     pub fn with_temperature(mut self, temp: Option<f32>) -> Self {

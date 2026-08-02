@@ -378,6 +378,7 @@ mod tests {
         ModelConfig {
             model_name: model_name.to_string(),
             context_limit: None,
+            context_limit_explicit: false,
             temperature: None,
             max_tokens: None,
             toolshim: false,
