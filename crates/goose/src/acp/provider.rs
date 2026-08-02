@@ -48,6 +48,15 @@ use goose_providers::model::ModelConfig;
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
 
+/// ACP exposes no canonical tool name to clients, and the display title it does
+/// expose is the whole shell command for an execute call. Storing that title as
+/// the tool name puts it on the wire whenever the session is later replayed to a
+/// provider, and Anthropic rejects a `tool_use.name` past 200 characters, which
+/// leaves the session permanently unable to send. The name is a wire identifier,
+/// so it is fixed here and the title travels in tool_meta for the renderer.
+const ACP_TOOL_NAME: &str = "acp_tool";
+const TOOL_META_ACP_TITLE_KEY: &str = "goose.acp.title";
+
 pub struct AcpProviderConfig {
     pub command: PathBuf,
     pub args: Vec<String>,
@@ -559,17 +568,18 @@ impl Provider for AcpProvider {
                             suppress_text = true;
                             rejected_tool_calls.insert(id);
                         } else {
-                            let mut params = CallToolRequestParams::new(name);
+                            let mut params = CallToolRequestParams::new(ACP_TOOL_NAME);
                             if let Some(serde_json::Value::Object(map)) = raw_input {
                                 params = params.with_arguments(map);
                             }
                             // external_dispatch tells the agent loop not to redispatch this
                             // call. goose.acp.kind preserves ACP's stable categorization for
-                            // downstream consumers (metrics, observability, icon selection)
-                            // independent of the display title we put in `name`.
+                            // downstream consumers (metrics, observability, icon selection),
+                            // and goose.acp.title carries what the harness wants shown.
                             let tool_meta = Some(serde_json::json!({
                                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                                 "goose.acp.kind": kind,
+                                TOOL_META_ACP_TITLE_KEY: name,
                             }));
                             let message = Message::assistant().with_tool_request_with_metadata(
                                 id,
@@ -862,11 +872,10 @@ impl AcpClientLoop {
                                             None
                                         };
                                     // ACP carries no canonical tool name to clients — only
-                                    // `title` (display) and `kind` (category). We pass `title`
-                                    // for renderer affordance, surface `kind` separately via
-                                    // tool_meta for stable categorization, and the
-                                    // goose.external_dispatch marker keeps `name` off the
-                                    // agent loop's routing/auth paths.
+                                    // `title` (display) and `kind` (category). `name` here is
+                                    // that display title; the consumer stores it in tool_meta
+                                    // and puts a fixed identifier on the wire, so an execute
+                                    // call's whole command never becomes a tool name.
                                     let _ = tx.try_send(AcpUpdate::ToolCallStart {
                                         id: id.clone(),
                                         name: tool_call.title.clone(),
@@ -1869,6 +1878,61 @@ mod tests {
         assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
     }
 
+    /// A harness sets `title` to the whole command for an execute call, so a
+    /// tool name taken from it can run to thousands of characters and the
+    /// session stops being sendable once it is replayed to a provider that caps
+    /// the field. The wire name must stay fixed and the title must survive in
+    /// tool_meta, or the renderer loses what the harness wanted shown.
+    #[tokio::test]
+    async fn acp_tool_call_stores_a_fixed_wire_name_and_keeps_the_title_in_meta() {
+        use futures::StreamExt;
+
+        let long_title = format!("git commit -m '{}'", "x".repeat(2143));
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+
+        let messages = vec![Message::user().with_text("commit it")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+        response_tx
+            .send(AcpUpdate::ToolCallStart {
+                id: "call-1".to_string(),
+                name: long_title.clone(),
+                kind: ToolKind::Execute,
+                raw_input: None,
+            })
+            .await
+            .unwrap();
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let mut requests = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, _usage) = item.unwrap();
+            let Some(message) = message else { continue };
+            for content in message.content {
+                if let MessageContent::ToolRequest(request) = content {
+                    requests.push(request);
+                }
+            }
+        }
+
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        let call = request.tool_call.as_ref().expect("tool call must parse");
+        assert_eq!(call.name, ACP_TOOL_NAME);
+        assert_eq!(
+            request.tool_meta.as_ref().unwrap()[TOOL_META_ACP_TITLE_KEY],
+            serde_json::Value::String(long_title)
+        );
+    }
+
     #[tokio::test]
     async fn chat_mode_denied_tool_messages_get_distinct_provider_ids() {
         use futures::StreamExt;
@@ -2673,7 +2737,7 @@ mod tests {
     /// emits onto the synthesized `ToolRequest`. ACP doesn't expose a canonical
     /// tool name to clients, so we surface `kind` here as a stable categorization
     /// signal alongside the `external_dispatch` marker that bypasses agent-loop
-    /// routing.
+    /// routing, and the display title the harness sent.
     #[test]
     fn tool_meta_pairs_external_dispatch_marker_with_acp_kind() {
         let cases = [
@@ -2686,7 +2750,13 @@ mod tests {
             let tool_meta = serde_json::json!({
                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                 "goose.acp.kind": kind,
+                TOOL_META_ACP_TITLE_KEY: "git commit -m 'a very long title'",
             });
+            assert_eq!(
+                tool_meta[TOOL_META_ACP_TITLE_KEY],
+                serde_json::Value::String("git commit -m 'a very long title'".to_string()),
+                "the display title must survive in tool_meta for kind={kind:?}"
+            );
             assert_eq!(
                 tool_meta[TOOL_META_EXTERNAL_DISPATCH_KEY],
                 serde_json::Value::Bool(true),
