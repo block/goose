@@ -1,10 +1,13 @@
-import React, { useState, useEffect, FormEvent, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, FormEvent, useCallback } from 'react';
 import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Select } from '../ui/Select';
 import { CronPicker } from './CronPicker';
 import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
+import type { RecipeManifest } from '../../recipe';
+import { listSavedRecipes } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -16,9 +19,14 @@ const i18n = defineMessages({
   sourceLabel: { id: 'scheduleModal.sourceLabel', defaultMessage: 'Source:' },
   yaml: { id: 'scheduleModal.yaml', defaultMessage: 'YAML' },
   deepLink: { id: 'scheduleModal.deepLink', defaultMessage: 'Deep link' },
+  savedRecipes: { id: 'scheduleModal.savedRecipes', defaultMessage: 'Saved recipes' },
   browseYaml: { id: 'scheduleModal.browseYaml', defaultMessage: 'Browse for YAML file...' },
   selected: { id: 'scheduleModal.selected', defaultMessage: 'Selected: {path}' },
   deepLinkPlaceholder: { id: 'scheduleModal.deepLinkPlaceholder', defaultMessage: 'Paste goose://recipe link here...' },
+  selectRecipePlaceholder: { id: 'scheduleModal.selectRecipePlaceholder', defaultMessage: 'Select a saved recipe' },
+  loadingRecipes: { id: 'scheduleModal.loadingRecipes', defaultMessage: 'Loading recipes...' },
+  noSavedRecipes: { id: 'scheduleModal.noSavedRecipes', defaultMessage: 'No saved recipes found.' },
+  failedLoadRecipes: { id: 'scheduleModal.failedLoadRecipes', defaultMessage: 'Failed to load recipes.' },
   recipeParsed: { id: 'scheduleModal.recipeParsed', defaultMessage: 'Recipe parsed successfully' },
   recipeTitle: { id: 'scheduleModal.recipeTitle', defaultMessage: 'Title: {title}' },
   recipeDescription: { id: 'scheduleModal.recipeDescription', defaultMessage: 'Description: {description}' },
@@ -52,7 +60,7 @@ interface ScheduleModalProps {
   initialDeepLink: string | null;
 }
 
-type SourceType = 'file' | 'deeplink';
+type SourceType = 'file' | 'deeplink' | 'saved';
 
 const modalLabelClassName = 'block text-sm font-medium text-text-primary mb-1';
 
@@ -76,6 +84,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [cronExpression, setCronExpression] = useState<string>('0 0 14 * * *');
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(true);
+  const [savedRecipes, setSavedRecipes] = useState<RecipeManifest[]>([]);
+  const [savedRecipesLoading, setSavedRecipesLoading] = useState(false);
+  const [savedRecipesError, setSavedRecipesError] = useState<string | null>(null);
+  const [selectedSavedRecipeId, setSelectedSavedRecipeId] = useState<string | null>(null);
 
   const setScheduleIdFromTitle = (title: string) => {
     const cleanId = title
@@ -84,6 +96,19 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       .replace(/-+/g, '-');
     setScheduleId(cleanId);
   };
+
+  const handleSelectSavedRecipe = useCallback((manifest: RecipeManifest | null) => {
+    setSelectedSavedRecipeId(manifest?.id ?? null);
+    setInternalValidationError(null);
+    if (manifest) {
+      setParsedRecipe(manifest.recipe);
+      if (manifest.recipe.title) {
+        setScheduleIdFromTitle(manifest.recipe.title);
+      }
+    } else {
+      setParsedRecipe(null);
+    }
+  }, []);
 
   const handleDeepLinkChange = useCallback(async (value: string) => {
     setDeepLinkInput(value);
@@ -119,6 +144,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         setDeepLinkInput('');
         setParsedRecipe(null);
         setCronExpression('0 0 14 * * *');
+        setSavedRecipes([]);
+        setSavedRecipesLoading(false);
+        setSavedRecipesError(null);
+        setSelectedSavedRecipeId(null);
         if (initialDeepLink) {
           setSourceType('deeplink');
           handleDeepLinkChange(initialDeepLink);
@@ -126,6 +155,36 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       }
     }
   }, [isOpen, schedule, initialDeepLink, handleDeepLinkChange]);
+
+  useEffect(() => {
+    if (sourceType !== 'saved') {
+      return;
+    }
+    let cancelled = false;
+    setSavedRecipesLoading(true);
+    setSavedRecipesError(null);
+    listSavedRecipes()
+      .then((recipes) => {
+        if (!cancelled) {
+          setSavedRecipes(recipes);
+          setSavedRecipesLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSavedRecipesError(intl.formatMessage(i18n.failedLoadRecipes));
+          setSavedRecipesLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceType, intl]);
+
+  const savedRecipeOptions = useMemo(
+    () => savedRecipes.map((m) => ({ value: m.id, label: m.recipe.title || m.id })),
+    [savedRecipes]
+  );
 
   const handleBrowseFile = async () => {
     const fileResponse = await window.electron.selectRecipeFile();
@@ -187,6 +246,20 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const recipeParsedPreview = parsedRecipe ? (
+    <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-md border border-green-500/50">
+      <p className="text-xs text-green-700 dark:text-green-300 font-medium">
+        ✓ {intl.formatMessage(i18n.recipeParsed)}
+      </p>
+      <p className="text-xs text-green-600 dark:text-green-400">
+        {intl.formatMessage(i18n.recipeTitle, { title: parsedRecipe.title })}
+      </p>
+      <p className="text-xs text-green-600 dark:text-green-400">
+        {intl.formatMessage(i18n.recipeDescription, { description: parsedRecipe.description })}
+      </p>
+    </div>
+  ) : null;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
@@ -263,6 +336,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                     >
                       {intl.formatMessage(i18n.deepLink)}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setSourceType('saved')}
+                      className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-all ${
+                        sourceType === 'saved'
+                          ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {intl.formatMessage(i18n.savedRecipes)}
+                    </button>
                   </div>
 
                   {sourceType === 'file' && (
@@ -292,19 +376,34 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                         placeholder={intl.formatMessage(i18n.deepLinkPlaceholder)}
                         className="rounded-full"
                       />
-                      {parsedRecipe && (
-                        <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-md border border-green-500/50">
-                          <p className="text-xs text-green-700 dark:text-green-300 font-medium">
-                            ✓ {intl.formatMessage(i18n.recipeParsed)}
-                          </p>
-                          <p className="text-xs text-green-600 dark:text-green-400">
-                            {intl.formatMessage(i18n.recipeTitle, { title: parsedRecipe.title })}
-                          </p>
-                          <p className="text-xs text-green-600 dark:text-green-400">
-                            {intl.formatMessage(i18n.recipeDescription, { description: parsedRecipe.description })}
-                          </p>
-                        </div>
+                      {recipeParsedPreview}
+                    </div>
+                  )}
+
+                  {sourceType === 'saved' && (
+                    <div data-testid="saved-recipe-picker">
+                      {savedRecipesError ? (
+                        <p className="text-sm text-text-danger">{savedRecipesError}</p>
+                      ) : savedRecipes.length === 0 ? (
+                        <p className="text-sm text-text-secondary">
+                          {savedRecipesLoading
+                            ? intl.formatMessage(i18n.loadingRecipes)
+                            : intl.formatMessage(i18n.noSavedRecipes)}
+                        </p>
+                      ) : (
+                        <Select
+                          options={savedRecipeOptions}
+                          value={savedRecipeOptions.find((o) => o.value === selectedSavedRecipeId) ?? null}
+                          onChange={(option) => {
+                            const selectedId = (option as { value?: string } | null)?.value ?? null;
+                            handleSelectSavedRecipe(
+                              selectedId ? savedRecipes.find((m) => m.id === selectedId) ?? null : null
+                            );
+                          }}
+                          placeholder={intl.formatMessage(i18n.selectRecipePlaceholder)}
+                        />
                       )}
+                      {recipeParsedPreview}
                     </div>
                   )}
                 </div>

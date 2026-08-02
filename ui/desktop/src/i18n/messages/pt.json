@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Editar agendamento"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Falha ao carregar receitas."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Falha ao analisar a receita a partir do ficheiro."
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Tipo de ficheiro inválido: selecione um ficheiro YAML (.yaml ou .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Carregando receitas..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nome:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "p. ex., tarefa-resumo-diario"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Nenhuma receita salva encontrada."
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Forneça uma origem de receita válida."
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Título: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Receitas salvas"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "O ID do agendamento é obrigatório."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Agendamento:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Selecionar uma receita salva"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Selecionado: {path}"

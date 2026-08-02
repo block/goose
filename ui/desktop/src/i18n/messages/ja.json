@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "スケジュールを編集"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "レシピの読み込みに失敗しました。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "ファイルからレシピを解析できませんでした。"
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "無効なファイル形式です。YAMLファイル（.yaml または .yml）を選択してください"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "レシピを読み込み中..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名前:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例: daily-summary-job"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "保存したレシピが見つかりません。"
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "有効なレシピソースを指定してください。"
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "タイトル: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "保存したレシピ"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "スケジュールIDは必須です。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "スケジュール:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "保存したレシピを選択"
   },
   "scheduleModal.selected": {
     "defaultMessage": "選択済み: {path}"

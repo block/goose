@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "编辑计划"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "加载方案失败。"
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "从文件解析配方失败。"
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "文件类型无效：请选择 YAML 文件（.yaml 或 .yml）"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "正在加载方案..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "名称："
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "例如：daily-summary-job"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "未找到已保存的方案。"
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "请提供有效的配方来源。"
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "标题：{title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "已保存的方案"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "计划 ID 为必填项。"
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "计划："
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "选择一个已保存的方案"
   },
   "scheduleModal.selected": {
     "defaultMessage": "已选择：{path}"

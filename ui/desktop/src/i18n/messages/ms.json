@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Edit Jadual"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Gagal memuatkan resipi."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Gagal menghuraikan resipi daripada fail."
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Jenis fail tidak sah: Sila pilih fail YAML (.yaml atau .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Memuatkan resipi..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Nama:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "cth., daily-summary-job"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Tiada resipi tersimpan dijumpai."
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Sila sediakan sumber resipi yang sah."
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Tajuk: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Resipi tersimpan"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "ID jadual diperlukan."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Jadual:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Pilih resipi tersimpan"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Dipilih: {path}"

@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Zeitplan bearbeiten"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Rezepte konnten nicht geladen werden."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Rezept konnte nicht aus der Datei gelesen werden."
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Ungültiger Dateityp: Bitte wählen Sie eine YAML-Datei (.yaml oder .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Rezepte werden geladen..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Name:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "z. B. daily-summary-job"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Keine gespeicherten Rezepte gefunden."
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Bitte geben Sie eine gültige Rezeptquelle an."
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Titel: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Gespeicherte Rezepte"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Zeitplan-ID ist erforderlich."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Zeitplan:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Ein gespeichertes Rezept auswählen"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Ausgewählt: {path}"

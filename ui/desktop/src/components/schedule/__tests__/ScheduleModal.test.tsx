@@ -1,9 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, type RenderOptions, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, type RenderOptions, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { ScheduleModal } from '../ScheduleModal';
 import { IntlTestWrapper } from '../../../i18n/test-utils';
+import { listSavedRecipes } from '../../../recipe/recipe_management';
+import type { RecipeManifest } from '../../../recipe';
+
+vi.mock('../../../recipe/recipe_management', () => ({
+  listSavedRecipes: vi.fn(),
+  getStorageDirectory: vi.fn(() => ''),
+}));
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
@@ -21,7 +28,19 @@ const baseProps = {
   initialDeepLink: null,
 };
 
+const savedRecipeManifest = {
+  id: 'my-recipe',
+  recipe: { title: 'My Recipe', description: 'A test recipe' },
+  file_path: '/recipes/my-recipe.yaml',
+  last_modified: '',
+} as unknown as RecipeManifest;
+
 describe('ScheduleModal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(listSavedRecipes).mockResolvedValue([savedRecipeManifest]);
+  });
+
   it('preserves the form when the recipe picker is cancelled', async () => {
     const user = userEvent.setup();
     const selectRecipeFile = vi.fn().mockResolvedValue(null);
@@ -49,5 +68,50 @@ describe('ScheduleModal', () => {
 
     expect(screen.getByText('Edit Schedule')).toBeInTheDocument();
     expect(screen.queryByText('Please provide a valid recipe source.')).not.toBeInTheDocument();
+  });
+
+  it('loads saved recipes into a picker and creates a schedule from the selected one', async () => {
+    const user = userEvent.setup();
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Saved recipes' }));
+
+    await waitFor(() => {
+      expect(listSavedRecipes).toHaveBeenCalledTimes(1);
+    });
+
+    const picker = within(screen.getByTestId('saved-recipe-picker'));
+    await user.click(await picker.findByRole('combobox'));
+    const option = await picker.findByRole('option', { name: 'My Recipe' });
+    await user.click(option);
+
+    await waitFor(() => {
+      expect(screen.getByText('Title: My Recipe')).toBeInTheDocument();
+    });
+
+    const createButton = screen.getByRole('button', { name: 'Create Schedule' });
+    expect(createButton).not.toBeDisabled();
+    await user.click(createButton);
+
+    await waitFor(() => {
+      expect(baseProps.onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'my-recipe',
+          cron: expect.any(String),
+        })
+      );
+    });
+  });
+
+  it('shows an empty state when there are no saved recipes', async () => {
+    vi.mocked(listSavedRecipes).mockResolvedValue([]);
+    const user = userEvent.setup();
+    renderWithIntl(<ScheduleModal {...baseProps} isOpen schedule={null} />);
+
+    await user.click(screen.getByRole('button', { name: 'Saved recipes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('No saved recipes found.')).toBeInTheDocument();
+    });
   });
 });

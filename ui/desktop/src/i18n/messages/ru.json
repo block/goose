@@ -3449,6 +3449,9 @@
   "scheduleModal.editSchedule": {
     "defaultMessage": "Изменить расписание"
   },
+  "scheduleModal.failedLoadRecipes": {
+    "defaultMessage": "Не удалось загрузить рецепты."
+  },
   "scheduleModal.failedParseRecipe": {
     "defaultMessage": "Не удалось разобрать рецепт из файла."
   },
@@ -3461,11 +3464,17 @@
   "scheduleModal.invalidFileType": {
     "defaultMessage": "Неверный тип файла: выберите YAML-файл (.yaml или .yml)"
   },
+  "scheduleModal.loadingRecipes": {
+    "defaultMessage": "Загрузка рецептов..."
+  },
   "scheduleModal.nameLabel": {
     "defaultMessage": "Имя:"
   },
   "scheduleModal.namePlaceholder": {
     "defaultMessage": "например, daily-summary-job"
+  },
+  "scheduleModal.noSavedRecipes": {
+    "defaultMessage": "Сохранённые рецепты не найдены."
   },
   "scheduleModal.provideValidRecipe": {
     "defaultMessage": "Укажите корректный источник рецепта."
@@ -3479,11 +3488,17 @@
   "scheduleModal.recipeTitle": {
     "defaultMessage": "Название: {title}"
   },
+  "scheduleModal.savedRecipes": {
+    "defaultMessage": "Сохранённые рецепты"
+  },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Требуется ID расписания."
   },
   "scheduleModal.scheduleLabel": {
     "defaultMessage": "Расписание:"
+  },
+  "scheduleModal.selectRecipePlaceholder": {
+    "defaultMessage": "Выберите сохранённый рецепт"
   },
   "scheduleModal.selected": {
     "defaultMessage": "Выбрано: {path}"
