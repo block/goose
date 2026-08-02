@@ -63,7 +63,9 @@ pub(crate) fn goose_tool_call_meta(tool_request: &ToolRequest) -> Option<Meta> {
         .map(ToString::to_string);
 
     let mut tool_call_meta = serde_json::Map::new();
-    tool_call_meta.insert("toolName".to_string(), serde_json::Value::String(tool_name));
+    if !tool_request.was_executed_externally() {
+        tool_call_meta.insert("toolName".to_string(), serde_json::Value::String(tool_name));
+    }
     if let Some(extension_name) = extension_name {
         tool_call_meta.insert(
             "extensionName".to_string(),
@@ -508,6 +510,61 @@ mod tests {
                     "toolCall": {
                         "toolName": "other__query-docs",
                         "extensionName": "context7",
+                    },
+                })),
+            );
+        }
+
+        /// A call the ACP provider already executed has no goose-side tool, so
+        /// the wire name is a placeholder. Clients treat `toolName` as the
+        /// tool's identity and prefer it over the title when labelling the
+        /// call, so publishing the placeholder makes every such call render as
+        /// the placeholder instead of what the harness asked to be shown.
+        #[test]
+        fn omits_the_placeholder_name_of_an_externally_executed_call() {
+            use crate::conversation::message::{
+                TOOL_META_EXTERNAL_DISPATCH_KEY, TOOL_META_TITLE_KEY,
+            };
+
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("acp_tool")),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({
+                    TOOL_META_EXTERNAL_DISPATCH_KEY: true,
+                    (TOOL_META_TITLE_KEY): "git commit -m 'add the parser'",
+                })),
+            };
+
+            let meta = goose_tool_call_meta(&request).expect("expected metadata");
+
+            assert_eq!(
+                meta.get("goose"),
+                Some(&serde_json::json!({"toolCall": {}}))
+            );
+        }
+
+        #[test]
+        fn keeps_the_name_of_a_call_goose_dispatches_itself() {
+            use crate::conversation::message::TOOL_META_TITLE_KEY;
+
+            let request = ToolRequest {
+                id: "req_1".to_string(),
+                tool_call: Ok(CallToolRequestParams::new("developer__shell")),
+                metadata: None,
+                tool_meta: Some(serde_json::json!({
+                    (TOOL_META_TITLE_KEY): "running focused tests",
+                })),
+            };
+
+            let meta = goose_tool_call_meta(&request).expect("expected metadata");
+
+            assert_eq!(
+                meta.get("goose"),
+                Some(&serde_json::json!({
+                    "toolCall": {
+                        "toolName": "developer__shell",
+                        "extensionName": "developer",
                     },
                 })),
             );
