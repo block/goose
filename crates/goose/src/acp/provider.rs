@@ -35,7 +35,9 @@ use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt 
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::message::{
+    Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY, TOOL_META_TITLE_KEY,
+};
 use crate::conversation::Conversation;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
@@ -53,9 +55,9 @@ pub const ACP_CURRENT_MODEL: &str = "current";
 /// the tool name puts it on the wire whenever the session is later replayed to a
 /// provider, and Anthropic rejects a `tool_use.name` past 200 characters, which
 /// leaves the session permanently unable to send. The name is a wire identifier,
-/// so it is fixed here and the title travels in tool_meta for the renderer.
+/// so it is fixed here and the title travels under the tool_meta title key the ACP
+/// renderer already reads.
 const ACP_TOOL_NAME: &str = "acp_tool";
-const TOOL_META_ACP_TITLE_KEY: &str = "goose.acp.title";
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -575,11 +577,12 @@ impl Provider for AcpProvider {
                             // external_dispatch tells the agent loop not to redispatch this
                             // call. goose.acp.kind preserves ACP's stable categorization for
                             // downstream consumers (metrics, observability, icon selection),
-                            // and goose.acp.title carries what the harness wants shown.
+                            // and the shared title key carries what the harness wants shown, which is
+                            // the key the ACP renderer already reads.
                             let tool_meta = Some(serde_json::json!({
                                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                                 "goose.acp.kind": kind,
-                                TOOL_META_ACP_TITLE_KEY: name,
+                                TOOL_META_TITLE_KEY: name,
                             }));
                             let message = Message::assistant().with_tool_request_with_metadata(
                                 id,
@@ -1927,10 +1930,10 @@ mod tests {
         let request = &requests[0];
         let call = request.tool_call.as_ref().expect("tool call must parse");
         assert_eq!(call.name, ACP_TOOL_NAME);
-        assert_eq!(
-            request.tool_meta.as_ref().unwrap()[TOOL_META_ACP_TITLE_KEY],
-            serde_json::Value::String(long_title)
-        );
+        // generated_title() is what the ACP renderer calls, so asserting on it
+        // rather than on the raw key is the difference between the title being
+        // stored and the title being shown.
+        assert_eq!(request.generated_title(), Some(long_title.as_str()));
     }
 
     #[tokio::test]
@@ -2750,10 +2753,10 @@ mod tests {
             let tool_meta = serde_json::json!({
                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                 "goose.acp.kind": kind,
-                TOOL_META_ACP_TITLE_KEY: "git commit -m 'a very long title'",
+                TOOL_META_TITLE_KEY: "git commit -m 'a very long title'",
             });
             assert_eq!(
-                tool_meta[TOOL_META_ACP_TITLE_KEY],
+                tool_meta[TOOL_META_TITLE_KEY],
                 serde_json::Value::String("git commit -m 'a very long title'".to_string()),
                 "the display title must survive in tool_meta for kind={kind:?}"
             );
