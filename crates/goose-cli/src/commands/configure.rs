@@ -917,7 +917,15 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
-    let temp_provider = create(&provider_name, Vec::new()).await?;
+    let temp_provider = match create(&provider_name, Vec::new()).await {
+        Ok(provider) => provider,
+        Err(e) => {
+            let message = provider_creation_error_message(&provider_name, &e);
+            spin.stop(style(&message).red());
+            cliclack::outro(style(message).on_red().white())?;
+            return Ok(false);
+        }
+    };
     let models_res = retry_operation(&RetryConfig::default(), || async {
         temp_provider
             .fetch_recommended_models(goose::model_config::global_toolshim())
@@ -1013,6 +1021,10 @@ GitHub Copilot CLI authentication is required. Run `copilot login` and retry `go
     } else {
         message
     }
+}
+
+fn provider_creation_error_message(provider_name: &str, error: impl std::fmt::Display) -> String {
+    provider_configuration_error_message(provider_name, error)
 }
 
 /// Configure extensions that can be used with goose
@@ -2403,6 +2415,17 @@ mod tests {
         let error = anyhow::anyhow!("ACP session/new failed: Authentication required");
 
         let message = provider_configuration_error_message("copilot-acp", &error);
+
+        assert!(message.contains("ACP session/new failed: Authentication required"));
+        assert!(message.contains("GitHub Copilot CLI authentication is required"));
+        assert!(message.contains("copilot login"));
+    }
+
+    #[test]
+    fn copilot_acp_provider_creation_errors_include_login_hint() {
+        let error = anyhow::anyhow!("ACP session/new failed: Authentication required");
+
+        let message = provider_creation_error_message("copilot-acp", &error);
 
         assert!(message.contains("ACP session/new failed: Authentication required"));
         assert!(message.contains("GitHub Copilot CLI authentication is required"));
