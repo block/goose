@@ -1,8 +1,8 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::images::ImageFormat;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -15,7 +15,7 @@ use goose_providers::cache_semantics::{apply_chat_payload_breakpoints, CacheSema
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{LoggerHandleExt, start_log};
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -381,12 +381,10 @@ mod tests {
     fn metadata_includes_openrouter_parameters_config_key() {
         let metadata = OpenRouterProvider::metadata();
 
-        assert!(
-            metadata
-                .config_keys
-                .iter()
-                .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY)
-        );
+        assert!(metadata
+            .config_keys
+            .iter()
+            .any(|key| key.name == OPENROUTER_PARAMETERS_CONFIG_KEY));
     }
 
     #[test]
@@ -416,10 +414,9 @@ mod tests {
     fn parse_openrouter_parameters_rejects_non_object_json_string() {
         let err = parse_openrouter_parameters(json!(r#"["web"]"#)).unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("OPENROUTER_PARAMETERS must be a JSON object")
-        );
+        assert!(err
+            .to_string()
+            .contains("OPENROUTER_PARAMETERS must be a JSON object"));
     }
 
     #[test]
