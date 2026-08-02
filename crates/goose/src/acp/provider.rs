@@ -56,7 +56,15 @@ pub const ACP_CURRENT_MODEL: &str = "current";
 /// `connect()` future. Failing the request instead lets the loop unwind to `run_with_child`,
 /// which kills the child. Generous enough for a cold adapter start; this is a wedge backstop,
 /// not a latency budget.
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
+///
+/// It has to clear the desktop `node` shim's own worst case. An adapter invoked as
+/// `#!/usr/bin/env node` resolves through `Resources/bin/node`, which serializes hermit setup
+/// on a mkdir lock and waits up to 300s before reclaiming an orphaned one
+/// (`ui/desktop/src/bin/node-setup-common.sh`). Timing out inside that window would SIGKILL the
+/// shim mid-wait, and since the shim releases its lock from a `trap ... EXIT` that SIGKILL
+/// skips, every later start would inherit the orphaned lock — turning a stall that recovers on
+/// its own into a permanent failure.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(360);
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
