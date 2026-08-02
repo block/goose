@@ -127,6 +127,7 @@ const CodeBlock = memo(function CodeBlock({
         language={language}
         PreTag="div"
         customStyle={{
+          background: 'var(--code-block-background, #282c34)',
           margin: 0,
           width: '100%',
           maxWidth: '100%',
