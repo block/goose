@@ -62,11 +62,23 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     }, []);
 
     const finishProgrammaticScroll = React.useCallback(() => {
-      isProgrammaticScrollRef.current = false;
+      const viewport = viewportRef.current;
+      if (viewport) {
+        // Snap to the real max scrollTop (scrollHeight alone overshoots and
+        // can leave distanceFromBottom > 0 after layout settles).
+        viewport.scrollTop = viewport.scrollHeight;
+      }
       scrollAnimationFrameRef.current = null;
       setIsFollowing(true);
       userScrolledUpRef.current = false;
       onScrollChange?.(true);
+      // Keep ignoring scroll events for a couple of frames so a trailing
+      // scroll/layout event cannot immediately re-show the button.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
+        });
+      });
     }, [onScrollChange]);
 
     const scrollToBottom = React.useCallback(() => {
@@ -85,6 +97,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       isProgrammaticScrollRef.current = true;
       userScrolledUpRef.current = false;
       setIsFollowing(true);
+      // Hide the scroll-to-bottom control immediately on click — don't wait
+      // for the animation to finish.
+      onScrollChange?.(true);
 
       if (prefersReducedMotion) {
         viewport.scrollTop = viewport.scrollHeight;
@@ -100,12 +115,16 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         return 1 - Math.pow(1 - t, 3);
       }
 
+      function maxScrollTop() {
+        return Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      }
+
       function animate(currentTime: number) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / DURATION, 1);
-        // Re-read scrollHeight each frame so content that grows mid-animation
+        // Re-read max scroll each frame so content that grows mid-animation
         // still lands at the true bottom.
-        const distance = viewport.scrollHeight - startScroll;
+        const distance = maxScrollTop() - startScroll;
         viewport.scrollTop = startScroll + distance * easeOutCubic(progress);
 
         if (progress < 1) {
@@ -116,7 +135,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       }
 
       scrollAnimationFrameRef.current = requestAnimationFrame(animate);
-    }, [finishProgrammaticScroll]);
+    }, [finishProgrammaticScroll, onScrollChange]);
 
     const scrollToPosition = React.useCallback(
       ({ top, behavior = 'smooth' }: { top: number; behavior?: ScrollBehavior }) => {
@@ -185,14 +204,16 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
 
       // Detect if user manually scrolled up from the bottom
       if (!currentIsAtBottom && isFollowing) {
-        // user scrolled up, disabling auto-scroll
         userScrolledUpRef.current = true;
         setIsFollowing(false);
         onScrollChange?.(false);
-      } else if (currentIsAtBottom && userScrolledUpRef.current) {
-        // user scrolled back to bottom
+      } else if (currentIsAtBottom) {
+        // Always sync follow + button when we are at the bottom — not only
+        // when userScrolledUpRef is set (avoids a stuck scroll-to-bottom btn).
         userScrolledUpRef.current = false;
-        setIsFollowing(true);
+        if (!isFollowing) {
+          setIsFollowing(true);
+        }
         onScrollChange?.(true);
       }
 
