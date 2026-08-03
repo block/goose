@@ -61,17 +61,36 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
 
     const scrollToBottom = React.useCallback(() => {
       if (viewportRef.current) {
-        // Jump instantly rather than animating: a smooth programmatic scroll
-        // emits intermediate scroll events that handleScroll mistakes for a
-        // manual scroll-up, which disables auto-follow mid-animation.
-        viewportRef.current.scrollTo({
-          top: viewportRef.current.scrollHeight,
-          behavior: 'auto',
-        });
-        // When explicitly scrolling to bottom, reset the following state
-        setIsFollowing(true);
-        userScrolledUpRef.current = false;
-        onScrollChange?.(true);
+        const viewport = viewportRef.current;
+        const startScroll = viewport.scrollTop;
+        const endScroll = viewport.scrollHeight;
+        const distance = endScroll - startScroll;
+
+        // Fixed-duration smooth scroll: 350ms regardless of scroll distance.
+        // Uses an ease-out cubic curve for a natural deceleration feel.
+        const DURATION = 350;
+        const startTime = performance.now();
+
+        function easeOutCubic(t: number): number {
+          return 1 - Math.pow(1 - t, 3);
+        }
+
+        function animate(currentTime: number) {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / DURATION, 1);
+          viewport.scrollTop = startScroll + distance * easeOutCubic(progress);
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            // Animation complete — reset following state
+            setIsFollowing(true);
+            userScrolledUpRef.current = false;
+            onScrollChange?.(true);
+          }
+        }
+
+        requestAnimationFrame(animate);
       }
     }, [onScrollChange]);
 
