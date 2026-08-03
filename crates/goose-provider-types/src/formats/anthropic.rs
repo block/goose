@@ -136,6 +136,7 @@ const REDACTED_THINKING_TYPE: &str = "redacted_thinking";
 const CACHE_CONTROL_FIELD: &str = "cache_control";
 const ID_FIELD: &str = "id";
 const NAME_FIELD: &str = "name";
+const MAX_TOOL_NAME_LEN: usize = 200;
 const INPUT_FIELD: &str = "input";
 const TOOL_USE_ID_FIELD: &str = "tool_use_id";
 const IS_ERROR_FIELD: &str = "is_error";
@@ -175,6 +176,13 @@ fn args_to_input_value(arguments: Option<JsonObject>) -> Value {
     Value::Object(arguments.unwrap_or_default())
 }
 
+/// Anthropic rejects `tool_use.name` over 200 characters. ACP harness tool
+/// calls historically stored the display title (often a full shell command)
+/// as the name, poisoning session history; truncate defensively to heal them.
+fn truncate_tool_name(name: &str) -> String {
+    name.chars().take(MAX_TOOL_NAME_LEN).collect()
+}
+
 /// Convert internal Message format to Anthropic's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     format_messages_with_options(messages, AnthropicFormatOptions::default())
@@ -209,7 +217,7 @@ fn format_messages_with_options(
                             content.push(json!({
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
-                                NAME_FIELD: tool_call.name,
+                                NAME_FIELD: truncate_tool_name(&tool_call.name),
                                 INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
@@ -377,7 +385,7 @@ fn format_messages_with_options(
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
-                            NAME_FIELD: tool_call.name,
+                            NAME_FIELD: truncate_tool_name(&tool_call.name),
                             INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }

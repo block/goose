@@ -559,17 +559,22 @@ impl Provider for AcpProvider {
                             suppress_text = true;
                             rejected_tool_calls.insert(id);
                         } else {
-                            let mut params = CallToolRequestParams::new(name);
+                            // ACP carries no canonical tool name, only a display title that
+                            // harnesses often set to the full shell command. Anthropic-format
+                            // providers reject tool_use.name over 200 chars, so use a fixed
+                            // wire name and keep the display title in metadata.
+                            let mut params = CallToolRequestParams::new("acp_tool");
                             if let Some(serde_json::Value::Object(map)) = raw_input {
                                 params = params.with_arguments(map);
                             }
                             // external_dispatch tells the agent loop not to redispatch this
                             // call. goose.acp.kind preserves ACP's stable categorization for
                             // downstream consumers (metrics, observability, icon selection)
-                            // independent of the display title we put in `name`.
+                            // and goose.acp.title preserves the harness display title.
                             let tool_meta = Some(serde_json::json!({
                                 TOOL_META_EXTERNAL_DISPATCH_KEY: true,
                                 "goose.acp.kind": kind,
+                                "goose.acp.title": name,
                             }));
                             let message = Message::assistant().with_tool_request_with_metadata(
                                 id,
