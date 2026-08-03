@@ -386,6 +386,23 @@
     "environmentVariables": []
   },
   {
+    "id": "groundhog",
+    "name": "Groundhog",
+    "description": "Web search, read and research through a real stealth-patched Chrome, with text hidden from human readers stripped and reported",
+    "command": "uvx groundhog-mcp",
+    "link": "https://github.com/dmytrome/groundhog",
+    "installation_notes": "Install using uvx. Requires Docker or Podman \u2014 the server pulls and starts a stealth Chrome container on first fetch. To use a browser you already run instead, set CDP_URL and GROUNDHOG_AUTO_START_BROWSER=false.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "CDP_URL",
+        "description": "CDP endpoint of a stealth browser you already run; leave unset to auto-start the container",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
