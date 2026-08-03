@@ -64,9 +64,8 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     const finishProgrammaticScroll = React.useCallback(() => {
       const viewport = viewportRef.current;
       if (viewport) {
-        // Snap to the real max scrollTop (scrollHeight alone overshoots and
-        // can leave distanceFromBottom > 0 after layout settles).
-        viewport.scrollTop = viewport.scrollHeight;
+        // Clamp to the real max scrollTop after the ease finishes.
+        viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
       }
       scrollAnimationFrameRef.current = null;
       setIsFollowing(true);
@@ -96,13 +95,13 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
 
       isProgrammaticScrollRef.current = true;
       userScrolledUpRef.current = false;
-      setIsFollowing(true);
-      // Hide the scroll-to-bottom control immediately on click — don't wait
-      // for the animation to finish.
+      // Hide the control immediately, but do NOT setIsFollowing(true) yet —
+      // flipping follow mid-animation re-arms the ResizeObserver pin which
+      // snaps with behavior:'auto' and kills the 350ms ease.
       onScrollChange?.(true);
 
       if (prefersReducedMotion) {
-        viewport.scrollTop = viewport.scrollHeight;
+        viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
         finishProgrammaticScroll();
         return;
       }
@@ -240,11 +239,16 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         currentScrollHeight > lastScrollHeightRef.current &&
         isFollowing &&
         !userScrolledUpRef.current &&
-        !isActivelyScrollingRef.current
+        !isActivelyScrollingRef.current &&
+        !isProgrammaticScrollRef.current
       ) {
         // Use requestAnimationFrame to ensure DOM has updated
         requestAnimationFrame(() => {
-          if (viewportRef.current && !isActivelyScrollingRef.current) {
+          if (
+            viewportRef.current &&
+            !isActivelyScrollingRef.current &&
+            !isProgrammaticScrollRef.current
+          ) {
             viewportRef.current.scrollTo({
               top: viewportRef.current.scrollHeight,
               behavior: 'auto',
@@ -268,7 +272,13 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const observer = new ResizeObserver(() => {
         // Mirror the [children] effect's guards, including isActivelyScrolling, so
         // the re-pin doesn't fight a user scrolling up while content is still growing.
-        if (isFollowing && !userScrolledUpRef.current && !isActivelyScrollingRef.current) {
+        // Also skip during the click→bottom ease so the observer cannot snap.
+        if (
+          isFollowing &&
+          !userScrolledUpRef.current &&
+          !isActivelyScrollingRef.current &&
+          !isProgrammaticScrollRef.current
+        ) {
           viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' });
         }
       });
