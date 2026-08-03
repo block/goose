@@ -507,6 +507,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_goose_context_limit_preserves_explicit_model_limit() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_PATH_ROOT", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", Some("1000000")),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+        ]);
+
+        let openai = get_from_registry("openai")
+            .await
+            .expect("openai provider should be registered");
+        let explicit = openai
+            .normalize_model_config(
+                ModelConfig::new("totally-unknown-model").with_context_limit(Some(64_000)),
+            )
+            .expect("explicit model config should normalize");
+
+        assert_eq!(explicit.context_limit(), 64_000);
+        assert!(explicit.has_explicit_context_limit());
+    }
+
+    #[tokio::test]
     async fn test_litellm_supports_inventory_refresh() {
         let entry = get_from_registry("litellm")
             .await

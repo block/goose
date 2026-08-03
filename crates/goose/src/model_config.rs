@@ -64,7 +64,9 @@ fn materialize_model_config_inner(
     }
 
     if let Some(context_limit) = config.get_goose_context_limit()? {
-        model = model.with_context_limit(Some(context_limit));
+        if !model.has_explicit_context_limit() {
+            model = model.with_context_limit(Some(context_limit));
+        }
     }
     model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
