@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Connection lost. Reconnecting…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },

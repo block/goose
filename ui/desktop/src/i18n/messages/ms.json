@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Sambungan terputus. Menyambung semula…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Sambungan Dikemas Kini"
   },

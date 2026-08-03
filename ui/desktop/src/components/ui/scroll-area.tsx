@@ -45,7 +45,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     const userScrolledUpRef = React.useRef(false);
     const lastScrollHeightRef = React.useRef(0);
     const isActivelyScrollingRef = React.useRef(false);
+    const isProgrammaticScrollRef = React.useRef(false);
     const scrollTimeoutRef = React.useRef<number | null>(null);
+    const scrollAnimationFrameRef = React.useRef<number | null>(null);
 
     const BOTTOM_SCROLL_THRESHOLD = 200;
 
@@ -59,40 +61,62 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       return distanceFromBottom <= BOTTOM_SCROLL_THRESHOLD;
     }, []);
 
-    const scrollToBottom = React.useCallback(() => {
-      if (viewportRef.current) {
-        const viewport = viewportRef.current;
-        const startScroll = viewport.scrollTop;
-        const endScroll = viewport.scrollHeight;
-        const distance = endScroll - startScroll;
-
-        // Fixed-duration smooth scroll: 350ms regardless of scroll distance.
-        // Uses an ease-out cubic curve for a natural deceleration feel.
-        const DURATION = 350;
-        const startTime = performance.now();
-
-        function easeOutCubic(t: number): number {
-          return 1 - Math.pow(1 - t, 3);
-        }
-
-        function animate(currentTime: number) {
-          const elapsed = currentTime - startTime;
-          const progress = Math.min(elapsed / DURATION, 1);
-          viewport.scrollTop = startScroll + distance * easeOutCubic(progress);
-
-          if (progress < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            // Animation complete — reset following state
-            setIsFollowing(true);
-            userScrolledUpRef.current = false;
-            onScrollChange?.(true);
-          }
-        }
-
-        requestAnimationFrame(animate);
-      }
+    const finishProgrammaticScroll = React.useCallback(() => {
+      isProgrammaticScrollRef.current = false;
+      scrollAnimationFrameRef.current = null;
+      setIsFollowing(true);
+      userScrolledUpRef.current = false;
+      onScrollChange?.(true);
     }, [onScrollChange]);
+
+    const scrollToBottom = React.useCallback(() => {
+      if (!viewportRef.current) return;
+
+      const viewport = viewportRef.current;
+      if (scrollAnimationFrameRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationFrameRef.current);
+        scrollAnimationFrameRef.current = null;
+      }
+
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      isProgrammaticScrollRef.current = true;
+      userScrolledUpRef.current = false;
+      setIsFollowing(true);
+
+      if (prefersReducedMotion) {
+        viewport.scrollTop = viewport.scrollHeight;
+        finishProgrammaticScroll();
+        return;
+      }
+
+      const startScroll = viewport.scrollTop;
+      const DURATION = 350;
+      const startTime = performance.now();
+
+      function easeOutCubic(t: number): number {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function animate(currentTime: number) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / DURATION, 1);
+        // Re-read scrollHeight each frame so content that grows mid-animation
+        // still lands at the true bottom.
+        const distance = viewport.scrollHeight - startScroll;
+        viewport.scrollTop = startScroll + distance * easeOutCubic(progress);
+
+        if (progress < 1) {
+          scrollAnimationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          finishProgrammaticScroll();
+        }
+      }
+
+      scrollAnimationFrameRef.current = requestAnimationFrame(animate);
+    }, [finishProgrammaticScroll]);
 
     const scrollToPosition = React.useCallback(
       ({ top, behavior = 'smooth' }: { top: number; behavior?: ScrollBehavior }) => {
@@ -129,6 +153,16 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const viewport = viewportRef.current;
       const { scrollTop } = viewport;
       const currentIsAtBottom = isAtBottom();
+
+      // Programmatic smooth-scroll must not look like the user scrolled away.
+      if (isProgrammaticScrollRef.current) {
+        lastScrollTopRef.current = scrollTop;
+        setIsScrolled(scrollTop > 0);
+        if (handleScrollProp) {
+          handleScrollProp(viewport);
+        }
+        return;
+      }
 
       // detect if this is a user-initiated scroll (position changed from last known position)
       const scrollDelta = Math.abs(scrollTop - lastScrollTopRef.current);
@@ -232,6 +266,11 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         if (scrollTimeoutRef.current) {
           clearTimeout(scrollTimeoutRef.current);
         }
+        if (scrollAnimationFrameRef.current !== null) {
+          cancelAnimationFrame(scrollAnimationFrameRef.current);
+          scrollAnimationFrameRef.current = null;
+        }
+        isProgrammaticScrollRef.current = false;
       };
     }, [handleScroll]);
 

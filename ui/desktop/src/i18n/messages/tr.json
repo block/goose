@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Bağlantı kesildi. Yeniden bağlanılıyor…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
   },

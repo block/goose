@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "Verbindung unterbrochen. Verbindung wird wiederhergestellt…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Erweiterung aktualisiert"
   },

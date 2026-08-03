@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "连接已断开。正在重新连接…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },

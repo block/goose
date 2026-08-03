@@ -272,11 +272,8 @@ export default function BaseChat({
     setView('chat');
   };
 
-  // Track whether to show the scroll-to-bottom button
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const handleScrollChange = useCallback((isAtBottom: boolean) => {
-    // Show button when user has scrolled up (not at bottom)
-    // Hide when at bottom (auto-follow re-engages)
     setShowScrollToBottom(!isAtBottom);
   }, []);
 

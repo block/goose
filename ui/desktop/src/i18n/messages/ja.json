@@ -134,6 +134,9 @@
   "baseChat.reconnecting": {
     "defaultMessage": "接続が失われました。再接続しています…"
   },
+  "baseChat.scrollToBottom": {
+    "defaultMessage": "Scroll to bottom"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
