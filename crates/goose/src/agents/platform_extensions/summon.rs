@@ -24,7 +24,7 @@ use rmcp::model::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, Mutex};
@@ -62,6 +62,45 @@ pub struct DelegateParams {
     pub working_dir: Option<String>,
     #[serde(default)]
     pub r#async: bool,
+    pub worker: Option<String>,
+}
+
+pub struct PersistentWorker {
+    pub configured: Arc<crate::agents::subagent_handler::ConfiguredSubagent>,
+    pub session_id: String,
+    pub task_config: TaskConfig,
+    pub system_instructions: String,
+    pub retry_config: Option<crate::agents::types::RetryConfig>,
+    pub default_max_turns: usize,
+    pub prompt_max_turns: AtomicUsize,
+    pub busy: Arc<Mutex<()>>,
+    pub notification_tx: tokio::sync::mpsc::UnboundedSender<ServerNotification>,
+    pub creation: WorkerCreationParams,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct WorkerCreationParams {
+    pub source: Option<String>,
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
+    pub extensions: Option<Vec<String>>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub temperature: Option<f32>,
+    pub working_dir: Option<String>,
+}
+
+impl WorkerCreationParams {
+    fn from_delegate_params(params: &DelegateParams) -> Self {
+        Self {
+            source: params.source.clone(),
+            parameters: params.parameters.clone(),
+            extensions: params.extensions.clone(),
+            provider: params.provider.clone(),
+            model: params.model.clone(),
+            temperature: params.temperature,
+            working_dir: params.working_dir.clone(),
+        }
+    }
 }
 
 pub struct BackgroundTask {
@@ -82,6 +121,49 @@ pub struct CompletedTask {
     pub turns_taken: u32,
     pub duration: Duration,
     pub completed_at: Instant,
+}
+
+fn validate_worker_reuse_params(
+    params: &DelegateParams,
+    creation: &WorkerCreationParams,
+) -> Result<(), String> {
+    fn differs<T: PartialEq>(resent: &Option<T>, original: &Option<T>) -> bool {
+        resent.is_some() && resent != original
+    }
+
+    let mut changed = Vec::new();
+    if differs(&params.source, &creation.source) {
+        changed.push("source");
+    }
+    if differs(&params.parameters, &creation.parameters) {
+        changed.push("parameters");
+    }
+    if differs(&params.extensions, &creation.extensions) {
+        changed.push("extensions");
+    }
+    if differs(&params.provider, &creation.provider) {
+        changed.push("provider");
+    }
+    if differs(&params.model, &creation.model) {
+        changed.push("model");
+    }
+    if differs(&params.temperature, &creation.temperature) {
+        changed.push("temperature");
+    }
+    if differs(&params.working_dir, &creation.working_dir) {
+        changed.push("working_dir");
+    }
+    if !changed.is_empty() {
+        return Err(format!(
+            "Worker already exists; {} cannot change after creation. \
+             Only 'instructions', 'context', and 'max_turns' apply to follow-up delegations.",
+            changed.join(", ")
+        ));
+    }
+    if params.instructions.is_none() {
+        return Err("'instructions' is required when delegating to an existing worker".to_string());
+    }
+    Ok(())
 }
 
 fn merge_subrecipe_parameters(
@@ -471,6 +553,7 @@ pub struct SummonClient {
     source_cache: Mutex<Option<(Instant, PathBuf, Vec<SourceEntry>)>>,
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
+    workers: Mutex<HashMap<String, Arc<PersistentWorker>>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
@@ -496,6 +579,7 @@ impl SummonClient {
             source_cache: Mutex::new(None),
             background_tasks: Mutex::new(HashMap::new()),
             completed_tasks: Mutex::new(HashMap::new()),
+            workers: Mutex::new(HashMap::new()),
             notification_subscribers: Arc::new(Mutex::new(Vec::new())),
         })
     }
@@ -632,7 +716,7 @@ impl SummonClient {
                 },
                 "context": {
                     "type": "string",
-                    "description": "Reference context to inject into the delegate's system prompt. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions."
+                    "description": "Reference context to inject into the delegate's system prompt. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions. On follow-up delegations to a persistent worker it is prepended to that delegation's message instead."
                 },
                 "working_dir": {
                     "type": "string",
@@ -642,6 +726,10 @@ impl SummonClient {
                     "type": "boolean",
                     "default": false,
                     "description": "Run in background (default: false)."
+                },
+                "worker": {
+                    "type": "string",
+                    "description": "Name of a persistent worker. The first delegation to a name creates the worker (source, extensions, model are fixed then); later delegations continue its session with full memory of prior work. Use for iterative work with the same executor. Not compatible with async."
                 }
             }
         });
@@ -652,7 +740,8 @@ impl SummonClient {
              Modes:\n\
              1. Ad-hoc: Provide `instructions` for a custom task\n\
              2. Source-based: Provide `source` name to run a subrecipe, recipe, or agent\n\
-             3. Combined: Pair a source with a task (e.g., source: \"deploy\", instructions: \"deploy to staging\")\n\n\
+             3. Combined: Pair a source with a task (e.g., source: \"deploy\", instructions: \"deploy to staging\")\n\
+             4. Persistent: Add `worker: \"name\"` to keep the delegate's session alive across calls - later delegations to the same worker retain full memory of prior work\n\n\
              Effective Delegation:\n\
              - Delegates know only instructions + source content\n\
              - Delegates cannot coordinate. Same-file work = conflicts.\n\
@@ -1255,8 +1344,6 @@ impl SummonClient {
             .map_err(|e| format!("Invalid parameters: {}", e))?
             .unwrap_or_default();
 
-        self.validate_delegate_params(&params)?;
-
         let session = self
             .context
             .session_manager
@@ -1267,6 +1354,14 @@ impl SummonClient {
         if session.session_type == SessionType::SubAgent {
             return Err("Delegated tasks cannot spawn further delegations".to_string());
         }
+
+        if params.worker.is_some() {
+            return self
+                .handle_worker_delegate(&session, params, cancellation_token)
+                .await;
+        }
+
+        self.validate_delegate_params(&params)?;
 
         if params.r#async {
             let (content, task_id) = self.handle_async_delegate(session_id, params).await?;
@@ -1342,6 +1437,187 @@ impl SummonClient {
             ))])
             .with_meta(Some(meta))),
         }
+    }
+
+    async fn handle_worker_delegate(
+        &self,
+        session: &crate::session::Session,
+        params: DelegateParams,
+        cancellation_token: CancellationToken,
+    ) -> Result<CallToolResult, String> {
+        if params.r#async {
+            return Err(
+                "Persistent workers run synchronously; 'async' cannot be combined with 'worker'"
+                    .to_string(),
+            );
+        }
+        let worker_name = params.worker.clone().unwrap_or_default();
+        if worker_name.trim().is_empty() {
+            return Err("'worker' must be a non-empty name".to_string());
+        }
+        if let Some(max) = params.max_turns {
+            if max < 1 {
+                return Err("'max_turns' must be at least 1".to_string());
+            }
+            if max > u32::MAX as usize {
+                return Err(format!("'max_turns' must be at most {}", u32::MAX));
+            }
+        }
+        let worker_key = format!("{}:{}", session.id, worker_name);
+
+        let (worker, user_text, _busy) = {
+            let mut workers = self.workers.lock().await;
+            let (worker, user_text) = match workers.get(&worker_key) {
+                Some(existing) => {
+                    validate_worker_reuse_params(&params, &existing.creation)?;
+                    let instructions = params
+                        .instructions
+                        .clone()
+                        .expect("validated by validate_worker_reuse_params");
+                    let user_text = match &params.context {
+                        Some(context) => format!("Context:\n{}\n\n{}", context, instructions),
+                        None => instructions,
+                    };
+                    (existing.clone(), user_text)
+                }
+                None => {
+                    self.validate_delegate_params(&params)?;
+                    let (worker, user_text) =
+                        self.create_worker(session, &params, &worker_name).await?;
+                    workers.insert(worker_key, worker.clone());
+                    (worker, user_text)
+                }
+            };
+            let busy = worker.busy.clone().try_lock_owned().map_err(|_| {
+                format!(
+                    "Worker '{}' is busy with a previous delegation. Wait for it to finish.",
+                    worker_name
+                )
+            })?;
+            (worker, user_text, busy)
+        };
+
+        let max_turns = params.max_turns.unwrap_or(worker.default_max_turns);
+        if worker.prompt_max_turns.load(Ordering::Relaxed) != max_turns {
+            let task_config = worker.task_config.clone().with_max_turns(Some(max_turns));
+            crate::agents::subagent_handler::refresh_subagent_prompt(
+                &worker.configured,
+                &task_config,
+                &worker.session_id,
+                worker.system_instructions.clone(),
+            )
+            .await
+            .map_err(|e| format!("Failed to update worker '{}' prompt: {}", worker_name, e))?;
+            worker.prompt_max_turns.store(max_turns, Ordering::Relaxed);
+        }
+
+        let result = crate::agents::subagent_handler::run_configured_subagent_reply(
+            &worker.configured,
+            crate::agents::subagent_handler::SubagentReplyParams {
+                session_id: &worker.session_id,
+                user_text,
+                max_turns: Some(max_turns as u32),
+                retry_config: worker.retry_config.clone(),
+                cancellation_token: Some(cancellation_token),
+                on_message: None,
+                notification_tx: Some(worker.notification_tx.clone()),
+            },
+        )
+        .await;
+
+        let mut meta = MetaObject::new();
+        meta.0.insert(
+            "subagent_session_id".to_string(),
+            serde_json::Value::String(worker.session_id.clone()),
+        );
+
+        match result {
+            Ok(text) => {
+                Ok(CallToolResult::success(vec![ContentBlock::text(text)]).with_meta(Some(meta)))
+            }
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
+                "Worker delegation failed: {}",
+                e
+            ))])
+            .with_meta(Some(meta))),
+        }
+    }
+
+    async fn create_worker(
+        &self,
+        session: &crate::session::Session,
+        params: &DelegateParams,
+        worker_name: &str,
+    ) -> Result<(Arc<PersistentWorker>, String), String> {
+        let working_dir = session.working_dir.clone();
+        let recipe = self
+            .build_delegate_recipe(params, &session.id, &working_dir)
+            .await?;
+
+        let task_config = self
+            .build_task_config(params, &recipe, session)
+            .await
+            .map_err(|e| format!("Failed to build task config: {}", e))?;
+
+        // Same constraint as one-shot delegates: subagents must run in Auto mode
+        // until ActionRequired messages are forwarded to the parent.
+        let agent_config = AgentConfig::new(
+            self.context.session_manager.clone(),
+            crate::config::permission::PermissionManager::instance(),
+            None,
+            GooseMode::Auto,
+            true,
+            crate::agents::GoosePlatform::GooseCli,
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
+
+        let subagent_session = self
+            .create_subagent_session(&task_config, format!("Worker '{}'", worker_name))
+            .await?;
+
+        let configured = crate::agents::subagent_handler::configure_subagent_agent(
+            agent_config,
+            &recipe,
+            &task_config,
+            &subagent_session.id,
+        )
+        .await
+        .map_err(|e| format!("Failed to configure worker '{}': {}", worker_name, e))?;
+
+        let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
+        Self::spawn_notification_bridge(
+            notif_rx,
+            Arc::clone(&self.notification_subscribers),
+            Arc::new(Mutex::new(Vec::new())),
+        );
+
+        let default_max_turns = recipe
+            .settings
+            .as_ref()
+            .and_then(|s| s.max_turns)
+            .unwrap_or_else(|| self.resolve_max_turns(session));
+        let prompt_max_turns = task_config
+            .max_turns
+            .expect("TaskConfig always sets max_turns");
+
+        let worker = Arc::new(PersistentWorker {
+            configured: Arc::new(configured),
+            session_id: subagent_session.id,
+            system_instructions: recipe.instructions.clone().unwrap_or_default(),
+            retry_config: recipe.retry.clone(),
+            default_max_turns,
+            prompt_max_turns: AtomicUsize::new(prompt_max_turns),
+            busy: Arc::new(Mutex::new(())),
+            notification_tx: notif_tx,
+            creation: WorkerCreationParams::from_delegate_params(params),
+            task_config,
+        });
+
+        let user_text = recipe
+            .prompt
+            .clone()
+            .unwrap_or_else(|| "Begin.".to_string());
+        Ok((worker, user_text))
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
@@ -2116,6 +2392,235 @@ mod tests {
             session: None,
             use_login_shell_path: false,
         }
+    }
+
+    fn creation_params() -> WorkerCreationParams {
+        WorkerCreationParams {
+            source: Some("sidekick".to_string()),
+            parameters: None,
+            extensions: None,
+            provider: None,
+            model: None,
+            temperature: None,
+            working_dir: Some("/app".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_worker_reuse_rejects_changed_creation_params() {
+        let params = DelegateParams {
+            instructions: Some("continue".to_string()),
+            model: Some("claude-haiku-4-5".to_string()),
+            extensions: Some(vec!["developer".to_string()]),
+            working_dir: Some("/elsewhere".to_string()),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+
+        let err = validate_worker_reuse_params(&params, &creation_params()).unwrap_err();
+        assert!(err.contains("extensions"));
+        assert!(err.contains("model"));
+        assert!(err.contains("working_dir"));
+        assert!(!err.contains("source"));
+    }
+
+    #[test]
+    fn test_worker_reuse_allows_resending_identical_creation_params() {
+        let params = DelegateParams {
+            instructions: Some("continue".to_string()),
+            source: Some("sidekick".to_string()),
+            working_dir: Some("/app".to_string()),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+
+        assert!(validate_worker_reuse_params(&params, &creation_params()).is_ok());
+    }
+
+    #[test]
+    fn test_worker_reuse_requires_instructions() {
+        let params = DelegateParams {
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+
+        let err = validate_worker_reuse_params(&params, &creation_params()).unwrap_err();
+        assert!(err.contains("instructions"));
+    }
+
+    #[test]
+    fn test_worker_reuse_allows_instructions_context_max_turns() {
+        let params = DelegateParams {
+            instructions: Some("continue".to_string()),
+            context: Some("earlier spec".to_string()),
+            max_turns: Some(30),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+
+        assert!(validate_worker_reuse_params(&params, &creation_params()).is_ok());
+    }
+
+    #[derive(Default)]
+    struct RecordingProvider {
+        calls: std::sync::Mutex<Vec<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl crate::providers::base::Provider for RecordingProvider {
+        fn get_name(&self) -> &str {
+            "worker-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _system: &str,
+            messages: &[crate::conversation::message::Message],
+            _tools: &[Tool],
+        ) -> Result<crate::providers::base::MessageStream, goose_providers::errors::ProviderError>
+        {
+            let reply_number = {
+                let mut calls = self.calls.lock().unwrap();
+                calls.push(messages.iter().map(|m| m.as_concat_text()).collect());
+                calls.len()
+            };
+            let message = crate::conversation::message::Message::assistant()
+                .with_text(format!("reply-{reply_number}"));
+            let usage = crate::providers::base::ProviderUsage::new(
+                "test-model".to_string(),
+                crate::providers::base::Usage::new(Some(1), Some(1), Some(2)),
+            );
+            Ok(crate::providers::base::stream_from_single_message(
+                message, usage,
+            ))
+        }
+    }
+
+    struct WorkerTestRig {
+        client: SummonClient,
+        provider: Arc<RecordingProvider>,
+        session: crate::session::Session,
+        _extension_manager: Arc<crate::agents::ExtensionManager>,
+        _temp: TempDir,
+    }
+
+    async fn worker_test_rig() -> WorkerTestRig {
+        let temp = TempDir::new().unwrap();
+        let provider = Arc::new(RecordingProvider::default());
+        let extension_manager = Arc::new(
+            crate::agents::extension_manager::ExtensionManager::new_without_provider(
+                temp.path().to_path_buf(),
+            ),
+        );
+        *extension_manager.get_provider().lock().await =
+            Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
+        let mut context = extension_manager.get_context().clone();
+        context.extension_manager = Some(Arc::downgrade(&extension_manager));
+        let client = SummonClient::new(context).unwrap();
+        let session = crate::session::Session {
+            provider_name: Some("worker-test".to_string()),
+            model_config: Some(goose_providers::model::ModelConfig::new("test-model")),
+            working_dir: temp.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        WorkerTestRig {
+            client,
+            provider,
+            session,
+            _extension_manager: extension_manager,
+            _temp: temp,
+        }
+    }
+
+    fn worker_creation_delegate_params(instructions: &str) -> DelegateParams {
+        DelegateParams {
+            instructions: Some(instructions.to_string()),
+            provider: Some("worker-test".to_string()),
+            model: Some("test-model".to_string()),
+            extensions: Some(vec![]),
+            worker: Some("helper".to_string()),
+            ..Default::default()
+        }
+    }
+
+    fn worker_followup_delegate_params(instructions: &str) -> DelegateParams {
+        DelegateParams {
+            instructions: Some(instructions.to_string()),
+            worker: Some("helper".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_worker_create_then_resume_keeps_state() {
+        let rig = worker_test_rig().await;
+
+        let first = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(first.is_error, Some(true));
+
+        let second = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let resumed = calls[1].join("\n");
+        assert!(resumed.contains("first task"));
+        assert!(resumed.contains("reply-1"));
+        assert!(resumed.contains("second task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_busy_lock_rejects_concurrent_delegation() {
+        let rig = worker_test_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let worker = rig
+            .client
+            .workers
+            .lock()
+            .await
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        let _busy = worker.busy.clone().try_lock_owned().unwrap();
+
+        let err = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err();
+        assert!(err.contains("busy"));
     }
 
     #[test]
