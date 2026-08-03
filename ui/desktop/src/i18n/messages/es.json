@@ -4100,6 +4100,12 @@
   "shortcutRecorder.save": {
     "defaultMessage": "Guardar"
   },
+  "showThinkingToggle.description": {
+    "defaultMessage": "Keep thinking traces expanded by default instead of collapsed"
+  },
+  "showThinkingToggle.title": {
+    "defaultMessage": "Always Expand Thinking Traces"
+  },
   "skillsView.addSkill": {
     "defaultMessage": "Agregar Skill"
   },
