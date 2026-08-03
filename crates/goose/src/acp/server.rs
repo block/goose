@@ -421,9 +421,8 @@ fn selected_builtin_extensions(
     let mut extensions = Vec::new();
 
     for builtin in &builtin_selection.defaults {
-        let builtin_config = builtin_to_extension_config(builtin);
-        if configured_enabled_state(config, &builtin_config.name()) != Some(false) {
-            push_or_replace_extension(&mut extensions, builtin_config);
+        if configured_enabled_state(config, builtin) != Some(false) {
+            push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
         }
     }
 
@@ -2571,7 +2570,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtin_selection: AcpBuiltinSelection {
+            builtins: AcpBuiltinSelection {
                 explicit: builtins,
                 ..Default::default()
             },

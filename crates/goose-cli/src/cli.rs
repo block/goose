@@ -1412,7 +1412,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         allowed_origins,
     } = args;
 
-    let builtin_selection = if builtins.is_empty() {
+    let builtins = if builtins.is_empty() {
         AcpBuiltinSelection {
             defaults: vec!["developer".to_string()],
             explicit: Vec::new(),
@@ -1437,7 +1437,7 @@ async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
         .collect();
 
     let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
-        builtin_selection,
+        builtins,
         data_dir: Paths::data_dir(),
         config_dir: Paths::config_dir(),
         goose_platform: platform.into(),
