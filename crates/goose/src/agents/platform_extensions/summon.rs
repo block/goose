@@ -22,7 +22,7 @@ use rmcp::model::{
     MetaObject, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -78,27 +78,66 @@ pub struct PersistentWorker {
     pub creation: WorkerCreationParams,
 }
 
-#[derive(Clone, PartialEq)]
 pub struct WorkerCreationParams {
     pub source: Option<String>,
     pub parameters: Option<HashMap<String, serde_json::Value>>,
-    pub extensions: Option<Vec<String>>,
-    pub provider: Option<String>,
-    pub model: Option<String>,
+    pub extensions_filter: Option<Vec<String>>,
+    pub extensions: HashSet<String>,
+    pub provider: String,
+    pub model_request: Option<String>,
+    pub model: String,
     pub temperature: Option<f32>,
-    pub working_dir: Option<String>,
+    pub working_dir: PathBuf,
 }
 
 impl WorkerCreationParams {
-    fn from_delegate_params(params: &DelegateParams) -> Self {
+    fn resolve(
+        params: &DelegateParams,
+        model_request: Option<String>,
+        task_config: &TaskConfig,
+    ) -> Self {
+        let working_dir = task_config
+            .parent_working_dir
+            .canonicalize()
+            .unwrap_or_else(|_| task_config.parent_working_dir.clone());
         Self {
             source: params.source.clone(),
             parameters: params.parameters.clone(),
-            extensions: params.extensions.clone(),
-            provider: params.provider.clone(),
-            model: params.model.clone(),
-            temperature: params.temperature,
-            working_dir: params.working_dir.clone(),
+            extensions_filter: params.extensions.clone(),
+            extensions: task_config.extensions.iter().map(|e| e.name()).collect(),
+            provider: task_config.provider.get_name().to_string(),
+            model_request,
+            model: task_config.model_config.model_name.clone(),
+            temperature: task_config.model_config.temperature,
+            working_dir,
+        }
+    }
+}
+
+pub enum WorkerSlot {
+    Creating,
+    Ready(Arc<PersistentWorker>),
+}
+
+// Removes the Creating placeholder if creation fails or the call is cancelled
+// mid-await, so the worker name is not permanently stuck reporting busy.
+struct CreationSlotGuard<'a> {
+    workers: &'a std::sync::Mutex<HashMap<String, WorkerSlot>>,
+    key: Option<String>,
+}
+
+impl CreationSlotGuard<'_> {
+    fn release(mut self) -> String {
+        self.key.take().expect("release called once")
+    }
+}
+
+impl Drop for CreationSlotGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(key) = self.key.take() {
+            if let Ok(mut workers) = self.workers.lock() {
+                workers.remove(&key);
+            }
         }
     }
 }
@@ -123,35 +162,60 @@ pub struct CompletedTask {
     pub completed_at: Instant,
 }
 
+fn requested_model_override(params: &DelegateParams, recipe: &Recipe) -> Option<String> {
+    params
+        .model
+        .clone()
+        .or_else(|| recipe.settings.as_ref().and_then(|s| s.goose_model.clone()))
+        .or_else(|| {
+            Config::global()
+                .get_param::<String>("GOOSE_SUBAGENT_MODEL")
+                .ok()
+        })
+}
+
 fn validate_worker_reuse_params(
     params: &DelegateParams,
     creation: &WorkerCreationParams,
+    session_working_dir: &Path,
 ) -> Result<(), String> {
-    fn differs<T: PartialEq>(resent: &Option<T>, original: &Option<T>) -> bool {
-        resent.is_some() && resent != original
-    }
-
     let mut changed = Vec::new();
-    if differs(&params.source, &creation.source) {
+    if params.source.is_some() && params.source != creation.source {
         changed.push("source");
     }
-    if differs(&params.parameters, &creation.parameters) {
+    if params.parameters.is_some() && params.parameters != creation.parameters {
         changed.push("parameters");
     }
-    if differs(&params.extensions, &creation.extensions) {
-        changed.push("extensions");
+    if let Some(filter) = &params.extensions {
+        let resent: HashSet<String> = filter.iter().cloned().collect();
+        if Some(filter) != creation.extensions_filter.as_ref() && resent != creation.extensions {
+            changed.push("extensions");
+        }
     }
-    if differs(&params.provider, &creation.provider) {
-        changed.push("provider");
+    if let Some(provider) = &params.provider {
+        if provider != &creation.provider {
+            changed.push("provider");
+        }
     }
-    if differs(&params.model, &creation.model) {
-        changed.push("model");
+    if let Some(model) = &params.model {
+        let matches = match &creation.model_request {
+            Some(requested) => model == requested,
+            None => model == &creation.model,
+        };
+        if !matches {
+            changed.push("model");
+        }
     }
-    if differs(&params.temperature, &creation.temperature) {
-        changed.push("temperature");
+    if let Some(temperature) = params.temperature {
+        if Some(temperature) != creation.temperature {
+            changed.push("temperature");
+        }
     }
-    if differs(&params.working_dir, &creation.working_dir) {
-        changed.push("working_dir");
+    if let Some(dir) = &params.working_dir {
+        let resolved = resolve_working_dir(session_working_dir, dir).map_err(|e| e.to_string())?;
+        if resolved != creation.working_dir {
+            changed.push("working_dir");
+        }
     }
     if !changed.is_empty() {
         return Err(format!(
@@ -553,7 +617,7 @@ pub struct SummonClient {
     source_cache: Mutex<Option<(Instant, PathBuf, Vec<SourceEntry>)>>,
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
-    workers: Mutex<HashMap<String, Arc<PersistentWorker>>>,
+    workers: std::sync::Mutex<HashMap<String, WorkerSlot>>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
@@ -579,7 +643,7 @@ impl SummonClient {
             source_cache: Mutex::new(None),
             background_tasks: Mutex::new(HashMap::new()),
             completed_tasks: Mutex::new(HashMap::new()),
-            workers: Mutex::new(HashMap::new()),
+            workers: std::sync::Mutex::new(HashMap::new()),
             notification_subscribers: Arc::new(Mutex::new(Vec::new())),
         })
     }
@@ -1465,36 +1529,63 @@ impl SummonClient {
         }
         let worker_key = format!("{}:{}", session.id, worker_name);
 
-        let (worker, user_text, _busy) = {
-            let mut workers = self.workers.lock().await;
-            let (worker, user_text) = match workers.get(&worker_key) {
-                Some(existing) => {
-                    validate_worker_reuse_params(&params, &existing.creation)?;
-                    let instructions = params
-                        .instructions
-                        .clone()
-                        .expect("validated by validate_worker_reuse_params");
-                    let user_text = match &params.context {
-                        Some(context) => format!("Context:\n{}\n\n{}", context, instructions),
-                        None => instructions,
-                    };
-                    (existing.clone(), user_text)
-                }
+        let busy_error = || {
+            format!(
+                "Worker '{}' is busy with a previous delegation. Wait for it to finish.",
+                worker_name
+            )
+        };
+
+        let existing = {
+            let mut workers = self.workers.lock().unwrap();
+            match workers.get(&worker_key) {
+                Some(WorkerSlot::Ready(worker)) => Some(worker.clone()),
+                Some(WorkerSlot::Creating) => return Err(busy_error()),
                 None => {
                     self.validate_delegate_params(&params)?;
-                    let (worker, user_text) =
-                        self.create_worker(session, &params, &worker_name).await?;
-                    workers.insert(worker_key, worker.clone());
-                    (worker, user_text)
+                    workers.insert(worker_key.clone(), WorkerSlot::Creating);
+                    None
                 }
-            };
-            let busy = worker.busy.clone().try_lock_owned().map_err(|_| {
-                format!(
-                    "Worker '{}' is busy with a previous delegation. Wait for it to finish.",
-                    worker_name
-                )
-            })?;
-            (worker, user_text, busy)
+            }
+        };
+
+        let (worker, user_text, _busy) = match existing {
+            Some(worker) => {
+                validate_worker_reuse_params(&params, &worker.creation, &session.working_dir)?;
+                let instructions = params
+                    .instructions
+                    .clone()
+                    .expect("validated by validate_worker_reuse_params");
+                let user_text = match &params.context {
+                    Some(context) => format!("Context:\n{}\n\n{}", context, instructions),
+                    None => instructions,
+                };
+                let busy = worker
+                    .busy
+                    .clone()
+                    .try_lock_owned()
+                    .map_err(|_| busy_error())?;
+                (worker, user_text, busy)
+            }
+            None => {
+                let creating = CreationSlotGuard {
+                    workers: &self.workers,
+                    key: Some(worker_key),
+                };
+                let (worker, user_text) =
+                    self.create_worker(session, &params, &worker_name).await?;
+                let busy = worker
+                    .busy
+                    .clone()
+                    .try_lock_owned()
+                    .expect("newly created worker is not busy");
+                let key = creating.release();
+                self.workers
+                    .lock()
+                    .unwrap()
+                    .insert(key, WorkerSlot::Ready(worker.clone()));
+                (worker, user_text, busy)
+            }
         };
 
         let max_turns = params.max_turns.unwrap_or(worker.default_max_turns);
@@ -1550,9 +1641,27 @@ impl SummonClient {
         worker_name: &str,
     ) -> Result<(Arc<PersistentWorker>, String), String> {
         let working_dir = session.working_dir.clone();
-        let recipe = self
+        let mut recipe = self
             .build_delegate_recipe(params, &session.id, &working_dir)
             .await?;
+
+        // Resolve the model override once and pin it into the recipe, so the
+        // stored creation params match the model build_task_config configures
+        // even if global config changes mid-creation.
+        let model_request = requested_model_override(params, &recipe);
+        if let Some(model) = &model_request {
+            match recipe.settings.as_mut() {
+                Some(settings) => settings.goose_model = Some(model.clone()),
+                None => {
+                    recipe.settings = Some(Settings {
+                        goose_provider: None,
+                        goose_model: Some(model.clone()),
+                        temperature: None,
+                        max_turns: None,
+                    })
+                }
+            }
+        }
 
         let task_config = self
             .build_task_config(params, &recipe, session)
@@ -1596,6 +1705,13 @@ impl SummonClient {
             .as_ref()
             .and_then(|s| s.max_turns)
             .unwrap_or_else(|| self.resolve_max_turns(session));
+        if default_max_turns == 0 || default_max_turns > u32::MAX as usize {
+            return Err(format!(
+                "max_turns must be between 1 and {} (got {})",
+                u32::MAX,
+                default_max_turns
+            ));
+        }
         let prompt_max_turns = task_config
             .max_turns
             .expect("TaskConfig always sets max_turns");
@@ -1609,7 +1725,7 @@ impl SummonClient {
             prompt_max_turns: AtomicUsize::new(prompt_max_turns),
             busy: Arc::new(Mutex::new(())),
             notification_tx: notif_tx,
-            creation: WorkerCreationParams::from_delegate_params(params),
+            creation: WorkerCreationParams::resolve(params, model_request, &task_config),
             task_config,
         });
 
@@ -1901,15 +2017,7 @@ impl SummonClient {
             crate::model_config::model_config_from_user_config(provider_name, "default")
         })?;
 
-        let override_model = params
-            .model
-            .clone()
-            .or_else(|| recipe.settings.as_ref().and_then(|s| s.goose_model.clone()))
-            .or_else(|| {
-                Config::global()
-                    .get_param::<String>("GOOSE_SUBAGENT_MODEL")
-                    .ok()
-            });
+        let override_model = requested_model_override(params, recipe);
 
         if let Some(model) = override_model {
             if model != model_config.model_name {
@@ -2394,30 +2502,43 @@ mod tests {
         }
     }
 
-    fn creation_params() -> WorkerCreationParams {
+    fn creation_params(working_dir: PathBuf) -> WorkerCreationParams {
         WorkerCreationParams {
             source: Some("sidekick".to_string()),
             parameters: None,
-            extensions: None,
-            provider: None,
-            model: None,
+            extensions_filter: None,
+            extensions: HashSet::from(["developer".to_string()]),
+            provider: "anthropic".to_string(),
+            model_request: None,
+            model: "claude-sonnet-5".to_string(),
             temperature: None,
-            working_dir: Some("/app".to_string()),
+            working_dir,
         }
+    }
+
+    fn worker_session_dir() -> (TempDir, PathBuf) {
+        let session_dir = TempDir::new().unwrap();
+        fs::create_dir(session_dir.path().join("app")).unwrap();
+        fs::create_dir(session_dir.path().join("other")).unwrap();
+        let app_dir = resolve_working_dir(session_dir.path(), "app").unwrap();
+        (session_dir, app_dir)
     }
 
     #[test]
     fn test_worker_reuse_rejects_changed_creation_params() {
+        let (session_dir, app_dir) = worker_session_dir();
         let params = DelegateParams {
             instructions: Some("continue".to_string()),
             model: Some("claude-haiku-4-5".to_string()),
-            extensions: Some(vec!["developer".to_string()]),
-            working_dir: Some("/elsewhere".to_string()),
+            extensions: Some(vec!["summon".to_string()]),
+            working_dir: Some("other".to_string()),
             worker: Some("sidekick".to_string()),
             ..Default::default()
         };
 
-        let err = validate_worker_reuse_params(&params, &creation_params()).unwrap_err();
+        let err =
+            validate_worker_reuse_params(&params, &creation_params(app_dir), session_dir.path())
+                .unwrap_err();
         assert!(err.contains("extensions"));
         assert!(err.contains("model"));
         assert!(err.contains("working_dir"));
@@ -2426,30 +2547,88 @@ mod tests {
 
     #[test]
     fn test_worker_reuse_allows_resending_identical_creation_params() {
+        let (session_dir, app_dir) = worker_session_dir();
         let params = DelegateParams {
             instructions: Some("continue".to_string()),
             source: Some("sidekick".to_string()),
-            working_dir: Some("/app".to_string()),
+            working_dir: Some("app".to_string()),
             worker: Some("sidekick".to_string()),
             ..Default::default()
         };
 
-        assert!(validate_worker_reuse_params(&params, &creation_params()).is_ok());
+        assert!(validate_worker_reuse_params(
+            &params,
+            &creation_params(app_dir),
+            session_dir.path()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_worker_reuse_allows_explicit_params_matching_resolved_values() {
+        let (session_dir, app_dir) = worker_session_dir();
+        let params = DelegateParams {
+            instructions: Some("continue".to_string()),
+            provider: Some("anthropic".to_string()),
+            model: Some("claude-sonnet-5".to_string()),
+            extensions: Some(vec!["developer".to_string()]),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+
+        assert!(validate_worker_reuse_params(
+            &params,
+            &creation_params(app_dir),
+            session_dir.path()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_worker_reuse_model_compared_against_original_request() {
+        let (session_dir, app_dir) = worker_session_dir();
+        let mut creation = creation_params(app_dir);
+        creation.model_request = Some("gpt-5-high".to_string());
+        creation.model = "gpt-5".to_string();
+
+        let resend_original = DelegateParams {
+            instructions: Some("continue".to_string()),
+            model: Some("gpt-5-high".to_string()),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+        assert!(
+            validate_worker_reuse_params(&resend_original, &creation, session_dir.path()).is_ok()
+        );
+
+        let send_normalized = DelegateParams {
+            instructions: Some("continue".to_string()),
+            model: Some("gpt-5".to_string()),
+            worker: Some("sidekick".to_string()),
+            ..Default::default()
+        };
+        let err = validate_worker_reuse_params(&send_normalized, &creation, session_dir.path())
+            .unwrap_err();
+        assert!(err.contains("model"));
     }
 
     #[test]
     fn test_worker_reuse_requires_instructions() {
+        let (session_dir, app_dir) = worker_session_dir();
         let params = DelegateParams {
             worker: Some("sidekick".to_string()),
             ..Default::default()
         };
 
-        let err = validate_worker_reuse_params(&params, &creation_params()).unwrap_err();
+        let err =
+            validate_worker_reuse_params(&params, &creation_params(app_dir), session_dir.path())
+                .unwrap_err();
         assert!(err.contains("instructions"));
     }
 
     #[test]
     fn test_worker_reuse_allows_instructions_context_max_turns() {
+        let (session_dir, app_dir) = worker_session_dir();
         let params = DelegateParams {
             instructions: Some("continue".to_string()),
             context: Some("earlier spec".to_string()),
@@ -2458,7 +2637,12 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(validate_worker_reuse_params(&params, &creation_params()).is_ok());
+        assert!(validate_worker_reuse_params(
+            &params,
+            &creation_params(app_dir),
+            session_dir.path()
+        )
+        .is_ok());
     }
 
     #[derive(Default)]
@@ -2600,15 +2784,10 @@ mod tests {
             .await
             .unwrap();
 
-        let worker = rig
-            .client
-            .workers
-            .lock()
-            .await
-            .values()
-            .next()
-            .unwrap()
-            .clone();
+        let worker = match rig.client.workers.lock().unwrap().values().next().unwrap() {
+            WorkerSlot::Ready(worker) => worker.clone(),
+            WorkerSlot::Creating => panic!("worker should be ready"),
+        };
         let _busy = worker.busy.clone().try_lock_owned().unwrap();
 
         let err = rig
