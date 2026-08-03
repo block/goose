@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { ItemIcon } from './ItemIcon';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { defineMessages, useIntl } from '../i18n';
@@ -68,6 +69,8 @@ interface MentionPopoverProps {
   position: { x: number; y: number };
   query: string;
   isSlashCommand: boolean;
+  /** When true, mid-message `/` only offers skills (execution ignores builtins/recipes). */
+  slashSkillsOnly?: boolean;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   workingDir?: string;
@@ -150,6 +153,7 @@ const MentionPopover = forwardRef<
       position,
       query,
       isSlashCommand,
+      slashSkillsOnly = false,
       selectedIndex,
       onSelectedIndexChange,
       workingDir,
@@ -493,7 +497,12 @@ const MentionPopover = forwardRef<
           if (isSlashCommand) {
             const commandItems = await listSlashCommandItems(currentWorkingDir);
             if (cancelled) return;
-            setItems(commandItems);
+            // Mid-message execution only expands skills; don't offer builtins/recipes.
+            setItems(
+              slashSkillsOnly
+                ? commandItems.filter((item) => item.itemType === 'Skill')
+                : commandItems
+            );
           } else {
             // Fetch agents from server and scan files in parallel
             const [agentItems, scannedFiles] = await Promise.all([
@@ -522,7 +531,7 @@ const MentionPopover = forwardRef<
       return () => {
         cancelled = true;
       };
-    }, [isOpen, isSlashCommand, scanDirectoryFromRoot, currentWorkingDir, sessionId]);
+    }, [isOpen, isSlashCommand, slashSkillsOnly, scanDirectoryFromRoot, currentWorkingDir, sessionId]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -563,9 +572,12 @@ const MentionPopover = forwardRef<
 
     if (!isOpen) return null;
 
-    return (
+    // Portal to document.body so ChatInputCard's overflow-hidden / transform
+    // animations cannot trap this fixed popover inside the composer.
+    return createPortal(
       <div
         ref={popoverRef}
+        data-testid="mention-popover"
         className="fixed z-50 bg-background-primary border border-border-primary rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
         style={{
           left: position.x,
@@ -623,7 +635,8 @@ const MentionPopover = forwardRef<
             </>
           )}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 );

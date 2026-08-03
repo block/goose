@@ -980,13 +980,13 @@ pre:has(> code.bg-inline-code) {
   animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
+/* Opacity-only — avoid transform so descendants with position:fixed
+   (e.g. MentionPopover before portal) are not trapped by a containing block. */
 @keyframes fadein {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
