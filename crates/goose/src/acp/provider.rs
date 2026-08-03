@@ -1,3 +1,4 @@
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     Annotations as AcpAnnotations, ClientCapabilities, CloseSessionRequest, ContentBlock,
     ContentChunk, EnvVariable, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
@@ -9,10 +10,9 @@ use agent_client_protocol::schema::v1::{
     SetSessionModeRequest, SetSessionModeResponse, StopReason, TextContent, ToolCallContent,
     ToolCallStatus, ToolKind,
 };
-use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
-use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use agent_client_protocol_schema::v1::AGENT_METHOD_NAMES;
+use agent_client_protocol_schema::v1::Usage as AcpUsage;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
@@ -23,20 +23,20 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::thread::JoinHandle;
 use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
-use crate::acp::{map_permission_response, PermissionDecision};
+use crate::acp::{PermissionDecision, map_permission_response};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::conversation::Conversation;
+use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
@@ -1009,7 +1009,7 @@ async fn forward_child_stderr(mut stderr: tokio::process::ChildStderr) {
                 }
             }
             Err(e) => {
-                tracing::debug!(target: "acp::child::stderr", error = %e, "stderr read error");
+                tracing::debug!(target: "goose::acp::child::stderr", error = %e, "stderr read error");
                 break;
             }
         }
@@ -1022,7 +1022,7 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
         return;
     }
     let trimmed = line.strip_suffix(b"\r").unwrap_or(line);
-    tracing::info!(target: "acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
+    tracing::info!(target: "goose::acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
     line.clear();
 }
 
