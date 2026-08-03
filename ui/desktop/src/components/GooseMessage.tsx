@@ -3,6 +3,7 @@ import ImagePreview from './ImagePreview';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ThinkingContent from './ThinkingContent';
+import { useConfig } from './ConfigContext';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
   getTextAndImageContent,
@@ -47,10 +48,13 @@ export default function GooseMessage({
   isStreaming,
   submitElicitationResponse,
 }: GooseMessageProps) {
+  const { config } = useConfig();
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const { textContent: displayText, imagePaths } = getTextAndImageContent(message);
   const thinkingContent = getThinkingContent(message);
+
+  const showThinkingByDefault = config['GOOSE_SHOW_THINKING'] === true;
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
@@ -126,10 +130,11 @@ export default function GooseMessage({
           <ThinkingContent
             content={thinkingContent}
             isExpanded={
-              isStreaming &&
-              !displayText.trim() &&
-              imagePaths.length === 0 &&
-              toolRequests.length === 0
+              showThinkingByDefault ||
+              (isStreaming &&
+                !displayText.trim() &&
+                imagePaths.length === 0 &&
+                toolRequests.length === 0)
             }
           />
         )}

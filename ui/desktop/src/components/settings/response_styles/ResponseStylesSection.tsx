@@ -1,6 +1,7 @@
 import { AppEvents } from '../../../constants/events';
 import { useEffect, useState } from 'react';
 import { all_response_styles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
+import { ShowThinkingToggle } from '../chat/ShowThinkingToggle';
 
 export const ResponseStylesSection = () => {
   const [currentStyle, setCurrentStyle] = useState('concise');
@@ -40,6 +41,7 @@ export const ResponseStylesSection = () => {
           handleStyleChange={handleStyleChange}
         />
       ))}
+      <ShowThinkingToggle />
     </div>
   );
 };
