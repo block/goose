@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "डिफ़ॉल्ट प्रदाता का उपयोग करें"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "रेसिपी का नाम"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "स्वचालित रूप से स्वरूपित किया जाएगा (लोअरकेस, रिक्त स्थान के लिए डैश)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "रद्द करें"
   },
@@ -3737,24 +3731,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "स्ट्रीमिंग"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "कोई संदेश नहीं मिला"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "आप"
-  },
   "sessions.action.delete": {
     "defaultMessage": "सत्र हटाएँ"
   },
@@ -4082,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Settings"
   },
-  "sheet.close": {
-    "defaultMessage": "बंद करें"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "रद्द करें"
   },
@@ -4150,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} प्रदाता कॉन्फ़िगर किया गया है"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama ऐप"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "उपयोग करने के लिए, या तो"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "आपकी मशीन पर स्थापित और खुला होना चाहिए, या आपको OLLAMA_HOST के लिए एक मान दर्ज करना होगा।"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "मौजूदा जोड़ें"
@@ -4574,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "संपादित करें"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "संलग्न छवियाँ:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "यथास्थान संपादित करें"
   },
@@ -4606,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "संपादित संदेश के साथ एक नया सत्र बनाएं"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "संदेश से छवि हटाएँ"
   }
 }

@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Utiliser le fournisseur par défaut"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nom de la recette"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sera automatiquement mis en forme (minuscules, tirets à la place des espaces)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -3737,24 +3731,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Diffusion en cours"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Cette session ne contient aucun message"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Aucun message trouvé"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Erreur lors du chargement des détails de la session"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Réessayer"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Vous"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Supprimer la session"
   },
@@ -4082,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Paramètres"
   },
-  "sheet.close": {
-    "defaultMessage": "Fermer"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Annuler"
   },
@@ -4150,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Le fournisseur {name} est configuré"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Application Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Pour l'utiliser, soit le"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "doit être installé sur votre machine et ouvert, soit vous devez saisir une valeur pour OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Ajouter une existante"
@@ -4574,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Modifier"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Images jointes :"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Modifier sur place"
   },
@@ -4606,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Créer une nouvelle session avec le message modifié"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Supprimer l'image du message"
   }
 }

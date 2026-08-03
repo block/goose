@@ -324,6 +324,18 @@
     "environmentVariables": []
   },
   {
+    "id": "glif",
+    "name": "Glif",
+    "description": "Generate images, video, and audio with Glif's media-generation agent",
+    "url": "https://glif.app/api/mcp",
+    "link": "https://glif.app/mcp",
+    "installation_notes": "Hosted remote server. Sign in with your Glif account via OAuth on first connect.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "github-mcp",
     "name": "GitHub",
     "description": "GitHub repository management and operations",
@@ -552,6 +564,17 @@
     "installation_notes": "Install PiecesOS first.",
     "is_builtin": false,
     "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "pngmeta",
+    "name": "PNG Metadata",
+    "description": "Read and write PNG metadata (tEXt, iTXt, zTXt chunks and XMP)",
+    "command": "uvx --from pngmeta[mcp] pngmeta-mcp",
+    "link": "https://github.com/james-see/pngmeta",
+    "installation_notes": "Install using uvx. Requires pngmeta[mcp] extra.",
+    "is_builtin": false,
+    "endorsed": false,
     "environmentVariables": []
   },
   {

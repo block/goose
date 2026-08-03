@@ -42,10 +42,6 @@ tasks.jar {
     }
 }
 
-tasks.withType<GenerateModuleMetadata>().configureEach {
-    dependsOn(tasks.named("plainJavadocJar"))
-}
-
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)
     if (providers.gradleProperty("signingInMemoryKey").isPresent) {

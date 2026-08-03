@@ -3026,12 +3026,6 @@
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Usar el proveedor por defecto"
   },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nombre de la receta"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Se formateará automáticamente (minúsculas, guiones en lugar de espacios)"
-  },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -3737,24 +3731,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Tú"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Eliminar sesión"
   },
@@ -4082,9 +4058,6 @@
   "settingsView.title": {
     "defaultMessage": "Ajustes"
   },
-  "sheet.close": {
-    "defaultMessage": "Cerrar"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Cancelar"
   },
@@ -4150,15 +4123,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "El proveedor {name} está configurado"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "App de Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Para usarlo, o bien la"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "debe estar instalada en tu máquina y abierta, o debes ingresar un valor para OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Agregar existente"
@@ -4574,6 +4538,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Editar"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imágenes adjuntas:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Editar en el sitio"
   },
@@ -4606,5 +4573,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Crear una nueva sesión con el mensaje editado"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Eliminar imagen del mensaje"
   }
 }

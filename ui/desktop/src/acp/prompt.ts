@@ -50,6 +50,8 @@ export function messageToAcpPromptContent(message: Message): ContentBlock[] {
           type: 'image',
           data: content.data,
           mimeType: content.mimeType,
+          ...(content._meta ? { _meta: content._meta } : {}),
+          ...(content.annotations ? { annotations: content.annotations } : {}),
         });
         break;
     }

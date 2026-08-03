@@ -19,6 +19,7 @@ pub(crate) mod declarative_providers {
         deepseek,
         empiriolabs,
         fireworks,
+        friendli,
         futurmix,
         groq,
         iflytek,

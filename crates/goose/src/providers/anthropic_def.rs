@@ -152,4 +152,35 @@ mod tests {
             "error message should mention dynamic_models: false; got: {msg}"
         );
     }
+
+    // Capture the built client's request timeout without exposing a builder
+    // getter: map_api_client sees the ApiClient produced by
+    // from_declarative_config before it is replaced/decorated.
+    fn built_timeout(config: DeclarativeProviderConfig) -> std::time::Duration {
+        let captured = std::cell::Cell::new(None);
+        anthropic::from_declarative_config(config, None, ConfigKeyResolver::new(Config::global()))
+            .expect("provider construction should succeed")
+            .map_api_client(|api_client| {
+                captured.set(Some(api_client.timeout()));
+                api_client
+            });
+        captured.get().expect("map_api_client should have run")
+    }
+
+    #[test]
+    fn from_custom_config_honors_explicit_timeout_seconds() {
+        let mut config =
+            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 200000)], Some(false));
+        config.timeout_seconds = Some(120);
+        assert_eq!(built_timeout(config), std::time::Duration::from_secs(120));
+    }
+
+    #[test]
+    fn from_custom_config_defaults_timeout_when_unset() {
+        // timeout_seconds: None in base config → 600s default, unchanged
+        // behavior for providers that don't set the field.
+        let config =
+            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 200000)], Some(false));
+        assert_eq!(built_timeout(config), std::time::Duration::from_secs(600));
+    }
 }

@@ -549,6 +549,8 @@ mod tests {
                 currency: None,
                 supports_cache_control: None,
                 reasoning: false,
+                thinking_preservation_format: None,
+                request_params: None,
             }],
             headers: None,
             timeout_seconds: None,
