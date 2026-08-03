@@ -137,11 +137,16 @@ const CACHE_CONTROL_FIELD: &str = "cache_control";
 const ID_FIELD: &str = "id";
 const NAME_FIELD: &str = "name";
 const INPUT_FIELD: &str = "input";
-/// Anthropic rejects `tool_use.name` past this length. History written by an ACP
-/// harness stores the call's display title as the name, and for shell calls that
-/// title is the whole command, so a replayed session can carry names far past the
-/// limit and 400 on every retry until it is clamped here.
-const MAX_TOOL_USE_NAME_CHARS: usize = 200;
+/// Anthropic validates `tool_use.name` inside replayed history against
+/// `^[a-zA-Z0-9_-]{1,64}$`, so both the length and the character class are
+/// enforced. History written by an ACP harness stores the call's display title as
+/// the name, and for shell calls that title is the whole command, so a replayed
+/// session carries spaces and quotes and 400s on every retry until it is
+/// sanitized here. A gateway in front of Anthropic may report the weaker rule
+/// instead (`String should have at most 200 characters`, issue #10807); 64 is
+/// under that bound, so satisfying the pattern satisfies both.
+const MAX_TOOL_USE_NAME_CHARS: usize = 64;
+const TOOL_USE_NAME_PLACEHOLDER: &str = "unnamed_tool";
 const TOOL_USE_ID_FIELD: &str = "tool_use_id";
 const IS_ERROR_FIELD: &str = "is_error";
 const SIGNATURE_FIELD: &str = "signature";
@@ -185,8 +190,27 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     format_messages_with_options(messages, AnthropicFormatOptions::default())
 }
 
-fn clamp_tool_use_name(name: &str) -> String {
-    name.chars().take(MAX_TOOL_USE_NAME_CHARS).collect()
+/// Rewrite a stored tool name into one Anthropic accepts in replayed history.
+/// Mapping the character class before the length cut keeps the result ASCII, so
+/// the cut can never land inside a multibyte code point.
+fn sanitize_tool_use_name(name: &str) -> String {
+    let sanitized: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .take(MAX_TOOL_USE_NAME_CHARS)
+        .collect();
+
+    if sanitized.is_empty() {
+        return TOOL_USE_NAME_PLACEHOLDER.to_string();
+    }
+
+    sanitized
 }
 
 fn format_messages_with_options(
@@ -218,7 +242,7 @@ fn format_messages_with_options(
                             content.push(json!({
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
-                                NAME_FIELD: clamp_tool_use_name(&tool_call.name),
+                                NAME_FIELD: sanitize_tool_use_name(&tool_call.name),
                                 INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                             }));
                         }
@@ -386,7 +410,7 @@ fn format_messages_with_options(
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
-                            NAME_FIELD: clamp_tool_use_name(&tool_call.name),
+                            NAME_FIELD: sanitize_tool_use_name(&tool_call.name),
                             INPUT_FIELD: args_to_input_value(tool_call.arguments.clone())
                         }));
                     }
@@ -1697,50 +1721,86 @@ mod tests {
         assert_eq!(spec[1]["content"][0]["is_error"], true);
     }
 
-    /// A session that ran on an ACP harness stores the call's display title as
-    /// the tool name, and for a shell call that title is the whole command. On
-    /// one reported machine those names reached 2143 characters, so every replay
-    /// of that history 400s on `tool_use.name` until the name is clamped.
+    /// Anthropic validates `tool_use.name` inside replayed history, not just the
+    /// names declared in `tools`. Reported verbatim as
+    /// `messages.3.content.1.tool_use.name: String should match pattern
+    /// '^[a-zA-Z0-9_-]{1,64}$'` in drorm/vmpilot#17 and langchain-ai/langsmith-sdk#899.
+    fn assert_valid_tool_use_name(name: &str) {
+        assert!(!name.is_empty(), "empty name violates the {{1,64}} pattern");
+        assert!(
+            name.chars().count() <= MAX_TOOL_USE_NAME_CHARS,
+            "{name:?} is longer than {MAX_TOOL_USE_NAME_CHARS} characters"
+        );
+        assert!(
+            name.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'),
+            "{name:?} carries characters outside [a-zA-Z0-9_-]"
+        );
+    }
+
+    fn emitted_tool_name(name: &str) -> String {
+        let messages = vec![Message::assistant()
+            .with_tool_request("tool_1", Ok(CallToolRequestParams::new(name.to_string())))];
+
+        format_messages(&messages)[0]["content"][0]["name"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    /// An ACP harness stores the shell command as the tool name, so a replayed
+    /// name carries spaces and quotes while sitting well under any length limit.
+    /// Truncation never touches it and the session 400s forever.
     #[test]
-    fn test_over_long_tool_name_is_clamped_to_the_provider_limit() {
-        let long_name = "g".repeat(2143);
-        let messages = vec![Message::assistant().with_tool_request(
-            "tool_1",
-            Ok(CallToolRequestParams::new(long_name.clone())
-                .with_arguments(object!({"command": "git commit"}))),
-        )];
+    fn test_tool_name_with_invalid_characters_is_sanitized() {
+        let emitted = emitted_tool_name(r#"git commit -m "fix""#);
 
-        let spec = format_messages(&messages);
-        let emitted = spec[0]["content"][0]["name"].as_str().unwrap();
+        assert_valid_tool_use_name(&emitted);
+        assert_eq!(emitted, "git_commit_-m__fix_");
+    }
 
-        assert_eq!(emitted.chars().count(), MAX_TOOL_USE_NAME_CHARS);
-        assert!(long_name.starts_with(emitted));
+    /// Twin of the case above: a name that already satisfies the pattern must
+    /// survive untouched, otherwise sanitizing breaks every ordinary tool call.
+    #[test]
+    fn test_valid_tool_name_is_left_untouched() {
+        let valid_name = "developer__shell-2";
+
+        assert_eq!(emitted_tool_name(valid_name), valid_name);
+        assert_valid_tool_use_name(valid_name);
     }
 
     #[test]
-    fn test_tool_name_at_the_limit_is_left_alone() {
+    fn test_over_long_tool_name_is_clamped_to_the_pattern_limit() {
+        let emitted = emitted_tool_name(&"g".repeat(2143));
+
+        assert_valid_tool_use_name(&emitted);
+        assert_eq!(emitted, "g".repeat(MAX_TOOL_USE_NAME_CHARS));
+    }
+
+    /// Twin: a name at the limit is not shortened.
+    #[test]
+    fn test_tool_name_at_the_limit_is_not_shortened() {
         let exact_name = "g".repeat(MAX_TOOL_USE_NAME_CHARS);
-        let messages = vec![Message::assistant()
-            .with_tool_request("tool_1", Ok(CallToolRequestParams::new(exact_name.clone())))];
 
-        let spec = format_messages(&messages);
-
-        assert_eq!(spec[0]["content"][0]["name"], exact_name);
+        assert_eq!(emitted_tool_name(&exact_name), exact_name);
     }
 
-    /// The limit counts characters, so clamping a multibyte name by bytes would
-    /// either split a code point and panic or emit a name still over the limit.
+    /// Clamping a multibyte name by characters kept it inside the length rule and
+    /// still produced a name the pattern rejects, so the emitted bytes must be
+    /// ASCII before the limit is applied at all.
     #[test]
-    fn test_multibyte_tool_name_is_clamped_on_a_character_boundary() {
-        let multibyte_name = "ş".repeat(300);
-        let messages = vec![Message::assistant()
-            .with_tool_request("tool_1", Ok(CallToolRequestParams::new(multibyte_name)))];
+    fn test_multibyte_tool_name_is_replaced_not_just_shortened() {
+        let emitted = emitted_tool_name(&"ş".repeat(300));
 
-        let spec = format_messages(&messages);
-        let emitted = spec[0]["content"][0]["name"].as_str().unwrap();
+        assert_valid_tool_use_name(&emitted);
+        assert_eq!(emitted, "_".repeat(MAX_TOOL_USE_NAME_CHARS));
+    }
 
-        assert_eq!(emitted.chars().count(), MAX_TOOL_USE_NAME_CHARS);
-        assert_eq!(emitted, "ş".repeat(MAX_TOOL_USE_NAME_CHARS));
+    /// The pattern requires at least one character, so an empty name is as
+    /// invalid as an over-long one and needs a placeholder.
+    #[test]
+    fn test_empty_tool_name_gets_a_placeholder() {
+        assert_valid_tool_use_name(&emitted_tool_name(""));
     }
 
     #[test]
