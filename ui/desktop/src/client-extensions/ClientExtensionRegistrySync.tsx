@@ -6,21 +6,23 @@ import { parseClientExtensionViewPath } from './routes';
 export function ClientExtensionRegistrySync() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { extensions, enabledExtensions } = useClientExtensions();
+  const { extensions, loading } = useClientExtensions();
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+
     const view = parseClientExtensionViewPath(location.pathname);
     if (!view) {
       return;
     }
 
     const extension = extensions.find((entry) => entry.id === view.extensionId);
-    const enabled = enabledExtensions.some((entry) => entry.id === view.extensionId);
-
-    if (!extension || !enabled) {
+    if (!extension?.enabled) {
       navigate('/pair', { replace: true });
     }
-  }, [enabledExtensions, extensions, location.pathname, navigate]);
+  }, [extensions, loading, location.pathname, navigate]);
 
   return null;
 }

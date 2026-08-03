@@ -7,6 +7,7 @@ import {
   routeExtensionToHostMessage,
 } from './extensionHostBridge';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
+import { useWindowMessage } from '../hooks/useWindowMessage';
 import { parseClientExtensionViewPath } from './routes';
 import type { HostToExtensionMessage } from './types';
 import { useNavigationSessions } from '../hooks/useNavigationSessions';
@@ -95,10 +96,7 @@ export default function ClientExtensionPageView() {
     [extension, postToExtension, rootLink?.label, view]
   );
 
-  useEffect(() => {
-    window.addEventListener('message', handleExtensionMessage);
-    return () => window.removeEventListener('message', handleExtensionMessage);
-  }, [handleExtensionMessage]);
+  useWindowMessage(handleExtensionMessage);
 
   const notifyActivate = useCallback(() => {
     if (!view) {

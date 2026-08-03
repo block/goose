@@ -12,6 +12,7 @@ import { PanelRight, X } from 'lucide-react';
 import { toastService } from '../toasts';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
 import { isExtensionToHostMessage } from './extensionHostBridge';
+import { useWindowMessage } from '../hooks/useWindowMessage';
 import type { HostToExtensionMessage, RegisteredSidecar } from './types';
 import { NAV_DIMENSIONS } from '../components/Layout/constants';
 import { Button } from '../components/ui/button';
@@ -205,10 +206,7 @@ function ClientExtensionSidecarContent({
     [sidecar.label]
   );
 
-  useEffect(() => {
-    window.addEventListener('message', handleExtensionMessage);
-    return () => window.removeEventListener('message', handleExtensionMessage);
-  }, [handleExtensionMessage]);
+  useWindowMessage(handleExtensionMessage);
 
   const notifyActivate = useCallback(() => {
     if (!iframeRef.current?.contentWindow) {

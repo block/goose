@@ -1,3 +1,4 @@
+use crate::utils::copy_dir_all;
 use anyhow::{anyhow, bail, Context, Result};
 use fs_err as fs;
 use serde::{Deserialize, Serialize};
@@ -101,7 +102,7 @@ pub fn is_client_extension_enabled(
     }
 }
 
-pub fn set_client_extension_enabled(id: &str, enabled: bool) -> Result<ClientExtensionsConfig> {
+fn set_client_extension_enabled(id: &str, enabled: bool) -> Result<ClientExtensionsConfig> {
     let summaries = list_client_extensions()?;
     let summary = summaries
         .iter()
@@ -223,18 +224,15 @@ pub fn list_client_extensions() -> Result<Vec<ClientExtensionSummary>> {
 
 fn dev_client_extensions_dir() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
-    for candidate in [
+    [
         cwd.join("examples").join("client-extensions"),
         cwd.join("..")
             .join("..")
             .join("examples")
             .join("client-extensions"),
-    ] {
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-    }
-    None
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_dir())
 }
 
 fn collect_extensions_in_root(
@@ -297,25 +295,10 @@ fn validate_manifest_files(root: &Path, manifest: &ClientExtensionManifest) -> R
     Ok(())
 }
 
-fn copy_dir_all(source: &Path, destination: &Path) -> Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            copy_dir_all(&source_path, &destination_path)?;
-        } else if file_type.is_file() {
-            fs::copy(&source_path, &destination_path)?;
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::TempDir;
 
     fn write_extension(root: &Path, id: &str) {
@@ -329,6 +312,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn installs_and_uninstalls_extension_from_directory() {
         let source = TempDir::new().unwrap();
         write_extension(source.path(), "demo-ext");

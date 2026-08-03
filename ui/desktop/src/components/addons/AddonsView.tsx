@@ -5,7 +5,7 @@ import {
   AddonsPanel,
   AddonsReloadButton,
   useInstallAddonFromFolder,
-} from '../../client-extensions/AddonsPanel';
+} from './AddonsPanel';
 import { useClientExtensions } from '../../client-extensions/ClientExtensionsContext';
 import { defineMessages, useIntl } from '../../i18n';
 

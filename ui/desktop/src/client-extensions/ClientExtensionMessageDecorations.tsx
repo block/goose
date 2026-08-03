@@ -4,6 +4,7 @@ import type { Message } from '../types/message';
 import { useClientExtensions } from './ClientExtensionsContext';
 import { isExtensionToHostMessage } from './extensionHostBridge';
 import { buildMessageExtensionContext, extractCodeBlocks } from './messageContext';
+import { useWindowMessage } from '../hooks/useWindowMessage';
 import type {
   HostToExtensionMessage,
   MessageRenderPayload,
@@ -44,10 +45,7 @@ function ClientExtensionRenderSlot({
     }
   }, []);
 
-  useEffect(() => {
-    window.addEventListener('message', handleExtensionMessage);
-    return () => window.removeEventListener('message', handleExtensionMessage);
-  }, [handleExtensionMessage]);
+  useWindowMessage(handleExtensionMessage);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,22 +121,24 @@ export function ClientExtensionMessageDecorations({
     [sessionId, location.pathname, message, displayText, imageCount]
   );
 
+  const codeBlocks = useMemo(() => extractCodeBlocks(displayText), [displayText]);
+
   const suffixes = useMemo(
     () => (loading ? [] : getContentSuffixes(messageContext)),
     [getContentSuffixes, loading, messageContext]
   );
 
   const customRender = useMemo(
-    () => (loading ? null : getCustomRender(messageContext, displayText)),
-    [getCustomRender, loading, messageContext, displayText]
+    () => (loading ? null : getCustomRender(messageContext, codeBlocks)),
+    [getCustomRender, loading, messageContext, codeBlocks]
   );
 
   const basePayload = useMemo(
     (): MessageRenderPayload => ({
       textPreview: displayText.slice(0, 2000),
-      codeBlocks: extractCodeBlocks(displayText),
+      codeBlocks,
     }),
-    [displayText]
+    [displayText, codeBlocks]
   );
 
   if (suffixes.length === 0 && !customRender) {

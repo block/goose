@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
+  type CodeBlock,
   type DiscoveredClientExtension,
   type ExtensionHostContext,
   type MessageExtensionHostContext,
@@ -13,11 +14,9 @@ import {
 import { evaluateWhenClause } from './when';
 import { clientExtensionViewPath } from './routes';
 import { selectCustomRender } from './customRender';
-import { extractCodeBlocks } from './messageContext';
 
 interface ClientExtensionsContextValue {
   extensions: DiscoveredClientExtension[];
-  enabledExtensions: DiscoveredClientExtension[];
   loading: boolean;
   registryVersion: number;
   getChatActions: (context: ExtensionHostContext) => RegisteredChatAction[];
@@ -25,7 +24,7 @@ interface ClientExtensionsContextValue {
   getContentSuffixes: (context: MessageExtensionHostContext) => RegisteredContentSuffix[];
   getCustomRender: (
     context: MessageExtensionHostContext,
-    displayText: string
+    codeBlocks: CodeBlock[]
   ) => RegisteredCustomRender | null;
   getSidecars: (context: ExtensionHostContext) => RegisteredSidecar[];
   getExtensionMainHtml: (extensionId: string) => Promise<string | null>;
@@ -33,6 +32,22 @@ interface ClientExtensionsContextValue {
   setExtensionEnabled: (extensionId: string, enabled: boolean) => Promise<void>;
   uninstallExtension: (extensionId: string) => Promise<void>;
   installExtension: (sourcePath: string) => Promise<void>;
+}
+
+function collectContributions<C extends { when?: string }, R>(
+  extensions: DiscoveredClientExtension[],
+  getContributions: (ext: DiscoveredClientExtension) => C[],
+  context: ExtensionHostContext | MessageExtensionHostContext,
+  enrich: (contribution: C, extensionId: string) => R
+): R[] {
+  const results: R[] = [];
+  for (const extension of extensions) {
+    for (const contribution of getContributions(extension)) {
+      if (!evaluateWhenClause(contribution.when, context)) continue;
+      results.push(enrich(contribution, extension.id));
+    }
+  }
+  return results;
 }
 
 const ClientExtensionsContext = createContext<ClientExtensionsContextValue | null>(null);
@@ -71,6 +86,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
         applyDiscovered(discovered);
       } catch (error) {
         console.warn('[client-extensions] Failed to update extension state:', error);
+        throw error;
       }
     },
     [applyDiscovered]
@@ -116,117 +132,65 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
   }, []);
 
   const getChatActions = useCallback(
-    (context: ExtensionHostContext): RegisteredChatAction[] => {
-      const actions: RegisteredChatAction[] = [];
-
-      for (const extension of enabledExtensions) {
-        const contributions = extension.manifest.contributes?.chatActions ?? [];
-        for (const contribution of contributions) {
-          if (!evaluateWhenClause(contribution.when, context)) {
-            continue;
-          }
-          actions.push({
-            ...contribution,
-            extensionId: extension.id,
-          });
-        }
-      }
-
-      return actions;
-    },
+    (context: ExtensionHostContext): RegisteredChatAction[] =>
+      collectContributions(
+        enabledExtensions,
+        (ext) => ext.manifest.contributes?.chatActions ?? [],
+        context,
+        (c, id) => ({ ...c, extensionId: id })
+      ),
     [enabledExtensions]
   );
 
   const getRootLinks = useCallback(
-    (context: ExtensionHostContext): RegisteredRootLink[] => {
-      const links: RegisteredRootLink[] = [];
-
-      for (const extension of enabledExtensions) {
-        const contributions = extension.manifest.contributes?.rootLinks ?? [];
-        for (const contribution of contributions) {
-          if (!evaluateWhenClause(contribution.when, context)) {
-            continue;
-          }
-          links.push({
-            ...contribution,
-            extensionId: extension.id,
-            path: clientExtensionViewPath(extension.id, contribution.id),
-          });
-        }
-      }
-
-      return links;
-    },
+    (context: ExtensionHostContext): RegisteredRootLink[] =>
+      collectContributions(
+        enabledExtensions,
+        (ext) => ext.manifest.contributes?.rootLinks ?? [],
+        context,
+        (c, id) => ({ ...c, extensionId: id, path: clientExtensionViewPath(id, c.id) })
+      ),
     [enabledExtensions]
   );
 
   const getContentSuffixes = useCallback(
-    (context: MessageExtensionHostContext): RegisteredContentSuffix[] => {
-      const suffixes: RegisteredContentSuffix[] = [];
-
-      for (const extension of enabledExtensions) {
-        const contributions = extension.manifest.contributes?.contentSuffixes ?? [];
-        for (const contribution of contributions) {
-          if (!evaluateWhenClause(contribution.when, context)) {
-            continue;
-          }
-          suffixes.push({
-            ...contribution,
-            extensionId: extension.id,
-          });
-        }
-      }
-
-      return suffixes;
-    },
+    (context: MessageExtensionHostContext): RegisteredContentSuffix[] =>
+      collectContributions(
+        enabledExtensions,
+        (ext) => ext.manifest.contributes?.contentSuffixes ?? [],
+        context,
+        (c, id) => ({ ...c, extensionId: id })
+      ),
     [enabledExtensions]
   );
 
   const getCustomRender = useCallback(
-    (context: MessageExtensionHostContext, displayText: string): RegisteredCustomRender | null => {
+    (context: MessageExtensionHostContext, codeBlocks: CodeBlock[]): RegisteredCustomRender | null => {
       const renders: RegisteredCustomRender[] = [];
-
       for (const extension of enabledExtensions) {
-        const contributions = extension.manifest.contributes?.customRenders ?? [];
-        for (const contribution of contributions) {
-          renders.push({
-            ...contribution,
-            extensionId: extension.id,
-          });
+        for (const contribution of extension.manifest.contributes?.customRenders ?? []) {
+          renders.push({ ...contribution, extensionId: extension.id });
         }
       }
-
-      return selectCustomRender(renders, context, extractCodeBlocks(displayText));
+      return selectCustomRender(renders, context, codeBlocks);
     },
     [enabledExtensions]
   );
 
   const getSidecars = useCallback(
-    (context: ExtensionHostContext): RegisteredSidecar[] => {
-      const sidecars: RegisteredSidecar[] = [];
-
-      for (const extension of enabledExtensions) {
-        const contributions = extension.manifest.contributes?.sidecars ?? [];
-        for (const contribution of contributions) {
-          if (!evaluateWhenClause(contribution.when, context)) {
-            continue;
-          }
-          sidecars.push({
-            ...contribution,
-            extensionId: extension.id,
-          });
-        }
-      }
-
-      return sidecars;
-    },
+    (context: ExtensionHostContext): RegisteredSidecar[] =>
+      collectContributions(
+        enabledExtensions,
+        (ext) => ext.manifest.contributes?.sidecars ?? [],
+        context,
+        (c, id) => ({ ...c, extensionId: id })
+      ),
     [enabledExtensions]
   );
 
   const value = useMemo(
     () => ({
       extensions,
-      enabledExtensions,
       loading,
       registryVersion,
       getChatActions,
@@ -242,7 +206,6 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
     }),
     [
       extensions,
-      enabledExtensions,
       loading,
       registryVersion,
       getChatActions,

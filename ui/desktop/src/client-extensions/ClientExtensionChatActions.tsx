@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Tooltip';
 import { cn } from '../utils';
@@ -6,6 +6,7 @@ import { toastService } from '../toasts';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
 import { isExtensionToHostMessage } from './extensionHostBridge';
 import type { HostToExtensionMessage, RegisteredChatAction } from './types';
+import { useWindowMessage } from '../hooks/useWindowMessage';
 
 interface ExtensionRuntime {
   iframe: HTMLIFrameElement;
@@ -50,10 +51,7 @@ function ClientExtensionActionButton({
     [action.label, onSetInput]
   );
 
-  useEffect(() => {
-    window.addEventListener('message', handleExtensionMessage);
-    return () => window.removeEventListener('message', handleExtensionMessage);
-  }, [handleExtensionMessage]);
+  useWindowMessage(handleExtensionMessage);
 
   const ensureRuntime = useCallback(async () => {
     if (runtimeRef.current) {
@@ -159,7 +157,7 @@ export function ClientExtensionChatActions({
 }) {
   const hostContext = useExtensionHostContext(sessionId);
   const { getChatActions, loading, registryVersion } = useClientExtensions();
-  const actions = getChatActions(hostContext);
+  const actions = useMemo(() => getChatActions(hostContext), [getChatActions, hostContext]);
 
   if (loading || actions.length === 0) {
     return null;

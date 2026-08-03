@@ -12,15 +12,15 @@ use goose::source_roots::SourceRoot;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
-#[cfg(feature = "telemetry")]
-use crate::commands::configure::configure_telemetry_consent_dialog;
-use crate::commands::configure::handle_configure;
-use crate::commands::info::handle_info;
 use crate::commands::client_extension::{
     handle_client_extension_disable, handle_client_extension_enable,
     handle_client_extension_install, handle_client_extension_list,
     handle_client_extension_uninstall,
 };
+#[cfg(feature = "telemetry")]
+use crate::commands::configure::configure_telemetry_consent_dialog;
+use crate::commands::configure::handle_configure;
+use crate::commands::info::handle_info;
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
 use crate::commands::term::{
@@ -1032,10 +1032,10 @@ enum Command {
         command: PluginCommand,
     },
 
-    /// Manage GRC client extensions for goose Desktop
+    /// Manage client extensions for goose Desktop
     #[command(
         name = "client-extension",
-        about = "Manage GRC client extensions for goose Desktop",
+        about = "Manage client extensions for goose Desktop",
         visible_alias = "client-ext"
     )]
     ClientExtension {

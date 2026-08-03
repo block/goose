@@ -29,15 +29,14 @@ export function useMessageDisplayText(
       displayText,
       imageCount
     );
-    const customRender = getCustomRender(messageContext, displayText);
+    const codeBlocks = extractCodeBlocks(displayText);
+    const customRender = getCustomRender(messageContext, codeBlocks);
     const matchedLanguage = customRender?.match.language;
     if (!matchedLanguage) {
       return displayText;
     }
 
-    const hasMatchingBlock = extractCodeBlocks(displayText).some(
-      (block) => block.language === matchedLanguage
-    );
+    const hasMatchingBlock = codeBlocks.some((block) => block.language === matchedLanguage);
     if (!hasMatchingBlock) {
       return displayText;
     }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Layers, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Switch } from '../components/ui/switch';
+import { Button } from '../ui/button';
+import { Switch } from '../ui/switch';
 import {
   Card,
   CardAction,
@@ -9,12 +9,20 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../components/ui/card';
-import { useClientExtensions } from './ClientExtensionsContext';
-import type { ClientExtensionManifest, DiscoveredClientExtension } from './types';
-import { defineMessages, useIntl } from '../i18n';
-import { cn } from '../utils';
-import { toastService } from '../toasts';
+} from '../ui/card';
+import { useClientExtensions } from '../../client-extensions/ClientExtensionsContext';
+import type { ClientExtensionManifest, DiscoveredClientExtension } from '../../client-extensions/types';
+import { defineMessages, useIntl } from '../../i18n';
+import { cn } from '../../utils';
+import { toastService } from '../../toasts';
+
+function useClientExtensionsInstallDir(): string | null {
+  const [installDir, setInstallDir] = useState<string | null>(null);
+  useEffect(() => {
+    void window.electron.getClientExtensionsInstallDir().then(setInstallDir);
+  }, []);
+  return installDir;
+}
 
 const i18n = defineMessages({
   emptyTitle: {
@@ -357,11 +365,7 @@ export function useInstallAddonFromFolder() {
 export function AddonsPanel() {
   const intl = useIntl();
   const { extensions, loading, setExtensionEnabled, uninstallExtension } = useClientExtensions();
-  const [installDir, setInstallDir] = useState<string | null>(null);
-
-  useEffect(() => {
-    void window.electron.getClientExtensionsInstallDir().then(setInstallDir);
-  }, []);
+  const installDir = useClientExtensionsInstallDir();
 
   if (extensions.length === 0) {
     return (
@@ -396,11 +400,7 @@ export function AddonsPanel() {
 
 export function AddonsInstallHint() {
   const intl = useIntl();
-  const [installDir, setInstallDir] = useState<string | null>(null);
-
-  useEffect(() => {
-    void window.electron.getClientExtensionsInstallDir().then(setInstallDir);
-  }, []);
+  const installDir = useClientExtensionsInstallDir();
 
   if (!installDir) {
     return null;
