@@ -455,7 +455,7 @@ export default function BaseChat({
         {/* Custom header */}
         {renderHeader && renderHeader()}
 
-        {/* Chat canvas: scroll fills the pane; composer floats over the bottom. */}
+        {/* Chat canvas: scroll fills the pane; composer + fade float over the bottom. */}
         <div className="relative flex flex-1 min-h-0 flex-col">
           {/* Goose watermark - top right */}
           <div className="absolute top-[14px] right-4 z-[60] flex flex-row items-center gap-1">
@@ -523,9 +523,20 @@ export default function BaseChat({
             <div aria-hidden className="pointer-events-none" style={{ height: composerHeight }} />
           </ScrollArea>
 
+          {/* Top edge dissolve when content is scrolled under the header chrome. */}
+          {showScrollToBottom && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10 bg-gradient-to-b from-background-primary to-transparent"
+            />
+          )}
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col">
             <div ref={composerRef} className="relative bg-background-primary px-4 pb-3">
+              <div
+                aria-hidden
+                className="chat-composer-fade pointer-events-none absolute inset-x-0 z-0"
+              />
               {scrollButtonMounted && (
                 <button
                   type="button"

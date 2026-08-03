@@ -980,6 +980,19 @@ pre:has(> code.bg-inline-code) {
   animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
+/* Soft dissolve glued to the floating chat composer — content scrolls
+   underneath and fades into the background just above the input. */
+.chat-composer-fade {
+  height: 24px;
+  bottom: 100%;
+  background: linear-gradient(
+    to top,
+    var(--color-background-primary) 0%,
+    color-mix(in srgb, var(--color-background-primary) 35%, transparent) 50%,
+    transparent 100%
+  );
+}
+
 /* Opacity-only — avoid transform so descendants with position:fixed
    (e.g. MentionPopover before portal) are not trapped by a containing block. */
 @keyframes fadein {
