@@ -98,7 +98,7 @@ mod tests {
 
     fn server(data_dir: std::path::PathBuf, enable_scheduler: bool) -> AcpServer {
         AcpServer::new(AcpServerFactoryConfig {
-            builtins: Vec::new(),
+            builtins: AcpBuiltinSelection::default(),
             config_dir: data_dir.clone(),
             data_dir,
             goose_platform: GoosePlatform::GooseCli,
