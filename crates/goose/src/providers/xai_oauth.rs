@@ -606,7 +606,7 @@ impl XaiOAuthAuthProvider {
         }
     }
 
-    async fn get_valid_token(&self) -> Result<TokenData> {
+    async fn get_valid_token(&self) -> Result<TokenData, ProviderError> {
         if let Some(mut token_data) = self.cache.load() {
             if token_data.expires_at
                 > Utc::now() + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS)
@@ -638,23 +638,21 @@ impl XaiOAuthAuthProvider {
                     }
                     token_data.expires_at = Utc::now()
                         + chrono::Duration::seconds(new_tokens.expires_in.unwrap_or(3600));
-                    self.cache.save(&token_data)?;
+                    self.cache.save(&token_data).map_err(ProviderError::from)?;
                     tracing::info!("xAI access token refreshed");
                     return Ok(token_data);
                 }
                 Err(e) => {
                     tracing::warn!("xAI token refresh failed: {}", e);
                     self.cache.clear();
-                    return Err(anyhow!(
-                        "xAI OAuth credentials expired. Sign in again to continue."
+                    return Err(ProviderError::Authentication(
+                        "xAI OAuth credentials expired. Sign in again to continue.".to_string(),
                     ));
                 }
             }
         }
 
-        Err(anyhow!(
-            "xAI OAuth is not configured. Sign in before using this provider."
-        ))
+        Err(ProviderError::NotConfigured)
     }
 }
 
@@ -707,9 +705,7 @@ impl Provider for XaiOAuthProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        if self.auth_provider.cache.load().is_none() {
-            return Err(ProviderError::NotConfigured);
-        }
+        self.auth_provider.get_valid_token().await?;
         self.inner.fetch_supported_models().await
     }
 
@@ -880,7 +876,7 @@ mod tests {
 
         let error = auth_provider.get_valid_token().await.unwrap_err();
 
-        assert!(error.to_string().contains("not configured"));
+        assert_eq!(error, ProviderError::NotConfigured);
     }
 
     #[cfg(unix)]
