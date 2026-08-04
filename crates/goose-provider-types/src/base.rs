@@ -434,6 +434,20 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError>;
 
+    /// Gives the provider an opportunity to deliver a steer through a
+    /// provider-specific steering mechanism.
+    ///
+    /// For example, Claude ACP can use `_session/steering` while its prompt is
+    /// running. Returns `true` when native steering delivered the message. Returns
+    /// `false` when native steering is unsupported or did not deliver the message.
+    async fn steer_natively(
+        &self,
+        _session_id: &str,
+        _message: &Message,
+    ) -> Result<bool, ProviderError> {
+        Ok(false)
+    }
+
     async fn complete(
         &self,
         model_config: &ModelConfig,
