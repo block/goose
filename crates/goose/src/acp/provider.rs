@@ -1531,8 +1531,13 @@ async fn handle_requests(
                             &effort_state,
                             session.config_options.as_deref().unwrap_or_default(),
                         );
-                        apply_session_config_options(&config, &cx, session.session_id.clone())
-                            .await?;
+                        apply_session_config_options(
+                            &config,
+                            &cx,
+                            session.session_id.clone(),
+                            &effort_state,
+                        )
+                        .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
                     Err(error) => Err(acp_method_error(AGENT_METHOD_NAMES.session_new, error)),
@@ -1673,23 +1678,28 @@ async fn apply_session_config_options(
     config: &AcpProviderConfig,
     cx: &ConnectionTo<Agent>,
     session_id: SessionId,
+    effort_state: &Arc<Mutex<Option<ThinkingEffortCapability>>>,
 ) -> Result<()> {
     for (config_id, value) in &config.session_config_options {
         let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value.clone());
-        cx.send_request(SetSessionConfigOptionRequest::new(
-            session_id.clone(),
-            config_id.clone(),
-            value_id,
-        ))
-        .block_task()
-        .await
-        .map_err(|err| {
-            anyhow::anyhow!(
-                "ACP agent rejected {} for '{}': {err}",
-                AGENT_METHOD_NAMES.session_set_config_option,
-                config_id
-            )
-        })?;
+        let response = cx
+            .send_request(SetSessionConfigOptionRequest::new(
+                session_id.clone(),
+                config_id.clone(),
+                value_id,
+            ))
+            .block_task()
+            .await
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "ACP agent rejected {} for '{}': {err}",
+                    AGENT_METHOD_NAMES.session_set_config_option,
+                    config_id
+                )
+            })?;
+        // Pinning the model here makes the agent rebuild its per-model effort
+        // levels, so this response supersedes the session/new snapshot.
+        refresh_effort_state(effort_state, &response.config_options);
     }
     Ok(())
 }
