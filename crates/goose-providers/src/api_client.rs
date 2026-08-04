@@ -799,8 +799,8 @@ mod tests {
             started.elapsed()
         );
         assert!(matches!(
-            err.downcast_ref::<crate::errors::ProviderError>(),
-            Some(crate::errors::ProviderError::NetworkError(message))
+            crate::errors::ProviderError::from(err),
+            crate::errors::ProviderError::NetworkError(message)
                 if message.starts_with("Request timed out")
         ));
     }
