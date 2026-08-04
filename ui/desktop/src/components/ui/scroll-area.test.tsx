@@ -19,8 +19,8 @@ function scrollTo(el: HTMLElement, top: number) {
 describe('ScrollArea auto-follow', () => {
   beforeAll(() => {
     // jsdom does not implement Element.prototype.scrollTo
-    if (!Element.prototype.scrollTo) {
-      Element.prototype.scrollTo = vi.fn();
+    if (!window.Element.prototype.scrollTo) {
+      window.Element.prototype.scrollTo = vi.fn();
     }
   });
 
