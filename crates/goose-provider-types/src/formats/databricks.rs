@@ -689,7 +689,7 @@ pub fn create_request_for_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;

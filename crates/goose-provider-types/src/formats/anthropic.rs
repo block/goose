@@ -1193,7 +1193,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::Message;
+    use crate::conversation::message::{Message, MessageContent};
     use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
