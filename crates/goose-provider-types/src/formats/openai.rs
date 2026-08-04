@@ -1115,7 +1115,9 @@ where
         // reasoning_content in a later chunk would produce duplicated reasoning.
         let mut pending_inline_thinking = String::new();
         let mut last_seen_model: Option<String> = None;
+        let mut last_response_id: Option<String> = None;
         let mut output_token_limit_reached = false;
+        let mut output_token_limit_metadata_emitted = false;
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
@@ -1134,6 +1136,9 @@ where
             )?;
             if let Some(model) = &chunk.model {
                 last_seen_model = Some(model.clone());
+            }
+            if let Some(id) = &chunk.id {
+                last_response_id = Some(id.clone());
             }
 
             if !chunk.choices.is_empty() {
@@ -1188,6 +1193,9 @@ where
                                 let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
                                 if let Some(model) = &tool_chunk.model {
                                     last_seen_model = Some(model.clone());
+                                }
+                                if let Some(id) = &tool_chunk.id {
+                                    last_response_id = Some(id.clone());
                                 }
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk, last_seen_model.as_deref()) {
@@ -1371,6 +1379,7 @@ where
                     msg = msg.with_id(id);
                 }
                 msg.metadata.output_token_limit_reached = output_token_limit_reached;
+                output_token_limit_metadata_emitted |= output_token_limit_reached;
 
                 yield (
                     Some(msg),
@@ -1413,8 +1422,6 @@ where
                     if let Some(id) = chunk.id {
                         msg = msg.with_id(id);
                     }
-                    msg.metadata.output_token_limit_reached =
-                        output_token_limit_reached && pending_inline_thinking.is_empty();
 
                     yield (
                         Some(msg),
@@ -1424,13 +1431,9 @@ where
                             None
                         },
                     )
-                } else if output_token_limit_reached && pending_inline_thinking.is_empty() {
-                    yield (Some(output_token_limit_marker(chunk.id)), usage)
                 } else if usage.is_some() {
                     yield (None, usage)
                 }
-            } else if output_token_limit_reached && pending_inline_thinking.is_empty() {
-                yield (Some(output_token_limit_marker(chunk.id)), usage)
             } else if usage.is_some() {
                 yield (None, usage)
             }
@@ -1460,9 +1463,18 @@ where
                 chrono::Utc::now().timestamp(),
                 content,
             );
-            message.metadata.output_token_limit_reached = output_token_limit_reached;
+            if let Some(id) = last_response_id.clone() {
+                message = message.with_id(id);
+            }
+            message.metadata.output_token_limit_reached =
+                output_token_limit_reached && !output_token_limit_metadata_emitted;
+            output_token_limit_metadata_emitted |= message.metadata.output_token_limit_reached;
 
             yield (Some(message), None)
+        }
+
+        if output_token_limit_reached && !output_token_limit_metadata_emitted {
+            yield (Some(output_token_limit_marker(last_response_id)), None)
         }
     }
 }
@@ -3458,6 +3470,41 @@ data: [DONE]"#;
             [MessageContentBlock::Thinking(thinking)]
                 if thinking.thinking == "unfinished reasoning"
         ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_partial_think_tag_emits_one_output_limit_marker() -> anyhow::Result<()>
+    {
+        let response_lines = concat!(
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<thi\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
+            "data: [DONE]\n"
+        );
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+        let mut streamed_messages = Vec::new();
+        let mut usage_count = 0;
+
+        while let Some(result) = messages.next().await {
+            let (message, usage) = result?;
+            usage_count += usize::from(usage.is_some());
+            if let Some(message) = message {
+                streamed_messages.push(message);
+            }
+        }
+
+        assert_eq!(usage_count, 1);
+        let marked_messages: Vec<_> = streamed_messages
+            .iter()
+            .filter(|message| message.metadata.output_token_limit_reached)
+            .collect();
+        assert_eq!(marked_messages.len(), 1);
+        assert_eq!(marked_messages[0].id.as_deref(), Some("chunk-1"));
+        assert_eq!(marked_messages[0].as_concat_text(), "<thi");
 
         Ok(())
     }
