@@ -261,11 +261,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .collect::<Result<_>>()?,
                 ),
                 Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
+                    let message = format!("The tool call returned the following error:\n{}", error);
+                    Some(vec![bedrock::ToolResultContentBlock::Text(
+                        crate::utils::sanitize_unicode_tags(&message),
+                    )])
                 }
             };
             bedrock::ContentBlock::ToolResult(
@@ -1247,6 +1246,49 @@ mod tests {
             }
             other => panic!("expected ToolUse, got {other:?}"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_sanitizes_unicode_tags() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "visible\u{E0041}\u{E0042} error".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_hidden".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(!crate::utils::contains_unicode_tags(text.as_str()));
+        assert!(text.contains("visible error"));
+        Ok(())
+    }
+
+    #[test]
+    fn tool_response_error_preserves_ordinary_text() -> Result<()> {
+        let error = ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "ordinary tool failure".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_response("call_error".to_string(), Err(error));
+
+        let bedrock::ContentBlock::ToolResult(result) = to_bedrock_message_content(&content)?
+        else {
+            panic!("expected ToolResult");
+        };
+        let bedrock::ToolResultContentBlock::Text(text) = &result.content[0] else {
+            panic!("expected text error content");
+        };
+
+        assert!(text.contains("ordinary tool failure"));
         Ok(())
     }
 
