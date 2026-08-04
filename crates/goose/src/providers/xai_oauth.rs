@@ -221,7 +221,7 @@ async fn exchange_code_for_tokens(code: &str, pkce: &PkceChallenge) -> Result<To
     Ok(resp.json().await?)
 }
 
-async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
+async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse, ProviderError> {
     let client = reqwest::Client::new();
     let params = [
         ("grant_type", "refresh_token"),
@@ -235,15 +235,33 @@ async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
         .header("Accept", "application/json")
         .form(&params)
         .send()
-        .await?;
+        .await
+        .map_err(ProviderError::from)?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        return Err(anyhow!("xAI token refresh failed ({}): {}", status, text));
+        return Err(token_refresh_error(status, text));
     }
 
-    Ok(resp.json().await?)
+    resp.json()
+        .await
+        .map_err(|error| ProviderError::RequestFailed(error.to_string()))
+}
+
+fn token_refresh_error(status: reqwest::StatusCode, body: String) -> ProviderError {
+    let details = format!("xAI token refresh failed ({status}): {body}");
+    match status {
+        reqwest::StatusCode::BAD_REQUEST
+        | reqwest::StatusCode::UNAUTHORIZED
+        | reqwest::StatusCode::FORBIDDEN => ProviderError::Authentication(details),
+        reqwest::StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
+            details,
+            retry_delay: None,
+        },
+        _ if status.is_server_error() => ProviderError::ServerError(details),
+        _ => ProviderError::RequestFailed(details),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -642,13 +660,12 @@ impl XaiOAuthAuthProvider {
                     tracing::info!("xAI access token refreshed");
                     return Ok(token_data);
                 }
-                Err(e) => {
-                    tracing::warn!("xAI token refresh failed: {}", e);
+                Err(error @ ProviderError::Authentication(_)) => {
+                    tracing::warn!("xAI token refresh rejected: {}", error);
                     self.cache.clear();
-                    return Err(ProviderError::Authentication(
-                        "xAI OAuth credentials expired. Sign in again to continue.".to_string(),
-                    ));
+                    return Err(error);
                 }
+                Err(error) => return Err(error),
             }
         }
 
@@ -877,6 +894,25 @@ mod tests {
         let error = auth_provider.get_valid_token().await.unwrap_err();
 
         assert_eq!(error, ProviderError::NotConfigured);
+    }
+
+    #[test]
+    fn token_refresh_errors_distinguish_rejected_and_transient_requests() {
+        assert!(matches!(
+            token_refresh_error(
+                reqwest::StatusCode::BAD_REQUEST,
+                "invalid_grant".to_string()
+            ),
+            ProviderError::Authentication(_)
+        ));
+        assert!(matches!(
+            token_refresh_error(reqwest::StatusCode::TOO_MANY_REQUESTS, String::new()),
+            ProviderError::RateLimitExceeded { .. }
+        ));
+        assert!(matches!(
+            token_refresh_error(reqwest::StatusCode::SERVICE_UNAVAILABLE, String::new()),
+            ProviderError::ServerError(_)
+        ));
     }
 
     #[cfg(unix)]

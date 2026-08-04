@@ -135,7 +135,16 @@ fn provider_error_from_reqwest(error: &reqwest::Error) -> ProviderError {
 
 impl From<anyhow::Error> for ProviderError {
     fn from(error: anyhow::Error) -> Self {
-        if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
+        if let Some(provider_error) = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<ProviderError>())
+        {
+            return provider_error.clone();
+        }
+        if let Some(reqwest_err) = error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<reqwest::Error>())
+        {
             return provider_error_from_reqwest(reqwest_err);
         }
         ProviderError::ExecutionError(error.to_string())
