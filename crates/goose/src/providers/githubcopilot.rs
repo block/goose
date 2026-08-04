@@ -5,7 +5,7 @@ use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::providers::private_file::write_private_file;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
@@ -327,17 +327,12 @@ impl GithubCopilotProvider {
         let config = Config::global();
         let token = match config.get_secret::<String>("GITHUB_COPILOT_TOKEN") {
             Ok(token) => token,
-            Err(err) => match err {
-                ConfigError::NotFound(_) => {
-                    let token = self
-                        .get_access_token()
-                        .await
-                        .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
-                    token
-                }
-                _ => return Err(err.into()),
-            },
+            Err(ConfigError::NotFound(_)) => {
+                return Err(anyhow!(
+                    "GitHub Copilot is not configured. Sign in before using this provider."
+                ));
+            }
+            Err(err) => return Err(err.into()),
         };
         let resp = self
             .client

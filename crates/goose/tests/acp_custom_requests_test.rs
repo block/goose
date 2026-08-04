@@ -1170,7 +1170,9 @@ fn test_developer_fs_requests_use_acp_session_id() {
 #[test]
 #[serial]
 fn test_custom_provider_supported_models_lists_raw_provider_models() {
-    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    write_acp_global_config(
+        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\nOPENAI_HOST: http://localhost\n",
+    );
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let provider_factory: AcpProviderFactory =
@@ -1214,5 +1216,35 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
                 "raw-databricks-endpoint"
             ]))
         );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_provider_supported_models_rejects_unconfigured_provider() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let provider_factory: AcpProviderFactory = Arc::new(|_, _, _| {
+            Box::pin(async move { panic!("unconfigured provider should not be constructed") })
+        });
+        let conn = AcpServerConnection::new(
+            TestConnectionConfig {
+                provider_factory: Some(provider_factory),
+                ..Default::default()
+            },
+            openai,
+        )
+        .await;
+
+        let error = send_custom(
+            conn.cx(),
+            "_goose/unstable/providers/supported-models/list",
+            serde_json::json!({ "providerId": "xai_oauth" }),
+        )
+        .await
+        .expect_err("unconfigured provider should be rejected");
+
+        assert!(error.to_string().contains("Provider is not configured"));
     });
 }

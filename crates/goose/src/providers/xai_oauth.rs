@@ -643,25 +643,18 @@ impl XaiOAuthAuthProvider {
                     return Ok(token_data);
                 }
                 Err(e) => {
-                    tracing::warn!("xAI token refresh failed, will re-authenticate: {}", e);
+                    tracing::warn!("xAI token refresh failed: {}", e);
                     self.cache.clear();
+                    return Err(anyhow!(
+                        "xAI OAuth credentials expired. Sign in again to continue."
+                    ));
                 }
             }
         }
 
-        tracing::info!("Starting xAI OAuth flow (SuperGrok subscription)");
-        let token_data = match perform_loopback_oauth_flow(self.state.as_ref()).await {
-            Ok(td) => td,
-            Err(e) => {
-                tracing::warn!(
-                    "xAI loopback OAuth failed ({}); falling back to device-code flow",
-                    e
-                );
-                perform_device_code_flow().await?
-            }
-        };
-        self.cache.save(&token_data)?;
-        Ok(token_data)
+        Err(anyhow!(
+            "xAI OAuth is not configured. Sign in before using this provider."
+        ))
     }
 }
 
@@ -870,6 +863,21 @@ mod tests {
             s
         );
         assert!(s.ends_with("tokens.json"));
+    }
+
+    #[tokio::test]
+    async fn missing_token_does_not_start_oauth() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_provider = XaiOAuthAuthProvider {
+            cache: TokenCache {
+                cache_path: directory.path().join("missing.json"),
+            },
+            state: XaiAuthState::instance(),
+        };
+
+        let error = auth_provider.get_valid_token().await.unwrap_err();
+
+        assert!(error.to_string().contains("not configured"));
     }
 
     #[cfg(unix)]

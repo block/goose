@@ -225,12 +225,10 @@ impl KimiCodeProvider {
 
     // ── Token management ─────────────────────────────────────────────────────
 
-    /// Returns a valid access token, refreshing or re-authenticating as needed.
     async fn get_access_token(&self) -> Result<String> {
         Ok(self.ensure_token().await?.access_token)
     }
 
-    /// Ensures we have a usable token, walking the cache → refresh → device-flow ladder.
     async fn ensure_token(&self) -> Result<KimiToken> {
         let mut guard = self.cached_token.lock().await;
 
@@ -248,11 +246,7 @@ impl KimiCodeProvider {
             }
         }
 
-        tracing::info!("kimicode: starting OAuth device-flow login");
-        let token = self.device_flow_login().await?;
-        self.token_cache.save(&token).await?;
-        *guard = Some(token.clone());
-        Ok(token)
+        anyhow::bail!("Kimi Code is not configured. Sign in before using this provider.")
     }
 
     /// Returns a usable token derived from `token`, or `None` if it is unusable.
@@ -470,9 +464,16 @@ impl Provider for KimiCodeProvider {
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
-        self.ensure_token()
-            .await
-            .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
+        if self.ensure_token().await.is_err() {
+            let token = self
+                .device_flow_login()
+                .await
+                .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
+            self.token_cache.save(&token).await.map_err(|e| {
+                ProviderError::Authentication(format!("Failed to save OAuth token: {}", e))
+            })?;
+            *self.cached_token.lock().await = Some(token);
+        }
 
         Config::global()
             .set_param(KIMI_CONFIGURED_MARKER, Value::Bool(true))
@@ -744,5 +745,17 @@ mod tests {
             "expected ServerError, got {:?}",
             err
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_does_not_authenticate_when_unconfigured() {
+        let server = MockServer::start().await;
+        let provider = test_provider(&server.uri(), "abc");
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+
+        assert!(matches!(err, ProviderError::Authentication(_)));
+        assert!(err.to_string().contains("not configured"));
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 }
