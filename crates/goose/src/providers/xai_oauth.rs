@@ -251,10 +251,15 @@ async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse, Prov
 
 fn token_refresh_error(status: reqwest::StatusCode, body: String) -> ProviderError {
     let details = format!("xAI token refresh failed ({status}): {body}");
+    let oauth_error = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|value| value.get("error")?.as_str().map(str::to_owned));
+
+    if oauth_error.as_deref() == Some("invalid_grant") {
+        return ProviderError::Authentication(details);
+    }
+
     match status {
-        reqwest::StatusCode::BAD_REQUEST
-        | reqwest::StatusCode::UNAUTHORIZED
-        | reqwest::StatusCode::FORBIDDEN => ProviderError::Authentication(details),
         reqwest::StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
             details,
             retry_delay: None,
@@ -932,9 +937,23 @@ mod tests {
         assert!(matches!(
             token_refresh_error(
                 reqwest::StatusCode::BAD_REQUEST,
-                "invalid_grant".to_string()
+                r#"{"error":"invalid_grant"}"#.to_string()
             ),
             ProviderError::Authentication(_)
+        ));
+        assert!(matches!(
+            token_refresh_error(
+                reqwest::StatusCode::UNAUTHORIZED,
+                r#"{"error":"invalid_client"}"#.to_string()
+            ),
+            ProviderError::RequestFailed(_)
+        ));
+        assert!(matches!(
+            token_refresh_error(
+                reqwest::StatusCode::FORBIDDEN,
+                "request rejected by proxy".to_string()
+            ),
+            ProviderError::RequestFailed(_)
         ));
         assert!(matches!(
             token_refresh_error(reqwest::StatusCode::TOO_MANY_REQUESTS, String::new()),
