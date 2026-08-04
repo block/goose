@@ -766,6 +766,16 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
+                if output_token_limit_reached {
+                    let error = output_token_limit_tool_error(&function_name, &id);
+                    content.push(MessageContentBlock::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
+                    continue;
+                }
+
                 if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -2238,6 +2248,56 @@ mod tests {
 
         assert_eq!(message.as_concat_text(), "Partial answer");
         assert!(message.metadata.output_token_limit_reached);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_rejects_length_terminated_tool_calls() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {
+                            "id": "call_empty",
+                            "type": "function",
+                            "function": {
+                                "name": "empty_tool",
+                                "arguments": ""
+                            }
+                        },
+                        {
+                            "id": "call_valid",
+                            "type": "function",
+                            "function": {
+                                "name": "valid_tool",
+                                "arguments": "{\"value\":true}"
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "length"
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        assert!(message.metadata.output_token_limit_reached);
+        assert_eq!(message.content.len(), 2);
+        for (content, expected_id) in message.content.iter().zip(["call_empty", "call_valid"]) {
+            let MessageContentBlock::ToolRequest(request) = content else {
+                panic!("expected tool request");
+            };
+            assert_eq!(request.id, expected_id);
+            let error = request
+                .tool_call
+                .as_ref()
+                .expect_err("length-terminated tool call must not be executable");
+            assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+            assert!(error.message.contains("output token limit"));
+        }
 
         Ok(())
     }
