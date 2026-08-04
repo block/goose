@@ -314,7 +314,6 @@ impl OpenAiProvider {
                         .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?,
-                    self.api_client.timeout(),
                 )
                 .await
             })
@@ -545,7 +544,7 @@ impl OpenAiProvider {
             return Err(ProviderError::EndpointNotFound(body));
         }
 
-        let response = handle_status(response, self.api_client.timeout()).await?;
+        let response = handle_status(response).await?;
 
         let body = response.bytes().await.map_err(|e| {
             ProviderError::NetworkError(format!("Failed to read response body: {}", e))
@@ -577,9 +576,7 @@ impl OpenAiProvider {
             .response_get()
             .await
             .ok()?;
-        let json = handle_response_openai_compat(response, self.api_client.timeout())
-            .await
-            .ok()?;
+        let json = handle_response_openai_compat(response).await.ok()?;
         parse_n_ctx_from_models(&json, model_name)
     }
 }
@@ -804,7 +801,7 @@ impl Provider for OpenAiProvider {
                         .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?;
-                    handle_status(resp, self.api_client.timeout()).await
+                    handle_status(resp).await
                 })
                 .await
                 .inspect_err(|e| {

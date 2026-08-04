@@ -891,26 +891,17 @@ impl GeminiOAuthProvider {
 
         let request = (self.request_builder)(request.json(&wrapped))
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        let response = tokio::time::timeout(
+        let response = goose_providers::http_status::send_bounded(
+            request,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            request.send(),
         )
-        .await
-        .map_err(|_| {
-            ProviderError::NetworkError(
-                "Request timed out — check your network connection and try again.".to_string(),
-            )
-        })?
-        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = goose_providers::http_status::read_error_body(
-                response,
-                Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            )
-            .await
-            .unwrap_or_else(|| "unknown error".to_string());
+            let text = goose_providers::http_status::read_error_body(response)
+                .await
+                .unwrap_or_else(|| "unknown error".to_string());
 
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 // Parse retry delay from the error message if available

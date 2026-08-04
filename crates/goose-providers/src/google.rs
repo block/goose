@@ -110,7 +110,7 @@ impl GoogleProvider {
             .streaming(true)
             .response_post(payload)
             .await?;
-        handle_status(response, self.api_client.timeout()).await
+        handle_status(response).await
     }
 }
 

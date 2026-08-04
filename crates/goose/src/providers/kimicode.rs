@@ -329,17 +329,11 @@ impl KimiCodeProvider {
 
         let request = (self.request_builder)(builder)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        tokio::time::timeout(
+        goose_providers::http_status::send_bounded(
+            request,
             StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            request.send(),
         )
         .await
-        .map_err(|_| {
-            ProviderError::NetworkError(
-                "Request timed out — check your network connection and try again.".to_string(),
-            )
-        })?
-        .map_err(|e| ProviderError::RequestFailed(e.to_string()))
     }
 }
 
@@ -419,7 +413,7 @@ impl Provider for KimiCodeProvider {
         let response = self
             .with_retry(|| async {
                 let resp = self.post(&payload).await?;
-                handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
+                handle_status(resp).await
             })
             .await
             .inspect_err(|e| {
@@ -469,8 +463,7 @@ impl Provider for KimiCodeProvider {
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let resp =
-            handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await?;
+        let resp = handle_status(resp).await?;
 
         let parsed: ModelsResp = resp.json().await.map_err(|e| {
             ProviderError::RequestFailed(format!("/v1/models body is not valid JSON: {}", e))

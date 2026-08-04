@@ -454,7 +454,7 @@ impl<'a> ApiRequestBuilder<'a> {
 
     async fn send_bounded(&self, request: reqwest::RequestBuilder) -> Result<Response> {
         if self.streaming {
-            Ok(tokio::time::timeout(self.client.timeout, request.send()).await??)
+            Ok(crate::http_status::send_bounded(request, self.client.timeout).await?)
         } else {
             Ok(request.send().await?)
         }
@@ -693,21 +693,28 @@ mod tests {
     }
 
     fn client_with_timeout(addr: SocketAddr, timeout_ms: u64) -> ApiClient {
-        ApiClient::with_timeout_and_tls(
+        let mut client = ApiClient::with_timeout_and_tls(
             format!("http://{}", addr),
             AuthMethod::NoAuth,
             Duration::from_millis(timeout_ms),
             None,
         )
-        .unwrap()
+        .unwrap();
+        client.client = Client::builder()
+            .no_proxy()
+            .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .read_timeout(client.timeout)
+            .build()
+            .unwrap();
+        client
     }
 
     async fn drain_counting_data_lines(mut response: Response) -> Result<usize, reqwest::Error> {
-        let mut count = 0;
+        let mut body = Vec::new();
         while let Some(chunk) = response.chunk().await? {
-            count += String::from_utf8_lossy(&chunk).matches("data:").count();
+            body.extend_from_slice(&chunk);
         }
-        Ok(count)
+        Ok(String::from_utf8_lossy(&body).matches("data:").count())
     }
 
     #[tokio::test]
@@ -791,11 +798,47 @@ mod tests {
             "should fail near the configured timeout, took {:?}",
             started.elapsed()
         );
-        let timed_out = err
-            .downcast_ref::<reqwest::Error>()
-            .is_some_and(reqwest::Error::is_timeout)
-            || err.downcast_ref::<tokio::time::error::Elapsed>().is_some();
-        assert!(timed_out, "expected a timeout error, got: {err}");
+        assert!(matches!(
+            err.downcast_ref::<crate::errors::ProviderError>(),
+            Some(crate::errors::ProviderError::NetworkError(message))
+                if message.starts_with("Request timed out")
+        ));
+    }
+
+    #[tokio::test]
+    async fn streaming_error_body_shares_send_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 8192];
+            let _ = socket.read(&mut buf).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            socket
+                .write_all(b"HTTP/1.1 500 Internal Server Error\r\ncontent-length: 1\r\n\r\n")
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let _ = socket.write_all(b"x").await;
+        });
+
+        let client = client_with_timeout(addr, 400);
+        let started = std::time::Instant::now();
+        let response = client
+            .request("v1/messages")
+            .streaming(true)
+            .response_post(&serde_json::json!({}))
+            .await
+            .unwrap();
+        crate::http_status::handle_status(response)
+            .await
+            .unwrap_err();
+
+        assert!(
+            started.elapsed() < Duration::from_millis(550),
+            "send and error body used separate deadlines: {:?}",
+            started.elapsed()
+        );
     }
 
     #[test]

@@ -331,17 +331,11 @@ impl GcpVertexAIProvider {
 
             let request = (self.request_builder)(request)
                 .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-            let response = tokio::time::timeout(
+            let response = goose_providers::http_status::send_bounded(
+                request,
                 Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-                request.send(),
             )
-            .await
-            .map_err(|_| {
-                ProviderError::NetworkError(
-                    "Request timed out — check your network connection and try again.".to_string(),
-                )
-            })?
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            .await?;
 
             let status = response.status();
 
@@ -355,11 +349,8 @@ impl GcpVertexAIProvider {
                         }),
                     );
                 }
-                let msg = rate_limit_error_message(
-                    &read_error_body(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
-                        .await
-                        .unwrap_or_default(),
-                );
+                let msg =
+                    rate_limit_error_message(&read_error_body(response).await.unwrap_or_default());
                 tracing::warn!("429 (attempt {rate_limit_attempts}/{max_retries}): {msg}");
                 last_error = Some(ProviderError::RateLimitExceeded {
                     details: msg,
@@ -403,10 +394,7 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let url = sanitize_url(response.url().as_str());
-                let response_text =
-                    read_error_body(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
-                        .await
-                        .unwrap_or_default();
+                let response_text = read_error_body(response).await.unwrap_or_default();
                 let payload = serde_json::from_str::<Value>(&response_text).ok();
                 return Err(map_http_error_to_provider_error(status, payload, &url));
             }

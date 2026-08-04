@@ -157,7 +157,7 @@ impl Provider for TetrateProvider {
                     .streaming(true)
                     .response_post(&payload)
                     .await?;
-                let resp = handle_status(resp, self.api_client.timeout())
+                let resp = handle_status(resp)
                     .await
                     .map_err(Self::enrich_credits_error)?;
 
@@ -169,12 +169,9 @@ impl Provider for TetrateProvider {
                     .is_some_and(|v| v.contains("json"));
 
                 if is_json {
-                    let body = goose_providers::http_status::read_error_body(
-                        resp,
-                        self.api_client.timeout(),
-                    )
-                    .await
-                    .unwrap_or_default();
+                    let body = goose_providers::http_status::read_error_body(resp)
+                        .await
+                        .unwrap_or_default();
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body) {
                         if payload.get("error").is_some() {
                             return Err(Self::error_from_tetrate_error_payload(
@@ -184,10 +181,9 @@ impl Provider for TetrateProvider {
                         }
                     }
 
-                    return Err(ProviderError::ExecutionError(
-                        "Expected streaming response but received non-streaming payload"
-                            .to_string(),
-                    ));
+                    return Err(ProviderError::ExecutionError(format!(
+                        "Expected streaming response but received non-streaming payload: {body}"
+                    )));
                 }
 
                 Ok(resp)
@@ -207,7 +203,7 @@ impl Provider for TetrateProvider {
             .response_get("v1/models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let json = handle_response_openai_compat(response, self.api_client.timeout()).await?;
+        let json = handle_response_openai_compat(response).await?;
 
         // Tetrate can return errors in 200 OK responses, so check explicitly
         if json.get("error").is_some() {

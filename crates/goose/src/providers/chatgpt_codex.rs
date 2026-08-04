@@ -29,7 +29,6 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
-use std::time::Duration;
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -944,19 +943,13 @@ impl ChatGptCodexProvider {
 
         let request = (self.request_builder)(request)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        let response = tokio::time::timeout(
+        let response = goose_providers::http_status::send_bounded(
+            request,
             std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            request.send(),
         )
-        .await
-        .map_err(|_| {
-            ProviderError::NetworkError(
-                "Request timed out — check your network connection and try again.".to_string(),
-            )
-        })?
-        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        .await?;
 
-        handle_status(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
+        handle_status(response).await
     }
 }
 

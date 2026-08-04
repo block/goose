@@ -201,7 +201,7 @@ impl Provider for NanoGptProvider {
                     .streaming(true)
                     .response_post(&payload)
                     .await?;
-                handle_status(resp, self.api_client.timeout()).await
+                handle_status(resp).await
             })
             .await
             .inspect_err(|e| {

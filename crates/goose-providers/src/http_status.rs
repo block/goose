@@ -248,22 +248,45 @@ pub fn map_http_error_to_provider_error(
     error
 }
 
-pub async fn read_error_body(response: Response, timeout: Duration) -> Option<String> {
-    tokio::time::timeout(timeout, response.text())
-        .await
-        .ok()
-        .and_then(Result::ok)
+#[derive(Clone, Copy)]
+pub struct ResponseDeadline(tokio::time::Instant);
+
+pub fn set_response_deadline(response: &mut Response, deadline: tokio::time::Instant) {
+    response.extensions_mut().insert(ResponseDeadline(deadline));
 }
 
-pub async fn handle_status(
-    response: Response,
+pub async fn send_bounded(
+    request: reqwest::RequestBuilder,
     timeout: Duration,
 ) -> Result<Response, ProviderError> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut response = tokio::time::timeout_at(deadline, request.send())
+        .await
+        .map_err(|_| {
+            ProviderError::NetworkError(
+                "Request timed out — check your network connection and try again.".to_string(),
+            )
+        })??;
+    set_response_deadline(&mut response, deadline);
+    Ok(response)
+}
+
+pub async fn read_error_body(response: Response) -> Option<String> {
+    match response.extensions().get::<ResponseDeadline>().copied() {
+        Some(ResponseDeadline(deadline)) => tokio::time::timeout_at(deadline, response.text())
+            .await
+            .ok()
+            .and_then(Result::ok),
+        None => response.text().await.ok(),
+    }
+}
+
+pub async fn handle_status(response: Response) -> Result<Response, ProviderError> {
     let status = response.status();
     if !status.is_success() {
         let url = sanitize_url(response.url().as_str());
         let headers = response.headers().clone();
-        let body = read_error_body(response, timeout).await.unwrap_or_default();
+        let body = read_error_body(response).await.unwrap_or_default();
         let payload = serde_json::from_str::<Value>(&body).ok();
         let mut err = map_http_error_to_provider_error(status, payload.clone(), &url);
         if let ProviderError::RateLimitExceeded { details, .. } = &err {
@@ -277,11 +300,8 @@ pub async fn handle_status(
     Ok(response)
 }
 
-pub async fn handle_response(
-    response: Response,
-    timeout: Duration,
-) -> Result<Value, ProviderError> {
-    let response = handle_status(response, timeout).await?;
+pub async fn handle_response(response: Response) -> Result<Value, ProviderError> {
+    let response = handle_status(response).await?;
 
     response.json::<Value>().await.map_err(|e| {
         ProviderError::RequestFailed(format!("Response body is not valid JSON: {}", e))

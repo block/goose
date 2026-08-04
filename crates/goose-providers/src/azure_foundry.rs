@@ -273,8 +273,7 @@ impl AzureFoundryProvider {
                 .response_get(&path)
                 .await
                 .map_err(|error| ProviderError::NetworkError(error.to_string()))?;
-            let json =
-                handle_response_openai_compat(response, self.deployments_client.timeout()).await?;
+            let json = handle_response_openai_compat(response).await?;
             if let Some(items) = json.get("value").and_then(|value| value.as_array()) {
                 for item in items {
                     let Some(name) = item.get("name").and_then(|value| value.as_str()) else {

@@ -278,19 +278,13 @@ impl BedrockProvider {
             }
         }
 
-        let response = tokio::time::timeout(
+        let response = goose_providers::http_status::send_bounded(
+            req,
             std::time::Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            req.send(),
         )
-        .await
-        .map_err(|_| {
-            ProviderError::NetworkError(
-                "Request timed out — check your network connection and try again.".to_string(),
-            )
-        })?
-        .map_err(|e| ProviderError::RequestFailed(format!("Mantle request failed: {}", e)))?;
+        .await?;
 
-        handle_status(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
+        handle_status(response).await
     }
 
     /// Build the request inputs shared by [`Self::converse`] and
