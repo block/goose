@@ -17,6 +17,7 @@ use crate::{
     model::ModelConfig,
     permission::PermissionConfirmation,
     retry::RetryConfig,
+    thinking::ThinkingEffortSupport,
 };
 
 /// Metadata about a provider's configuration requirements and capabilities
@@ -643,6 +644,34 @@ pub trait Provider: Send + Sync {
     }
 
     async fn update_mode(&self, _session_id: &str, _mode: GooseMode) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
+    /// How this provider participates in thinking-effort selection. Providers
+    /// that manage reasoning through an external harness report the harness's
+    /// advertised capability; the default keeps the model-name-based path.
+    fn thinking_effort_support(&self) -> ThinkingEffortSupport {
+        ThinkingEffortSupport::Unspecified
+    }
+
+    /// Forward a thinking-effort selection to the provider. Returns `Ok(true)`
+    /// when the provider applied the value itself (no provider recreation
+    /// needed); `Ok(false)` when the caller should use the legacy path.
+    async fn set_thinking_effort(
+        &self,
+        _session_id: &str,
+        _value: &str,
+    ) -> Result<bool, ProviderError> {
+        Ok(false)
+    }
+
+    /// Apply a session's model selection after the provider is installed.
+    /// Providers that manage their own model (e.g. ACP harnesses) override
+    /// this to sync the selection before the first prompt.
+    async fn apply_model_selection(
+        &self,
+        _model_config: &ModelConfig,
+    ) -> Result<(), ProviderError> {
         Ok(())
     }
 

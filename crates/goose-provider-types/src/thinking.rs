@@ -338,6 +338,34 @@ impl fmt::Display for ThinkingEffort {
     }
 }
 
+/// A single selectable effort value advertised by a provider-managed harness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThinkingEffortOption {
+    pub value: String,
+    pub label: String,
+}
+
+/// A harness-advertised effort config option mirrored verbatim into goose's
+/// `thinking_effort` session option.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThinkingEffortCapability {
+    /// The harness's config option id, e.g. "effort".
+    pub option_id: String,
+    pub values: Vec<ThinkingEffortOption>,
+    pub current: Option<String>,
+}
+
+/// How a provider participates in thinking-effort selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ThinkingEffortSupport {
+    /// The provider doesn't manage effort; callers keep the model-name-based path.
+    Unspecified,
+    /// The provider manages reasoning itself but has no effort knob for the current model.
+    Unsupported,
+    /// The provider passes through a harness-advertised effort option.
+    Options(ThinkingEffortCapability),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
