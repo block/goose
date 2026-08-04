@@ -81,31 +81,22 @@ impl TodoClient {
             ));
         }
 
-        let manager = &self.context.session_manager;
-        match manager.get_session(session_id, false).await {
-            Ok(mut session) => {
-                let todo_state = extension_data::TodoState::new(content);
-                if todo_state
-                    .to_extension_data(&mut session.extension_data)
-                    .is_ok()
-                {
-                    match manager
-                        .update(session_id)
-                        .extension_data(session.extension_data)
-                        .apply()
-                        .await
-                    {
-                        Ok(_) => Ok(vec![ContentBlock::text(format!(
-                            "Updated ({} chars)",
-                            char_count
-                        ))]),
-                        Err(_) => Err("Failed to update session metadata".to_string()),
-                    }
-                } else {
-                    Err("Failed to serialize TODO state".to_string())
-                }
-            }
-            Err(_) => Err("Failed to read session metadata".to_string()),
+        let todo_state = extension_data::TodoState::new(content);
+        let mut serialize_failed = false;
+        match self
+            .context
+            .session_manager
+            .update_extension_data(session_id, |extension_data| {
+                serialize_failed = todo_state.to_extension_data(extension_data).is_err();
+            })
+            .await
+        {
+            Ok(()) if !serialize_failed => Ok(vec![ContentBlock::text(format!(
+                "Updated ({} chars)",
+                char_count
+            ))]),
+            Ok(()) => Err("Failed to serialize TODO state".to_string()),
+            Err(_) => Err("Failed to update session metadata".to_string()),
         }
     }
 

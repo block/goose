@@ -1282,24 +1282,7 @@ impl Agent {
     /// Save current extension state to session metadata
     /// Should be called after any extension add/remove operation
     pub async fn save_extension_state(&self, session: &SessionConfig) -> Result<()> {
-        let extensions_state =
-            EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
-
-        let session_manager = self.config.session_manager.clone();
-        let mut session_data = session_manager.get_session(&session.id, false).await?;
-
-        if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
-            warn!("Failed to serialize extension state: {}", e);
-            return Err(anyhow!("Extension state serialization failed: {}", e));
-        }
-
-        session_manager
-            .update(&session.id)
-            .extension_data(session_data.extension_data)
-            .apply()
-            .await?;
-
-        Ok(())
+        self.persist_extension_state(&session.id).await
     }
 
     /// Save current extension state to session by session_id
@@ -1307,21 +1290,18 @@ impl Agent {
         let extensions_state =
             EnabledExtensionsState::new(self.extension_configs_for_persistence().await);
 
-        let session_manager = self.config.session_manager.clone();
-        let session = session_manager.get_session(session_id, false).await?;
-        let mut extension_data = session.extension_data.clone();
-
-        extensions_state
-            .to_extension_data(&mut extension_data)
-            .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
-
-        session_manager
-            .update(session_id)
-            .extension_data(extension_data)
-            .apply()
+        let mut serialize_error = None;
+        self.config
+            .session_manager
+            .update_extension_data(session_id, |extension_data| {
+                serialize_error = extensions_state.to_extension_data(extension_data).err();
+            })
             .await?;
 
-        Ok(())
+        match serialize_error {
+            None => Ok(()),
+            Some(e) => Err(anyhow!("Failed to serialize extension state: {}", e)),
+        }
     }
 
     /// Load extensions from session into the agent

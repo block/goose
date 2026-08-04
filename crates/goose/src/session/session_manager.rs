@@ -423,8 +423,28 @@ impl SessionManager {
         self.storage.get_session(id, include_messages).await
     }
 
+    /// Like get_session, but distinguishes a missing session (Ok(None)) from
+    /// an operational failure (Err).
+    pub async fn find_session(&self, id: &str, include_messages: bool) -> Result<Option<Session>> {
+        self.storage.find_session(id, include_messages).await
+    }
+
     pub fn update(&self, id: &str) -> SessionUpdateBuilder<'_> {
         SessionUpdateBuilder::new(self, id.to_string())
+    }
+
+    /// Atomically read-modify-write a session's extension data. Writers that
+    /// update extension data through separate get/update calls can lose each
+    /// other's changes; this serializes the read and write behind one lock.
+    pub async fn update_extension_data<F>(&self, id: &str, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut ExtensionData),
+    {
+        let _guard = self.storage.extension_data_lock.lock().await;
+        let session = self.get_session(id, false).await?;
+        let mut extension_data = session.extension_data;
+        f(&mut extension_data);
+        self.update(id).extension_data(extension_data).apply().await
     }
 
     async fn apply_update_inner(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
@@ -649,6 +669,7 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
+    extension_data_lock: tokio::sync::Mutex<()>,
 }
 
 pub(crate) fn role_to_string(role: &Role) -> &'static str {
@@ -887,6 +908,7 @@ impl SessionStorage {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
+            extension_data_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -1564,8 +1586,14 @@ impl SessionStorage {
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
+        self.find_session(id, include_messages)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Session not found"))
+    }
+
+    async fn find_session(&self, id: &str, include_messages: bool) -> Result<Option<Session>> {
         let pool = self.pool().await?;
-        let mut session = sqlx::query_as::<_, Session>(
+        let Some(mut session) = sqlx::query_as::<_, Session>(
             r#"
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
@@ -1583,7 +1611,9 @@ impl SessionStorage {
             .bind(id)
             .fetch_optional(pool)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+        else {
+            return Ok(None);
+        };
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
@@ -1608,7 +1638,7 @@ impl SessionStorage {
                 last_message_timestamp.and_then(message_timestamp_to_datetime);
         }
 
-        Ok(session)
+        Ok(Some(session))
     }
 
     #[allow(clippy::too_many_lines)]

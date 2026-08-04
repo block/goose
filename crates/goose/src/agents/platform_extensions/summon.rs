@@ -10,7 +10,7 @@ use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::EnabledExtensionsState;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionType;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
@@ -21,23 +21,26 @@ use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject, ListToolsResult,
     MetaObject, ServerCapabilities, ServerNotification, Tool,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, Mutex};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub static EXTENSION_NAME: &str = "summon";
 
 const SUBAGENT_DESCRIPTION_BUDGET: usize = 160;
 
 const TASK_LABEL_BUDGET: usize = 60;
+
+const DEFAULT_WORKER_IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+const DEFAULT_MAX_WORKERS: usize = 8;
 
 fn kind_plural(kind: SourceType) -> &'static str {
     match kind {
@@ -68,16 +71,18 @@ pub struct DelegateParams {
 pub struct PersistentWorker {
     pub configured: Arc<crate::agents::subagent_handler::ConfiguredSubagent>,
     pub session_id: String,
+    pub recipe: Recipe,
     pub task_config: TaskConfig,
-    pub system_instructions: String,
-    pub retry_config: Option<crate::agents::types::RetryConfig>,
     pub default_max_turns: usize,
     pub prompt_max_turns: AtomicUsize,
     pub busy: Arc<Mutex<()>>,
+    pub last_used: AtomicU64,
+    pub persisted: AtomicBool,
     pub notification_tx: tokio::sync::mpsc::UnboundedSender<ServerNotification>,
     pub creation: WorkerCreationParams,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerCreationParams {
     pub source: Option<String>,
     pub parameters: Option<HashMap<String, serde_json::Value>>,
@@ -119,6 +124,40 @@ pub enum WorkerSlot {
     Ready(Arc<PersistentWorker>),
 }
 
+// Two SummonClient instances can briefly coexist for one parent session
+// (e.g. an agent evicted and recreated while an old handle finishes a call),
+// so worker exclusion is shared process-wide instead of living on per-client
+// state.
+type SharedLockKey = (usize, String);
+type SharedLockRegistry = std::sync::Mutex<HashMap<SharedLockKey, std::sync::Weak<Mutex<()>>>>;
+
+static WORKER_BUSY_LOCKS: std::sync::LazyLock<SharedLockRegistry> =
+    std::sync::LazyLock::new(Default::default);
+static WORKER_DELEGATION_LOCKS: std::sync::LazyLock<SharedLockRegistry> =
+    std::sync::LazyLock::new(Default::default);
+
+fn shared_lock(
+    registry: &SharedLockRegistry,
+    session_manager: &crate::session::SessionManager,
+    key: &str,
+) -> Arc<Mutex<()>> {
+    // Session ids are only unique within one store, so keys include the
+    // store's identity; a live lock keeps its store alive, so a reused
+    // address cannot alias a live entry.
+    let key = (
+        Arc::as_ptr(session_manager.storage()) as usize,
+        key.to_string(),
+    );
+    let mut locks = registry.lock().unwrap();
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(&key).and_then(std::sync::Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(Mutex::new(()));
+    locks.insert(key, Arc::downgrade(&lock));
+    lock
+}
+
 // Removes the Creating placeholder if creation fails or the call is cancelled
 // mid-await, so the worker name is not permanently stuck reporting busy.
 struct CreationSlotGuard<'a> {
@@ -139,6 +178,69 @@ impl Drop for CreationSlotGuard<'_> {
                 workers.remove(&key);
             }
         }
+    }
+}
+
+// The resolved runtime state is persisted verbatim so a restored worker
+// matches its in-memory counterpart even if sources or config changed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkerRecord {
+    pub session_id: String,
+    pub recipe: Recipe,
+    pub default_max_turns: usize,
+    pub extensions: Vec<crate::config::ExtensionConfig>,
+    pub model_config: goose_providers::model::ModelConfig,
+    pub creation: WorkerCreationParams,
+}
+
+impl WorkerRecord {
+    fn from_worker(worker: &PersistentWorker) -> Self {
+        Self {
+            session_id: worker.session_id.clone(),
+            recipe: worker.recipe.clone(),
+            default_max_turns: worker.default_max_turns,
+            extensions: worker.task_config.extensions.clone(),
+            model_config: worker.task_config.model_config.clone(),
+            creation: worker.creation.clone(),
+        }
+    }
+
+    fn to_delegate_params(&self, worker_name: &str) -> DelegateParams {
+        DelegateParams {
+            source: self.creation.source.clone(),
+            parameters: self.creation.parameters.clone(),
+            provider: Some(self.creation.provider.clone()),
+            model: Some(
+                self.creation
+                    .model_request
+                    .clone()
+                    .unwrap_or_else(|| self.creation.model.clone()),
+            ),
+            temperature: self.creation.temperature,
+            worker: Some(worker_name.to_string()),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct WorkerRegistryState {
+    pub workers: HashMap<String, WorkerRecord>,
+}
+
+impl ExtensionState for WorkerRegistryState {
+    const EXTENSION_NAME: &'static str = "summon_workers";
+    const VERSION: &'static str = "v0";
+}
+
+fn worker_followup_user_text(params: &DelegateParams) -> String {
+    let instructions = params
+        .instructions
+        .clone()
+        .expect("validated by validate_worker_reuse_params");
+    match &params.context {
+        Some(context) => format!("Context:\n{}\n\n{}", context, instructions),
+        None => instructions,
     }
 }
 
@@ -618,6 +720,8 @@ pub struct SummonClient {
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
     workers: std::sync::Mutex<HashMap<String, WorkerSlot>>,
+    worker_idle_timeout: Duration,
+    max_workers: usize,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
@@ -644,6 +748,13 @@ impl SummonClient {
             background_tasks: Mutex::new(HashMap::new()),
             completed_tasks: Mutex::new(HashMap::new()),
             workers: std::sync::Mutex::new(HashMap::new()),
+            worker_idle_timeout: Config::global()
+                .get_param::<u64>("GOOSE_WORKER_IDLE_TIMEOUT")
+                .map(Duration::from_secs)
+                .unwrap_or(DEFAULT_WORKER_IDLE_TIMEOUT),
+            max_workers: Config::global()
+                .get_param::<usize>("GOOSE_MAX_WORKERS")
+                .unwrap_or(DEFAULT_MAX_WORKERS),
             notification_subscribers: Arc::new(Mutex::new(Vec::new())),
         })
     }
@@ -676,6 +787,156 @@ impl SummonClient {
         }
 
         Ok(session)
+    }
+
+    // Only evictable once its record is persisted (so it can be rebuilt)
+    // and while no delegation holds it.
+    fn worker_evictable(worker: &PersistentWorker) -> bool {
+        worker.persisted.load(Ordering::Relaxed) && worker.busy.try_lock().is_ok()
+    }
+
+    fn evict_idle_workers(&self, workers: &mut HashMap<String, WorkerSlot>) {
+        let now = current_epoch_millis();
+        let idle_limit = self.worker_idle_timeout.as_millis() as u64;
+        workers.retain(|key, slot| match slot {
+            WorkerSlot::Creating => true,
+            WorkerSlot::Ready(worker) => {
+                let idle = now.saturating_sub(worker.last_used.load(Ordering::Relaxed));
+                let retain = idle <= idle_limit || !Self::worker_evictable(worker);
+                if !retain {
+                    debug!("Evicting idle worker '{}'", key);
+                }
+                retain
+            }
+        });
+    }
+
+    fn enforce_worker_capacity(
+        &self,
+        workers: &mut HashMap<String, WorkerSlot>,
+    ) -> Result<(), String> {
+        if workers.len() < self.max_workers {
+            return Ok(());
+        }
+        let lru_key = workers
+            .iter()
+            .filter_map(|(key, slot)| match slot {
+                WorkerSlot::Ready(worker) if Self::worker_evictable(worker) => {
+                    Some((worker.last_used.load(Ordering::Relaxed), key.clone()))
+                }
+                _ => None,
+            })
+            .min()
+            .map(|(_, key)| key);
+        match lru_key {
+            Some(key) => {
+                debug!("Evicting worker '{}' to stay within the worker limit", key);
+                workers.remove(&key);
+                Ok(())
+            }
+            None => Err(format!(
+                "Too many active workers ({}); wait for one to finish or reuse an existing worker",
+                workers.len()
+            )),
+        }
+    }
+
+    async fn load_worker_record(
+        &self,
+        parent_session_id: &str,
+        worker_name: &str,
+    ) -> Result<Option<WorkerRecord>, String> {
+        let Some(session) = self
+            .context
+            .session_manager
+            .find_session(parent_session_id, false)
+            .await
+            .map_err(|e| e.to_string())?
+        else {
+            return Ok(None);
+        };
+        let Some(record) = WorkerRegistryState::from_extension_data(&session.extension_data)
+            .and_then(|registry| registry.workers.get(worker_name).cloned())
+        else {
+            return Ok(None);
+        };
+        let worker_session = self
+            .context
+            .session_manager
+            .find_session(&record.session_id, false)
+            .await
+            .map_err(|e| e.to_string())?
+            .filter(|worker_session| {
+                // A copied or imported parent session carries records that
+                // still point at the original parent's worker sessions;
+                // resuming those would write into another session's history.
+                worker_session.parent_session_id.as_deref() == Some(parent_session_id)
+            });
+        if worker_session.is_none() {
+            warn!(
+                "Session {} for stored worker '{}' is missing or not owned by session {}; discarding record",
+                record.session_id, worker_name, parent_session_id
+            );
+            self.remove_worker_record(parent_session_id, worker_name)
+                .await;
+            return Ok(None);
+        }
+        Ok(Some(record))
+    }
+
+    async fn save_worker_record(
+        &self,
+        parent_session_id: &str,
+        worker_name: &str,
+        record: WorkerRecord,
+    ) -> bool {
+        let result = self
+            .update_worker_registry(parent_session_id, |registry| {
+                registry.workers.insert(worker_name.to_string(), record);
+            })
+            .await;
+        match result {
+            Ok(()) => true,
+            Err(e) => {
+                warn!(
+                    "Failed to persist worker '{}'; it will not survive a restart: {}",
+                    worker_name, e
+                );
+                false
+            }
+        }
+    }
+
+    async fn remove_worker_record(&self, parent_session_id: &str, worker_name: &str) {
+        let result = self
+            .update_worker_registry(parent_session_id, |registry| {
+                registry.workers.remove(worker_name);
+            })
+            .await;
+        if let Err(e) = result {
+            warn!("Failed to remove stored worker '{}': {}", worker_name, e);
+        }
+    }
+
+    async fn update_worker_registry(
+        &self,
+        parent_session_id: &str,
+        f: impl FnOnce(&mut WorkerRegistryState),
+    ) -> Result<(), String> {
+        let mut serialize_error = None;
+        self.context
+            .session_manager
+            .update_extension_data(parent_session_id, |extension_data| {
+                let mut registry =
+                    WorkerRegistryState::from_extension_data(extension_data).unwrap_or_default();
+                f(&mut registry);
+                if let Err(e) = registry.to_extension_data(extension_data) {
+                    serialize_error = Some(e.to_string());
+                }
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        serialize_error.map_or(Ok(()), Err)
     }
 
     fn spawn_notification_bridge(
@@ -1443,7 +1704,7 @@ impl SummonClient {
             .await?;
 
         let task_config = self
-            .build_task_config(&params, &recipe, &session)
+            .build_task_config(&params, &recipe, &session, None)
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
@@ -1536,44 +1797,92 @@ impl SummonClient {
             )
         };
 
-        let existing = {
+        // Held for the whole delegation so lookup-create-save cannot
+        // interleave with another client delegating to the same worker name.
+        let delegation_lock = shared_lock(
+            &WORKER_DELEGATION_LOCKS,
+            &self.context.session_manager,
+            &worker_key,
+        );
+        let _delegation = delegation_lock.try_lock_owned().map_err(|_| busy_error())?;
+
+        let stored = self.load_worker_record(&session.id, &worker_name).await?;
+
+        let checked_out = {
             let mut workers = self.workers.lock().unwrap();
+            self.evict_idle_workers(&mut workers);
             match workers.get(&worker_key) {
-                Some(WorkerSlot::Ready(worker)) => Some(worker.clone()),
+                Some(WorkerSlot::Ready(worker)) => {
+                    let busy = worker
+                        .busy
+                        .clone()
+                        .try_lock_owned()
+                        .map_err(|_| busy_error())?;
+                    Some((worker.clone(), busy))
+                }
                 Some(WorkerSlot::Creating) => return Err(busy_error()),
                 None => {
-                    self.validate_delegate_params(&params)?;
+                    if stored.is_none() {
+                        self.validate_delegate_params(&params)?;
+                    }
+                    self.enforce_worker_capacity(&mut workers)?;
                     workers.insert(worker_key.clone(), WorkerSlot::Creating);
                     None
                 }
             }
         };
 
-        let (worker, user_text, _busy) = match existing {
-            Some(worker) => {
+        let (worker, user_text, _busy) = match (checked_out, stored) {
+            (Some((worker, busy)), _) => {
                 validate_worker_reuse_params(&params, &worker.creation, &session.working_dir)?;
-                let instructions = params
-                    .instructions
-                    .clone()
-                    .expect("validated by validate_worker_reuse_params");
-                let user_text = match &params.context {
-                    Some(context) => format!("Context:\n{}\n\n{}", context, instructions),
-                    None => instructions,
+                if !worker.persisted.load(Ordering::Relaxed)
+                    && self
+                        .save_worker_record(
+                            &session.id,
+                            &worker_name,
+                            WorkerRecord::from_worker(&worker),
+                        )
+                        .await
+                {
+                    worker.persisted.store(true, Ordering::Relaxed);
+                }
+                let user_text = worker_followup_user_text(&params);
+                (worker, user_text, busy)
+            }
+            (None, Some(record)) => {
+                let creating = CreationSlotGuard {
+                    workers: &self.workers,
+                    key: Some(worker_key),
                 };
+                let creation_request = record.to_delegate_params(&worker_name);
+                let (worker, _) = self
+                    .create_worker(session, &creation_request, &worker_name, Some(&record))
+                    .await
+                    .map_err(|e| format!("Failed to restore worker '{}': {}", worker_name, e))?;
+                let key = creating.release();
+                self.workers
+                    .lock()
+                    .unwrap()
+                    .insert(key, WorkerSlot::Ready(worker.clone()));
+                // The busy lock is shared by worker session id, so another
+                // client restoring the same record may already hold it.
                 let busy = worker
                     .busy
                     .clone()
                     .try_lock_owned()
                     .map_err(|_| busy_error())?;
+                validate_worker_reuse_params(&params, &worker.creation, &session.working_dir)?;
+                let user_text = worker_followup_user_text(&params);
                 (worker, user_text, busy)
             }
-            None => {
+            (None, None) => {
                 let creating = CreationSlotGuard {
                     workers: &self.workers,
                     key: Some(worker_key),
                 };
-                let (worker, user_text) =
-                    self.create_worker(session, &params, &worker_name).await?;
+                let (worker, user_text) = self
+                    .create_worker(session, &params, &worker_name, None)
+                    .await?;
                 let busy = worker
                     .busy
                     .clone()
@@ -1584,9 +1893,23 @@ impl SummonClient {
                     .lock()
                     .unwrap()
                     .insert(key, WorkerSlot::Ready(worker.clone()));
+                let saved = self
+                    .save_worker_record(
+                        &session.id,
+                        &worker_name,
+                        WorkerRecord::from_worker(&worker),
+                    )
+                    .await;
+                if saved {
+                    worker.persisted.store(true, Ordering::Relaxed);
+                }
                 (worker, user_text, busy)
             }
         };
+
+        worker
+            .last_used
+            .store(current_epoch_millis(), Ordering::Relaxed);
 
         let max_turns = params.max_turns.unwrap_or(worker.default_max_turns);
         if worker.prompt_max_turns.load(Ordering::Relaxed) != max_turns {
@@ -1595,7 +1918,7 @@ impl SummonClient {
                 &worker.configured,
                 &task_config,
                 &worker.session_id,
-                worker.system_instructions.clone(),
+                worker.recipe.instructions.clone().unwrap_or_default(),
             )
             .await
             .map_err(|e| format!("Failed to update worker '{}' prompt: {}", worker_name, e))?;
@@ -1608,13 +1931,17 @@ impl SummonClient {
                 session_id: &worker.session_id,
                 user_text,
                 max_turns: Some(max_turns as u32),
-                retry_config: worker.retry_config.clone(),
+                retry_config: worker.recipe.retry.clone(),
                 cancellation_token: Some(cancellation_token),
                 on_message: None,
                 notification_tx: Some(worker.notification_tx.clone()),
             },
         )
         .await;
+
+        worker
+            .last_used
+            .store(current_epoch_millis(), Ordering::Relaxed);
 
         let mut meta = MetaObject::new();
         meta.0.insert(
@@ -1639,11 +1966,16 @@ impl SummonClient {
         session: &crate::session::Session,
         params: &DelegateParams,
         worker_name: &str,
+        restore: Option<&WorkerRecord>,
     ) -> Result<(Arc<PersistentWorker>, String), String> {
         let working_dir = session.working_dir.clone();
-        let mut recipe = self
-            .build_delegate_recipe(params, &session.id, &working_dir)
-            .await?;
+        let mut recipe = match restore {
+            Some(record) => record.recipe.clone(),
+            None => {
+                self.build_delegate_recipe(params, &session.id, &working_dir)
+                    .await?
+            }
+        };
 
         // Resolve the model override once and pin it into the recipe, so the
         // stored creation params match the model build_task_config configures
@@ -1664,7 +1996,7 @@ impl SummonClient {
         }
 
         let task_config = self
-            .build_task_config(params, &recipe, session)
+            .build_task_config(params, &recipe, session, restore)
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
@@ -1680,15 +2012,20 @@ impl SummonClient {
         )
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
-        let subagent_session = self
-            .create_subagent_session(&task_config, format!("Worker '{}'", worker_name))
-            .await?;
+        let worker_session_id = match restore {
+            Some(record) => record.session_id.clone(),
+            None => {
+                self.create_subagent_session(&task_config, format!("Worker '{}'", worker_name))
+                    .await?
+                    .id
+            }
+        };
 
         let configured = crate::agents::subagent_handler::configure_subagent_agent(
             agent_config,
             &recipe,
             &task_config,
-            &subagent_session.id,
+            &worker_session_id,
         )
         .await
         .map_err(|e| format!("Failed to configure worker '{}': {}", worker_name, e))?;
@@ -1700,39 +2037,54 @@ impl SummonClient {
             Arc::new(Mutex::new(Vec::new())),
         );
 
-        let default_max_turns = recipe
-            .settings
-            .as_ref()
-            .and_then(|s| s.max_turns)
-            .unwrap_or_else(|| self.resolve_max_turns(session));
-        if default_max_turns == 0 || default_max_turns > u32::MAX as usize {
-            return Err(format!(
-                "max_turns must be between 1 and {} (got {})",
-                u32::MAX,
-                default_max_turns
-            ));
-        }
+        let default_max_turns = match restore {
+            Some(record) => record.default_max_turns,
+            None => {
+                let resolved = recipe
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.max_turns)
+                    .unwrap_or_else(|| self.resolve_max_turns(session));
+                if resolved == 0 || resolved > u32::MAX as usize {
+                    return Err(format!(
+                        "max_turns must be between 1 and {} (got {})",
+                        u32::MAX,
+                        resolved
+                    ));
+                }
+                resolved
+            }
+        };
         let prompt_max_turns = task_config
             .max_turns
             .expect("TaskConfig always sets max_turns");
-
-        let worker = Arc::new(PersistentWorker {
-            configured: Arc::new(configured),
-            session_id: subagent_session.id,
-            system_instructions: recipe.instructions.clone().unwrap_or_default(),
-            retry_config: recipe.retry.clone(),
-            default_max_turns,
-            prompt_max_turns: AtomicUsize::new(prompt_max_turns),
-            busy: Arc::new(Mutex::new(())),
-            notification_tx: notif_tx,
-            creation: WorkerCreationParams::resolve(params, model_request, &task_config),
-            task_config,
-        });
 
         let user_text = recipe
             .prompt
             .clone()
             .unwrap_or_else(|| "Begin.".to_string());
+
+        let worker = Arc::new(PersistentWorker {
+            configured: Arc::new(configured),
+            busy: shared_lock(
+                &WORKER_BUSY_LOCKS,
+                &self.context.session_manager,
+                &worker_session_id,
+            ),
+            session_id: worker_session_id,
+            default_max_turns,
+            prompt_max_turns: AtomicUsize::new(prompt_max_turns),
+            last_used: AtomicU64::new(current_epoch_millis()),
+            persisted: AtomicBool::new(restore.is_some()),
+            notification_tx: notif_tx,
+            creation: match restore {
+                Some(record) => record.creation.clone(),
+                None => WorkerCreationParams::resolve(params, model_request, &task_config),
+            },
+            recipe,
+            task_config,
+        });
+
         Ok((worker, user_text))
     }
 
@@ -1945,39 +2297,70 @@ impl SummonClient {
         params: &DelegateParams,
         recipe: &Recipe,
         session: &crate::session::Session,
+        restore: Option<&WorkerRecord>,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let mut extensions = EnabledExtensionsState::extensions_or_default(
-            Some(&session.extension_data),
-            Config::global(),
-        );
-
-        if let Some(filter) = &params.extensions {
-            if filter.is_empty() {
-                extensions = Vec::new();
-            } else {
-                let available_names: Vec<String> =
-                    extensions.iter().map(|ext| ext.name()).collect();
-                extensions.retain(|ext| filter.contains(&ext.name()));
-                let unmatched: Vec<&str> = filter
-                    .iter()
-                    .filter(|name| !available_names.iter().any(|n| n == *name))
-                    .map(String::as_str)
-                    .collect();
-                if !unmatched.is_empty() {
-                    warn!(
-                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
-                        unmatched, available_names
-                    );
-                }
+        let extensions = match restore {
+            Some(record) => {
+                // The worker may have changed its own extensions at runtime;
+                // its session state is more current than the record.
+                let worker_session = self
+                    .context
+                    .session_manager
+                    .get_session(&record.session_id, false)
+                    .await?;
+                EnabledExtensionsState::from_extension_data(&worker_session.extension_data)
+                    .map(|state| state.extensions)
+                    .unwrap_or_else(|| record.extensions.clone())
             }
-        }
+            None => {
+                let mut extensions = EnabledExtensionsState::extensions_or_default(
+                    Some(&session.extension_data),
+                    Config::global(),
+                );
 
-        let (provider, model_config) = self
-            .resolve_provider(params, recipe, session, &extensions)
-            .await?;
+                if let Some(filter) = &params.extensions {
+                    if filter.is_empty() {
+                        extensions = Vec::new();
+                    } else {
+                        let available_names: Vec<String> =
+                            extensions.iter().map(|ext| ext.name()).collect();
+                        extensions.retain(|ext| filter.contains(&ext.name()));
+                        let unmatched: Vec<&str> = filter
+                            .iter()
+                            .filter(|name| !available_names.iter().any(|n| n == *name))
+                            .map(String::as_str)
+                            .collect();
+                        if !unmatched.is_empty() {
+                            warn!(
+                                "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                                unmatched, available_names
+                            );
+                        }
+                    }
+                }
+                extensions
+            }
+        };
+
+        // On restore the provider is rebuilt by name; model config and turn
+        // budget come from the record so creation-time values cannot drift
+        // and current config cannot fail re-resolution.
+        let (provider, model_config) = match restore {
+            Some(record) => {
+                let provider = self
+                    .build_provider(&record.creation.provider, &extensions)
+                    .await?;
+                (provider, record.model_config.clone())
+            }
+            None => {
+                self.resolve_provider(params, recipe, session, &extensions)
+                    .await?
+            }
+        };
 
         let max_turns = params
             .max_turns
+            .or(restore.map(|record| record.default_max_turns))
             .or_else(|| recipe.settings.as_ref().and_then(|s| s.max_turns))
             .unwrap_or_else(|| self.resolve_max_turns(session));
 
@@ -1989,9 +2372,24 @@ impl SummonClient {
             );
         }
 
-        let effective_working_dir = match &params.working_dir {
-            Some(dir) => resolve_working_dir(&session.working_dir, dir)?,
-            None => session.working_dir.clone(),
+        let effective_working_dir = match restore {
+            // Re-validating against the parent's current working dir would
+            // break restoration whenever the parent dir changed; only require
+            // that the recorded dir still exists.
+            Some(record) => {
+                let dir = record.creation.working_dir.clone();
+                if !dir.is_dir() {
+                    anyhow::bail!(
+                        "worker working_dir '{}' no longer exists",
+                        dir.to_string_lossy()
+                    );
+                }
+                dir
+            }
+            None => match &params.working_dir {
+                Some(dir) => resolve_working_dir(&session.working_dir, dir)?,
+                None => session.working_dir.clone(),
+            },
         };
 
         let task_config = TaskConfig::new(
@@ -2088,8 +2486,17 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        let provider = match providers::get_from_registry(&provider_name).await {
-            Ok(entry) => entry.create(extensions.to_vec()).await?,
+        let provider = self.build_provider(&provider_name, extensions).await?;
+        Ok((provider, model_config))
+    }
+
+    async fn build_provider(
+        &self,
+        provider_name: &str,
+        extensions: &[crate::config::ExtensionConfig],
+    ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
+        match providers::get_from_registry(provider_name).await {
+            Ok(entry) => entry.create(extensions.to_vec()).await,
             Err(error) => {
                 let parent_provider = if let Some(extension_manager) = self
                     .context
@@ -2107,13 +2514,12 @@ impl SummonClient {
                         if provider.get_name() == provider_name
                             && !provider.manages_own_context() =>
                     {
-                        provider
+                        Ok(provider)
                     }
-                    _ => return Err(error),
+                    _ => Err(error),
                 }
             }
-        };
-        Ok((provider, model_config))
+        }
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
@@ -2222,7 +2628,7 @@ impl SummonClient {
             .await?;
 
         let task_config = self
-            .build_task_config(&params, &recipe, &session)
+            .build_task_config(&params, &recipe, &session, None)
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
@@ -2771,6 +3177,346 @@ mod tests {
         assert!(resumed.contains("second task"));
     }
 
+    async fn persisted_worker_rig() -> WorkerTestRig {
+        let mut rig = worker_test_rig().await;
+        let parent = rig
+            .client
+            .context
+            .session_manager
+            .create_session(
+                rig.session.working_dir.clone(),
+                "parent".to_string(),
+                SessionType::User,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        rig.session.id = parent.id;
+        rig
+    }
+
+    async fn stored_worker_record(rig: &WorkerTestRig) -> Option<WorkerRecord> {
+        let session = rig
+            .client
+            .context
+            .session_manager
+            .get_session(&rig.session.id, false)
+            .await
+            .unwrap();
+        WorkerRegistryState::from_extension_data(&session.extension_data)
+            .and_then(|registry| registry.workers.get("helper").cloned())
+    }
+
+    #[tokio::test]
+    async fn test_worker_restored_from_record_after_restart() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let record = stored_worker_record(&rig)
+            .await
+            .expect("worker record persisted");
+        assert_eq!(record.creation.provider, "worker-test");
+        assert!(!record.session_id.is_empty());
+
+        let restarted = SummonClient::new(rig.client.context.clone()).unwrap();
+        let second = restarted
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let resumed = calls[1].join("\n");
+        assert!(resumed.contains("first task"));
+        assert!(resumed.contains("reply-1"));
+        assert!(resumed.contains("second task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_busy_lock_is_shared_across_clients() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let worker = ready_worker(&rig.client);
+        let _held = worker.busy.clone().try_lock_owned().unwrap();
+
+        let second_client = SummonClient::new(rig.client.context.clone()).unwrap();
+        let err = second_client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err();
+        assert!(err.contains("busy"), "expected busy error, got: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_worker_stale_record_falls_back_to_fresh_creation() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let old_record = stored_worker_record(&rig).await.unwrap();
+        rig.client
+            .context
+            .session_manager
+            .delete_session(&old_record.session_id)
+            .await
+            .unwrap();
+
+        let restarted = SummonClient::new(rig.client.context.clone()).unwrap();
+        let second = restarted
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("fresh task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let fresh = calls[1].join("\n");
+        assert!(fresh.contains("fresh task"));
+        assert!(!fresh.contains("first task"));
+
+        let new_record = stored_worker_record(&rig).await.unwrap();
+        assert_eq!(new_record.recipe.prompt.as_deref(), Some("fresh task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_record_owned_by_another_session_is_discarded() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        let record = stored_worker_record(&rig).await.unwrap();
+
+        let session_manager = &rig.client.context.session_manager;
+        let other = session_manager
+            .create_session(
+                rig.session.working_dir.clone(),
+                "other-parent".to_string(),
+                SessionType::User,
+                GooseMode::Auto,
+            )
+            .await
+            .unwrap();
+        let mut other_stored = session_manager.get_session(&other.id, false).await.unwrap();
+        let mut registry = WorkerRegistryState::default();
+        registry
+            .workers
+            .insert("helper".to_string(), record.clone());
+        registry
+            .to_extension_data(&mut other_stored.extension_data)
+            .unwrap();
+        session_manager
+            .update(&other.id)
+            .extension_data(other_stored.extension_data)
+            .apply()
+            .await
+            .unwrap();
+
+        let mut other_session = rig.session.clone();
+        other_session.id = other.id.clone();
+
+        let restarted = SummonClient::new(rig.client.context.clone()).unwrap();
+        let result = restarted
+            .handle_worker_delegate(
+                &other_session,
+                worker_creation_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(result.is_error, Some(true));
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let fresh = calls[1].join("\n");
+        assert!(fresh.contains("second task"));
+        assert!(
+            !fresh.contains("first task"),
+            "copied record must not resume the original session"
+        );
+
+        let other_registry = WorkerRegistryState::from_extension_data(
+            &session_manager
+                .get_session(&other.id, false)
+                .await
+                .unwrap()
+                .extension_data,
+        )
+        .unwrap();
+        assert_ne!(
+            other_registry.workers.get("helper").unwrap().session_id,
+            record.session_id
+        );
+    }
+
+    fn ready_worker(client: &SummonClient) -> Arc<PersistentWorker> {
+        match client.workers.lock().unwrap().values().next().unwrap() {
+            WorkerSlot::Ready(worker) => worker.clone(),
+            WorkerSlot::Creating => panic!("worker should be ready"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_worker_idle_eviction_rehydrates_transparently() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let original = ready_worker(&rig.client);
+        original.last_used.store(0, Ordering::Relaxed);
+
+        let second = rig
+            .client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_followup_delegate_params("second task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let current = ready_worker(&rig.client);
+        assert!(
+            !Arc::ptr_eq(&original, &current),
+            "idle worker should have been evicted and rebuilt"
+        );
+
+        let calls = rig.provider.calls.lock().unwrap().clone();
+        assert_eq!(calls.len(), 2);
+        let resumed = calls[1].join("\n");
+        assert!(resumed.contains("first task"));
+        assert!(resumed.contains("reply-1"));
+        assert!(resumed.contains("second task"));
+    }
+
+    #[tokio::test]
+    async fn test_worker_busy_is_never_evicted() {
+        let rig = persisted_worker_rig().await;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let worker = ready_worker(&rig.client);
+        assert!(worker.persisted.load(Ordering::Relaxed));
+        let _busy = worker.busy.clone().try_lock_owned().unwrap();
+        worker.last_used.store(0, Ordering::Relaxed);
+
+        let mut workers = rig.client.workers.lock().unwrap();
+        rig.client.evict_idle_workers(&mut workers);
+        assert_eq!(workers.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_worker_cap_evicts_least_recently_used_idle_worker() {
+        let mut rig = persisted_worker_rig().await;
+        rig.client.max_workers = 1;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let mut params = worker_creation_delegate_params("other task");
+        params.worker = Some("helper2".to_string());
+        let second = rig
+            .client
+            .handle_worker_delegate(&rig.session, params, CancellationToken::new())
+            .await
+            .unwrap();
+        assert_ne!(second.is_error, Some(true));
+
+        let workers = rig.client.workers.lock().unwrap();
+        assert_eq!(workers.len(), 1);
+        assert!(workers.keys().all(|key| key.ends_with(":helper2")));
+    }
+
+    #[tokio::test]
+    async fn test_worker_cap_rejects_creation_when_all_workers_busy() {
+        let mut rig = worker_test_rig().await;
+        rig.client.max_workers = 1;
+
+        rig.client
+            .handle_worker_delegate(
+                &rig.session,
+                worker_creation_delegate_params("first task"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let worker = ready_worker(&rig.client);
+        let _busy = worker.busy.clone().try_lock_owned().unwrap();
+
+        let mut params = worker_creation_delegate_params("other task");
+        params.worker = Some("helper2".to_string());
+        let err = rig
+            .client
+            .handle_worker_delegate(&rig.session, params, CancellationToken::new())
+            .await
+            .unwrap_err();
+        assert!(err.contains("Too many active workers"));
+    }
+
     #[tokio::test]
     async fn test_worker_busy_lock_rejects_concurrent_delegation() {
         let rig = worker_test_rig().await;
@@ -2784,10 +3530,7 @@ mod tests {
             .await
             .unwrap();
 
-        let worker = match rig.client.workers.lock().unwrap().values().next().unwrap() {
-            WorkerSlot::Ready(worker) => worker.clone(),
-            WorkerSlot::Creating => panic!("worker should be ready"),
-        };
+        let worker = ready_worker(&rig.client);
         let _busy = worker.busy.clone().try_lock_owned().unwrap();
 
         let err = rig
@@ -3387,7 +4130,7 @@ You review code."#;
         };
 
         let task_config = client
-            .build_task_config(&params, &empty_recipe(), &session)
+            .build_task_config(&params, &empty_recipe(), &session, None)
             .await
             .unwrap();
 
