@@ -117,7 +117,7 @@ impl SnowflakeProvider {
         let payload_text: String = if status.is_success() && !is_json {
             response.text().await.ok().unwrap_or_default()
         } else {
-            crate::http_status::read_error_body(response)
+            crate::http_status::read_error_body(response, self.api_client.timeout())
                 .await
                 .unwrap_or_default()
         };

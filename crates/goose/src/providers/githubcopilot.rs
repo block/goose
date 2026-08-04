@@ -425,7 +425,7 @@ impl GithubCopilotProvider {
                         true,
                     )
                     .await?;
-                handle_status(resp).await
+                handle_status(resp, self.api_client.timeout()).await
             })
             .await
             .inspect_err(|e| {
@@ -473,7 +473,7 @@ impl GithubCopilotProvider {
                             true,
                         )
                         .await?;
-                    handle_status(resp).await
+                    handle_status(resp, self.api_client.timeout()).await
                 })
                 .await
                 .inspect_err(|e| {

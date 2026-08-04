@@ -955,7 +955,7 @@ impl ChatGptCodexProvider {
         })?
         .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        handle_status(response).await
+        handle_status(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
     }
 }
 

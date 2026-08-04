@@ -115,6 +115,7 @@ impl OpenAiCompatibleProvider {
                         .streaming(self.supports_streaming)
                         .response_post(&payload)
                         .await?,
+                    self.api_client.timeout(),
                 )
                 .await
             })

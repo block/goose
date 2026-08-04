@@ -290,7 +290,7 @@ impl BedrockProvider {
         })?
         .map_err(|e| ProviderError::RequestFailed(format!("Mantle request failed: {}", e)))?;
 
-        handle_status(response).await
+        handle_status(response, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
     }
 
     /// Build the request inputs shared by [`Self::converse`] and

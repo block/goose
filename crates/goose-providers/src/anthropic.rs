@@ -191,6 +191,7 @@ impl AnthropicProvider {
                         .streaming(true)
                         .response_post(&payload)
                         .await?,
+                    self.api_client.timeout(),
                 )
                 .await
             })
@@ -229,7 +230,7 @@ impl AnthropicProvider {
             return Err(ProviderError::EndpointNotFound(msg));
         }
 
-        let response = handle_status(response).await?;
+        let response = handle_status(response, self.api_client.timeout()).await?;
 
         let body = response.bytes().await.map_err(|e| {
             ProviderError::NetworkError(format!("Failed to read response body: {}", e))

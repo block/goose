@@ -353,7 +353,7 @@ impl Provider for OpenRouterProvider {
                     .streaming(true)
                     .response_post(&payload)
                     .await?;
-                handle_status(resp).await
+                handle_status(resp, self.api_client.timeout()).await
             })
             .await
             .inspect_err(|e| {

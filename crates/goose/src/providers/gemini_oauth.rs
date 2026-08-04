@@ -905,9 +905,12 @@ impl GeminiOAuthProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let text = goose_providers::http_status::read_error_body(response)
-                .await
-                .unwrap_or_else(|| "unknown error".to_string());
+            let text = goose_providers::http_status::read_error_body(
+                response,
+                Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            )
+            .await
+            .unwrap_or_else(|| "unknown error".to_string());
 
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 // Parse retry delay from the error message if available

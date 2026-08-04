@@ -419,7 +419,7 @@ impl Provider for KimiCodeProvider {
         let response = self
             .with_retry(|| async {
                 let resp = self.post(&payload).await?;
-                handle_status(resp).await
+                handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             })
             .await
             .inspect_err(|e| {
@@ -469,7 +469,8 @@ impl Provider for KimiCodeProvider {
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let resp = handle_status(resp).await?;
+        let resp =
+            handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await?;
 
         let parsed: ModelsResp = resp.json().await.map_err(|e| {
             ProviderError::RequestFailed(format!("/v1/models body is not valid JSON: {}", e))

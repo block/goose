@@ -157,7 +157,7 @@ impl Provider for TetrateProvider {
                     .streaming(true)
                     .response_post(&payload)
                     .await?;
-                let resp = handle_status(resp)
+                let resp = handle_status(resp, self.api_client.timeout())
                     .await
                     .map_err(Self::enrich_credits_error)?;
 
@@ -172,9 +172,12 @@ impl Provider for TetrateProvider {
                     // Streaming responses should be SSE; when we get JSON instead, parse it to map
                     // explicit error payloads and otherwise fail as a protocol mismatch. The read
                     // is bounded: this request is exempt from the total deadline.
-                    let body = goose_providers::http_status::read_error_body(resp)
-                        .await
-                        .unwrap_or_default();
+                    let body = goose_providers::http_status::read_error_body(
+                        resp,
+                        self.api_client.timeout(),
+                    )
+                    .await
+                    .unwrap_or_default();
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body) {
                         if payload.get("error").is_some() {
                             return Err(Self::error_from_tetrate_error_payload(
