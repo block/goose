@@ -317,6 +317,12 @@
   "confirmationModal.processing": {
     "defaultMessage": "Elaborazione in corso..."
   },
+  "continueAfterToolsToggle.description": {
+    "defaultMessage": "When Goose stops mid-task after using tools, nudge it once to keep going. Off by default."
+  },
+  "continueAfterToolsToggle.title": {
+    "defaultMessage": "Continue After Tools"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Limiti della conversazione"
   },

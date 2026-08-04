@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
+import { ContinueAfterToolsToggle } from '../chat/ContinueAfterToolsToggle';
 
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
@@ -62,6 +63,8 @@ export const ModeSection = () => {
           handleModeChange={handleModeChange}
         />
       ))}
+
+      <ContinueAfterToolsToggle />
 
       {/* Conversation Limits Dropdown */}
       <ConversationLimitsDropdown maxTurns={maxTurns} onMaxTurnsChange={handleMaxTurnsChange} />

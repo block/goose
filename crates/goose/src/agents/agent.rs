@@ -2082,6 +2082,8 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
+            let mut tools_used_this_user_turn = false;
+            let mut soft_continue_used = false;
             let mut can_drain_pending_steers = false;
             let turn_start = chrono::Local::now();
             let turn_start_compaction_info =
@@ -2710,6 +2712,7 @@ impl Agent {
                                 }
 
                                 no_tools_called = false;
+                                tools_used_this_user_turn = true;
                                 // Agent is actively working — re-check goal when it next finishes
                                 goal_check_pending = false;
                             }
@@ -2938,6 +2941,25 @@ impl Agent {
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
                                     format!("Grind: {grind}"),
+                                )
+                            );
+                        }
+
+                        None if !soft_continue_used
+                            && tools_used_this_user_turn
+                            && super::soft_continue::continue_after_tools_enabled()
+                            && super::soft_continue::looks_unfinished(&last_assistant_text) =>
+                        {
+                            soft_continue_used = true;
+                            info!("Soft-continuing after unfinished text-only turn following tools");
+                            let message = Message::user()
+                                .with_text(super::soft_continue::SOFT_CONTINUE_MESSAGE)
+                                .with_visibility(false, true);
+                            push_message_with_id(&mut messages_to_add, message);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification(
+                                    SystemNotificationType::InlineMessage,
+                                    "Continuing unfinished work…",
                                 )
                             );
                         }

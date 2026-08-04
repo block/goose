@@ -155,6 +155,7 @@ These variables control how goose manages conversation sessions and context.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
+| `GOOSE_CONTINUE_AFTER_TOOLS` | When enabled, if goose used tools in the current user turn and then replies with text that still looks unfinished (for example a trailing colon or "Now I'll…"), goose nudges itself once to keep going instead of ending the turn. Also available in Desktop Settings → Chat. | `true` / `false` | `false` |
 | `GOOSE_GATEWAY_MAX_TURNS` | Maximum number of turns for gateway sessions (e.g., Telegram). Overrides `GOOSE_MAX_TURNS` for gateway traffic only, so chat platforms can keep a stricter cap than CLI/desktop sessions. | Integer (e.g., 5, 10, 25) | Falls back to `GOOSE_MAX_TURNS`, then 5 |
 | `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/context-engineering/subagents) to complete before timeout. Can be overridden by [`settings.max_turns`](/docs/guides/recipes/recipe-reference#settings) in recipes or subagent tool calls. | Integer (e.g., 25) | 25 |
 | `GOOSE_MAX_BACKGROUND_TASKS` | Sets the maximum number of concurrent background [subagent](/docs/guides/context-engineering/subagents) tasks goose can run at once | Integer (e.g., 1, 5, 10) | 5 |
