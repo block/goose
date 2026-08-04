@@ -22,7 +22,8 @@ use super::base::{
 };
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::oauth_device_flow::{
-    refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokens, RequestEncoding,
+    refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokenRefreshError,
+    DeviceFlowTokens, RequestEncoding,
 };
 use super::openai_compatible::handle_status;
 use super::retry::ProviderRetry;
@@ -324,22 +325,28 @@ impl KimiCodeProvider {
 }
 
 fn kimi_refresh_error(error: anyhow::Error) -> ProviderError {
-    let status = error
+    let refresh_error = error
         .chain()
-        .find_map(|cause| cause.downcast_ref::<reqwest::Error>())
-        .and_then(reqwest::Error::status);
+        .find_map(|cause| cause.downcast_ref::<DeviceFlowTokenRefreshError>());
+    let status = refresh_error.map(|error| error.status).or_else(|| {
+        error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<reqwest::Error>())
+            .and_then(reqwest::Error::status)
+    });
     let details = error.to_string();
+
+    if refresh_error.and_then(|error| error.error.as_deref()) == Some("invalid_grant") {
+        return ProviderError::Authentication(details);
+    }
+
     match status {
-        Some(
-            reqwest::StatusCode::BAD_REQUEST
-            | reqwest::StatusCode::UNAUTHORIZED
-            | reqwest::StatusCode::FORBIDDEN,
-        ) => ProviderError::Authentication(details),
         Some(reqwest::StatusCode::TOO_MANY_REQUESTS) => ProviderError::RateLimitExceeded {
             details,
             retry_delay: None,
         },
         Some(status) if status.is_server_error() => ProviderError::ServerError(details),
+        Some(_) => ProviderError::RequestFailed(details),
         _ => ProviderError::from(error),
     }
 }
@@ -660,6 +667,73 @@ mod tests {
             matches!(error, ProviderError::ServerError(_)),
             "expected ServerError, got {error:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn use_or_refresh_only_authenticates_for_invalid_grant() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/oauth/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": "invalid_grant",
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = test_provider(&server.uri(), "abc");
+        let expired = KimiToken {
+            access_token: "expired".to_string(),
+            refresh_token: "rejected".to_string(),
+            expires_at: Utc::now() - Duration::seconds(1),
+        };
+
+        let error = provider.use_or_refresh(expired).await.unwrap_err();
+
+        assert!(matches!(error, ProviderError::Authentication(_)));
+    }
+
+    #[tokio::test]
+    async fn use_or_refresh_does_not_authenticate_for_invalid_client() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/oauth/token"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+                "error": "invalid_client",
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = test_provider(&server.uri(), "abc");
+        let expired = KimiToken {
+            access_token: "expired".to_string(),
+            refresh_token: "still-valid".to_string(),
+            expires_at: Utc::now() - Duration::seconds(1),
+        };
+
+        let error = provider.use_or_refresh(expired).await.unwrap_err();
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
+    }
+
+    #[tokio::test]
+    async fn use_or_refresh_does_not_authenticate_for_proxy_rejection() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/oauth/token"))
+            .respond_with(ResponseTemplate::new(403).set_body_string("request rejected by proxy"))
+            .mount(&server)
+            .await;
+
+        let provider = test_provider(&server.uri(), "abc");
+        let expired = KimiToken {
+            access_token: "expired".to_string(),
+            refresh_token: "still-valid".to_string(),
+            expires_at: Utc::now() - Duration::seconds(1),
+        };
+
+        let error = provider.use_or_refresh(expired).await.unwrap_err();
+
+        assert!(matches!(error, ProviderError::RequestFailed(_)));
     }
 
     #[tokio::test]
