@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Cuộc trò chuyện"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Đã tạo"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Thư mục"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Mô hình"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Trạng thái"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Đã cập nhật"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Không có cuộc trò chuyện gần đây"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Lỗi"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Nhàn rỗi"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Đang truyền"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Hoạt động chưa đọc"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Phiên chưa đặt tên"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Sử dụng nhà cung cấp mặc định"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Tên công thức"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Sẽ được định dạng tự động (chữ thường, dấu gạch ngang thay cho khoảng trắng)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Hủy"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Đang truyền phát"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Phiên này không chứa tin nhắn nào"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Không tìm thấy tin nhắn nào"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Lỗi khi tải chi tiết phiên"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Thử lại"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Bạn"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Xóa phiên"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Cài đặt"
   },
-  "sheet.close": {
-    "defaultMessage": "Đóng"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Hủy"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Nhà cung cấp {name} đã được định cấu hình"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ứng dụng Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Để sử dụng, hoặc là"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "phải được cài đặt trên máy của bạn và đang mở, hoặc bạn phải nhập một giá trị cho OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Thêm hiện có"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Chỉnh sửa"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Hình ảnh đính kèm:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Chỉnh sửa tại chỗ"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Tạo một phiên làm việc mới với tin nhắn đã chỉnh sửa"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Xóa hình ảnh khỏi tin nhắn"
   }
 }

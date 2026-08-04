@@ -532,9 +532,9 @@ dependencies = [
 
 [[package]]
 name = "async-utility"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a34a3b57207a7a1007832416c3e4862378c8451b4e8e093e436f48c2d3d2c151"
+checksum = "188f83b9a198af8c336e505611edb00d6d2ac5c694241c5a4f9a12316938cfe9"
 dependencies = [
  "futures-util",
  "gloo-timers",
@@ -1206,6 +1206,12 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "base64"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
 
 [[package]]
 name = "base64-simd"
@@ -4908,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4924,7 +4930,7 @@ dependencies = [
  "aws-smithy-types",
  "axum",
  "axum-server",
- "base64 0.22.1",
+ "base64 0.23.0",
  "blake3",
  "byteorder",
  "bytes",
@@ -4978,7 +4984,7 @@ dependencies = [
  "opentelemetry_sdk 0.32.1",
  "pastey",
  "pctx_code_mode",
- "pem",
+ "pem 4.0.0",
  "process-wrap",
  "pulldown-cmark",
  "rand 0.10.2",
@@ -4986,7 +4992,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "rubato",
  "rustls",
  "schemars 1.2.1",
@@ -5044,7 +5050,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "quote",
  "syn 2.0.118",
@@ -5052,14 +5058,14 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "anstream",
  "anyhow",
  "async-trait",
  "axum",
  "axum-server",
- "base64 0.22.1",
+ "base64 0.23.0",
  "bat",
  "bzip2",
  "chrono",
@@ -5082,7 +5088,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -5125,7 +5131,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
- "base64 0.22.1",
+ "base64 0.23.0",
  "chrono",
  "encoding_rs",
  "env-lock",
@@ -5142,7 +5148,7 @@ dependencies = [
  "minijinja",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "safemlx",
  "safemlx-lm",
  "safemlx-lm-utils",
@@ -5156,10 +5162,10 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
+ "base64 0.23.0",
  "chrono",
  "docx-rs",
  "etcetera 0.11.0",
@@ -5170,7 +5176,7 @@ dependencies = [
  "once_cell",
  "process-wrap",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -5191,7 +5197,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
- "base64 0.22.1",
+ "base64 0.23.0",
  "chrono",
  "env-lock",
  "futures",
@@ -5199,7 +5205,7 @@ dependencies = [
  "rand 0.10.2",
  "regex",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5226,11 +5232,11 @@ dependencies = [
  "goose-local-inference",
  "goose-provider-types",
  "include_dir",
- "pem",
+ "pem 4.0.0",
  "pkcs1",
  "pkcs8",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 3.0.0",
  "sec1",
  "serde",
  "serde_json",
@@ -5252,11 +5258,11 @@ dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
  "anyhow",
- "base64 0.22.1",
+ "base64 0.23.0",
  "futures",
  "goose-providers",
  "goose-sdk-types",
- "rmcp",
+ "rmcp 3.0.0",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -5277,7 +5283,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5285,12 +5291,12 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.44.0"
+version = "1.45.0"
 dependencies = [
  "axum",
  "env-lock",
  "opentelemetry 0.32.0",
- "rmcp",
+ "rmcp 3.0.0",
  "serde_json",
  "tokio",
 ]
@@ -6356,9 +6362,9 @@ dependencies = [
 
 [[package]]
 name = "jsonwebtoken"
-version = "10.4.0"
+version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eba32bfb4ffdeaca3e34431072faf01745c9b26d25504aa7a6cf5684334fc4fc"
+checksum = "881733cbc631fc9e472e24447ce32a64bedf2da498d6d8570b08edc87de71f65"
 dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
@@ -6368,7 +6374,7 @@ dependencies = [
  "js-sys",
  "p256",
  "p384",
- "pem",
+ "pem 3.0.6",
  "rand 0.8.6",
  "rsa",
  "serde",
@@ -7020,9 +7026,9 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.44.4"
+version = "0.44.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98cf5d15d70d1f8f4059e5f79923ac15891eb691d2843d01191e0585fb064d70"
+checksum = "c7d3d987ea7078dc36947cde532637c472a229426702e4331dd7667325378bd9"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -7064,9 +7070,9 @@ dependencies = [
 
 [[package]]
 name = "nostr-relay-pool"
-version = "0.44.1"
+version = "0.44.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91b2c039df4f96c4bf7dae52a74fd5516ad6dda83a11c0c69dea91b5255a4f37"
+checksum = "c85c54d6ca9aae4ae2bf19a7663ba9db5f45f783f1d24aff55f006386b8b99a1"
 dependencies = [
  "async-utility",
  "async-wsocket",
@@ -7855,7 +7861,7 @@ dependencies = [
  "deno_error",
  "pctx_config",
  "pctx_registry",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -7921,7 +7927,7 @@ dependencies = [
  "opentelemetry-otlp 0.31.1",
  "opentelemetry_sdk 0.31.0",
  "reqwest 0.13.4",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "shlex 1.3.0",
@@ -7974,7 +7980,7 @@ checksum = "251c06ac888c315c7e23d210e4e9ffa88d5dc08225c0d8de96f1263837d72896"
 dependencies = [
  "deno_error",
  "pctx_config",
- "rmcp",
+ "rmcp 1.8.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -8004,6 +8010,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
 dependencies = [
  "base64 0.22.1",
+ "serde_core",
+]
+
+[[package]]
+name = "pem"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d354a98a3d1251555de99e8fdd8afda05573c31b82f59063a7b0a29b5527f120"
+dependencies = [
+ "base64 0.23.0",
  "serde_core",
 ]
 
@@ -8795,7 +8811,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57f6d249aad744e274e682777a50283a225a32705394ee6d5fcc01efa25e4055"
 dependencies = [
  "aws-lc-rs",
- "pem",
+ "pem 3.0.6",
  "ring",
  "rustls-pki-types",
  "time",
@@ -9078,6 +9094,33 @@ checksum = "1d1f571c72940a19d9532fe52dbea8bc9912bf1d766c2970bb824056b86f3f59"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "http 1.4.2",
+ "pastey",
+ "pin-project-lite",
+ "process-wrap",
+ "reqwest 0.13.4",
+ "rmcp-macros 1.8.0",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sse-stream",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcd2b6dd3b18129368955f32661a7718969e8c152c7d8866434c09cf15a512e0"
+dependencies = [
+ "async-trait",
+ "base64 0.23.0",
  "bytes",
  "chrono",
  "futures",
@@ -9092,7 +9135,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.2",
  "reqwest 0.13.4",
- "rmcp-macros",
+ "rmcp-macros 3.0.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -9112,6 +9155,19 @@ name = "rmcp-macros"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aad0035b69380782d78ea95b508327e6deaa2235909053e596eea8f27b5e1d5"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1aa4b9345795260a43fc23d6d05e096407c8b953903f673af7c4404b49fb2d6"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -10023,7 +10079,7 @@ dependencies = [
  "const-oid 0.9.6",
  "der",
  "digest 0.10.7",
- "pem",
+ "pem 3.0.6",
  "rand_core 0.9.5",
  "sha2 0.10.9",
  "signature",
@@ -10140,7 +10196,7 @@ checksum = "56f034e86c3b8d91b32608c83f4a18939eed32c6ca08d17d2f52b88be365aac6"
 dependencies = [
  "base64 0.22.1",
  "hex",
- "pem",
+ "pem 3.0.6",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -10157,7 +10213,7 @@ dependencies = [
  "const-oid 0.9.6",
  "hex",
  "jiff",
- "pem",
+ "pem 3.0.6",
  "rustls-pki-types",
  "rustls-webpki",
  "serde",

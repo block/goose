@@ -9,6 +9,7 @@ pub mod api_client {
 }
 pub mod avian;
 pub mod azure;
+pub mod azure_foundry_def;
 pub mod azureauth;
 pub mod base;
 #[cfg(feature = "aws-providers")]

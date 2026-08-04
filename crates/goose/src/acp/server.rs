@@ -15,7 +15,7 @@ use crate::agents::{
     Agent, AgentConfig, ExtensionConfig, ExtensionLoadResult, GoosePlatform, SessionConfig,
 };
 use crate::config::base::CONFIG_YAML_NAME;
-use crate::config::extensions::get_enabled_extensions_with_config;
+use crate::config::extensions::{configured_enabled_state, get_enabled_extensions_with_config};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -41,17 +41,17 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, CancelNotification, CloseSessionRequest, CloseSessionResponse,
-    ConfigOptionUpdate, ContentBlock, ContentChunk, Cost, CurrentModeUpdate,
-    EmbeddedResourceResource, FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse,
-    ImageContent, Implementation, InitializeRequest, InitializeResponse, ListSessionsRequest,
-    ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    Meta, NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
-    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
-    RequestPermissionRequest, ResourceLink, SessionCapabilities, SessionCloseCapabilities,
-    SessionConfigOption, SessionId, SessionInfoUpdate, SessionListCapabilities,
-    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallId, ToolCallUpdate, Usage, UsageUpdate,
+    ConfigOptionUpdate, ContentBlock, Cost, CurrentModeUpdate, EmbeddedResourceResource,
+    FileSystemCapabilities, ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation,
+    InitializeRequest, InitializeResponse, ListSessionsRequest, ListSessionsResponse,
+    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, Meta, NewSessionRequest,
+    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
+    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
+    SessionCapabilities, SessionCloseCapabilities, SessionConfigOption, SessionId,
+    SessionInfoUpdate, SessionListCapabilities, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest,
+    SetSessionModeResponse, StopReason, TextContent, ToolCallId, ToolCallUpdate, Usage,
+    UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -62,7 +62,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use rmcp::model::{AnnotateAble, RawTextContent, Role};
+use rmcp::model::{Annotations as RmcpAnnotations, Role, TextContent as RmcpTextContent};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
@@ -75,9 +75,12 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
+use self::message_meta::{
+    content_chunk_for_message, message_meta_without_steer, populate_output_token_limit_content,
+};
 use self::tool_calls::chain::{breaks_consecutive_tool_calls, ReadyToolChain, ToolChainTracker};
 use self::tool_calls::conversion::{
-    build_initial_tool_call, build_permission_tool_call_update,
+    build_initial_tool_call_with_message_meta, build_permission_tool_call_update,
     tool_call_update_fields_from_response, trusted_update_meta,
 };
 use self::tool_calls::enrichment::{spawn_chain_summary_enrichment, spawn_tool_title_enrichment};
@@ -98,6 +101,7 @@ mod list_sessions;
 mod load_session;
 mod local_inference;
 mod manage_sessions;
+mod message_meta;
 mod new_session;
 mod onboarding;
 mod prompts;
@@ -177,15 +181,21 @@ struct ActivePromptRun {
     cancel_token: CancellationToken,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct AcpBuiltinSelection {
+    pub defaults: Vec<String>,
+    pub explicit: Vec<String>,
+}
+
 pub struct GooseAcpAgentOptions {
     pub provider_factory: AcpProviderFactory,
-    pub builtins: Vec<String>,
+    pub builtin_selection: AcpBuiltinSelection,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
-    pub scheduler: Arc<dyn SchedulerTrait>,
+    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
 }
 
 pub struct GooseAcpAgent {
@@ -194,7 +204,7 @@ pub struct GooseAcpAgent {
     closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
-    builtins: Vec<String>,
+    builtin_selection: AcpBuiltinSelection,
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
@@ -390,6 +400,25 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn selected_builtin_extensions(
+    config: &Config,
+    builtin_selection: &AcpBuiltinSelection,
+) -> Vec<ExtensionConfig> {
+    let mut extensions = Vec::new();
+
+    for builtin in &builtin_selection.defaults {
+        if configured_enabled_state(config, builtin) != Some(false) {
+            push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
+        }
+    }
+
+    for builtin in &builtin_selection.explicit {
+        push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
+    }
+
+    extensions
+}
+
 fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: ExtensionConfig) {
     let name = extension.name().to_string();
     if let Some(index) = extensions
@@ -486,6 +515,22 @@ fn build_prompt_usage(session: &Session) -> Option<Usage> {
     let input = to_nonnegative_u64(session.usage.input_tokens).unwrap_or(0);
     let output = to_nonnegative_u64(session.usage.output_tokens).unwrap_or(0);
     Some(Usage::new(total, input, output))
+}
+
+fn prompt_stop_reason(was_cancelled: bool, output_token_limit_reached: bool) -> StopReason {
+    if was_cancelled {
+        StopReason::Cancelled
+    } else if output_token_limit_reached {
+        StopReason::MaxTokens
+    } else {
+        StopReason::EndTurn
+    }
+}
+
+fn update_output_token_limit_reached(output_token_limit_reached: &mut bool, message: &Message) {
+    if message.role == Role::Assistant {
+        *output_token_limit_reached = message.metadata.output_token_limit_reached;
+    }
 }
 
 pub(super) struct UsageUpdates {
@@ -604,7 +649,7 @@ impl GooseAcpAgent {
         let agent_config = AgentConfig::new(
             Arc::clone(&session_manager),
             Arc::clone(&permission_manager),
-            Some(options.scheduler),
+            options.scheduler,
             Config::global().get_goose_mode().unwrap_or_default(),
             options.disable_session_naming,
             options.goose_platform.clone(),
@@ -617,7 +662,7 @@ impl GooseAcpAgent {
             closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
-            builtins: options.builtins,
+            builtin_selection: options.builtin_selection,
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
@@ -712,10 +757,7 @@ impl GooseAcpAgent {
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
     ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-        let mut extensions = Vec::new();
-        for builtin in &self.builtins {
-            push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
-        }
+        let mut extensions = selected_builtin_extensions(config, &self.builtin_selection);
 
         if let Some(recipe_extensions) = recipe_extensions {
             for extension in recipe_extensions {
@@ -949,23 +991,16 @@ impl GooseAcpAgent {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let raw = RawTextContent {
-                            text: sanitize_unicode_tags(&text.text),
-                            meta: None,
-                        };
+                        let raw = RmcpTextContent::new(sanitize_unicode_tags(&text.text));
                         if audience.is_empty() {
-                            raw.no_annotation()
+                            raw
                         } else {
-                            raw.no_annotation().with_audience(audience)
+                            raw.with_annotations(RmcpAnnotations::default().with_audience(audience))
                         }
                     } else {
                         // No annotations — regular user text.
                         let sanitized = sanitize_unicode_tags(&text.text);
-                        RawTextContent {
-                            text: sanitized,
-                            meta: None,
-                        }
-                        .no_annotation()
+                        RmcpTextContent::new(sanitized)
                     };
                     message = message.with_content(MessageContent::Text(annotated));
                 }
@@ -992,25 +1027,23 @@ impl GooseAcpAgent {
         message
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn handle_message_content(
         &self,
         content_item: &MessageContent,
+        message: &Message,
         session_id: &SessionId,
-        session_id_str: &str,
-        message_id: Option<&str>,
-        message_created: i64,
-        role: &Role,
-        steer: bool,
         agent: &Arc<Agent>,
         tool_requests: &HashMap<String, ToolRequest>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
+        let role = &message.role;
+
         match content_item {
             MessageContent::Text(text) => {
-                let chunk =
-                    ContentChunk::new(ContentBlock::Text(TextContent::new(text.text.clone())))
-                        .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(
+                    message,
+                    ContentBlock::Text(TextContent::new(text.text.clone())),
+                );
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1018,15 +1051,8 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(session_id.clone(), update))?;
             }
             MessageContent::ToolRequest(tool_request) => {
-                self.handle_tool_request(
-                    tool_request,
-                    session_id,
-                    session_id_str,
-                    message_id,
-                    agent,
-                    cx,
-                )
-                .await?;
+                self.handle_tool_request(tool_request, message, session_id, agent, cx)
+                    .await?;
             }
             MessageContent::ToolResponse(tool_response) => {
                 self.handle_tool_response(
@@ -1040,16 +1066,10 @@ impl GooseAcpAgent {
             MessageContent::Thinking(thinking) => {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
-                    SessionUpdate::AgentThoughtChunk(
-                        ContentChunk::new(ContentBlock::Text(TextContent::new(
-                            thinking.thinking.clone(),
-                        )))
-                        .meta(message_update_meta(
-                            message_id,
-                            message_created,
-                            steer,
-                        )),
-                    ),
+                    SessionUpdate::AgentThoughtChunk(content_chunk_for_message(
+                        message,
+                        ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
+                    )),
                 ))?;
             }
             MessageContent::ActionRequired(action_required) => match &action_required.data {
@@ -1071,16 +1091,16 @@ impl GooseAcpAgent {
                 }
                 ActionRequiredData::Elicitation {
                     id,
-                    message,
+                    message: elicitation_message,
                     requested_schema,
                 } => {
                     self.handle_form_elicitation(
                         cx,
                         session_id,
                         id,
-                        message,
+                        elicitation_message,
                         requested_schema,
-                        message_update_meta(message_id, message_created, false),
+                        message_meta_without_steer(message),
                     )
                     .await?;
                 }
@@ -1089,7 +1109,8 @@ impl GooseAcpAgent {
             MessageContent::Image(image) => {
                 let mut image_content =
                     ImageContent::new(image.data.clone(), image.mime_type.clone());
-                if let Some(audience) = image.audience() {
+                if let Some(audience) = image.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                {
                     image_content = image_content.annotations(
                         Annotations::new().audience(
                             audience
@@ -1104,8 +1125,7 @@ impl GooseAcpAgent {
                         ),
                     );
                 }
-                let chunk = ContentChunk::new(ContentBlock::Image(image_content))
-                    .meta(message_update_meta(message_id, message_created, steer));
+                let chunk = content_chunk_for_message(message, ContentBlock::Image(image_content));
                 let update = match role {
                     Role::User => SessionUpdate::UserMessageChunk(chunk),
                     Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -1149,15 +1169,17 @@ impl GooseAcpAgent {
     async fn handle_tool_request(
         &self,
         tool_request: &ToolRequest,
+        message: &Message,
         session_id: &SessionId,
-        session_id_for_persist: &str,
-        message_id: Option<&str>,
         agent: &Arc<Agent>,
         cx: &ConnectionTo<Client>,
     ) -> Result<(), agent_client_protocol::Error> {
         let client_requests_label_enrichment = self.requests_tool_call_label_enrichment();
-        let initial_tool_call =
-            build_initial_tool_call(tool_request, client_requests_label_enrichment);
+        let initial_tool_call = build_initial_tool_call_with_message_meta(
+            tool_request,
+            message,
+            client_requests_label_enrichment,
+        );
         let tool_call_notifier = ToolCallNotifier::new(cx, session_id);
         tool_call_notifier.send_initial(initial_tool_call)?;
 
@@ -1170,8 +1192,7 @@ impl GooseAcpAgent {
                 agent,
                 tool_call_notifier,
                 &self.session_manager,
-                session_id_for_persist,
-                message_id,
+                session_id.0.as_ref(),
                 tool_request,
             );
         }
@@ -1261,18 +1282,6 @@ impl GooseAcpAgent {
             })?;
 
         Ok(())
-    }
-
-    fn is_builtin_agent_command(command: &str) -> bool {
-        let normalized = command.trim_start_matches('/');
-
-        crate::agents::execute_commands::list_commands()
-            .iter()
-            .any(|cmd| cmd.name == normalized)
-            || crate::agents::execute_commands::COMPACT_TRIGGERS
-                .iter()
-                .filter_map(|trigger| trigger.strip_prefix('/'))
-                .any(|trigger| trigger == normalized)
     }
 }
 
@@ -1412,21 +1421,6 @@ fn message_usage_update(
             is_compaction: usage.is_compaction,
         },
     }
-}
-
-fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> Meta {
-    let mut goose = serde_json::Map::new();
-    goose.insert("created".to_string(), serde_json::json!(created));
-    if let Some(id) = message_id {
-        goose.insert("messageId".to_string(), serde_json::json!(id));
-    }
-    if steer {
-        goose.insert("steer".to_string(), serde_json::json!(true));
-    }
-
-    let mut meta = serde_json::Map::new();
-    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
-    meta
 }
 
 impl GooseAcpAgent {
@@ -1772,35 +1766,6 @@ impl GooseAcpAgent {
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 
-        let message_text = user_message.as_concat_text();
-        if let Some(parsed) = crate::agents::execute_commands::parse_slash_command(&message_text) {
-            let full_command = format!("/{}", parsed.command);
-
-            if !Self::is_builtin_agent_command(parsed.command) {
-                if let Some(recipe_path) =
-                    crate::slash_commands::recipe_slash_command::get_recipe_for_command(
-                        &full_command,
-                    )
-                {
-                    if recipe_path.exists() {
-                        if let Err(error) = cx.send_notification(SessionNotification::new(
-                            args.session_id.clone(),
-                            SessionUpdate::AgentMessageChunk(ContentChunk::new(
-                                ContentBlock::Text(TextContent::new(format!(
-                                    "Running recipe: {}",
-                                    full_command
-                                ))),
-                            )),
-                        )) {
-                            self.clear_active_run(&session_id, &run_id).await;
-                            let _ = Self::send_active_run_update(cx, &args.session_id, None);
-                            return Err(error);
-                        }
-                    }
-                }
-            }
-        }
-
         let session_config = SessionConfig {
             id: session_id.clone(),
             schedule_id: None,
@@ -1822,6 +1787,7 @@ impl GooseAcpAgent {
         };
 
         let mut was_cancelled = false;
+        let mut output_token_limit_reached = false;
         let mut tool_requests = HashMap::new();
         let mut chain_tracker = ToolChainTracker::default();
         let mut stream_error = None;
@@ -1833,9 +1799,8 @@ impl GooseAcpAgent {
             }
 
             match event {
-                Ok(crate::agents::AgentEvent::Message(message)) => {
-                    // Agent persists messages via session_manager.add_message() internally.
-                    let stored_message_id = message.id.clone();
+                Ok(crate::agents::AgentEvent::Message(mut message)) => {
+                    update_output_token_limit_reached(&mut output_token_limit_reached, &message);
 
                     let sessions = self.sessions.lock().await;
                     if !sessions.contains_key(&session_id) {
@@ -1846,6 +1811,7 @@ impl GooseAcpAgent {
                         break;
                     }
 
+                    populate_output_token_limit_content(&mut message);
                     for content_item in &message.content {
                         if let Some(error) = prompt_error_from_message_content(content_item) {
                             stream_error = Some(error);
@@ -1859,12 +1825,8 @@ impl GooseAcpAgent {
                         if let Err(error) = self
                             .handle_message_content(
                                 content_item,
+                                &message,
                                 &args.session_id,
-                                &session_id,
-                                stored_message_id.as_deref(),
-                                message.created,
-                                &message.role,
-                                message.metadata.steer,
                                 &agent,
                                 &tool_requests,
                                 cx,
@@ -1877,12 +1839,7 @@ impl GooseAcpAgent {
 
                         let ready_chain = match content_item {
                             MessageContent::ToolRequest(tool_request) => {
-                                if let Some(message_id) = stored_message_id.as_deref() {
-                                    chain_tracker.record_request(
-                                        tool_request.clone(),
-                                        message_id.to_string(),
-                                    );
-                                }
+                                chain_tracker.record_request(tool_request.clone());
                                 None
                             }
                             MessageContent::ToolResponse(tool_response) => {
@@ -1898,6 +1855,7 @@ impl GooseAcpAgent {
                             self.spawn_ready_chain_summary(chain, &agent, &args.session_id, cx);
                         }
                     }
+
                     if stream_error.is_some() {
                         break;
                     }
@@ -1965,11 +1923,7 @@ impl GooseAcpAgent {
             ))?;
         }
 
-        let stop_reason = if was_cancelled {
-            StopReason::Cancelled
-        } else {
-            StopReason::EndTurn
-        };
+        let stop_reason = prompt_stop_reason(was_cancelled, output_token_limit_reached);
 
         let mut response = PromptResponse::new(stop_reason);
         if let Some(usage) = build_prompt_usage(&session) {
@@ -2329,7 +2283,7 @@ impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
     }
 }
 
-pub async fn run(builtins: Vec<String>) -> Result<()> {
+pub async fn run(builtins: Vec<String>, enable_scheduler: bool) -> Result<()> {
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
@@ -2337,11 +2291,15 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 
     let server = crate::acp::server_factory::AcpServer::new(
         crate::acp::server_factory::AcpServerFactoryConfig {
-            builtins,
+            builtins: AcpBuiltinSelection {
+                explicit: builtins,
+                ..Default::default()
+            },
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
+            enable_scheduler,
         },
     );
     let agent = server.create_agent().await?;
@@ -2361,6 +2319,101 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
+
+    fn config_with_yaml(yaml: &str) -> (Config, NamedTempFile, NamedTempFile) {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        std::fs::write(config_file.path(), yaml).unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        (config, config_file, secrets_file)
+    }
+
+    fn has_developer(extensions: &[ExtensionConfig]) -> bool {
+        extensions.iter().any(|ext| ext.name() == "developer")
+    }
+
+    fn default_builtin(name: &str) -> AcpBuiltinSelection {
+        AcpBuiltinSelection {
+            defaults: vec![name.to_string()],
+            ..Default::default()
+        }
+    }
+
+    fn explicit_builtin(name: &str) -> AcpBuiltinSelection {
+        AcpBuiltinSelection {
+            explicit: vec![name.to_string()],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn default_builtin_developer_loads_when_config_is_empty() {
+        let (config, _c, _s) = config_with_yaml("");
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(
+            has_developer(&selected),
+            "developer should load by default on a fresh config"
+        );
+    }
+
+    #[test]
+    fn default_builtin_developer_loads_when_enabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(has_developer(&selected));
+    }
+
+    #[test]
+    fn default_builtin_developer_skipped_when_disabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &default_builtin("developer"));
+        assert!(
+            !has_developer(&selected),
+            "developer must NOT load when the user disabled it (issue #10221)"
+        );
+    }
+
+    #[test]
+    fn explicit_builtin_developer_loads_when_disabled() {
+        let (config, _c, _s) = config_with_yaml(
+            r#"
+extensions:
+  developer:
+    enabled: false
+    type: builtin
+    name: developer
+"#,
+        );
+        let selected = selected_builtin_extensions(&config, &explicit_builtin("developer"));
+        assert!(has_developer(&selected));
+    }
+
+    #[test]
+    fn default_off_builtin_loads_when_explicitly_requested() {
+        let (config, _c, _s) = config_with_yaml("");
+        let selected = selected_builtin_extensions(&config, &explicit_builtin("chatrecall"));
+        assert!(
+            selected.iter().any(|ext| ext.name() == "chatrecall"),
+            "default-off builtins must load when explicitly requested via builtins"
+        );
+    }
 
     #[test_case(
         McpServer::Stdio(
@@ -2490,19 +2543,6 @@ print(\"hello, world\")
     }
 
     #[test]
-    fn test_message_update_meta_includes_created_and_message_id() {
-        let meta = message_update_meta(Some("msg_live"), 1_700_000_000, false);
-
-        assert_eq!(
-            meta.get("goose"),
-            Some(&serde_json::json!({
-                "created": 1_700_000_000,
-                "messageId": "msg_live",
-            })),
-        );
-    }
-
-    #[test]
     fn test_credits_exhausted_system_notification_maps_to_prompt_error() {
         let content = MessageContent::SystemNotification(SystemNotificationContent {
             notification_type: SystemNotificationType::CreditsExhausted,
@@ -2588,6 +2628,42 @@ print(\"hello, world\")
             TokenUsage::default(),
         );
         assert!(build_prompt_usage(&session).is_none());
+    }
+
+    #[test_case(false, false, StopReason::EndTurn; "normal completion")]
+    #[test_case(false, true, StopReason::MaxTokens; "output token limit")]
+    #[test_case(true, true, StopReason::Cancelled; "cancellation takes precedence")]
+    fn test_prompt_stop_reason(
+        was_cancelled: bool,
+        output_token_limit_reached: bool,
+        expected: StopReason,
+    ) {
+        assert_eq!(
+            prompt_stop_reason(was_cancelled, output_token_limit_reached),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_output_token_limit_state_tracks_latest_assistant_message() {
+        let mut output_token_limit_reached = false;
+        let mut marker = Message::assistant();
+        marker.metadata.output_token_limit_reached = true;
+
+        update_output_token_limit_reached(&mut output_token_limit_reached, &marker);
+        assert!(output_token_limit_reached);
+
+        update_output_token_limit_reached(
+            &mut output_token_limit_reached,
+            &Message::user().with_text("continue"),
+        );
+        assert!(output_token_limit_reached);
+
+        update_output_token_limit_reached(
+            &mut output_token_limit_reached,
+            &Message::assistant().with_text("Complete response"),
+        );
+        assert!(!output_token_limit_reached);
     }
 
     #[test]

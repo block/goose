@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
+use super::gen_ai_telemetry;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::config::{Config, GooseMode};
@@ -168,6 +169,19 @@ fn message_has_timing_content(message: &Message) -> bool {
         .any(|content| !matches!(content, MessageContent::SystemNotification(_)))
 }
 
+fn is_mergeable_assistant_chunk(message: &Message) -> bool {
+    message.role == rmcp::model::Role::Assistant
+        && !message.content.is_empty()
+        && message.content.iter().all(|content| {
+            matches!(
+                content,
+                MessageContent::Text(_)
+                    | MessageContent::Thinking(_)
+                    | MessageContent::RedactedThinking(_)
+            )
+        })
+}
+
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
@@ -282,7 +296,21 @@ impl Agent {
 
     #[tracing::instrument(
         skip(provider, model_config, session_id, system_prompt, messages, tools, toolshim_tools),
-        fields(session.id = %session_id)
+        fields(
+            session.id = %session_id,
+            gen_ai.conversation.id = %session_id,
+            gen_ai.operation.name = "chat",
+            gen_ai.provider.name = %provider.get_name(),
+            gen_ai.request.model = %model_config.model_name,
+            gen_ai.request.stream = true,
+            gen_ai.response.model = tracing::field::Empty,
+            gen_ai.usage.input_tokens = tracing::field::Empty,
+            gen_ai.usage.output_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_read.input_tokens = tracing::field::Empty,
+            gen_ai.usage.cache_creation.input_tokens = tracing::field::Empty,
+            gen_ai.input.messages = tracing::field::Empty,
+            gen_ai.output.messages = tracing::field::Empty,
+        )
     )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
@@ -306,6 +334,13 @@ impl Agent {
         } else {
             filtered_messages
         };
+        let span = tracing::Span::current();
+        let capture_message_content = gen_ai_telemetry::capture_message_content();
+        if capture_message_content {
+            let input_messages =
+                gen_ai_telemetry::input_messages_json(messages_for_provider.messages());
+            span.record("gen_ai.input.messages", input_messages.as_str());
+        }
 
         // Clone owned data to move into the async stream
         let system_prompt = system_prompt.to_owned();
@@ -367,7 +402,7 @@ impl Agent {
                                         (
                                             Some(MessageContent::Text(last_text)),
                                             MessageContent::Text(new_text),
-                                        ) if last_text.audience() == new_text.audience() => {
+                                        ) if last_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) == new_text.annotations.as_ref().and_then(|a| a.audience.as_ref()) => {
                                             last_text.text.push_str(&new_text.text);
                                         }
                                         _ => {
@@ -392,10 +427,17 @@ impl Agent {
                 // The toolshim interpreter call below must not count toward elapsed time.
                 if let Some(usage) = final_usage.as_mut() {
                     fill_stream_timing(usage, request_started, first_content_at);
+                    gen_ai_telemetry::record_provider_usage(&span, usage);
                 }
 
                 if let Some(msg) = accumulated_message {
-                    let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
+                    let processed = toolshim_postprocess(msg, &toolshim_tools)
+                        .await?
+                        .with_generated_id_if_missing();
+                    if capture_message_content {
+                        let output_messages = gen_ai_telemetry::output_message_json(&processed);
+                        span.record("gen_ai.output.messages", output_messages.as_str());
+                    }
                     yield (Some(processed), final_usage);
                 } else if final_usage.is_some() {
                     // Preserve usage-only responses (no message content)
@@ -403,6 +445,8 @@ impl Agent {
                 }
             } else {
                 let mut first_content_at: Option<std::time::Instant> = None;
+                let mut active_mergeable_assistant_id: Option<String> = None;
+                let mut output_message: Option<Message> = None;
                 while let Some(result) = stream.next().await {
                     let (message, mut usage) = result?;
 
@@ -413,9 +457,34 @@ impl Agent {
                     }
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
+                        gen_ai_telemetry::record_provider_usage(&span, usage);
+                    }
+                    if capture_message_content {
+                        if let Some(message) = message.as_ref() {
+                            gen_ai_telemetry::append_message(&mut output_message, message);
+                        }
                     }
 
+                    let message = message.map(|message| {
+                        if message.id.is_some() {
+                            active_mergeable_assistant_id = None;
+                            message
+                        } else if is_mergeable_assistant_chunk(&message) {
+                            let id = active_mergeable_assistant_id
+                                .get_or_insert_with(|| format!("msg_{}", uuid::Uuid::new_v4()))
+                                .clone();
+                            message.with_id(id)
+                        } else {
+                            active_mergeable_assistant_id = None;
+                            message.with_generated_id()
+                        }
+                    });
+
                     yield (message, usage);
+                }
+                if let Some(output_message) = output_message {
+                    let output_messages = gen_ai_telemetry::output_message_json(&output_message);
+                    span.record("gen_ai.output.messages", output_messages.as_str());
                 }
             }
         }))
@@ -538,6 +607,8 @@ impl Agent {
 
         let mut filtered_message =
             Message::new(response.role.clone(), response.created, filtered_content);
+        filtered_message.metadata.output_token_limit_reached =
+            response.metadata.output_token_limit_reached;
 
         // Preserve the ID if it exists
         if let Some(id) = response.id.clone() {
@@ -676,6 +747,7 @@ pub fn is_tool_visible_to_model(tool: &Tool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::gen_ai_telemetry::{self, test_support::SpanFieldCapture};
     use crate::agents::{AgentConfig, GoosePlatform};
     use crate::config::permission::PermissionLevel;
     use crate::config::{GooseMode, PermissionManager};
@@ -685,7 +757,7 @@ mod tests {
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
-    use rmcp::model::{AnnotateAble, RawTextContent, Role, ToolAnnotations};
+    use rmcp::model::{Annotations, Role, TextContent, ToolAnnotations};
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
@@ -709,6 +781,33 @@ mod tests {
             let message = Message::assistant().with_text("ok");
             let usage = ProviderUsage::new("mock".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
+        }
+    }
+
+    #[derive(Clone)]
+    struct GenAiTracingProvider;
+
+    #[async_trait]
+    impl Provider for GenAiTracingProvider {
+        fn get_name(&self) -> &str {
+            "test-provider"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let usage = ProviderUsage::new(
+                "resolved-model".to_string(),
+                Usage::new(Some(11), Some(7), Some(18)).with_cache_tokens(Some(3), Some(2)),
+            );
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("hello ")), None)),
+                Ok((Some(Message::assistant().with_text("world")), Some(usage))),
+            ])))
         }
     }
 
@@ -738,13 +837,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn provider_input_drops_rows_empty_after_agent_projection() {
-        let user_only = RawTextContent {
-            text: "user-only ACP output".to_string(),
-            meta: None,
+    async fn provider_stream_records_gen_ai_span_attributes() {
+        use futures::StreamExt;
+        use goose_test_support::otel::clear_otel_env;
+
+        let _env = clear_otel_env(&[(gen_ai_telemetry::CAPTURE_MESSAGE_CONTENT_ENV, "true")]);
+        let capture = SpanFieldCapture::new("stream_response_from_provider");
+        let _subscriber = capture.clone().set_default();
+        let messages = vec![Message::user().with_text("Say hello")];
+
+        let mut stream = Agent::stream_response_from_provider(
+            Arc::new(GenAiTracingProvider),
+            ModelConfig::new("requested-model"),
+            "test-session",
+            "system",
+            &messages,
+            &[],
+            &[],
+        )
+        .await
+        .unwrap();
+        while let Some(item) = stream.next().await {
+            item.unwrap();
         }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
+        drop(stream);
+
+        let fields = capture.fields();
+        assert_eq!(fields["gen_ai.operation.name"], "chat");
+        assert_eq!(fields["gen_ai.provider.name"], "test-provider");
+        assert_eq!(fields["gen_ai.request.model"], "requested-model");
+        assert_eq!(fields["gen_ai.request.stream"], true);
+        assert_eq!(fields["gen_ai.conversation.id"], "test-session");
+        assert_eq!(fields["gen_ai.response.model"], "resolved-model");
+        assert_eq!(fields["gen_ai.usage.input_tokens"], 11);
+        assert_eq!(fields["gen_ai.usage.output_tokens"], 7);
+        assert_eq!(fields["gen_ai.usage.cache_read.input_tokens"], 3);
+        assert_eq!(fields["gen_ai.usage.cache_creation.input_tokens"], 2);
+
+        let input: Value =
+            serde_json::from_str(fields["gen_ai.input.messages"].as_str().unwrap()).unwrap();
+        assert_eq!(input[0]["parts"][0]["content"], "Say hello");
+
+        let output: Value =
+            serde_json::from_str(fields["gen_ai.output.messages"].as_str().unwrap()).unwrap();
+        assert_eq!(output[0]["finish_reason"], "stop");
+        assert_eq!(output[0]["parts"][0]["content"], "hello world");
+    }
+
+    #[tokio::test]
+    async fn provider_input_drops_rows_empty_after_agent_projection() {
+        let user_only = TextContent::new("user-only ACP output")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
         let messages = vec![
             Message::assistant().with_content(MessageContent::Text(user_only)),
             Message::user().with_text("current request"),
@@ -774,12 +917,8 @@ mod tests {
 
     #[tokio::test]
     async fn provider_input_refixes_roles_after_agent_projection() {
-        let user_only = RawTextContent {
-            text: "hidden separator".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::User]);
+        let user_only = TextContent::new("hidden separator")
+            .with_annotations(Annotations::default().with_audience(vec![Role::User]));
         let messages = vec![
             Message::user().with_text("first request"),
             Message::assistant().with_content(MessageContent::Text(user_only)),
@@ -814,8 +953,10 @@ mod tests {
 
     #[tokio::test]
     async fn provider_input_refixes_tool_result_emptied_by_agent_projection() {
-        let user_only_result =
-            rmcp::model::Content::text("hidden result").with_audience(vec![Role::User]);
+        let user_only_result = rmcp::model::ContentBlock::Text(
+            TextContent::new("hidden result")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
+        );
         let messages = vec![
             Message::user().with_text("run the tool"),
             Message::assistant().with_tool_request(
@@ -1044,20 +1185,257 @@ mod tests {
         );
     }
 
+    struct MixedMessageIdStreamProvider;
+
+    #[async_trait]
+    impl Provider for MixedMessageIdStreamProvider {
+        fn get_name(&self) -> &str {
+            "mixed-message-id-stream"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("Hel")), None)),
+                Ok((Some(Message::assistant().with_text("lo")), None)),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-a",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve A?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(Message::assistant().with_action_required(
+                        "permission-b",
+                        "shell".to_string(),
+                        object!({}),
+                        Some("Approve B?".to_string()),
+                    )),
+                    None,
+                )),
+                Ok((
+                    Some(
+                        Message::assistant()
+                            .with_id("provider-id")
+                            .with_text("done"),
+                    ),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("next")), None)),
+                Ok((Some(Message::assistant().with_text("a")), None)),
+                Ok((
+                    Some(Message::assistant().with_tool_request(
+                        "tool-t",
+                        Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+                    )),
+                    None,
+                )),
+                Ok((Some(Message::assistant().with_text("b")), None)),
+            ]
+                as Vec<StreamItem>)))
+        }
+    }
+
+    #[tokio::test]
+    async fn normal_provider_stream_groups_only_contiguous_mergeable_chunks() -> anyhow::Result<()>
+    {
+        let provider = Arc::new(MixedMessageIdStreamProvider);
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model"),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 9);
+
+        let ids = messages
+            .iter()
+            .map(|message| {
+                message
+                    .id
+                    .as_deref()
+                    .expect("streamed provider message should have an ID")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(messages[0].as_concat_text(), "Hel");
+        assert_eq!(messages[1].as_concat_text(), "lo");
+        assert_eq!(ids[0], ids[1]);
+        assert!(ids[0].starts_with("msg_"));
+
+        assert!(matches!(
+            messages[2].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert!(matches!(
+            messages[3].content.first(),
+            Some(MessageContent::ActionRequired(_))
+        ));
+        assert_ne!(ids[2], ids[3]);
+        assert_ne!(ids[2], ids[0]);
+        assert_ne!(ids[3], ids[0]);
+
+        assert_eq!(messages[4].as_concat_text(), "done");
+        assert_eq!(ids[4], "provider-id");
+
+        assert_eq!(messages[5].as_concat_text(), "next");
+        assert_eq!(messages[6].as_concat_text(), "a");
+        assert_ne!(ids[5], ids[0]);
+        assert_eq!(ids[5], ids[6]);
+
+        assert!(matches!(
+            messages[7].content.first(),
+            Some(MessageContent::ToolRequest(_))
+        ));
+        assert_ne!(ids[7], ids[5]);
+
+        assert_eq!(messages[8].as_concat_text(), "b");
+        assert_ne!(ids[8], ids[5]);
+        assert_ne!(ids[8], ids[7]);
+
+        Ok(())
+    }
+
+    struct ToolshimMessageIdProvider {
+        messages: Vec<Message>,
+    }
+
+    #[async_trait]
+    impl Provider for ToolshimMessageIdProvider {
+        fn get_name(&self) -> &str {
+            "toolshim-message-id"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+            let items = self
+                .messages
+                .iter()
+                .cloned()
+                .map(|message| Ok((Some(message), None)))
+                .collect::<Vec<StreamItem>>();
+            Ok(Box::pin(futures::stream::iter(items)))
+        }
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_assigns_missing_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![
+                Message::assistant().with_text("Hel"),
+                Message::assistant().with_text("lo"),
+            ],
+        });
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "Hello");
+        let id = messages[0]
+            .id
+            .as_deref()
+            .expect("toolshim provider message should have an ID");
+        assert!(id.starts_with("msg_"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn toolshim_provider_stream_preserves_provider_message_id() -> anyhow::Result<()> {
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![Message::assistant()
+                .with_id("provider-toolshim-id")
+                .with_text("hello")],
+        });
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item?;
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].as_concat_text(), "hello");
+        assert_eq!(messages[0].id.as_deref(), Some("provider-toolshim-id"));
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn categorize_tool_requests_keeps_thinking_when_not_previously_streamed() {
         let agent = crate::agents::Agent::new();
-        let response = Message::assistant()
+        let mut response = Message::assistant()
             .with_thinking("final-only reasoning", "")
             .with_tool_request(
                 "tool-1",
                 Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
             );
+        response.metadata.output_token_limit_reached = true;
 
         let (_frontend_requests, other_requests, filtered_message) =
             agent.categorize_tool_requests(&response, &[], false).await;
 
         assert_eq!(other_requests.len(), 1);
+        assert!(filtered_message.metadata.output_token_limit_reached);
         assert_eq!(filtered_message.content.len(), 2);
         assert!(matches!(
             filtered_message.content[0],
@@ -1093,12 +1471,8 @@ mod tests {
     #[tokio::test]
     async fn categorize_tool_requests_excludes_assistant_only_text_from_user_events() {
         let agent = crate::agents::Agent::new();
-        let assistant_only = RawTextContent {
-            text: "assistant-only".to_string(),
-            meta: None,
-        }
-        .no_annotation()
-        .with_audience(vec![Role::Assistant]);
+        let assistant_only = TextContent::new("assistant-only")
+            .with_annotations(Annotations::default().with_audience(vec![Role::Assistant]));
         let response = Message::assistant()
             .with_content(MessageContent::Text(assistant_only))
             .with_text("user-visible")
@@ -1125,7 +1499,7 @@ mod tests {
         let agent = crate::agents::Agent::new();
 
         let registry_tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }))
-            .with_meta(rmcp::model::Meta(
+            .with_meta(rmcp::model::MetaObject(
                 serde_json::json!({ "ui": { "visibility": ["model"] } })
                     .as_object()
                     .unwrap()
@@ -1217,7 +1591,7 @@ mod tests {
         let mut tool = Tool::new("test_tool", "a test tool", object!({ "type": "object" }));
         if let Some(v) = meta_json {
             let obj = v.as_object().unwrap().clone();
-            tool = tool.with_meta(rmcp::model::Meta(obj));
+            tool = tool.with_meta(rmcp::model::MetaObject(obj));
         }
         tool
     }

@@ -1,6 +1,6 @@
-use crate::conversation::message::{Message, MessageContent, MessageMetadata};
+use crate::conversation::message::{Message, MessageContentBlock, MessageMetadata};
 use crate::mcp_utils::extract_text_from_resource;
-use rmcp::model::{Content, Role};
+use rmcp::model::{ContentBlock, Role};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
@@ -48,14 +48,26 @@ impl Conversation {
     }
 
     pub fn push(&mut self, message: Message) {
-        if message.content.is_empty() && message.metadata.inference.is_some() {
-            if let Some(existing) = self
-                .0
-                .iter_mut()
-                .rev()
-                .find(|m| m.role == message.role && m.is_user_visible())
-            {
-                existing.metadata.inference = message.metadata.inference;
+        let output_token_limit_reached = message.metadata.output_token_limit_reached;
+        if message.content.is_empty()
+            && (message.metadata.inference.is_some() || output_token_limit_reached)
+        {
+            if let Some(existing) = self.0.iter_mut().rev().find(|existing| {
+                existing.role == message.role
+                    && existing.is_user_visible()
+                    && (!output_token_limit_reached
+                        || (message.id.is_some()
+                            && existing.id.as_deref() == message.id.as_deref()))
+            }) {
+                if let Some(inference) = message.metadata.inference.clone() {
+                    existing.metadata.inference = Some(inference);
+                }
+                existing.metadata.output_token_limit_reached |= output_token_limit_reached;
+                return;
+            }
+
+            if output_token_limit_reached {
+                self.0.push(message.with_visibility(true, false));
             }
             return;
         }
@@ -68,15 +80,20 @@ impl Conversation {
             if message.metadata.inference.is_some() {
                 last.metadata.inference = message.metadata.inference.clone();
             }
+            last.metadata.output_token_limit_reached |= message.metadata.output_token_limit_reached;
             match (last.content.last_mut(), message.content.last()) {
-                (Some(MessageContent::Text(ref mut last)), Some(MessageContent::Text(new)))
-                    if message.content.len() == 1 && last.audience() == new.audience() =>
+                (
+                    Some(MessageContentBlock::Text(ref mut last)),
+                    Some(MessageContentBlock::Text(new)),
+                ) if message.content.len() == 1
+                    && last.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                        == new.annotations.as_ref().and_then(|a| a.audience.as_ref()) =>
                 {
                     last.text.push_str(&new.text);
                 }
                 (
-                    Some(MessageContent::Thinking(ref mut last)),
-                    Some(MessageContent::Thinking(new)),
+                    Some(MessageContentBlock::Thinking(ref mut last)),
+                    Some(MessageContentBlock::Thinking(new)),
                 ) if message.content.len() == 1
                     && (last.signature.is_empty() || new.signature == last.signature) =>
                 {
@@ -285,11 +302,14 @@ fn merge_text_content_in_message(mut msg: Message) -> Message {
         .into_iter()
         .fold(Vec::new(), |mut content, item| {
             match item {
-                MessageContent::Text(text) => match content.last_mut() {
-                    Some(MessageContent::Text(last)) if last.audience() == text.audience() => {
+                MessageContentBlock::Text(text) => match content.last_mut() {
+                    Some(MessageContentBlock::Text(last))
+                        if last.annotations.as_ref().and_then(|a| a.audience.as_ref())
+                            == text.annotations.as_ref().and_then(|a| a.audience.as_ref()) =>
+                    {
                         last.text.push_str(&text.text);
                     }
-                    _ => content.push(MessageContent::Text(text)),
+                    _ => content.push(MessageContentBlock::Text(text)),
                 },
                 other => content.push(other),
             }
@@ -321,7 +341,7 @@ fn trim_assistant_text_whitespace(messages: Vec<Message>) -> (Vec<Message>, Vec<
         .map(|mut message| {
             if message.role == Role::Assistant {
                 for content in &mut message.content {
-                    if let MessageContent::Text(text) = content {
+                    if let MessageContentBlock::Text(text) = content {
                         let trimmed = text.text.trim_end();
                         if trimmed.len() != text.text.len() {
                             issues.push(
@@ -361,7 +381,7 @@ fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) 
 
 /// Checks whether tool result content has any meaningful payload.
 /// Text and resources must contain non-empty strings; images are always meaningful.
-fn has_tool_result_content(content: &[Content]) -> bool {
+fn has_tool_result_content(content: &[ContentBlock]) -> bool {
     content.iter().any(|c| {
         if let Some(t) = c.as_text() {
             return !t.text.is_empty();
@@ -383,11 +403,11 @@ fn fix_empty_tool_results(messages: Vec<Message>) -> (Vec<Message>, Vec<String>)
         .into_iter()
         .map(|mut message| {
             for content in &mut message.content {
-                if let MessageContent::ToolResponse(ref mut tool_response) = content {
+                if let MessageContentBlock::ToolResponse(ref mut tool_response) = content {
                     if let Ok(ref mut result) = tool_response.tool_result {
                         if !has_tool_result_content(&result.content) {
                             // Add a placeholder text content so the tool result isn't empty
-                            result.content.push(Content::text("(empty result)"));
+                            result.content.push(ContentBlock::text("(empty result)"));
                             issues.push(format!(
                                 "Added placeholder to empty tool result '{}'",
                                 tool_response.id
@@ -414,25 +434,26 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
             Role::User => {
                 for (idx, content) in message.content.iter().enumerate() {
                     match content {
-                        MessageContent::ToolRequest(req) => {
+                        MessageContentBlock::ToolRequest(req) => {
                             content_to_remove.push(idx);
                             issues.push(format!(
                                 "Removed tool request '{}' from user message",
                                 req.id
                             ));
                         }
-                        MessageContent::ToolConfirmationRequest(req) => {
+                        MessageContentBlock::ToolConfirmationRequest(req) => {
                             content_to_remove.push(idx);
                             issues.push(format!(
                                 "Removed tool confirmation request '{}' from user message",
                                 req.id
                             ));
                         }
-                        MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => {
+                        MessageContentBlock::Thinking(_)
+                        | MessageContentBlock::RedactedThinking(_) => {
                             content_to_remove.push(idx);
                             issues.push("Removed thinking content from user message".to_string());
                         }
-                        MessageContent::ToolResponse(resp) => {
+                        MessageContentBlock::ToolResponse(resp) => {
                             if pending_tool_requests.contains(&resp.id) {
                                 pending_tool_requests.remove(&resp.id);
                             } else {
@@ -448,21 +469,21 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
             Role::Assistant => {
                 for (idx, content) in message.content.iter().enumerate() {
                     match content {
-                        MessageContent::ToolResponse(resp) => {
+                        MessageContentBlock::ToolResponse(resp) => {
                             content_to_remove.push(idx);
                             issues.push(format!(
                                 "Removed tool response '{}' from assistant message",
                                 resp.id
                             ));
                         }
-                        MessageContent::FrontendToolRequest(req) => {
+                        MessageContentBlock::FrontendToolRequest(req) => {
                             content_to_remove.push(idx);
                             issues.push(format!(
                                 "Removed frontend tool request '{}' from assistant message",
                                 req.id
                             ));
                         }
-                        MessageContent::ToolRequest(req) => {
+                        MessageContentBlock::ToolRequest(req) => {
                             pending_tool_requests.insert(req.id.clone());
                         }
                         _ => {}
@@ -480,7 +501,7 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
         if message.role == Role::Assistant {
             let mut content_to_remove = Vec::new();
             for (idx, content) in message.content.iter().enumerate() {
-                if let MessageContent::ToolRequest(req) = content {
+                if let MessageContentBlock::ToolRequest(req) = content {
                     if pending_tool_requests.contains(&req.id) {
                         content_to_remove.push(idx);
                         issues.push(format!("Removed orphaned tool request '{}'", req.id));
@@ -518,10 +539,10 @@ pub fn merge_consecutive_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<
 
 /// Signed thinking carries a signature; redacted thinking is always signed.
 /// Signed blocks must be replayed exactly; unsigned reasoning summaries need not.
-fn is_signed_thinking(content: &MessageContent) -> bool {
+fn is_signed_thinking(content: &MessageContentBlock) -> bool {
     match content {
-        MessageContent::Thinking(t) => !t.signature.is_empty(),
-        MessageContent::RedactedThinking(_) => true,
+        MessageContentBlock::Thinking(t) => !t.signature.is_empty(),
+        MessageContentBlock::RedactedThinking(_) => true,
         _ => false,
     }
 }
@@ -548,7 +569,7 @@ fn is_signed_thinking(content: &MessageContent) -> bool {
 /// (direct Anthropic, Bedrock, Databricks, Vertex) in one place.
 fn dedupe_signed_thinking(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     let mut issues = Vec::new();
-    let mut seen: Vec<MessageContent> = Vec::new();
+    let mut seen: Vec<MessageContentBlock> = Vec::new();
 
     let fixed_messages = messages
         .into_iter()
@@ -558,7 +579,7 @@ fn dedupe_signed_thinking(messages: Vec<Message>) -> (Vec<Message>, Vec<String>)
             }
 
             let original_len = message.content.len();
-            let mut deduped: Vec<MessageContent> = Vec::with_capacity(original_len);
+            let mut deduped: Vec<MessageContentBlock> = Vec::with_capacity(original_len);
             for content in &message.content {
                 let is_signed = is_signed_thinking(content);
                 if is_signed && seen.contains(content) {
@@ -585,7 +606,7 @@ fn has_tool_response(message: &Message) -> bool {
     message
         .content
         .iter()
-        .any(|content| matches!(content, MessageContent::ToolResponse(_)))
+        .any(|content| matches!(content, MessageContentBlock::ToolResponse(_)))
 }
 
 pub const TURN_CONTEXT_TAG: &str = "turn-context";
@@ -675,7 +696,7 @@ pub fn debug_conversation_fix(
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContent};
+    use crate::conversation::message::{InferenceMetadata, Message, MessageContentBlock};
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
     use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
@@ -718,7 +739,7 @@ mod tests {
 
     #[test]
     fn test_valid_conversation() {
-        use rmcp::model::Content;
+        use rmcp::model::ContentBlock;
 
         let all_messages = [
             Message::user().with_text("Can you help me search for something?"),
@@ -731,9 +752,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "search_1",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "Search results here",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("Search results here"),
+                ])),
             ),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
@@ -766,7 +787,7 @@ mod tests {
 
     #[test]
     fn test_role_alternation_and_content_placement_issues() {
-        use rmcp::model::Content;
+        use rmcp::model::ContentBlock;
 
         let messages = vec![
             Message::user().with_text("Hello"),
@@ -775,9 +796,9 @@ mod tests {
                 .with_text("Response")
                 .with_tool_response(
                     "orphan_1",
-                    Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                        "result",
-                    )])),
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        ContentBlock::text("result"),
+                    ])),
                 ), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
@@ -810,7 +831,7 @@ mod tests {
 
     #[test]
     fn test_orphaned_tools_and_empty_messages() {
-        use rmcp::model::Content;
+        use rmcp::model::ContentBlock;
 
         // This conversation completely collapses. the first user message is invalid
         // then we remove the empty user message and the wrong tool response
@@ -826,9 +847,9 @@ mod tests {
             Message::user(),
             Message::user().with_tool_response(
                 "wrong_id",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "result",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("result"),
+                ])),
             ),
             Message::assistant().with_tool_request(
                 "search_2",
@@ -859,7 +880,7 @@ mod tests {
 
     #[test]
     fn test_real_world_consecutive_assistant_messages() {
-        use rmcp::model::Content;
+        use rmcp::model::ContentBlock;
 
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("run ls in the current directory and then run a word count on the smallest file"),
@@ -873,7 +894,7 @@ mod tests {
                 .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParams::new("developer__shell").with_arguments(object!({"command": "wc slack.yaml"})))),
 
             Message::user()
-                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult::success(vec![Content::text("0 0 0 slack.yaml")]))),
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult::success(vec![ContentBlock::text("0 0 0 slack.yaml")]))),
 
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
@@ -893,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_tool_response_effective_role() {
-        use rmcp::model::Content;
+        use rmcp::model::ContentBlock;
 
         let messages = vec![
             Message::user().with_text("Search for something"),
@@ -905,9 +926,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "search_1",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "search results",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("search results"),
+                ])),
             ),
             Message::user().with_text("Thanks!"),
         ];
@@ -918,25 +939,17 @@ mod tests {
 
     #[test]
     fn test_merge_text_content_items() {
-        use crate::conversation::message::MessageContent;
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use crate::conversation::message::MessageContentBlock;
+        use rmcp::model::TextContent;
 
         let mut message = Message::assistant().with_text("Hello");
 
-        message.content.push(MessageContent::Text(
-            RawTextContent {
-                text: " world".to_string(),
-                meta: None,
-            }
-            .no_annotation(),
-        ));
-        message.content.push(MessageContent::Text(
-            RawTextContent {
-                text: "!".to_string(),
-                meta: None,
-            }
-            .no_annotation(),
-        ));
+        message
+            .content
+            .push(MessageContentBlock::Text(TextContent::new(" world")));
+        message
+            .content
+            .push(MessageContentBlock::Text(TextContent::new("!")));
 
         let messages = vec![
             Message::user().with_text("hello"),
@@ -952,7 +965,7 @@ mod tests {
         let fixed_msg = &fixed[1];
         assert_eq!(fixed_msg.content.len(), 1);
 
-        if let MessageContent::Text(text_content) = &fixed_msg.content[0] {
+        if let MessageContentBlock::Text(text_content) = &fixed_msg.content[0] {
             assert_eq!(text_content.text, "Hello world!");
         } else {
             panic!("Expected text content");
@@ -961,18 +974,14 @@ mod tests {
 
     #[test]
     fn test_merge_text_content_items_with_mixed_content() {
-        use crate::conversation::message::MessageContent;
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use crate::conversation::message::MessageContentBlock;
+        use rmcp::model::TextContent;
 
         let mut image_message = Message::assistant().with_text("Look at");
 
-        image_message.content.push(MessageContent::Text(
-            RawTextContent {
-                text: " this image:".to_string(),
-                meta: None,
-            }
-            .no_annotation(),
-        ));
+        image_message
+            .content
+            .push(MessageContentBlock::Text(TextContent::new(" this image:")));
 
         image_message = image_message.with_image("", "");
 
@@ -989,13 +998,13 @@ mod tests {
         let fixed_msg = &fixed[1];
 
         assert_eq!(fixed_msg.content.len(), 2);
-        if let MessageContent::Text(text_content) = &fixed_msg.content[0] {
+        if let MessageContentBlock::Text(text_content) = &fixed_msg.content[0] {
             assert_eq!(text_content.text, "Look at this image:");
         } else {
             panic!("Expected first item to be text content");
         }
 
-        if let MessageContent::Image(_) = &fixed_msg.content[1] {
+        if let MessageContentBlock::Image(_) = &fixed_msg.content[1] {
             // Good
         } else {
             panic!("Expected second item to be an image");
@@ -1004,16 +1013,12 @@ mod tests {
 
     #[test]
     fn test_streamed_text_with_different_audiences_is_not_merged() {
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let text = |value: &str, audience| {
-            MessageContent::Text(
-                RawTextContent {
-                    text: value.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![audience]),
+            MessageContentBlock::Text(
+                TextContent::new(value)
+                    .with_annotations(Annotations::default().with_audience(vec![audience])),
             )
         };
 
@@ -1038,7 +1043,7 @@ mod tests {
                     .content
                     .iter()
                     .filter_map(|content| match content {
-                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        MessageContentBlock::Text(text) => Some(text.text.as_str()),
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
@@ -1054,7 +1059,7 @@ mod tests {
                     .content
                     .iter()
                     .filter_map(|content| match content {
-                        MessageContent::Text(text) => Some(text.text.as_str()),
+                        MessageContentBlock::Text(text) => Some(text.text.as_str()),
                         _ => None,
                     })
                     .collect::<Vec<_>>(),
@@ -1069,16 +1074,12 @@ mod tests {
 
     #[test]
     fn test_user_visible_messages_projects_content_and_drops_hidden_rows() {
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let assistant_only = |value: &str| {
-            MessageContent::Text(
-                RawTextContent {
-                    text: value.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::Assistant]),
+            MessageContentBlock::Text(
+                TextContent::new(value)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::Assistant])),
             )
         };
         let conversation = Conversation::new_unvalidated([
@@ -1098,16 +1099,12 @@ mod tests {
 
     #[test]
     fn test_agent_visible_messages_projects_content_and_drops_hidden_rows() {
-        use rmcp::model::{AnnotateAble, RawTextContent};
+        use rmcp::model::{Annotations, Role, TextContent};
 
         let user_only = |value: &str| {
-            MessageContent::Text(
-                RawTextContent {
-                    text: value.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::User]),
+            MessageContentBlock::Text(
+                TextContent::new(value)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
             )
         };
         let conversation = Conversation::new_unvalidated([
@@ -1421,13 +1418,13 @@ mod tests {
                 m.content.iter().any(|c| {
                     matches!(
                         c,
-                        crate::conversation::message::MessageContent::ToolResponse(_)
+                        crate::conversation::message::MessageContentBlock::ToolResponse(_)
                     )
                 })
             })
             .expect("Should have a tool response message");
 
-        if let crate::conversation::message::MessageContent::ToolResponse(resp) =
+        if let crate::conversation::message::MessageContentBlock::ToolResponse(resp) =
             &tool_response_msg.content[0]
         {
             if let Ok(result) = &resp.tool_result {
@@ -1508,8 +1505,8 @@ mod tests {
 
     #[test]
     fn test_dedupes_duplicate_signed_thinking_around_tool_call() {
-        use crate::conversation::message::MessageContent;
-        use rmcp::model::Content;
+        use crate::conversation::message::MessageContentBlock;
+        use rmcp::model::ContentBlock;
 
         // Reproduces the Anthropic 400 scenario: a standalone signed thinking
         // message immediately followed by an assistant message that repeats the
@@ -1526,9 +1523,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "tool_1",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "done",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("done"),
+                ])),
             ),
             Message::user().with_text("Now continue"),
         ];
@@ -1550,7 +1547,7 @@ mod tests {
                 m.role == Role::Assistant
                     && m.content
                         .iter()
-                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
+                        .any(|c| matches!(c, MessageContentBlock::ToolRequest(_)))
             })
             .expect("assistant tool-call message should exist");
 
@@ -1560,7 +1557,7 @@ mod tests {
             .filter(|c| {
                 matches!(
                     c,
-                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                    MessageContentBlock::Thinking(_) | MessageContentBlock::RedactedThinking(_)
                 )
             })
             .count();
@@ -1572,8 +1569,8 @@ mod tests {
 
     #[test]
     fn test_keeps_distinct_signed_thinking_blocks_in_assistant_message() {
-        use crate::conversation::message::MessageContent;
-        use rmcp::model::Content;
+        use crate::conversation::message::MessageContentBlock;
+        use rmcp::model::ContentBlock;
 
         // Distinct signed thinking blocks (different signatures) must be preserved.
         let messages = vec![
@@ -1587,9 +1584,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "tool_1",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "done",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("done"),
+                ])),
             ),
             Message::user().with_text("Now continue"),
         ];
@@ -1611,7 +1608,7 @@ mod tests {
             .filter(|c| {
                 matches!(
                     c,
-                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                    MessageContentBlock::Thinking(_) | MessageContentBlock::RedactedThinking(_)
                 )
             })
             .count();
@@ -1620,7 +1617,7 @@ mod tests {
 
     #[test]
     fn test_keeps_duplicate_unsigned_thinking_blocks() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         // Unsigned thinking (reasoning summaries from non-Anthropic providers)
         // can legitimately repeat and must not be dropped, since only signed
@@ -1647,7 +1644,7 @@ mod tests {
         let thinking_count = fixed_messages
             .iter()
             .flat_map(|m| m.content.iter())
-            .filter(|c| matches!(c, MessageContent::Thinking(_)))
+            .filter(|c| matches!(c, MessageContentBlock::Thinking(_)))
             .count();
         assert_eq!(
             thinking_count, 2,
@@ -1657,8 +1654,8 @@ mod tests {
 
     #[test]
     fn test_dedupes_signed_thinking_across_split_tool_messages() {
-        use crate::conversation::message::MessageContent;
-        use rmcp::model::Content;
+        use crate::conversation::message::MessageContentBlock;
+        use rmcp::model::ContentBlock;
 
         // The agent splits one provider turn with multiple tool calls into one
         // assistant message per call (interleaved with tool results), each
@@ -1675,9 +1672,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "call_1",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "ok",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("ok"),
+                ])),
             ),
             Message::assistant()
                 .with_thinking("multi-tool reasoning", "sig-1")
@@ -1687,9 +1684,9 @@ mod tests {
                 ),
             Message::user().with_tool_response(
                 "call_2",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::text(
-                    "ok",
-                )])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text("ok"),
+                ])),
             ),
             Message::user().with_text("Now continue"),
         ];
@@ -1711,7 +1708,7 @@ mod tests {
             .filter(|c| {
                 matches!(
                     c,
-                    MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
+                    MessageContentBlock::Thinking(_) | MessageContentBlock::RedactedThinking(_)
                 )
             })
             .count();
@@ -1723,7 +1720,7 @@ mod tests {
         let total_tool_requests = fixed_messages
             .iter()
             .flat_map(|m| m.content.iter())
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .filter(|c| matches!(c, MessageContentBlock::ToolRequest(_)))
             .count();
         assert_eq!(total_tool_requests, 2, "both tool calls must be preserved");
 
@@ -1732,14 +1729,14 @@ mod tests {
             fixed_messages[1]
                 .content
                 .iter()
-                .any(|c| matches!(c, MessageContent::Thinking(_))),
+                .any(|c| matches!(c, MessageContentBlock::Thinking(_))),
             "first split message keeps signed thinking"
         );
     }
 
     #[test]
     fn test_push_coalesces_thinking_deltas() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         let mut conv = Conversation::empty();
         for fragment in ["I ", "should ", "think ", "about ", "this."] {
@@ -1754,7 +1751,7 @@ mod tests {
         let content = &conv.messages()[0].content;
         assert_eq!(content.len(), 1);
         match &content[0] {
-            MessageContent::Thinking(t) => {
+            MessageContentBlock::Thinking(t) => {
                 assert_eq!(t.thinking, "I should think about this.");
                 assert_eq!(t.signature, "");
             }
@@ -1763,8 +1760,46 @@ mod tests {
     }
 
     #[test]
+    fn test_push_merges_empty_output_token_limit_update_by_id() {
+        let mut conv = Conversation::empty();
+        conv.push(Message::assistant().with_text("first").with_id("turn-1"));
+
+        let inference = InferenceMetadata {
+            provider: "test-provider".to_string(),
+            requested_model: "test-model".to_string(),
+            resolved_model: None,
+        };
+        let mut limited = Message::assistant()
+            .with_id("turn-1")
+            .with_inference(inference.clone());
+        limited.metadata.output_token_limit_reached = true;
+        conv.push(limited);
+
+        assert_eq!(conv.messages().len(), 1);
+        assert!(conv.messages()[0].metadata.output_token_limit_reached);
+        assert_eq!(conv.messages()[0].metadata.inference, Some(inference));
+    }
+
+    #[test]
+    fn test_push_retains_unmatched_output_token_limit_update_for_user_only() {
+        let mut conv = Conversation::empty();
+        let mut limited = Message::assistant().with_id("turn-1");
+        limited.metadata.output_token_limit_reached = true;
+
+        conv.push(limited);
+
+        assert_eq!(conv.messages().len(), 1);
+        let persisted = &conv.messages()[0];
+        assert!(persisted.content.is_empty());
+        assert!(persisted.metadata.user_visible);
+        assert!(!persisted.metadata.agent_visible);
+        assert!(persisted.metadata.output_token_limit_reached);
+        assert!(conv.agent_visible_messages().is_empty());
+    }
+
+    #[test]
     fn test_push_thinking_adopts_signature_on_closing_delta() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         let mut conv = Conversation::empty();
         // Streamed shape for one signed block: text deltas accumulate while
@@ -1783,7 +1818,7 @@ mod tests {
         let content = &conv.messages()[0].content;
         assert_eq!(content.len(), 1);
         match &content[0] {
-            MessageContent::Thinking(t) => {
+            MessageContentBlock::Thinking(t) => {
                 assert_eq!(t.thinking, "ab");
                 assert_eq!(t.signature, "sig1");
             }
@@ -1793,7 +1828,7 @@ mod tests {
 
     #[test]
     fn test_push_unsigned_thinking_after_signed_starts_new_block() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         let mut conv = Conversation::empty();
         conv.push(
@@ -1820,7 +1855,7 @@ mod tests {
             content
         );
         match (&content[0], &content[1]) {
-            (MessageContent::Thinking(a), MessageContent::Thinking(b)) => {
+            (MessageContentBlock::Thinking(a), MessageContentBlock::Thinking(b)) => {
                 assert_eq!(a.thinking, "first body");
                 assert_eq!(a.signature, "sig1");
                 assert_eq!(b.thinking, "second body start");
@@ -1832,7 +1867,7 @@ mod tests {
 
     #[test]
     fn test_push_keeps_distinct_signed_thinking_blocks_separate() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         let mut conv = Conversation::empty();
         conv.push(
@@ -1854,7 +1889,7 @@ mod tests {
             content
         );
         match (&content[0], &content[1]) {
-            (MessageContent::Thinking(a), MessageContent::Thinking(b)) => {
+            (MessageContentBlock::Thinking(a), MessageContentBlock::Thinking(b)) => {
                 assert_eq!(a.thinking, "block A");
                 assert_eq!(a.signature, "sig-A");
                 assert_eq!(b.thinking, "block B");
@@ -1866,7 +1901,7 @@ mod tests {
 
     #[test]
     fn test_push_does_not_coalesce_multi_block_thinking_message() {
-        use crate::conversation::message::MessageContent;
+        use crate::conversation::message::MessageContentBlock;
 
         let mut conv = Conversation::empty();
         conv.push(
@@ -1884,7 +1919,11 @@ mod tests {
         let content = &conv.messages()[0].content;
         assert_eq!(content.len(), 3);
         match (&content[0], &content[1], &content[2]) {
-            (MessageContent::Thinking(a), MessageContent::Thinking(b), MessageContent::Text(c)) => {
+            (
+                MessageContentBlock::Thinking(a),
+                MessageContentBlock::Thinking(b),
+                MessageContentBlock::Text(c),
+            ) => {
                 assert_eq!(a.thinking, "first");
                 assert_eq!(b.thinking, "second");
                 assert_eq!(c.text, "and now text");

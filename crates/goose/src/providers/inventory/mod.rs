@@ -294,6 +294,7 @@ impl ProviderInventoryService {
             snapshot.as_ref(),
             &descriptor.identity.provider_family,
             &descriptor.static_models,
+            descriptor.supports_refresh,
         );
 
         Ok(Some(ProviderInventoryEntry {
@@ -1105,7 +1106,12 @@ fn inventory_models_from_snapshot(
     snapshot: Option<&InventorySnapshot>,
     provider_family: &str,
     configured_models: &[ModelInfo],
+    supports_refresh: bool,
 ) -> Vec<InventoryModel> {
+    if !supports_refresh {
+        return configured_models_to_inventory(provider_family, configured_models);
+    }
+
     match snapshot {
         Some(snapshot) if !snapshot.models.is_empty() || snapshot.last_updated_at.is_some() => {
             snapshot.models.clone()
@@ -1321,7 +1327,7 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert_eq!(models.len(), 1);
         assert_eq!(models[0].id, "claude-sonnet-4-5");
@@ -1338,8 +1344,36 @@ mod tests {
         };
 
         let models =
-            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models);
+            inventory_models_from_snapshot(Some(&snapshot), "anthropic", &configured_models, true);
 
         assert!(models.is_empty());
+    }
+
+    #[test]
+    fn inventory_ignores_stale_snapshots_for_static_providers() {
+        let configured_models = [ModelInfo::new("gpt-5.6", 0)];
+        let snapshot = InventorySnapshot {
+            models: vec![InventoryModel {
+                id: "gpt-5.5".to_string(),
+                name: "gpt-5.5".to_string(),
+                family: None,
+                context_limit: None,
+                reasoning: None,
+                recommended: false,
+            }],
+            last_updated_at: Some(Utc::now()),
+            last_refresh_attempt_at: Some(Utc::now()),
+            last_refresh_error: None,
+        };
+
+        let models = inventory_models_from_snapshot(
+            Some(&snapshot),
+            "chatgpt_codex",
+            &configured_models,
+            false,
+        );
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "gpt-5.6");
     }
 }

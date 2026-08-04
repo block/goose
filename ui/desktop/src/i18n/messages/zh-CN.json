@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "创建时间"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "目录"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "模型"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "状态"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新时间"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "错误"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "空闲"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "流式传输"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未读活动"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "未命名会话"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "使用默认提供商"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名称"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "将自动格式化（小写字母，空格转为短横线）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "取消"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "此会话不包含任何消息"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "未找到消息"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "加载会话详情出错"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "重试"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "你"
-  },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "设置"
   },
-  "sheet.close": {
-    "defaultMessage": "关闭"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "取消"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} 提供商已配置"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama 应用"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "要使用，必须"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "在你的机器上已安装并打开，或者你必须为 OLLAMA_HOST 设置一个值。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "添加已有"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "编辑"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "已附加的图片："
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "原地编辑"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "用编辑过的消息创建新会话"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "从消息中移除图片"
   }
 }

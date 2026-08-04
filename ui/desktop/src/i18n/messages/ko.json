@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "채팅"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "생성됨"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "디렉터리"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "모델"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "상태"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "업데이트됨"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "최근 채팅 없음"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "오류"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "유휴"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "스트리밍"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "읽지 않은 활동"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "제목 없는 세션"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "기본 제공업체 사용"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "레시피 이름"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "자동으로 형식이 지정됩니다(소문자, 공백은 대시로 변환)."
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "취소"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "스트리밍"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "이 세션에는 메시지가 없습니다."
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "메시지를 찾을 수 없습니다."
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "세션 세부정보를 로드하는 중 오류가 발생했습니다."
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "다시 시도"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "나"
-  },
   "sessions.action.delete": {
     "defaultMessage": "세션 삭제"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "설정"
   },
-  "sheet.close": {
-    "defaultMessage": "닫기"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "취소"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} 제공업체가 구성되었습니다."
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama 앱"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "사용하려면"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "을(를) 컴퓨터에 설치하고 열어야 합니다. 또는 OLLAMA_HOST 값을 입력해야 합니다."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "기존 서브레시피 추가"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "편집"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "첨부된 이미지:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "바로 편집"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "편집한 메시지로 새 세션 만들기"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "메시지에서 이미지 제거"
   }
 }

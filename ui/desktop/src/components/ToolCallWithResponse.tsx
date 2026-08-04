@@ -9,10 +9,10 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   NotificationEvent,
+  LiveOutputNotificationParams,
   ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
-import { LoadingStatus } from './ui/Dot';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -21,6 +21,8 @@ import type { ContentBlock } from '../types/message';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 import { defineMessages, useIntl } from '../i18n';
+
+type LoadingStatus = 'loading' | 'success' | 'error';
 
 const i18n = defineMessages({
   viewSubagentSession: {
@@ -450,6 +452,18 @@ const notificationToProgress = (notification: NotificationEvent): Progress => {
   return message.params as Progress;
 };
 
+const liveOutputToString = (notifications: NotificationEvent[] | undefined): string =>
+  notifications
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'goose/live_output';
+    })
+    .flatMap((notification) => {
+      const message = notification.message as { params?: LiveOutputNotificationParams };
+      return message.params?.chunks.map((chunk) => chunk.output) ?? [];
+    })
+    .join('') ?? '';
+
 // Helper function to extract toolcall name
 const getToolName = (toolCallName: string): string => {
   const lastIndex = toolCallName.lastIndexOf('__');
@@ -533,6 +547,7 @@ function ToolCallView({
     loadingStatus === 'success' && toolResponse?.toolResult
       ? getToolResultContent(toolResponse.toolResult)
       : [];
+  const liveOutput = toolResponse ? '' : liveOutputToString(notifications);
 
   const logs = notifications
     ?.filter((notification) => {
@@ -560,8 +575,9 @@ function ToolCallView({
     (entries) => entries.sort((a, b) => b.progress - a.progress)[0]
   );
 
-  const isRenderingProgress =
-    loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
+  const isRenderingActivity =
+    loadingStatus === 'loading' &&
+    (progressEntries.length > 0 || (logs || []).length > 0 || liveOutput.length > 0);
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
@@ -782,7 +798,7 @@ function ToolCallView({
   );
   return (
     <ToolCallExpandable
-      isStartExpanded={isRenderingProgress || isExpandToolDetails}
+      isStartExpanded={isRenderingActivity || isExpandToolDetails}
       isForceExpand={false}
       label={
         extensionTooltip ? (
@@ -829,6 +845,12 @@ function ToolCallView({
               loadingStatus === 'loading' || responseStyle === 'detailed' || responseStyle === null
             }
           />
+        </div>
+      )}
+
+      {liveOutput && (
+        <div className="border-t border-border-primary">
+          <LiveOutputView output={liveOutput} />
         </div>
       )}
 
@@ -955,6 +977,30 @@ interface ToolResultViewProps {
   };
   result: ContentBlock;
   isStartExpanded: boolean;
+}
+
+function LiveOutputView({ output }: { output: string }) {
+  const intl = useIntl();
+  const outputRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [output]);
+
+  return (
+    <ToolCallExpandable
+      label={<span className="pl-4 py-1 font-sans text-sm">{intl.formatMessage(i18n.output)}</span>}
+      isStartExpanded={true}
+    >
+      <div ref={outputRef} className="max-h-[20rem] overflow-y-auto px-4 py-3">
+        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap break-words">
+          {output}
+        </pre>
+      </div>
+    </ToolCallExpandable>
+  );
 }
 
 function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {

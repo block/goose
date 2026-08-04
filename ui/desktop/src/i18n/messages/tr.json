@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sohbetler"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Oluşturuldu"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Dizin"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Durum"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Güncellendi"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Son sohbet yok"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Hata"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Boşta"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Akış"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Okunmamış etkinlik"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Başlıksız oturum"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Varsayılan sağlayıcıyı kullan"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Tarif Adı"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Otomatik olarak biçimlendirilecektir (küçük harf, boşluklar için kısa çizgiler)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "İptal"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Bu oturum herhangi bir mesaj içermiyor"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Mesaj bulunamadı"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Oturum Ayrıntıları Yüklenirken Hata Oluştu"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Tekrar Deneyin"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "sen"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Ayarlar"
   },
-  "sheet.close": {
-    "defaultMessage": "Kapat"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "İptal"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name} sağlayıcısı yapılandırıldı"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama uygulaması"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Kullanmak için ya"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "makinenizde kurulu ve açık olmalı veya OLLAMA_HOST için bir değer girmelisiniz."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Mevcut Ekle"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Düzenle"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Ekli görseller:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Yerinde Düzenle"
   },
@@ -4590,7 +4584,7 @@
     "defaultMessage": "Mesajı yerinde düzenleyin"
   },
   "userMessage.editInPlaceDescription": {
-    "defaultMessage": "<b>Edit in Place</b> bu oturumu günceller • <b>Fork Session</b> yeni bir oturum oluşturur"
+    "defaultMessage": "<b>Yerinde Düzenle</b> bu oturumu günceller • <b>Oturumu Çatalla</b> yeni bir oturum oluşturur"
   },
   "userMessage.editInPlaceTitle": {
     "defaultMessage": "Bu oturumdaki mesajı güncelleyin"
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Düzenlenen mesajla yeni bir oturum oluşturun"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Görseli mesajdan kaldır"
   }
 }

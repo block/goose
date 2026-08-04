@@ -8,7 +8,7 @@ use axum::routing::get;
 use axum::Router;
 use minijinja::render;
 use oauth2::TokenResponse;
-use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
+use rmcp::transport::auth::{AuthorizationRequest, CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -146,11 +146,10 @@ pub async fn oauth_flow(
 
     let redirect_uri = format!("http://127.0.0.1:{}/oauth_callback", used_addr.port());
     oauth_state
-        .start_authorization_with_metadata_url(
-            &[],
-            redirect_uri.as_str(),
-            Some("goose"),
-            Some(CLIENT_METADATA_URL),
+        .start_authorization(
+            AuthorizationRequest::new(redirect_uri)
+                .with_client_name("goose")
+                .with_client_metadata_url(CLIENT_METADATA_URL),
         )
         .await?;
 

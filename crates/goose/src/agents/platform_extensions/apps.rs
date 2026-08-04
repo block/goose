@@ -10,9 +10,9 @@ use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListResourcesResult,
-    ListToolsResult, Meta, RawResource, ReadResourceResult, Resource, ResourceContents,
-    ServerCapabilities, Tool as McpTool,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, JsonObject,
+    ListResourcesResult, ListToolsResult, MetaObject, ReadResourceResult, Resource,
+    ResourceContents, ServerCapabilities, Tool as McpTool,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -354,7 +354,7 @@ impl AppsManagerClient {
         let app_names = self.list_stored_apps()?;
 
         if app_names.is_empty() {
-            return Ok(CallToolResult::success(vec![Content::text(
+            return Ok(CallToolResult::success(vec![ContentBlock::text(
                 "No apps found. Create your first app with the create_app tool!".to_string(),
             )]));
         }
@@ -384,7 +384,7 @@ impl AppsManagerClient {
             }
         }
 
-        Ok(CallToolResult::success(vec![Content::text(
+        Ok(CallToolResult::success(vec![ContentBlock::text(
             apps_info.join("\n"),
         )]))
     }
@@ -428,7 +428,7 @@ impl AppsManagerClient {
 
         self.save_app(&app)?;
 
-        let result = CallToolResult::success(vec![Content::text(format!(
+        let result = CallToolResult::success(vec![ContentBlock::text(format!(
             "Created app '{}'! It should have automatically opened in a new window. You can always find it again in the [Apps] tab.",
             content.name
         ))]);
@@ -484,7 +484,7 @@ impl AppsManagerClient {
 
         self.save_app(&app)?;
 
-        let result = CallToolResult::success(vec![Content::text(format!(
+        let result = CallToolResult::success(vec![ContentBlock::text(format!(
             "Updated app '{}' based on your feedback",
             name
         ))]);
@@ -503,7 +503,7 @@ impl AppsManagerClient {
         self.delete_app(&name)?;
 
         let result =
-            CallToolResult::success(vec![Content::text(format!("Deleted app '{}'", name))]);
+            CallToolResult::success(vec![ContentBlock::text(format!("Deleted app '{}'", name))]);
 
         Ok(self.with_platform_notification(result, "app_deleted", &name))
     }
@@ -544,6 +544,7 @@ impl McpClientTrait for AppsManagerClient {
             tools,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -565,7 +566,7 @@ impl McpClientTrait for AppsManagerClient {
 
         match result {
             Ok(result) => Ok(result),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 error
             ))])),
@@ -587,7 +588,7 @@ impl McpClientTrait for AppsManagerClient {
         for name in app_names {
             if let Ok(app) = self.load_app(&name) {
                 let meta = if let Some(ref window_props) = app.window_props {
-                    let mut meta_obj = Meta::new();
+                    let mut meta_obj = MetaObject::new();
                     meta_obj.insert(
                         "window".to_string(),
                         json!({
@@ -601,20 +602,14 @@ impl McpClientTrait for AppsManagerClient {
                     None
                 };
 
-                let raw_resource = RawResource {
-                    uri: app.resource.uri.clone(),
-                    name: app.resource.name.clone(),
-                    title: None,
-                    description: app.resource.description.clone(),
-                    mime_type: Some(app.resource.mime_type.clone()),
-                    size: None,
-                    icons: None,
-                    meta,
-                };
-                resources.push(Resource {
-                    raw: raw_resource,
-                    annotations: None,
-                });
+                let mut resource =
+                    Resource::new(app.resource.uri.clone(), app.resource.name.clone())
+                        .with_mime_type(app.resource.mime_type.clone());
+                if let Some(description) = &app.resource.description {
+                    resource = resource.with_description(description.clone());
+                }
+                resource.meta = meta;
+                resources.push(resource);
             }
         }
 
@@ -622,6 +617,7 @@ impl McpClientTrait for AppsManagerClient {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 

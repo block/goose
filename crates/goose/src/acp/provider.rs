@@ -17,7 +17,7 @@ use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use rmcp::model::{CallToolRequestParams, CallToolResult, Content as RmcpContent, Role, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock as RmcpContent, Role, Tool};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::PathBuf;
@@ -595,7 +595,8 @@ impl Provider for AcpProvider {
                             // tool_response so downstream consumers see the rejection.
                             if reject_all_tools {
                                 let message = Message::assistant()
-                                    .with_text("Tool call was denied.");
+                                    .with_text("Tool call was denied.")
+                                    .with_generated_id();
                                 yield (Some(message), None);
                             } else {
                                 let denial = vec![RmcpContent::text("Tool call was denied.")];
@@ -1008,7 +1009,7 @@ async fn forward_child_stderr(mut stderr: tokio::process::ChildStderr) {
                 }
             }
             Err(e) => {
-                tracing::debug!(target: "acp::child::stderr", error = %e, "stderr read error");
+                tracing::debug!(target: "goose::acp::child::stderr", error = %e, "stderr read error");
                 break;
             }
         }
@@ -1021,7 +1022,7 @@ fn emit_stderr_line(line: &mut Vec<u8>) {
         return;
     }
     let trimmed = line.strip_suffix(b"\r").unwrap_or(line);
-    tracing::info!(target: "acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
+    tracing::info!(target: "goose::acp::child::stderr", "{}", String::from_utf8_lossy(trimmed));
     line.clear();
 }
 
@@ -1451,21 +1452,31 @@ fn acp_audience_to_rmcp(annotations: Option<&AcpAnnotations>) -> Option<Vec<Role
 }
 
 fn acp_text_content_to_rmcp(text: TextContent) -> RmcpContent {
-    let audience = acp_audience_to_rmcp(text.annotations.as_ref());
-    let mut content = RmcpContent::text(sanitize_unicode_tags(&text.text));
-    if let Some(audience) = audience {
-        content = content.with_audience(audience);
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(text.annotations.as_ref()) {
+        annotations = annotations.with_audience(audience);
     }
-    content
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(sanitize_unicode_tags(&text.text))
+            .with_annotations(annotations),
+    )
 }
 
 fn acp_image_content_to_rmcp(image: ImageContent) -> RmcpContent {
-    let audience = acp_audience_to_rmcp(image.annotations.as_ref());
-    let mut content = RmcpContent::image(image.data, image.mime_type);
-    if let Some(audience) = audience {
-        content = content.with_audience(audience);
+    let mut annotations = rmcp::model::Annotations::default().with_priority(0.0);
+    if let Some(audience) = acp_audience_to_rmcp(image.annotations.as_ref()) {
+        annotations = annotations.with_audience(audience);
     }
-    content
+    RmcpContent::Image(
+        rmcp::model::ImageContent::new(image.data, image.mime_type).with_annotations(annotations),
+    )
+}
+
+fn visible_rmcp_text(text: impl Into<String>) -> RmcpContent {
+    RmcpContent::Text(
+        rmcp::model::TextContent::new(text)
+            .with_annotations(rmcp::model::Annotations::default().with_priority(0.0)),
+    )
 }
 
 fn acp_text_update_message(text: TextContent, id: String, created: i64) -> Message {
@@ -1495,7 +1506,7 @@ fn acp_tool_call_content_to_rmcp(
                     }
                     other => {
                         if let Ok(json) = serde_json::to_string(&other) {
-                            out.push(RmcpContent::text(json));
+                            out.push(visible_rmcp_text(json));
                         }
                     }
                 },
@@ -1507,7 +1518,7 @@ fn acp_tool_call_content_to_rmcp(
                         }
                         None => format!("+++ {path}\n{}", diff.new_text),
                     };
-                    out.push(RmcpContent::text(body));
+                    out.push(visible_rmcp_text(body));
                 }
                 ToolCallContent::Terminal(_) => {}
                 _ => {}
@@ -1520,13 +1531,7 @@ fn acp_tool_call_content_to_rmcp(
                 serde_json::Value::String(s) => s,
                 other => other.to_string(),
             };
-            out.push(RmcpContent::text(text).with_priority(0.0));
-        }
-    } else {
-        for item in &mut out {
-            if item.priority().is_none() {
-                *item = item.clone().with_priority(0.0);
-            }
+            out.push(visible_rmcp_text(text));
         }
     }
     out
@@ -1667,7 +1672,7 @@ mod tests {
     use agent_client_protocol::schema::v1::{
         SessionConfigSelectOption, SessionMode, SessionModeId,
     };
-    use rmcp::model::AnnotateAble;
+
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -1792,16 +1797,12 @@ mod tests {
 
     #[test]
     fn messages_to_prompt_excludes_user_only_current_and_handoff_content() {
-        use rmcp::model::RawTextContent;
+        use rmcp::model::{Annotations, TextContent};
 
         fn user_only_text(text: &str) -> MessageContent {
             MessageContent::Text(
-                RawTextContent {
-                    text: text.to_string(),
-                    meta: None,
-                }
-                .no_annotation()
-                .with_audience(vec![Role::User]),
+                TextContent::new(text)
+                    .with_annotations(Annotations::default().with_audience(vec![Role::User])),
             )
         }
 
@@ -1831,15 +1832,11 @@ mod tests {
 
     #[test]
     fn messages_to_prompt_drops_handoff_when_current_content_is_user_only() {
-        use rmcp::model::RawTextContent;
+        use rmcp::model::{Annotations, TextContent};
 
         let current = MessageContent::Text(
-            RawTextContent {
-                text: "user-only".to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::User]),
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
         );
         let messages = vec![
             Message::assistant().with_text("prior context"),
@@ -1852,17 +1849,13 @@ mod tests {
     #[tokio::test]
     async fn stream_skips_user_only_prompt_without_claiming_handoff_context() {
         use futures::StreamExt;
-        use rmcp::model::RawTextContent;
+        use rmcp::model::{Annotations, TextContent};
 
         let (tx, mut rx) = mpsc::channel(1);
         let (provider, model) = test_provider_with_tx(Some(tx));
         let current = MessageContent::Text(
-            RawTextContent {
-                text: "user-only".to_string(),
-                meta: None,
-            }
-            .no_annotation()
-            .with_audience(vec![Role::User]),
+            TextContent::new("user-only")
+                .with_annotations(Annotations::default().with_audience(vec![Role::User])),
         );
         let messages = vec![
             Message::assistant().with_text("prior context"),
@@ -1876,6 +1869,74 @@ mod tests {
         assert!(!provider.handoff_context_sent.load(Ordering::Acquire));
     }
 
+    #[tokio::test]
+    async fn chat_mode_denied_tool_messages_get_distinct_provider_ids() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, model) = test_provider_with_tx(Some(tx));
+        *provider.goose_mode.lock().unwrap() = GooseMode::Chat;
+
+        let messages = vec![Message::user().with_text("inspect src/lib.rs")];
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
+
+        let response_tx = match rx.recv().await.expect("expected ACP prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => response_tx,
+            _ => panic!("expected ACP prompt request"),
+        };
+
+        for id in ["call-1", "call-2"] {
+            response_tx
+                .send(AcpUpdate::ToolCallStart {
+                    id: id.to_string(),
+                    name: "read_file".to_string(),
+                    kind: ToolKind::Read,
+                    raw_input: None,
+                })
+                .await
+                .unwrap();
+            response_tx
+                .send(AcpUpdate::ToolCallComplete {
+                    id: id.to_string(),
+                    raw_output: None,
+                    content: None,
+                    is_error: false,
+                })
+                .await
+                .unwrap();
+        }
+        response_tx
+            .send(AcpUpdate::Complete(StopReason::EndTurn, None))
+            .await
+            .unwrap();
+
+        let mut messages = Vec::new();
+        while let Some(item) = stream.next().await {
+            let (message, usage) = item.unwrap();
+            assert!(usage.is_none());
+            if let Some(message) = message {
+                messages.push(message);
+            }
+        }
+
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].as_concat_text(), "Tool call was denied.");
+        assert_eq!(messages[1].as_concat_text(), "Tool call was denied.");
+
+        let first_id = messages[0]
+            .id
+            .as_deref()
+            .expect("first denial should have a provider message ID");
+        let second_id = messages[1]
+            .id
+            .as_deref()
+            .expect("second denial should have a provider message ID");
+
+        assert!(first_id.starts_with("msg_"));
+        assert!(second_id.starts_with("msg_"));
+        assert_ne!(first_id, second_id);
+    }
+
     #[test]
     fn live_acp_text_update_preserves_assistant_only_audience() {
         let text = TextContent::new("assistant-only")
@@ -1886,7 +1947,11 @@ mod tests {
         let MessageContent::Text(text) = &message.content[0] else {
             panic!("expected text content");
         };
-        let audience = text.audience().expect("audience annotation should survive");
+        let audience = text
+            .annotations
+            .as_ref()
+            .and_then(|a| a.audience.as_ref())
+            .expect("audience annotation should survive");
         assert!(audience.contains(&Role::Assistant));
         assert!(!audience.contains(&Role::User));
     }
@@ -2537,7 +2602,12 @@ mod tests {
         assert_eq!(out.len(), 1);
         let text = out[0].as_text().unwrap();
         assert_eq!(text.text, "hello from shell");
-        assert_eq!(out[0].priority(), Some(0.0));
+        assert_eq!(
+            text.annotations
+                .as_ref()
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
     }
 
     #[test]
@@ -2558,15 +2628,33 @@ mod tests {
         let out = acp_tool_call_content_to_rmcp(Some(vec![text_block, image_block]), None);
 
         let text_audience = out[0]
-            .audience()
+            .as_text()
+            .and_then(|t| t.annotations.as_ref())
+            .and_then(|a| a.audience.as_ref())
             .expect("text audience annotation should survive");
         assert!(text_audience.contains(&Role::User));
         assert!(!text_audience.contains(&Role::Assistant));
+        assert_eq!(
+            out[0]
+                .as_text()
+                .and_then(|text| text.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
         let image_audience = out[1]
-            .audience()
+            .as_image()
+            .and_then(|i| i.annotations.as_ref())
+            .and_then(|a| a.audience.as_ref())
             .expect("image audience annotation should survive");
         assert!(image_audience.contains(&Role::Assistant));
         assert!(!image_audience.contains(&Role::User));
+        assert_eq!(
+            out[1]
+                .as_image()
+                .and_then(|image| image.annotations.as_ref())
+                .and_then(|annotations| annotations.priority),
+            Some(0.0)
+        );
     }
 
     #[test]

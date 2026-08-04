@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Erstellt"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Verzeichnis"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Modell"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Aktualisiert"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Keine aktuellen Chats"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Fehler"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Inaktiv"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Streaming"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Ungelesene Aktivität"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Unbenannte Sitzung"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Standardanbieter verwenden"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Rezeptname"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Wird automatisch formatiert (Kleinbuchstaben, Bindestriche für Leerzeichen)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Abbrechen"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Diese Sitzung enthält keine Nachrichten"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Keine Nachrichten gefunden"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Fehler beim Laden der Sitzungsdetails"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Erneut versuchen"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Sie"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Sitzung löschen"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Einstellungen"
   },
-  "sheet.close": {
-    "defaultMessage": "Schließen"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Abbrechen"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Anbieter {name} ist konfiguriert"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollama-App"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Um dies zu nutzen, muss entweder die"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "auf Ihrem Computer installiert und geöffnet sein, oder Sie müssen einen Wert für OLLAMA_HOST eingeben."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Vorhandenes hinzufügen"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Bearbeiten"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Angehängte Bilder:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "An Ort und Stelle bearbeiten"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Eine neue Sitzung mit der bearbeiteten Nachricht erstellen"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Bild aus Nachricht entfernen"
   }
 }

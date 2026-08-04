@@ -1,7 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
-use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, XAI_KNOWN_MODELS};
+use super::xai::{xai_known_model_info, XAI_API_HOST, XAI_DEFAULT_MODEL};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::providers::private_file::write_private_file;
@@ -755,12 +755,12 @@ impl Provider for XaiOAuthProvider {
 
 impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::with_models(
             XAI_OAUTH_PROVIDER_NAME,
             "xAI (SuperGrok Subscription)",
             "Use your xAI SuperGrok subscription via OAuth instead of an API key. Falls back to a device-code flow on headless / remote machines.",
             XAI_DEFAULT_MODEL,
-            XAI_KNOWN_MODELS.to_vec(),
+            xai_known_model_info(),
             XAI_OAUTH_DOC_URL,
             vec![
                 ConfigKey::new_oauth("XAI_OAUTH_TOKEN", true, true, None, false),

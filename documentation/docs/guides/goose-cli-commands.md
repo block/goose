@@ -683,6 +683,9 @@ Run goose as an Agent Client Protocol (ACP) agent server over stdio. This enable
 
 ACP is an emerging protocol specification that standardizes communication between AI agents and client applications, making it easier for clients to integrate with various AI agents.
 
+**Options:**
+- **`--enable-scheduler`**: Enable scheduled recipe execution. Disabled by default.
+
 **Usage:**
 ```bash
 goose acp
@@ -702,6 +705,7 @@ Start goose as an Agent Client Protocol (ACP) server over HTTP and WebSocket.
 - **`--port <PORT>`**: Port to listen on. Defaults to `3284`
 - **`--with-builtin <NAME>`**: Enable built-in extensions by name. Can be passed multiple times or as a comma-separated list. Defaults to `developer` when omitted.
 - **`--dangerously-unauthenticated`**: Run without ACP authentication. Use only for local trusted clients.
+- **`--enable-scheduler`**: Enable scheduled recipe execution. Disabled by default.
 
 **Usage:**
 ```bash
@@ -721,32 +725,6 @@ goose serve --with-builtin developer,memory
 :::warning
 `goose serve` requires `GOOSE_SERVER__SECRET_KEY` unless you pass `--dangerously-unauthenticated`. Only use `--dangerously-unauthenticated` with local trusted clients.
 :::
-
----
-
-### Project Management
-
-#### project
-Start working on your last project or create a new one.
-
-**Alias**: `p`
-
-**Usage:**
-```bash
-goose project
-```
-
----
-
-#### projects
-Choose one of your projects to start working on.
-
-**Alias**: `ps`
-
-**Usage:**
-```bash
-goose projects
-```
 
 ---
 

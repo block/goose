@@ -5,7 +5,12 @@ import { ChatState } from '../types/chatState';
 import type { Session } from '../types/session';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { createUserMessage, getPendingToolConfirmationIds, type Message } from '../types/message';
+import {
+  createUserMessage,
+  getPendingToolConfirmationIds,
+  type ImageData,
+  type Message,
+} from '../types/message';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -55,7 +60,8 @@ export interface AcpChatSessionController {
     sessionId: string,
     messageId: string,
     newContent: string,
-    editType: 'fork' | 'edit' | undefined,
+    editType: 'fork' | 'edit',
+    retainedImages: ImageData[],
     options: AcpSubmitMessageOptions
   ): Promise<void>;
 }
@@ -87,7 +93,8 @@ function assertNoPendingPromptCancellation(sessionId: string): void {
 async function forkSessionWithEditedMessage(
   sessionId: string,
   message: Message,
-  editedMessage: string
+  editedMessage: string,
+  editedImages: ImageData[]
 ): Promise<void> {
   const targetSessionId = await acpForkSession(sessionId, message.created);
 
@@ -96,6 +103,7 @@ async function forkSessionWithEditedMessage(
       newSessionId: targetSessionId,
       shouldStartAgent: true,
       editedMessage,
+      editedImages,
     },
   });
   window.dispatchEvent(event);
@@ -233,12 +241,12 @@ async function updateMessage(
   sessionId: string,
   messageId: string,
   newContent: string,
-  editType: 'fork' | 'edit' | undefined,
+  editType: 'fork' | 'edit',
+  retainedImages: ImageData[],
   options: AcpSubmitMessageOptions
 ): Promise<void> {
   assertNoPendingPromptCancellation(sessionId);
 
-  const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
   const storedSnapshot = acpChatSessionStore.getSnapshot(sessionId);
   const activePromptAttemptId = storedSnapshot?.activePromptAttemptId;
@@ -249,8 +257,8 @@ async function updateMessage(
     throw new Error(`Message with id ${messageId} not found in current messages`);
   }
 
-  if (resolvedEditType === 'fork') {
-    await forkSessionWithEditedMessage(sessionId, message, newContent);
+  if (editType === 'fork') {
+    await forkSessionWithEditedMessage(sessionId, message, newContent, retainedImages);
     return;
   }
 
@@ -303,13 +311,7 @@ async function updateMessage(
     await acpTruncateSessionConversation(sessionId, message.created);
 
     const truncatedMessages = currentMessages.filter((m) => m.created < message.created);
-    const updatedUserMessage = createUserMessage(newContent);
-
-    for (const content of message.content) {
-      if (content.type === 'image') {
-        updatedUserMessage.content.push(content);
-      }
-    }
+    const updatedUserMessage = createUserMessage(newContent, retainedImages);
 
     const messagesForUI = [...truncatedMessages, updatedUserMessage];
     acpChatSessionActions.setMessages(sessionId, messagesForUI);

@@ -8,10 +8,12 @@ use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
-    create_request_with_options, get_cost, get_usage, response_to_message, OpenAiFormatOptions,
+    create_request_with_options, get_cost, get_usage, is_reserved_request_param_key,
+    response_to_message, OpenAiFormatOptions,
 };
 use crate::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+    create_responses_request_for_model, get_responses_usage, responses_api_to_message,
+    ResponsesApiResponse,
 };
 use crate::images::ImageFormat;
 use crate::openai_compatible::{
@@ -40,22 +42,23 @@ pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
-    ("gpt-4.1", 128_000),
-    ("gpt-4.1-mini", 128_000),
+    ("gpt-4.1", 1_047_576),
+    ("gpt-4.1-mini", 1_047_576),
+    ("gpt-4.1-nano", 1_047_576),
     ("o1", 200_000),
+    ("o1-pro", 200_000),
     ("o3", 200_000),
+    ("o3-mini", 200_000),
+    ("o3-pro", 200_000),
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
-    ("o4-mini", 128_000),
+    ("o4-mini", 200_000),
     ("gpt-5", 400_000),
     ("gpt-5-mini", 400_000),
     ("gpt-5-nano", 400_000),
     ("gpt-5-pro", 400_000),
-    ("gpt-5-codex", 400_000),
     ("gpt-5.1", 400_000),
-    ("gpt-5.1-codex", 400_000),
     ("gpt-5.2", 400_000),
-    ("gpt-5.2-codex", 400_000),
     ("gpt-5.2-pro", 400_000),
     ("gpt-5.3-codex", 400_000),
     ("gpt-5.4", 1_050_000),
@@ -140,7 +143,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -161,7 +164,7 @@ pub struct OpenAiProviderBuilder {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
-    custom_models: Option<Vec<String>>,
+    custom_models: Option<Vec<ModelInfo>>,
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
@@ -232,7 +235,7 @@ impl OpenAiProviderBuilder {
         self
     }
 
-    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+    pub fn custom_models(mut self, custom_models: Option<Vec<ModelInfo>>) -> Self {
         self.custom_models = custom_models;
         self
     }
@@ -271,6 +274,80 @@ impl OpenAiProviderBuilder {
 }
 
 impl OpenAiProvider {
+    pub async fn stream_for_model(
+        &self,
+        model_config: &ModelConfig,
+        wire_model: &str,
+        capability_model: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_responses_request_for_model(
+            model_config,
+            wire_model,
+            capability_model,
+            system,
+            messages,
+            tools,
+        )?;
+        payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
+        self.stream_responses_payload(model_config, payload).await
+    }
+
+    async fn stream_responses_payload(
+        &self,
+        model_config: &ModelConfig,
+        payload: serde_json::Value,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut log = start_log(model_config, &payload)?;
+        let response = self
+            .with_retry(|| async {
+                handle_status(
+                    self.api_client
+                        .request(&Self::map_base_path(
+                            &self.base_path,
+                            "responses",
+                            OPEN_AI_DEFAULT_RESPONSES_PATH,
+                        ))
+                        .model_headers(model_config)?
+                        .response_post(&payload)
+                        .await?,
+                )
+                .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+        if self.supports_streaming {
+            stream_responses_compat(response, log)
+        } else {
+            let json: serde_json::Value = response.json().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+            })?;
+            let parsed: ResponsesApiResponse =
+                serde_json::from_value(json.clone()).map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to parse responses API response: {}",
+                        e
+                    ))
+                })?;
+            let message = responses_api_to_message(&parsed)?;
+            let usage_data = get_responses_usage(&parsed);
+            let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
+            let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
+            if let Some(cost) = get_cost(usage_json) {
+                usage = usage.with_cost(cost, CostSource::ProviderReported);
+            }
+            log.write(
+                &serde_json::to_value(&message).unwrap_or_default(),
+                Some(&usage_data),
+            )?;
+            Ok(super::base::stream_from_single_message(message, usage))
+        }
+    }
+
     #[doc(hidden)]
     pub fn new(api_client: ApiClient) -> Self {
         Self {
@@ -371,6 +448,13 @@ impl OpenAiProvider {
         }
     }
 
+    fn declared_model(&self, model_name: &str) -> Option<&ModelInfo> {
+        self.custom_models
+            .as_ref()?
+            .iter()
+            .find(|m| m.name == model_name)
+    }
+
     fn sanitize_request_for_compat(
         &self,
         mut payload: serde_json::Value,
@@ -459,8 +543,16 @@ impl OpenAiProvider {
             return Err(ProviderError::EndpointNotFound(body));
         }
 
-        let json = handle_response_openai_compat(response).await?;
-        if let Some(err_obj) = json.get("error") {
+        let response = handle_status(response).await?;
+
+        let body = response.bytes().await.map_err(|e| {
+            ProviderError::NetworkError(format!("Failed to read response body: {}", e))
+        })?;
+        let json: serde_json::Value = serde_json::from_slice(&body).map_err(|e| {
+            ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
+        })?;
+
+        if let Some(err_obj) = json.get("error").filter(|error| !error.is_null()) {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
@@ -468,15 +560,7 @@ impl OpenAiProvider {
             return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        parse_model_ids(&json)
     }
 
     /// llama.cpp and Ollama expose the actual allocated context window in the
@@ -494,6 +578,22 @@ impl OpenAiProvider {
         let json = handle_response_openai_compat(response).await.ok()?;
         parse_n_ctx_from_models(&json, model_name)
     }
+}
+
+fn parse_model_ids(json: &serde_json::Value) -> Result<Vec<String>, ProviderError> {
+    let models = json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .or_else(|| json.as_array())
+        .ok_or_else(|| {
+            ProviderError::RequestFailed("Missing models array in JSON response".into())
+        })?;
+    let mut model_ids: Vec<String> = models
+        .iter()
+        .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+        .collect();
+    model_ids.sort();
+    Ok(model_ids)
 }
 
 /// Extract `meta.n_ctx` for `model_name` from a `/v1/models` response body.
@@ -575,6 +675,13 @@ impl Provider for OpenAiProvider {
         &self.name
     }
 
+    async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        self.api_client
+            .refresh_credentials()
+            .await
+            .map_err(|error| ProviderError::Authentication(error.to_string()))
+    }
+
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
     }
@@ -618,8 +725,9 @@ impl Provider for OpenAiProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
+            let names: Vec<String> = custom_models.iter().map(|m| m.name.clone()).collect();
             if self.dynamic_models == Some(false) {
-                return Ok(custom_models.clone());
+                return Ok(names);
             }
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
@@ -629,7 +737,7 @@ impl Provider for OpenAiProvider {
                         self.name,
                         e
                     );
-                    return Ok(custom_models.clone());
+                    return Ok(names);
                 }
                 Err(e) => return Err(e),
             }
@@ -646,63 +754,23 @@ impl Provider for OpenAiProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         if self.should_use_responses_api_for_provider(&model_config.model_name) {
-            let mut payload = create_responses_request(model_config, system, messages, tools)?;
-            payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
-
-            let mut log = start_log(model_config, &payload)?;
-
-            let response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    let resp = self
-                        .api_client
-                        .request(&Self::map_base_path(
-                            &self.base_path,
-                            "responses",
-                            OPEN_AI_DEFAULT_RESPONSES_PATH,
-                        ))
-                        .model_headers(model_config)?
-                        .response_post(&payload_clone)
-                        .await?;
-                    handle_status(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            if self.supports_streaming {
-                stream_responses_compat(response, log)
-            } else {
-                let json: serde_json::Value = response.json().await.map_err(|e| {
-                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
-                })?;
-
-                let responses_api_response: ResponsesApiResponse =
-                    serde_json::from_value(json.clone()).map_err(|e| {
-                        ProviderError::ExecutionError(format!(
-                            "Failed to parse responses API response: {}",
-                            e
-                        ))
-                    })?;
-
-                let message = responses_api_to_message(&responses_api_response)?;
-                let usage_data = get_responses_usage(&responses_api_response);
-                let usage_json = json.get("usage").unwrap_or(&serde_json::Value::Null);
-                let mut usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
-                if let Some(cost) = get_cost(usage_json) {
-                    usage = usage.with_cost(cost, CostSource::ProviderReported);
-                }
-
-                log.write(
-                    &serde_json::to_value(&message).unwrap_or_default(),
-                    Some(&usage_data),
-                )?;
-
-                Ok(super::base::stream_from_single_message(message, usage))
-            }
+            let (wire_model, _) =
+                crate::formats::openai::extract_reasoning_effort(&model_config.model_name);
+            self.stream_for_model(
+                model_config,
+                &wire_model,
+                &model_config.model_name,
+                system,
+                messages,
+                tools,
+            )
+            .await
         } else {
-            let payload = create_request_with_options(
+            let declared_model = self.declared_model(&model_config.model_name);
+            let thinking_preservation_format =
+                declared_model.and_then(|m| m.thinking_preservation_format);
+
+            let mut payload = create_request_with_options(
                 model_config,
                 system,
                 messages,
@@ -710,9 +778,16 @@ impl Provider for OpenAiProvider {
                 &ImageFormat::OpenAi,
                 self.supports_streaming,
                 OpenAiFormatOptions {
-                    preserve_thinking_context: self.preserve_thinking_context,
+                    preserve_thinking_context: self.preserve_thinking_context
+                        || thinking_preservation_format.is_some(),
+                    thinking_preservation_format,
                 },
             )?;
+
+            if let Some(params) = declared_model.and_then(|m| m.request_params.as_ref()) {
+                apply_declared_request_params(&mut payload, params);
+            }
+
             let payload = self.sanitize_request_for_compat(payload, model_config);
             let mut log = start_log(model_config, &payload)?;
 
@@ -760,19 +835,31 @@ impl Provider for OpenAiProvider {
     }
 }
 
+/// Merges a model's declared `request_params` into an already-built payload.
+///
+/// Reserved keys are skipped so a declaration cannot clobber the streaming setup.
+fn apply_declared_request_params(
+    payload: &mut serde_json::Value,
+    params: &HashMap<String, serde_json::Value>,
+) {
+    let Some(object) = payload.as_object_mut() else {
+        return;
+    };
+
+    for (key, value) in params {
+        if !is_reserved_request_param_key(key) {
+            object.insert(key.clone(), value.clone());
+        }
+    }
+}
+
 pub fn from_declarative_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
 ) -> Result<OpenAiProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
+        Some(config.models.clone())
     } else {
         None
     };
@@ -1154,6 +1241,36 @@ mod tests {
     }
 
     #[test]
+    fn parse_model_ids_accepts_openai_response() {
+        let response = json!({"data": [{"id": "model-b"}, {"id": "model-a"}]});
+
+        assert_eq!(parse_model_ids(&response).unwrap(), ["model-a", "model-b"]);
+    }
+
+    #[test]
+    fn parse_model_ids_accepts_together_response() {
+        let response = json!([
+            {"id": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "type": "chat"},
+            {"id": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8", "type": "code"}
+        ]);
+
+        assert_eq!(
+            parse_model_ids(&response).unwrap(),
+            [
+                "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+                "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_model_ids_rejects_unknown_response() {
+        let response = json!({"models": []});
+
+        assert!(parse_model_ids(&response).is_err());
+    }
+
+    #[test]
     fn unknown_path_falls_back_to_default_models_path() {
         let models_path = OpenAiProvider::map_base_path("custom/path", "models", "v1/models");
         assert_eq!(models_path, "v1/models");
@@ -1306,9 +1423,6 @@ mod tests {
 
     #[test]
     fn derive_base_path_preserves_non_v1_version_prefix() {
-        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
-        // from_custom_config passes url.path() ("/api/paas/v4") here. The
-        // existing /api/paas/v4 version must not gain an extra /v1 segment.
         let r = derive_base_path("/api/paas/v4");
         assert_eq!(r, "api/paas/v4/chat/completions");
     }
@@ -1317,5 +1431,273 @@ mod tests {
     fn derive_base_path_does_not_treat_v_word_as_version() {
         let r = derive_base_path("/api/voice");
         assert_eq!(r, "api/voice/v1/chat/completions");
+    }
+
+    fn make_provider_with_custom_models(
+        host: &str,
+        base_path: &str,
+        custom_models: Vec<String>,
+    ) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: ApiClient::new_with_tls(host.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
+            base_path: base_path.to_string(),
+            organization: None,
+            project: None,
+            custom_headers: None,
+            supports_streaming: true,
+            name: "test-provider".to_string(),
+            custom_models: Some(
+                custom_models
+                    .into_iter()
+                    .map(|model| ModelInfo::new(model, 4096))
+                    .collect(),
+            ),
+            dynamic_models: Some(true),
+            skip_canonical_filtering: false,
+            preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_models_treats_invalid_json_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("<html>not a models endpoint</html>"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(err.is_endpoint_not_found(), "got: {:?}", err);
+    }
+
+    #[tokio::test]
+    async fn fetch_models_returns_request_failed_for_missing_data_field() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::RequestFailed(_)),
+            "expected RequestFailed, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_on_invalid_payload() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<html>error page</html>"))
+            .mount(&server)
+            .await;
+
+        let predefined = vec!["glm-4.5".to_string(), "glm-5".to_string()];
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            predefined.clone(),
+        );
+
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("should fall back");
+        assert_eq!(models, predefined);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_propagates_auth_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "error": {"message": "invalid api key"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_does_not_reclassify_400_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": {"message": "request is not valid JSON"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(!err.is_endpoint_not_found(), "got: {:?}", err);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_accepts_payload_with_extra_fields() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{"id": "model-a"}, {"id": "model-b"}],
+                "message": "ok",
+                "error": null
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = make_provider_with_custom_models(
+            &server.uri(),
+            "v1/chat/completions",
+            vec!["static-model".to_string()],
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, vec!["model-a".to_string(), "model-b".to_string()]);
+    }
+
+    use crate::base::ThinkingPreservationFormat;
+
+    fn cerebras_config() -> DeclarativeProviderConfig {
+        crate::declarative::fixed_provider_configs()
+            .expect("bundled providers should load")
+            .into_iter()
+            .find(|config| config.name == "cerebras")
+            .expect("cerebras should be bundled")
+    }
+
+    fn cerebras_provider() -> OpenAiProvider {
+        struct StaticKeyResolver;
+        impl KeyResolver for StaticKeyResolver {
+            type Error = std::convert::Infallible;
+
+            fn resolve_key(&self, _key: &str) -> std::result::Result<String, Self::Error> {
+                Ok("test-key".to_string())
+            }
+        }
+
+        from_declarative_config(cerebras_config(), None, StaticKeyResolver)
+            .expect("cerebras config should build a provider")
+            .build()
+    }
+
+    #[test]
+    fn cerebras_models_declare_thinking_preservation_and_reasoning_format() {
+        let provider = cerebras_provider();
+
+        for (model, expected_format) in [
+            ("gpt-oss-120b", ThinkingPreservationFormat::ContentPrepend),
+            ("zai-glm-4.7", ThinkingPreservationFormat::ContentXml),
+            ("gemma-4-31b", ThinkingPreservationFormat::ContentPrepend),
+        ] {
+            let declared = provider
+                .declared_model(model)
+                .unwrap_or_else(|| panic!("{model} should be declared"));
+
+            assert_eq!(declared.thinking_preservation_format, Some(expected_format));
+
+            let reasoning_format = declared
+                .request_params
+                .as_ref()
+                .and_then(|params| params.get("reasoning_format"));
+            assert_eq!(
+                reasoning_format,
+                Some(&json!("parsed")),
+                "{model} must request parsed reasoning"
+            );
+        }
+
+        assert!(provider.declared_model("not-a-cerebras-model").is_none());
+    }
+
+    #[test]
+    fn cerebras_preserves_thinking_by_default() {
+        assert!(cerebras_config().preserves_thinking);
+    }
+
+    #[test]
+    fn apply_declared_request_params_skips_reserved_keys() {
+        let mut payload = json!({
+            "model": "zai-glm-4.7",
+            "stream": true,
+            "stream_options": {"include_usage": true},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+
+        let params = HashMap::from([
+            ("reasoning_format".to_string(), json!("parsed")),
+            ("model".to_string(), json!("hijacked")),
+            ("stream".to_string(), json!(false)),
+            ("stream_options".to_string(), json!(null)),
+            ("messages".to_string(), json!([])),
+        ]);
+
+        apply_declared_request_params(&mut payload, &params);
+
+        assert_eq!(payload["reasoning_format"], json!("parsed"));
+        assert_eq!(payload["model"], json!("zai-glm-4.7"));
+        assert_eq!(payload["stream"], json!(true));
+        assert_eq!(payload["stream_options"], json!({"include_usage": true}));
+        assert_eq!(payload["messages"].as_array().unwrap().len(), 1);
     }
 }

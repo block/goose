@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "作成"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "ディレクトリ"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "モデル"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "ステータス"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "更新"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "最近のチャットはありません"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "エラー"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "アイドル"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "ストリーミング"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "未読のアクティビティ"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "無題のセッション"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "デフォルトプロバイダーを使用"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "レシピ名"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "自動的に整形されます（小文字、スペースはダッシュ）"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "キャンセル"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "このセッションにはメッセージがありません"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "メッセージが見つかりません"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "セッション詳細の読み込みエラー"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "再試行"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "あなた"
-  },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "設定"
   },
-  "sheet.close": {
-    "defaultMessage": "閉じる"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "キャンセル"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "{name}プロバイダーが設定されています"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Ollamaアプリ"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "使用するには、"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "をマシンにインストールして開いておくか、OLLAMA_HOSTの値を入力する必要があります。"
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "既存を追加"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "編集"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "添付画像:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "その場で編集"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "編集したメッセージで新しいセッションを作成"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "メッセージから画像を削除"
   }
 }

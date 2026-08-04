@@ -36,13 +36,11 @@ pub(crate) fn spawn_tool_title_enrichment(
     tool_call_notifier: ToolCallNotifier,
     session_manager: &Arc<SessionManager>,
     session_id: &str,
-    message_id: Option<&str>,
     tool_request: &ToolRequest,
 ) {
     let agent = agent.clone();
     let session_manager = session_manager.clone();
     let session_id = session_id.to_string();
-    let message_id = message_id.map(str::to_string);
     let tool_request = tool_request.clone();
 
     spawn(async move {
@@ -50,7 +48,6 @@ pub(crate) fn spawn_tool_title_enrichment(
             agent.as_ref(),
             session_manager.as_ref(),
             &session_id,
-            message_id.as_deref(),
             &tool_request,
         )
         .await
@@ -75,17 +72,13 @@ pub(crate) fn spawn_chain_summary_enrichment(
     let session_manager = session_manager.clone();
 
     spawn(async move {
-        let ReadyToolChain {
-            message_id,
-            tool_requests,
-        } = chain;
+        let ReadyToolChain { tool_requests } = chain;
         let first_tool_call_id = tool_requests[0].id.clone();
 
         let Some(summary) = generate_tool_chain_summary(
             agent.as_ref(),
             session_manager.as_ref(),
             &session_id.0,
-            &message_id,
             &tool_requests,
         )
         .await

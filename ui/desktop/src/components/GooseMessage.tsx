@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import ImagePreview from './ImagePreview';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
@@ -49,8 +50,13 @@ export default function GooseMessage({
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
-  const { textContent: displayText, imagePaths } = getTextAndImageContent(message);
-  const thinkingContent = getThinkingContent(message);
+  const outputTokenLimitReached = message.metadata.outputTokenLimitReached === true;
+  const isOutputTokenLimitFallback =
+    outputTokenLimitReached && message.metadata.fallbackContent === true;
+  const { textContent, imagePaths: allImagePaths } = getTextAndImageContent(message);
+  const displayText = isOutputTokenLimitFallback ? '' : textContent;
+  const imagePaths = isOutputTokenLimitFallback ? [] : allImagePaths;
+  const thinkingContent = isOutputTokenLimitFallback ? null : getThinkingContent(message);
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
@@ -76,6 +82,9 @@ export default function GooseMessage({
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
+  const outputTokenLimitNotice = isOutputTokenLimitFallback
+    ? "Response reached the model's output-token limit before returning content."
+    : "Response reached the model's output-token limit and may be incomplete.";
   const elicitationData =
     elicitationContent?.data.actionType === 'elicitation'
       ? (elicitationContent.data as typeof elicitationContent.data & {
@@ -137,7 +146,7 @@ export default function GooseMessage({
         {(displayText.trim() || imagePaths.length > 0) && (
           <div className="flex flex-col group">
             {displayText.trim() && (
-              <div ref={contentRef} className="w-full">
+              <div ref={contentRef} className="agent-message-bubble w-full">
                 <MarkdownContent content={displayText} />
               </div>
             )}
@@ -216,6 +225,13 @@ export default function GooseMessage({
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {outputTokenLimitReached && (
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-text-secondary">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+            <span>{outputTokenLimitNotice}</span>
           </div>
         )}
 

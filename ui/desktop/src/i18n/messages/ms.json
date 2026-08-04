@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Sembang"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Dicipta"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Direktori"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Model"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Status"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Dikemas kini"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Tiada sembang terkini"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ralat"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Terbiar"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Penstriman"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Aktiviti belum dibaca"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Sesi tanpa tajuk"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Gunakan penyedia lalai"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Nama Resipi"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Akan diformat secara automatik (huruf kecil, sengkang untuk ruang)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Batal"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Penstriman"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Sesi ini tidak mengandungi sebarang mesej"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Tiada mesej ditemui"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ralat Memuatkan Butiran Sesi"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Cuba Lagi"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Anda"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Padam sesi"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Tetapan"
   },
-  "sheet.close": {
-    "defaultMessage": "Tutup"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Batal"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Penyedia {name} telah dikonfigurasikan"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Aplikasi Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Untuk menggunakannya, sama ada"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "mesti dipasang pada mesin anda dan dibuka, atau anda mesti memasukkan nilai untuk OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Tambah Sedia Ada"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Sunting"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Imej dilampirkan:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Sunting di Tempat"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Cipta sesi baharu dengan mesej yang disunting"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Alih keluar imej daripada mesej"
   }
 }

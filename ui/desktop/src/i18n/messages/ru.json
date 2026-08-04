@@ -2360,8 +2360,35 @@
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
   },
+  "navigationPanel.metaCreated": {
+    "defaultMessage": "Создано"
+  },
+  "navigationPanel.metaDirectory": {
+    "defaultMessage": "Каталог"
+  },
+  "navigationPanel.metaModel": {
+    "defaultMessage": "Модель"
+  },
+  "navigationPanel.metaStatus": {
+    "defaultMessage": "Статус"
+  },
+  "navigationPanel.metaUpdated": {
+    "defaultMessage": "Обновлено"
+  },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
+  },
+  "navigationPanel.statusError": {
+    "defaultMessage": "Ошибка"
+  },
+  "navigationPanel.statusIdle": {
+    "defaultMessage": "Ожидание"
+  },
+  "navigationPanel.statusStreaming": {
+    "defaultMessage": "Потоковая передача"
+  },
+  "navigationPanel.statusUnread": {
+    "defaultMessage": "Непрочитанная активность"
   },
   "navigationPanel.untitledSession": {
     "defaultMessage": "Безымянный сеанс"
@@ -3025,12 +3052,6 @@
   },
   "recipeModelSelector.useDefaultProvider": {
     "defaultMessage": "Использовать провайдера по умолчанию"
-  },
-  "recipeNameField.defaultLabel": {
-    "defaultMessage": "Имя рецепта"
-  },
-  "recipeNameField.formatHint": {
-    "defaultMessage": "Будет автоматически отформатировано (нижний регистр, дефисы вместо пробелов)"
   },
   "recipeWarningModal.cancel": {
     "defaultMessage": "Отмена"
@@ -3737,24 +3758,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
   },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Вы"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Удалить сеанс"
   },
@@ -4091,9 +4094,6 @@
   "settingsView.title": {
     "defaultMessage": "Настройки"
   },
-  "sheet.close": {
-    "defaultMessage": "Закрыть"
-  },
   "shortcutRecorder.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -4159,15 +4159,6 @@
   },
   "stringUtils.configuredProvider": {
     "defaultMessage": "Провайдер {name} настроен"
-  },
-  "stringUtils.ollamaApp": {
-    "defaultMessage": "Приложение Ollama"
-  },
-  "stringUtils.ollamaNotConfiguredPrefix": {
-    "defaultMessage": "Для использования либо"
-  },
-  "stringUtils.ollamaNotConfiguredSuffix": {
-    "defaultMessage": "должно быть установлено на вашем компьютере и открыто, либо нужно ввести значение для OLLAMA_HOST."
   },
   "subRecipeEditor.addExisting": {
     "defaultMessage": "Добавить существующий"
@@ -4583,6 +4574,9 @@
   "userMessage.editButton": {
     "defaultMessage": "Изменить"
   },
+  "userMessage.editImagesHeading": {
+    "defaultMessage": "Прикрепленные изображения:"
+  },
   "userMessage.editInPlace": {
     "defaultMessage": "Изменить на месте"
   },
@@ -4615,5 +4609,8 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Создать новый сеанс с измененным сообщением"
+  },
+  "userMessage.removeImageFromEdit": {
+    "defaultMessage": "Удалить изображение из сообщения"
   }
 }

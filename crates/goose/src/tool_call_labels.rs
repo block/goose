@@ -33,7 +33,6 @@ pub(crate) async fn generate_tool_title(
     agent: &Agent,
     session_manager: &SessionManager,
     session_id: &str,
-    message_id: Option<&str>,
     tool_request: &ToolRequest,
 ) -> Option<String> {
     let provider = agent.provider().await.ok()?;
@@ -54,16 +53,14 @@ pub(crate) async fn generate_tool_title(
     .await?;
     let request_id = &tool_request.id;
 
-    if let Some(message_id) = message_id {
-        let patch = json!({
-            (TOOL_META_TITLE_KEY): &title,
-        });
-        if let Err(error) = session_manager
-            .update_tool_request_meta(session_id, message_id, request_id, patch)
-            .await
-        {
-            warn!("tool call title: persist failed for {request_id} in {message_id}: {error}",);
-        }
+    let patch = json!({
+        (TOOL_META_TITLE_KEY): &title,
+    });
+    if let Err(error) = session_manager
+        .update_tool_request_meta(session_id, request_id, patch)
+        .await
+    {
+        warn!("tool call title: persist failed for {request_id}: {error}");
     }
 
     Some(title)
@@ -73,7 +70,6 @@ pub(crate) async fn generate_tool_chain_summary(
     agent: &Agent,
     session_manager: &SessionManager,
     session_id: &str,
-    message_id: &str,
     tool_requests: &[ToolRequest],
 ) -> Option<ToolChainSummary> {
     let steps = prepare_tool_chain_steps(tool_requests);
@@ -105,11 +101,11 @@ pub(crate) async fn generate_tool_chain_summary(
         (TOOL_META_CHAIN_SUMMARY_KEY): &chain_summary,
     });
     if let Err(error) = session_manager
-        .update_tool_request_meta(session_id, message_id, first_tool_call_id, patch)
+        .update_tool_request_meta(session_id, first_tool_call_id, patch)
         .await
     {
         warn!(
-            "tool chain summary: persist failed for chain anchored at {first_tool_call_id} in {message_id}: {error}",
+            "tool chain summary: persist failed for chain anchored at {first_tool_call_id}: {error}",
         );
     }
 
@@ -492,7 +488,6 @@ mod tests {
                 &agent,
                 session_manager.as_ref(),
                 &session.id,
-                None,
                 &tool_request(json!({})),
             )
             .await;
@@ -531,7 +526,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn persists_title_for_known_message_id() {
+        async fn persists_title_for_recent_tool_request() {
             let temp_dir = TempDir::new().unwrap();
             let session_manager = Arc::new(SessionManager::new(temp_dir.path().join("sessions")));
             let permission_manager =
@@ -569,14 +564,9 @@ mod tests {
                 .await
                 .unwrap();
 
-            let title = generate_tool_title(
-                &agent,
-                session_manager.as_ref(),
-                &session.id,
-                message.id.as_deref(),
-                &tool_request,
-            )
-            .await;
+            let title =
+                generate_tool_title(&agent, session_manager.as_ref(), &session.id, &tool_request)
+                    .await;
 
             assert_eq!(title.as_deref(), Some("checking project status"));
             let loaded = session_manager
@@ -728,7 +718,6 @@ mod tests {
                 &agent,
                 session_manager.as_ref(),
                 &session.id,
-                "message-1",
                 &chain_tool_requests(),
             )
             .await;
@@ -774,7 +763,6 @@ mod tests {
                 &agent,
                 session_manager.as_ref(),
                 &session.id,
-                "message-1",
                 &[tool_request(json!({}))],
             )
             .await;
@@ -833,7 +821,6 @@ mod tests {
                 &agent,
                 session_manager.as_ref(),
                 &session.id,
-                message.id.as_deref().unwrap(),
                 &tool_requests,
             )
             .await;

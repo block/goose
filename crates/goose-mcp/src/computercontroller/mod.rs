@@ -9,10 +9,10 @@ use reqwest::{Client, Url};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-        InitializeResult, ListResourcesResult, PaginatedRequestParams, RawResource,
-        ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-        ServerCapabilities, ServerInfo,
+        CallToolResult, ContentBlock, ErrorCode, ErrorData, Implementation, InitializeResult,
+        ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+        ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -22,8 +22,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tokio::process::Command;
 
-#[cfg(target_os = "macos")]
-use rmcp::model::Role;
 #[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -690,7 +688,7 @@ impl ComputerControllerServer {
         // Register as a resource
         self.register_as_resource(&cache_path, mime_type)?;
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
+        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
             "Content saved to: {}",
             cache_path.display()
         ))]))
@@ -908,7 +906,7 @@ impl ComputerControllerServer {
             self.register_as_resource(&cache_path, "text")?;
         }
 
-        Ok(CallToolResult::success(vec![Content::text(result)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(result)]))
     }
 
     /// Control the computer using system automation
@@ -1036,7 +1034,7 @@ impl ComputerControllerServer {
             self.register_as_resource(&cache_path, "text")?;
         }
 
-        Ok(CallToolResult::success(vec![Content::text(result)]))
+        Ok(CallToolResult::success(vec![ContentBlock::text(result)]))
     }
 
     #[cfg(target_os = "macos")]
@@ -1169,7 +1167,7 @@ impl ComputerControllerServer {
             if image_path.exists() {
                 if let Ok(bytes) = fs::read(&image_path) {
                     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
-                    contents.push(Content::image(data, "image/png").with_priority(0.0));
+                    contents.push(ContentBlock::image(data, "image/png"));
                 }
             }
         }
@@ -1184,7 +1182,7 @@ impl ComputerControllerServer {
             {
                 if let Ok(bytes) = fs::read(&cap_path) {
                     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
-                    contents.push(Content::image(data, "image/png").with_priority(0.0));
+                    contents.push(ContentBlock::image(data, "image/png"));
                 }
             }
         }
@@ -1200,7 +1198,15 @@ impl ComputerControllerServer {
             stdout
         };
 
-        contents.insert(0, Content::text(&text).with_audience(vec![Role::Assistant]));
+        contents.insert(
+            0,
+            ContentBlock::Text(
+                rmcp::model::TextContent::new(&text).with_annotations(
+                    rmcp::model::Annotations::default()
+                        .with_audience(vec![rmcp::model::Role::Assistant]),
+                ),
+            ),
+        );
 
         Ok(CallToolResult::success(contents))
     }
@@ -1237,7 +1243,7 @@ impl ComputerControllerServer {
                 let worksheets = xlsx
                     .list_worksheets()
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{:#?}",
                     worksheets
                 ))]))
@@ -1257,7 +1263,7 @@ impl ComputerControllerServer {
                 let columns = xlsx
                     .get_column_names(worksheet)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{:#?}",
                     columns
                 ))]))
@@ -1285,7 +1291,7 @@ impl ComputerControllerServer {
                 let range_data = xlsx
                     .get_range(worksheet, range)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{:#?}",
                     range_data
                 ))]))
@@ -1315,7 +1321,7 @@ impl ComputerControllerServer {
                 let matches = xlsx
                     .find_in_worksheet(worksheet, search_text, case_sensitive)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "Found matches at: {:#?}",
                     matches
                 ))]))
@@ -1351,7 +1357,7 @@ impl ComputerControllerServer {
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
                 xlsx.save(path)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "Updated cell ({}, {}) to '{}' in worksheet '{}'",
                     row, col, value, worksheet_name
                 ))]))
@@ -1361,7 +1367,7 @@ impl ComputerControllerServer {
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
                 xlsx.save(path)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     "File saved successfully.",
                 )]))
             }
@@ -1396,7 +1402,7 @@ impl ComputerControllerServer {
                 let cell_value = xlsx
                     .get_cell_value(worksheet, row as u32, col as u32)
                     .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "{:#?}",
                     cell_value
                 ))]))
@@ -1525,7 +1531,7 @@ impl ComputerControllerServer {
                     files.push(format!("{}", entry.path().display()));
                 }
                 files.sort();
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "Cached files:\n{}",
                     files.join("\n")
                 ))]))
@@ -1547,7 +1553,7 @@ impl ComputerControllerServer {
                     )
                 })?;
 
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "Content of {}:\n\n{}",
                     path, content
                 ))]))
@@ -1577,7 +1583,7 @@ impl ComputerControllerServer {
                         .remove(&url.to_string());
                 }
 
-                Ok(CallToolResult::success(vec![Content::text(format!(
+                Ok(CallToolResult::success(vec![ContentBlock::text(format!(
                     "Deleted file: {}",
                     path
                 ))]))
@@ -1601,7 +1607,7 @@ impl ComputerControllerServer {
                 // Clear active resources
                 self.active_resources.lock().unwrap().clear();
 
-                Ok(CallToolResult::success(vec![Content::text(
+                Ok(CallToolResult::success(vec![ContentBlock::text(
                     "Cache cleared successfully.",
                 )]))
             }
@@ -1634,17 +1640,17 @@ impl ServerHandler for ComputerControllerServer {
         let resources: Vec<Resource> = active_resources
             .keys()
             .map(|uri| {
-                RawResource::new(
+                Resource::new(
                     uri.clone(),
                     uri.split('/').next_back().unwrap_or("").to_string(),
                 )
-                .no_annotation()
             })
             .collect();
         Ok(ListResourcesResult {
             resources,
             next_cursor: None,
             meta: None,
+            ..Default::default()
         })
     }
 
@@ -1652,7 +1658,7 @@ impl ServerHandler for ComputerControllerServer {
         &self,
         params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, ErrorData> {
+    ) -> Result<ReadResourceResponse, ErrorData> {
         let active_resources = self.active_resources.lock().unwrap();
         let resource = active_resources.get(&params.uri).ok_or_else(|| {
             ErrorData::new(
@@ -1663,6 +1669,6 @@ impl ServerHandler for ComputerControllerServer {
         })?;
 
         // Clone the resource to return
-        Ok(ReadResourceResult::new(vec![resource.clone()]))
+        Ok(ReadResourceResult::new(vec![resource.clone()]).into())
     }
 }
