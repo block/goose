@@ -507,6 +507,12 @@ if (process.platform !== 'darwin') {
           mainWindow.restore();
         }
         mainWindow.focus();
+      } else if (!protocolUrl) {
+        app.whenReady().then(async () => {
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+          await createChat(app, { dir: openDir || undefined });
+        });
       }
     });
   }
