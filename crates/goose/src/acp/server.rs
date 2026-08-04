@@ -2205,17 +2205,11 @@ impl GooseAcpAgent {
         session_id: &str,
         effort_id: &str,
     ) -> Result<(), agent_client_protocol::Error> {
-        let effort = effort_id
-            .parse::<goose_providers::thinking::ThinkingEffort>()
-            .map_err(|_| {
-                agent_client_protocol::Error::invalid_params()
-                    .data(format!("Invalid thinking effort: {}", effort_id))
-            })?;
         let agent = self.get_session_agent(session_id).await?;
         agent
-            .update_thinking_effort(session_id, effort)
+            .update_thinking_effort(session_id, effort_id)
             .await
-            .internal_err_ctx("Failed to update thinking effort")?;
+            .invalid_params_err_ctx("Failed to update thinking effort")?;
 
         Ok(())
     }
