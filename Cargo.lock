@@ -4950,6 +4950,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-compaction",
  "goose-download-manager",
  "goose-mcp",
  "goose-providers",
@@ -5110,6 +5111,22 @@ dependencies = [
  "webbrowser",
  "winapi",
  "zip 8.6.0",
+]
+
+[[package]]
+name = "goose-compaction"
+version = "0.1.0-alpha.5"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "goose-provider-types",
+ "indoc",
+ "minijinja",
+ "rmcp 3.0.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

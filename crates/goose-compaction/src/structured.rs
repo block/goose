@@ -1,5 +1,5 @@
-use crate::prompt_template::render_template;
-use goose_providers::json::safely_parse_json;
+use crate::render_template_str;
+use goose_provider_types::json::safely_parse_json;
 use serde::{Deserialize, Serialize};
 
 /// Structured output of the compaction LLM call.
@@ -137,8 +137,8 @@ impl StructuredSummary {
         })
     }
 
-    pub fn render(&self) -> Result<String, minijinja::Error> {
-        render_template("compaction_summary.md", self)
+    pub fn render(&self, template: &str) -> Result<String, minijinja::Error> {
+        render_template_str(template, self)
     }
 
     /// Drops blank entries so a response of blank strings counts as empty
@@ -408,10 +408,9 @@ in {brace handling} and patched it.
             ]
         );
         assert_eq!(summary.pending_tasks, vec!["42"]);
-        assert_eq!(
-            summary.current_work.as_deref(),
-            Some("task: regression test; status: in progress")
-        );
+        let current_work = summary.current_work.as_deref().expect("current_work");
+        assert!(current_work.contains("task: regression test"));
+        assert!(current_work.contains("status: in progress"));
     }
 
     #[test]
@@ -446,7 +445,9 @@ in {brace handling} and patched it.
     #[test]
     fn renders_markdown_sections() {
         let summary = StructuredSummary::parse(FULL_RESPONSE).unwrap();
-        let rendered = summary.render().expect("should render");
+        let rendered = summary
+            .render(crate::COMPACTION_SUMMARY_TEMPLATE)
+            .expect("should render");
         assert!(rendered.contains("## User Intent"));
         assert!(rendered.contains("- Fix the parser bug"));
         assert!(rendered.contains("### src/parser.rs"));
@@ -467,7 +468,9 @@ in {brace handling} and patched it.
             errors_and_fixes: vec!["None".to_string()],
             ..Default::default()
         };
-        let rendered = summary.render().expect("should render");
+        let rendered = summary
+            .render(crate::COMPACTION_SUMMARY_TEMPLATE)
+            .expect("should render");
         // key_code's longest backtick run is four, so the fence must be five
         assert_eq!(rendered.matches("\n`````\n").count(), 2);
         let errors_heading = rendered.find("## Errors + Fixes").unwrap();

@@ -1,0 +1,26 @@
+[package]
+name = "goose-compaction"
+version = "0.1.0-alpha.5"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+goose-provider-types = { version = "0.1.0-alpha.5", path = "../goose-provider-types", default-features = false }
+indoc = { workspace = true }
+minijinja = { version = "2.18", default-features = false, features = ["serde"] }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

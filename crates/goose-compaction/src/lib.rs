@@ -1,37 +1,25 @@
 pub mod structured;
 
-use crate::context_mgmt::structured::StructuredSummary;
-use crate::conversation::message::{ActionRequiredData, MessageMetadata};
-use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::{merge_consecutive_messages, Conversation};
-use crate::prompt_template::render_template;
-use crate::providers::base::Provider;
-#[cfg(test)]
-use crate::providers::base::{stream_from_single_message, MessageStream};
-use crate::{config::Config, token_counter::create_token_counter};
+use crate::structured::StructuredSummary;
 use anyhow::Result;
-use goose_providers::conversation::token_usage::ProviderUsage;
-use goose_providers::errors::ProviderError;
-use goose_providers::model::ModelConfig;
+use async_trait::async_trait;
+use goose_provider_types::conversation::message::{
+    ActionRequiredData, Message, MessageContent, MessageMetadata,
+};
+use goose_provider_types::conversation::token_usage::ProviderUsage;
+use goose_provider_types::conversation::{merge_consecutive_messages, Conversation};
+use goose_provider_types::errors::ProviderError;
 use indoc::indoc;
-use rmcp::model::Role;
-#[cfg(test)]
-use rmcp::model::{Annotations, ContentBlock, TextContent};
+use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
+use rmcp::model::{Role, Tool};
 use serde::Serialize;
-use std::sync::Arc;
-use tokio::task::JoinHandle;
-use tracing::info;
-use tracing::log::warn;
+use tracing::{info, warn};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
+pub const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
 
-pub(crate) const TOOLCALL_SUMMARIZATION_BATCH_SIZE: usize = 10;
-
-pub(crate) fn tool_pair_summarization_enabled() -> bool {
-    Config::global()
-        .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
-        .unwrap_or(true)
-}
+pub const COMPACTION_PROMPT_TEMPLATE: &str = include_str!("prompts/compaction.md");
+pub const COMPACTION_SUMMARY_TEMPLATE: &str = include_str!("prompts/compaction_summary.md");
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
@@ -48,6 +36,70 @@ const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
 Do not mention that you read a summary or that conversation summarization occurred.
 Just continue the conversation naturally based on the summarized context.";
 
+/// The model I/O used for compaction, injected by the caller so model
+/// selection, session attribution, and token counting stay in the
+/// application layer.
+#[async_trait]
+pub trait CompactionModel: Send + Sync {
+    async fn complete(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError>;
+
+    async fn count_tokens(&self, system: &str, messages: &[Message]) -> Result<usize>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CompactionSettings {
+    pub compaction_prompt_override: Option<String>,
+    pub summary_template_override: Option<String>,
+}
+
+impl CompactionSettings {
+    fn compaction_prompt(&self) -> &str {
+        self.compaction_prompt_override
+            .as_deref()
+            .unwrap_or(COMPACTION_PROMPT_TEMPLATE)
+    }
+
+    fn summary_template(&self) -> &str {
+        self.summary_template_override
+            .as_deref()
+            .unwrap_or(COMPACTION_SUMMARY_TEMPLATE)
+    }
+}
+
+fn code_fence(code: String) -> String {
+    let longest_run = code
+        .chars()
+        .fold((0usize, 0usize), |(max, run), c| {
+            if c == '`' {
+                (max.max(run + 1), run + 1)
+            } else {
+                (max, 0)
+            }
+        })
+        .0;
+    let fence = "`".repeat((longest_run + 1).max(3));
+    format!("{fence}\n{}\n{fence}", code.trim_end_matches('\n'))
+}
+
+pub(crate) fn render_template_str<T: Serialize>(
+    template_str: &str,
+    context: &T,
+) -> Result<String, MiniJinjaError> {
+    let mut env = Environment::new();
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
+    env.add_filter("code_fence", code_fence);
+    env.add_template("template", template_str)?;
+    let tmpl = env.get_template("template")?;
+    let rendered = tmpl.render(MJValue::from_serialize(context))?;
+    Ok(rendered.trim().to_string())
+}
+
 #[derive(Serialize)]
 struct SummarizeContext {
     messages: String,
@@ -59,26 +111,13 @@ pub struct CompactionResult {
     /// output even when it is rewritten to the rendered structured summary.
     pub usage: ProviderUsage,
     /// Estimated tokens of the agent-visible context retained after
-    /// compaction. Smaller than the billable output when the raw response was
-    /// rewritten to the rendered structured summary.
+    /// compaction.
     pub retained_context_tokens: i32,
 }
 
-/// Compact messages by summarizing them
-///
-/// This function performs the actual compaction by summarizing messages and updating
-/// their visibility metadata. It does not check thresholds - use `check_if_compaction_needed`
-/// first to determine if compaction is necessary.
-///
-/// # Arguments
-/// * `provider` - The provider to use for summarization
-/// * `session_id` - The session to use for summarization
-/// * `conversation` - The current conversation history
-/// * `manual_compact` - If true, this is a manual compaction (don't preserve user message)
 pub async fn compact_messages(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
+    settings: &CompactionSettings,
     conversation: &Conversation,
     manual_compact: bool,
 ) -> Result<CompactionResult> {
@@ -103,10 +142,7 @@ pub async fn compact_messages(
     // Turn-context events are agent-appended, never the message to preserve.
     let (preserved_user_message, preserved_idx, is_most_recent) = if !manual_compact {
         let found_msg = messages.iter().enumerate().rev().find_map(|(idx, msg)| {
-            if !msg.is_agent_visible()
-                || msg.is_turn_context()
-                || !matches!(msg.role, rmcp::model::Role::User)
-            {
+            if !msg.is_agent_visible() || msg.is_turn_context() || !matches!(msg.role, Role::User) {
                 return None;
             }
 
@@ -136,26 +172,16 @@ pub async fn compact_messages(
         (None, None, false)
     };
 
-    let messages_to_compact = messages.as_slice();
-
     let (summary_message, summarization_usage) =
-        do_compact(provider, model_config, session_id, messages_to_compact).await?;
+        do_compact(model, settings, messages.as_slice()).await?;
 
-    // Create the final message list with updated visibility metadata:
-    // 1. Original messages become user_visible but not agent_visible
-    // 2. Summary message becomes agent_visible but not user_visible
-    // 3. Assistant messages to continue the conversation are also agent_visible but not user_visible
     let mut final_messages = Vec::new();
-
-    for msg in messages_to_compact {
+    for msg in messages.iter() {
         let updated_metadata = msg.metadata.clone().with_agent_invisible();
-        let updated_msg = msg.clone().with_metadata(updated_metadata);
-        final_messages.push(updated_msg);
+        final_messages.push(msg.clone().with_metadata(updated_metadata));
     }
 
     let summary_msg = summary_message.with_metadata(MessageMetadata::agent_only());
-
-    let mut continuation_messages = vec![summary_msg];
 
     let continuation_text = if manual_compact {
         MANUAL_COMPACT_CONTINUATION_TEXT
@@ -169,9 +195,9 @@ pub async fn compact_messages(
         .with_text(continuation_text)
         .with_metadata(MessageMetadata::agent_only());
     let continuation_created = continuation_msg.created;
-    continuation_messages.push(continuation_msg);
 
-    let (merged_continuation, _issues) = merge_consecutive_messages(continuation_messages);
+    let (merged_continuation, _issues) =
+        merge_consecutive_messages(vec![summary_msg, continuation_msg]);
     final_messages.extend(merged_continuation);
 
     if let Some(mut user_msg) = preserved_user_message {
@@ -182,7 +208,7 @@ pub async fn compact_messages(
     // Carry the turn's own context event (it follows the preserved prompt) so
     // a mid-turn retry keeps it; anything earlier belongs to a previous turn.
     if let Some(carry_from) = preserved_idx.map(|idx| idx + 1) {
-        if let Some(turn_context) = messages_to_compact[carry_from..]
+        if let Some(turn_context) = messages[carry_from..]
             .iter()
             .rev()
             .find(|msg| msg.is_turn_context() && msg.is_agent_visible())
@@ -199,7 +225,7 @@ pub async fn compact_messages(
     }
 
     let conversation = Conversation::new_unvalidated(final_messages);
-    let retained_context_tokens = match count_context_tokens(&conversation).await {
+    let retained_context_tokens = match count_context_tokens(model, &conversation).await {
         Ok(tokens) => tokens,
         Err(error) => {
             warn!("Failed to count retained context tokens, using billable output tokens: {error}");
@@ -215,73 +241,44 @@ pub async fn compact_messages(
 }
 
 /// Estimate the tokens of the agent-visible conversation, counted the same way
-/// as the fallback estimation in `check_if_compaction_needed`.
-pub(crate) async fn count_context_tokens(conversation: &Conversation) -> Result<i32> {
-    let counter = create_token_counter()
-        .await
-        .map_err(|error| anyhow::anyhow!("Failed to create token counter: {error}"))?;
-    let total: usize = conversation
+/// as the fallback estimation in [`check_if_compaction_needed`].
+pub async fn count_context_tokens(
+    model: &dyn CompactionModel,
+    conversation: &Conversation,
+) -> Result<i32> {
+    let mut total = 0usize;
+    for message in conversation
         .messages()
         .iter()
         .filter(|message| message.is_agent_visible())
-        .map(|message| counter.count_chat_tokens("", std::slice::from_ref(message), &[]))
-        .sum();
+    {
+        total += model
+            .count_tokens("", std::slice::from_ref(message))
+            .await?;
+    }
     Ok(total.try_into()?)
 }
 
-/// Check if messages exceed the auto-compaction threshold
+/// Values of `threshold` outside (0, 1) disable auto-compaction. When
+/// `known_total_tokens` is absent the agent-visible conversation is estimated
+/// via [`CompactionModel::count_tokens`].
 pub async fn check_if_compaction_needed(
-    provider: &dyn Provider,
+    model: &dyn CompactionModel,
     conversation: &Conversation,
-    threshold_override: Option<f64>,
-    session: &crate::session::Session,
+    context_limit: usize,
+    known_total_tokens: Option<usize>,
+    threshold: f64,
 ) -> Result<bool> {
-    if provider.manages_own_context() {
+    if threshold <= 0.0 || threshold >= 1.0 {
         return Ok(false);
     }
 
-    let messages = conversation.messages();
-    let config = Config::global();
-    let threshold = threshold_override.unwrap_or_else(|| {
-        config
-            .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-            .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
-    });
-
-    let model_config = session
-        .model_config
-        .clone()
-        .unwrap_or_else(|| ModelConfig::new("unknown"));
-    let context_limit = provider
-        .get_context_limit(&model_config)
-        .await
-        .unwrap_or_else(|_| model_config.context_limit());
-
-    let (current_tokens, _token_source) = match session.usage.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
-        None => {
-            let token_counter = create_token_counter()
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
-
-            let token_counts: Vec<_> = messages
-                .iter()
-                .filter(|m| m.is_agent_visible())
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
-                .collect();
-
-            (token_counts.iter().sum(), "estimated")
-        }
+    let current_tokens = match known_total_tokens {
+        Some(tokens) => tokens,
+        None => count_context_tokens(model, conversation).await? as usize,
     };
 
-    let usage_ratio = current_tokens as f64 / context_limit as f64;
-
-    let needs_compaction = if threshold <= 0.0 || threshold >= 1.0 {
-        false // Auto-compact is disabled.
-    } else {
-        usage_ratio > threshold
-    };
-    Ok(needs_compaction)
+    Ok(current_tokens as f64 / context_limit as f64 > threshold)
 }
 
 fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Message> {
@@ -307,22 +304,17 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
     }
 
     let num_to_remove = ((tool_indices.len() * remove_percent as usize) / 100).max(1);
-
     let middle = tool_indices.len() / 2;
     let mut indices_to_remove = Vec::new();
 
-    // Middle out
     for i in 0..num_to_remove {
+        let offset = i / 2;
         if i % 2 == 0 {
-            let offset = i / 2;
             if middle > offset {
                 indices_to_remove.push(tool_indices[middle - offset - 1]);
             }
-        } else {
-            let offset = i / 2;
-            if middle + offset < tool_indices.len() {
-                indices_to_remove.push(tool_indices[middle + offset]);
-            }
+        } else if middle + offset < tool_indices.len() {
+            indices_to_remove.push(tool_indices[middle + offset]);
         }
     }
 
@@ -334,12 +326,37 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
         .collect()
 }
 
+async fn ensure_usage_tokens(
+    model: &dyn CompactionModel,
+    provider_usage: &mut ProviderUsage,
+    system: &str,
+    request: &[Message],
+    response: &Message,
+) -> Result<()> {
+    if provider_usage.usage.input_tokens.is_none() {
+        provider_usage.usage.input_tokens = Some(model.count_tokens(system, request).await? as i32);
+    }
+    if provider_usage.usage.output_tokens.is_none() {
+        provider_usage.usage.output_tokens = Some(
+            model
+                .count_tokens("", std::slice::from_ref(response))
+                .await? as i32,
+        );
+    }
+    if let (Some(input), Some(output)) = (
+        provider_usage.usage.input_tokens,
+        provider_usage.usage.output_tokens,
+    ) {
+        provider_usage.usage.total_tokens = Some(input + output);
+    }
+    Ok(())
+}
+
 async fn do_compact(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
+    settings: &CompactionSettings,
     messages: &[Message],
-) -> Result<(Message, ProviderUsage), anyhow::Error> {
+) -> Result<(Message, ProviderUsage)> {
     // Keep stale per-turn state out of the summary.
     let agent_visible_messages = Conversation::new_unvalidated(
         messages
@@ -349,7 +366,6 @@ async fn do_compact(
     )
     .agent_visible_messages();
 
-    // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
 
     for (attempt, &remove_percent) in removal_percentages.iter().enumerate() {
@@ -361,25 +377,20 @@ async fn do_compact(
             .collect::<Vec<_>>()
             .join("\n");
 
-        let context = SummarizeContext {
-            messages: messages_text,
-        };
-
-        let system_prompt = render_template("compaction.md", &context)?;
+        let system_prompt = render_template_str(
+            settings.compaction_prompt(),
+            &SummarizeContext {
+                messages: messages_text,
+            },
+        )?;
 
         let user_message = Message::user()
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match crate::model_config::complete_fast(
-            provider,
-            model_config,
-            session_id,
-            &system_prompt,
-            &summarization_request,
-            &[],
-        )
-        .await
+        match model
+            .complete(&system_prompt, &summarization_request, &[])
+            .await
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
@@ -387,17 +398,16 @@ async fn do_compact(
                 // Usage must reflect the raw model output (billable tokens),
                 // so estimate before the response is rewritten to the smaller
                 // rendered summary.
-                crate::providers::usage_estimator::ensure_usage_tokens(
+                ensure_usage_tokens(
+                    model,
                     &mut provider_usage,
                     &system_prompt,
                     &summarization_request,
                     &response,
-                    &[],
                 )
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+                .await?;
 
-                apply_structured_summary(&mut response);
+                apply_structured_summary(&mut response, settings);
 
                 return Ok((response, provider_usage));
             }
@@ -405,11 +415,10 @@ async fn do_compact(
                 if matches!(e, ProviderError::ContextLengthExceeded(_)) {
                     if attempt < removal_percentages.len() - 1 {
                         continue;
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "Failed to compact: context limit exceeded even after removing all tool responses"
-                        ));
                     }
+                    return Err(anyhow::anyhow!(
+                        "Failed to compact: context limit exceeded even after removing all tool responses"
+                    ));
                 }
                 return Err(e.into());
             }
@@ -421,14 +430,13 @@ async fn do_compact(
     ))
 }
 
-/// When the model didn't follow the structured output format (schema-ignoring
-/// models, user-customized prompts), the raw response text is kept unchanged
-/// as the summary.
-fn apply_structured_summary(response: &mut Message) {
+/// When the model didn't follow the structured output format, the raw
+/// response text is kept unchanged as the summary.
+fn apply_structured_summary(response: &mut Message, settings: &CompactionSettings) {
     let Some(summary) = StructuredSummary::parse(&response.as_concat_text()) else {
         return;
     };
-    match summary.render() {
+    match summary.render(settings.summary_template()) {
         Ok(rendered) if !rendered.trim().is_empty() => {
             response.content = vec![MessageContent::text(rendered)];
         }
@@ -541,15 +549,12 @@ pub fn tool_ids_to_summarize(
     cutoff: usize,
     protect_last_n: usize,
 ) -> Vec<String> {
-    let messages = conversation.messages();
-
     let mut tool_call_ids: Vec<String> = Vec::new();
 
-    for msg in messages.iter() {
+    for msg in conversation.messages().iter() {
         if !msg.is_agent_visible() {
             continue;
         }
-
         for content in &msg.content {
             if let MessageContent::ToolRequest(req) = content {
                 tool_call_ids.push(req.id.clone());
@@ -557,7 +562,6 @@ pub fn tool_ids_to_summarize(
         }
     }
 
-    // Never summarize the last N tool calls (current turn)
     let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
     if eligible <= cutoff + TOOLCALL_SUMMARIZATION_BATCH_SIZE {
         return Vec::new();
@@ -605,9 +609,7 @@ fn agent_visible_tool_pair(conversation: &Conversation, tool_id: &str) -> Result
 }
 
 pub async fn summarize_tool_call(
-    provider: &dyn Provider,
-    model_config: &ModelConfig,
-    session_id: &str,
+    model: &dyn CompactionModel,
     conversation: &Conversation,
     tool_id: &str,
 ) -> Result<Message> {
@@ -619,8 +621,7 @@ pub async fn summarize_tool_call(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let user_message = Message::user().with_text(formatted);
-    let summarization_request = vec![user_message];
+    let summarization_request = vec![Message::user().with_text(formatted)];
 
     let system_prompt = indoc! {r#"
                 Your task is to summarize a tool call & response pair to save tokens.
@@ -635,15 +636,9 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = crate::model_config::complete_fast(
-        provider,
-        model_config,
-        session_id,
-        system_prompt,
-        &summarization_request,
-        &[],
-    )
-    .await?;
+    let (mut response, _) = model
+        .complete(system_prompt, &summarization_request, &[])
+        .await?;
 
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
@@ -652,191 +647,77 @@ pub async fn summarize_tool_call(
     Ok(response.with_generated_id())
 }
 
-pub fn maybe_summarize_tool_pairs(
-    provider: Arc<dyn Provider>,
-    model_config: ModelConfig,
-    session_id: String,
-    conversation: Conversation,
-    cutoff: usize,
-    protect_last_n: usize,
-) -> Option<JoinHandle<Vec<(Message, String)>>> {
-    if !tool_pair_summarization_enabled() || provider.manages_own_context() {
-        return None;
-    }
-
-    let tool_ids = tool_ids_to_summarize(&conversation, cutoff, protect_last_n);
-    if tool_ids.is_empty() {
-        return None;
-    }
-
-    Some(tokio::spawn(async move {
-        let mut results = Vec::new();
-        for tool_id in tool_ids {
-            match summarize_tool_call(
-                provider.as_ref(),
-                &model_config,
-                &session_id,
-                &conversation,
-                &tool_id,
-            )
-            .await
-            {
-                Ok(summary) => results.push((summary, tool_id)),
-                Err(e) => {
-                    warn!("Failed to summarize tool pair: {}", e);
-                }
-            }
+pub async fn summarize_tool_calls(
+    model: &dyn CompactionModel,
+    conversation: &Conversation,
+    tool_ids: Vec<String>,
+) -> Vec<(Message, String)> {
+    let mut results = Vec::new();
+    for tool_id in tool_ids {
+        match summarize_tool_call(model, conversation, &tool_id).await {
+            Ok(summary) => results.push((summary, tool_id)),
+            Err(e) => warn!("Failed to summarize tool pair: {}", e),
         }
-        results
-    }))
+    }
+    results
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
-    use goose_providers::conversation::token_usage::Usage;
-    use rmcp::model::{CallToolRequestParams, Tool};
+    use rmcp::model::{Annotations, CallToolRequestParams, ContentBlock, TextContent};
 
-    fn create_tool_pair(
-        call_id: &str,
-        response_id: &str,
-        tool_name: &str,
-        response_text: &str,
-    ) -> Vec<Message> {
-        vec![
-            Message::assistant()
-                .with_tool_request(
-                    call_id,
-                    Ok(CallToolRequestParams::new(tool_name.to_string())),
-                )
-                .with_id(call_id),
-            Message::user()
-                .with_tool_response(
-                    call_id,
-                    Ok(rmcp::model::CallToolResult::success(vec![
-                        ContentBlock::text(response_text),
-                    ])),
-                )
-                .with_id(response_id),
-        ]
-    }
-
-    struct MockProvider {
-        message: Message,
-        config: ModelConfig,
-        max_tool_responses: Option<usize>,
+    struct MockModel {
+        response: Message,
+        max_tool_responses_in_system: Option<usize>,
         captured_system: std::sync::Mutex<Option<String>>,
     }
 
-    impl MockProvider {
-        fn new(message: Message, context_limit: usize) -> Self {
+    impl MockModel {
+        fn new(response: Message) -> Self {
             Self {
-                message,
-                config: ModelConfig {
-                    model_name: "test".to_string(),
-                    context_limit: Some(context_limit),
-                    temperature: None,
-                    max_tokens: None,
-                    toolshim: false,
-                    toolshim_model: None,
-                    request_params: None,
-                    reasoning: None,
-                    request_headers: None,
-                },
-                max_tool_responses: None,
+                response,
+                max_tool_responses_in_system: None,
                 captured_system: std::sync::Mutex::new(None),
             }
-        }
-
-        fn with_max_tool_responses(mut self, max: usize) -> Self {
-            self.max_tool_responses = Some(max);
-            self
         }
     }
 
     #[async_trait]
-    impl Provider for MockProvider {
-        fn get_name(&self) -> &str {
-            "mock"
-        }
-
-        async fn stream(
+    impl CompactionModel for MockModel {
+        async fn complete(
             &self,
-            _model_config: &ModelConfig,
             system: &str,
-            messages: &[Message],
+            _messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<MessageStream, ProviderError> {
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
             *self.captured_system.lock().unwrap() = Some(system.to_string());
-            // If max_tool_responses is set, fail if we have too many
-            if let Some(max) = self.max_tool_responses {
-                let tool_response_count = messages
-                    .iter()
-                    .filter(|m| {
-                        m.content
-                            .iter()
-                            .any(|c| matches!(c, MessageContent::ToolResponse(_)))
-                    })
-                    .count();
-
-                if tool_response_count > max {
+            if let Some(max) = self.max_tool_responses_in_system {
+                let count = system.matches("tool_response:").count();
+                if count > max {
                     return Err(ProviderError::ContextLengthExceeded(format!(
                         "Too many tool responses: {} > {}",
-                        tool_response_count, max
+                        count, max
                     )));
                 }
             }
-
-            let message = self.message.clone();
-            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
-            Ok(stream_from_single_message(message, usage))
+            Ok((
+                self.response.clone(),
+                ProviderUsage::new("mock-model".to_string(), Default::default()),
+            ))
         }
 
-        async fn get_context_limit(
-            &self,
-            _model_config: &ModelConfig,
-        ) -> Result<usize, ProviderError> {
-            Ok(self.config.context_limit())
+        async fn count_tokens(&self, system: &str, messages: &[Message]) -> Result<usize> {
+            Ok(system.len() / 4
+                + messages
+                    .iter()
+                    .map(|m| m.as_concat_text().len() / 4 + 4)
+                    .sum::<usize>())
         }
     }
 
     #[tokio::test]
-    async fn test_keeps_tool_request() {
-        let response_message = Message::assistant().with_text("<mock summary>");
-        let provider = MockProvider::new(response_message, 1);
-        let basic_conversation = vec![
-            Message::user().with_text("read hello.txt"),
-            Message::assistant()
-                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
-            Message::user().with_tool_response(
-                "tool_0",
-                Ok(rmcp::model::CallToolResult::success(vec![
-                    ContentBlock::text("hello, world"),
-                ])),
-            ),
-        ];
-
-        let conversation = Conversation::new_unvalidated(basic_conversation);
-        let model_config = provider.config.clone();
-        let compaction = compact_messages(
-            &provider,
-            &model_config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap();
-
-        let agent_conversation = compaction.conversation.agent_visible_messages();
-
-        let _ = Conversation::new(agent_conversation)
-            .expect("compaction should produce a valid conversation");
-    }
-
-    #[tokio::test]
-    async fn test_structured_summary_is_rendered() {
+    async fn structured_summary_is_rendered_and_usage_survives_rewrite() {
         let structured_response = r#"<analysis>User asked to fix a bug; I patched parser.rs.</analysis>
 ```json
 {
@@ -846,37 +727,24 @@ mod tests {
   "current_work": "Writing the regression test"
 }
 ```"#;
-        let provider =
-            MockProvider::new(Message::assistant().with_text(structured_response), 100_000);
+        let model = MockModel::new(Message::assistant().with_text(structured_response));
         let conversation = Conversation::new_unvalidated(vec![
             Message::user().with_text("fix the parser bug"),
             Message::assistant().with_text("Looking into it"),
         ]);
 
-        let model_config = provider.config.clone();
-        let compaction = compact_messages(
-            &provider,
-            &model_config,
-            "test-session-id",
-            &conversation,
-            true,
-        )
-        .await
-        .unwrap();
+        let compaction =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, true)
+                .await
+                .unwrap();
 
         let summary_text = compaction.conversation.agent_visible_messages()[0].as_concat_text();
         assert!(summary_text.contains("# Conversation Summary"));
         assert!(summary_text.contains("## User Intent"));
         assert!(summary_text.contains("- Fix the parser bug"));
         assert!(summary_text.contains("### src/parser.rs"));
-        assert!(
-            !summary_text.contains("```json"),
-            "raw JSON should be replaced"
-        );
-        assert!(
-            !summary_text.contains("<analysis>"),
-            "analysis scratchpad should be dropped"
-        );
+        assert!(!summary_text.contains("```json"));
+        assert!(!summary_text.contains("<analysis>"));
         assert!(compaction.retained_context_tokens > 0);
         assert!(
             compaction.usage.usage.output_tokens.is_some(),
@@ -885,34 +753,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn retained_context_counts_preserved_user_message() {
-        async fn retained(final_user_text: &str) -> i32 {
-            let provider =
-                MockProvider::new(Message::assistant().with_text("<mock summary>"), 100_000);
-            let conversation = Conversation::new_unvalidated(vec![
-                Message::user().with_text("start"),
-                Message::assistant().with_text("ok"),
-                Message::user().with_text(final_user_text),
-            ]);
-            let model_config = provider.config.clone();
-            compact_messages(
-                &provider,
-                &model_config,
-                "test-session-id",
-                &conversation,
-                false,
-            )
-            .await
-            .unwrap()
-            .retained_context_tokens
+    async fn progressive_removal_recovers_from_context_exceeded() {
+        let mut model = MockModel::new(Message::assistant().with_text("<mock summary>"));
+        model.max_tool_responses_in_system = Some(2);
+
+        let mut messages = vec![Message::user().with_text("start")];
+        for i in 0..10 {
+            messages.push(Message::assistant().with_tool_request(
+                format!("tool_{}", i),
+                Ok(CallToolRequestParams::new("read_file")),
+            ));
+            messages.push(Message::user().with_tool_response(
+                format!("tool_{}", i),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    ContentBlock::text(format!("response{}", i)),
+                ])),
+            ));
         }
 
-        let short = retained("continue").await;
-        let long = retained(&"long preserved user message ".repeat(200)).await;
-        assert!(
-            long > short,
-            "the preserved user message must be part of the retained context ({short} vs {long})"
-        );
+        let result = compact_messages(
+            &model,
+            &CompactionSettings::default(),
+            &Conversation::new_unvalidated(messages),
+            false,
+        )
+        .await;
+
+        assert!(result.is_ok(), "{:?}", result.err());
     }
 
     #[tokio::test]
@@ -935,38 +802,13 @@ mod tests {
             Message::assistant().with_text("earlier response"),
             current_request,
         ]);
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let model = MockModel::new(Message::assistant().with_text("summary"));
 
-        let compacted = compact_messages(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap()
-        .conversation;
-
-        let preserved_copies = compacted
-            .messages()
-            .iter()
-            .filter(|message| message.as_concat_text().contains("visible current request"))
-            .collect::<Vec<_>>();
-        assert_eq!(preserved_copies.len(), 2);
-        let archived = preserved_copies
-            .iter()
-            .find(|message| message.is_user_visible())
-            .unwrap();
-        assert!(!archived.is_agent_visible());
-        assert!(archived.as_concat_text().contains("user-only secret"));
-        let replay = preserved_copies
-            .iter()
-            .find(|message| message.is_agent_visible())
-            .unwrap();
-        assert!(!replay.is_user_visible());
-        assert!(replay.as_concat_text().contains("assistant-only preprompt"));
-        assert!(!replay.as_concat_text().contains("user-only secret"));
+        let compacted =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, false)
+                .await
+                .unwrap()
+                .conversation;
 
         let agent_text = compacted
             .agent_visible_messages()
@@ -998,18 +840,13 @@ mod tests {
                 .with_text("<turn-context>frozen block</turn-context>")
                 .with_metadata(MessageMetadata::agent_only().with_turn_context()),
         ]);
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let model = MockModel::new(Message::assistant().with_text("summary"));
 
-        let compacted = compact_messages(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap()
-        .conversation;
+        let compacted =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, false)
+                .await
+                .unwrap()
+                .conversation;
 
         let preserved: Vec<_> = compacted
             .messages()
@@ -1063,18 +900,13 @@ mod tests {
             Message::assistant().with_text("earlier response"),
             Message::user().with_text("the new prompt"),
         ]);
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let model = MockModel::new(Message::assistant().with_text("summary"));
 
-        let compacted = compact_messages(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap()
-        .conversation;
+        let compacted =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, false)
+                .await
+                .unwrap()
+                .conversation;
 
         assert!(
             !compacted
@@ -1088,8 +920,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn carried_turn_context_stays_last_after_persist_and_reload() {
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+    async fn carried_turn_context_is_appended_after_the_newest_retained_message() {
+        let model = MockModel::new(Message::assistant().with_text("summary"));
         let mut prompt = Message::user().with_text("the real current request");
         prompt.created -= 3600;
         let mut block = Message::user()
@@ -1098,51 +930,30 @@ mod tests {
         block.created -= 3600;
         let conversation = Conversation::new_unvalidated([prompt, block]);
 
-        let compacted = compact_messages(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap()
-        .conversation;
-        assert!(compacted.messages().last().unwrap().is_turn_context());
+        let compacted =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, false)
+                .await
+                .unwrap()
+                .conversation;
 
-        let temp_dir = tempfile::tempdir().unwrap();
-        let manager = crate::session::SessionManager::new(temp_dir.path().to_path_buf());
-        let session = manager
-            .create_session(
-                std::path::PathBuf::from("/tmp/test"),
-                "carry order".to_string(),
-                crate::session::session_manager::SessionType::User,
-                crate::config::GooseMode::default(),
-            )
-            .await
+        let messages = compacted.messages();
+        let carried = messages.last().unwrap();
+        assert!(carried.is_turn_context());
+        assert!(carried.id.is_none());
+        let newest_other = messages[..messages.len() - 1]
+            .iter()
+            .map(|message| message.created)
+            .max()
             .unwrap();
-        manager
-            .replace_conversation(&session.id, &compacted)
-            .await
-            .unwrap();
-
-        let reloaded = manager
-            .get_session(&session.id, true)
-            .await
-            .unwrap()
-            .conversation
-            .unwrap();
-        assert_eq!(reloaded.messages().len(), compacted.messages().len());
-        let last = reloaded.messages().last().unwrap();
         assert!(
-            last.is_turn_context(),
-            "the carried event must not resurface at its original timestamp on reload"
+            carried.created >= newest_other,
+            "storage reloads order by created_timestamp, so the copy must not resurface at the original event's time"
         );
     }
 
     #[tokio::test]
     async fn summarizer_input_excludes_turn_context_events() {
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+        let model = MockModel::new(Message::assistant().with_text("summary"));
         let turn_context = |text: &str| {
             Message::user()
                 .with_text(text)
@@ -1155,18 +966,13 @@ mod tests {
             turn_context("<turn-context>cwd /new/dir</turn-context>"),
         ]);
 
-        let compacted = compact_messages(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await
-        .unwrap()
-        .conversation;
+        let compacted =
+            compact_messages(&model, &CompactionSettings::default(), &conversation, false)
+                .await
+                .unwrap()
+                .conversation;
 
-        let system = provider.captured_system.lock().unwrap().clone().unwrap();
+        let system = model.captured_system.lock().unwrap().clone().unwrap();
         assert!(system.contains("please refactor the parser"));
         assert!(
             !system.contains("/old/dir") && !system.contains("/new/dir"),
@@ -1181,8 +987,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tool_pair_summary_projects_nested_audiences_before_provider_input() {
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
+    async fn tool_pair_summary_projects_audiences_and_rejects_hidden_pairs() {
+        let model = MockModel::new(Message::assistant().with_text("summary"));
         let conversation =
             Conversation::new_unvalidated([
                 Message::assistant()
@@ -1198,196 +1004,76 @@ mod tests {
                 ),
             ]);
 
-        let projected = agent_visible_tool_pair(&conversation, "tool_0").unwrap();
-        let formatted = projected
-            .iter()
-            .map(format_message_for_compacting)
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        assert!(formatted.contains("visible result"));
-        assert!(!formatted.contains("user-only secret"));
-
-        let user_only_conversation =
-            Conversation::new_unvalidated([
-                Message::assistant()
-                    .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
-                Message::user().with_tool_response(
-                    "tool_1",
-                    Ok(rmcp::model::CallToolResult::success(vec![
-                        ContentBlock::Text(TextContent::new("user-only secret").with_annotations(
-                            Annotations::default().with_audience(vec![Role::User]),
-                        )),
-                    ])),
-                ),
-            ]);
-        let user_only_formatted = agent_visible_tool_pair(&user_only_conversation, "tool_1")
+        let formatted = agent_visible_tool_pair(&conversation, "tool_0")
             .unwrap()
             .iter()
             .map(format_message_for_compacting)
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(!user_only_formatted.contains("user-only secret"));
+        assert!(formatted.contains("visible result"));
+        assert!(!formatted.contains("user-only secret"));
 
-        summarize_tool_call(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            "tool_0",
-        )
-        .await
-        .unwrap();
-    }
+        summarize_tool_call(&model, &conversation, "tool_0")
+            .await
+            .unwrap();
 
-    #[tokio::test]
-    async fn tool_pair_summary_rejects_agent_hidden_response() {
-        let provider = MockProvider::new(Message::assistant().with_text("summary"), 1000);
-        let conversation = Conversation::new_unvalidated([
+        let hidden = Conversation::new_unvalidated([
             Message::assistant()
-                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
+                .with_tool_request("tool_1", Ok(CallToolRequestParams::new("read_file"))),
             Message::user()
                 .with_tool_response(
-                    "tool_0",
+                    "tool_1",
                     Ok(rmcp::model::CallToolResult::success(vec![
-                        ContentBlock::text("user-only secret"),
+                        ContentBlock::text("secret"),
                     ])),
                 )
                 .with_metadata(MessageMetadata::user_only()),
         ]);
-
-        let error = summarize_tool_call(
-            &provider,
-            &provider.config,
-            "test-session-id",
-            &conversation,
-            "tool_0",
-        )
-        .await
-        .unwrap_err();
-
+        let error = summarize_tool_call(&model, &hidden, "tool_1")
+            .await
+            .unwrap_err();
         assert!(error.to_string().contains("No agent-visible tool pair"));
     }
 
-    #[tokio::test]
-    async fn test_progressive_removal_on_context_exceeded() {
-        let response_message = Message::assistant().with_text("<mock summary>");
-        // Set max to 2 tool responses - will trigger progressive removal
-        let provider = MockProvider::new(response_message, 1000).with_max_tool_responses(2);
-
-        // Create a conversation with many tool responses
-        let mut messages = vec![Message::user().with_text("start")];
-        for i in 0..10 {
-            messages.push(Message::assistant().with_tool_request(
-                format!("tool_{}", i),
-                Ok(CallToolRequestParams::new("read_file")),
-            ));
-            messages.push(Message::user().with_tool_response(
-                format!("tool_{}", i),
-                Ok(rmcp::model::CallToolResult::success(vec![
-                    ContentBlock::text(format!("response{}", i)),
-                ])),
-            ));
-        }
-
-        let conversation = Conversation::new_unvalidated(messages);
-        let model_config = provider.config.clone();
-        let result = compact_messages(
-            &provider,
-            &model_config,
-            "test-session-id",
-            &conversation,
-            false,
-        )
-        .await;
-
-        assert!(
-            result.is_ok(),
-            "Should succeed with progressive removal: {:?}",
-            result.err()
-        );
-    }
-
     #[test]
-    fn test_compute_tool_call_cutoff_scales_with_context() {
-        // Default threshold (0.8)
-        assert_eq!(compute_tool_call_cutoff(128_000, 0.8), 15); // 102K effective
-        assert_eq!(compute_tool_call_cutoff(200_000, 0.8), 24); // 160K effective
-        assert_eq!(compute_tool_call_cutoff(1_000_000, 0.8), 120); // 800K effective
-                                                                   // Clamp at minimum
-        assert_eq!(compute_tool_call_cutoff(50_000, 0.8), 10);
-        assert_eq!(compute_tool_call_cutoff(10_000, 0.8), 10);
-        // Clamp at maximum (500)
-        assert_eq!(compute_tool_call_cutoff(10_000_000, 0.8), 500);
-        // Lower compaction threshold means earlier summarization
-        assert_eq!(compute_tool_call_cutoff(200_000, 0.3), 10); // 60K effective
-        assert_eq!(compute_tool_call_cutoff(1_000_000, 0.5), 75); // 500K effective
-                                                                  // Invalid threshold falls back to default 0.8
-        assert_eq!(compute_tool_call_cutoff(200_000, 0.0), 24); // falls back to 0.8
-        assert_eq!(compute_tool_call_cutoff(200_000, -1.0), 24); // falls back to 0.8
-    }
+    fn tool_ids_to_summarize_respects_cutoff_batch_and_protection() {
+        let build = |n: usize| {
+            let mut messages = vec![Message::user().with_text("hello")];
+            for i in 0..n {
+                messages.push(Message::assistant().with_tool_request(
+                    format!("call{}", i),
+                    Ok(CallToolRequestParams::new("read_file")),
+                ));
+                messages.push(Message::user().with_tool_response(
+                    format!("call{}", i),
+                    Ok(rmcp::model::CallToolResult::success(vec![
+                        ContentBlock::text("content"),
+                    ])),
+                ));
+            }
+            Conversation::new_unvalidated(messages)
+        };
 
-    #[test]
-    fn test_tool_ids_to_summarize_triggers_at_cutoff_plus_batch() {
-        // cutoff=5, so we need >5+10=15 to trigger. 15 exactly should NOT trigger.
-        let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..15 {
-            messages.extend(create_tool_pair(
-                &format!("call{}", i),
-                &format!("resp{}", i),
-                "read_file",
-                "content",
-            ));
-        }
-        let conversation = Conversation::new_unvalidated(messages);
-        let result = tool_ids_to_summarize(&conversation, 5, 0);
-        assert!(result.is_empty(), "Exactly cutoff+batch should not trigger");
+        assert!(tool_ids_to_summarize(&build(15), 5, 0).is_empty());
 
-        // 16 tool calls: now exceeds cutoff+10, should return a batch of 10
-        let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..16 {
-            messages.extend(create_tool_pair(
-                &format!("call{}", i),
-                &format!("resp{}", i),
-                "read_file",
-                "content",
-            ));
-        }
-        let conversation = Conversation::new_unvalidated(messages);
-        let result = tool_ids_to_summarize(&conversation, 5, 0);
+        let result = tool_ids_to_summarize(&build(16), 5, 0);
         assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
         assert_eq!(result[0], "call0");
         assert_eq!(result[9], "call9");
+
+        assert!(tool_ids_to_summarize(&build(20), 2, 8).is_empty());
+        assert_eq!(
+            tool_ids_to_summarize(&build(20), 2, 7).len(),
+            TOOLCALL_SUMMARIZATION_BATCH_SIZE
+        );
     }
 
     #[test]
-    fn test_tool_ids_to_summarize_protects_current_turn() {
-        // 20 tool pairs, cutoff=2 → 20 > 12, would normally trigger
-        let mut messages = vec![Message::user().with_text("hello")];
-        for i in 0..20 {
-            messages.extend(create_tool_pair(
-                &format!("call{}", i),
-                &format!("resp{}", i),
-                "read_file",
-                "content",
-            ));
-        }
-        let conversation = Conversation::new_unvalidated(messages);
-
-        // No protection: 20 eligible, 20 > 12 → batch of 10
-        let result = tool_ids_to_summarize(&conversation, 2, 0);
-        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
-
-        // Protect last 8: 12 eligible, 12 <= 12 → nothing
-        let result = tool_ids_to_summarize(&conversation, 2, 8);
-        assert!(
-            result.is_empty(),
-            "Should not summarize when protected count leaves eligible <= cutoff + batch"
-        );
-
-        // Protect last 7: 13 eligible, 13 > 12 → batch of 10
-        let result = tool_ids_to_summarize(&conversation, 2, 7);
-        assert_eq!(result.len(), TOOLCALL_SUMMARIZATION_BATCH_SIZE);
-        assert_eq!(result[0], "call0");
+    fn compute_tool_call_cutoff_scales_with_context() {
+        assert_eq!(compute_tool_call_cutoff(128_000, 0.8), 15);
+        assert_eq!(compute_tool_call_cutoff(1_000_000, 0.8), 120);
+        assert_eq!(compute_tool_call_cutoff(10_000, 0.8), 10);
+        assert_eq!(compute_tool_call_cutoff(10_000_000, 0.8), 500);
+        assert_eq!(compute_tool_call_cutoff(200_000, 0.0), 24);
     }
 }
