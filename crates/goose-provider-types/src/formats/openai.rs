@@ -3360,7 +3360,7 @@ data: [DONE]"#;
     async fn test_streaming_truncated_inline_think_preserves_output_token_limit(
     ) -> anyhow::Result<()> {
         let response_lines = concat!(
-            "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
+            "data: {\"id\":\"chunk-1\",\"model\":\"test-model\",\"choices\":[{\"delta\":{\"content\":\"<think>unfinished reasoning\"},\"index\":0,\"finish_reason\":null}]}\n",
             "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{},\"index\":0,\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5,\"total_tokens\":15}}\n",
             "data: [DONE]\n"
         );
