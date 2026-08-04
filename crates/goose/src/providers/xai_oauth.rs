@@ -1,13 +1,13 @@
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
-use super::xai::{xai_known_model_info, XAI_API_HOST, XAI_DEFAULT_MODEL};
+use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, xai_known_model_info};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::providers::private_file::write_private_file;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use axum::{extract::Query, response::Html, routing::get, Router};
+use axum::{Router, extract::Query, response::Html, routing::get};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
@@ -20,7 +20,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
-use tokio::sync::{oneshot, Mutex as TokioMutex};
+use tokio::sync::{Mutex as TokioMutex, oneshot};
 
 // Public Grok-CLI OAuth client. xAI's auth server rejects loopback OAuth from
 // non-allowlisted clients, so we reuse the Grok-CLI client_id that xAI ships
@@ -716,6 +716,7 @@ impl Provider for XaiOAuthProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        self.auth_provider.get_valid_token().await?;
         self.inner
             .stream(model_config, system, messages, tools)
             .await
@@ -892,6 +893,36 @@ mod tests {
         };
 
         let error = auth_provider.get_valid_token().await.unwrap_err();
+
+        assert_eq!(error, ProviderError::NotConfigured);
+    }
+
+    #[tokio::test]
+    async fn stream_preserves_not_configured_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_provider = Arc::new(XaiOAuthAuthProvider {
+            cache: TokenCache {
+                cache_path: directory.path().join("missing.json"),
+            },
+            state: XaiAuthState::instance(),
+        });
+        let api_client =
+            ApiClient::new_with_tls("http://127.0.0.1:1".to_string(), AuthMethod::NoAuth, None)
+                .unwrap();
+        let provider = XaiOAuthProvider {
+            inner: OpenAiCompatibleProvider::new(
+                XAI_OAUTH_PROVIDER_NAME.to_string(),
+                api_client,
+                String::new(),
+            ),
+            auth_provider,
+        };
+
+        let error = provider
+            .stream(&ModelConfig::new(XAI_DEFAULT_MODEL), "", &[], &[])
+            .await
+            .err()
+            .unwrap();
 
         assert_eq!(error, ProviderError::NotConfigured);
     }
