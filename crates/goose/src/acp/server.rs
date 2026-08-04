@@ -64,6 +64,7 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
+use goose_providers::errors::ProviderError;
 use rmcp::model::{
     Annotations as RmcpAnnotations, ImageContent as RmcpImageContent, Role,
     TextContent as RmcpTextContent,
@@ -169,6 +170,19 @@ fn agent_creation_error(error: anyhow::Error, context: &str) -> agent_client_pro
     } else {
         agent_client_protocol::Error::internal_error().data(format!("{context}: {error}"))
     }
+}
+
+/// Only a value the client could usefully change is `invalid_params`; everything
+/// else (a dead agent subprocess, a failed persist, a failed provider respawn) is
+/// an operational failure the client cannot fix by picking differently.
+fn thinking_effort_error(error: anyhow::Error) -> agent_client_protocol::Error {
+    let base = match error.downcast_ref::<ProviderError>() {
+        Some(ProviderError::InvalidValue(_)) => agent_client_protocol::Error::invalid_params(),
+        _ => agent_client_protocol::Error::internal_error(),
+    };
+    // `{error:#}` rather than `{error}`: context layering hides the cause chain,
+    // including the variant this mapping branched on.
+    base.data(format!("Failed to update thinking effort: {error:#}"))
 }
 
 pub(super) const DEFAULT_PROVIDER_ID: &str = "goose";
@@ -2211,7 +2225,7 @@ impl GooseAcpAgent {
         agent
             .update_thinking_effort(session_id, effort_id)
             .await
-            .invalid_params_err_ctx("Failed to update thinking effort")?;
+            .map_err(thinking_effort_error)?;
 
         Ok(())
     }
@@ -3138,5 +3152,40 @@ print(\"hello, world\")
         assert!(goose_client_capabilities
             .and_then(|goose| goose.tool_call_label_enrichment)
             .unwrap_or(false));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_a_rejected_value_to_invalid_params() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::InvalidValue(
+                "Agent offers no thinking effort 'medium'".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InvalidParams);
+        // The cause chain, not just the outermost context, reaches the client.
+        let data = error.data.unwrap().to_string();
+        assert!(data.contains("Provider rejected thinking effort update"));
+        assert!(data.contains("Agent offers no thinking effort 'medium'"));
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_operational_failure_to_internal_error() {
+        let error = thinking_effort_error(
+            anyhow::Error::new(ProviderError::RequestFailed(
+                "Failed to set ACP effort option: agent is gone".to_string(),
+            ))
+            .context("Provider rejected thinking effort update"),
+        );
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
+    }
+
+    #[test]
+    fn thinking_effort_error_maps_an_untyped_failure_to_internal_error() {
+        let error = thinking_effort_error(anyhow::anyhow!("Failed to persist thinking effort"));
+
+        assert_eq!(error.code, agent_client_protocol::ErrorCode::InternalError);
     }
 }

@@ -740,14 +740,12 @@ impl Provider for AcpProvider {
             return Ok(true);
         };
         let mapped = map_effort_value(&capability, value).ok_or_else(|| {
-            ProviderError::RequestFailed(format!("Agent offers no thinking effort '{value}'"))
+            ProviderError::InvalidValue(format!("Agent offers no thinking effort '{value}'"))
         })?;
 
         self.set_effort_option(session_id, &capability.option_id, mapped)
             .await
-            .map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to set ACP effort option: {e}"))
-            })?;
+            .map_err(|e| effort_option_error(value, e))?;
         Ok(true)
     }
 
@@ -2185,6 +2183,22 @@ pub(super) fn map_effort_value(
     })
 }
 
+/// Separate a value the agent evaluated and refused from an operational failure.
+/// Only an agent that actually processed the request answers with the JSON-RPC
+/// `invalid_params` code; the client library synthesizes `internal_error` for a
+/// dead subprocess or dropped connection, and goose's own send failures carry no
+/// ACP error at all.
+fn effort_option_error(value: &str, error: anyhow::Error) -> ProviderError {
+    match error.downcast_ref::<agent_client_protocol::Error>() {
+        Some(acp_error) if acp_error.code == agent_client_protocol::ErrorCode::InvalidParams => {
+            ProviderError::InvalidValue(format!(
+                "Agent rejected thinking effort '{value}': {acp_error}"
+            ))
+        }
+        _ => ProviderError::RequestFailed(format!("Failed to set ACP effort option: {error}")),
+    }
+}
+
 fn reverse_mode_mapping(
     mode_mapping: &HashMap<GooseMode, Vec<String>>,
 ) -> HashMap<String, Vec<GooseMode>> {
@@ -3284,6 +3298,18 @@ mod tests {
         }
     }
 
+    async fn fail_set_config_option(
+        rx: &mut mpsc::Receiver<ClientRequest>,
+        error: agent_client_protocol::Error,
+    ) {
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption { response_tx, .. } => {
+                let _ = response_tx.send(Err(anyhow::Error::from(error)));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+    }
+
     #[test]
     fn extract_effort_capability_reads_thought_level_option() {
         let options = vec![
@@ -3543,8 +3569,58 @@ mod tests {
 
         let result = provider.set_thinking_effort("session", "medium").await;
 
-        assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
+        assert!(matches!(result, Err(ProviderError::InvalidValue(_))));
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_reports_an_agent_value_rejection_as_invalid() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        fail_set_config_option(&mut rx, agent_client_protocol::Error::invalid_params()).await;
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::InvalidValue(_))
+        ));
+    }
+
+    /// A dead subprocess or dropped connection surfaces as `internal_error` from
+    /// the client library, which says nothing about the value the client picked.
+    #[tokio::test]
+    async fn set_thinking_effort_reports_a_transport_failure_as_a_request_failure() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        fail_set_config_option(&mut rx, agent_client_protocol::Error::internal_error()).await;
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::RequestFailed(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn set_thinking_effort_reports_a_dropped_response_as_a_request_failure() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider =
+            test_provider_with_effort(tx, Some(effort_capability(&["default", "high"], "default")));
+
+        let handle =
+            tokio::spawn(async move { provider.set_thinking_effort("session", "high").await });
+        drop(rx.recv().await.expect("expected a SetConfigOption request"));
+
+        assert!(matches!(
+            handle.await.unwrap(),
+            Err(ProviderError::RequestFailed(_))
+        ));
     }
 
     #[tokio::test]

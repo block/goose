@@ -3539,10 +3539,13 @@ impl Agent {
     /// which is not always a `ThinkingEffort` member.
     pub async fn update_thinking_effort(&self, session_id: &str, effort: &str) -> Result<()> {
         let current_provider = self.provider().await?;
+        // Context rather than a formatted string: the caller distinguishes a
+        // value rejection from an operational failure by downcasting to
+        // `ProviderError`, which stringifying would destroy.
         let provider_handled = current_provider
             .set_thinking_effort(session_id, effort)
             .await
-            .map_err(|e| anyhow!("Provider rejected thinking effort update: {e}"))?;
+            .context("Provider rejected thinking effort update")?;
 
         let model_config = self.model_config_for_session(session_id).await?;
 
@@ -3564,9 +3567,11 @@ impl Agent {
                 .context("Failed to persist thinking effort to session");
         }
 
-        let effort = effort
-            .parse::<ThinkingEffort>()
-            .map_err(|_| anyhow!("Invalid thinking effort: {effort}"))?;
+        let effort = effort.parse::<ThinkingEffort>().map_err(|_| {
+            anyhow::Error::new(ProviderError::InvalidValue(format!(
+                "Invalid thinking effort: {effort}"
+            )))
+        })?;
         let provider_name = current_provider.get_name().to_string();
         self.recreate_provider_for_session(
             session_id,
@@ -4529,6 +4534,10 @@ mod tests {
             .await
             .unwrap_err();
 
+        assert!(matches!(
+            err.downcast_ref::<ProviderError>(),
+            Some(ProviderError::InvalidValue(_))
+        ));
         assert!(err.to_string().contains("Invalid thinking effort"));
         assert_eq!(provider.effort_calls(), ["bogus"]);
         assert!(persisted_thinking_effort(&agent, &session_id)
@@ -4547,6 +4556,12 @@ mod tests {
             .unwrap_err();
 
         assert!(err.to_string().contains("Provider rejected"));
+        // The caller classifies the failure by variant, so the provider's typed
+        // error has to survive the trip up.
+        assert!(matches!(
+            err.downcast_ref::<ProviderError>(),
+            Some(ProviderError::RequestFailed(_))
+        ));
         assert!(persisted_thinking_effort(&agent, &session_id)
             .await
             .is_none());
