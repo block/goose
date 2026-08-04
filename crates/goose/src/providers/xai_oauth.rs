@@ -66,6 +66,9 @@ const DEVICE_CODE_DEFAULT_EXPIRES_SECS: u64 = 5 * 60;
 const XAI_OAUTH_PROVIDER_NAME: &str = "xai_oauth";
 const XAI_OAUTH_DOC_URL: &str = "https://x.ai/grok";
 
+const SIGN_IN_REQUIRED: &str =
+    "xAI (SuperGrok Subscription) is not signed in. Sign in from the provider settings or run `goose configure`.";
+
 #[derive(Debug)]
 struct XaiAuthState {
     oauth_mutex: TokioMutex<()>,
@@ -598,6 +601,26 @@ struct XaiOAuthAuthProvider {
     state: Arc<XaiAuthState>,
 }
 
+#[derive(Debug)]
+enum TokenAction {
+    Use(TokenData),
+    Refresh(TokenData),
+    SignInRequired,
+}
+
+/// A missing token means "never signed in", which is not something a request can
+/// fix on its own. Only an expiring token warrants a (non-interactive) refresh.
+fn plan_token_action(cached: Option<TokenData>, now: DateTime<Utc>) -> TokenAction {
+    let Some(token_data) = cached else {
+        return TokenAction::SignInRequired;
+    };
+    if token_data.expires_at > now + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS) {
+        TokenAction::Use(token_data)
+    } else {
+        TokenAction::Refresh(token_data)
+    }
+}
+
 impl XaiOAuthAuthProvider {
     fn new(state: Arc<XaiAuthState>) -> Self {
         Self {
@@ -606,61 +629,46 @@ impl XaiOAuthAuthProvider {
         }
     }
 
+    /// Never starts an interactive sign-in: this runs on every request, including
+    /// programmatic ones such as model inventory refresh. `configure_oauth` is the
+    /// only entry point allowed to open a browser or print a device code.
     async fn get_valid_token(&self) -> Result<TokenData> {
-        if let Some(mut token_data) = self.cache.load() {
-            if token_data.expires_at
-                > Utc::now() + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS)
-            {
-                return Ok(token_data);
-            }
+        let mut token_data = match plan_token_action(self.cache.load(), Utc::now()) {
+            TokenAction::Use(token_data) => return Ok(token_data),
+            TokenAction::Refresh(token_data) => token_data,
+            TokenAction::SignInRequired => return Err(anyhow!(SIGN_IN_REQUIRED)),
+        };
 
-            // Single-flight refresh: collapse concurrent fetches onto one
-            // HTTP call so we don't replay a rotating refresh_token.
-            let _refresh_guard = self.state.refresh_mutex.lock().await;
-            if let Some(reloaded) = self.cache.load() {
-                if reloaded.expires_at
-                    > Utc::now() + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS)
-                {
-                    return Ok(reloaded);
-                }
-                token_data = reloaded;
-            }
-
-            tracing::debug!("xAI access token expiring, attempting refresh");
-            match refresh_access_token(&token_data.refresh_token).await {
-                Ok(new_tokens) => {
-                    token_data.access_token = new_tokens.access_token;
-                    if !new_tokens.refresh_token.is_empty() {
-                        token_data.refresh_token = new_tokens.refresh_token;
-                    }
-                    if new_tokens.id_token.is_some() {
-                        token_data.id_token = new_tokens.id_token;
-                    }
-                    token_data.expires_at = Utc::now()
-                        + chrono::Duration::seconds(new_tokens.expires_in.unwrap_or(3600));
-                    self.cache.save(&token_data)?;
-                    tracing::info!("xAI access token refreshed");
-                    return Ok(token_data);
-                }
-                Err(e) => {
-                    tracing::warn!("xAI token refresh failed, will re-authenticate: {}", e);
-                    self.cache.clear();
-                }
-            }
+        // Single-flight refresh: collapse concurrent fetches onto one
+        // HTTP call so we don't replay a rotating refresh_token.
+        let _refresh_guard = self.state.refresh_mutex.lock().await;
+        match plan_token_action(self.cache.load(), Utc::now()) {
+            TokenAction::Use(reloaded) => return Ok(reloaded),
+            TokenAction::Refresh(reloaded) => token_data = reloaded,
+            TokenAction::SignInRequired => {}
         }
 
-        tracing::info!("Starting xAI OAuth flow (SuperGrok subscription)");
-        let token_data = match perform_loopback_oauth_flow(self.state.as_ref()).await {
-            Ok(td) => td,
+        tracing::debug!("xAI access token expiring, attempting refresh");
+        let new_tokens = match refresh_access_token(&token_data.refresh_token).await {
+            Ok(new_tokens) => new_tokens,
             Err(e) => {
-                tracing::warn!(
-                    "xAI loopback OAuth failed ({}); falling back to device-code flow",
-                    e
-                );
-                perform_device_code_flow().await?
+                tracing::warn!("xAI token refresh failed: {}", e);
+                self.cache.clear();
+                return Err(anyhow!("{SIGN_IN_REQUIRED} (token refresh failed: {e})"));
             }
         };
+
+        token_data.access_token = new_tokens.access_token;
+        if !new_tokens.refresh_token.is_empty() {
+            token_data.refresh_token = new_tokens.refresh_token;
+        }
+        if new_tokens.id_token.is_some() {
+            token_data.id_token = new_tokens.id_token;
+        }
+        token_data.expires_at =
+            Utc::now() + chrono::Duration::seconds(new_tokens.expires_in.unwrap_or(3600));
         self.cache.save(&token_data)?;
+        tracing::info!("xAI access token refreshed");
         Ok(token_data)
     }
 }
@@ -821,6 +829,58 @@ impl AuthProvider for SharedAuthProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn token_expiring_at(expires_at: DateTime<Utc>) -> TokenData {
+        TokenData {
+            access_token: "access".to_string(),
+            refresh_token: "refresh".to_string(),
+            id_token: None,
+            expires_at,
+        }
+    }
+
+    #[test]
+    fn plan_token_action_requires_sign_in_when_nothing_cached() {
+        assert!(matches!(
+            plan_token_action(None, Utc::now()),
+            TokenAction::SignInRequired
+        ));
+    }
+
+    #[test]
+    fn plan_token_action_uses_token_that_is_not_close_to_expiring() {
+        let now = Utc::now();
+        let token =
+            token_expiring_at(now + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS + 60));
+
+        assert!(matches!(
+            plan_token_action(Some(token), now),
+            TokenAction::Use(_)
+        ));
+    }
+
+    #[test]
+    fn plan_token_action_refreshes_token_within_the_skew_window() {
+        let now = Utc::now();
+        let token =
+            token_expiring_at(now + chrono::Duration::seconds(ACCESS_TOKEN_REFRESH_SKEW_SECS - 1));
+
+        assert!(matches!(
+            plan_token_action(Some(token), now),
+            TokenAction::Refresh(_)
+        ));
+    }
+
+    #[test]
+    fn plan_token_action_refreshes_already_expired_token() {
+        let now = Utc::now();
+        let token = token_expiring_at(now - chrono::Duration::seconds(60));
+
+        assert!(matches!(
+            plan_token_action(Some(token), now),
+            TokenAction::Refresh(_)
+        ));
+    }
 
     #[test]
     fn pkce_challenge_is_url_safe_base64_of_sha256_of_verifier() {

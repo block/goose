@@ -5,7 +5,7 @@ use crate::providers::openai_compatible::{
     handle_status, stream_openai_compat, stream_responses_compat,
 };
 use crate::providers::private_file::write_private_file;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
@@ -84,6 +84,9 @@ const GITHUB_COPILOT_DOC_URL: &str =
     "https://docs.github.com/en/copilot/using-github-copilot/ai-models";
 const DEFAULT_GITHUB_HOST: &str = "github.com";
 const DEFAULT_GITHUB_COPILOT_CLIENT_ID: &str = "Iv1.b507a08c87ecfe98";
+
+const SIGN_IN_REQUIRED: &str =
+    "GitHub Copilot is not signed in. Sign in from the provider settings or run `goose configure`.";
 
 fn normalize_host(host: &str) -> String {
     let host = host.trim_end_matches('/');
@@ -304,10 +307,16 @@ impl GithubCopilotProvider {
             }
         }
 
+        let github_token = match Config::global().get_secret::<String>("GITHUB_COPILOT_TOKEN") {
+            Ok(token) => token,
+            Err(ConfigError::NotFound(_)) => return Err(anyhow!(SIGN_IN_REQUIRED)),
+            Err(err) => return Err(err.into()),
+        };
+
         const MAX_ATTEMPTS: i32 = 3;
         for attempt in 0..MAX_ATTEMPTS {
             tracing::trace!("attempt {} to refresh api info", attempt + 1);
-            let info = match self.refresh_api_info().await {
+            let info = match self.refresh_api_info(&github_token).await {
                 Ok(data) => data,
                 Err(err) => {
                     tracing::warn!("failed to refresh api info: {}", err);
@@ -323,27 +332,19 @@ impl GithubCopilotProvider {
         Err(anyhow!("failed to get api info after 3 attempts"))
     }
 
-    async fn refresh_api_info(&self) -> Result<CopilotTokenInfo> {
-        let config = Config::global();
-        let token = match config.get_secret::<String>("GITHUB_COPILOT_TOKEN") {
-            Ok(token) => token,
-            Err(err) => match err {
-                ConfigError::NotFound(_) => {
-                    let token = self
-                        .get_access_token()
-                        .await
-                        .context("unable to login into github")?;
-                    config.set_secret("GITHUB_COPILOT_TOKEN", &token)?;
-                    token
-                }
-                _ => return Err(err.into()),
-            },
-        };
+    /// Takes the GitHub token as an argument so it cannot fall back to the
+    /// device-code flow: this runs on every request, including programmatic ones
+    /// such as `fetch_supported_models`. `configure_oauth` is the only entry point
+    /// allowed to open a browser or print a device code.
+    async fn refresh_api_info(&self, github_token: &str) -> Result<CopilotTokenInfo> {
         let resp = self
             .client
             .get(&self.urls.copilot_token_url)
             .headers(self.get_github_headers())
-            .header(http::header::AUTHORIZATION, format!("bearer {}", &token))
+            .header(
+                http::header::AUTHORIZATION,
+                format!("bearer {}", github_token),
+            )
             .send()
             .await?
             .error_for_status()?
@@ -654,8 +655,8 @@ impl Provider for GithubCopilotProvider {
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         let config = Config::global();
 
-        if config.get_secret::<String>("GITHUB_COPILOT_TOKEN").is_ok() {
-            match self.refresh_api_info().await {
+        if let Ok(existing_token) = config.get_secret::<String>("GITHUB_COPILOT_TOKEN") {
+            match self.refresh_api_info(&existing_token).await {
                 Ok(_) => return Ok(()),
                 Err(_) => {
                     tracing::debug!("Existing token is invalid, starting OAuth flow");
