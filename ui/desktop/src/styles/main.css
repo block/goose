@@ -990,3 +990,12 @@ pre:has(> code.bg-inline-code) {
     opacity: 1;
   }
 }
+
+@keyframes fadeout {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

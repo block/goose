@@ -273,9 +273,33 @@ export default function BaseChat({
   };
 
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [scrollButtonMounted, setScrollButtonMounted] = useState(false);
+  const [scrollButtonLeaving, setScrollButtonLeaving] = useState(false);
   const handleScrollChange = useCallback((isAtBottom: boolean) => {
     setShowScrollToBottom(!isAtBottom);
   }, []);
+
+  // Keep the scroll-to-bottom control mounted through a fade-out so hide
+  // isn't an instant pop (fade-in alone looked jarring).
+  useEffect(() => {
+    if (showScrollToBottom) {
+      setScrollButtonMounted(true);
+      setScrollButtonLeaving(false);
+      return;
+    }
+    if (!scrollButtonMounted) return;
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setScrollButtonMounted(false);
+      setScrollButtonLeaving(false);
+      return;
+    }
+
+    setScrollButtonLeaving(true);
+  }, [showScrollToBottom, scrollButtonMounted]);
 
   // Track if this is the initial render for session resuming
   const initialRenderRef = useRef(true);
@@ -502,12 +526,24 @@ export default function BaseChat({
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col">
             <div ref={composerRef} className="relative bg-background-primary px-4 pb-3">
-              {showScrollToBottom && (
+              {scrollButtonMounted && (
                 <button
+                  type="button"
                   onClick={() => {
+                    if (scrollButtonLeaving) return;
                     scrollRef.current?.scrollToBottom();
                   }}
-                  className="pointer-events-auto absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background-secondary border border-border-primary shadow-lg hover:bg-background-tertiary transition-all duration-200 animate-[fadein_200ms_ease-out]"
+                  onAnimationEnd={(event) => {
+                    if (event.animationName !== 'fadeout' || !scrollButtonLeaving) return;
+                    setScrollButtonMounted(false);
+                    setScrollButtonLeaving(false);
+                  }}
+                  className={cn(
+                    'absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background-secondary border border-border-primary shadow-lg hover:bg-background-tertiary transition-colors duration-200',
+                    scrollButtonLeaving
+                      ? 'pointer-events-none animate-[fadeout_200ms_ease-out_forwards]'
+                      : 'pointer-events-auto animate-[fadein_200ms_ease-out]'
+                  )}
                   title={intl.formatMessage({
                     id: 'baseChat.scrollToBottom',
                     defaultMessage: 'Scroll to bottom',
@@ -516,6 +552,8 @@ export default function BaseChat({
                     id: 'baseChat.scrollToBottom',
                     defaultMessage: 'Scroll to bottom',
                   })}
+                  aria-hidden={scrollButtonLeaving}
+                  tabIndex={scrollButtonLeaving ? -1 : 0}
                 >
                   <svg
                     width="18"
