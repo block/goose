@@ -1697,6 +1697,12 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "Переключить навигацию"
   },
+  "keyboardShortcuts.toggleTerminalDescription": {
+    "defaultMessage": "Show or hide the session terminal panel"
+  },
+  "keyboardShortcuts.toggleTerminalLabel": {
+    "defaultMessage": "Toggle Terminal"
+  },
   "launcher.placeholder": {
     "defaultMessage": "Спросите goose о чем угодно..."
   },
@@ -4405,6 +4411,18 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "Не удалось обновить настройки телеметрии."
+  },
+  "terminalPanel.closeTab": {
+    "defaultMessage": "Close terminal tab"
+  },
+  "terminalPanel.newTab": {
+    "defaultMessage": "New terminal tab"
+  },
+  "terminalPanel.resize": {
+    "defaultMessage": "Resize terminal panel"
+  },
+  "terminalPanel.terminal": {
+    "defaultMessage": "Terminal"
   },
   "themeSelector.dark": {
     "defaultMessage": "Темная"

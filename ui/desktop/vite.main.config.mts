@@ -7,4 +7,10 @@ export default defineConfig({
     'process.env.GITHUB_REPO': JSON.stringify(process.env.GITHUB_REPO || 'goose'),
     'process.env.GOOSE_BUNDLE_NAME': JSON.stringify(process.env.GOOSE_BUNDLE_NAME || 'Goose'),
   },
+  build: {
+    rollupOptions: {
+      // Native addon — load at runtime from node_modules / ASAR unpack.
+      external: ['node-pty'],
+    },
+  },
 });

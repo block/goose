@@ -1697,6 +1697,12 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "Alternar navegación"
   },
+  "keyboardShortcuts.toggleTerminalDescription": {
+    "defaultMessage": "Show or hide the session terminal panel"
+  },
+  "keyboardShortcuts.toggleTerminalLabel": {
+    "defaultMessage": "Toggle Terminal"
+  },
   "launcher.placeholder": {
     "defaultMessage": "Pregúntale lo que sea a goose..."
   },
@@ -4405,6 +4411,18 @@
   },
   "telemetrySettings.updateError": {
     "defaultMessage": "No se pudieron actualizar los ajustes de telemetría."
+  },
+  "terminalPanel.closeTab": {
+    "defaultMessage": "Close terminal tab"
+  },
+  "terminalPanel.newTab": {
+    "defaultMessage": "New terminal tab"
+  },
+  "terminalPanel.resize": {
+    "defaultMessage": "Resize terminal panel"
+  },
+  "terminalPanel.terminal": {
+    "defaultMessage": "Terminal"
   },
   "themeSelector.dark": {
     "defaultMessage": "Oscuro"

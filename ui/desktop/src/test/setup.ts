@@ -59,6 +59,8 @@ const mockSettings: Record<string, unknown> = {
     findNext: 'CommandOrControl+G',
     findPrevious: 'CommandOrControl+Shift+G',
     alwaysOnTop: 'CommandOrControl+Shift+T',
+    toggleNavigation: 'CommandOrControl+/',
+    toggleTerminal: 'CommandOrControl+J',
   },
   externalGoosed: {
     enabled: false,
@@ -88,5 +90,10 @@ Object.defineProperty(window, 'electron', {
     getIsFullScreen: vi.fn(() => Promise.resolve(false)),
     on: vi.fn(),
     off: vi.fn(),
+    terminalCreate: vi.fn(() => Promise.resolve({ ok: true })),
+    terminalWrite: vi.fn(() => Promise.resolve(true)),
+    terminalResize: vi.fn(() => Promise.resolve(true)),
+    terminalKill: vi.fn(() => Promise.resolve(true)),
+    terminalKillSession: vi.fn(() => Promise.resolve(true)),
   },
 });

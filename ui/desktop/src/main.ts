@@ -55,6 +55,9 @@ import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import { killAllPtys, killWindowPtys, registerPtyIpc } from './main/ptyService';
+
+registerPtyIpc();
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -1491,7 +1494,9 @@ const createChat = async (
   windowMap.set(windowId, mainWindow);
 
   // Handle window closure
+  const webContentsId = mainWindow.webContents.id;
   mainWindow.on('closed', () => {
+    killWindowPtys(webContentsId);
     windowMap.delete(windowId);
 
     pendingInitialMessages.delete(windowId);
@@ -2737,6 +2742,20 @@ async function appMain() {
         })
       );
     }
+    if (viewMenu?.submenu && shortcuts.toggleTerminal) {
+      viewMenu.submenu.append(
+        new MenuItem({
+          label: menuT('Toggle Terminal'),
+          accelerator: shortcuts.toggleTerminal,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              focusedWindow.webContents.send('toggle-terminal');
+            }
+          },
+        })
+      );
+    }
   }
 
   // on macOS, the topbar is hidden
@@ -3130,6 +3149,8 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  killAllPtys();
+
   const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();
   if (gooseServeLeaseCount > 0) {
     log.info(`App quitting, cleaning up ${gooseServeLeaseCount} backend lease(s)`);

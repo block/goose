@@ -98,6 +98,14 @@ const i18n = defineMessages({
     id: 'keyboardShortcuts.toggleNavigationDescription',
     defaultMessage: 'Show or hide the navigation menu',
   },
+  toggleTerminalLabel: {
+    id: 'keyboardShortcuts.toggleTerminalLabel',
+    defaultMessage: 'Toggle Terminal',
+  },
+  toggleTerminalDescription: {
+    id: 'keyboardShortcuts.toggleTerminalDescription',
+    defaultMessage: 'Show or hide the session terminal panel',
+  },
 
   // Category labels and descriptions
   categoryGlobal: {
@@ -286,6 +294,12 @@ const shortcutConfigs: ShortcutConfig[] = [
     key: 'toggleNavigation',
     label: i18n.toggleNavigationLabel,
     description: i18n.toggleNavigationDescription,
+    category: 'application',
+  },
+  {
+    key: 'toggleTerminal',
+    label: i18n.toggleTerminalLabel,
+    description: i18n.toggleTerminalDescription,
     category: 'application',
   },
 ];

@@ -6,6 +6,8 @@ const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
+  // node-pty ships native .node binaries that must not stay inside the ASAR.
+  asarUnpack: ['**/node_modules/node-pty/**/*'],
   extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
   // Windows specific configuration
@@ -192,6 +194,10 @@ module.exports = {
           },
         ],
       },
+    },
+    {
+      name: '@electron-forge/plugin-auto-unpack-natives',
+      config: {},
     },
     // Fuses are used to enable/disable various Electron functionality
     // at package time, before code signing the application

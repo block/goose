@@ -178,6 +178,22 @@ type ElectronAPI = {
   addRecentDir: (dir: string) => Promise<boolean>;
   listRecentDirs: () => Promise<string[]>;
   listGitWorktreeDirs: (dir: string) => Promise<string[]>;
+  terminalCreate: (payload: {
+    sessionId: string;
+    tabId: string;
+    cwd: string;
+    cols: number;
+    rows: number;
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+  terminalWrite: (payload: { sessionId: string; tabId: string; data: string }) => Promise<boolean>;
+  terminalResize: (payload: {
+    sessionId: string;
+    tabId: string;
+    cols: number;
+    rows: number;
+  }) => Promise<boolean>;
+  terminalKill: (payload: { sessionId: string; tabId: string }) => Promise<boolean>;
+  terminalKillSession: (payload: { sessionId: string }) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -335,6 +351,11 @@ const electronAPI: ElectronAPI = {
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
   listRecentDirs: () => ipcRenderer.invoke('list-recent-dirs'),
   listGitWorktreeDirs: (dir: string) => ipcRenderer.invoke('list-git-worktree-dirs', dir),
+  terminalCreate: (payload) => ipcRenderer.invoke('terminal-create', payload),
+  terminalWrite: (payload) => ipcRenderer.invoke('terminal-write', payload),
+  terminalResize: (payload) => ipcRenderer.invoke('terminal-resize', payload),
+  terminalKill: (payload) => ipcRenderer.invoke('terminal-kill', payload),
+  terminalKillSession: (payload) => ipcRenderer.invoke('terminal-kill-session', payload),
 };
 
 function getAppLocale(): unknown {

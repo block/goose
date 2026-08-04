@@ -35,6 +35,8 @@ import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 import { isAcpRecovering, subscribeToAcpRecovery } from '../acp/acpConnection';
+import { TerminalPanel } from './terminal/TerminalPanel';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -401,7 +403,8 @@ export default function BaseChat({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="flex h-full min-h-0 flex-row">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <MainPanelLayout
         backgroundColor={'bg-background-primary'}
         removeTopPadding={true}
@@ -552,6 +555,16 @@ export default function BaseChat({
           hasSecurityWarnings={hasRecipeSecurityWarnings}
         />
       )}
+      </div>
+
+      <TerminalPanel
+        sessionId={sessionId}
+        cwd={session?.working_dir || getInitialWorkingDir()}
+        isActiveSession={isActiveSession}
+        onRequestChatFocus={() => {
+          chatInputRef.current?.focus();
+        }}
+      />
     </div>
   );
 }
