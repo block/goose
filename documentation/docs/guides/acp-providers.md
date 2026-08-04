@@ -43,11 +43,11 @@ Wraps [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp
 
 ### Codex ACP
 
-Uses [codex-acp](https://github.com/agentclientprotocol/codex-acp) to connect goose to OpenAI Codex with your ChatGPT Plus/Pro subscription.
+Use goose with ChatGPT Plus/Pro or OpenAI API credits via the [codex-acp](https://github.com/agentclientprotocol/codex-acp) adapter.
 
 **Requirements:**
 - Node.js and npm
-- Active ChatGPT Plus/Pro subscription
+- Active ChatGPT Plus/Pro subscription or OpenAI API credits
 - Authenticated with your OpenAI account (`codex` CLI working)
 
 ### Pi ACP
@@ -268,7 +268,7 @@ Codex ACP reports its available models dynamically. Keep `current` to use Codex'
 
 **Permission Modes (`GOOSE_MODE`):**
 
-| Goose mode      | Codex ACP mode      |
+| goose mode      | Codex ACP mode      |
 |-----------------|---------------------|
 | `auto`          | `agent-full-access` |
 | `smart-approve` | `agent`             |

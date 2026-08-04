@@ -22,7 +22,7 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
         ProviderMetadata::new(
             CODEX_ACP_PROVIDER_NAME,
             "Codex CLI",
-            "Use OpenAI Codex through ACP with your ChatGPT Plus/Pro subscription.",
+            "Use goose with ChatGPT Plus/Pro or OpenAI API credits via the codex-acp adapter.",
             ACP_CURRENT_MODEL,
             vec![],
             CODEX_ACP_DOC_URL,
@@ -33,8 +33,8 @@ impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
             "If `--version` is rejected, remove `@zed-industries/codex-acp`: `npm uninstall -g @zed-industries/codex-acp`",
             "If `codex-acp` is missing or was removed, install `@agentclientprotocol/codex-acp`: `npm install -g @agentclientprotocol/codex-acp`",
             "Authenticate with OpenAI: run `codex` and follow the prompts",
-            "Configure Goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
-            "Restart Goose",
+            "Configure goose in `~/.config/goose/config.yaml`:\n  GOOSE_PROVIDER: codex-acp\n  GOOSE_MODEL: current",
+            "Restart goose",
         ])
     }
 }
