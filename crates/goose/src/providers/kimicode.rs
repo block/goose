@@ -62,7 +62,7 @@ const DEFAULT_TOKEN_LIFETIME_SECS: i64 = 3600;
 
 // ── Token persistence ────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 struct KimiToken {
     access_token: String,
     refresh_token: String,
@@ -249,25 +249,37 @@ impl KimiCodeProvider {
         Err(ProviderError::NotConfigured)
     }
 
-    async fn use_or_refresh(&self, token: KimiToken) -> Result<KimiToken, ProviderError> {
-        if token.expires_at - Utc::now() > Duration::seconds(REFRESH_THRESHOLD_SECS) {
-            return Ok(token);
-        }
-        match self.do_refresh_token(&token.refresh_token).await {
-            Ok(refreshed) => {
-                tracing::debug!("kimicode: token refreshed");
-                if let Err(e) = self.token_cache.save(&refreshed).await {
-                    tracing::warn!("failed to persist refreshed kimicode token: {}", e);
-                }
-                Ok(refreshed)
+    async fn use_or_refresh(&self, mut token: KimiToken) -> Result<KimiToken, ProviderError> {
+        let mut reloaded = false;
+
+        loop {
+            if token.expires_at - Utc::now() > Duration::seconds(REFRESH_THRESHOLD_SECS) {
+                return Ok(token);
             }
-            Err(e) => {
-                tracing::debug!("kimicode: token refresh failed: {}", e);
-                if token.expires_at > Utc::now() {
-                    tracing::debug!("kimicode: falling back to still-unexpired token");
-                    Ok(token)
-                } else {
-                    Err(kimi_refresh_error(e))
+            match self.do_refresh_token(&token.refresh_token).await {
+                Ok(refreshed) => {
+                    tracing::debug!("kimicode: token refreshed");
+                    if let Err(e) = self.token_cache.save(&refreshed).await {
+                        tracing::warn!("failed to persist refreshed kimicode token: {}", e);
+                    }
+                    return Ok(refreshed);
+                }
+                Err(error) => {
+                    tracing::debug!("kimicode: token refresh failed: {}", error);
+                    if !reloaded {
+                        reloaded = true;
+                        if let Some(persisted) = self.token_cache.load().await {
+                            if persisted != token {
+                                token = persisted;
+                                continue;
+                            }
+                        }
+                    }
+                    if token.expires_at > Utc::now() {
+                        tracing::debug!("kimicode: falling back to still-unexpired token");
+                        return Ok(token);
+                    }
+                    return Err(kimi_refresh_error(error));
                 }
             }
         }
@@ -760,6 +772,45 @@ mod tests {
         let usable = provider.use_or_refresh(near_stale).await.unwrap();
         assert_eq!(usable.access_token, "new_access");
         assert_eq!(usable.refresh_token, "new_refresh");
+    }
+
+    #[tokio::test]
+    async fn use_or_refresh_reloads_token_rotated_by_another_provider() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/oauth/token"))
+            .and(body_string_contains("refresh_token=old_refresh"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "new_access",
+                "refresh_token": "new_refresh",
+                "expires_in": 3600,
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/oauth/token"))
+            .and(body_string_contains("refresh_token=old_refresh"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": "invalid_grant",
+            })))
+            .mount(&server)
+            .await;
+
+        let first = test_provider(&server.uri(), "first");
+        let mut second = test_provider(&server.uri(), "second");
+        second.token_cache.path = first.token_cache.path.clone();
+        let expired = KimiToken {
+            access_token: "old_access".to_string(),
+            refresh_token: "old_refresh".to_string(),
+            expires_at: Utc::now() - Duration::seconds(1),
+        };
+
+        let refreshed = first.use_or_refresh(expired.clone()).await.unwrap();
+        let reloaded = second.use_or_refresh(expired).await.unwrap();
+
+        assert_eq!(refreshed.access_token, "new_access");
+        assert_eq!(reloaded, refreshed);
     }
 
     // NOTE: RFC 8628 polling behavior (authorization_pending, slow_down, missing
