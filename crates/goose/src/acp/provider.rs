@@ -733,9 +733,11 @@ impl Provider for AcpProvider {
         let capability = self
             .effort_capability()
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        // No effort selector: the caller falls back to its legacy path.
+        // No effort selector: the agent manages reasoning itself, so report the
+        // pick as applied. Falling back to the caller's legacy path would
+        // respawn the agent for a no-op.
         let Some(capability) = capability else {
-            return Ok(false);
+            return Ok(true);
         };
         let mapped = map_effort_value(&capability, value).ok_or_else(|| {
             ProviderError::RequestFailed(format!("Agent offers no thinking effort '{value}'"))
@@ -3512,12 +3514,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_thinking_effort_is_unhandled_without_an_effort_option() {
+    async fn set_thinking_effort_is_applied_as_a_no_op_without_an_effort_option() {
         let (tx, mut rx) = mpsc::channel(1);
         let provider = test_provider_with_effort(tx, None);
 
-        assert!(!provider
-            .set_thinking_effort("session", "high")
+        assert!(provider
+            .set_thinking_effort("session", "off")
             .await
             .unwrap());
         assert!(rx.try_recv().is_err());
