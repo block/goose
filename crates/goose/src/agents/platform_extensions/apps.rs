@@ -284,7 +284,13 @@ impl AppsManagerClient {
 
         let (response, usage) = crate::session_context::with_session_id(
             Some(session_id.to_string()),
-            provider.complete(&model_config, &system_prompt, &messages, &tools),
+            crate::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            ),
         )
         .await
         .map_err(|e| format!("LLM call failed: {}", e))?;
@@ -329,7 +335,13 @@ impl AppsManagerClient {
 
         let (response, usage) = crate::session_context::with_session_id(
             Some(session_id.to_string()),
-            provider.complete(&model_config, &system_prompt, &messages, &tools),
+            crate::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            ),
         )
         .await
         .map_err(|e| format!("LLM call failed: {}", e))?;

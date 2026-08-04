@@ -204,7 +204,13 @@ async fn complete_label(
     for attempt in 0..LABEL_GENERATION_MAX_ATTEMPTS {
         if let Ok((response, _)) = with_session_id(
             Some(session_id.to_string()),
-            provider.complete(model_config, system_prompt, from_ref(message), &[]),
+            crate::tracing::complete_provider(
+                provider,
+                model_config,
+                system_prompt,
+                from_ref(message),
+                &[],
+            ),
         )
         .await
         {

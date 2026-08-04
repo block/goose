@@ -31,7 +31,8 @@ use tokio::sync::{mpsc, Mutex};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{info, info_span, warn};
+use tracing_futures::Instrument;
 
 pub static EXTENSION_NAME: &str = "summon";
 
@@ -1886,19 +1887,41 @@ impl SummonClient {
             Arc::clone(&notification_buffer),
         );
 
-        let handle = tokio::spawn(async move {
-            run_subagent_task(SubagentRunParams {
-                config: agent_config,
-                recipe,
-                task_config,
-                return_last_only: true,
-                session_id: subagent_session.id,
-                cancellation_token: Some(task_token_clone),
-                on_message: Some(on_message),
-                notification_tx: Some(notif_tx),
-            })
-            .await
-        });
+        let background_span = info_span!(
+            target: "goose::agents::platform_extensions::summon",
+            "async_subagent",
+            session.id = %task_id,
+            parent.session.id = %session_id,
+            input = %description,
+            output = tracing::field::Empty,
+            status_message = tracing::field::Empty,
+        );
+        let handle = tokio::spawn(
+            async move {
+                let result = run_subagent_task(SubagentRunParams {
+                    config: agent_config,
+                    recipe,
+                    task_config,
+                    return_last_only: true,
+                    session_id: subagent_session.id,
+                    cancellation_token: Some(task_token_clone),
+                    on_message: Some(on_message),
+                    notification_tx: Some(notif_tx),
+                })
+                .await;
+                match &result {
+                    Ok(output) => {
+                        tracing::Span::current().record("output", output.as_str());
+                    }
+                    Err(error) => {
+                        let error_message = error.to_string();
+                        tracing::Span::current().record("status_message", error_message.as_str());
+                    }
+                }
+                result
+            }
+            .instrument(background_span),
+        );
 
         let task = BackgroundTask {
             id: task_id.clone(),

@@ -188,6 +188,7 @@ export type MessageMetadata = {
   agentVisible: boolean;
   fallbackContent?: boolean;
   inference?: InferenceMetadata | null;
+  observationId?: string | null;
   outputTokenLimitReached?: boolean;
   steer?: boolean;
   usage?: MessageUsage | null;

@@ -1626,6 +1626,7 @@ impl Agent {
         fields(
             user_message,
             trace_input,
+            trace_boundary = true,
             session.id = %session_config.id,
             gen_ai.operation.name = "invoke_agent",
             gen_ai.input.messages = tracing::field::Empty,
@@ -3558,7 +3559,13 @@ impl Agent {
         })?;
         let (result, _usage) = crate::session_context::with_session_id(
             Some(session_id.to_string()),
-            provider.complete(&model_config, &system_prompt, messages.messages(), &tools),
+            crate::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                &system_prompt,
+                messages.messages(),
+                &tools,
+            ),
         )
         .await
         .map_err(|e| {

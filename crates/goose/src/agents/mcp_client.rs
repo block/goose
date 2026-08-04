@@ -431,7 +431,13 @@ impl ClientHandler for GooseClient {
         })?;
         let (response, usage) = crate::session_context::with_session_id(
             session_id.clone(),
-            provider.complete(&model_config, system_prompt, &provider_ready_messages, &[]),
+            crate::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                system_prompt,
+                &provider_ready_messages,
+                &[],
+            ),
         )
         .await
         .map_err(|e| {

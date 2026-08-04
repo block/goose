@@ -200,7 +200,13 @@ async fn execute_summarize(
 
     let (response, _usage) = crate::session_context::with_session_id(
         Some(session_id.to_string()),
-        provider.complete(&model_config, system, &[user_message], &[]),
+        crate::tracing::complete_provider(
+            provider.as_ref(),
+            &model_config,
+            system,
+            &[user_message],
+            &[],
+        ),
     )
     .await
     .map_err(|e| format!("LLM call failed: {}", e))?;

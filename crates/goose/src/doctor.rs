@@ -155,7 +155,8 @@ async fn test_provider(
     let messages = vec![Message::user().with_text("Say 'hello' and nothing else.")];
     crate::session_context::with_session_id(
         Some("doctor-check".to_string()),
-        provider.complete(
+        crate::tracing::complete_provider(
+            provider,
             model_config,
             "Respond as briefly as possible.",
             &messages,

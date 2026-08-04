@@ -38,15 +38,19 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
+use crate::tracing::ProviderGeneration;
 use anyhow::Result;
 use futures::StreamExt;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
+use goose_providers::model::ModelConfig;
 use reqwest::Client;
 use rmcp::model::{object, CallToolRequestParams, ContentBlock, Tool};
 use serde_json::{json, Value};
 use std::time::Duration;
+use tracing_futures::Instrument;
 use uuid::Uuid;
 
 /// Default model to use for tool interpretation
@@ -529,9 +533,43 @@ pub fn sanitize_residual_markers(mut message: Message) -> Message {
     message
 }
 
+/// The interpreter request is a model call the user waits on, so it gets its own
+/// generation observation rather than being folded into the primary one.
+fn interpreter_generation(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    system_prompt: &str,
+    messages: &[Message],
+) -> ProviderGeneration {
+    ProviderGeneration::new(
+        provider_name,
+        model_config,
+        &crate::session_context::current_session_id().unwrap_or_default(),
+        system_prompt,
+        messages,
+        &[],
+    )
+}
+
+fn ollama_response_usage(model: &str, response: &Value) -> Option<ProviderUsage> {
+    let input_tokens = response["prompt_eval_count"]
+        .as_i64()
+        .map(|count| count as i32);
+    let output_tokens = response["eval_count"].as_i64().map(|count| count as i32);
+    if input_tokens.is_none() && output_tokens.is_none() {
+        return None;
+    }
+
+    Some(ProviderUsage::new(
+        model.to_string(),
+        Usage::new(input_tokens, output_tokens, None),
+    ))
+}
+
 /// Environment variables that affect behavior:
 /// - GOOSE_TOOLSHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
 /// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter (default: DEFAULT_INTERPRETER_MODEL)
+///
 /// A trait for models that can interpret text into structured tool call JSON format
 #[async_trait::async_trait]
 pub trait ToolInterpreter {
@@ -579,14 +617,33 @@ impl LocalInterpreter {
             })?;
 
         let request_messages = vec![Message::user().with_text(format_instruction)];
-        let mut stream = provider
+        let mut generation = interpreter_generation("local", &model_config, "", &request_messages);
+        let mut stream = match provider
             .stream(&model_config, "", &request_messages, &[])
-            .await?;
+            .instrument(generation.span())
+            .await
+        {
+            Ok(stream) => stream,
+            Err(error) => {
+                generation.record_error(&error);
+                return Err(error);
+            }
+        };
 
         let mut content = String::new();
-        while let Some(chunk) = stream.next().await {
-            let (message, _) = chunk?;
+        while let Some(chunk) = stream.next().instrument(generation.span()).await {
+            let (message, usage) = match chunk {
+                Ok(chunk) => chunk,
+                Err(error) => {
+                    generation.record_error(&error);
+                    return Err(error);
+                }
+            };
+            if let Some(usage) = usage {
+                generation.record_usage(&usage);
+            }
             if let Some(message) = message {
+                generation.record_output(&message);
                 for part in message.content {
                     if let MessageContent::Text(text) = part {
                         content.push_str(&text.text);
@@ -677,19 +734,46 @@ impl OllamaInterpreter {
         format_schema: Value,
         model: &str,
     ) -> Result<Value, ProviderError> {
+        let messages = vec![Message::user().with_text(format_instruction)];
+        let model_config = model_config_from_user_config("ollama", model)?;
+        let mut generation =
+            interpreter_generation("ollama", &model_config, system_prompt, &messages);
+
+        let result = self
+            .send_structured_request(&model_config, system_prompt, &messages, format_schema)
+            .instrument(generation.span())
+            .await;
+
+        match &result {
+            Ok(response) => {
+                generation.record_output(
+                    &Message::assistant()
+                        .with_text(response["message"]["content"].as_str().unwrap_or_default()),
+                );
+                if let Some(usage) = ollama_response_usage(&model_config.model_name, response) {
+                    generation.record_usage(&usage);
+                }
+            }
+            Err(error) => generation.record_error(error),
+        }
+
+        result
+    }
+
+    async fn send_structured_request(
+        &self,
+        model_config: &ModelConfig,
+        system_prompt: &str,
+        messages: &[Message],
+        format_schema: Value,
+    ) -> Result<Value, ProviderError> {
         let base_url = self.base_url.trim_end_matches('/');
         let url = format!("{}/api/chat", base_url);
 
-        let mut messages = Vec::new();
-        let user_message = Message::user().with_text(format_instruction);
-        messages.push(user_message);
-
-        let model_config = model_config_from_user_config("ollama", model)?;
-
         let mut payload = create_request(
-            &model_config,
+            model_config,
             system_prompt,
-            &messages,
+            messages,
             &[], // No tools
             &ImageFormat::OpenAi,
             false,
@@ -1045,6 +1129,113 @@ pub async fn augment_message_with_selected_tool_interpreter(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tracing::test_support::{capturing_layer, wait_for_closed_generation};
+    use tracing_subscriber::prelude::*;
+    use wiremock::matchers::{method, path as request_path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn ollama_interpreter_request_is_traced_as_its_own_generation() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(request_path("/api/chat"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "message": { "content": "{\"tool_calls\":[]}" },
+                "prompt_eval_count": 31,
+                "eval_count": 7
+            })))
+            .mount(&server)
+            .await;
+
+        let (layer, events) = capturing_layer();
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+
+        let interpreter = OllamaInterpreter {
+            client: Client::new(),
+            base_url: server.uri(),
+        };
+        let response = interpreter
+            .post_structured(
+                "interpreter system",
+                "interpret this",
+                OllamaInterpreter::tool_structured_output_format_schema(),
+                "interpreter-model",
+            )
+            .await
+            .expect("mocked interpreter request should succeed");
+        assert_eq!(response["message"]["content"], "{\"tool_calls\":[]}");
+
+        let captured = wait_for_closed_generation(&events).await;
+        assert!(captured.iter().any(|(event_type, body)| {
+            event_type == "generation-create" && body["model"] == "interpreter-model"
+        }));
+        assert!(captured.iter().any(|(event_type, body)| {
+            event_type == "generation-update"
+                && body["input"]["messages"][0]["content"][0]["text"] == "interpret this"
+        }));
+        assert!(captured.iter().any(|(event_type, body)| {
+            event_type == "generation-update"
+                && body["usageDetails"]["input"] == 31
+                && body["usageDetails"]["output"] == 7
+                && body["usageDetails"]["total"] == 38
+        }));
+        assert!(captured.iter().any(|(event_type, body)| {
+            event_type == "generation-update"
+                && body["output"][0]["content"][0]["text"] == "{\"tool_calls\":[]}"
+        }));
+    }
+
+    #[tokio::test]
+    async fn failed_interpreter_request_records_the_error_status() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(request_path("/api/chat"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("model not loaded"))
+            .mount(&server)
+            .await;
+
+        let (layer, events) = capturing_layer();
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+
+        let interpreter = OllamaInterpreter {
+            client: Client::new(),
+            base_url: server.uri(),
+        };
+        interpreter
+            .post_structured(
+                "",
+                "interpret this",
+                OllamaInterpreter::tool_structured_output_format_schema(),
+                "interpreter-model",
+            )
+            .await
+            .expect_err("interpreter request should fail");
+
+        let captured = wait_for_closed_generation(&events).await;
+        assert!(captured.iter().any(|(event_type, body)| {
+            event_type == "generation-update"
+                && body["statusMessage"]
+                    .as_str()
+                    .is_some_and(|status| status.contains("model not loaded"))
+        }));
+    }
+
+    #[test]
+    fn ollama_response_usage_maps_eval_counts() {
+        let usage = ollama_response_usage(
+            "interpreter-model",
+            &json!({ "prompt_eval_count": 11, "eval_count": 4 }),
+        )
+        .expect("eval counts should map to usage");
+        assert_eq!(usage.model, "interpreter-model");
+        assert_eq!(usage.usage.input_tokens, Some(11));
+        assert_eq!(usage.usage.output_tokens, Some(4));
+        assert_eq!(usage.usage.total_tokens, Some(15));
+
+        assert!(ollama_response_usage("interpreter-model", &json!({})).is_none());
+    }
 
     struct FailingInterpreter;
 

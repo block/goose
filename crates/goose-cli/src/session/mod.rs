@@ -261,7 +261,8 @@ pub async fn classify_planner_response(
     let message = Message::user().with_text(&prompt);
     let (result, _usage) = goose::session_context::with_session_id(
         Some(session_id.to_string()),
-        provider.complete(
+        goose::tracing::complete_provider(
+            provider.as_ref(),
             &model_config,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
@@ -1194,7 +1195,8 @@ impl CliSession {
         output::show_thinking();
         let (plan_response, _usage) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
-            reasoner.complete(
+            goose::tracing::complete_provider(
+                reasoner.as_ref(),
                 &model_config,
                 &plan_prompt,
                 provider_messages.messages(),

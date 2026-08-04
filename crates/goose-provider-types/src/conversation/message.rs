@@ -675,6 +675,8 @@ pub struct MessageMetadata {
     pub steer: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<MessageUsage>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
 }
 
 impl Default for MessageMetadata {
@@ -686,6 +688,7 @@ impl Default for MessageMetadata {
             output_token_limit_reached: false,
             steer: false,
             usage: None,
+            observation_id: None,
         }
     }
 }
@@ -757,6 +760,11 @@ impl MessageMetadata {
 
     pub fn with_steer(mut self) -> Self {
         self.steer = true;
+        self
+    }
+
+    pub fn with_observation_id(mut self, observation_id: String) -> Self {
+        self.observation_id = Some(observation_id);
         self
     }
 }
@@ -1723,6 +1731,9 @@ mod tests {
             .with_agent_visible();
         assert!(metadata.user_visible);
         assert!(metadata.agent_visible);
+
+        let metadata = MessageMetadata::default().with_observation_id("observation-1".to_string());
+        assert_eq!(metadata.observation_id.as_deref(), Some("observation-1"));
     }
 
     #[test]

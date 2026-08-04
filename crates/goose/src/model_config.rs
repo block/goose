@@ -130,7 +130,7 @@ pub async fn complete_fast(
 
     match crate::session_context::with_session_id(
         Some(session_id.to_string()),
-        provider.complete(&fast_model_config, system, messages, tools),
+        crate::tracing::complete_provider(provider, &fast_model_config, system, messages, tools),
     )
     .await
     {
@@ -147,7 +147,13 @@ pub async fn complete_fast(
                 .with_thinking_effort(ThinkingEffort::Off);
             crate::session_context::with_session_id(
                 Some(session_id.to_string()),
-                provider.complete(&fallback_config, system, messages, tools),
+                crate::tracing::complete_provider(
+                    provider,
+                    &fallback_config,
+                    system,
+                    messages,
+                    tools,
+                ),
             )
             .await
         }

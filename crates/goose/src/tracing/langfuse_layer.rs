@@ -1,4 +1,4 @@
-use crate::tracing::observation_layer::{BatchManager, ObservationLayer, SpanTracker};
+use crate::tracing::observation_layer::{BatchManager, ObservationLayer};
 use chrono::Utc;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -179,10 +179,7 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
         LangfuseBatchManager::spawn_sender(batch_manager.clone());
     }
 
-    Some(ObservationLayer {
-        batch_manager,
-        span_tracker: Arc::new(Mutex::new(SpanTracker::new())),
-    })
+    Some(ObservationLayer::new(batch_manager))
 }
 
 #[cfg(test)]

@@ -326,7 +326,13 @@ impl AdversaryInspector {
             .map_err(|e| anyhow::anyhow!("Could not resolve model config: {}", e))?;
         let (response, _usage) = crate::session_context::with_session_id(
             Some(session_id.to_string()),
-            provider.complete(&model_config, system_prompt, conversation.messages(), &[]),
+            crate::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                system_prompt,
+                conversation.messages(),
+                &[],
+            ),
         )
         .await
         .map_err(|e| anyhow::anyhow!("Adversary LLM call failed: {}", e))?;

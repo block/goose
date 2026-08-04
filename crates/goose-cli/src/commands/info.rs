@@ -90,7 +90,13 @@ async fn check_provider(
     let start = std::time::Instant::now();
     goose::session_context::with_session_id(
         Some("check".to_string()),
-        provider_client.complete(&model_config, "", &[test_msg], &[]),
+        goose::tracing::complete_provider(
+            provider_client.as_ref(),
+            &model_config,
+            "",
+            &[test_msg],
+            &[],
+        ),
     )
     .await
     .map_err(ProviderCheckError::ProviderRequest)?;

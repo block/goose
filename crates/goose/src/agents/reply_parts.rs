@@ -7,6 +7,7 @@ use async_stream::try_stream;
 use futures::stream::StreamExt;
 use serde_json::{json, Value};
 use tracing::debug;
+use tracing_futures::Instrument;
 
 use super::super::agents::Agent;
 use super::gen_ai_telemetry;
@@ -22,6 +23,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
+use crate::tracing::ProviderGeneration;
 use goose_providers::conversation::token_usage::{CostSource, ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
@@ -348,10 +350,17 @@ impl Agent {
         let toolshim_tools = toolshim_tools.to_owned();
         let provider = provider.clone();
 
-        // Capture errors during stream creation and return them as part of the stream
-        // so they can be handled by the existing error handling logic in the agent
         let model_config =
             model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
+        let mut generation = ProviderGeneration::new(
+            provider.get_name(),
+            &model_config,
+            session_id,
+            &system_prompt,
+            messages_for_provider.messages(),
+            &tools,
+        );
+
         let request_started = std::time::Instant::now();
         debug!("WAITING_LLM_STREAM_START");
         let stream_result = crate::session_context::with_session_id(
@@ -363,23 +372,24 @@ impl Agent {
                 &tools,
             ),
         )
+        .instrument(generation.span())
         .await;
         debug!("WAITING_LLM_STREAM_END");
 
-        // If there was an error creating the stream, return a stream that yields that error
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
+                generation.record_error(&e);
+                generation.finish();
                 let enhanced_error = enhance_model_error(e, &provider, config.toolshim).await;
-                // Return a stream that immediately yields the error
-                // This allows the error to be caught by existing error handling in agent.rs
-                return Ok(Box::pin(try_stream! {
+                let error_stream = try_stream! {
                     yield Err(enhanced_error)?;
-                }));
+                };
+                return Ok(Box::pin(error_stream));
             }
         };
 
-        Ok(Box::pin(try_stream! {
+        let traced_stream = try_stream! {
             if config.toolshim {
                 // Toolshim mode: accumulate the full response before processing
                 // so that tool-use markers spanning multiple chunks are detected
@@ -388,12 +398,21 @@ impl Agent {
                 let mut final_usage: Option<ProviderUsage> = None;
                 let mut first_content_at: Option<std::time::Instant> = None;
 
-                while let Some(result) = stream.next().await {
-                    let (msg_opt, usage_opt) = result?;
+                while let Some(result) = stream.next().instrument(generation.span()).await {
+                    let (msg_opt, usage_opt) = match result {
+                        Ok(item) => item,
+                        Err(error) => {
+                            generation.record_error(&error);
+                            generation.finish();
+                            Err(error)?
+                        }
+                    };
 
                     if let Some(msg) = msg_opt {
+                        generation.record_output(&msg);
                         if first_content_at.is_none() && message_has_timing_content(&msg) {
                             first_content_at = Some(std::time::Instant::now());
+                            generation.record_completion_start();
                         }
                         accumulated_message = Some(match accumulated_message {
                             Some(mut prev) => {
@@ -417,6 +436,7 @@ impl Agent {
                     }
 
                     if let Some(usage) = usage_opt {
+                        generation.record_usage(&usage);
                         final_usage = Some(usage);
                     }
 
@@ -430,10 +450,13 @@ impl Agent {
                     gen_ai_telemetry::record_provider_usage(&span, usage);
                 }
 
+                generation.finish();
+
                 if let Some(msg) = accumulated_message {
-                    let processed = toolshim_postprocess(msg, &toolshim_tools)
+                    let mut processed = toolshim_postprocess(msg, &toolshim_tools)
                         .await?
                         .with_generated_id_if_missing();
+                    generation.attach_observation_id(&mut processed);
                     if capture_message_content {
                         let output_messages = gen_ai_telemetry::output_message_json(&processed);
                         span.record("gen_ai.output.messages", output_messages.as_str());
@@ -447,17 +470,26 @@ impl Agent {
                 let mut first_content_at: Option<std::time::Instant> = None;
                 let mut active_mergeable_assistant_id: Option<String> = None;
                 let mut output_message: Option<Message> = None;
-                while let Some(result) = stream.next().await {
-                    let (message, mut usage) = result?;
+                while let Some(result) = stream.next().instrument(generation.span()).await {
+                    let (message, mut usage) = match result {
+                        Ok(item) => item,
+                        Err(error) => {
+                            generation.record_error(&error);
+                            generation.finish();
+                            Err(error)?
+                        }
+                    };
 
                     if first_content_at.is_none()
                         && message.as_ref().is_some_and(message_has_timing_content)
                     {
                         first_content_at = Some(std::time::Instant::now());
+                        generation.record_completion_start();
                     }
                     if let Some(usage) = usage.as_mut() {
                         fill_stream_timing(usage, request_started, first_content_at);
                         gen_ai_telemetry::record_provider_usage(&span, usage);
+                        generation.record_usage(usage);
                     }
                     if capture_message_content {
                         if let Some(message) = message.as_ref() {
@@ -465,8 +497,8 @@ impl Agent {
                         }
                     }
 
-                    let message = message.map(|message| {
-                        if message.id.is_some() {
+                    let message = message.map(|mut message| {
+                        message = if message.id.is_some() {
                             active_mergeable_assistant_id = None;
                             message
                         } else if is_mergeable_assistant_chunk(&message) {
@@ -477,7 +509,10 @@ impl Agent {
                         } else {
                             active_mergeable_assistant_id = None;
                             message.with_generated_id()
-                        }
+                        };
+                        generation.attach_observation_id(&mut message);
+                        generation.record_output(&message);
+                        message
                     });
 
                     yield (message, usage);
@@ -486,8 +521,11 @@ impl Agent {
                     let output_messages = gen_ai_telemetry::output_message_json(&output_message);
                     span.record("gen_ai.output.messages", output_messages.as_str());
                 }
+                generation.finish();
             }
-        }))
+        };
+
+        Ok(Box::pin(traced_stream))
     }
 
     /// Categorize tool requests from the response into different types
@@ -754,6 +792,7 @@ mod tests {
     use crate::conversation::message::{Message, SystemNotificationType};
     use crate::providers::base::Provider;
     use crate::session::{SessionManager, SessionType};
+    use crate::tracing::test_support::{capturing_layer, wait_for_closed_generation};
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
@@ -761,6 +800,7 @@ mod tests {
     use rmcp::object;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
+    use tracing_subscriber::prelude::*;
 
     #[derive(Clone)]
     struct MockProvider;
@@ -808,6 +848,63 @@ mod tests {
                 Ok((Some(Message::assistant().with_text("hello ")), None)),
                 Ok((Some(Message::assistant().with_text("world")), Some(usage))),
             ])))
+        }
+    }
+
+    #[derive(Clone)]
+    struct PartialErrorProvider;
+
+    #[async_trait]
+    impl Provider for PartialErrorProvider {
+        fn get_name(&self) -> &str {
+            "partial-error"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("partial ")), None)),
+                Ok((Some(Message::assistant().with_text("response")), None)),
+                Err(ProviderError::RequestFailed("stream failed".to_string())),
+            ])))
+        }
+    }
+
+    #[derive(Clone)]
+    struct ModelErrorProvider {
+        model_fetch_started_at: Arc<Mutex<Option<chrono::DateTime<chrono::Utc>>>>,
+    }
+
+    #[async_trait]
+    impl Provider for ModelErrorProvider {
+        fn get_name(&self) -> &str {
+            "model-error"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            Err(ProviderError::RequestFailed(
+                "404 model not found".to_string(),
+            ))
+        }
+
+        async fn fetch_recommended_models(
+            &self,
+            _toolshim: bool,
+        ) -> Result<Vec<String>, ProviderError> {
+            *self.model_fetch_started_at.lock().unwrap() = Some(chrono::Utc::now());
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            Ok(vec!["recommended-model".to_string()])
         }
     }
 
@@ -1280,6 +1377,19 @@ mod tests {
                     .expect("streamed provider message should have an ID")
             })
             .collect::<Vec<_>>();
+        let observation_ids = messages
+            .iter()
+            .map(|message| {
+                message
+                    .metadata
+                    .observation_id
+                    .as_deref()
+                    .expect("streamed provider message should have an observation ID")
+            })
+            .collect::<Vec<_>>();
+        assert!(observation_ids
+            .iter()
+            .all(|observation_id| *observation_id == observation_ids[0]));
 
         assert_eq!(messages[0].as_concat_text(), "Hel");
         assert_eq!(messages[1].as_concat_text(), "lo");
@@ -1382,6 +1492,154 @@ mod tests {
             .as_deref()
             .expect("toolshim provider message should have an ID");
         assert!(id.starts_with("msg_"));
+        assert!(messages[0].metadata.observation_id.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn toolshim_generation_closes_before_processed_message_is_yielded() -> anyhow::Result<()>
+    {
+        let (layer, events) = capturing_layer();
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+
+        let provider = Arc::new(ToolshimMessageIdProvider {
+            messages: vec![Message::assistant().with_text("hello")],
+        });
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            ModelConfig::new("test-model").with_toolshim(true),
+            "test-session",
+            "system",
+            &[Message::user().with_text("hi")],
+            &[],
+            &[],
+        )
+        .await?;
+
+        while let Some(item) = stream.next().await {
+            if item?.0.is_some() {
+                break;
+            }
+        }
+
+        wait_for_closed_generation(&events).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn generation_records_partial_output_before_stream_error() -> anyhow::Result<()> {
+        for toolshim in [false, true] {
+            let (layer, events) = capturing_layer();
+            {
+                let subscriber = tracing_subscriber::registry().with(layer);
+                let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+                let mut stream = Agent::stream_response_from_provider(
+                    Arc::new(PartialErrorProvider),
+                    ModelConfig::new("test-model").with_toolshim(toolshim),
+                    "test-session",
+                    "system",
+                    &[Message::user().with_text("hi")],
+                    &[],
+                    &[],
+                )
+                .await?;
+
+                while let Some(item) = stream.next().await {
+                    if item.is_err() {
+                        break;
+                    }
+                }
+            }
+
+            let captured = wait_for_closed_generation(&events).await;
+            assert!(captured.iter().any(|(event_type, body)| {
+                event_type == "generation-update"
+                    && body["output"][0]["content"][0]["text"] == "partial response"
+            }));
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn generation_records_partial_output_when_stream_is_dropped() -> anyhow::Result<()> {
+        for toolshim in [false, true] {
+            let (layer, events) = capturing_layer();
+            {
+                let subscriber = tracing_subscriber::registry().with(layer);
+                let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+                let mut stream = Agent::stream_response_from_provider(
+                    Arc::new(PartialErrorProvider),
+                    ModelConfig::new("test-model").with_toolshim(toolshim),
+                    "test-session",
+                    "system",
+                    &[Message::user().with_text("hi")],
+                    &[],
+                    &[],
+                )
+                .await?;
+
+                stream
+                    .next()
+                    .await
+                    .expect("provider should yield a partial chunk")?;
+                drop(stream);
+            }
+
+            let captured = wait_for_closed_generation(&events).await;
+            assert!(captured.iter().any(|(event_type, body)| {
+                event_type == "generation-update"
+                    && body["output"][0]["content"][0]["text"] == "partial "
+            }));
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn failed_generation_closes_before_model_list_enhancement() -> anyhow::Result<()> {
+        let (layer, events) = capturing_layer();
+        let provider = Arc::new(ModelErrorProvider {
+            model_fetch_started_at: Arc::new(Mutex::new(None)),
+        });
+        {
+            let subscriber = tracing_subscriber::registry().with(layer);
+            let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+            let mut stream = Agent::stream_response_from_provider(
+                provider.clone(),
+                ModelConfig::new("test-model"),
+                "test-session",
+                "system",
+                &[Message::user().with_text("hi")],
+                &[],
+                &[],
+            )
+            .await?;
+
+            let error = stream
+                .next()
+                .await
+                .expect("failed stream creation should yield an error")
+                .expect_err("stream creation failure should surface");
+            assert!(error.to_string().contains("recommended-model"));
+        }
+
+        let end_time = wait_for_closed_generation(&events)
+            .await
+            .iter()
+            .find_map(|(_, body)| body.get("endTime")?.as_str().map(str::to_string))
+            .expect("closed generation should carry an end time");
+
+        let end_time = chrono::DateTime::parse_from_rfc3339(&end_time)?.with_timezone(&chrono::Utc);
+        let model_fetch_started_at = provider
+            .model_fetch_started_at
+            .lock()
+            .unwrap()
+            .expect("error enhancement should fetch the recommended model list");
+        assert!(end_time <= model_fetch_started_at);
 
         Ok(())
     }
@@ -1416,6 +1674,7 @@ mod tests {
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].as_concat_text(), "hello");
         assert_eq!(messages[0].id.as_deref(), Some("provider-toolshim-id"));
+        assert!(messages[0].metadata.observation_id.is_some());
 
         Ok(())
     }

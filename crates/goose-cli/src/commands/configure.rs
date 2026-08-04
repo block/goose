@@ -1968,14 +1968,14 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", Vec::new()).await {
         Ok(provider) => {
-            let test_result = provider
-                .complete(
-                    &model_config,
-                    "You are goose, an AI assistant.",
-                    &[Message::user().with_text("Say 'Configuration test successful!'")],
-                    &[],
-                )
-                .await;
+            let test_result = goose::tracing::complete_provider(
+                provider.as_ref(),
+                &model_config,
+                "You are goose, an AI assistant.",
+                &[Message::user().with_text("Say 'Configuration test successful!'")],
+                &[],
+            )
+            .await;
 
             match test_result {
                 Ok(_) => {
