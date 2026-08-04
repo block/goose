@@ -11,14 +11,14 @@ const RESOLVE_TIMEOUT_MS = 5000;
  * launchd, so goosed can't find CLI-backed providers (claude, etc.). Sourcing
  * the user's profile via a login+interactive shell recovers the real PATH.
  * Doing this here rather than in goosed keeps the plain `goose` CLI on the
- * ambient PATH. Returns null on Windows, timeout, or any failure.
+ * ambient PATH. Returns null on non-macOS platforms, timeout, or any failure.
  */
 const resolveLoginShellPath = (logger?: Logger): Promise<string | null> => {
-  if (process.platform === 'win32') {
+  if (process.platform !== 'darwin') {
     return Promise.resolve(null);
   }
 
-  const shell = process.env.GOOSE_SHELL || process.env.SHELL || 'bash';
+  const shell = process.env.SHELL || 'bash';
 
   return new Promise((resolve) => {
     // detached: a new session keeps the interactive shell's job-control setup
