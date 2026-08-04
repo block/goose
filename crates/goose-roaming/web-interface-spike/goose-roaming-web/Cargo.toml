@@ -12,6 +12,11 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# getrandom is a feature-activation dependency (wasm_js backend for the browser);
+# js-sys is used indirectly via wasm-bindgen glue. Both are false positives.
+[package.metadata.cargo-machete]
+ignored = ["getrandom", "js-sys"]
+
 [dependencies]
 # Browser posture: no default features (drops native UDP/portmapper/metrics),
 # tls-ring (aws-lc-rs does not build for wasm here). Proven to compile in the

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
+use goose::acp::server::AcpBuiltinSelection;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
@@ -460,11 +461,11 @@ async fn handle_share(builtins: Vec<String>, cwd: Option<std::path::PathBuf>) ->
         );
     }
 
-    // Default to the developer extension when none are specified.
-    let builtins = if builtins.is_empty() {
-        vec!["developer".to_string()]
-    } else {
-        builtins
+    // The developer extension is on by default; explicitly requested builtins
+    // are always loaded on top.
+    let builtins = AcpBuiltinSelection {
+        defaults: vec!["developer".to_string()],
+        explicit: builtins,
     };
 
     let node = RoamingNode::bind(RoamingConfig {
