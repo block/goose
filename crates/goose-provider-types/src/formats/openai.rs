@@ -1089,15 +1089,11 @@ fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderE
         return Err(ProviderError::ServerError(message.to_string()));
     }
 
-    if let Some(obj) = value.as_object() {
-        if !obj.contains_key("choices") {
-            // Log the keys only — a trace frame can carry request metadata.
-            tracing::debug!(
-                keys = ?obj.keys().collect::<Vec<_>>(),
-                "skipping metadata-only streaming frame (no `choices`)"
-            );
-            return Ok(None);
-        }
+    if value
+        .as_object()
+        .is_some_and(|o| !o.contains_key("choices"))
+    {
+        return Ok(None);
     }
 
     serde_json::from_value(value).map(Some).map_err(|e| {
