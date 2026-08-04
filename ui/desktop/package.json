@@ -151,7 +151,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^28.1.0",
     "knip": "^5.85.0",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.23",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
