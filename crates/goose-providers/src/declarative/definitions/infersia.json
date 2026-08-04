@@ -1,0 +1,18 @@
+{
+  "name": "infersia",
+  "engine": "openai",
+  "display_name": "Infersia",
+  "description": "Open-weight models (DeepSeek, Qwen, StepFun) served at their full context windows through an OpenAI-compatible API, with the serving quantisation published per endpoint. DeepSeek V4 Flash runs at its complete 1,048,576-token context. Catalog available at https://api.infersia.com/v1/models.",
+  "api_key_env": "INFERSIA_API_KEY",
+  "base_url": "https://api.infersia.com/v1",
+  "model_doc_link": "https://infersia.com/models",
+  "supports_streaming": true,
+  "dynamic_models": true,
+  "models": [
+    {"name": "deepseek/deepseek-v4-flash-0731", "context_limit": 1048576},
+    {"name": "stepfun-ai/step-3.7-flash", "context_limit": 262144},
+    {"name": "qwen/qwen3.6-35b-a3b", "context_limit": 262144},
+    {"name": "qwen/qwen3-14b", "context_limit": 131072},
+    {"name": "qwen/qwen3-8b", "context_limit": 40960}
+  ]
+}
