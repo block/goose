@@ -10,6 +10,7 @@ import {
   loadTerminalState,
   newTerminalTabId,
   saveTerminalState,
+  type PersistedTerminalState,
   type PersistedTerminalTab,
 } from './terminalPersistence';
 
@@ -53,34 +54,37 @@ export function TerminalPanel({
   const [activeTabId, setActiveTabId] = useState<string | null>(initial.activeTabId);
   const [focusToken, setFocusToken] = useState(0);
   const draggingRef = useRef(false);
-  const openRef = useRef(open);
-  openRef.current = open;
+
+  // Refs so persist/toggle never write stale empty tabs over a live session.
+  const stateRef = useRef<PersistedTerminalState>({
+    open: initial.open,
+    width: initial.width || TERMINAL_DEFAULT_WIDTH,
+    tabs: initial.tabs,
+    activeTabId: initial.activeTabId,
+  });
+
+  useEffect(() => {
+    stateRef.current = { open, width, tabs, activeTabId };
+  }, [open, width, tabs, activeTabId]);
 
   const persist = useCallback(
-    (next: {
-      open?: boolean;
-      width?: number;
-      tabs?: PersistedTerminalTab[];
-      activeTabId?: string | null;
-    }) => {
-      const state = {
-        open: next.open ?? openRef.current,
-        width: next.width ?? width,
-        tabs: next.tabs ?? tabs,
-        activeTabId: next.activeTabId !== undefined ? next.activeTabId : activeTabId,
-      };
-      saveTerminalState(sessionId, state);
+    (patch: Partial<PersistedTerminalState>) => {
+      const next = { ...stateRef.current, ...patch };
+      stateRef.current = next;
+      saveTerminalState(sessionId, next);
     },
-    [sessionId, width, tabs, activeTabId]
+    [sessionId]
   );
 
   const ensureTab = useCallback((): string => {
-    if (activeTabId && tabs.some((t) => t.id === activeTabId)) {
-      return activeTabId;
+    const current = stateRef.current;
+    if (current.activeTabId && current.tabs.some((t) => t.id === current.activeTabId)) {
+      return current.activeTabId;
     }
-    if (tabs[0]) {
-      setActiveTabId(tabs[0].id);
-      return tabs[0].id;
+    if (current.tabs[0]) {
+      setActiveTabId(current.tabs[0].id);
+      persist({ activeTabId: current.tabs[0].id });
+      return current.tabs[0].id;
     }
     const id = newTerminalTabId();
     const nextTabs = [{ id, title: '1' }];
@@ -88,7 +92,7 @@ export function TerminalPanel({
     setActiveTabId(id);
     persist({ tabs: nextTabs, activeTabId: id });
     return id;
-  }, [activeTabId, tabs, persist]);
+  }, [persist]);
 
   const openPanel = useCallback(() => {
     ensureTab();
@@ -107,7 +111,7 @@ export function TerminalPanel({
     if (!isActiveSession) return;
 
     const onToggle = () => {
-      if (openRef.current) {
+      if (stateRef.current.open) {
         closePanel();
       } else {
         openPanel();
@@ -131,16 +135,15 @@ export function TerminalPanel({
     return () => window.removeEventListener(AppEvents.SESSION_DELETED, onDeleted);
   }, [sessionId]);
 
-  // Restore open panel after reload: ensure a tab exists so PTY can spawn.
   useEffect(() => {
-    if (open && tabs.length === 0) {
+    if (open && stateRef.current.tabs.length === 0) {
       ensureTab();
     }
-  }, [open, tabs.length, ensureTab]);
+  }, [open, ensureTab]);
 
   const addTab = () => {
     const id = newTerminalTabId();
-    const nextTabs = [...tabs, { id, title: String(tabs.length + 1) }];
+    const nextTabs = [...stateRef.current.tabs, { id, title: String(stateRef.current.tabs.length + 1) }];
     setTabs(nextTabs);
     setActiveTabId(id);
     setOpen(true);
@@ -150,10 +153,10 @@ export function TerminalPanel({
 
   const closeTab = (tabId: string) => {
     void window.electron.terminalKill({ sessionId, tabId });
-    const nextTabs = tabs.filter((t) => t.id !== tabId).map((t, i) => ({
-      ...t,
-      title: String(i + 1),
-    }));
+    const prevTabs = stateRef.current.tabs;
+    const nextTabs = prevTabs
+      .filter((t) => t.id !== tabId)
+      .map((t, i) => ({ ...t, title: String(i + 1) }));
     if (nextTabs.length === 0) {
       setTabs([]);
       setActiveTabId(null);
@@ -162,11 +165,11 @@ export function TerminalPanel({
       onRequestChatFocus();
       return;
     }
+    const closedIndex = prevTabs.findIndex((t) => t.id === tabId);
     const nextActive =
-      activeTabId === tabId
-        ? nextTabs[Math.max(0, tabs.findIndex((t) => t.id === tabId) - 1)]?.id ??
-          nextTabs[0].id
-        : activeTabId;
+      stateRef.current.activeTabId === tabId
+        ? (nextTabs[Math.max(0, closedIndex - 1)]?.id ?? nextTabs[0].id)
+        : stateRef.current.activeTabId;
     setTabs(nextTabs);
     setActiveTabId(nextActive);
     persist({ tabs: nextTabs, activeTabId: nextActive });
@@ -200,8 +203,8 @@ export function TerminalPanel({
     window.addEventListener('mouseup', onUp);
   };
 
-  // Keep the panel mounted while tabs exist so xterm + background PTYs survive
-  // Cmd+J close and chat switches (CSS hide only).
+  // Once a session has ever opened a terminal, keep xterm mounted. Using
+  // display:none (`hidden`) destroys the buffer — collapse with width:0 instead.
   if (!open && tabs.length === 0) {
     return null;
   }
@@ -209,10 +212,13 @@ export function TerminalPanel({
   return (
     <aside
       className={cn(
-        'relative flex h-full min-h-0 shrink-0 flex-col border-l border-border-primary bg-background-primary',
-        !open && 'hidden'
+        'relative flex h-full min-h-0 shrink-0 flex-col bg-background-primary',
+        open ? 'border-l border-border-primary' : 'pointer-events-none overflow-hidden border-0'
       )}
-      style={{ width }}
+      style={{
+        width: open ? width : 0,
+        visibility: open ? 'visible' : 'hidden',
+      }}
       aria-label={intl.formatMessage(i18n.terminal)}
       aria-hidden={!open}
     >
@@ -221,6 +227,7 @@ export function TerminalPanel({
         aria-label={intl.formatMessage(i18n.resize)}
         className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
         onMouseDown={onResizeStart}
+        tabIndex={open ? 0 : -1}
       />
 
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border-primary px-2">
@@ -275,6 +282,7 @@ export function TerminalPanel({
             tabId={tab.id}
             cwd={cwd}
             isActive={tab.id === activeTabId}
+            isPanelOpen={open}
             focusToken={focusToken}
           />
         ))}

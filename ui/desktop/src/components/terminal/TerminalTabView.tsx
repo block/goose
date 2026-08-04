@@ -8,6 +8,7 @@ type TerminalTabViewProps = {
   tabId: string;
   cwd: string;
   isActive: boolean;
+  isPanelOpen: boolean;
   focusToken: number;
 };
 
@@ -25,11 +26,14 @@ export function TerminalTabView({
   tabId,
   cwd,
   isActive,
+  isPanelOpen,
   focusToken,
 }: TerminalTabViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const visibleRef = useRef(false);
+  visibleRef.current = isActive && isPanelOpen;
 
   useEffect(() => {
     if (!containerRef.current || termRef.current) return;
@@ -53,6 +57,7 @@ export function TerminalTabView({
             selectionBackground: '#00000022',
           },
       allowProposedApi: true,
+      scrollback: 5000,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -92,19 +97,30 @@ export function TerminalTabView({
     window.electron.on('terminal-data', onData);
     window.electron.on('terminal-exit', onExit);
 
-    const ro = new ResizeObserver(() => {
-      if (!fitRef.current || !termRef.current) return;
+    const fitAndResize = () => {
+      if (!visibleRef.current || !fitRef.current || !termRef.current || !containerRef.current) {
+        return;
+      }
+      const { clientWidth, clientHeight } = containerRef.current;
+      if (clientWidth < 16 || clientHeight < 16) return;
       try {
         fitRef.current.fit();
+        const nextCols = termRef.current.cols;
+        const nextRows = termRef.current.rows;
+        if (nextCols < 2 || nextRows < 1) return;
         void window.electron.terminalResize({
           sessionId,
           tabId,
-          cols: termRef.current.cols,
-          rows: termRef.current.rows,
+          cols: nextCols,
+          rows: nextRows,
         });
       } catch {
-        // ignore fit races while hidden
+        // ignore fit races while collapsing
       }
+    };
+
+    const ro = new ResizeObserver(() => {
+      fitAndResize();
     });
     ro.observe(containerRef.current);
 
@@ -113,8 +129,7 @@ export function TerminalTabView({
       disposable.dispose();
       window.electron.off('terminal-data', onData);
       window.electron.off('terminal-exit', onExit);
-      // Do not kill the PTY here — panel hide / tab remount must keep the
-      // process alive. Explicit kill happens on tab close or session delete.
+      // Do not kill the PTY here — panel collapse must keep process + scrollback.
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
@@ -124,30 +139,44 @@ export function TerminalTabView({
   }, [sessionId, tabId]);
 
   useEffect(() => {
-    if (!isActive || !fitRef.current || !termRef.current) return;
-    try {
-      fitRef.current.fit();
-      void window.electron.terminalResize({
-        sessionId,
-        tabId,
-        cols: termRef.current.cols,
-        rows: termRef.current.rows,
-      });
-    } catch {
-      // ignore
-    }
-  }, [isActive, sessionId, tabId]);
+    if (!isActive || !isPanelOpen || !fitRef.current || !termRef.current) return;
+    const id = requestAnimationFrame(() => {
+      if (!fitRef.current || !termRef.current || !containerRef.current) return;
+      const { clientWidth, clientHeight } = containerRef.current;
+      if (clientWidth < 16 || clientHeight < 16) return;
+      try {
+        fitRef.current.fit();
+        void window.electron.terminalResize({
+          sessionId,
+          tabId,
+          cols: termRef.current.cols,
+          rows: termRef.current.rows,
+        });
+      } catch {
+        // ignore
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isActive, isPanelOpen, sessionId, tabId]);
 
   useEffect(() => {
-    if (!isActive || focusToken === 0) return;
+    if (!isActive || !isPanelOpen || focusToken === 0) return;
     termRef.current?.focus();
-  }, [isActive, focusToken]);
+  }, [isActive, isPanelOpen, focusToken]);
 
   return (
     <div
       ref={containerRef}
       className="h-full w-full min-h-0 overflow-hidden"
-      style={{ display: isActive ? 'block' : 'none' }}
+      // Keep inactive tabs in the layout tree without display:none so xterm
+      // does not tear down its renderer when switching tabs.
+      style={{
+        position: isActive ? 'relative' : 'absolute',
+        inset: 0,
+        visibility: isActive ? 'visible' : 'hidden',
+        pointerEvents: isActive && isPanelOpen ? 'auto' : 'none',
+        zIndex: isActive ? 1 : 0,
+      }}
     />
   );
 }
