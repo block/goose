@@ -128,10 +128,15 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         }, 100);
       }
 
+      // An upward move larger than sub-pixel jitter means the user is
+      // deliberately reading back, so auto-follow should yield even while the
+      // viewport is still within BOTTOM_SCROLL_THRESHOLD of the bottom.
+      const isScrollingUp = lastScrollTopRef.current - scrollTop > 1;
+
       lastScrollTopRef.current = scrollTop;
 
       // Detect if user manually scrolled up from the bottom
-      if (!currentIsAtBottom && isFollowing) {
+      if ((!currentIsAtBottom || isScrollingUp) && isFollowing) {
         // user scrolled up, disabling auto-scroll
         userScrolledUpRef.current = true;
         setIsFollowing(false);
