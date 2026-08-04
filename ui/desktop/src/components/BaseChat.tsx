@@ -5,12 +5,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import ProgressiveMessageList from './ProgressiveMessageList';
-import VirtualizedMessageList from './VirtualizedMessageList';
-
-// Above this many messages, render the chat with a windowed (virtualized)
-// list: only on-screen messages exist in the DOM. Below it, the proven
-// ProgressiveMessageList path is untouched.
-const VIRTUALIZATION_THRESHOLD = 2000;
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
@@ -460,31 +454,17 @@ export default function BaseChat({
             {messages.length > 0 || recipe ? (
               <>
                 <SearchView>
-                  {messages.length > VIRTUALIZATION_THRESHOLD ? (
-                    <VirtualizedMessageList
-                      messages={messages}
-                      chat={{ sessionId }}
-                      toolCallNotifications={toolCallNotifications}
-                      append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                      isUserMessage={(m: Message) => m.role === 'user'}
-                      isStreamingMessage={chatState !== ChatState.Idle}
-                      onRenderingComplete={handleRenderingComplete}
-                      onMessageUpdate={onMessageUpdate}
-                      submitElicitationResponse={submitElicitationResponse}
-                    />
-                  ) : (
-                    <ProgressiveMessageList
-                      messages={messages}
-                      chat={{ sessionId }}
-                      toolCallNotifications={toolCallNotifications}
-                      append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                      isUserMessage={(m: Message) => m.role === 'user'}
-                      isStreamingMessage={chatState !== ChatState.Idle}
-                      onRenderingComplete={handleRenderingComplete}
-                      onMessageUpdate={onMessageUpdate}
-                      submitElicitationResponse={submitElicitationResponse}
-                    />
-                  )}
+                  <ProgressiveMessageList
+                    messages={messages}
+                    chat={{ sessionId }}
+                    toolCallNotifications={toolCallNotifications}
+                    append={(text: string) => handleSubmit({ msg: text, images: [] })}
+                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isStreamingMessage={chatState !== ChatState.Idle}
+                    onRenderingComplete={handleRenderingComplete}
+                    onMessageUpdate={onMessageUpdate}
+                    submitElicitationResponse={submitElicitationResponse}
+                  />
                 </SearchView>
 
                 <div className="block h-8" />
