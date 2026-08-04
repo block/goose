@@ -1056,6 +1056,87 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
         .map(|s| s.trim())
 }
 
+/// Longest error text pulled out of a stream frame, so a pathological payload cannot be
+/// pasted wholesale into a user-facing message.
+const MAX_STREAM_ERROR_LEN: usize = 500;
+
+/// Best-effort human-readable text for an error payload that may not be a plain string.
+///
+/// FastAPI reports `HTTPException` as `{"detail": "..."}` but `RequestValidationError` as
+/// `{"detail": [{"loc": [...], "msg": "field required", ...}]}`, so a string-only read would
+/// drop the commoner validation shape entirely.
+fn stream_error_text(value: &Value) -> Option<String> {
+    fn one(value: &Value) -> Option<String> {
+        match value {
+            Value::String(s) => Some(s.clone()),
+            Value::Object(_) => value
+                .get("msg")
+                .or_else(|| value.get("message"))
+                .and_then(|m| m.as_str().map(String::from))
+                .or_else(|| Some(value.to_string())),
+            Value::Null => None,
+            other => Some(other.to_string()),
+        }
+    }
+
+    let text = match value {
+        Value::Array(items) => {
+            let parts: Vec<String> = items.iter().filter_map(one).collect();
+            if parts.is_empty() {
+                return None;
+            }
+            parts.join("; ")
+        }
+        other => one(other)?,
+    };
+    if text.is_empty() {
+        return None;
+    }
+    if text.chars().count() > MAX_STREAM_ERROR_LEN {
+        let truncated: String = text.chars().take(MAX_STREAM_ERROR_LEN).collect();
+        return Some(format!("{truncated}…"));
+    }
+    Some(text)
+}
+
+/// Decide whether a choice-less SSE frame reports an in-stream failure.
+///
+/// Returns `Some(err)` when it does, `None` when it is gateway metadata that can be skipped.
+///
+/// Requires an actual error *signal* — a `status`/`statusCode`/`code` of 400 or above, a
+/// `type` of `"error"`, or a `detail` field, which has no benign meaning in this position.
+/// Mere prose is not enough: gateways also emit informational frames, and treating
+/// `{"message": "processing"}` as a failure would kill a healthy stream, which is the very
+/// bug this skip exists to avoid. The converse matters just as much — a gateway that
+/// rate-limits with a bare `{"statusCode": 429, "message": …}` on an HTTP 200 must not be
+/// silently skipped, or a failed turn is reported as an empty successful one.
+fn classify_choiceless_frame(value: &Value) -> Option<ProviderError> {
+    let status = ["status", "statusCode", "code"].iter().find_map(|key| {
+        let raw = value.get(*key)?;
+        raw.as_i64()
+            .or_else(|| raw.as_str().and_then(|s| s.parse::<i64>().ok()))
+    });
+
+    let has_error_signal = status.is_some_and(|s| s >= 400)
+        || value.get("type").and_then(|t| t.as_str()) == Some("error")
+        || value.get("detail").is_some_and(|d| !d.is_null());
+    if !has_error_signal {
+        return None;
+    }
+
+    let details = value
+        .get("message")
+        .and_then(stream_error_text)
+        .or_else(|| value.get("detail").and_then(stream_error_text))
+        .or_else(|| value.get("error").and_then(stream_error_text))
+        // A status with no recoverable text must still be loud rather than vanish.
+        .unwrap_or_else(|| match status {
+            Some(s) => format!("Gateway returned status {s} mid-stream"),
+            None => "Unknown server error".to_string(),
+        });
+    Some(ProviderError::ServerError(details))
+}
+
 /// Parse one SSE `data:` payload.
 ///
 /// Returns `Ok(None)` for a metadata-only frame — a JSON object with no `choices` key at
@@ -1067,9 +1148,8 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 /// A frame with `"choices": []` is NOT metadata — that is the standard usage-only chunk,
 /// so it still deserializes and flows through the empty-choices paths below.
 ///
-/// A choice-less frame carrying a human-readable `message`/`detail` is NOT metadata either:
-/// it is an in-stream failure, and skipping it would report a failed turn as an empty
-/// successful one. Those become `ServerError` alongside the two shapes handled above.
+/// A choice-less frame that reports an in-stream failure is NOT metadata either — see
+/// `classify_choiceless_frame`.
 fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderError> {
     let value: Value = serde_json::from_str(line).map_err(|e| {
         ProviderError::stream_decode_error(format!(
@@ -1097,16 +1177,8 @@ fn parse_streaming_chunk(line: &str) -> Result<Option<StreamingChunk>, ProviderE
         .as_object()
         .is_some_and(|o| !o.contains_key("choices"))
     {
-        // Not every gateway reports an in-stream failure with one of the two shapes above.
-        // Azure APIM, for one, rate-limits with a bare `{"statusCode": 429, "message": …}`
-        // on an HTTP 200. Classify those before skipping: swallowing one would turn a failed
-        // turn into an empty successful response and prompt the user to retry into the wall.
-        if let Some(message) = value
-            .get("message")
-            .or_else(|| value.get("detail"))
-            .and_then(|m| m.as_str())
-        {
-            return Err(ProviderError::ServerError(message.to_string()));
+        if let Some(err) = classify_choiceless_frame(&value) {
+            return Err(err);
         }
         return Ok(None);
     }
@@ -4385,8 +4457,8 @@ data: [DONE]"#;
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_error_frames_still_surface_as_server_error() {
+    #[test]
+    fn test_error_frames_still_surface_as_server_error() {
         // Skipping choice-less frames must not swallow gateway error frames, which are also
         // choice-less. Every one of these is handled ahead of the metadata skip.
         for line in [
@@ -4395,15 +4467,64 @@ data: [DONE]"#;
             // No `error` key and no `object`: the shape Azure APIM rate-limits with, on an
             // HTTP 200. Skipping this would report the failed turn as an empty success.
             r#"{"statusCode":429,"message":"upstream exploded"}"#,
-            // FastAPI-style servers report failures under `detail`.
+            // Some gateways stringify the status.
+            r#"{"status":"503","message":"upstream exploded"}"#,
+            // FastAPI's HTTPException shape.
             r#"{"detail":"upstream exploded"}"#,
+            // FastAPI's RequestValidationError shape: `detail` is a LIST, so a string-only
+            // read would drop it and silently skip the frame.
+            r#"{"detail":[{"loc":["body"],"msg":"upstream exploded","type":"value_error"}]}"#,
+            // A non-string `message` must not be dropped either.
+            r#"{"statusCode":500,"message":{"text":"upstream exploded"}}"#,
+            // `type: "error"` is a third error marker some gateways use.
+            r#"{"type":"error","message":"upstream exploded"}"#,
         ] {
             match parse_streaming_chunk(line) {
-                Err(ProviderError::ServerError(msg)) => {
-                    assert_eq!(msg, "upstream exploded", "message preserved for {line}")
-                }
+                Err(ProviderError::ServerError(msg)) => assert!(
+                    msg.contains("upstream exploded"),
+                    "message preserved for {line}, got {msg:?}"
+                ),
                 other => panic!("expected ServerError for {line}, got {other:?}"),
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_informational_choiceless_frame_is_still_skipped() -> anyhow::Result<()> {
+        // Prose alone is not an error signal. A keepalive/progress frame carrying a message
+        // but no status must NOT abort the turn — doing so would reintroduce exactly the bug
+        // the metadata skip exists to fix.
+        let response_lines = format!(
+            "{}\n{}\ndata: [DONE]",
+            r#"data: {"message":"processing"}"#,
+            content_chunk("hello")
+        );
+        assert_eq!(run_streaming_test(&response_lines).await?.text, "hello");
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_only_error_frame_still_fails_loudly() {
+        // No message text anywhere: the frame must still surface rather than vanish.
+        match parse_streaming_chunk(r#"{"statusCode":503}"#) {
+            Err(ProviderError::ServerError(msg)) => {
+                assert!(msg.contains("503"), "status should reach the caller: {msg}")
+            }
+            other => panic!("expected ServerError, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_choiceless_frame_error_text_is_capped() {
+        let long = "x".repeat(5_000);
+        let line = format!(r#"{{"statusCode":500,"message":"{long}"}}"#);
+        match parse_streaming_chunk(&line) {
+            Err(ProviderError::ServerError(msg)) => assert!(
+                msg.chars().count() <= MAX_STREAM_ERROR_LEN + 1,
+                "error text should be truncated, got {} chars",
+                msg.chars().count()
+            ),
+            other => panic!("expected ServerError, got {other:?}"),
         }
     }
 
