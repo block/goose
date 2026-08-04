@@ -56,7 +56,7 @@ pub const ACP_CURRENT_MODEL: &str = "current";
 const EFFORT_CONFIG_OPTION_ID: &str = "effort";
 
 /// Session request param holding the selected thinking effort.
-const THINKING_EFFORT_PARAM: &str = "thinking_effort";
+pub(super) const THINKING_EFFORT_PARAM: &str = "thinking_effort";
 
 pub struct AcpProviderConfig {
     pub command: PathBuf,
@@ -2148,7 +2148,10 @@ fn refresh_effort_state(
 /// and the agent share pass through; goose's own enum values map onto their
 /// closest agent equivalent. Anything else yields `None` so we never send a
 /// value the agent would reject.
-fn map_effort_value(capability: &ThinkingEffortCapability, value: &str) -> Option<String> {
+pub(super) fn map_effort_value(
+    capability: &ThinkingEffortCapability,
+    value: &str,
+) -> Option<String> {
     let offered = |candidate: &str| {
         capability
             .values

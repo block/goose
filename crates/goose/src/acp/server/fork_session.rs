@@ -53,6 +53,7 @@ impl GooseAcpAgent {
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
         self.apply_session_recipe(&agent, &goose_session).await?;
+        let effort_support = agent_thinking_effort_support(&agent).await;
         self.register_acp_session(goose_session.id.clone(), agent)
             .await;
 
@@ -63,7 +64,8 @@ impl GooseAcpAgent {
         }
 
         let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &goose_session).await?;
+            build_session_setup_config(&self.provider_inventory, &goose_session, &effort_support)
+                .await?;
 
         let mut response = ForkSessionResponse::new(acp_session_id.clone())
             .modes(mode_state)

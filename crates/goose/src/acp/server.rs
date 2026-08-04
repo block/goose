@@ -2,9 +2,10 @@ use crate::acp::custom_notifications::*;
 use crate::acp::custom_requests::*;
 use crate::acp::fs::AcpTools;
 pub(super) use crate::acp::response_builder::{
-    build_config_options, build_mode_state, build_model_state, build_provider_options,
-    build_session_info, build_session_setup_config, send_session_setup_notifications, session_meta,
-    session_provider_selection, session_response_meta, should_refresh_inventory_for_session_init,
+    agent_thinking_effort_support, build_config_options, build_mode_state, build_model_state,
+    build_provider_options, build_session_info, build_session_setup_config,
+    send_session_setup_notifications, session_meta, session_provider_selection,
+    session_response_meta, should_refresh_inventory_for_session_init,
 };
 use crate::acp::tool_call_notifier::ToolCallNotifier;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
@@ -2171,6 +2172,7 @@ impl GooseAcpAgent {
             &current_model_config,
             session_provider_selection(&session),
             provider_options,
+            &provider.thinking_effort_support(),
         );
         let notification = SessionNotification::new(
             session_id.clone(),

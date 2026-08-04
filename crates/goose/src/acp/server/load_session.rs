@@ -312,8 +312,12 @@ impl GooseAcpAgent {
             .update_working_dir(&session.working_dir)
             .await;
 
-        let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &session).await?;
+        let (mode_state, config_options) = build_session_setup_config(
+            &self.provider_inventory,
+            &session,
+            &agent_thinking_effort_support(&agent).await,
+        )
+        .await?;
 
         self.notify_session_setup(cx, &session).await?;
 
