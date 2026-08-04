@@ -419,7 +419,7 @@ impl Provider for KimiCodeProvider {
         let response = self
             .with_retry(|| async {
                 let resp = self.post(&payload).await?;
-                handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
+                handle_status(resp, StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
             })
             .await
             .inspect_err(|e| {

@@ -238,10 +238,6 @@ pub struct ApiRequestBuilder<'a> {
 }
 
 impl ApiClient {
-    pub fn timeout(&self) -> Duration {
-        self.timeout
-    }
-
     pub fn new_with_tls(
         host: String,
         auth: AuthMethod,

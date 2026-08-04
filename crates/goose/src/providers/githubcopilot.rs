@@ -425,7 +425,7 @@ impl GithubCopilotProvider {
                         true,
                     )
                     .await?;
-                handle_status(resp, self.api_client.timeout()).await
+                handle_status(resp, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
             })
             .await
             .inspect_err(|e| {
@@ -473,7 +473,7 @@ impl GithubCopilotProvider {
                             true,
                         )
                         .await?;
-                    handle_status(resp, self.api_client.timeout()).await
+                    handle_status(resp, Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS)).await
                 })
                 .await
                 .inspect_err(|e| {
@@ -506,7 +506,11 @@ impl GithubCopilotProvider {
                     .await
                 })
                 .await?;
-            let response = handle_response_openai_compat(response).await?;
+            let response = handle_response_openai_compat(
+                response,
+                Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            )
+            .await?;
 
             let response = promote_tool_choice(response);
 

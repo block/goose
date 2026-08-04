@@ -207,7 +207,7 @@ impl Provider for TetrateProvider {
             .response_get("v1/models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let json = handle_response_openai_compat(response).await?;
+        let json = handle_response_openai_compat(response, self.api_client.timeout()).await?;
 
         // Tetrate can return errors in 200 OK responses, so check explicitly
         if json.get("error").is_some() {

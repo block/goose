@@ -185,7 +185,7 @@ impl Provider for OpenAiCompatibleProvider {
             .response_get("models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let json = handle_response_openai_compat(response).await?;
+        let json = handle_response_openai_compat(response, self.api_client.timeout()).await?;
 
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj

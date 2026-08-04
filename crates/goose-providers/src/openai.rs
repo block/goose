@@ -577,7 +577,9 @@ impl OpenAiProvider {
             .response_get()
             .await
             .ok()?;
-        let json = handle_response_openai_compat(response).await.ok()?;
+        let json = handle_response_openai_compat(response, self.api_client.timeout())
+            .await
+            .ok()?;
         parse_n_ctx_from_models(&json, model_name)
     }
 }

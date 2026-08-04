@@ -147,7 +147,7 @@ impl LiteLLMProvider {
             .model_headers(model_config)?
             .response_post(payload)
             .await?;
-        handle_response_openai_compat(response).await
+        handle_response_openai_compat(response, self.api_client.timeout()).await
     }
 
     async fn supports_cache_control(&self, model: &ModelConfig) -> bool {
