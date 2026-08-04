@@ -608,6 +608,7 @@ impl McpClient {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect_with_container<T, E, A>(
         transport: T,
         timeout: std::time::Duration,

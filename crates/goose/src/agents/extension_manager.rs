@@ -404,6 +404,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
