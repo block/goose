@@ -257,28 +257,31 @@ pub async fn oauth_flow_with_config(
     oauth_state.start_authorization(request).await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
-    let callback_url = if let Some(callback_url) =
-        complete_automatic_authorization(authorization_url.as_str(), &redirect_uri).await?
-    {
-        callback_url
-    } else {
-        announce_authorization_url(name, authorization_url.as_str());
-        if let Err(e) = webbrowser::open(authorization_url.as_str()) {
-            warn!(
-                "[OAuth:{}] Failed to open browser automatically: {}",
-                name, e
-            );
+    let callback_url = async {
+        if let Some(callback_url) =
+            complete_automatic_authorization(authorization_url.as_str(), &redirect_uri).await?
+        {
+            Ok(callback_url)
+        } else {
+            announce_authorization_url(name, authorization_url.as_str());
+            if let Err(e) = webbrowser::open(authorization_url.as_str()) {
+                warn!(
+                    "[OAuth:{}] Failed to open browser automatically: {}",
+                    name, e
+                );
+            }
+            wait_for_callback(
+                callback_receiver,
+                oauth_callback_timeout(),
+                name,
+                authorization_url.as_str(),
+            )
+            .await
         }
-        wait_for_callback(
-            callback_receiver,
-            oauth_callback_timeout(),
-            name,
-            authorization_url.as_str(),
-        )
-        .await?
-    };
+    }
+    .await;
     server_handle.abort();
-    oauth_state.handle_callback_url(&callback_url).await?;
+    oauth_state.handle_callback_url(&callback_url?).await?;
 
     let (client_id, token_response) = oauth_state.get_credentials().await?;
     let mut auth_manager = oauth_state

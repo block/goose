@@ -577,7 +577,7 @@ impl ClientHandler for GooseClient {
             self.capabilities
                 .protocol_version
                 .clone()
-                .unwrap_or(ProtocolVersion::LATEST),
+                .unwrap_or_default(),
         )
     }
 }
@@ -700,6 +700,54 @@ impl McpClient {
             timeout,
             docker_container,
         })
+    }
+
+    pub async fn connect_with_factory<F, Fut, T, E, A>(
+        mut create_transport: F,
+        timeout: std::time::Duration,
+        provider: SharedProvider,
+        docker_container: Option<String>,
+        client_name: String,
+        capabilities: GooseMcpClientCapabilities,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<Self>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<T>>,
+        T: IntoTransport<RoleClient, E, A>,
+        E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
+    {
+        let transport = create_transport().await?;
+        match Self::connect_with_container(
+            transport,
+            timeout,
+            provider.clone(),
+            docker_container.clone(),
+            client_name.clone(),
+            capabilities.clone(),
+            working_dir.clone(),
+        )
+        .await
+        {
+            Err(ClientInitializeError::JsonRpcError(error))
+                if capabilities.protocol_version.is_none()
+                    && error.code == ErrorCode::INVALID_PARAMS =>
+            {
+                let mut legacy_capabilities = capabilities;
+                legacy_capabilities.protocol_version = Some(ProtocolVersion::LATEST);
+                Ok(Self::connect_with_container(
+                    create_transport().await?,
+                    timeout,
+                    provider,
+                    docker_container,
+                    client_name,
+                    legacy_capabilities,
+                    working_dir,
+                )
+                .await?)
+            }
+            result => Ok(result?),
+        }
     }
 
     pub fn docker_container(&self) -> Option<&str> {
@@ -874,15 +922,6 @@ impl McpClientTrait for McpClient {
         if let Some(args) = arguments {
             params = params.with_arguments(args);
         }
-        let protocol_version = {
-            let client = self.client.lock().await;
-            client.peer_info().map(|info| info.protocol_version.clone())
-        };
-        if protocol_version.as_ref() == Some(&ProtocolVersion::V_2026_07_28) {
-            let client = self.client.lock().await;
-            return client.call_tool(params).await;
-        }
-
         let request = ClientRequest::CallToolRequest(Request::new(params));
 
         let result = self
