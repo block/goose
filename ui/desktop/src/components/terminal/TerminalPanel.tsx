@@ -135,15 +135,20 @@ export function TerminalPanel({
     return () => window.removeEventListener(AppEvents.SESSION_DELETED, onDeleted);
   }, [sessionId]);
 
+  // Only auto-create a tab when opening an empty panel — never after the user
+  // closes the last tab (that must fully collapse the section).
   useEffect(() => {
-    if (open && stateRef.current.tabs.length === 0) {
+    if (open && tabs.length === 0) {
       ensureTab();
     }
-  }, [open, ensureTab]);
+  }, [open, tabs.length, ensureTab]);
 
   const addTab = () => {
     const id = newTerminalTabId();
-    const nextTabs = [...stateRef.current.tabs, { id, title: String(stateRef.current.tabs.length + 1) }];
+    const nextTabs = [
+      ...stateRef.current.tabs,
+      { id, title: String(stateRef.current.tabs.length + 1) },
+    ];
     setTabs(nextTabs);
     setActiveTabId(id);
     setOpen(true);
@@ -157,14 +162,24 @@ export function TerminalPanel({
     const nextTabs = prevTabs
       .filter((t) => t.id !== tabId)
       .map((t, i) => ({ ...t, title: String(i + 1) }));
+
     if (nextTabs.length === 0) {
+      // Last tab: collapse the whole terminal section (not an empty open pane).
+      const collapsed = {
+        open: false,
+        width: stateRef.current.width,
+        tabs: [] as PersistedTerminalTab[],
+        activeTabId: null,
+      };
+      stateRef.current = collapsed;
       setTabs([]);
       setActiveTabId(null);
       setOpen(false);
-      persist({ open: false, tabs: [], activeTabId: null });
+      saveTerminalState(sessionId, collapsed);
       onRequestChatFocus();
       return;
     }
+
     const closedIndex = prevTabs.findIndex((t) => t.id === tabId);
     const nextActive =
       stateRef.current.activeTabId === tabId
@@ -255,9 +270,13 @@ export function TerminalPanel({
               </button>
               <button
                 type="button"
+                data-testid={`terminal-close-tab-${tab.id}`}
                 className="rounded px-1 opacity-60 hover:opacity-100"
                 aria-label={intl.formatMessage(i18n.closeTab)}
-                onClick={() => closeTab(tab.id)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeTab(tab.id);
+                }}
               >
                 ×
               </button>

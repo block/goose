@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 import { IntlTestWrapper } from '../../../i18n/test-utils';
 import { TerminalPanel } from '../TerminalPanel';
@@ -160,5 +161,70 @@ describe('TerminalPanel collapse/reopen preserves the same terminal', () => {
     expect(aside).not.toHaveClass('hidden');
     expect(aside).toHaveStyle({ width: '0px' });
     expect(aside).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('closes a tab with × and collapses the whole section when it is the last tab', async () => {
+    const onRequestChatFocus = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <IntlTestWrapper>
+        <TerminalPanel
+          sessionId={sessionId}
+          cwd="/tmp/goose"
+          isActiveSession
+          onRequestChatFocus={onRequestChatFocus}
+        />
+      </IntlTestWrapper>
+    );
+
+    const tabId = await openViaShortcut();
+    expect(container.querySelector('aside')).not.toBeNull();
+
+    await user.click(screen.getByTestId(`terminal-close-tab-${tabId}`));
+
+    expect(window.electron.terminalKill).toHaveBeenCalledWith({
+      sessionId,
+      tabId,
+    });
+    expect(screen.queryByTestId(`terminal-tab-view-${tabId}`)).not.toBeInTheDocument();
+    expect(container.querySelector('aside')).toBeNull();
+    expect(onRequestChatFocus).toHaveBeenCalled();
+
+    const stored = loadTerminalState(sessionId);
+    expect(stored.open).toBe(false);
+    expect(stored.tabs).toEqual([]);
+    expect(stored.activeTabId).toBeNull();
+
+    // Must not immediately spawn a replacement tab after closing the last one.
+    expect(screen.queryByTestId(/terminal-tab-view-/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the panel open when closing a non-last tab', async () => {
+    const user = userEvent.setup();
+    const { container } = renderPanel();
+
+    const firstTabId = await openViaShortcut();
+    await user.click(screen.getByRole('button', { name: 'New terminal tab' }));
+
+    const views = await waitFor(() => screen.getAllByTestId(/terminal-tab-view-/));
+    expect(views).toHaveLength(2);
+    const secondTabId = views
+      .map((node) => node.getAttribute('data-tab-id')!)
+      .find((id) => id !== firstTabId)!;
+
+    await user.click(screen.getByTestId(`terminal-close-tab-${firstTabId}`));
+
+    expect(window.electron.terminalKill).toHaveBeenCalledWith({
+      sessionId,
+      tabId: firstTabId,
+    });
+    expect(screen.queryByTestId(`terminal-tab-view-${firstTabId}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`terminal-tab-view-${secondTabId}`)).toBeInTheDocument();
+    expect(container.querySelector('aside')).not.toBeNull();
+    expect(container.querySelector('aside')).toHaveAttribute('aria-hidden', 'false');
+
+    const stored = loadTerminalState(sessionId);
+    expect(stored.open).toBe(true);
+    expect(stored.tabs.map((t) => t.id)).toEqual([secondTabId]);
   });
 });
