@@ -458,31 +458,24 @@ pub fn export_session_to_markdown(messages: Vec<Message>, session_name: &str) ->
 
     markdown_output.push_str(&format!("*Total messages: {}*\n\n---\n\n", messages.len()));
 
-    // Track if the last message had tool requests to properly handle tool responses
     let mut skip_next_if_tool_response = false;
 
     for message in &messages {
-        // Check if this is a User message containing only ToolResponses
         let is_only_tool_response = message.role == Role::User
             && message
                 .content
                 .iter()
                 .all(|content| matches!(content, MessageContent::ToolResponse(_)));
 
-        // If the previous message had tool requests and this one is just tool responses,
-        // don't create a new User section - we'll attach the responses to the tool calls
         if skip_next_if_tool_response && is_only_tool_response {
-            // Export the tool responses without a User heading
             markdown_output.push_str(&user_projected_message_to_markdown(message));
             markdown_output.push_str("\n\n---\n\n");
             skip_next_if_tool_response = false;
             continue;
         }
 
-        // Reset the skip flag - we'll update it below if needed
         skip_next_if_tool_response = false;
 
-        // Output the role prefix except for tool response-only messages
         if !is_only_tool_response {
             let role_prefix = match message.role {
                 Role::User => "### User:\n",
@@ -491,11 +484,9 @@ pub fn export_session_to_markdown(messages: Vec<Message>, session_name: &str) ->
             markdown_output.push_str(role_prefix);
         }
 
-        // Add the message content
         markdown_output.push_str(&user_projected_message_to_markdown(message));
         markdown_output.push_str("\n\n---\n\n");
 
-        // Check if this message has any tool requests, to handle the next message differently
         if message
             .content
             .iter()
