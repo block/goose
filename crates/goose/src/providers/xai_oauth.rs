@@ -1,13 +1,13 @@
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
-use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, xai_known_model_info};
+use super::xai::{xai_known_model_info, XAI_API_HOST, XAI_DEFAULT_MODEL};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::providers::private_file::write_private_file;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use axum::{Router, extract::Query, response::Html, routing::get};
+use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
@@ -20,7 +20,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
-use tokio::sync::{Mutex as TokioMutex, oneshot};
+use tokio::sync::{oneshot, Mutex as TokioMutex};
 
 // Public Grok-CLI OAuth client. xAI's auth server rejects loopback OAuth from
 // non-allowlisted clients, so we reuse the Grok-CLI client_id that xAI ships
