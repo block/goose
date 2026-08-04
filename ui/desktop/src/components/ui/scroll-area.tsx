@@ -131,9 +131,17 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       // An upward move larger than sub-pixel jitter means the user is
       // deliberately reading back, so auto-follow should yield even while the
       // viewport is still within BOTTOM_SCROLL_THRESHOLD of the bottom.
-      const isScrollingUp = lastScrollTopRef.current - scrollTop > 1;
+      const movement = lastScrollTopRef.current - scrollTop;
+      const isScrollingUp = movement > 1;
+      const isScrollingDown = movement < -1;
 
-      lastScrollTopRef.current = scrollTop;
+      // Only advance the baseline once movement clears the jitter threshold.
+      // High-resolution trackpads and browser zoom deliver fractional deltas;
+      // committing every one of them would reset the baseline each event so a
+      // slow drag of many sub-pixel steps could never add up to a scroll-up.
+      if (Math.abs(movement) > 1) {
+        lastScrollTopRef.current = scrollTop;
+      }
 
       // Detect if user manually scrolled up from the bottom
       if ((!currentIsAtBottom || isScrollingUp) && isFollowing) {
@@ -141,10 +149,11 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         userScrolledUpRef.current = true;
         setIsFollowing(false);
         onScrollChange?.(false);
-      } else if (currentIsAtBottom && !isScrollingUp && userScrolledUpRef.current) {
-        // user scrolled back down to the bottom: only resume when the scroll is
-        // no longer moving up, so a multi-event upward scroll within the
-        // threshold does not immediately re-enable following.
+      } else if (currentIsAtBottom && isScrollingDown && userScrolledUpRef.current) {
+        // user scrolled back down to the bottom: require a deliberate downward
+        // move rather than merely "not moving up", otherwise the sub-pixel
+        // events in the middle of an upward drag re-enable following while the
+        // viewport is still inside the threshold.
         userScrolledUpRef.current = false;
         setIsFollowing(true);
         onScrollChange?.(true);

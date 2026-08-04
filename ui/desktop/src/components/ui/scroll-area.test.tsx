@@ -75,4 +75,21 @@ describe('ScrollArea auto-follow', () => {
     scrollTo(viewport, 440);
     expect(ref.current?.isFollowing).toBe(false);
   });
+
+  it('yields once fractional upward deltas accumulate past the jitter threshold', () => {
+    const { ref, viewport } = setup();
+
+    scrollTo(viewport, 500);
+    expect(ref.current?.isFollowing).toBe(true);
+
+    // A high-resolution trackpad reports sub-pixel steps. No single event
+    // clears the 1px jitter threshold, so following may only yield once the
+    // steps have added up.
+    for (let i = 1; i <= 40; i++) {
+      scrollTo(viewport, 500 - i * 0.5);
+    }
+
+    // Cumulative movement is 20px, still well inside the 200px band.
+    expect(ref.current?.isFollowing).toBe(false);
+  });
 });
